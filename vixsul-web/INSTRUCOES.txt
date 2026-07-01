@@ -1,0 +1,151 @@
+════════════════════════════════════════════════════════
+  VIXSUL EMPREENDIMENTOS — Deploy Gratuito Online
+  Supabase (banco de dados) + Vercel (hospedagem)
+════════════════════════════════════════════════════════
+
+Tempo estimado: 20–30 minutos
+Custo: R$ 0,00 (ambos têm plano gratuito permanente)
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  PASSO 1 — Criar o banco de dados no Supabase
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. Acesse https://supabase.com e clique em "Start your project"
+2. Crie uma conta (pode usar Google ou GitHub)
+3. Clique em "New project"
+   • Nome: vixsul
+   • Senha do banco: crie uma senha forte (anote!)
+   • Região: South America (São Paulo) → melhor latência
+4. Aguarde o projeto ser criado (~2 min)
+
+5. No menu lateral, clique em "SQL Editor"
+6. Clique em "New query"
+7. Abra o arquivo  schema.sql  desta pasta
+8. Copie todo o conteúdo e cole no editor do Supabase
+9. Clique em "Run" (ícone ▶)
+   → Deve aparecer "Success. No rows returned"
+
+10. IMPORTANTE: Vá em Settings → API e copie:
+    • Project URL       → guarde como SUPABASE_URL
+    • service_role key  → guarde como SUPABASE_SERVICE_KEY
+      (está na seção "Project API keys", role "service_role")
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  PASSO 2 — Criar conta no GitHub e subir o projeto
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. Acesse https://github.com e crie uma conta (se não tiver)
+2. Clique em "+" → "New repository"
+   • Nome: vixsul-web
+   • Visibilidade: Private (recomendado)
+   • Clique em "Create repository"
+
+3. Baixe e instale o GitHub Desktop: https://desktop.github.com
+4. Abra o GitHub Desktop → "Add an Existing Repository from your Hard Drive"
+5. Selecione a pasta  vixsul-web  (que está na Área de Trabalho)
+   Se pedir para "criar repositório", confirme
+6. Clique em "Publish repository" e escolha o repositório "vixsul-web"
+7. Clique em "Push origin"
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  PASSO 3 — Hospedar no Vercel (deploy automático)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. Acesse https://vercel.com e clique em "Start Deploying"
+2. Faça login com sua conta do GitHub
+3. Clique em "Add New..." → "Project"
+4. Selecione o repositório "vixsul-web" → clique em "Import"
+5. Na tela de configuração:
+   • Framework Preset: Other
+   • Root Directory: ./  (não mude)
+   • NÃO clique em Deploy ainda!
+
+6. Abra a seção "Environment Variables" e adicione:
+
+   Nome da variável       │ Valor
+   ───────────────────────┼────────────────────────────────────
+   SUPABASE_URL           │ (a URL copiada no Passo 1)
+   SUPABASE_SERVICE_KEY   │ (a service_role key do Passo 1)
+
+7. Clique em "Deploy"
+8. Aguarde ~1 minuto. Ao final aparecerá um link como:
+   https://vixsul-web-xxxx.vercel.app
+
+   ✅ Esse é o endereço do seu sistema online!
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  PASSO 4 — Primeiro acesso e migração dos dados
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Acesse o link do Vercel e faça login com:
+  CPF:   00000000000  (onze zeros)
+  Senha: admin123
+
+⚠️  Depois de entrar, crie seu usuário real e exclua o admin padrão!
+
+Para adicionar seus outros usuários:
+→ Supabase → Table Editor → usuarios → Insert row
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  MIGRAÇÃO DOS DADOS DO GOOGLE SHEETS (opcional)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Os dados que já estão no Google Sheets precisam ser importados.
+O jeito mais fácil:
+
+1. No Google Sheets, exporte cada aba como CSV:
+   Arquivo → Fazer download → Valores separados por vírgula
+
+2. No Supabase → Table Editor → selecione a tabela (ex: obras)
+   → clique no ícone de seta → "Import data from CSV"
+   ATENÇÃO: o CSV precisa ter uma coluna chamada "row_data" no formato JSON.
+
+   Alternativa mais simples: inserir os dados manualmente pelo sistema
+   (funciona bem se não tiver muitos registros).
+
+   Ou me peça para criar um script de importação automática!
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  ESTRUTURA DOS ARQUIVOS CRIADOS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+vixsul-web/
+├── index.html              → Frontend (= seu Index.html original + 1 linha)
+├── gas-shim.js             → Traduz google.script.run → fetch('/api/...')
+├── schema.sql              → Script SQL para criar as tabelas no Supabase
+├── vercel.json             → Configuração do Vercel
+├── package.json            → Dependência: @supabase/supabase-js
+└── api/
+    ├── _db.js              → Cliente Supabase compartilhado
+    ├── getSistemaData.js   → Lê todos os dados (obras, custos, etc.)
+    ├── upsertRegistro.js   → Salva / atualiza um registro
+    ├── excluirRegistro.js  → Exclui um registro
+    ├── salvarComposicaoCAP.js  → Salva composição CAP completa
+    ├── excluirComposicaoCAP.js → Exclui composição CAP
+    └── login.js            → Autentica CPF + senha
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  LIMITES DO PLANO GRATUITO
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Supabase (gratuito):
+  • 500 MB de banco de dados
+  • 5 GB de transferência/mês
+  • 2 projetos ativos
+  • ⚠️ Projeto pausado após 1 semana sem uso (reativa grátis)
+
+Vercel (gratuito):
+  • 100 GB de banda/mês
+  • 100.000 chamadas de função/dia
+  • Deploy automático a cada push no GitHub
+  • Domínio grátis: seusite.vercel.app
+
+Dúvidas? Me pergunte aqui mesmo!
+════════════════════════════════════════════════════════

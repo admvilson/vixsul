@@ -1,0 +1,257 @@
+/**
+ * ════════════════════════════════════════════════════════
+ *  Vixsul Empreendimentos — Script de Migração
+ *  Google Sheets → Supabase
+ *
+ *  COMO USAR:
+ *  1. No seu projeto do Google Apps Script (o mesmo do sistema),
+ *     crie um novo arquivo e cole TODO este código.
+ *  2. Preencha SUPABASE_URL e SUPABASE_KEY abaixo.
+ *  3. Selecione a função  migrarTudo  no menu e clique ▶ Executar.
+ *  4. Autorize quando solicitado.
+ *  5. Acompanhe o progresso em Visualizar → Registros de execução.
+ *
+ *  ⚠️  Execute UMA única vez. Se rodar duas vezes, vai duplicar dados.
+ *      Se precisar recomeçar: limpe as tabelas no Supabase primeiro
+ *      (Table Editor → selecione a tabela → botão "Truncate table").
+ * ════════════════════════════════════════════════════════
+ */
+
+// ── CONFIGURAÇÃO ─────────────────────────────────────
+const SUPABASE_URL = 'COLE_AQUI_SUA_SUPABASE_URL';
+// Exemplo: 'https://xyzxyzxyz.supabase.co'
+
+const SUPABASE_KEY = 'COLE_AQUI_SUA_SERVICE_ROLE_KEY';
+// Settings → API → service_role (NÃO use a anon key)
+
+// Mapeamento: chave interna → nome da aba na planilha
+const ABAS_CONFIG = {
+  obras:        'Obras',
+  custos:       'Custos',
+  faturamentos: 'Faturamentos',
+  aportes:      'Aportes financeiros',
+  cap:          'CAP'
+};
+// ─────────────────────────────────────────────────────
+
+
+/**
+ * Ponto de entrada principal.
+ * Selecione esta função e clique em Executar.
+ */
+function migrarTudo() {
+  if (SUPABASE_URL.includes('COLE_AQUI')) {
+    throw new Error('⛔ Preencha SUPABASE_URL e SUPABASE_KEY antes de executar!');
+  }
+
+  Logger.log('═══ INÍCIO DA MIGRAÇÃO ═══');
+  const inicio = new Date();
+
+  migrarUsuarios();
+
+  for (const [chave, nomeAba] of Object.entries(ABAS_CONFIG)) {
+    migrarAba(chave, nomeAba);
+  }
+
+  const duracao = ((new Date() - inicio) / 1000).toFixed(1);
+  Logger.log('');
+  Logger.log('═══ MIGRAÇÃO CONCLUÍDA em ' + duracao + 's ═══');
+  Logger.log('Acesse o Supabase → Table Editor para conferir os dados.');
+}
+
+
+/**
+ * Migra a aba "Usuarios" para a tabela `usuarios` (colunas fixas).
+ */
+function migrarUsuarios() {
+  const ss    = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName('Usuarios');
+
+  if (!sheet) {
+    Logger.log('[usuarios] ⚠️  Aba "Usuarios" não encontrada — pulando.');
+    return;
+  }
+
+  const raw = sheet.getDataRange().getValues();
+  if (raw.length <= 1) {
+    Logger.log('[usuarios] Aba vazia — pulando.');
+    return;
+  }
+
+  const headers     = raw[0].map(h => h.toString().trim().toLowerCase());
+  const idxNome     = headers.findIndex(h => h.includes('nome'));
+  const idxCpf      = headers.findIndex(h => h.includes('cpf'));
+  const idxSenha    = headers.findIndex(h => h.includes('senha') || h.includes('password'));
+  const idxPerfil   = headers.findIndex(h => h.includes('perfil') || h.includes('role'));
+  const idxStatus   = headers.findIndex(h => h.includes('status') || h.includes('ativo'));
+
+  if (idxCpf < 0 || idxSenha < 0) {
+    Logger.log('[usuarios] ⛔ Colunas CPF ou Senha não encontradas.');
+    return;
+  }
+
+  const linhas = raw.slice(1).filter(r => r[idxCpf] && r[idxSenha]);
+
+  const payload = linhas.map(r => ({
+    nome:   idxNome   >= 0 ? String(r[idxNome]   || '').trim() : '',
+    cpf:    String(r[idxCpf]   || '').replace(/[.\-\s]/g, '').trim(),
+    senha:  String(r[idxSenha] || '').trim(),
+    perfil: idxPerfil >= 0 ? String(r[idxPerfil] || 'Usuário').trim() : 'Usuário',
+    status: idxStatus >= 0 ? String(r[idxStatus] || 'ativo').trim().toLowerCase() : 'ativo'
+  })).filter(u => u.cpf && u.senha);
+
+  if (payload.length === 0) {
+    Logger.log('[usuarios] Nenhum usuário válido encontrado.');
+    return;
+  }
+
+  // Remove o usuário admin padrão (CPF 00000000000) se existir no Supabase
+  _supabaseDelete('usuarios', 'cpf=eq.00000000000');
+
+  // Insere em lotes de 100
+  _inserirEmLotes('usuarios', payload, false);
+  Logger.log('[usuarios] ✓ ' + payload.length + ' usuários migrados.');
+}
+
+
+/**
+ * Migra uma aba de dados para a tabela correspondente no Supabase.
+ * Os dados ficam em row_data (JSONB).
+ */
+function migrarAba(chave, nomeAba) {
+  const ss    = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(nomeAba);
+
+  if (!sheet) {
+    Logger.log('[' + chave + '] ⚠️  Aba "' + nomeAba + '" não encontrada — pulando.');
+    return;
+  }
+
+  const raw = sheet.getDataRange().getValues();
+  if (raw.length <= 1) {
+    Logger.log('[' + chave + '] Aba vazia — pulando.');
+    return;
+  }
+
+  const tz          = Session.getScriptTimeZone();
+  const headers     = raw[0].map(h => h.toString().trim());
+  const normHeaders = headers.map(h => normalizeKey(h));
+
+  const payload = raw.slice(1).map(linha => {
+    const rowData = {};
+    normHeaders.forEach((h, idx) => {
+      let val = linha[idx];
+
+      if (val instanceof Date) {
+        // CAP: data_lancamento guarda hora:minuto como parte da chave de composição
+        const formato = (chave === 'cap' && h.includes('lancamento'))
+          ? 'dd/MM/yyyy HH:mm'
+          : 'dd/MM/yyyy';
+        val = Utilities.formatDate(val, tz, formato);
+      }
+
+      if (val === null || val === undefined) val = '';
+      rowData[h] = val;
+    });
+    return { row_data: rowData };
+  });
+
+  // Filtra linhas completamente vazias
+  const payloadFiltrado = payload.filter(p =>
+    Object.values(p.row_data).some(v => v !== '' && v !== null && v !== undefined)
+  );
+
+  if (payloadFiltrado.length === 0) {
+    Logger.log('[' + chave + '] Nenhuma linha com dados — pulando.');
+    return;
+  }
+
+  _inserirEmLotes(chave, payloadFiltrado, true);
+  Logger.log('[' + chave + '] ✓ ' + payloadFiltrado.length + ' registros migrados.');
+}
+
+
+/**
+ * Insere registros em lotes de 200 para não exceder o tamanho da requisição.
+ */
+function _inserirEmLotes(tabela, payload, isJsonb) {
+  const LOTE = 200;
+  let total  = 0;
+
+  for (let i = 0; i < payload.length; i += LOTE) {
+    const lote = payload.slice(i, i + LOTE);
+    _supabaseInsert(tabela, lote);
+    total += lote.length;
+    if (payload.length > LOTE) {
+      Logger.log('  → ' + tabela + ': ' + total + '/' + payload.length + ' inseridos…');
+    }
+    // Pequena pausa para não sobrecarregar a API
+    if (i + LOTE < payload.length) Utilities.sleep(300);
+  }
+}
+
+
+/**
+ * Chama a API REST do Supabase para inserir registros.
+ */
+function _supabaseInsert(tabela, payload) {
+  const url = SUPABASE_URL + '/rest/v1/' + tabela;
+  const opts = {
+    method:  'post',
+    contentType: 'application/json',
+    headers: {
+      'apikey':        SUPABASE_KEY,
+      'Authorization': 'Bearer ' + SUPABASE_KEY,
+      'Prefer':        'return=minimal'
+    },
+    payload:     JSON.stringify(payload),
+    muteHttpExceptions: true
+  };
+
+  const resp = UrlFetchApp.fetch(url, opts);
+  const code = resp.getResponseCode();
+
+  if (code < 200 || code >= 300) {
+    throw new Error(
+      'Supabase INSERT em "' + tabela + '" falhou (HTTP ' + code + '): ' +
+      resp.getContentText().substring(0, 300)
+    );
+  }
+}
+
+
+/**
+ * Chama a API REST do Supabase para deletar registros (por filtro).
+ */
+function _supabaseDelete(tabela, filtro) {
+  const url = SUPABASE_URL + '/rest/v1/' + tabela + '?' + filtro;
+  const opts = {
+    method:  'delete',
+    headers: {
+      'apikey':        SUPABASE_KEY,
+      'Authorization': 'Bearer ' + SUPABASE_KEY,
+      'Prefer':        'return=minimal'
+    },
+    muteHttpExceptions: true
+  };
+
+  const resp = UrlFetchApp.fetch(url, opts);
+  const code = resp.getResponseCode();
+
+  if (code < 200 || code >= 300) {
+    Logger.log('⚠️  DELETE em "' + tabela + '" (filtro: ' + filtro + '): HTTP ' + code);
+  }
+}
+
+
+/**
+ * Normaliza um cabeçalho de coluna para chave sem acentos/espaços.
+ * Idêntica à função do Código.gs original.
+ */
+function normalizeKey(str) {
+  return str
+    .toLowerCase().trim()
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/\(/g, '').replace(/\)/g, '')
+    .replace(/\s+/g, '_').replace(/[^\w]/g, '');
+}
