@@ -5,40 +5,37 @@
 -- ═══════════════════════════════════════════════
 
 -- ── Tabelas de dados (JSONB flexível) ──────────
--- A coluna row_data armazena as mesmas chaves que
--- o Google Sheets usava (normalizadas pelo sistema).
-
 CREATE TABLE IF NOT EXISTS obras (
   id         BIGSERIAL PRIMARY KEY,
-  row_data   JSONB     NOT NULL DEFAULT '{}',
+  row_data   JSONB       NOT NULL DEFAULT '{}',
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS custos (
   id         BIGSERIAL PRIMARY KEY,
-  row_data   JSONB     NOT NULL DEFAULT '{}',
+  row_data   JSONB       NOT NULL DEFAULT '{}',
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS faturamentos (
   id         BIGSERIAL PRIMARY KEY,
-  row_data   JSONB     NOT NULL DEFAULT '{}',
+  row_data   JSONB       NOT NULL DEFAULT '{}',
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS aportes (
   id         BIGSERIAL PRIMARY KEY,
-  row_data   JSONB     NOT NULL DEFAULT '{}',
+  row_data   JSONB       NOT NULL DEFAULT '{}',
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS cap (
   id         BIGSERIAL PRIMARY KEY,
-  row_data   JSONB     NOT NULL DEFAULT '{}',
+  row_data   JSONB       NOT NULL DEFAULT '{}',
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- ── Índices para consultas frequentes no CAP ───
+-- ── Índices para consultas do CAP ──────────────
 CREATE INDEX IF NOT EXISTS idx_cap_lancamento
   ON cap ((row_data->>'data_lancamento'));
 
@@ -62,13 +59,40 @@ INSERT INTO usuarios (nome, cpf, senha, perfil, status)
 VALUES ('Administrador', '00000000000', 'admin123', 'admin', 'ativo')
 ON CONFLICT (cpf) DO NOTHING;
 
--- ── RLS: desabilitado (API usa service key) ────
--- As rotas /api/* no Vercel usam SUPABASE_SERVICE_KEY,
--- que bypassa o RLS por design. Não exponha essa chave
--- no frontend — ela fica apenas nas variáveis do Vercel.
-ALTER TABLE obras        DISABLE ROW LEVEL SECURITY;
-ALTER TABLE custos       DISABLE ROW LEVEL SECURITY;
-ALTER TABLE faturamentos DISABLE ROW LEVEL SECURITY;
-ALTER TABLE aportes      DISABLE ROW LEVEL SECURITY;
-ALTER TABLE cap          DISABLE ROW LEVEL SECURITY;
-ALTER TABLE usuarios     DISABLE ROW LEVEL SECURITY;
+-- ══════════════════════════════════════════════════════════
+--  RLS — Row Level Security
+--  Como o app acessa o Supabase direto do browser com a
+--  anon key, precisamos habilitar RLS e criar políticas
+--  que permitem todas as operações (a autenticação é feita
+--  pelo próprio sistema via CPF + senha).
+-- ══════════════════════════════════════════════════════════
+
+ALTER TABLE obras        ENABLE ROW LEVEL SECURITY;
+ALTER TABLE custos       ENABLE ROW LEVEL SECURITY;
+ALTER TABLE faturamentos ENABLE ROW LEVEL SECURITY;
+ALTER TABLE aportes      ENABLE ROW LEVEL SECURITY;
+ALTER TABLE cap          ENABLE ROW LEVEL SECURITY;
+ALTER TABLE usuarios     ENABLE ROW LEVEL SECURITY;
+
+-- Política: permite SELECT, INSERT, UPDATE, DELETE para todos
+-- (a proteção real é feita pela tela de login do sistema)
+
+CREATE POLICY "acesso_total" ON obras        FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "acesso_total" ON custos       FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "acesso_total" ON faturamentos FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "acesso_total" ON aportes      FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "acesso_total" ON cap          FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "acesso_total" ON usuarios     FOR ALL USING (true) WITH CHECK (true);
+
+-- ══════════════════════════════════════════════════════════
+--  REALTIME — necessário para que uma máquina veja na hora
+--  os lançamentos feitos em outra máquina, sem clicar em "Atualizar".
+--  Se este projeto já existia antes desta atualização, rode só este
+--  bloco (SQL Editor → New query) para ativar o tempo real.
+-- ══════════════════════════════════════════════════════════
+
+ALTER PUBLICATION supabase_realtime ADD TABLE obras;
+ALTER PUBLICATION supabase_realtime ADD TABLE custos;
+ALTER PUBLICATION supabase_realtime ADD TABLE faturamentos;
+ALTER PUBLICATION supabase_realtime ADD TABLE aportes;
+ALTER PUBLICATION supabase_realtime ADD TABLE cap;
