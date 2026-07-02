@@ -114,6 +114,20 @@ async function _login(cpf, senha) {
   return { ok: true, nome: u.nome || cpf, perfil: u.perfil || 'Usuário' };
 }
 
+// ─── Tempo real: avisa a página quando outra máquina/aba salva ou exclui algo ──
+// Usa o Supabase Realtime (Postgres Changes) — não precisa de servidor extra nem de
+// clicar em "Atualizar": todas as janelas abertas do sistema recebem o aviso e recarregam
+// os dados sozinhas.
+function subscribeRealtime(onChange) {
+  const canal = _sb.channel('vixsul-mudancas');
+  _CHAVES.forEach((chave) => {
+    canal.on('postgres_changes', { event: '*', schema: 'public', table: chave }, () => onChange(chave));
+  });
+  canal.subscribe();
+  return canal;
+}
+window.subscribeRealtime = subscribeRealtime;
+
 // ─── Polyfill google.script.run ───────────────────────────────────────────────
 
 const _FNS = {
