@@ -123,6 +123,7 @@ body{font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;background:
 @keyframes zoomIn{from{opacity:0;transform:scale(.95);}to{opacity:1;transform:scale(1);}}
 .modal-header{padding:22px 28px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
 .modal-title{font-size:17px;font-weight:700;color:var(--text-1);}
+.modal-title.accent-cap{color:var(--blue);text-transform:uppercase;letter-spacing:.6px;font-size:15px;}
 .modal-sub{font-size:11px;font-weight:500;color:var(--text-3);margin-top:2px;}
 .modal-body{flex:1;overflow:hidden;display:flex;flex-direction:column;padding:20px 28px;}
 .table-wrap{flex:1;overflow:auto;border-radius:14px;border:1px solid var(--border);}
@@ -827,7 +828,7 @@ tbody tr:hover td{background:rgba(0,113,227,.02);}
 <div class="modal-overlay" id="modal-details">
   <div class="modal-sheet">
     <div class="modal-header"><div><div class="modal-title" id="detail-title">Detalhes</div><div class="modal-sub" id="detail-sub">Registros</div></div><button class="close-btn" onclick="UI.closeModal('modal-details')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>
-    <div class="modal-body"><div class="table-wrap"><table><thead id="detail-head"></thead><tbody id="detail-body"></tbody></table></div></div>
+    <div class="modal-body"><div class="table-wrap"><table><thead id="detail-head"></thead><tbody id="detail-body"></tbody></table></div><div id="detail-resumo" class="cap-resumo" style="display:none"></div></div>
   </div>
 </div>
 <!-- MODAL CONFIRM LIQUIDO NEGATIVO -->
@@ -1024,12 +1025,17 @@ const App={
   _initRealtime(){
     if(this._realtimeStarted)return;
     this._realtimeStarted=true;
-    if(typeof subscribeRealtime!=='function')return; // ambiente sem o shim de tempo real (ex.: GAS puro)
-    let debounceT=null;
-    subscribeRealtime(()=>{
-      clearTimeout(debounceT);
-      debounceT=setTimeout(()=>this.init(true),400);
-    });
+    if(typeof subscribeRealtime==='function'){
+      let debounceT=null;
+      subscribeRealtime(()=>{
+        clearTimeout(debounceT);
+        debounceT=setTimeout(()=>this.init(true),400);
+      });
+    }
+    // Reforço: além do tempo real, recarrega sozinho a cada 25s. Garante a atualização
+    // automática entre máquinas mesmo se o Realtime do Supabase não estiver habilitado
+    // no projeto (ver schema.sql) ou a conexão cair.
+    setInterval(()=>this.init(true),25000);
   },
   renderAll(){this.renderDashboard();['obras','custos','faturamentos','aportes','cap'].forEach(v=>this.render(v));},
   /* ── Helpers de data por tipo de registro ──
@@ -1733,7 +1739,7 @@ const App={
     const inicio=getFuzzy(i,['inicio_obra','data_inicio'])||'N/D';
     const termPrev=getFuzzy(i,['termino_previsto','data_termino_previsto','data_termino','previsao'])||'N/D';
     const termOcorr=getFuzzy(i,['termino_ocorrido','data_termino_ocorrido'])||'N/D';
-    return `<div class="obra-card" onclick="UI.openDetails('obras','${nome.replace(/'/g,"\\'")}')">
+    return `<div class="obra-card" onclick="UI.openEditor('obras',${i.rowid})">
       <div class="obra-card-header"><div><div class="obra-name">${nome}</div>${prazoBadge(status,inicio,termPrev,termOcorr)}</div>${statusPillHtml(status)}</div>
       <p class="obra-desc">${desc.substring(0,110)}${desc.length>110?'…':''}</p>
       <div class="obra-meta">
@@ -1741,7 +1747,7 @@ const App={
         <div class="obra-meta-item"><p>Prev. Fim</p><p>${termPrev}</p></div>
         <div class="obra-meta-item"><p>Término Ocorrido</p><p>${termOcorr}</p></div>
       </div>
-      <div class="obra-card-footer"><span class="obra-id">ID #${i.visualId||i.rowid}</span><span style="font-size:11px;font-weight:600;color:var(--blue)">Ver detalhes →</span></div>
+      <div class="obra-card-footer"><span class="obra-id">ID #${i.visualId||i.rowid}</span><span style="font-size:11px;font-weight:600;color:var(--blue)">Editar →</span></div>
     </div>`;
   },
 
@@ -2692,9 +2698,12 @@ const UI={
       return (getFuzzy(i,key)||'Geral')===name;
     });
     this._detailsOpen={view,name}; // guarda o que está aberto, para re-renderizar após editar/excluir
-    document.getElementById('detail-title').textContent=name;
+    const titleEl=document.getElementById('detail-title');
+    titleEl.textContent=name;
+    titleEl.classList.toggle('accent-cap',view!=='obras');
     document.getElementById('detail-sub').textContent=items.length+' registro(s)';
     document.getElementById('modal-details').classList.add('open');
+    this._buildDetailResumo(view,items);
     const headers=App.state.data.metadata[view]||[],normH=headers.map(h=>norm(h));
     const skipBase=['titulo_obra','nome_obra','obra','titulo','titulo_da_obra'];
     const skipExtra=view==='custos'?[]:['descricao','descricao_da_obra'];
@@ -2708,6 +2717,26 @@ const UI={
       return '<td>'+v+'</td>';
     }).join('')+'<td><button onclick="event.stopPropagation();UI.openEditor(\'' + view + '\',' + item.rowid + ')" style="width:28px;height:28px;border-radius:50%;background:var(--bg);border:none;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;color:var(--text-2)" onmouseover="this.style.background=\'var(--blue)\';this.style.color=\'white\'" onmouseout="this.style.background=\'var(--bg)\';this.style.color=\'var(--text-2)\'"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button></td></tr>').join('');
     lucide.createIcons();
+  },
+
+  /* Barra de totais no rodapé do modal de detalhes, no mesmo estilo do resumo do CAP */
+  _buildDetailResumo(view,items){
+    const el=document.getElementById('detail-resumo');
+    if(!el)return;
+    const toN=v=>parseFloat(String(v||0).replace(/[^\d,.\-]/g,'').replace(',','.'))||0;
+    const sum=key=>items.reduce((s,it)=>s+toN(getFuzzy(it,[key])),0);
+    if(view==='custos'){
+      el.innerHTML=`<div class="cap-resumo-row"><span class="cap-resumo-lbl">Total de Custos</span><span class="cap-resumo-val cap-resumo-big">${fmt(sum('p_total'))}</span></div>`;
+      el.style.display='block';
+    } else if(view==='faturamentos'){
+      el.innerHTML=`<div class="cap-resumo-row"><span class="cap-resumo-lbl">Faturamento Bruto</span><span class="cap-resumo-val">${fmt(sum('faturamento_bruto'))}</span></div><div class="cap-resumo-row"><span class="cap-resumo-lbl">Faturamento Líquido</span><span class="cap-resumo-val cap-resumo-big">${fmt(sum('faturamento_liquido'))}</span></div>`;
+      el.style.display='block';
+    } else if(view==='aportes'){
+      el.innerHTML=`<div class="cap-resumo-row"><span class="cap-resumo-lbl">Total Aportado</span><span class="cap-resumo-val cap-resumo-big">${fmt(sum('valor_aportado'))}</span></div>`;
+      el.style.display='block';
+    } else {
+      el.style.display='none';el.innerHTML='';
+    }
   },
 
   /**
