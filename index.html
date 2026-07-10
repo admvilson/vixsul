@@ -199,6 +199,8 @@ tbody tr:hover td{background:rgba(0,113,227,.02);}
 .cap-fi[readonly]{color:var(--text-3);cursor:not-allowed;pointer-events:none;}
 .cap-fi[readonly]:focus{border-color:transparent!important;background:transparent!important;}
 .cap-fi.r{text-align:right;}
+/* Tabela de serviços do Orçamento: tudo alinhado à esquerda (cabeçalho e células). */
+.orc-tbl-left th,.orc-tbl-left td,.orc-tbl-left input,.orc-tbl-left select{text-align:left!important;}
 .cap-fi-sel{width:100%;padding:7px 6px;font-size:12px;border:1px solid transparent;border-radius:6px;background:transparent;color:var(--text-1);font-family:Inter,sans-serif;outline:none;cursor:pointer;line-height:1.4;}
 .cap-fi-sel:focus{border-color:var(--blue);background:var(--surface);}
 /* Campo não obrigatório no momento (bloqueado por regra de negócio, ex.: depende de
@@ -480,6 +482,14 @@ tbody tr:hover td{background:rgba(0,113,227,.02);}
     <div class="confirm-actions"><button class="confirm-yes" onclick="UI.confirmYes()">Sim, excluir</button><button class="confirm-no" onclick="UI.confirmClose()">Não</button></div>
   </div>
 </div>
+<div class="confirm-overlay" id="confirm-orc-limpar">
+  <div class="confirm-box">
+    <div class="confirm-icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg></div>
+    <div class="confirm-title">Limpar tabela</div>
+    <div class="confirm-msg">Deseja <strong>remover todos os itens</strong> da tabela de serviços?</div>
+    <div class="confirm-actions"><button class="confirm-yes" onclick="UI._orcLimparConfirma()">Sim, limpar</button><button class="confirm-no" onclick="UI._orcLimparCancela()">Não</button></div>
+  </div>
+</div>
 <div id="app-shell">
 <aside class="sidebar">
   <div style="text-align:center;padding:0 8px 20px;border-bottom:1px solid var(--border);margin-bottom:16px">
@@ -495,6 +505,9 @@ tbody tr:hover td{background:rgba(0,113,227,.02);}
     <button class="nav-link" id="nav-faturamentos" onclick="UI.nav('faturamentos')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>Faturamentos</button>
     <button class="nav-link" id="nav-aportes" onclick="UI.nav('aportes')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>Aportes</button>
     <button class="nav-link" id="nav-cap" onclick="UI.nav('cap')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg>CAP</button>
+    <button class="nav-link" id="nav-orcamentos" onclick="UI.nav('orcamentos')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="2" width="16" height="20" rx="2"/><line x1="8" y1="7" x2="16" y2="7"/><line x1="8" y1="11" x2="16" y2="11"/><line x1="8" y1="15" x2="13" y2="15"/></svg>Orçamentos</button>
+    <div class="nav-section-label" id="nav-admin-label" style="margin-top:20px;display:none">Administração</div>
+    <button class="nav-link" id="nav-usuarios" style="display:none" onclick="UI.nav('usuarios')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>Usuários</button>
   </nav>
 
   <div style="margin-top:auto;padding-top:14px;border-top:1px solid var(--border)">
@@ -843,9 +856,68 @@ tbody tr:hover td{background:rgba(0,113,227,.02);}
       </div>
       <div class="cards-scroll"><div class="cap-grid" id="grid-cap"></div></div>
     </div>
+    <!-- ════════════════ VIEW: ORÇAMENTOS ════════════════ -->
+    <div class="view" id="view-orcamentos">
+      <div class="view-toolbar">
+        <div class="search-box">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+          <input type="text" id="find-orcamentos" placeholder="Buscar orçamento..." oninput="App.render('orcamentos')">
+        </div>
+        <button class="btn-primary" style="background:#1D1D1F" onclick="UI.openOrcamento(null)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Novo Orçamento
+        </button>
+      </div>
+      <div class="cards-scroll"><div class="lanc-grid" id="grid-orcamentos"></div></div>
+    </div>
+
+    <!-- ════════════════ VIEW: USUÁRIOS (Admin) ════════════════ -->
+    <div class="view" id="view-usuarios">
+      <div class="view-toolbar">
+        <div class="search-box">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+          <input type="text" id="find-usuarios" placeholder="Buscar usuário..." oninput="UI.renderUsuarios()">
+        </div>
+        <button class="btn-primary" style="background:#1D1D1F" onclick="UI.openUsuario(null)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Novo Usuário
+        </button>
+      </div>
+      <div class="cards-scroll"><div class="lanc-grid" id="grid-usuarios"></div></div>
+    </div>
   </div>
 </main>
 </div><!-- /#app-shell -->
+<!-- MODAL USUÁRIO (Admin) -->
+<div class="confirm-overlay" id="modal-usuario">
+  <div class="confirm-box" style="max-width:480px;text-align:left;padding:24px">
+    <div class="confirm-title" id="usr-modal-title" style="text-align:left;margin-bottom:4px">Novo Usuário</div>
+    <div style="font-size:12px;color:var(--text-3);margin-bottom:16px">Defina os dados de acesso e quais seções o usuário pode ver.</div>
+    <input type="hidden" id="usr-id">
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <div><div style="font-size:12px;font-weight:700;color:var(--text-2);margin-bottom:4px">Nome</div><input id="usr-nome" class="field-input" style="width:100%" placeholder="Nome completo"></div>
+      <div style="display:flex;gap:12px">
+        <div style="flex:1"><div style="font-size:12px;font-weight:700;color:var(--text-2);margin-bottom:4px">CPF</div><input id="usr-cpf" class="field-input" style="width:100%" inputmode="numeric" placeholder="000.000.000-00" oninput="UI._usrMaskCpf(this)"></div>
+        <div style="flex:1"><div style="font-size:12px;font-weight:700;color:var(--text-2);margin-bottom:4px">Senha</div><input id="usr-senha" class="field-input" type="password" style="width:100%" placeholder="••••••"><div id="usr-senha-hint" style="font-size:10px;color:var(--text-3);margin-top:2px"></div></div>
+      </div>
+      <div style="display:flex;gap:12px">
+        <div style="flex:1"><div style="font-size:12px;font-weight:700;color:var(--text-2);margin-bottom:4px">Perfil</div><select id="usr-perfil" class="field-input field-select" style="width:100%" onchange="UI._usrPerfilChange()"><option value="Usuário">Usuário</option><option value="admin">Administrador</option></select></div>
+        <div style="flex:1"><div style="font-size:12px;font-weight:700;color:var(--text-2);margin-bottom:4px">Status</div><select id="usr-status" class="field-input field-select" style="width:100%"><option value="ativo">Ativo</option><option value="inativo">Inativo</option></select></div>
+      </div>
+      <div id="usr-acessos-wrap">
+        <div style="font-size:12px;font-weight:700;color:var(--text-2);margin-bottom:6px">Seções que pode acessar</div>
+        <div id="usr-acessos" style="display:grid;grid-template-columns:1fr 1fr;gap:6px 14px"></div>
+      </div>
+      <div id="usr-acessos-admin" style="display:none;font-size:12px;color:var(--text-3);background:rgba(0,113,227,.06);border:1px solid rgba(0,113,227,.18);border-radius:8px;padding:10px 12px">O Administrador tem acesso a <strong>todas as seções</strong> e à gestão de usuários.</div>
+    </div>
+    <div id="usr-err" style="display:none;color:var(--red);font-size:12px;font-weight:600;margin-top:12px"></div>
+    <div style="display:flex;gap:12px;margin-top:20px;align-items:center">
+      <button class="confirm-yes" style="flex:1;background:var(--blue)" onclick="UI.saveUsuario()">Salvar</button>
+      <button class="confirm-no" style="flex:1" onclick="UI.closeUsuario()">Cancelar</button>
+      <button id="usr-del-btn" type="button" onclick="UI.confirmDeleteUsuario()" title="Excluir usuário" style="display:none;flex-shrink:0;width:44px;height:44px;border:1px solid rgba(255,59,48,.3);background:rgba(255,59,48,.06);color:var(--red);border-radius:10px;cursor:pointer"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" style="margin:0 auto"><path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2M19 6l-1 14a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1L5 6"/></svg></button>
+    </div>
+  </div>
+</div>
 <!-- MODAL DETALHES -->
 <div class="modal-overlay" id="modal-details">
   <div class="modal-sheet">
@@ -898,7 +970,7 @@ tbody tr:hover td{background:rgba(0,113,227,.02);}
   </div>
 </div>
 <script>
-const APP_CONFIG={obras:'Obras',custos:'Custos',faturamentos:'Faturamentos',aportes:'Aportes financeiros',cap:'CAP'};
+const APP_CONFIG={obras:'Obras',custos:'Custos',faturamentos:'Faturamentos',aportes:'Aportes financeiros',cap:'CAP',orcamentos:'Orçamentos'};
 const STATUS_OPTS=['Ganha - Em Andamento','Ganha - Finalizada','Ganha - Aguardando Liberação','Perdida - Cancelada','Perdida - Por Preço','Enviada - Aguardando Resultado','Não Enviada'];
 const QUEM_APORTOU=['Vixsul','Externo'];
 const TIPO_FAT=['Previsto','Real'];
@@ -1088,7 +1160,7 @@ const App={
       });
     }
   },
-  renderAll(){this.renderDashboard();['obras','custos','faturamentos','aportes','cap'].forEach(v=>this.render(v));},
+  renderAll(){this.renderDashboard();['obras','custos','faturamentos','aportes','cap','orcamentos'].forEach(v=>this.render(v));},
   /* ── Helpers de data por tipo de registro ──
      Custos    → data_pgto  (Data Pgtoº)
      Faturamentos → data_recebimento (Recebimento)
@@ -1779,8 +1851,30 @@ const App={
       grid.innerHTML=items.length===0
         ?`<div class="empty-state" style="grid-column:1/-1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><p>Nenhuma composição encontrada</p></div>`
         :items.map(c=>this._capCard(c)).join('');
+
+    } else if(view==='orcamentos'){
+      const grid=document.getElementById('grid-orcamentos');if(!grid)return;
+      const items=base.filter(i=>{
+        const nome=(getFuzzy(i,['titulo','nome_obra','titulo_obra'])||'').toLowerCase();
+        return nome.includes(q);
+      });
+      grid.innerHTML=items.length===0
+        ?`<div class="empty-state" style="grid-column:1/-1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="4" y="2" width="16" height="20" rx="2"/><line x1="8" y1="7" x2="16" y2="7"/><line x1="8" y1="11" x2="16" y2="11"/></svg><p>Nenhum orçamento encontrado</p></div>`
+        :items.map(i=>this._orcamentoCard(i)).join('');
     }
     lucide.createIcons();
+  },
+  _orcamentoCard(i){
+    const nome=getFuzzy(i,['titulo','nome_obra','titulo_obra'])||`Orçamento #${i.visualId||i.rowid}`;
+    const total=parseStoredNumber(getFuzzy(i,['total_obra'])||0);
+    const nItens=Array.isArray(i.itens)?i.itens.length:0;
+    const lanc=getFuzzy(i,['data_lancamento','lancamento'])||'';
+    return `<div class="lanc-card" onclick="UI.openOrcamento(${i.rowid})">
+      <div class="lanc-card-header"><span class="lanc-name">${nome}</span><span class="lanc-count">${nItens} item${nItens!==1?'s':''}</span></div>
+      <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text-3);margin-bottom:4px">Total da Obra</div>
+      <div class="lanc-val ${total<0?'red':''}" style="${total<0?'':'color:var(--blue)'}">${fmt(total)}</div>
+      <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--bg);display:flex;justify-content:space-between;align-items:center;font-size:11px;color:var(--text-3);font-weight:500"><span>Clique para editar →</span>${lanc?`<span>${dateBR(lanc)}</span>`:''}</div>
+    </div>`;
   },
 
   _obraCard(i){
@@ -1842,15 +1936,140 @@ const App={
    UI
 ═══════════════════════════════════════ */
 const UI={
+  /* Módulos controlados por nível de acesso (chave = id da view/nav). "usuarios" é
+     exclusivo do Admin e não entra nesta lista de permissões configuráveis. */
+  _MODULOS:[['dashboard','Dashboard'],['obras','Obras'],['custos','Custos'],['faturamentos','Faturamentos'],['aportes','Aportes'],['cap','CAP'],['orcamentos','Orçamentos']],
+  _allowedViews:null, // preenchido por Auth._applySession; null = sem restrição
   nav(v){
+    // Bloqueia acesso a seções sem permissão (o menu já as esconde; isto protege o acesso
+    // direto/programático). Cai na primeira seção permitida.
+    if(this._allowedViews && !this._allowedViews.includes(v)) v=this._allowedViews[0]||'dashboard';
     document.querySelectorAll('.view').forEach(el=>el.classList.remove('active'));
     document.querySelectorAll('.nav-link').forEach(el=>el.classList.remove('active'));
     const vEl=document.getElementById('view-'+v);if(vEl)vEl.classList.add('active');
     const nEl=document.getElementById('nav-'+v);if(nEl)nEl.classList.add('active');
-    const titles={dashboard:'Dashboard',obras:'Obras',custos:'Custos',faturamentos:'Faturamentos',aportes:'Aportes',cap:'CAP'};
+    const titles={dashboard:'Dashboard',obras:'Obras',custos:'Custos',faturamentos:'Faturamentos',aportes:'Aportes',cap:'CAP',orcamentos:'Orçamentos',usuarios:'Usuários'};
     const ttl=document.getElementById('view-title');if(ttl)ttl.textContent=titles[v]||v;
     if(v==='dashboard'&&App.state.data)App.renderDashboard();
+    if(v==='usuarios')this.carregarUsuarios();
     this.toggleSidebar(false); // fecha o menu lateral (modo gaveta) após navegar em telas pequenas
+  },
+
+  /* ═══════════════════════ USUÁRIOS (Admin) ═══════════════════════ */
+  _usuarios:[],
+  _usrMaskCpf(el){
+    let d=el.value.replace(/\D/g,'').slice(0,11);
+    let o=d;
+    if(d.length>9)o=d.replace(/(\d{3})(\d{3})(\d{3})(\d{1,2})/,'$1.$2.$3-$4');
+    else if(d.length>6)o=d.replace(/(\d{3})(\d{3})(\d{1,3})/,'$1.$2.$3');
+    else if(d.length>3)o=d.replace(/(\d{3})(\d{1,3})/,'$1.$2');
+    el.value=o;
+  },
+  carregarUsuarios(){
+    const grid=document.getElementById('grid-usuarios');
+    if(grid)grid.innerHTML='<div class="empty-state" style="grid-column:1/-1"><p>Carregando usuários…</p></div>';
+    google.script.run
+      .withSuccessHandler(res=>{
+        if(!res||!res.ok){ if(grid)grid.innerHTML=`<div class="empty-state" style="grid-column:1/-1"><p>${res&&res.msg?res.msg:'Erro ao carregar usuários.'}</p></div>`; return; }
+        this._usuarios=res.usuarios||[];
+        this.renderUsuarios();
+      })
+      .withFailureHandler(()=>{ if(grid)grid.innerHTML='<div class="empty-state" style="grid-column:1/-1"><p>Erro de conexão ao carregar usuários.</p></div>'; })
+      .listarUsuarios();
+  },
+  renderUsuarios(){
+    const grid=document.getElementById('grid-usuarios');if(!grid)return;
+    const q=(document.getElementById('find-usuarios')?.value||'').toLowerCase().trim();
+    let list=this._usuarios;
+    if(q)list=list.filter(u=>(`${u.nome||''} ${u.cpf||''} ${u.perfil||''}`).toLowerCase().includes(q));
+    grid.innerHTML=list.length
+      ? list.map(u=>this._usuarioCard(u)).join('')
+      : '<div class="empty-state" style="grid-column:1/-1"><p>Nenhum usuário encontrado</p></div>';
+  },
+  _usuarioCard(u){
+    const isAdmin=String(u.perfil||'').toLowerCase()==='admin';
+    const ativo=String(u.status||'ativo').toLowerCase()==='ativo';
+    const nLabels=this._MODULOS.map(m=>m[0]);
+    const ac=isAdmin?'Todas as seções':(Array.isArray(u.acessos)?(u.acessos.length?this._MODULOS.filter(m=>u.acessos.includes(m[0])).map(m=>m[1]).join(', '):'Nenhuma seção'):'Todas as seções');
+    const cpfFmt=String(u.cpf||'').replace(/(\d{3})(\d{3})(\d{3})(\d{2})/,'$1.$2.$3-$4');
+    return `<div class="lanc-card" onclick="UI.openUsuario(${u.id})">
+      <div class="lanc-card-header"><span class="lanc-name">${(u.nome||'—').replace(/</g,'&lt;')}</span><span class="lanc-count" style="background:${isAdmin?'rgba(0,113,227,.12)':'rgba(0,0,0,.06)'};color:${isAdmin?'var(--blue)':'var(--text-2)'}">${isAdmin?'Admin':'Usuário'}</span></div>
+      <div style="font-size:12px;color:var(--text-2);margin-bottom:8px">${cpfFmt}</div>
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:10px"><span style="width:8px;height:8px;border-radius:50%;background:${ativo?'var(--green)':'var(--text-3)'}"></span><span style="font-size:11px;font-weight:600;color:${ativo?'var(--green)':'var(--text-3)'}">${ativo?'Ativo':'Inativo'}</span></div>
+      <div style="padding-top:10px;border-top:1px solid var(--bg);font-size:11px;color:var(--text-3);font-weight:500"><span style="font-weight:700;color:var(--text-2)">Acesso:</span> ${ac}</div>
+    </div>`;
+  },
+  openUsuario(id){
+    const u=id?this._usuarios.find(x=>String(x.id)===String(id)):null;
+    document.getElementById('usr-modal-title').textContent=u?'Editar Usuário':'Novo Usuário';
+    document.getElementById('usr-id').value=u?u.id:'';
+    document.getElementById('usr-nome').value=u?(u.nome||''):'';
+    const cpfEl=document.getElementById('usr-cpf');cpfEl.value=u?(u.cpf||''):'';this._usrMaskCpf(cpfEl);
+    document.getElementById('usr-senha').value='';
+    document.getElementById('usr-senha-hint').textContent=u?'Deixe em branco para manter a senha atual.':'Obrigatória para novo usuário.';
+    document.getElementById('usr-perfil').value=(u&&String(u.perfil||'').toLowerCase()==='admin')?'admin':'Usuário';
+    document.getElementById('usr-status').value=(u&&String(u.status||'ativo').toLowerCase()==='inativo')?'inativo':'ativo';
+    // acessos: novo = todas marcadas; edição = as salvas (null = todas).
+    const sel=u?(Array.isArray(u.acessos)?u.acessos:this._MODULOS.map(m=>m[0])):this._MODULOS.map(m=>m[0]);
+    document.getElementById('usr-acessos').innerHTML=this._MODULOS.map(([k,l])=>`<label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer"><input type="checkbox" class="usr-acesso" value="${k}" ${sel.includes(k)?'checked':''}>${l}</label>`).join('');
+    document.getElementById('usr-del-btn').style.display=u?'block':'none';
+    const errEl=document.getElementById('usr-err');errEl.style.display='none';errEl.textContent='';
+    this._usrPerfilChange();
+    document.getElementById('modal-usuario').classList.add('open');
+  },
+  _usrPerfilChange(){
+    const admin=document.getElementById('usr-perfil').value==='admin';
+    document.getElementById('usr-acessos-wrap').style.display=admin?'none':'';
+    document.getElementById('usr-acessos-admin').style.display=admin?'':'none';
+  },
+  closeUsuario(){document.getElementById('modal-usuario').classList.remove('open');},
+  saveUsuario(){
+    const errEl=document.getElementById('usr-err');
+    const id=document.getElementById('usr-id').value;
+    const perfil=document.getElementById('usr-perfil').value;
+    const dados={
+      nome:document.getElementById('usr-nome').value.trim(),
+      cpf:document.getElementById('usr-cpf').value,
+      senha:document.getElementById('usr-senha').value,
+      perfil:perfil,
+      status:document.getElementById('usr-status').value,
+      acessos:perfil==='admin'?null:[...document.querySelectorAll('#usr-acessos .usr-acesso:checked')].map(c=>c.value)
+    };
+    const fail=m=>{errEl.textContent=m;errEl.style.display='block';};
+    if(!dados.nome)return fail('Informe o nome.');
+    if(dados.cpf.replace(/\D/g,'').length!==11)return fail('CPF inválido.');
+    if(!id&&!dados.senha)return fail('Defina uma senha para o novo usuário.');
+    if(perfil!=='admin'&&dados.acessos.length===0)return fail('Selecione ao menos uma seção de acesso.');
+    const btn=document.querySelector('#modal-usuario .confirm-yes');const prev=btn.innerHTML;btn.disabled=true;btn.innerHTML='Salvando…';
+    google.script.run
+      .withSuccessHandler(res=>{
+        btn.disabled=false;btn.innerHTML=prev;
+        if(!res||!res.ok){fail(res&&res.msg?res.msg:'Erro ao salvar.');return;}
+        this._usuarios=res.usuarios||[];
+        this.renderUsuarios();
+        this.closeUsuario();
+        toast('Usuário salvo.','success');
+      })
+      .withFailureHandler(()=>{btn.disabled=false;btn.innerHTML=prev;fail('Erro de conexão ao salvar.');})
+      .salvarUsuario(dados,id?Number(id):null);
+  },
+  confirmDeleteUsuario(){
+    const id=document.getElementById('usr-id').value;if(!id)return;
+    const u=this._usuarios.find(x=>String(x.id)===String(id));
+    if(Auth._session&&u&&String(u.cpf||'').replace(/\D/g,'')===String(Auth._session.cpf||'').replace(/\D/g,'')){
+      const e=document.getElementById('usr-err');e.textContent='Você não pode excluir o próprio usuário logado.';e.style.display='block';return;
+    }
+    if(!confirm('Excluir permanentemente este usuário?'))return;
+    google.script.run
+      .withSuccessHandler(res=>{
+        if(!res||!res.ok){const e=document.getElementById('usr-err');e.textContent=res&&res.msg?res.msg:'Erro ao excluir.';e.style.display='block';return;}
+        this._usuarios=res.usuarios||[];
+        this.renderUsuarios();
+        this.closeUsuario();
+        toast('Usuário excluído.','success');
+      })
+      .withFailureHandler(()=>{const e=document.getElementById('usr-err');e.textContent='Erro de conexão ao excluir.';e.style.display='block';})
+      .excluirUsuario(Number(id));
   },
 
   /* Abre/fecha o menu lateral em telas pequenas (modo gaveta). Sem argumento: alterna. */
@@ -2050,24 +2269,34 @@ const UI={
     const idxObraCT=nH.findIndex(c=>c.includes('obra_com_ct')||c==='com_ct'||c==='possui_contrato');
     const idxNContrato=nH.findIndex(c=>c.includes('numero_contrato')||c.includes('num_contrato')||c.includes('n_contrato'));
 
-    const lancVal=isNew?todayDateTime():(idxLanc>=0&&data?gv(nH[idxLanc]):todayDateTime());
+    // Leitura de valores: tenta primeiro pela coluna encontrada nos cabeçalhos; se a
+    // coluna não existir nos cabeçalhos, busca DIRETO no registro (getFuzzy). Isso é
+    // essencial porque metadata.obras vem das chaves da PRIMEIRA linha do banco — se a
+    // primeira obra for antiga (sem obra_com_ct/numero_contrato/termino_ocorrido), os
+    // campos das obras novas apareceriam vazios ao reabrir (parecendo "não salvos") e o
+    // próximo Salvar apagaria os valores reais do banco.
+    const gvF=(idx,keys)=>{
+      if(idx>=0)return gv(nH[idx]);
+      return data?String(getFuzzy(data,keys)??''):'';
+    };
+    const lancVal=isNew?todayDateTime():(gvF(idxLanc,['data_lancamento','lancamento'])||todayDateTime());
     // Nova obra: já sugere o próximo número sequencial do ano atual, no padrão
     // "OBRA 01/26 - " (o usuário só completa o nome depois do "- ").
-    const titVal=isNew?this._gerarProximoTituloObra():(idxTit>=0?gv(nH[idxTit]):'');
-    const descVal=idxDesc>=0?gv(nH[idxDesc]):'';
-    const statusVal=idxStatus>=0?gv(nH[idxStatus]):'';
-    const limiteVal=idxLimite>=0&&data?this._toISO(gv(nH[idxLimite])):'';
-    const envioVal=idxEnvio>=0&&data?this._toISO(gv(nH[idxEnvio])):'';
-    const liberacaoVal=idxLiberacao>=0&&data?this._toISO(gv(nH[idxLiberacao])):'';
-    const inicioVal=idxInicio>=0&&data?this._toISO(gv(nH[idxInicio])):'';
-    const duracaoVal=idxDuracao>=0?gv(nH[idxDuracao]):'';
+    const titVal=isNew?this._gerarProximoTituloObra():gvF(idxTit,['titulo_obra','titulo']);
+    const descVal=gvF(idxDesc,['descricao']);
+    const statusVal=gvF(idxStatus,['status_proposta','status_obra','status_da_obra','status']);
+    const limiteVal=data?this._toISO(gvF(idxLimite,['limite_proposta','limite'])):'';
+    const envioVal=data?this._toISO(gvF(idxEnvio,['envio_proposta','envio'])):'';
+    const liberacaoVal=data?this._toISO(gvF(idxLiberacao,['liberacao_obra','liberacao'])):'';
+    const inicioVal=data?this._toISO(gvF(idxInicio,['inicio_obra','data_inicio'])):'';
+    const duracaoVal=gvF(idxDuracao,['duracao_prevista','duracao']);
     // Término Previsto nunca é lido do banco: é sempre recalculado a partir de
     // Início Obra + Dias Previsto (campo travado, ver _calcTerminoPrevisto).
     const termPrevVal=this._calcTerminoPrevisto(inicioVal,duracaoVal);
-    const termOcorrVal=idxTermOcorr>=0&&data?this._toISO(gv(nH[idxTermOcorr])):'';
+    const termOcorrVal=data?this._toISO(gvF(idxTermOcorr,['termino_ocorrido','data_termino_ocorrido'])):'';
     const isFinalizada=statusVal==='Ganha - Finalizada';
-    const obraCTVal=idxObraCT>=0?gv(nH[idxObraCT]):'';
-    const nContratoVal=idxNContrato>=0?gv(nH[idxNContrato]):'';
+    const obraCTVal=gvF(idxObraCT,['obra_com_ct','com_ct','possui_contrato']);
+    const nContratoVal=gvF(idxNContrato,['numero_contrato','num_contrato','n_contrato']);
     const temCT=obraCTVal==='Sim';
 
     const statusOpts=STATUS_OPTS.map(s=>`<option value="${s}" ${statusVal===s?'selected':''}>${s}</option>`).join('');
@@ -3309,6 +3538,706 @@ const UI={
      visual e de uso do editor do CAP (cabeçalho azul, tabela compacta,
      botão "Adicionar linha" e resumo de totais no rodapé).
      ═══════════════════════════════════════════════════════════════════ */
+  /* ═══════════════════════════════════════════════════════════════════
+     ORÇAMENTOS — planilha no padrão EMBASA. O usuário cola Descrição +
+     Quant.; o app acha o serviço na base EMBASA (public/embasa-precos.json,
+     carregada uma vez) e preenche Código, Unid. e P.Unit. sozinho.
+     P.Unit final = preço EMBASA × (1+BDI%) × (1−Desconto%); P.Total = Quant × P.Unit.
+     ═══════════════════════════════════════════════════════════════════ */
+  _embasa:null,            // tabela EMBASA ativa (a selecionada)
+  _embasaManifest:null,    // lista de tabelas disponíveis (semestre + tabela)
+  _embasaCache:{},         // tabelas já carregadas (por id)
+  _orcNorm(s){return String(s||'').toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^A-Z0-9]+/g,' ').trim();},
+  /* Carrega um .js via <script> (e não fetch) — o app roda direto do arquivo local
+     (file://), onde o navegador bloqueia fetch de arquivos locais ("Failed to fetch");
+     tag <script> funciona em file:// e http://. */
+  _orcInject(src){
+    return new Promise((resolve,reject)=>{
+      const s=document.createElement('script');
+      s.src=src; s.onload=resolve; s.onerror=()=>reject(new Error('arquivo '+src+' não encontrado'));
+      document.head.appendChild(s);
+    });
+  },
+  _orcIndexar(d){
+    d._byNorm={}; d._byMc={}; d._byCod={};
+    d.itens.forEach(it=>{
+      it._norm=this._orcNorm(it.descricao);
+      (d._byNorm[it._norm]=d._byNorm[it._norm]||[]).push(it);
+      if(it.mc)d._byMc[this._orcNorm(it.mc)]=it;
+      if(it.codigo&&!d._byCod[it.codigo])d._byCod[it.codigo]=it;
+    });
+  },
+  _embasaSemestres:null,
+  async _embasaLoadManifest(){
+    if(this._embasaManifest)return this._embasaManifest;
+    if(!window.EMBASA_MANIFEST)await this._orcInject('embasa-manifest.js');
+    this._embasaManifest=window.EMBASA_MANIFEST||[];
+    // Lista completa de semestres da EMBASA (o seletor mostra todos, mesmo os que ainda
+    // não têm dados incluídos). Se o arquivo não trouxer, deriva do próprio manifesto.
+    this._embasaSemestres=(window.EMBASA_SEMESTRES&&window.EMBASA_SEMESTRES.length)
+      ? window.EMBASA_SEMESTRES.slice()
+      : [...new Set(this._embasaManifest.map(m=>m.semestre))];
+    if(this._embasaManifest.length===0)throw new Error('nenhuma tabela EMBASA disponível');
+    return this._embasaManifest;
+  },
+  /* Semestres mostrados no seletor: 2026 em diante (parseFloat >= 2026). */
+  _orcSemestresVisiveis(){
+    const todos=(this._embasaSemestres&&this._embasaSemestres.length)?this._embasaSemestres:[...new Set((this._embasaManifest||[]).map(m=>m.semestre))];
+    const vis=todos.filter(s=>parseFloat(s)>=2026);
+    return vis.length?vis:todos;
+  },
+  /* Opções do seletor de Tabela para um semestre, agrupadas por "grupo" (optgroup).
+     Tabelas sem dados extraídos (arquivo vazio) ficam desabilitadas com aviso. */
+  _orcTabOptionsHtml(sem,activeId){
+    const esc=s=>String(s==null?'':s).replace(/"/g,'&quot;');
+    const tabs=(this._embasaManifest||[]).filter(m=>m.semestre===sem);
+    if(tabs.length===0)return `<option value="">(nenhuma tabela incluída neste semestre)</option>`;
+    const grupos=[...new Set(tabs.map(m=>m.grupo||'Tabelas'))];
+    return grupos.map(g=>{
+      const opts=tabs.filter(m=>(m.grupo||'Tabelas')===g).map(m=>{
+        const temDados=!!m.arquivo;
+        // Todas selecionáveis; as sem dados voltam sozinhas com aviso ao serem escolhidas.
+        return `<option value="${esc(m.id)}" ${m.id===activeId?'selected':''}>${esc(m.tabela)}${temDados?'':' — a incluir'}</option>`;
+      }).join('');
+      return `<optgroup label="${esc(g)}">${opts}</optgroup>`;
+    }).join('');
+  },
+  /* Carrega (sob demanda) e ativa uma tabela EMBASA pelo id do manifesto. */
+  async _embasaAtivar(id){
+    if(this._embasaCache[id]){this._embasa=this._embasaCache[id];return this._embasa;}
+    const man=(this._embasaManifest||[]).find(m=>m.id===id);
+    if(!man)throw new Error('tabela '+id+' não encontrada no manifesto');
+    if(!man.arquivo)throw new Error('a tabela "'+man.tabela+'" ainda não foi incluída no sistema');
+    if(!(window.EMBASA_TABELAS&&window.EMBASA_TABELAS[id]))await this._orcInject(man.arquivo);
+    const d=window.EMBASA_TABELAS&&window.EMBASA_TABELAS[id];
+    if(!d||!Array.isArray(d.itens)||d.itens.length===0)throw new Error('tabela '+id+' vazia');
+    this._orcIndexar(d);
+    this._embasaCache[id]=d; this._embasa=d;
+    return d;
+  },
+  /* Busca candidatos na tabela ATIVA. Ordem: Meu Código exato → descrição exata →
+     descrição que contém todas as palavras. Retorna lista (pode ter >1 = usuário escolhe). */
+  _orcBuscar(query,limit=10){
+    const emb=this._embasa;if(!emb)return [];
+    const qn=this._orcNorm(query);if(!qn)return [];
+    if(emb._byMc[qn])return [emb._byMc[qn]];
+    if(emb._byNorm[qn])return emb._byNorm[qn].slice(0,limit);
+    const words=qn.split(' ').filter(Boolean);
+    const res=[];
+    for(const it of emb.itens){ if(words.every(w=>it._norm.includes(w))){res.push(it);if(res.length>=300)break;} }
+    res.sort((a,b)=>Math.abs(a._norm.length-qn.length)-Math.abs(b._norm.length-qn.length));
+    return res.slice(0,limit);
+  },
+  _ORC_EMPRESA:{razao:'Vixsul Empreendimentos Limitada',endereco:'Rua Nilton Gonçalves, 467, Guarani - Vitória da Conquista, Bahia',cnpj:'64.518.375/0001-20',telefone:'(77) 98114-7919',email:'admvilsonsouza@outlook.com',rede:'@vixsul.empreendimentos'},
+  /* Máscara de telefone BR: (XX) XXXXX-XXXX (celular) ou (XX) XXXX-XXXX (fixo). */
+  _orcMaskTel(el){
+    let v=el.value.replace(/\D/g,'').slice(0,11);
+    if(v.length>6)el.value=v.length>10?v.replace(/(\d{2})(\d{5})(\d{4})/,'($1) $2-$3'):v.replace(/(\d{2})(\d{4})(\d{0,4})/,'($1) $2-$3');
+    else if(v.length>2)el.value=v.replace(/(\d{2})(\d{0,5})/,'($1) $2');
+    else el.value=v;
+  },
+  _orcValidarTel(v){const d=String(v||'').replace(/\D/g,'');return d.length===10||d.length===11;},
+  /* Máscara de CNPJ: XX.XXX.XXX/XXXX-XX. */
+  _orcMaskCNPJ(el){
+    let v=el.value.replace(/\D/g,'').slice(0,14);
+    v=v.replace(/^(\d{2})(\d)/,'$1.$2').replace(/^(\d{2})\.(\d{3})(\d)/,'$1.$2.$3').replace(/\.(\d{3})(\d)/,'.$1/$2').replace(/(\d{4})(\d)/,'$1-$2');
+    el.value=v;
+  },
+  _orcValidarCNPJ(v){
+    const c=String(v||'').replace(/\D/g,'');
+    if(c.length!==14||/^(\d)\1{13}$/.test(c))return false;
+    const calc=(base)=>{let s=0,p=base.length-7;for(let i=0;i<base.length;i++){s+=base[i]*p--;if(p<2)p=9;}const r=s%11;return r<2?0:11-r;};
+    const d1=calc(c.slice(0,12));const d2=calc(c.slice(0,12)+d1);
+    return d1===+c[12]&&d2===+c[13];
+  },
+  /* Valida um campo com máscara ao sair (borda vermelha se inválido; vazio é permitido). */
+  _orcValidarCampo(el,tipo){
+    el.classList.remove('err');
+    const v=(el.value||'').trim();
+    if(!v)return; // vazio não marca erro aqui
+    const ok=tipo==='cnpj'?this._orcValidarCNPJ(v):this._orcValidarTel(v);
+    if(!ok)el.classList.add('err');
+  },
+  /* Máscara de percentual (estilo centavos, igual aos outros formulários). */
+  _orcMaskPct(el){
+    const raw=el.value.replace(/\D/g,'');
+    const n=raw?parseInt(raw,10)/100:0;
+    el.value=n?n.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}):'';
+    this._orcRecalc();
+  },
+  /* Limpa a tabela de serviços — abre o modal de confirmação (mesmo visual do Excluir). */
+  _orcLimpar(){
+    const tbody=document.getElementById('orc-tbody');if(!tbody)return;
+    if(tbody.children.length===0)return;
+    document.getElementById('confirm-orc-limpar').classList.add('open');
+  },
+  _orcLimparConfirma(){
+    document.getElementById('confirm-orc-limpar').classList.remove('open');
+    const tbody=document.getElementById('orc-tbody');if(!tbody)return;
+    tbody.innerHTML='';
+    this._orcRecalc();
+    this._orcUpdateLock();
+  },
+  _orcLimparCancela(){
+    document.getElementById('confirm-orc-limpar').classList.remove('open');
+  },
+  /* Ano e Tabela ficam sempre liberados; os botões "Adicionar linha" e "Limpar tabela"
+     ficam sempre visíveis (não somem quando a tabela está vazia). */
+  _orcUpdateLock(){
+    const sem=document.getElementById('orc-semestre'), tab=document.getElementById('orc-tabela');
+    if(sem)sem.disabled=false; if(tab)tab.disabled=false;
+    const add=document.getElementById('orc-btn-addrow'), lim=document.getElementById('orc-btn-limpar');
+    if(add)add.style.display='inline-flex';
+    if(lim)lim.style.display='inline-flex';
+  },
+
+  async openOrcamento(rowId=null){
+    if(App.state._busy)return;
+    if(this._capCalcTimer){clearTimeout(this._capCalcTimer);this._capCalcTimer=null;}
+    const isNew=!rowId;
+    const data=isNew?null:(App.state.data.orcamentos||[]).find(r=>String(r.rowid)===String(rowId))||null;
+    App.state.editing={abaNome:'Orçamentos',abaKey:'orcamentos',rowid:rowId,isGroup:false};
+    document.getElementById('editor-title').textContent=isNew?'Novo Orçamento':'Editar Orçamento';
+    const btnDel=document.getElementById('btn-del');
+    btnDel.classList.toggle('show',!isNew);
+    btnDel.textContent='Excluir Orçamento';
+    const btnSave=document.getElementById('btn-save');btnSave.disabled=false;btnSave.innerHTML='Salvar';
+    document.getElementById('modal-editor').classList.add('open');
+    const form=document.getElementById('form-upsert');
+    form.removeAttribute('style');
+    form.style.cssText='display:flex;flex-direction:column;padding:0;gap:0;overflow:hidden;grid-template-columns:unset;';
+    form.innerHTML='<div style="flex:1;display:flex;align-items:center;justify-content:center;color:var(--text-3);font-size:13px">Carregando base de preços EMBASA…</div>';
+    try{
+      await this._embasaLoadManifest();
+      // tabela a ativar: a salva no orçamento (se tiver dados) ou a 1ª COM dados do manifesto
+      const comDados=this._embasaManifest.filter(m=>m.arquivo);
+      const salvaId=data?getFuzzy(data,['tabela_id']):'';
+      const alvo=(salvaId&&comDados.some(m=>m.id===salvaId))?salvaId:(comDados[0]&&comDados[0].id);
+      if(!alvo)throw new Error('nenhuma tabela com dados incluída');
+      await this._embasaAtivar(alvo);
+    }
+    catch(e){ form.innerHTML='<div style="flex:1;display:flex;align-items:center;justify-content:center;color:var(--red);font-size:13px;padding:24px;text-align:center">Não foi possível carregar a base de preços EMBASA. '+String(e.message||e)+'</div>'; return; }
+    this._buildOrcamento(form,data,isNew);
+  },
+
+  /* Troca a tabela/semestre ativo: re-precifica todas as linhas já lançadas com a nova
+     tabela (re-busca cada código; item sem correspondência vira manual). */
+  async _orcTabelaChange(){
+    const sel=document.getElementById('orc-tabela'); if(!sel)return;
+    const id=sel.value;
+    const anterior=this._embasa?this._embasa.id:'';
+    const estadoAntes=this._orcColetar(); // preserva o que já foi lançado
+    try{ await this._embasaAtivar(id); }
+    catch(e){
+      // Tabela ainda sem dados: volta a seleção para a tabela ativa. Se houver o PDF
+      // oficial da EMBASA no manifesto, abre em nova aba para consulta/uso temporário.
+      sel.value=anterior;
+      const man=(this._embasaManifest||[]).find(m=>m.id===id);
+      if(man&&man.download){
+        window.open(man.download,'_blank');
+        toast('Tabela "'+man.tabela+'" ainda não incluída no sistema — abrindo o PDF oficial da EMBASA para consulta.','');
+      } else {
+        toast(String(e.message||e)+'. Me avise para incluí-la.','error');
+      }
+      return;
+    }
+    const emb=this._embasa;
+    // atualiza o rótulo da base
+    const lbl=document.getElementById('orc-base-lbl');
+    if(lbl)lbl.textContent='Base de preços: '+emb.tabela+' — '+emb.base+' · '+emb.itens.length+' serviços';
+    // preenche Leis Sociais a partir da tabela escolhida
+    const lh=document.getElementById('orc-leis-h'), lm=document.getElementById('orc-leis-m');
+    if(lh&&emb.leis_h)lh.value=emb.leis_h; if(lm&&emb.leis_m)lm.value=emb.leis_m;
+    // re-lança as linhas re-precificadas na nova tabela
+    const tbody=document.getElementById('orc-tbody'); tbody.innerHTML='';
+    estadoAntes.forEach(it=>{
+      if(it.manual){ this._orcAddRow(it); return; }
+      const novo=emb._byCod[it.codigo];
+      if(novo){ this._orcAddRow({manual:false,mc:novo.mc,codigo:novo.codigo,descricao:novo.descricao,unidade:novo.unidade,p_unit_base:novo.preco,quant:it.quant}); }
+      else { this._orcAddRow({manual:true,mc:it.mc,codigo:it.codigo,descricao:it.descricao,unidade:it.unidade,p_unit_base:it.p_unit_base,quant:it.quant}); }
+    });
+    this._orcRecalc();
+    this._orcUpdateLock();
+  },
+  /* Abre o PDF oficial da EMBASA da tabela selecionada no momento — útil tanto para
+     conferência das já incluídas quanto para consulta manual/temporária das que ainda
+     não foram extraídas para o sistema ("a incluir"). */
+  _orcBaixarPdfTabela(){
+    const sel=document.getElementById('orc-tabela'); if(!sel)return;
+    const man=(this._embasaManifest||[]).find(m=>m.id===sel.value);
+    if(!man||!man.download){ toast('PDF não disponível para esta tabela.','error'); return; }
+    window.open(man.download,'_blank');
+  },
+
+  _buildOrcamento(form,data,isNew){
+    const gv=(k,def)=>{const v=data?getFuzzy(data,[k]):'';return (v===''||v==null)?(def||''):v;};
+    const E=this._ORC_EMPRESA;
+    const emb=this._embasa;
+    const esc=s=>String(s==null?'':s).replace(/"/g,'&quot;');
+    const lancVal=isNew?todayDateTime():(gv('data_lancamento')||todayDateTime());
+    const titVal=isNew?'':gv('titulo');
+    const p={
+      sindicato:gv('sindicato','Sintracom'), tipo_obra:gv('tipo_obra','Expansão'),
+      ritmo:gv('ritmo','Normal'), encargos:gv('encargos','Desonerada'),
+      bdi:gv('bdi','0,00'), leis_h:gv('leis_sociais_h',emb.leis_h||'158,56'), leis_m:gv('leis_sociais_m',emb.leis_m||'119,40'),
+      iss:gv('iss','5,00'), desconto:gv('desconto','0,00')
+    };
+    const emp={
+      razao:gv('razao_social',E.razao), endereco:gv('endereco',E.endereco), cnpj:gv('cnpj',E.cnpj),
+      telefone:gv('telefone',E.telefone), email:gv('email',E.email), rede:gv('rede_social',E.rede||'')
+    };
+    const itens=Array.isArray(data&&data.itens)?data.itens:[];
+
+    // Título: em Novo → seletor de Obra (só as que ainda não têm orçamento salvo);
+    // ao Editar (expandir card) → só a Obra (texto fixo), igual aos outros formulários.
+    const obrasComOrcamento=new Set((App.state.data.orcamentos||[]).map(o=>getFuzzy(o,['titulo'])||''));
+    let obraNomes=[...new Set((App.state.data.obras||[]).map(o=>getFuzzy(o,['titulo_obra','nome_obra','titulo'])||'').filter(Boolean))];
+    if(isNew)obraNomes=obraNomes.filter(n=>!obrasComOrcamento.has(n));
+    if(titVal&&!obraNomes.includes(titVal))obraNomes.unshift(titVal);
+    const titOpts=obraNomes.map(n=>`<option value="${esc(n)}" ${titVal===n?'selected':''}>${esc(n)}</option>`).join('');
+    const tituloHtml=isNew
+      ? `<select id="orc-titulo" class="field-input field-select" style="max-width:420px;font-size:13px;font-weight:700;padding:8px 30px 8px 12px;cursor:pointer"><option value="">Selecione a obra…</option>${titOpts}</select>`
+      : `<input id="orc-titulo" class="cap-sticky-title" value="${esc(titVal)}" readonly style="border:1px solid transparent;background:transparent;padding:0 2px;max-width:420px;width:100%;outline:none;font-family:inherit">`;
+
+    // Seletores de semestre (2026 em diante) + tabela (todas do semestre, agrupadas).
+    const semAtivo=emb.semestre;
+    const semestres=this._orcSemestresVisiveis();
+    const semOpts=semestres.map(s=>`<option value="${esc(s)}" ${s===semAtivo?'selected':''}>${esc(s)}</option>`).join('');
+    const tabOpts=this._orcTabOptionsHtml(semAtivo,emb.id);
+
+    // Empresa e Parâmetros = campos editáveis. campo=texto; campoRO=bloqueado; masks p/ CNPJ,
+    // telefone e percentuais.
+    const campo=(lbl,id,val,attr)=>`<div style="display:flex;align-items:center;gap:6px;font-size:11px"><span style="font-weight:800;color:var(--text-1);white-space:nowrap">${lbl}</span><input id="${id}" class="cap-fi" value="${esc(val)}" style="border:1px solid var(--border);padding:4px 8px;min-width:0;flex:1" ${attr||'oninput="UI._orcRecalc()"'}></div>`;
+    const campoRO=(lbl,id,val)=>`<div style="display:flex;align-items:center;gap:6px;font-size:11px"><span style="font-weight:800;color:var(--text-1);white-space:nowrap">${lbl}</span><input id="${id}" class="cap-fi" value="${esc(val)}" readonly style="border:1px solid var(--border);padding:4px 8px;min-width:0;flex:1;color:var(--text-3);background:rgba(0,0,0,.03)"></div>`;
+    // campoSel = campo em lista suspensa. Inclui o valor atual mesmo que não esteja na
+    // lista de opções (compatibilidade com orçamentos antigos salvos com outro texto).
+    const campoSel=(lbl,id,opts,val)=>{
+      const list=opts.slice(); if(val&&!list.includes(val))list.unshift(val);
+      const o=list.map(op=>`<option value="${esc(op)}" ${op===val?'selected':''}>${esc(op)}</option>`).join('');
+      return `<div style="display:flex;align-items:center;gap:6px;font-size:11px"><span style="font-weight:800;color:var(--text-1);white-space:nowrap">${lbl}</span><select id="${id}" class="cap-fi" style="border:1px solid var(--border);padding:4px 8px;min-width:0;flex:1;cursor:pointer" onchange="UI._orcRecalc()">${o}</select></div>`;
+    };
+    const secLbl=t=>`<div style="font-size:11px;font-weight:700;color:var(--text-3);margin-bottom:6px">${t}</div>`;
+
+    const html=`
+    <div class="cap-sticky-header">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:16px">
+        <div style="min-width:0;flex:1">${tituloHtml}</div>
+        <button type="button" onclick="UI._orcExportPDF()" style="flex-shrink:0;display:flex;align-items:center;gap:6px;background:rgba(0,113,227,.08);border:1px solid rgba(0,113,227,.18);color:var(--blue);font-size:12px;font-weight:700;padding:8px 14px;border-radius:10px;cursor:pointer">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
+          Exportar PDF
+        </button>
+      </div>
+    </div>
+    <input type="hidden" id="orc-lanc" value="${lancVal}">
+    <div style="flex:1;overflow-y:auto;padding:16px 24px 28px">
+      <div style="background:var(--bg);border-radius:12px;padding:16px 18px;margin-bottom:16px">
+        ${secLbl('Dados da empresa')}
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 32px;margin-bottom:14px">
+          ${campo('Razão Social:','orc-razao',emp.razao)}${campo('Telefone:','orc-telefone',emp.telefone,'inputmode="numeric" oninput="UI._orcMaskTel(this)" onblur="UI._orcValidarCampo(this,\'tel\')"')}
+          ${campo('CNPJ:','orc-cnpj',emp.cnpj,'inputmode="numeric" oninput="UI._orcMaskCNPJ(this)" onblur="UI._orcValidarCampo(this,\'cnpj\')"')}${campo('E-mail:','orc-email',emp.email)}
+        </div>
+        ${secLbl('Parâmetros')}
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr 1fr;gap:8px 20px">
+          ${campoSel('Sind.:','orc-sindicato',['Sintracom'],p.sindicato)}${campoSel('Enc.:','orc-encargos',['Desonerada','Tradicional'],p.encargos)}${campoRO('H:','orc-leis-h',p.leis_h)}${campoRO('M:','orc-leis-m',p.leis_m)}${campo('% ISS:','orc-iss',p.iss,'inputmode="numeric" oninput="UI._orcMaskPct(this)"')}
+          ${campoSel('Obra:','orc-tipo',['Expansão','Operação'],p.tipo_obra)}${campo('Ritmo:','orc-ritmo',p.ritmo)}${campo('% BDI:','orc-bdi',p.bdi,'inputmode="numeric" oninput="UI._orcMaskPct(this)"')}${campo('% Desc.:','orc-desconto',p.desconto,'inputmode="numeric" oninput="UI._orcMaskPct(this)"')}<div></div>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 2fr;gap:10px 14px;align-items:center;background:rgba(0,113,227,.05);border:1px solid rgba(0,113,227,.18);border-radius:10px;padding:12px 14px;margin-bottom:14px">
+        <div style="display:grid;grid-template-columns:70px 1fr;gap:8px;align-items:center;font-size:11px"><span style="font-weight:800;color:var(--blue)">Ano</span><select id="orc-semestre" class="field-input field-select" style="font-size:12px;padding:6px 26px 6px 10px;cursor:pointer" onchange="UI._orcSemestreChange()">${semOpts}</select></div>
+        <div style="display:grid;grid-template-columns:56px 1fr auto;gap:8px;align-items:center;font-size:11px"><span style="font-weight:800;color:var(--blue)">Tabela</span><select id="orc-tabela" class="field-input field-select" style="font-size:12px;padding:6px 26px 6px 10px;cursor:pointer" onchange="UI._orcTabelaChange()">${tabOpts}</select><button type="button" onclick="UI._orcBaixarPdfTabela()" title="Baixar PDF oficial da EMBASA (uso temporário)" style="flex-shrink:0;display:flex;align-items:center;justify-content:center;width:28px;height:28px;background:#fff;border:1px solid rgba(0,113,227,.3);color:var(--blue);border-radius:7px;cursor:pointer"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></button></div>
+        <div id="orc-base-lbl" style="grid-column:1/-1;font-size:10px;color:var(--text-3);font-weight:700">Base de preços: ${esc(emb.tabela)} — ${esc(emb.base)} · ${emb.itens.length} serviços</div>
+      </div>
+
+      <div style="background:rgba(0,113,227,.05);border:1px dashed rgba(0,113,227,.3);border-radius:10px;padding:12px 14px;margin-bottom:14px">
+        <div style="font-size:11px;font-weight:700;color:var(--blue);margin-bottom:6px">Colar planilha (Descrição + Quant.) — uma linha por item, separadas por TAB, ; ou vírgula. Também aceita o "Meu Código" no lugar da descrição.</div>
+        <textarea id="orc-paste" rows="4" placeholder="Ex.:&#10;CONCRETO ARMADO P/CX/P.V.(ACO=40KG,FORMA=15M2)&#9;1,49&#10;LOCAÇÃO DE RETROESCAVADEIRA, INCLUSIVE OPERADOR E COMBUSTIVEL&#9;8" style="width:100%;border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:12px;font-family:inherit;resize:vertical"></textarea>
+        <button type="button" onclick="UI._orcProcessarColagem()" style="margin-top:8px;font-size:12px;font-weight:700;color:#fff;background:var(--blue);border:none;border-radius:8px;padding:7px 16px;cursor:pointer">Processar e adicionar</button>
+      </div>
+
+      <div class="gr-table-wrap" style="overflow-x:auto">
+        <table class="cap-tbl orc-tbl-left" id="orc-tbl" style="width:100%;min-width:940px;table-layout:fixed">
+          <thead><tr>
+            <th style="width:110px;text-align:left">Item</th>
+            <th style="width:80px;text-align:left">Código</th>
+            <th style="text-align:left">Especificação</th>
+            <th style="width:56px;text-align:left">Unid.</th>
+            <th style="width:80px;text-align:left">Quant.</th>
+            <th style="width:110px;text-align:left">P. Unit.</th>
+            <th style="width:120px;text-align:left">P. Total</th>
+            <th style="width:34px"></th>
+          </tr></thead>
+          <tbody id="orc-tbody"></tbody>
+        </table>
+      </div>
+      <div style="display:flex;gap:10px;margin-top:10px">
+        <button type="button" id="orc-btn-addrow" onclick="UI._orcAddRow({manual:true})" style="display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;color:var(--blue);background:rgba(0,113,227,.07);border:1px dashed rgba(0,113,227,.4);border-radius:7px;padding:6px 14px;cursor:pointer"><span style="font-size:16px;line-height:1">+</span> Adicionar linha e orçar manualmente</button>
+        <button type="button" id="orc-btn-limpar" onclick="UI._orcLimpar()" style="display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;color:var(--red);background:rgba(255,59,48,.07);border:1px solid rgba(255,59,48,.25);border-radius:7px;padding:6px 14px;cursor:pointer"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"><path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2M19 6l-1 14a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1L5 6"/></svg> Limpar tabela</button>
+      </div>
+
+      <div class="cap-resumo" style="margin-top:18px">
+        <div class="cap-resumo-row"><span class="cap-resumo-val" style="font-weight:800">Total da Obra</span><span class="cap-resumo-big" id="orc-total">R$ 0,00</span></div>
+      </div>
+    </div>`;
+    form.innerHTML=html;
+    itens.forEach(it=>this._orcAddRow(it));
+    this._orcUpdateLock();
+    this._orcRecalc();
+  },
+
+  /* Ao trocar o SEMESTRE, repopula as tabelas (agrupadas) e ativa a 1ª COM dados. */
+  async _orcSemestreChange(){
+    const sem=document.getElementById('orc-semestre').value;
+    const selTab=document.getElementById('orc-tabela');
+    const comDados=(this._embasaManifest||[]).filter(m=>m.semestre===sem&&m.arquivo);
+    if(comDados.length===0){
+      selTab.innerHTML=this._orcTabOptionsHtml(sem,'');
+      toast('O semestre '+sem+' ainda não tem tabelas incluídas no sistema. Me avise para incluir.','error');
+      return;
+    }
+    selTab.innerHTML=this._orcTabOptionsHtml(sem,comDados[0].id);
+    await this._orcTabelaChange();
+  },
+
+  /* Uma linha da planilha. `item` reidrata de um orçamento salvo / colagem.
+     item.manual=true → linha totalmente digitável (não achou na EMBASA);
+     senão → linha "casada" (Item/Código/Descrição/Unid./Quant./P.Unit. bloqueados). */
+  _orcAddRow(item){
+    const tbody=document.getElementById('orc-tbody');if(!tbody)return;
+    item=item||{};
+    const manual=!!item.manual;
+    const tr=document.createElement('tr');
+    const esc=s=>String(s==null?'':s).replace(/"/g,'&quot;');
+    const desc=item.descricao||'';
+    const cod=item.codigo||'';
+    const mc=item.mc||'';
+    const un=item.unidade||'';
+    const quant=parseStoredNumber(item.quant);
+    const quantTxt=quant>0?quant.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}):'';
+    tr.dataset.manual=manual?'1':'0';
+
+    if(manual){
+      // Manual (serviço não encontrado): usuário digita o PREÇO-BASE do serviço e o sistema
+      // aplica BDI e Desconto igual às linhas casadas — P.Unit. exibido = base×fator e
+      // P.Total = P.Unit. × Quant. Enquanto o campo está em foco mostra a base (para editar
+      // sem "acumular" o ajuste); ao sair do campo mostra o P.Unit. já ajustado.
+      const base=parseStoredNumber(item.p_unit_base!=null?item.p_unit_base:item.p_unit);
+      tr.dataset.base=base||0;
+      tr.innerHTML=`
+        <td><input class="cap-fi orc-mc" value="${esc(mc)}" placeholder="—" style="font-size:11px"></td>
+        <td><input class="cap-fi orc-cod-man" value="${esc(cod)}" placeholder="Código"></td>
+        <td><input class="cap-fi orc-desc" value="${esc(desc)}" placeholder="Descrição (manual)…"></td>
+        <td><input class="cap-fi orc-un" value="${esc(un)}" placeholder="Un"></td>
+        <td><input class="cap-fi orc-quant" value="${quantTxt}" placeholder="0,00" inputmode="numeric" oninput="UI._orcMaskQuant(this)"></td>
+        <td><input class="cap-fi orc-punit" placeholder="R$ 0,00" inputmode="numeric" oninput="UI._orcMaskPunit(this)" onfocus="UI._orcPunitFocus(this)" onblur="UI._orcRecalc()"></td>
+        <td><input class="cap-fi orc-ptotal" readonly style="font-weight:700"></td>
+        <td style="text-align:center"><button type="button" class="cap-row-btn del" onclick="UI._orcDelRow(this)" title="Remover"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2M19 6l-1 14a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1L5 6"/></svg></button></td>`;
+      tbody.appendChild(tr);
+      this._orcRecalc();
+      return;
+    }
+
+    // Linha casada — Código pode ter mais de uma opção (ex.: mesmo serviço por Hora ou Mês)
+    const base=parseStoredNumber(item.p_unit_base);
+    const cands=desc?this._orcBuscar(desc):[];
+    let opts=cands.slice();
+    if(cod&&!opts.some(o=>o.codigo===cod&&Math.abs(o.preco-base)<0.005)){opts.unshift({mc,codigo:cod,descricao:desc,unidade:un,preco:base});}
+    const optHtml=opts.map(o=>`<option value="${esc(o.codigo)}|${o.preco}" data-un="${esc(o.unidade)}" data-desc="${esc(o.descricao)}" data-mc="${esc(o.mc||'')}" ${(o.codigo===cod&&Math.abs(o.preco-base)<0.005)?'selected':''}>${esc(o.codigo)} — ${fmt(o.preco)}</option>`).join('');
+    tr.dataset.base=base||0;
+    tr.innerHTML=`
+      <td><input class="cap-fi orc-mc" value="${esc(mc)}" readonly style="font-size:11px;color:var(--text-3)"></td>
+      <td>${opts.length>1?`<select class="cap-fi-sel orc-cod" onchange="UI._orcCodChange(this)">${optHtml}</select>`:`<input class="cap-fi orc-cod-txt" value="${esc(cod)}" readonly style="color:var(--text-3)">`}</td>
+      <td><input class="cap-fi orc-desc" value="${esc(desc)}" readonly style="color:var(--text-3)"></td>
+      <td><input class="cap-fi orc-un" value="${esc(un)}" readonly style="color:var(--text-3)"></td>
+      <td><input class="cap-fi orc-quant" value="${quantTxt}" readonly style="color:var(--text-3)"></td>
+      <td><input class="cap-fi orc-punit" readonly style="color:var(--text-3)"></td>
+      <td><input class="cap-fi orc-ptotal" readonly style="font-weight:700"></td>
+      <td style="text-align:center"><button type="button" class="cap-row-btn del" onclick="UI._orcDelRow(this)" title="Remover"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2M19 6l-1 14a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1L5 6"/></svg></button></td>`;
+    tbody.appendChild(tr);
+    this._orcRecalc();
+  },
+  _orcDelRow(btn){const tr=btn.closest('tr');if(tr){tr.remove();this._orcRecalc();this._orcUpdateLock();}},
+  _orcMaskQuant(el){
+    const raw=el.value.replace(/\D/g,'');
+    const n=raw?parseInt(raw,10)/100:0;
+    el.value=n?n.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}):'';
+    this._orcRecalc();
+  },
+  /* P.Unit. manual: o valor digitado é o PREÇO-BASE (a máscara em centavos formata em R$).
+     Guarda a base no dataset.base; o recálculo aplica o fator (BDI/Desconto) por cima. */
+  _orcMaskPunit(el){
+    const raw=el.value.replace(/\D/g,'');
+    const n=raw?parseInt(raw,10)/100:0;
+    el.value=n?fmt(n):'';
+    const tr=el.closest('tr'); if(tr)tr.dataset.base=n;
+    this._orcRecalc();
+  },
+  /* Ao focar o P.Unit. manual, mostra a BASE (sem ajuste) para o usuário editar sem
+     acumular o fator; ao sair (blur→_orcRecalc) volta a mostrar o P.Unit. ajustado. */
+  _orcPunitFocus(el){
+    const tr=el.closest('tr'); const base=parseFloat(tr.dataset.base)||0;
+    el.value=base>0?fmt(base):'';
+  },
+  /* Troca do código numa linha casada (ex.: escolher a variante por Hora em vez de Mês). */
+  _orcCodChange(sel){
+    const tr=sel.closest('tr');
+    const opt=sel.options[sel.selectedIndex];
+    tr.dataset.base=(sel.value.split('|')[1])||0;
+    tr.querySelector('.orc-un').value=opt.getAttribute('data-un')||'';
+    tr.querySelector('.orc-desc').value=opt.getAttribute('data-desc')||tr.querySelector('.orc-desc').value;
+    const mcEl=tr.querySelector('.orc-mc');if(mcEl)mcEl.value=opt.getAttribute('data-mc')||'';
+    this._orcRecalc();
+  },
+  /* Fator de ajuste único aplicado a TODAS as linhas (casadas E manuais):
+     (1+BDI%)×(1−Desconto%). P.Unit. exibido = base × fator; P.Total = P.Unit. × Quant. */
+  _orcFator(){
+    const bdi=currencyToNumber(document.getElementById('orc-bdi')?.value||'0');
+    const desc=currencyToNumber(document.getElementById('orc-desconto')?.value||'0');
+    return (1+bdi/100)*(1-desc/100);
+  },
+  _orcRecalc(){
+    const fator=this._orcFator();
+    let total=0;
+    document.querySelectorAll('#orc-tbody tr').forEach(tr=>{
+      const manual=tr.dataset.manual==='1';
+      const quant=currencyToNumber(tr.querySelector('.orc-quant')?.value||'0');
+      const pu=tr.querySelector('.orc-punit');
+      // Casada E manual usam a MESMA fórmula: P.Unit. = base × fator. Na casada a base vem
+      // da EMBASA; na manual, do que o usuário digitou (dataset.base). O P.Unit. é
+      // arredondado em 2 casas e é ESSE valor (o mesmo que aparece na tela) que multiplica
+      // a Quant. — assim o P.Total confere com P.Unit. × Quant. exibidos.
+      const base=parseFloat(tr.dataset.base)||0;
+      const punit=Math.round(base*fator*100)/100;
+      // Atualiza o campo com o P.Unit. ajustado — menos na linha manual enquanto está em
+      // foco (aí o campo mostra a base sendo digitada, para não acumular o ajuste).
+      if(pu && (!manual || document.activeElement!==pu)) pu.value=punit>0?fmt(punit):'';
+      const ptot=Math.round(punit*quant*100)/100;
+      total+=ptot;
+      const pt=tr.querySelector('.orc-ptotal');if(pt)pt.value=ptot>0?fmt(ptot):'';
+    });
+    const tEl=document.getElementById('orc-total');if(tEl)tEl.textContent=fmt(total);
+  },
+  /* Processa o texto colado: cada linha vira um item. Última "coluna" numérica = Quant.;
+     o resto = Descrição (ou Meu Código). Sem correspondência → linha manual. */
+  _orcProcessarColagem(){
+    const ta=document.getElementById('orc-paste');if(!ta)return;
+    const linhas=ta.value.split(/\r?\n/).map(l=>l.trim()).filter(Boolean);
+    if(linhas.length===0){toast('Cole ao menos uma linha.','error');return;}
+    let add=0,semMatch=0;
+    linhas.forEach(l=>{
+      let desc=l,quant=0;
+      let m=l.split('\t');
+      if(m.length<2)m=l.split(';');
+      if(m.length>=2){ desc=m.slice(0,-1).join(' ').trim(); quant=parseStoredNumber(m[m.length-1]); }
+      else { const mm=l.match(/^(.*?)[\s,;]+([\d.]+,\d+|\d+)$/); if(mm){desc=mm[1].trim();quant=parseStoredNumber(mm[2]);} }
+      const cands=this._orcBuscar(desc);
+      const best=cands[0]||null;
+      if(best){ this._orcAddRow({manual:false,mc:best.mc,codigo:best.codigo,descricao:best.descricao,unidade:best.unidade,p_unit_base:best.preco,quant}); }
+      else { this._orcAddRow({manual:true,descricao:desc,quant}); semMatch++; }
+      add++;
+    });
+    ta.value='';
+    this._orcRecalc();
+    this._orcUpdateLock();
+    toast(add+' item(ns) adicionado(s)'+(semMatch?', '+semMatch+' sem correspondência (preencha manualmente)':'')+'.',semMatch?'':'success');
+  },
+  _orcColetar(){
+    const itens=[];
+    const fator=this._orcFator();
+    document.querySelectorAll('#orc-tbody tr').forEach(tr=>{
+      const manual=tr.dataset.manual==='1';
+      const desc=(tr.querySelector('.orc-desc')?.value||'').trim();
+      const un=tr.querySelector('.orc-un')?.value||'';
+      const mc=tr.querySelector('.orc-mc')?.value||'';
+      const quant=currencyToNumber(tr.querySelector('.orc-quant')?.value||'0');
+      const codEl=tr.querySelector('.orc-cod'),codTxt=tr.querySelector('.orc-cod-txt'),codMan=tr.querySelector('.orc-cod-man');
+      const cod=codEl?(codEl.value.split('|')[0]):(codMan?codMan.value:(codTxt?codTxt.value:''));
+      if(!desc&&!quant&&!cod)return; // linha vazia
+      // Manual e casada: P.Unit. = base × fator (a base manual vem do dataset.base digitado).
+      // Arredonda o P.Unit. em 2 casas e usa esse valor exibido para o P.Total = P.Unit. × Quant.
+      const base=parseFloat(tr.dataset.base)||0;
+      const punit=Math.round(base*fator*100)/100;
+      const ptot=Math.round(punit*quant*100)/100;
+      itens.push({manual,mc:mc,codigo:cod,descricao:desc,unidade:un,quant:quant,p_unit_base:base,p_unit:punit,p_total:ptot});
+    });
+    return itens;
+  },
+  /* Valida a planilha de serviços: nenhum campo pode ficar vazio ou zerado. Marca as
+     células com erro (borda vermelha) e retorna true se tudo estiver ok. */
+  _orcValidar(){
+    let ok=true,primeiro=null;
+    const rows=[...document.querySelectorAll('#orc-tbody tr')];
+    rows.forEach(tr=>{
+      const campos=[];
+      const manualRow=tr.dataset.manual==='1';
+      const mc=tr.querySelector('.orc-mc'),desc=tr.querySelector('.orc-desc'),un=tr.querySelector('.orc-un'),quant=tr.querySelector('.orc-quant');
+      const codEl=tr.querySelector('.orc-cod')||tr.querySelector('.orc-cod-txt')||tr.querySelector('.orc-cod-man');
+      // "Meu Código" (mc) é a numeração interna da EMBASA — só existe em linha casada;
+      // na linha manual (serviço não encontrado) o usuário não tem esse código, então
+      // não é obrigatório. Código/Descrição/Unid. continuam obrigatórios em ambos.
+      const obrig=manualRow?[codEl,desc,un]:[mc,codEl,desc,un];
+      obrig.forEach(el=>{if(el)campos.push({el,vazio:!(el.value||'').trim()});});
+      // Quant. e P.Unit. não podem ser zero. Em linha casada o P.Unit. vem de base×fator
+      // (dataset.base); em linha manual o P.Unit. é o valor digitado no próprio campo —
+      // por isso validamos o valor do campo, não o dataset.base (que fica 0 no manual).
+      campos.push({el:quant,vazio:currencyToNumber(quant?quant.value:'0')<=0});
+      // P.Unit. (casada e manual) vem de base×fator — base>0 significa preenchido.
+      const puEl=tr.querySelector('.orc-punit');
+      campos.push({el:puEl,vazio:(parseFloat(tr.dataset.base)||0)<=0});
+      campos.forEach(c=>{
+        if(!c.el)return; c.el.classList.remove('err');
+        if(c.vazio){c.el.classList.add('err');ok=false;if(!primeiro)primeiro=c.el;}
+      });
+    });
+    if(primeiro)primeiro.scrollIntoView({behavior:'smooth',block:'center'});
+    return ok;
+  },
+  /* Exporta o orçamento em PDF no padrão da planilha EMBASA (cabeçalho da empresa +
+     parâmetros + tabela ITEM/CÓDIGO/ESPECIFICAÇÃO/UNID/QUANT/P.UNIT/P.TOTAL + total). */
+  _orcExportPDF(){
+    const titEl=document.getElementById('orc-titulo');
+    const titulo=(titEl?titEl.value:'').trim();
+    if(!titulo){toast('Informe o título do orçamento antes de exportar.','error');return;}
+    const itens=this._orcColetar();
+    if(itens.length===0){toast('Adicione ao menos um item antes de exportar.','error');return;}
+    const E=this._ORC_EMPRESA, emb=this._embasa||{};
+    const gv=id=>{const e=document.getElementById(id);return e?e.value:'';};
+    // Empresa vem dos campos editáveis (com fallback aos padrões da Vixsul).
+    const emp={razao:gv('orc-razao')||E.razao,cnpj:gv('orc-cnpj')||E.cnpj,telefone:gv('orc-telefone')||E.telefone,email:gv('orc-email')||E.email};
+    const total=itens.reduce((s,it)=>s+(it.p_total||0),0);
+    const esc=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    const pct=v=>{v=String(v||'').trim();return v?(v.replace('%','')+'%'):'—';};
+    const rowsHtmlArr=itens.map((it)=>`<tr>
+      <td style="text-align:center;white-space:nowrap">${esc(it.mc)||'—'}</td>
+      <td style="text-align:center;white-space:nowrap">${esc(it.codigo)||'—'}</td>
+      <td>${esc(it.descricao)}</td>
+      <td style="text-align:center">${esc(it.unidade)}</td>
+      <td style="text-align:right">${it.quant.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
+      <td style="text-align:right;white-space:nowrap">${fmt(it.p_unit)}</td>
+      <td style="text-align:right;white-space:nowrap">${fmt(it.p_total)}</td>
+    </tr>`);
+    const theadHtml=`<tr>
+      <th style="width:78px">ITEM</th><th style="width:64px">CÓDIGO</th><th>ESPECIFICAÇÃO</th>
+      <th style="width:58px">UNID.</th><th style="width:60px">QUANT.</th><th style="width:88px">P.UNIT.</th><th style="width:98px">P. TOTAL</th>
+    </tr>`;
+    const campoPdf=(l,v)=>`<div><span class="k">${l}</span> <span class="v">${esc(v)||'—'}</span></div>`;
+    const baseLbl='Base de preços: '+esc(emb.tabela||'')+' — '+esc(emb.base||'')+' · EMBASA';
+    const headHtml=`<h1>${esc(titulo)}</h1>
+      <div class="secs">
+        <div class="sec">
+          <div class="sec-t">DADOS DA EMPRESA</div>
+          <div class="sec-b emp">
+            ${campoPdf('Razão Social:',emp.razao)}${campoPdf('CNPJ:',emp.cnpj)}${campoPdf('Telefone:',emp.telefone)}${campoPdf('E-mail:',emp.email)}
+          </div>
+        </div>
+        <div class="sec">
+          <div class="sec-t">PARÂMETROS</div>
+          <div class="sec-b par">
+            ${campoPdf('Sind.:',gv('orc-sindicato'))}${campoPdf('Enc.:',gv('orc-encargos'))}${campoPdf('H:',pct(gv('orc-leis-h')))}${campoPdf('M:',pct(gv('orc-leis-m')))}${campoPdf('% ISS:',pct(gv('orc-iss')))}
+            ${campoPdf('Obra:',gv('orc-tipo'))}${campoPdf('Ritmo:',gv('orc-ritmo'))}${campoPdf('% BDI:',pct(gv('orc-bdi')))}${campoPdf('% Desc.:',pct(gv('orc-desconto')))}<div></div>
+          </div>
+        </div>
+      </div>
+      <div class="baseline">${baseLbl}</div>`;
+    const resumoHtml=`<div class="resumo"><span>TOTAL DA OBRA — R$</span><span>${fmt(total)}</span></div>`;
+    const agora=new Date();
+    const dataHoraImpressao=agora.toLocaleDateString('pt-BR')+' '+agora.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+    const pageWmm=297, pageHmm=210, contentWmm=pageWmm-28;
+    const win=window.open('','_blank');
+    win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>&nbsp;</title>
+      <style>
+        @page{margin:0;size:A4 landscape;}
+        *{box-sizing:border-box;}
+        html,body{margin:0;padding:0;background:#ccc;font-family:Arial,sans-serif;color:#1d1d1f;}
+        #orc-pdf-source{position:absolute;left:-9999px;top:0;width:${contentWmm}mm;}
+        h1{font-size:16px;margin:0 0 10px;text-align:center;text-transform:uppercase;}
+        .secs{display:flex;gap:10px;margin-bottom:8px;}
+        .sec{flex:1;border:1px solid #999;border-radius:4px;overflow:hidden;}
+        .sec-t{background:#e9e9ec;font-weight:800;font-size:9.5px;padding:4px 8px;letter-spacing:.4px;border-bottom:1px solid #999;}
+        .sec-b{padding:7px 9px;font-size:10px;line-height:1.55;}
+        .sec-b.emp{display:grid;grid-template-columns:1fr 1fr;gap:2px 18px;}
+        .sec-b.par{display:grid;grid-template-columns:1fr 1fr 1fr 1fr 1fr;gap:2px 12px;}
+        .sec-b .k{font-weight:800;}
+        .baseline{font-size:9px;color:#6e6e73;text-align:right;margin-bottom:10px;}
+        table{border-collapse:collapse;width:100%;font-size:10.5px;table-layout:fixed;}
+        th,td{border:1px solid #bbb;padding:4px 6px;vertical-align:top;word-break:break-word;}
+        thead th{background:#e9e9ec;font-weight:800;}
+        .resumo{margin-top:10px;display:flex;justify-content:flex-end;gap:16px;align-items:center;background:#e9e9ec;border:1px solid #bbb;padding:7px 12px;font-weight:800;font-size:12px;}
+        .pdf-page{position:relative;width:${pageWmm}mm;height:${pageHmm}mm;background:#fff;margin:0 auto 6mm;overflow:hidden;page-break-after:always;}
+        .pdf-page-inner{position:absolute;top:14mm;left:14mm;right:14mm;bottom:18mm;overflow:hidden;}
+        .pdf-page-footer{position:absolute;left:14mm;right:14mm;bottom:6mm;display:flex;justify-content:space-between;align-items:center;font-size:9px;color:#6e6e73;border-top:1px solid #e5e5ea;padding-top:5px;}
+        @media print{html,body{background:#fff;}.pdf-page{margin:0;box-shadow:none;}}
+        @media screen{.pdf-page{box-shadow:0 2px 12px rgba(0,0,0,.15);margin-top:6mm;}}
+      </style></head><body>
+      <div id="orc-pdf-source">
+        <div id="orc-pdf-head">${headHtml}</div>
+        <table id="orc-pdf-measure"><thead>${theadHtml}</thead><tbody id="orc-pdf-rows">${rowsHtmlArr.join('')}</tbody></table>
+        <div id="orc-pdf-resumo">${resumoHtml}</div>
+      </div>
+      <div id="orc-pdf-pages"></div>
+      <script>
+      (function(){
+        function paginar(){
+          var alturaUtilPx=(${pageHmm}-14-18)*(96/25.4);
+          var source=document.getElementById('orc-pdf-source');
+          var pagesContainer=document.getElementById('orc-pdf-pages');
+          var headEl=document.getElementById('orc-pdf-head');
+          var theadEl=document.querySelector('#orc-pdf-measure thead');
+          var theadHtmlStr=theadEl.outerHTML;
+          var theadH=theadEl.offsetHeight;
+          var rowsEls=Array.prototype.slice.call(document.querySelectorAll('#orc-pdf-rows tr'));
+          var resumoEl=document.getElementById('orc-pdf-resumo');
+          var headH=headEl.offsetHeight+12;
+          var resumoH=resumoEl.offsetHeight+12;
+          var paginas=[];
+          var i=0, first=true;
+          while(i<rowsEls.length || paginas.length===0){
+            var budget=alturaUtilPx-theadH-(first?headH:0);
+            var idxs=[], usado=0;
+            while(i<rowsEls.length){
+              var h=rowsEls[i].offsetHeight;
+              if(usado+h>budget && idxs.length>0)break;
+              idxs.push(i);usado+=h;i++;
+            }
+            paginas.push({idxs:idxs,head:first,remaining:budget-usado});
+            first=false;
+            if(i>=rowsEls.length)break;
+          }
+          var ultima=paginas[paginas.length-1];
+          if(ultima && resumoH<=ultima.remaining){ultima.resumo=true;}
+          else{paginas.push({idxs:[],head:false,resumo:true});}
+          var totalPaginas=paginas.length;
+          var dataHora=${JSON.stringify(dataHoraImpressao)};
+          paginas.forEach(function(pg,idx){
+            var page=document.createElement('div');
+            page.className='pdf-page';
+            var inner=document.createElement('div');
+            inner.className='pdf-page-inner';
+            if(pg.head)inner.appendChild(headEl.cloneNode(true));
+            if(pg.idxs.length>0){
+              var tbl=document.createElement('table');
+              tbl.innerHTML=theadHtmlStr+'<tbody>'+pg.idxs.map(function(ri){return rowsEls[ri].outerHTML;}).join('')+'</tbody>';
+              inner.appendChild(tbl);
+            }
+            if(pg.resumo)inner.appendChild(resumoEl.cloneNode(true));
+            var footer=document.createElement('div');
+            footer.className='pdf-page-footer';
+            footer.innerHTML='<span>'+dataHora+'</span><span>Vixsul Empreendimentos — CNPJ 64.518.375/0001-20</span><span>Página '+(idx+1)+' de '+totalPaginas+'</span>';
+            page.appendChild(inner);
+            page.appendChild(footer);
+            pagesContainer.appendChild(page);
+          });
+          source.remove();
+          setTimeout(function(){window.print();},150);
+        }
+        if(document.readyState==='complete'){paginar();}
+        else{window.addEventListener('load',paginar);}
+      })();
+      <\/script>
+      </body></html>`);
+    win.document.close();
+  },
+
   openGroupEditor(view,obraName=null){
     if(App.state._busy)return;
     if(this._capCalcTimer){clearTimeout(this._capCalcTimer);this._capCalcTimer=null;}
@@ -4317,6 +5246,7 @@ App.save=function(e){
   const abaKey=App.state.editing.abaKey;
 
   if(abaKey==='cap'){App.saveCAP();return;}
+  if(abaKey==='orcamentos'){App.saveOrcamento();return;}
   if(App.state.editing.isGroup){App.saveGroup();return;}
 
   let ok=true;
@@ -4355,8 +5285,21 @@ App.save=function(e){
   }
   if(!ok){toast('Preencha os campos obrigatórios.','error');return;}
   cleanMoneyFields(form);
-  const p={};
+  // FormData ignora QUALQUER campo com o atributo disabled (é assim que o HTML funciona) —
+  // como o salvamento SUBSTITUI o row_data inteiro (não faz merge), um campo bloqueado no
+  // momento do Salvar (ex.: Início Obra quando o Status não exige, Nº Contrato quando
+  // "Obra com CT?" não é Sim) fazia o valor já salvo no banco ser apagado silenciosamente.
+  // Solução: destrava tudo só para a leitura do FormData, e trava de volta em seguida.
+  const desabilitadosTemp=[...form.querySelectorAll(':disabled')];
+  desabilitadosTemp.forEach(el=>el.disabled=false);
+  // Parte do registro original e só sobrescreve o que o formulário exibe (mesmo padrão
+  // do saveGroup): qualquer campo legado que o formulário não renderize é preservado,
+  // em vez de ser apagado pela substituição integral do row_data.
+  const originalReg=App.state.editing.rowid?(App.state.data[abaKey]||[]).find(r=>String(r.rowid)===String(App.state.editing.rowid)):null;
+  const p=originalReg?{...originalReg}:{};
+  delete p.rowid;delete p.visualId;delete p._aba;
   new FormData(form).forEach((v,k)=>{p[k]=v;});
+  desabilitadosTemp.forEach(el=>el.disabled=true);
 
   // Bloqueia TODA interação com o modal desde já — campos, botões e o "X" de
   // fechar ficam fisicamente inacessíveis até a operação terminar por completo.
@@ -4491,6 +5434,65 @@ App.saveCAP=function(){
  * atualiza as linhas alteradas, insere as novas e exclui as que foram removidas.
  * Linhas totalmente vazias são ignoradas (não são enviadas nem geram registro).
  */
+/* Salva um Orçamento (registro único; itens ficam num array dentro do row_data). */
+App.saveOrcamento=function(){
+  if(App.state._busy)return;
+  const titEl=document.getElementById('orc-titulo');
+  const titulo=(titEl?titEl.value:'').trim();
+  titEl&&titEl.classList.remove('err');
+  if(!titulo){titEl&&titEl.classList.add('err');toast('Informe o título do orçamento.','error');return;}
+  const itens=UI._orcColetar();
+  if(itens.length===0){toast('Adicione ao menos um item ao orçamento.','error');return;}
+  // Não salva se algum campo da planilha estiver vazio ou zerado.
+  if(!UI._orcValidar()){toast('Preencha todos os campos dos serviços — nenhum pode ficar vazio ou zerado.','error');return;}
+  const totalObra=itens.reduce((s,it)=>s+(it.p_total||0),0);
+  const val=id=>{const e=document.getElementById(id);return e?e.value.trim():'';};
+  const emb=UI._embasa||{};
+  // Valida CNPJ e telefone (se preenchidos) antes de salvar.
+  const cnpjEl=document.getElementById('orc-cnpj'), telEl=document.getElementById('orc-telefone');
+  if(cnpjEl&&cnpjEl.value.trim()&&!UI._orcValidarCNPJ(cnpjEl.value)){cnpjEl.classList.add('err');toast('CNPJ inválido.','error');return;}
+  if(telEl&&telEl.value.trim()&&!UI._orcValidarTel(telEl.value)){telEl.classList.add('err');toast('Telefone inválido.','error');return;}
+  const p={
+    titulo, data_lancamento:val('orc-lanc')||todayDateTime(),
+    razao_social:val('orc-razao'), cnpj:val('orc-cnpj'),
+    telefone:val('orc-telefone'), email:val('orc-email'),
+    sindicato:val('orc-sindicato'), tipo_obra:val('orc-tipo'), ritmo:val('orc-ritmo'),
+    encargos:val('orc-encargos'), leis_sociais_h:val('orc-leis-h'), leis_sociais_m:val('orc-leis-m'),
+    bdi:val('orc-bdi'), iss:val('orc-iss'), desconto:val('orc-desconto'),
+    tabela_id:emb.id||'', tabela_embasa:emb.tabela||'', ano_embasa:emb.semestre||emb.ano||'',
+    itens, total_obra:totalObra.toFixed(2)
+  };
+
+  App.state._busy=true;
+  UI._showBusy('Salvando…');
+  google.script.run
+    .withSuccessHandler(res=>{
+      if(!res||!res.ok){
+        App.state._busy=false;UI._hideBusy();
+        const msg=(res&&res.msg)||'';
+        // Erro típico de tabela ainda não criada no Supabase — orienta o usuário.
+        if(/orcamentos/i.test(msg)&&/(does not exist|not find|schema cache|relation)/i.test(msg)){
+          toast('A tabela "orcamentos" ainda não existe no Supabase. Rode o SQL do schema (bloco novo) antes de salvar.','error',false);
+        } else { toast(msg||'Erro ao salvar.','error'); }
+        return;
+      }
+      toast('Salvo com sucesso!','success');
+      UI._showBusy('Atualizando…');
+      google.script.run
+        .withSuccessHandler(dataSis=>{
+          App.state.data=dataSis;App.renderAll();lucide.createIcons();UI._hideBusy();
+          document.getElementById('modal-editor').classList.remove('open');
+          const form=document.getElementById('form-upsert');if(form){form.removeAttribute('style');form.innerHTML='';}
+          const btn=document.getElementById('btn-save');if(btn){btn.disabled=false;btn.innerHTML='Salvar';}
+          App.state._busy=false;
+        })
+        .withFailureHandler(err=>{App.state._busy=false;UI._hideBusy();toast('Salvo, mas houve erro ao atualizar a tela. Clique em Atualizar.','error');console.error(err);})
+        .getSistemaData();
+    })
+    .withFailureHandler(err=>{App.state._busy=false;UI._hideBusy();toast('Erro ao salvar.','error');console.error(err);})
+    .upsertRegistro('Orçamentos',p,App.state.editing.rowid);
+};
+
 App.saveGroup=function(){
   if(App.state._busy)return;
   const ctx=UI._grContext;
@@ -4782,7 +5784,7 @@ const Auth={
       .withSuccessHandler(res=>{
         btn.disabled=false;btn.innerHTML='Entrar';
         if(res.ok){
-          this._session={nome:res.nome,perfil:res.perfil};
+          this._session={nome:res.nome,perfil:res.perfil,acessos:res.acessos||null,cpf:user};
           this._saveSession();
           this._applySession();
           document.getElementById('login-screen').classList.add('hidden');
@@ -4817,7 +5819,24 @@ const Auth={
     const iniciais=(s.nome||'?').split(' ').slice(0,2).map(w=>w[0]||'').join('').toUpperCase();
     document.getElementById('sidebar-avatar').textContent=iniciais;
     document.getElementById('sidebar-nome').textContent=s.nome||'—';
-    document.getElementById('sidebar-perfil').textContent=s.perfil||'—';
+    document.getElementById('sidebar-perfil').textContent=(String(s.perfil||'').toLowerCase()==='admin')?'Administrador':(s.perfil||'—');
+    // Controle de acesso: mostra/oculta os itens do menu conforme o nível do usuário.
+    // acessos null/ausente = sem restrição (todos os módulos) — compatível com usuários
+    // antigos até o Admin definir os acessos.
+    const isAdmin=String(s.perfil||'').toLowerCase()==='admin';
+    const acessos=Array.isArray(s.acessos)?s.acessos:null;
+    const allowed=[];
+    UI._MODULOS.forEach(([k])=>{
+      const permit=isAdmin||!acessos||acessos.includes(k);
+      const el=document.getElementById('nav-'+k);
+      if(el)el.style.display=permit?'':'none';
+      if(permit)allowed.push(k);
+    });
+    const navU=document.getElementById('nav-usuarios'), navLbl=document.getElementById('nav-admin-label');
+    if(navU)navU.style.display=isAdmin?'':'none';
+    if(navLbl)navLbl.style.display=isAdmin?'':'none';
+    if(isAdmin)allowed.push('usuarios');
+    UI._allowedViews=allowed;
   },
 
   logout(idleExpired=false){
