@@ -14,13 +14,15 @@ const _sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 // ─── Mapeamento de abas ────────────────────────────────────────────────────────
 const _NOME_PARA_CHAVE = {
   'Obras':'obras','Custos':'custos',
-  'Faturamentos':'faturamentos','Aportes financeiros':'aportes','CAP':'cap'
+  'Faturamentos':'faturamentos','Aportes financeiros':'aportes','CAP':'cap',
+  'Orçamentos':'orcamentos'
 };
 const _ABA_NOME = {
   obras:'Obras', custos:'Custos',
-  faturamentos:'Faturamentos', aportes:'Aportes financeiros', cap:'CAP'
+  faturamentos:'Faturamentos', aportes:'Aportes financeiros', cap:'CAP',
+  orcamentos:'Orçamentos'
 };
-const _CHAVES = ['obras','custos','faturamentos','aportes','cap'];
+const _CHAVES = ['obras','custos','faturamentos','aportes','cap','orcamentos'];
 
 // ─── Funções que espelham o Código.gs ─────────────────────────────────────────
 
@@ -143,7 +145,60 @@ async function _login(cpf, senha) {
   if (String(u.senha || '').trim() !== senhaTrim)
     return { ok: false, msg: 'Senha incorreta.' };
 
-  return { ok: true, nome: u.nome || cpf, perfil: u.perfil || 'Usuário' };
+  return { ok: true, nome: u.nome || cpf, perfil: u.perfil || 'Usuário', acessos: _parseAcessos(u.acessos) };
+}
+
+// ─── Controle de acesso: gestão de usuários (tela Admin) ───────────────────────
+// A coluna "acessos" guarda um JSON com a lista de módulos que o usuário pode ver
+// (ex.: ["dashboard","obras","orcamentos"]). null/ausente = sem restrição (todos os
+// módulos) — mantém compatível com usuários antigos até o Admin definir os acessos.
+function _parseAcessos(v){
+  if (v == null || v === '') return null;
+  if (Array.isArray(v)) return v;
+  try { const a = JSON.parse(v); return Array.isArray(a) ? a : null; } catch (e) { return null; }
+}
+
+async function _listarUsuarios() {
+  const { data, error } = await _sb.from('usuarios')
+    .select('id,nome,cpf,perfil,status,acessos').order('id', { ascending: true });
+  if (error) return { ok: false, msg: error.message };
+  const usuarios = (data || []).map(u => ({
+    id: u.id, nome: u.nome, cpf: u.cpf, perfil: u.perfil, status: u.status,
+    acessos: _parseAcessos(u.acessos)
+  }));
+  return { ok: true, usuarios };
+}
+
+async function _salvarUsuario(dados, id) {
+  const cpf = String(dados.cpf || '').replace(/[.\-\s]/g, '').trim();
+  if (!String(dados.nome || '').trim() || !cpf) return { ok: false, msg: 'Nome e CPF são obrigatórios.' };
+
+  const payload = {
+    nome: String(dados.nome).trim(),
+    cpf,
+    perfil: dados.perfil || 'Usuário',
+    status: dados.status || 'ativo',
+    acessos: Array.isArray(dados.acessos) ? JSON.stringify(dados.acessos) : null
+  };
+  // Só grava a senha se veio preenchida (na edição, em branco = mantém a atual).
+  if (dados.senha) payload.senha = String(dados.senha).trim();
+
+  let error;
+  if (id && Number(id) > 0) {
+    ({ error } = await _sb.from('usuarios').update(payload).eq('id', Number(id)));
+  } else {
+    if (!dados.senha) return { ok: false, msg: 'Senha é obrigatória para um novo usuário.' };
+    ({ error } = await _sb.from('usuarios').insert(payload));
+  }
+  if (error) return { ok: false, msg: error.message };
+  return await _listarUsuarios();
+}
+
+async function _excluirUsuario(id) {
+  if (!id || Number(id) <= 0) return { ok: false, msg: 'Usuário inválido.' };
+  const { error } = await _sb.from('usuarios').delete().eq('id', Number(id));
+  if (error) return { ok: false, msg: error.message };
+  return await _listarUsuarios();
 }
 
 // ─── Tempo real: avisa a página quando outra máquina/aba salva ou exclui algo ──
@@ -170,7 +225,10 @@ const _FNS = {
   excluirRegistroLote:  (a,b)     => _excluirRegistroLote(a,b),
   salvarComposicaoCAP:  (a,b,c,d) => _salvarComposicaoCAP(a,b,c,d),
   excluirComposicaoCAP: (a,b)     => _excluirComposicaoCAP(a,b),
-  login:                (a,b)     => _login(a,b)
+  login:                (a,b)     => _login(a,b),
+  listarUsuarios:       ()        => _listarUsuarios(),
+  salvarUsuario:        (a,b)     => _salvarUsuario(a,b),
+  excluirUsuario:       (a)       => _excluirUsuario(a)
 };
 
 window.google = {
