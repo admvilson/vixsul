@@ -35,6 +35,12 @@ CREATE TABLE IF NOT EXISTS cap (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS orcamentos (
+  id         BIGSERIAL PRIMARY KEY,
+  row_data   JSONB       NOT NULL DEFAULT '{}',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 -- ── Índices para consultas do CAP ──────────────
 CREATE INDEX IF NOT EXISTS idx_cap_lancamento
   ON cap ((row_data->>'data_lancamento'));
@@ -50,8 +56,13 @@ CREATE TABLE IF NOT EXISTS usuarios (
   senha      TEXT NOT NULL,
   perfil     TEXT NOT NULL DEFAULT 'Usuário',
   status     TEXT NOT NULL DEFAULT 'ativo',
+  acessos    TEXT,   -- JSON com os módulos que o usuário pode ver; NULL = todos
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+-- Se a tabela "usuarios" já existia antes desta atualização, rode só esta linha
+-- (SQL Editor → New query) para habilitar o controle de nível de acesso:
+ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS acessos TEXT;
 
 -- ── Usuário administrador inicial ──────────────
 -- TROQUE o CPF e a senha antes de usar em produção!
@@ -72,6 +83,7 @@ ALTER TABLE custos       ENABLE ROW LEVEL SECURITY;
 ALTER TABLE faturamentos ENABLE ROW LEVEL SECURITY;
 ALTER TABLE aportes      ENABLE ROW LEVEL SECURITY;
 ALTER TABLE cap          ENABLE ROW LEVEL SECURITY;
+ALTER TABLE orcamentos   ENABLE ROW LEVEL SECURITY;
 ALTER TABLE usuarios     ENABLE ROW LEVEL SECURITY;
 
 -- Política: permite SELECT, INSERT, UPDATE, DELETE para todos
@@ -82,6 +94,7 @@ CREATE POLICY "acesso_total" ON custos       FOR ALL USING (true) WITH CHECK (tr
 CREATE POLICY "acesso_total" ON faturamentos FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "acesso_total" ON aportes      FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "acesso_total" ON cap          FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "acesso_total" ON orcamentos   FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "acesso_total" ON usuarios     FOR ALL USING (true) WITH CHECK (true);
 
 -- ══════════════════════════════════════════════════════════
@@ -96,3 +109,4 @@ ALTER PUBLICATION supabase_realtime ADD TABLE custos;
 ALTER PUBLICATION supabase_realtime ADD TABLE faturamentos;
 ALTER PUBLICATION supabase_realtime ADD TABLE aportes;
 ALTER PUBLICATION supabase_realtime ADD TABLE cap;
+ALTER PUBLICATION supabase_realtime ADD TABLE orcamentos;
