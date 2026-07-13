@@ -112,8 +112,11 @@ async function _salvarComposicaoCAP(dataLancamento, tituloObra, itens, isEdicao)
   }
 
   if (itens && itens.length > 0) {
+    // IMPORTANTE: espalha o item PRIMEIRO e sobrescreve data_lancamento/titulo_obra depois,
+    // para que TODAS as linhas da composição fiquem com a MESMA data (a da composição). Se o
+    // item trouxesse sua própria data por linha, cada linha viraria um "card" separado.
     const linhas = itens.map(item => ({
-      row_data: { data_lancamento: dataLancamento, titulo_obra: tituloObra, ...item }
+      row_data: { ...item, data_lancamento: dataLancamento, titulo_obra: tituloObra }
     }));
     const { error } = await _sb.from('cap').insert(linhas);
     if (error) return { ok: false, msg: error.message };
