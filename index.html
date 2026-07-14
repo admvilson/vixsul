@@ -720,27 +720,6 @@ tbody tr:hover td{background:rgba(0,113,227,.02);}
           </div>
         </div>
 
-        <!-- ════ SEÇÃO C: DRE GERENCIAL ════ -->
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px"><span style="height:1px;flex:1;background:var(--border)"></span><span style="font-size:9px;font-weight:800;letter-spacing:.9px;text-transform:uppercase;color:var(--text-3);white-space:nowrap">📋 DRE Gerencial & Indicadores</span><span style="height:1px;flex:1;background:var(--border)"></span></div>
-
-        <div class="chart-pro" style="margin-bottom:18px">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
-            <div><div class="chart-pro-title">Demonstração do Resultado do Exercício</div><div class="chart-pro-sub">Visão consolidada da empresa · comparativo receita, deduções, custos e resultado</div></div>
-            <div style="text-align:right"><div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text-3);margin-bottom:4px">Margem Líquida</div><div style="font-size:22px;font-weight:800;color:var(--green)" id="dre-margem">—</div></div>
-          </div>
-          <div style="background:var(--bg);border-radius:10px;padding:4px 0;margin-bottom:12px">
-            <div style="height:6px;background:var(--border);border-radius:99px;overflow:hidden;margin:0 16px 0"><div id="dre-margem-bar" style="height:100%;background:var(--green);border-radius:99px;transition:width .5s ease;width:0%"></div></div>
-          </div>
-          <div id="dre-body" style="display:flex;flex-direction:column;gap:2px"></div>
-        </div>
-
-        <!-- Card: Indicadores Consolidados (abaixo do DRE) -->
-        <div class="chart-pro" style="margin-bottom:18px">
-          <div class="chart-pro-title">Indicadores Consolidados</div>
-          <div class="chart-pro-sub">Resumo executivo · valor e % sobre faturamento bruto</div>
-          <div id="fin-ind-list" style="margin-top:10px"></div>
-        </div>
-
         <!-- ════ SEÇÃO D: PERFORMANCE POR OBRA ════ -->
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px"><span style="height:1px;flex:1;background:var(--border)"></span><span style="font-size:9px;font-weight:800;letter-spacing:.9px;text-transform:uppercase;color:var(--text-3);white-space:nowrap">🏗️ Performance por Obra</span><span style="height:1px;flex:1;background:var(--border)"></span></div>
 
@@ -873,21 +852,45 @@ tbody tr:hover td{background:rgba(0,113,227,.02);}
     </div>
 
     <!-- ════════════════ VIEW: USUÁRIOS (Admin) ════════════════ -->
-    <!-- DESPESAS -->
+    <!-- DESPESAS — tabela editável inline, no mesmo padrão do Custos do hub de Obras:
+         edita direto na célula, "+ Adicionar linha", lixeira por linha (com confirmação)
+         e um único botão Salvar que grava tudo. -->
     <div class="view" id="view-despesas">
       <div class="view-toolbar">
-        <div class="search-box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg><input type="text" id="find-despesas" placeholder="Buscar despesa..." oninput="App.render('despesas')"></div>
+        <div class="search-box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg><input type="text" id="find-despesas" placeholder="Filtrar despesas..." oninput="App._despFiltrar()"></div>
         <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
-          <button class="btn-primary" style="background:#1D1D1F" onclick="UI.openEditor('despesas',null)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Nova Despesa</button>
+          <button type="button" title="Salvar todas as despesas" onclick="App._despSalvar()" style="display:flex;align-items:center;justify-content:center;width:36px;height:36px;flex-shrink:0;border:1px solid rgba(52,199,89,.35);background:rgba(52,199,89,.1);color:var(--green);border-radius:8px;cursor:pointer"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg></button>
           <button type="button" title="Exportar PDF" onclick="App._despesasExportPDF()" style="display:flex;align-items:center;justify-content:center;width:36px;height:36px;flex-shrink:0;border:1px solid rgba(0,113,227,.3);background:rgba(0,113,227,.08);color:var(--blue);border-radius:8px;cursor:pointer"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8" rx="1"/><line x1="17" y1="11.5" x2="17" y2="11.5" stroke-linecap="round" stroke-width="2.4"/></svg></button>
         </div>
       </div>
-      <div class="cards-scroll" style="padding:0 28px 28px">
-        <table class="cap-tbl" style="width:100%">
-          <thead><tr><th>Data</th><th>Descrição</th><th>Categoria</th><th>Fornecedor/Beneficiário</th><th>Forma Pgto</th><th style="text-align:right">Valor</th></tr></thead>
-          <tbody id="grid-despesas"></tbody>
-          <tfoot><tr><td colspan="5" style="text-align:right;font-weight:800;padding:10px 8px">Total</td><td id="despesas-total" style="text-align:right;font-weight:800;color:var(--blue);padding:10px 8px">R$ 0,00</td></tr></tfoot>
-        </table>
+      <div class="cards-scroll" style="padding:16px 28px 28px">
+        <div class="gr-table-wrap" style="overflow:auto">
+          <table class="cap-tbl" style="width:1460px;table-layout:fixed">
+            <thead><tr>
+              <th style="width:128px">Lançamento</th>
+              <th style="width:100px">Tipo</th>
+              <th style="width:118px">Data Despesa</th>
+              <th style="width:220px">Descrição</th>
+              <th style="width:170px">Categoria</th>
+              <th style="width:180px">Fornecedor/Beneficiário</th>
+              <th style="width:140px">Forma Pgto</th>
+              <th style="width:110px">Status Pgto</th>
+              <th style="width:118px">Data Pgto</th>
+              <th style="width:120px">Valor</th>
+              <th style="width:36px"></th>
+            </tr></thead>
+            <tbody id="desp-tbody"></tbody>
+          </table>
+        </div>
+        <button type="button" onclick="App._despAddRow()" style="margin-top:10px;display:flex;align-items:center;gap:5px;font-size:11px;font-weight:600;color:var(--blue);background:rgba(0,113,227,.07);border:1px dashed rgba(0,113,227,.4);border-radius:7px;padding:6px 14px;cursor:pointer">
+          <span style="font-size:16px;line-height:1">+</span> Adicionar linha
+        </button>
+        <div class="cap-resumo">
+          <div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.6px;color:var(--text-3);margin-bottom:10px">Resumo</div>
+          <div class="cap-resumo-row"><span class="cap-resumo-lbl">Despesas Previstas</span><span class="cap-resumo-val" id="desp-total-prev">R$ 0,00</span></div>
+          <div class="cap-resumo-row"><span class="cap-resumo-lbl">Despesas Reais</span><span class="cap-resumo-val" id="desp-total-real">R$ 0,00</span></div>
+          <div class="cap-resumo-row"><span style="font-size:13px;font-weight:800;color:var(--text-1)">Total</span><span class="cap-resumo-big" id="desp-total">R$ 0,00</span></div>
+        </div>
       </div>
     </div>
     <!-- RELATÓRIOS -->
@@ -898,7 +901,7 @@ tbody tr:hover td{background:rgba(0,113,227,.02);}
             <optgroup label="Resumos">
               <option value="consolidado">Financeiro Consolidado</option>
               <option value="comparativo">Fat. Líquido × Custos × Despesas</option>
-              <option value="obras">Obras em Andamento/Atraso</option>
+              <option value="indicadores">Indicadores (VPL · TIR · Ponto de Equilíbrio)</option>
             </optgroup>
             <optgroup label="Analíticos (detalhados)">
               <option value="faturamento">Faturamento e Recebimentos</option>
@@ -917,6 +920,25 @@ tbody tr:hover td{background:rgba(0,113,227,.02);}
         <div id="rel-titulo" style="font-size:16px;font-weight:800;margin-bottom:2px">Relatório Financeiro Consolidado</div>
         <div id="rel-sub" style="font-size:12px;color:var(--text-3);margin-bottom:20px">Todas as obras</div>
         <div id="rel-resumo"></div>
+        <!-- DRE + Indicadores (vieram do Dashboard; visíveis só no relatório Consolidado).
+             Os IDs internos são os mesmos de sempre — o renderDashboard continua preenchendo. -->
+        <div id="rel-dre-wrap" style="display:none;margin-top:18px">
+          <div class="chart-pro" style="margin-bottom:18px">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+              <div><div class="chart-pro-title">Demonstração do Resultado do Exercício</div><div class="chart-pro-sub">Visão consolidada da empresa · comparativo receita, deduções, custos e resultado</div></div>
+              <div style="text-align:right"><div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text-3);margin-bottom:4px">Margem Líquida</div><div style="font-size:22px;font-weight:800;color:var(--green)" id="dre-margem">—</div></div>
+            </div>
+            <div style="background:var(--bg);border-radius:10px;padding:4px 0;margin-bottom:12px">
+              <div style="height:6px;background:var(--border);border-radius:99px;overflow:hidden;margin:0 16px 0"><div id="dre-margem-bar" style="height:100%;background:var(--green);border-radius:99px;transition:width .5s ease;width:0%"></div></div>
+            </div>
+            <div id="dre-body" style="display:flex;flex-direction:column;gap:2px"></div>
+          </div>
+          <div class="chart-pro" style="margin-bottom:18px">
+            <div class="chart-pro-title">Indicadores Consolidados</div>
+            <div class="chart-pro-sub">Resumo executivo · valor e % sobre faturamento bruto</div>
+            <div id="fin-ind-list" style="margin-top:10px"></div>
+          </div>
+        </div>
       </div>
     </div>
     <div class="view" id="view-usuarios">
@@ -1027,6 +1049,14 @@ tbody tr:hover td{background:rgba(0,113,227,.02);}
     <div class="confirm-title">Confirmar exclusão</div>
     <div class="confirm-msg">Deseja <strong>EXCLUIR PERMANENTEMENTE</strong> este item?</div>
     <div class="confirm-actions"><button class="confirm-yes" onclick="UI._grDelRowConfirm()">Sim, excluir</button><button class="confirm-no" onclick="UI._grDelRowCancel()">Não</button></div>
+  </div>
+</div>
+<div class="confirm-overlay" id="confirm-desp-row">
+  <div class="confirm-box">
+    <div class="confirm-icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg></div>
+    <div class="confirm-title">Confirmar exclusão</div>
+    <div class="confirm-msg">Deseja <strong>EXCLUIR PERMANENTEMENTE</strong> esta despesa? A exclusão é efetivada ao clicar em Salvar.</div>
+    <div class="confirm-actions"><button class="confirm-yes" onclick="App._despDelRowConfirm()">Sim, excluir</button><button class="confirm-no" onclick="App._despDelRowCancel()">Não</button></div>
   </div>
 </div>
 <div class="modal-overlay" id="modal-editor">
@@ -1947,42 +1977,209 @@ const App={
         :items.map(i=>this._orcamentoCard(i)).join('');
 
     } else if(view==='despesas'){
-      // Despesas é uma lista simples (tabela), sem agrupar por obra — é uma
-      // despesa geral da empresa, não de uma obra específica.
-      const grid=document.getElementById('grid-despesas');if(!grid)return;
-      const items=base.filter(i=>{
-        const desc=(getFuzzy(i,['descricao'])||'').toLowerCase();
-        const cat=(getFuzzy(i,['categoria'])||'').toLowerCase();
-        const forn=(getFuzzy(i,['fornecedor_beneficiario','fornecedor','beneficiario'])||'').toLowerCase();
-        return desc.includes(q)||cat.includes(q)||forn.includes(q);
-      }).sort((a,b)=>{
-        const da=parseDate(getFuzzy(a,['data_despesa'])||'')||new Date(0);
-        const db=parseDate(getFuzzy(b,['data_despesa'])||'')||new Date(0);
-        return db-da;
-      });
-      grid.innerHTML=items.length===0
-        ?`<tr><td colspan="6" style="border-bottom:none"><div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg><p>Nenhuma despesa encontrada</p></div></td></tr>`
-        :items.map(i=>this._despesaRow(i)).join('');
-      const total=items.reduce((s,i)=>s+parseStoredNumber(getFuzzy(i,['valor'])||0),0);
-      const totEl=document.getElementById('despesas-total');if(totEl)totEl.textContent=fmt(total);
+      this._despRender();
     }
     lucide.createIcons();
   },
-  _despesaRow(i){
-    const data=dateBR(getFuzzy(i,['data_despesa'])||'')||'—';
-    const desc=getFuzzy(i,['descricao'])||'—';
-    const cat=getFuzzy(i,['categoria'])||'—';
-    const forn=getFuzzy(i,['fornecedor_beneficiario','fornecedor','beneficiario'])||'—';
-    const fpg=getFuzzy(i,['forma_pagamento'])||'—';
-    const valor=parseStoredNumber(getFuzzy(i,['valor'])||0);
-    return `<tr onclick="UI.openEditor('despesas','${i.rowid}')" style="cursor:pointer">
-      <td>${data}</td>
-      <td>${desc}</td>
-      <td>${cat}</td>
-      <td>${forn}</td>
-      <td>${fpg}</td>
-      <td style="text-align:right;font-weight:700">${fmt(valor)}</td>
+
+  /* ═══════════ DESPESAS — tabela editável inline (padrão do Custos do hub) ═══════════ */
+  _despK(){
+    const headers=App.state.data.metadata.despesas||[];
+    const nH=headers.map(h=>norm(h));
+    const f=(test,fallback)=>{const i=nH.findIndex(test);return i>=0?nH[i]:fallback;};
+    return {
+      lanc:f(c=>c.includes('lancamento'),'data_lancamento'),
+      tipo:f(c=>c.includes('tipo_despesa')||c==='tipo','tipo_despesa'),
+      dataDesp:f(c=>c.includes('data_despesa'),'data_despesa'),
+      desc:f(c=>c==='descricao','descricao'),
+      cat:f(c=>c.includes('categoria'),'categoria'),
+      forn:f(c=>c.includes('fornecedor')||c.includes('beneficiario'),'fornecedor_beneficiario'),
+      fpg:f(c=>c.includes('forma_pagamento'),'forma_pagamento'),
+      status:f(c=>c.includes('status_pagamento')||c.includes('status_pgto'),'status_pagamento'),
+      dataPgto:f(c=>c.includes('data_pagamento')||c.includes('data_pgto'),'data_pagamento'),
+      valor:f(c=>c==='valor','valor'),
+    };
+  },
+  _despMakeRow(K,item){
+    const gv=k=>item?String(item[k]??''):'';
+    const rowid=item?item.rowid:'';
+    const lancVal=item?(gv(K.lanc)||todayDateTime()):todayDateTime();
+    const tipoVal=gv(K.tipo);
+    const dataDespVal=UI._toISO(gv(K.dataDesp));
+    const catVal=gv(K.cat);
+    const fpgVal=gv(K.fpg);
+    const statusVal=gv(K.status);
+    const dataPgtoVal=UI._toISO(gv(K.dataPgto));
+    const valorN=parseStoredNumber(gv(K.valor));
+    const isPago=statusVal==='Pago';
+    const catOpts=CATEGORIAS_DESPESA.map(c=>`<option value="${c}" ${catVal===c?'selected':''}>${c}</option>`).join('');
+    const fpgOpts=FORMAS_PAGAMENTO_DESPESA.map(x=>`<option value="${x}" ${fpgVal===x?'selected':''}>${x}</option>`).join('');
+    return `<tr data-rowid="${rowid}">
+      <td><input data-field="${K.lanc}" class="cap-fi" value="${lancVal}" readonly style="cursor:not-allowed;color:var(--text-3)"></td>
+      <td><select data-field="${K.tipo}" data-required="1" class="cap-fi-sel desp-tipo"><option value="">Selecione</option><option value="Prevista" ${tipoVal==='Prevista'?'selected':''}>Prevista</option><option value="Real" ${tipoVal==='Real'?'selected':''}>Real</option></select></td>
+      <td><input type="date" data-field="${K.dataDesp}" data-required="1" class="cap-fi" value="${dataDespVal}"></td>
+      <td><input data-field="${K.desc}" data-required="1" class="cap-fi" value="${gv(K.desc)}" placeholder="Ex.: Aluguel do escritório"></td>
+      <td><select data-field="${K.cat}" data-required="1" class="cap-fi-sel"><option value="">Selecione</option>${catOpts}</select></td>
+      <td><input data-field="${K.forn}" data-required="1" class="cap-fi" value="${gv(K.forn)}" placeholder="Quem recebeu"></td>
+      <td><select data-field="${K.fpg}" data-required="1" class="cap-fi-sel"><option value="">Selecione</option>${fpgOpts}</select></td>
+      <td><select data-field="${K.status}" data-required="1" class="cap-fi-sel desp-status" onchange="App._despStatusChange(this)"><option value="">Selecione</option><option value="Pendente" ${statusVal==='Pendente'?'selected':''}>Pendente</option><option value="Pago" ${isPago?'selected':''}>Pago</option></select></td>
+      <td><input type="date" data-field="${K.dataPgto}" class="cap-fi desp-datapgto" value="${isPago?dataPgtoVal:''}" ${isPago?'':'disabled'}></td>
+      <td><input type="text" data-field="${K.valor}" data-required="1" class="cap-fi mask-currency desp-valor" value="${valorN>0?fmt(valorN):''}" placeholder="R$ 0,00"></td>
+      <td style="width:36px"><button type="button" class="cap-row-btn del" onclick="App._despDelRow(this)" title="Remover linha"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"><path d="M3 6h18"/><path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/><path d="M19 6l-1 14a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1L5 6"/><path d="M10 11v5"/><path d="M14 11v5"/></svg></button></td>
     </tr>`;
+  },
+  _despWireRow(tr){
+    tr.querySelectorAll('.mask-currency:not([readonly])').forEach(el=>{
+      maskCurrency(el);
+      el.addEventListener('input',()=>App._despRecalcTotais());
+    });
+    const tipoSel=tr.querySelector('.desp-tipo');
+    if(tipoSel)tipoSel.addEventListener('change',()=>App._despRecalcTotais());
+  },
+  _despRender(){
+    const tbody=document.getElementById('desp-tbody');if(!tbody)return;
+    const K=this._despK();
+    const items=(App.state.data.despesas||[]).slice().sort((a,b)=>{
+      const da=parseDate(getFuzzy(a,['data_despesa'])||'')||new Date(0);
+      const db=parseDate(getFuzzy(b,['data_despesa'])||'')||new Date(0);
+      return db-da;
+    });
+    tbody.innerHTML=(items.length?items:[null]).map(it=>this._despMakeRow(K,it)).join('');
+    tbody.querySelectorAll('tr').forEach(tr=>this._despWireRow(tr));
+    this._despRecalcTotais();
+    this._despFiltrar();
+  },
+  _despAddRow(){
+    const tbody=document.getElementById('desp-tbody');if(!tbody)return;
+    tbody.insertAdjacentHTML('beforeend',this._despMakeRow(this._despK(),null));
+    const tr=tbody.lastElementChild;
+    this._despWireRow(tr);
+    tr.querySelector('select,input:not([readonly])')?.focus();
+  },
+  _despStatusChange(sel){
+    const tr=sel.closest('tr');
+    const dp=tr.querySelector('.desp-datapgto');
+    if(!dp)return;
+    const isPago=sel.value==='Pago';
+    dp.disabled=!isPago;
+    dp.style.opacity=isPago?'':'.45';
+    if(!isPago)dp.value='';
+  },
+  /* Filtro visual (não afeta o salvar): esconde linhas SALVAS que não batem com a busca.
+     Linhas novas (sem rowid) ficam sempre visíveis para não sumirem enquanto digita. */
+  _despFiltrar(){
+    const q=(document.getElementById('find-despesas')?.value||'').toLowerCase();
+    document.querySelectorAll('#desp-tbody tr').forEach(tr=>{
+      if(!tr.dataset.rowid){tr.style.display='';return;}
+      const txt=[...tr.querySelectorAll('input,select')].map(el=>el.value||'').join(' ').toLowerCase();
+      tr.style.display=(!q||txt.includes(q))?'':'none';
+    });
+  },
+  _despRecalcTotais(){
+    let prev=0,real=0;
+    document.querySelectorAll('#desp-tbody tr').forEach(tr=>{
+      const v=currencyToNumber(tr.querySelector('.desp-valor')?.value||'');
+      const t=tr.querySelector('.desp-tipo')?.value||'';
+      if(t==='Real')real+=v;else prev+=v;
+    });
+    const set=(id,v)=>{const el=document.getElementById(id);if(el)el.textContent=fmt(v);};
+    set('desp-total-prev',prev);set('desp-total-real',real);set('desp-total',prev+real);
+  },
+  _despRowParaExcluir:null,
+  _despDelRow(btn){
+    const tr=btn.closest('tr');
+    const tbody=document.getElementById('desp-tbody');
+    if(!tbody||tbody.querySelectorAll('tr').length<=1){toast('A tabela precisa de ao menos 1 linha.','error');return;}
+    const inputs=[...tr.querySelectorAll('input:not([readonly]),select')];
+    const hasData=inputs.some(el=>el.value&&el.value.trim());
+    if(!hasData){tr.remove();this._despRecalcTotais();return;}
+    this._despRowParaExcluir=tr;
+    document.getElementById('confirm-desp-row').classList.add('open');
+  },
+  _despDelRowConfirm(){
+    document.getElementById('confirm-desp-row').classList.remove('open');
+    const tr=this._despRowParaExcluir;this._despRowParaExcluir=null;
+    if(!tr)return;
+    tr.remove();
+    this._despRecalcTotais();
+  },
+  _despDelRowCancel(){
+    document.getElementById('confirm-desp-row').classList.remove('open');
+    this._despRowParaExcluir=null;
+  },
+  _despLinhaIniciada(tr){
+    return [...tr.querySelectorAll('input:not([readonly]):not(:disabled),select:not(:disabled)')]
+      .some(el=>(el.value||'').trim());
+  },
+  _despSalvar(){
+    if(App.state._busy)return;
+    const tbody=document.getElementById('desp-tbody');if(!tbody)return;
+    const trs=[...tbody.querySelectorAll('tr')];
+    const hasDataFlags=trs.map(tr=>this._despLinhaIniciada(tr));
+
+    // Valida: linha iniciada precisa de todos os obrigatórios; Data Pgto só é
+    // obrigatória quando Status = Pago (o campo fica desabilitado nos demais casos).
+    let ok=true;
+    trs.forEach((tr,idx)=>{
+      tr.querySelectorAll('[data-required]').forEach(el=>el.classList.remove('err'));
+      const dp=tr.querySelector('.desp-datapgto');if(dp)dp.classList.remove('err');
+      if(!hasDataFlags[idx])return;
+      tr.querySelectorAll('[data-required]').forEach(el=>{
+        if(!(el.value||'').trim()){el.classList.add('err');ok=false;}
+      });
+      const st=tr.querySelector('.desp-status')?.value||'';
+      if(st==='Pago'&&dp&&!(dp.value||'').trim()){dp.classList.add('err');ok=false;}
+    });
+    if(!hasDataFlags.some(Boolean)&&(App.state.data.despesas||[]).length===0){toast('Adicione ao menos uma despesa.','error');return;}
+    if(!ok){toast('Preencha todos os campos das despesas iniciadas, ou limpe-as por completo.','error');return;}
+
+    const wrap=document.getElementById('view-despesas');
+    cleanMoneyFields(wrap);
+
+    const rows=trs.map((tr,idx)=>{
+      if(!hasDataFlags[idx])return null;
+      const rowid=tr.dataset.rowid||'';
+      const original=rowid?(App.state.data.despesas||[]).find(i=>String(i.rowid)===String(rowid)):null;
+      const obj=original?{...original}:{};
+      delete obj.rowid;delete obj.visualId;delete obj._aba;
+      tr.querySelectorAll('[data-field]').forEach(el=>{obj[el.dataset.field]=(el.value||'').trim();});
+      return {rowid,obj};
+    }).filter(Boolean);
+
+    App.state._busy=true;
+    UI._showBusy('Salvando…');
+
+    const originalIds=(App.state.data.despesas||[]).map(i=>String(i.rowid));
+    const keptIds=new Set(rows.filter(r=>r.rowid).map(r=>r.rowid));
+    const deleteIds=originalIds.filter(id=>!keptIds.has(id));
+
+    const runOne=(fn,args)=>new Promise((resolve,reject)=>{
+      google.script.run
+        .withSuccessHandler(res=>(res&&res.ok)?resolve(res):reject((res&&res.msg)||'Erro ao salvar.'))
+        .withFailureHandler(reject)
+        [fn](...args);
+    });
+    (async()=>{
+      try{
+        await Promise.all([
+          ...rows.map(r=>runOne('upsertRegistroLote',['Despesas',r.obj,r.rowid||null])),
+          ...deleteIds.map(id=>runOne('excluirRegistroLote',['Despesas',id])),
+        ]);
+        const data=await new Promise((resolve,reject)=>{
+          google.script.run.withSuccessHandler(resolve).withFailureHandler(reject).getSistemaData();
+        });
+        App.state.data=data;
+        App.state._busy=false;
+        UI._hideBusy();
+        App.renderAll();
+        toast('Salvo com sucesso!','success');
+      }catch(err){
+        App.state._busy=false;
+        UI._hideBusy();
+        toast(typeof err==='string'?err:'Erro ao salvar.','error');
+        console.error(err);
+      }
+    })();
   },
 
   /* ═══════════════════════ RELATÓRIOS ═══════════════════════
@@ -1992,7 +2189,10 @@ const App={
      têm vínculo com obra, então só entram no Consolidado com "Todas as
      Obras" selecionado. */
   _relatorioCache:null,
-  _relTituloTipo:{consolidado:'Relatório Financeiro Consolidado',comparativo:'Faturamento Líquido × Custos × Despesas',obras:'Obras em Andamento/Atraso',faturamento:'Faturamento e Recebimentos',custos:'Custos (Analítico)',despesas:'Despesas (Analítico)',aportes:'Aportes (Analítico)'},
+  _relTituloTipo:{consolidado:'Relatório Financeiro Consolidado',comparativo:'Faturamento Líquido × Custos × Despesas',indicadores:'Indicadores Financeiros (VPL · TIR · Ponto de Equilíbrio)',faturamento:'Faturamento e Recebimentos',custos:'Custos (Analítico)',despesas:'Despesas (Analítico)',aportes:'Aportes (Analítico)'},
+  /* Envelopa as tabelas dos analíticos: cabeçalho fixo + rolagem vertical limitada
+     (~20 linhas visíveis; o resto rola). O th do .cap-tbl já é sticky. */
+  _relTabelaWrap(tableHtml){return '<div style="overflow:auto;max-height:660px;border:1px solid var(--border);border-radius:10px">'+tableHtml+'</div>';},
   _relatorioObraOpcoes(){
     const sel=document.getElementById('rel-obra');if(!sel)return;
     const atual=sel.value;
@@ -2018,9 +2218,12 @@ const App={
       const dFim=document.getElementById('rel-data-fim')?.value||'';
       const titEl=document.getElementById('rel-titulo');if(titEl)titEl.textContent=this._relTituloTipo[tipo]||'Relatório';
       const subEl=document.getElementById('rel-sub');if(subEl)subEl.textContent=obraSel||'Todas as obras';
-      if(tipo==='obras')this._relGerarObras(obraSel);
-      else if(tipo==='faturamento')this._relGerarFaturamento(obraSel,dIni,dFim);
+      // DRE + Indicadores (blocos vindos do Dashboard) só aparecem no Consolidado
+      const dreWrap=document.getElementById('rel-dre-wrap');
+      if(dreWrap)dreWrap.style.display=(tipo==='consolidado')?'':'none';
+      if(tipo==='faturamento')this._relGerarFaturamento(obraSel,dIni,dFim);
       else if(tipo==='comparativo')this._relGerarComparativo(obraSel,dIni,dFim);
+      else if(tipo==='indicadores')this._relGerarIndicadores(obraSel,dIni,dFim);
       else if(tipo==='custos')this._relGerarCustos(obraSel,dIni,dFim);
       else if(tipo==='despesas')this._relGerarDespesasAnalitico(dIni,dFim);
       else if(tipo==='aportes')this._relGerarAportesAnalitico(obraSel,dIni,dFim);
@@ -2075,27 +2278,15 @@ const App={
     const el=document.getElementById('rel-resumo');if(el)el.innerHTML=html;
     this._relatorioCache={tipo:'consolidado',obraSel,dIni,dFim,dados:{custoTotal,fatBruto,fatLiquido,aporteTotal,despesaTotal,saldo}};
   },
-  _relGerarObras(obraSel){
-    const obras=(App.state.data.obras||[]).filter(o=>{
-      const nome=getFuzzy(o,['titulo_obra','nome_obra','titulo'])||'';
-      return !obraSel||nome===obraSel;
+  /* Agrupa fluxos por mês (chave AAAA-MM) — base do gráfico do Comparativo e do VPL/TIR. */
+  _relPorMes(lista,getData,getValor){
+    const m={};
+    lista.forEach(i=>{
+      const d=parseDate(getData(i));if(!d)return;
+      const k=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
+      m[k]=(m[k]||0)+getValor(i);
     });
-    const linhas=obras.map(o=>{
-      const nome=getFuzzy(o,['titulo_obra','nome_obra','titulo'])||'—';
-      const status=getFuzzy(o,['status_proposta','status_obra','status_da_obra','status'])||'—';
-      const inicio=getFuzzy(o,['inicio_obra','data_inicio'])||'';
-      const termPrev=getFuzzy(o,['termino_previsto','data_termino_previsto','data_termino','previsao'])||'';
-      const termOcorr=getFuzzy(o,['termino_ocorrido','data_termino_ocorrido'])||'';
-      const badge=prazoBadge(status,inicio,termPrev,termOcorr);
-      return {nome,status,inicio:dateBR(inicio)||'—',termPrev:dateBR(termPrev)||'—',badge};
-    });
-    let html='<div style="overflow-x:auto"><table class="cap-tbl" style="width:100%;min-width:640px">'+
-      '<thead><tr><th>Obra</th><th>Status</th><th>Início</th><th>Prev. Fim</th><th>Situação</th></tr></thead><tbody>'+
-      (linhas.length===0?'<tr><td colspan="5" style="text-align:center;color:var(--text-3);padding:20px">Nenhuma obra encontrada</td></tr>':
-        linhas.map(l=>`<tr><td>${l.nome}</td><td>${l.status}</td><td>${l.inicio}</td><td>${l.termPrev}</td><td>${l.badge}</td></tr>`).join(''))+
-      '</tbody></table></div>';
-    const el=document.getElementById('rel-resumo');if(el)el.innerHTML=html;
-    this._relatorioCache={tipo:'obras',obraSel,dados:{linhas}};
+    return m;
   },
   _relGerarFaturamento(obraSel,dIni,dFim){
     const dentroPeriodo=dt=>this._relDentroPeriodo(dt,dIni,dFim);
@@ -2118,11 +2309,11 @@ const App={
       liquido:parseFloat(f.faturamento_liquido||f.resultado_liquido||f.liquido||f.valor_liquido||0)
     }));
     const totBruto=linhas.reduce((s,l)=>s+l.bruto,0), totLiquido=linhas.reduce((s,l)=>s+l.liquido,0);
-    let html='<div style="overflow-x:auto"><table class="cap-tbl" style="width:100%;min-width:760px">'+
-      '<thead><tr><th>Obra</th><th>Lançamento</th><th>Emissão NF</th><th>Dt. Ant. NF</th><th>Recebimento</th><th style="text-align:right">Bruto</th><th style="text-align:right">Líquido</th></tr></thead><tbody>'+
-      (linhas.length===0?'<tr><td colspan="7" style="text-align:center;color:var(--text-3);padding:20px">Nenhum faturamento encontrado</td></tr>':
-        linhas.map(l=>`<tr><td>${l.obra}</td><td>${l.lanc}</td><td>${l.emissao}</td><td>${l.antNf}</td><td>${l.receb}</td><td style="text-align:right">${fmt(l.bruto)}</td><td style="text-align:right">${fmt(l.liquido)}</td></tr>`).join(''))+
-      `</tbody><tfoot><tr><td colspan="5" style="text-align:right;font-weight:800">Total</td><td style="text-align:right;font-weight:800;color:var(--blue)">${fmt(totBruto)}</td><td style="text-align:right;font-weight:800;color:var(--blue)">${fmt(totLiquido)}</td></tr></tfoot></table></div>`;
+    let html=this._relTabelaWrap('<table class="cap-tbl" style="width:100%;min-width:760px">'+
+      '<thead><tr><th>Obra</th><th>Lançamento</th><th>Emissão NF</th><th>Dt. Ant. NF</th><th>Recebimento</th><th>Bruto</th><th>Líquido</th></tr></thead><tbody>'+
+      (linhas.length===0?'<tr><td colspan="7" style="color:var(--text-3);padding:20px">Nenhum faturamento encontrado</td></tr>':
+        linhas.map(l=>`<tr><td>${l.obra}</td><td>${l.lanc}</td><td>${l.emissao}</td><td>${l.antNf}</td><td>${l.receb}</td><td>${fmt(l.bruto)}</td><td>${fmt(l.liquido)}</td></tr>`).join(''))+
+      `</tbody><tfoot><tr><td colspan="5" style="font-weight:800">Total</td><td style="font-weight:800;color:var(--blue)">${fmt(totBruto)}</td><td style="font-weight:800;color:var(--blue)">${fmt(totLiquido)}</td></tr></tfoot></table>`);
     const el=document.getElementById('rel-resumo');if(el)el.innerHTML=html;
     this._relatorioCache={tipo:'faturamento',obraSel,dIni,dFim,dados:{linhas,totBruto,totLiquido}};
   },
@@ -2136,23 +2327,119 @@ const App={
   },
   _relCustoValor(i){return typeof i.p_total==='number'?i.p_total:parseFloat(String(i.p_total||i.ptotal||i.valor||0).replace(/[^\d.,]/g,'').replace(',','.'))||0;},
 
-  /* Comparativo: Faturamento Líquido × Custos × Despesas → Resultado. */
+  /* Comparativo: Faturamento Líquido × Custos × Despesas → Resultado.
+     Gráfico combinado (barras por mês + linha do Resultado). As Deduções Fiscais
+     (impostos = Bruto − Líquido dos faturamentos) entram como "despesa", mas
+     separadas das demais despesas, como pedido. */
+  _relChartComp:null,
   _relGerarComparativo(obraSel,dIni,dFim){
     const dentroPeriodo=dt=>this._relDentroPeriodo(dt,dIni,dFim);
     const fats=(App.state.data.faturamentos||[]).filter(i=>(!obraSel||(getFuzzy(i,['titulo_obra','nome_obra','obra','titulo'])||'')===obraSel)&&dentroPeriodo(getFuzzy(i,['data_lancamento'])||''));
-    const fatLiquido=fats.reduce((s,i)=>s+parseFloat(i.faturamento_liquido||i.resultado_liquido||i.liquido||i.valor_liquido||0),0);
-    const custoTotal=this._relFiltraCustos(obraSel,dIni,dFim).reduce((s,i)=>s+this._relCustoValor(i),0);
-    const despTotal=obraSel?0:(App.state.data.despesas||[]).filter(i=>dentroPeriodo(getFuzzy(i,['data_despesa'])||'')).reduce((s,i)=>s+parseStoredNumber(getFuzzy(i,['valor'])||0),0);
-    const resultado=fatLiquido-custoTotal-despTotal;
-    let html='<div style="max-width:640px;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:6px 20px">';
-    html+=this._relLinha('Faturamento Líquido',fatLiquido);
-    html+=this._relLinha('(−) Custos',-custoTotal);
-    html+=this._relLinha('(−) Despesas',-despTotal);
-    html+=this._relLinha('Resultado',resultado,true);
-    html+='</div>';
-    if(obraSel)html+='<p style="font-size:11px;color:var(--text-3);margin-top:10px;max-width:640px">* Despesas são gastos gerais da empresa, sem vínculo com uma obra — não entram quando um filtro de obra está ativo.</p>';
+    const fatLiq=i=>parseFloat(i.faturamento_liquido||i.resultado_liquido||i.liquido||i.valor_liquido||0);
+    const fatBru=i=>parseFloat(i.faturamento_bruto||i.bruto||i.valor_bruto||i.valor||0);
+    const fatLiquido=fats.reduce((s,i)=>s+fatLiq(i),0);
+    const deducoes=fats.reduce((s,i)=>s+Math.max(0,fatBru(i)-fatLiq(i)),0);
+    const custosL=this._relFiltraCustos(obraSel,dIni,dFim);
+    const custoTotal=custosL.reduce((s,i)=>s+this._relCustoValor(i),0);
+    const despL=obraSel?[]:(App.state.data.despesas||[]).filter(i=>dentroPeriodo(getFuzzy(i,['data_despesa'])||''));
+    const despOutras=despL.reduce((s,i)=>s+parseStoredNumber(getFuzzy(i,['valor'])||0),0);
+    const resultado=fatLiquido-custoTotal-despOutras;
+
+    // Séries mensais para o gráfico
+    const mLiq=this._relPorMes(fats,i=>getFuzzy(i,['data_lancamento'])||'',fatLiq);
+    const mDed=this._relPorMes(fats,i=>getFuzzy(i,['data_lancamento'])||'',i=>Math.max(0,fatBru(i)-fatLiq(i)));
+    const mCus=this._relPorMes(custosL,i=>getFuzzy(i,['data_pagamento','data_pgto','data_lancamento'])||'',i=>this._relCustoValor(i));
+    const mDes=this._relPorMes(despL,i=>getFuzzy(i,['data_despesa'])||'',i=>parseStoredNumber(getFuzzy(i,['valor'])||0));
+    const meses=[...new Set([...Object.keys(mLiq),...Object.keys(mDed),...Object.keys(mCus),...Object.keys(mDes)])].sort();
+    const lbl=meses.map(k=>{const[y,m]=k.split('-');return ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'][+m-1]+'/'+y.slice(2);});
+
+    // Bloco de despesas com a separação pedida: deduções fiscais x demais despesas
+    let html='<div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px 20px;margin-bottom:16px"><canvas id="rel-comp-chart" height="88"></canvas></div>'
+      +'<div style="max-width:640px;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:6px 20px">'
+      +this._relLinha('Faturamento Líquido',fatLiquido)
+      +this._relLinha('(−) Custos',-custoTotal)
+      +'<div style="padding:10px 0 2px;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--text-3)">Despesas</div>'
+      +this._relLinha('· Deduções Fiscais (impostos sobre faturamento)',-deducoes)
+      +this._relLinha('· Demais Despesas',-despOutras)
+      +this._relLinha('Resultado',resultado,true)
+      +'</div>'
+      +'<p style="font-size:11px;color:var(--text-3);margin-top:10px;max-width:640px">* As Deduções Fiscais (Bruto − Líquido) já estão descontadas no Faturamento Líquido, por isso aparecem como informação destacada e não subtraem duas vezes no Resultado.</p>';
+    if(obraSel)html+='<p style="font-size:11px;color:var(--text-3);margin-top:4px;max-width:640px">* Demais Despesas são gastos gerais da empresa, sem vínculo com uma obra — não entram quando um filtro de obra está ativo.</p>';
     const el=document.getElementById('rel-resumo');if(el)el.innerHTML=html;
-    this._relatorioCache={tipo:'comparativo',obraSel,dIni,dFim,dados:{fatLiquido,custoTotal,despTotal,resultado}};
+
+    // Gráfico: barras (Fat. Líquido, Custos, Deduções, Despesas) + linha (Resultado do mês)
+    try{
+      if(this._relChartComp){this._relChartComp.destroy();this._relChartComp=null;}
+      const ctx=document.getElementById('rel-comp-chart');
+      if(ctx&&typeof Chart!=='undefined'&&meses.length>0){
+        const v=m=>meses.map(k=>m[k]||0);
+        const resMes=meses.map(k=>(mLiq[k]||0)-(mCus[k]||0)-(mDes[k]||0));
+        this._relChartComp=new Chart(ctx,{
+          data:{labels:lbl,datasets:[
+            {type:'bar',label:'Fat. Líquido',data:v(mLiq),backgroundColor:'rgba(0,113,227,.75)'},
+            {type:'bar',label:'Custos',data:v(mCus),backgroundColor:'rgba(255,59,48,.7)'},
+            {type:'bar',label:'Deduções Fiscais',data:v(mDed),backgroundColor:'rgba(255,149,0,.75)'},
+            {type:'bar',label:'Demais Despesas',data:v(mDes),backgroundColor:'rgba(142,142,147,.7)'},
+            {type:'line',label:'Resultado',data:resMes,borderColor:'#34C759',backgroundColor:'#34C759',tension:.3,borderWidth:2.5,pointRadius:3}
+          ]},
+          options:{responsive:true,plugins:{legend:{position:'bottom',labels:{boxWidth:12,font:{size:10}}}},scales:{y:{ticks:{callback:val=>'R$ '+Number(val).toLocaleString('pt-BR')}}}}
+        });
+      }
+    }catch(e){console.error('gráfico comparativo:',e);}
+    this._relatorioCache={tipo:'comparativo',obraSel,dIni,dFim,dados:{fatLiquido,custoTotal,deducoes,despOutras,resultado}};
+  },
+
+  /* Indicadores Financeiros: VPL, TIR (fluxo mensal) e Ponto de Equilíbrio.
+     Fluxo de caixa mensal = (Fat. Líquido do mês) − (Custos do mês) − (Despesas do mês).
+     A taxa de desconto (% a.m.) é editável na própria tela. */
+  _relGerarIndicadores(obraSel,dIni,dFim){
+    const dentroPeriodo=dt=>this._relDentroPeriodo(dt,dIni,dFim);
+    const fats=(App.state.data.faturamentos||[]).filter(i=>(!obraSel||(getFuzzy(i,['titulo_obra','nome_obra','obra','titulo'])||'')===obraSel)&&dentroPeriodo(getFuzzy(i,['data_lancamento'])||''));
+    const fatLiq=i=>parseFloat(i.faturamento_liquido||i.resultado_liquido||i.liquido||i.valor_liquido||0);
+    const custosL=this._relFiltraCustos(obraSel,dIni,dFim);
+    const despL=obraSel?[]:(App.state.data.despesas||[]).filter(i=>dentroPeriodo(getFuzzy(i,['data_despesa'])||''));
+    const mLiq=this._relPorMes(fats,i=>getFuzzy(i,['data_lancamento'])||'',fatLiq);
+    const mCus=this._relPorMes(custosL,i=>getFuzzy(i,['data_pagamento','data_pgto','data_lancamento'])||'',i=>this._relCustoValor(i));
+    const mDes=this._relPorMes(despL,i=>getFuzzy(i,['data_despesa'])||'',i=>parseStoredNumber(getFuzzy(i,['valor'])||0));
+    const meses=[...new Set([...Object.keys(mLiq),...Object.keys(mCus),...Object.keys(mDes)])].sort();
+    const fluxos=meses.map(k=>(mLiq[k]||0)-(mCus[k]||0)-(mDes[k]||0));
+
+    const taxaEl=document.getElementById('rel-taxa-vpl');
+    const taxa=taxaEl?(parseFloat(String(taxaEl.value).replace(',','.'))||1):1; // % a.m.
+    const i=taxa/100;
+    const vpl=fluxos.reduce((s,f,n)=>s+f/Math.pow(1+i,n+1),0);
+
+    // TIR mensal por bisseção (precisa de pelo menos uma troca de sinal no fluxo)
+    const vplTaxa=r=>fluxos.reduce((s,f,n)=>s+f/Math.pow(1+r,n+1),0);
+    let tir=null;
+    const temPos=fluxos.some(f=>f>0),temNeg=fluxos.some(f=>f<0);
+    if(temPos&&temNeg&&fluxos.length>1){
+      let lo=-0.99,hi=10;
+      if(vplTaxa(lo)*vplTaxa(hi)<0){
+        for(let it=0;it<200;it++){const mid=(lo+hi)/2;if(vplTaxa(lo)*vplTaxa(mid)<=0)hi=mid;else lo=mid;}
+        tir=((lo+hi)/2)*100;
+      }
+    }
+
+    // Ponto de Equilíbrio: fixos (despesas gerais) ÷ margem de contribuição (1 − custos/receita)
+    const receita=meses.reduce((s,k)=>s+(mLiq[k]||0),0);
+    const custosVar=meses.reduce((s,k)=>s+(mCus[k]||0),0);
+    const fixos=meses.reduce((s,k)=>s+(mDes[k]||0),0);
+    const margemContrib=receita>0?1-(custosVar/receita):0;
+    const pontoEq=margemContrib>0?fixos/margemContrib:null;
+
+    const card=(t,v,sub)=>`<div style="flex:1;min-width:220px;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px"><div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.6px;color:var(--text-3);margin-bottom:6px">${t}</div><div style="font-size:24px;font-weight:800;color:var(--blue)">${v}</div><div style="font-size:11px;color:var(--text-3);margin-top:6px;line-height:1.5">${sub}</div></div>`;
+    let html=`<div style="display:flex;align-items:center;gap:10px;margin-bottom:16px"><label style="font-size:12px;font-weight:700;color:var(--text-2)">Taxa de desconto (% a.m.):</label><input id="rel-taxa-vpl" type="text" inputmode="decimal" value="${String(taxa).replace('.',',')}" onchange="App._relatorioGerar()" style="width:80px;padding:7px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;text-align:left"></div>`;
+    html+='<div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:16px">';
+    html+=card('VPL — Valor Presente Líquido',fmt(vpl),`Fluxos mensais descontados a ${String(taxa).replace('.',',')}% a.m. · ${meses.length} mês(es) no período`);
+    html+=card('TIR — Taxa Interna de Retorno',tir===null?'—':tir.toLocaleString('pt-BR',{maximumFractionDigits:2})+'% a.m.',tir===null?'Não calculável: o fluxo precisa ter entradas e saídas (troca de sinal).':'Taxa que zera o VPL do fluxo mensal.');
+    html+=card('Ponto de Equilíbrio',pontoEq===null?'—':fmt(pontoEq),pontoEq===null?'Não calculável: margem de contribuição ≤ 0.':`Receita necessária p/ cobrir custos e despesas · margem de contribuição ${(margemContrib*100).toLocaleString('pt-BR',{maximumFractionDigits:1})}%`);
+    html+='</div>';
+    // Tabela do fluxo mensal usado no cálculo (transparência do número)
+    const linhasFluxo=meses.map((k,n)=>{const[y,m]=k.split('-');const nome=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'][+m-1]+'/'+y;return `<tr><td>${nome}</td><td>${fmt(mLiq[k]||0)}</td><td>${fmt(mCus[k]||0)}</td><td>${fmt(mDes[k]||0)}</td><td style="font-weight:700;color:${fluxos[n]<0?'var(--red)':'var(--green)'}">${fmt(fluxos[n])}</td></tr>`;}).join('');
+    html+=this._relTabelaWrap('<table class="cap-tbl" style="width:100%;min-width:560px"><thead><tr><th>Mês</th><th>Fat. Líquido</th><th>Custos</th><th>Despesas</th><th>Fluxo do Mês</th></tr></thead><tbody>'+(linhasFluxo||'<tr><td colspan="5" style="color:var(--text-3);padding:20px">Sem movimentações no período</td></tr>')+'</tbody></table>');
+    const el=document.getElementById('rel-resumo');if(el)el.innerHTML=html;
+    this._relatorioCache={tipo:'indicadores',obraSel,dIni,dFim,dados:{vpl,tir,pontoEq,taxa,margemContrib,meses,fluxos,mLiq,mCus,mDes}};
   },
 
   /* Custos (Analítico): lista item a item, com totais. */
@@ -2170,11 +2457,11 @@ const App={
       valor:this._relCustoValor(i)
     }));
     const total=linhas.reduce((s,l)=>s+l.valor,0);
-    let html='<div style="overflow-x:auto"><table class="cap-tbl" style="width:100%;min-width:760px">'+
-      '<thead><tr><th>Obra</th><th>Data Pgto</th><th>Tipo</th><th>Descrição</th><th style="text-align:right">Valor</th></tr></thead><tbody>'+
-      (linhas.length===0?'<tr><td colspan="5" style="text-align:center;color:var(--text-3);padding:20px">Nenhum custo encontrado</td></tr>':
-        linhas.map(l=>`<tr><td>${l.obra}</td><td>${l.data}</td><td>${l.tipo}</td><td>${l.desc}</td><td style="text-align:right">${fmt(l.valor)}</td></tr>`).join(''))+
-      `</tbody><tfoot><tr><td colspan="4" style="text-align:right;font-weight:800">Total</td><td style="text-align:right;font-weight:800;color:var(--blue)">${fmt(total)}</td></tr></tfoot></table></div>`;
+    let html=this._relTabelaWrap('<table class="cap-tbl" style="width:100%;min-width:760px">'+
+      '<thead><tr><th>Obra</th><th>Data Pgto</th><th>Tipo</th><th>Descrição</th><th>Valor</th></tr></thead><tbody>'+
+      (linhas.length===0?'<tr><td colspan="5" style="color:var(--text-3);padding:20px">Nenhum custo encontrado</td></tr>':
+        linhas.map(l=>`<tr><td>${l.obra}</td><td>${l.data}</td><td>${l.tipo}</td><td>${l.desc}</td><td>${fmt(l.valor)}</td></tr>`).join(''))+
+      `</tbody><tfoot><tr><td colspan="4" style="font-weight:800">Total</td><td style="font-weight:800;color:var(--blue)">${fmt(total)}</td></tr></tfoot></table>`);
     const el=document.getElementById('rel-resumo');if(el)el.innerHTML=html;
     this._relatorioCache={tipo:'custos',obraSel,dIni,dFim,dados:{linhas,total}};
   },
@@ -2195,11 +2482,11 @@ const App={
       valor:parseStoredNumber(getFuzzy(i,['valor'])||0)
     }));
     const total=linhas.reduce((s,l)=>s+l.valor,0);
-    let html='<div style="overflow-x:auto"><table class="cap-tbl" style="width:100%;min-width:760px">'+
-      '<thead><tr><th>Data</th><th>Descrição</th><th>Categoria</th><th>Fornecedor/Beneficiário</th><th>Forma Pgto</th><th style="text-align:right">Valor</th></tr></thead><tbody>'+
-      (linhas.length===0?'<tr><td colspan="6" style="text-align:center;color:var(--text-3);padding:20px">Nenhuma despesa encontrada</td></tr>':
-        linhas.map(l=>`<tr><td>${l.data}</td><td>${l.desc}</td><td>${l.cat}</td><td>${l.forn}</td><td>${l.fpg}</td><td style="text-align:right">${fmt(l.valor)}</td></tr>`).join(''))+
-      `</tbody><tfoot><tr><td colspan="5" style="text-align:right;font-weight:800">Total</td><td style="text-align:right;font-weight:800;color:var(--blue)">${fmt(total)}</td></tr></tfoot></table></div>`;
+    let html=this._relTabelaWrap('<table class="cap-tbl" style="width:100%;min-width:760px">'+
+      '<thead><tr><th>Data</th><th>Descrição</th><th>Categoria</th><th>Fornecedor/Beneficiário</th><th>Forma Pgto</th><th>Valor</th></tr></thead><tbody>'+
+      (linhas.length===0?'<tr><td colspan="6" style="color:var(--text-3);padding:20px">Nenhuma despesa encontrada</td></tr>':
+        linhas.map(l=>`<tr><td>${l.data}</td><td>${l.desc}</td><td>${l.cat}</td><td>${l.forn}</td><td>${l.fpg}</td><td>${fmt(l.valor)}</td></tr>`).join(''))+
+      `</tbody><tfoot><tr><td colspan="5" style="font-weight:800">Total</td><td style="font-weight:800;color:var(--blue)">${fmt(total)}</td></tr></tfoot></table>`);
     const el=document.getElementById('rel-resumo');if(el)el.innerHTML=html;
     this._relatorioCache={tipo:'despesas',obraSel:'',dIni,dFim,dados:{linhas,total}};
   },
@@ -2218,11 +2505,11 @@ const App={
       valor:parseFloat(i.valor_aportado||i.valor_aporte||i.valor||0)
     }));
     const total=linhas.reduce((s,l)=>s+l.valor,0);
-    let html='<div style="overflow-x:auto"><table class="cap-tbl" style="width:100%;min-width:560px">'+
-      '<thead><tr><th>Obra</th><th>Quem Aportou</th><th>Data</th><th style="text-align:right">Valor</th></tr></thead><tbody>'+
-      (linhas.length===0?'<tr><td colspan="4" style="text-align:center;color:var(--text-3);padding:20px">Nenhum aporte encontrado</td></tr>':
-        linhas.map(l=>`<tr><td>${l.obra}</td><td>${l.quem}</td><td>${l.data}</td><td style="text-align:right">${fmt(l.valor)}</td></tr>`).join(''))+
-      `</tbody><tfoot><tr><td colspan="3" style="text-align:right;font-weight:800">Total</td><td style="text-align:right;font-weight:800;color:var(--blue)">${fmt(total)}</td></tr></tfoot></table></div>`;
+    let html=this._relTabelaWrap('<table class="cap-tbl" style="width:100%;min-width:560px">'+
+      '<thead><tr><th>Obra</th><th>Quem Aportou</th><th>Data</th><th>Valor</th></tr></thead><tbody>'+
+      (linhas.length===0?'<tr><td colspan="4" style="color:var(--text-3);padding:20px">Nenhum aporte encontrado</td></tr>':
+        linhas.map(l=>`<tr><td>${l.obra}</td><td>${l.quem}</td><td>${l.data}</td><td>${fmt(l.valor)}</td></tr>`).join(''))+
+      `</tbody><tfoot><tr><td colspan="3" style="font-weight:800">Total</td><td style="font-weight:800;color:var(--blue)">${fmt(total)}</td></tr></tfoot></table>`);
     const el=document.getElementById('rel-resumo');if(el)el.innerHTML=html;
     this._relatorioCache={tipo:'aportes',obraSel,dIni,dFim,dados:{linhas,total}};
   },
@@ -2235,18 +2522,28 @@ const App={
     const linhaP=(label,val,destaque)=>`<div style="display:flex;justify-content:space-between;padding:8px 0;${destaque?'margin-top:6px;border-top:2px solid #1d1d1f;padding-top:12px':'border-bottom:1px solid #e5e5ea'}"><span style="font-size:${destaque?'14px':'12px'};font-weight:${destaque?800:600}">${label}</span><span style="font-size:${destaque?'16px':'13px'};font-weight:800;color:${destaque?'#0071E3':'#1d1d1f'}">${fmt(val)}</span></div>`;
 
     let corpo='',precisaPaisagem=false;
-    if(c.tipo==='obras'){
-      corpo='<table style="width:100%;border-collapse:collapse;font-size:10.5px"><thead><tr style="background:#f5f5f7"><th style="text-align:left;padding:5px">Obra</th><th style="text-align:left;padding:5px">Status</th><th style="text-align:left;padding:5px">Início</th><th style="text-align:left;padding:5px">Prev. Fim</th><th style="text-align:left;padding:5px">Situação</th></tr></thead><tbody>'+
-        c.dados.linhas.map(l=>`<tr><td style="padding:5px;border-bottom:1px solid #e5e5ea">${l.nome}</td><td style="padding:5px;border-bottom:1px solid #e5e5ea">${l.status}</td><td style="padding:5px;border-bottom:1px solid #e5e5ea">${l.inicio}</td><td style="padding:5px;border-bottom:1px solid #e5e5ea">${l.termPrev}</td><td style="padding:5px;border-bottom:1px solid #e5e5ea">${l.badge}</td></tr>`).join('')+
-        '</tbody></table>';
+    if(c.tipo==='comparativo'){
+      const d=c.dados;
+      corpo=linhaP('Faturamento Líquido',d.fatLiquido)+linhaP('(−) Custos',-d.custoTotal)
+        +'<div style="padding:8px 0 2px;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:#6e6e73">Despesas</div>'
+        +linhaP('· Deduções Fiscais (impostos sobre faturamento)',-d.deducoes)
+        +linhaP('· Demais Despesas',-d.despOutras)
+        +linhaP('Resultado',d.resultado,true)
+        +'<p style="font-size:9px;color:#6e6e73;margin-top:8px">* As Deduções Fiscais (Bruto − Líquido) já estão descontadas no Faturamento Líquido — aparecem como destaque e não subtraem duas vezes no Resultado.</p>';
+    } else if(c.tipo==='indicadores'){
+      const d=c.dados;
+      corpo=linhaP('VPL — Valor Presente Líquido ('+String(d.taxa).replace('.',',')+'% a.m.)',d.vpl)
+        +`<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #e5e5ea"><span style="font-size:12px;font-weight:600">TIR — Taxa Interna de Retorno</span><span style="font-size:13px;font-weight:800">${d.tir===null?'—':d.tir.toLocaleString('pt-BR',{maximumFractionDigits:2})+'% a.m.'}</span></div>`
+        +`<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #e5e5ea"><span style="font-size:12px;font-weight:600">Ponto de Equilíbrio</span><span style="font-size:13px;font-weight:800">${d.pontoEq===null?'—':fmt(d.pontoEq)}</span></div>`
+        +'<div style="margin-top:14px;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:#6e6e73">Fluxo de caixa mensal</div>'
+        +'<table style="width:100%;border-collapse:collapse;font-size:10px;margin-top:6px"><thead><tr style="background:#f5f5f7"><th style="text-align:left;padding:5px">Mês</th><th style="text-align:left;padding:5px">Fat. Líquido</th><th style="text-align:left;padding:5px">Custos</th><th style="text-align:left;padding:5px">Despesas</th><th style="text-align:left;padding:5px">Fluxo</th></tr></thead><tbody>'
+        +d.meses.map((k,n)=>{const[y,m]=k.split('-');const nome=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'][+m-1]+'/'+y;return `<tr><td style="padding:5px;border-bottom:1px solid #e5e5ea">${nome}</td><td style="padding:5px;border-bottom:1px solid #e5e5ea">${fmt(d.mLiq[k]||0)}</td><td style="padding:5px;border-bottom:1px solid #e5e5ea">${fmt(d.mCus[k]||0)}</td><td style="padding:5px;border-bottom:1px solid #e5e5ea">${fmt(d.mDes[k]||0)}</td><td style="padding:5px;border-bottom:1px solid #e5e5ea;font-weight:700">${fmt(d.fluxos[n])}</td></tr>`;}).join('')
+        +'</tbody></table>';
     } else if(c.tipo==='faturamento'){
       precisaPaisagem=true;
       corpo='<table style="width:100%;border-collapse:collapse;font-size:10px"><thead><tr style="background:#f5f5f7"><th style="text-align:left;padding:5px">Obra</th><th style="text-align:left;padding:5px">Lançamento</th><th style="text-align:left;padding:5px">Emissão NF</th><th style="text-align:left;padding:5px">Dt. Ant. NF</th><th style="text-align:left;padding:5px">Recebimento</th><th style="text-align:right;padding:5px">Bruto</th><th style="text-align:right;padding:5px">Líquido</th></tr></thead><tbody>'+
         c.dados.linhas.map(l=>`<tr><td style="padding:5px;border-bottom:1px solid #e5e5ea">${l.obra}</td><td style="padding:5px;border-bottom:1px solid #e5e5ea">${l.lanc}</td><td style="padding:5px;border-bottom:1px solid #e5e5ea">${l.emissao}</td><td style="padding:5px;border-bottom:1px solid #e5e5ea">${l.antNf}</td><td style="padding:5px;border-bottom:1px solid #e5e5ea">${l.receb}</td><td style="padding:5px;border-bottom:1px solid #e5e5ea;text-align:right">${fmt(l.bruto)}</td><td style="padding:5px;border-bottom:1px solid #e5e5ea;text-align:right">${fmt(l.liquido)}</td></tr>`).join('')+
         `</tbody><tfoot><tr><td colspan="5" style="text-align:right;font-weight:800;padding:6px 5px">Total</td><td style="text-align:right;font-weight:800;padding:6px 5px">${fmt(c.dados.totBruto)}</td><td style="text-align:right;font-weight:800;padding:6px 5px">${fmt(c.dados.totLiquido)}</td></tr></tfoot></table>`;
-    } else if(c.tipo==='comparativo'){
-      const d=c.dados;
-      corpo=linhaP('Faturamento Líquido',d.fatLiquido)+linhaP('(−) Custos',-d.custoTotal)+linhaP('(−) Despesas',-d.despTotal)+linhaP('Resultado',d.resultado,true);
     } else if(c.tipo==='custos'){
       precisaPaisagem=true;
       corpo='<table style="width:100%;border-collapse:collapse;font-size:10px"><thead><tr style="background:#f5f5f7"><th style="text-align:left;padding:5px">Obra</th><th style="text-align:left;padding:5px">Data Pgto</th><th style="text-align:left;padding:5px">Tipo</th><th style="text-align:left;padding:5px">Descrição</th><th style="text-align:right;padding:5px">Valor</th></tr></thead><tbody>'+
@@ -2315,16 +2612,19 @@ const App={
     if(items.length===0){toast('Não há despesas para exportar.','error');return;}
 
     const rowsHtmlArr=items.map(i=>{
+      const tipo=getFuzzy(i,['tipo_despesa','tipo'])||'—';
       const data=dateBR(getFuzzy(i,['data_despesa'])||'')||'—';
       const desc=getFuzzy(i,['descricao'])||'—';
       const cat=getFuzzy(i,['categoria'])||'—';
       const forn=getFuzzy(i,['fornecedor_beneficiario','fornecedor','beneficiario'])||'—';
       const fpg=getFuzzy(i,['forma_pagamento'])||'—';
+      const st=getFuzzy(i,['status_pagamento','status_pgto'])||'—';
+      const dpg=dateBR(getFuzzy(i,['data_pagamento','data_pgto'])||'')||'—';
       const valor=parseStoredNumber(getFuzzy(i,['valor'])||0);
-      return `<tr><td style="text-align:left;padding:5px">${data}</td><td style="text-align:left;padding:5px">${desc}</td><td style="text-align:left;padding:5px">${cat}</td><td style="text-align:left;padding:5px">${forn}</td><td style="text-align:left;padding:5px">${fpg}</td><td style="text-align:right;padding:5px">${fmt(valor)}</td></tr>`;
+      return `<tr><td style="text-align:left;padding:5px">${tipo}</td><td style="text-align:left;padding:5px">${data}</td><td style="text-align:left;padding:5px">${desc}</td><td style="text-align:left;padding:5px">${cat}</td><td style="text-align:left;padding:5px">${forn}</td><td style="text-align:left;padding:5px">${fpg}</td><td style="text-align:left;padding:5px">${st}</td><td style="text-align:left;padding:5px">${dpg}</td><td style="text-align:left;padding:5px">${fmt(valor)}</td></tr>`;
     });
     const total=items.reduce((s,i)=>s+parseStoredNumber(getFuzzy(i,['valor'])||0),0);
-    const theadHtml=`<tr style="background:#f5f5f7"><th style="text-align:left;padding:5px">Data</th><th style="text-align:left;padding:5px">Descrição</th><th style="text-align:left;padding:5px">Categoria</th><th style="text-align:left;padding:5px">Fornecedor/Beneficiário</th><th style="text-align:left;padding:5px">Forma Pgto</th><th style="text-align:right;padding:5px">Valor</th></tr>`;
+    const theadHtml=`<tr style="background:#f5f5f7"><th style="text-align:left;padding:5px">Tipo</th><th style="text-align:left;padding:5px">Data Despesa</th><th style="text-align:left;padding:5px">Descrição</th><th style="text-align:left;padding:5px">Categoria</th><th style="text-align:left;padding:5px">Fornecedor/Beneficiário</th><th style="text-align:left;padding:5px">Forma Pgto</th><th style="text-align:left;padding:5px">Status</th><th style="text-align:left;padding:5px">Data Pgto</th><th style="text-align:left;padding:5px">Valor</th></tr>`;
     const resumoHtml=`<div style="margin-top:10px;border:1px solid #e5e5ea;border-radius:8px;padding:12px 16px;display:flex;justify-content:space-between;align-items:center"><span style="font-size:13px;font-weight:800">Total</span><span style="font-size:16px;font-weight:800;color:#0071E3">${fmt(total)}</span></div>`;
 
     const agora=new Date();
@@ -7148,7 +7448,7 @@ const Auth={
     if(idleExpired){
       const errEl=document.getElementById('login-err');
       const msgEl=document.getElementById('login-err-msg');
-      if(msgEl)msgEl.textContent='Encerrada por inatividade. Faça login novamente!';
+      if(msgEl)msgEl.textContent='Sessão encerrada por inatividade. Faça login novamente!';
       if(errEl)errEl.classList.add('show');
     }
     // Oculta app, mostra login
