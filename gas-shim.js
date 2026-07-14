@@ -15,14 +15,14 @@ const _sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const _NOME_PARA_CHAVE = {
   'Obras':'obras','Custos':'custos',
   'Faturamentos':'faturamentos','Aportes financeiros':'aportes','CAP':'cap',
-  'Orçamentos':'orcamentos'
+  'Orçamentos':'orcamentos','Despesas':'despesas'
 };
 const _ABA_NOME = {
   obras:'Obras', custos:'Custos',
   faturamentos:'Faturamentos', aportes:'Aportes financeiros', cap:'CAP',
-  orcamentos:'Orçamentos'
+  orcamentos:'Orçamentos', despesas:'Despesas'
 };
-const _CHAVES = ['obras','custos','faturamentos','aportes','cap','orcamentos'];
+const _CHAVES = ['obras','custos','faturamentos','aportes','cap','orcamentos','despesas'];
 
 // ─── Funções que espelham o Código.gs ─────────────────────────────────────────
 
@@ -112,8 +112,11 @@ async function _salvarComposicaoCAP(dataLancamento, tituloObra, itens, isEdicao)
   }
 
   if (itens && itens.length > 0) {
+    // IMPORTANTE: espalha o item PRIMEIRO e sobrescreve data_lancamento/titulo_obra depois,
+    // para que TODAS as linhas da composição fiquem com a MESMA data (a da composição). Se o
+    // item trouxesse sua própria data por linha, cada linha viraria um "card" separado.
     const linhas = itens.map(item => ({
-      row_data: { data_lancamento: dataLancamento, titulo_obra: tituloObra, ...item }
+      row_data: { ...item, data_lancamento: dataLancamento, titulo_obra: tituloObra }
     }));
     const { error } = await _sb.from('cap').insert(linhas);
     if (error) return { ok: false, msg: error.message };
