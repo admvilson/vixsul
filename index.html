@@ -663,14 +663,14 @@ tbody tr:hover td{background:rgba(0,113,227,.02);}
               </div>
               <span class="chart-pro-badge" id="badge-meses" style="flex-shrink:0;margin-left:10px">—</span>
             </div>
-            <div style="position:relative;flex:1;min-height:200px;margin-top:6px"><canvas id="chart-line"></canvas></div>
+            <div style="position:relative;flex:1;min-height:200px;max-height:260px;margin-top:6px"><canvas id="chart-line"></canvas></div>
           </div>
 
           <!-- Donut: Previsto vs Real -->
           <div class="chart-pro" style="display:flex;flex-direction:column">
             <div class="chart-pro-title">Previsto vs Real</div>
             <div style="font-size:11px;color:var(--text-3);font-weight:500;margin-bottom:6px">Efetividade dos faturamentos</div>
-            <div style="position:relative;flex:1;min-height:130px">
+            <div style="position:relative;flex:1;min-height:130px;max-height:170px">
               <canvas id="chart-tipo-fat-donut"></canvas>
               <div class="donut-center">
                 <div class="donut-center-val" id="donut-tipofat-val" style="color:var(--green);font-size:16px">—</div>
@@ -870,8 +870,8 @@ tbody tr:hover td{background:rgba(0,113,227,.02);}
               <th style="width:128px">Lançamento</th>
               <th style="width:100px">Tipo</th>
               <th style="width:118px">Data Despesa</th>
+              <th style="width:170px">Especificação</th>
               <th style="width:220px">Descrição</th>
-              <th style="width:170px">Categoria</th>
               <th style="width:180px">Fornecedor/Beneficiário</th>
               <th style="width:140px">Forma Pgto</th>
               <th style="width:110px">Status Pgto</th>
@@ -1051,6 +1051,14 @@ tbody tr:hover td{background:rgba(0,113,227,.02);}
     <div class="confirm-actions"><button class="confirm-yes" onclick="UI._grDelRowConfirm()">Sim, excluir</button><button class="confirm-no" onclick="UI._grDelRowCancel()">Não</button></div>
   </div>
 </div>
+<div class="confirm-overlay" id="confirm-desp-sair">
+  <div class="confirm-box">
+    <div class="confirm-icon" style="background:rgba(255,149,0,.12);color:var(--orange)"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div>
+    <div class="confirm-title">Sair sem salvar?</div>
+    <div class="confirm-msg">Há alterações nas Despesas que ainda não foram salvas. Se sair agora, tudo que foi digitado na tabela será perdido.</div>
+    <div class="confirm-actions"><button class="confirm-yes" onclick="App._despSairConfirma()">Sim, sair</button><button class="confirm-no" onclick="App._despSairCancela()">Não</button></div>
+  </div>
+</div>
 <div class="confirm-overlay" id="confirm-desp-row">
   <div class="confirm-box">
     <div class="confirm-icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg></div>
@@ -1084,7 +1092,7 @@ const STATUS_OPTS=['Ganha - Em Andamento','Ganha - Finalizada','Ganha - Aguardan
 const QUEM_APORTOU=['Vixsul','Externo'];
 // Despesas: gastos gerais da empresa, SEM vínculo com uma obra específica (diferente
 // de Custos, que sempre pertence a uma obra dentro do hub de Obras).
-const CATEGORIAS_DESPESA=['Aluguel','Água, Luz e Internet','Material de Escritório','Combustível','Manutenção e Reparo','Impostos e Taxas','Serviços Contratados','Salários e Encargos','Marketing e Publicidade','Outros'];
+const CATEGORIAS_DESPESA=['Aluguel','Água, Luz e Internet','Material de Escritório','Combustível','Manutenção e Reparo','Impostos e Taxas','Serviços Contratados','Salários e Encargos','Pró-labore / Retiradas','Devolução de Aporte','Empréstimos e Financiamentos','Tarifas Bancárias','Seguros','Contabilidade e Jurídico','Equipamentos e Ferramentas','Viagens e Deslocamentos','Treinamentos e Cursos','Marketing e Publicidade','Outros'];
 const FORMAS_PAGAMENTO_DESPESA=['Dinheiro','PIX','Cartão de Crédito','Cartão de Débito','Transferência/TED','Boleto','Cheque'];
 const TIPO_FAT=['Previsto','Real'];
 const TIPOS_CUSTO={'Materiais de Construção':['Cimento','Areia','Brita','Aço/Ferragem','Madeira','Telhas','Tijolos/Blocos','Argamassa','Impermeabilizante','Tinta/Acabamento','Tubulação/Conexões','Fio Elétrico/Cabo','Vidro','Cerâmica/Porcelanato','Gesso','Cal','Manta Asfáltica','Parafusos/Fixadores','Piso Vinílico/Laminado','Isolamento Térmico/Acústico','Drywall','Outros Materiais'],'Mão de Obra':['Pedreiro','Servente','Eletricista','Encanador/Hidráulico','Carpinteiro','Serralheiro','Gesseiro','Pintor','Soldador','Técnico em Segurança','Mestre de Obras','Engenheiro','Arquiteto','Topógrafo','Operador de Máquinas','Ajudante Geral','Vidraceiro','Marceneiro','Jardineiro','Outros MO'],'Equipamentos e Locações':['Andaime','Betoneira','Compactador','Escavadeira','Retroescavadeira','Grua/Guindaste','Caminhão Basculante','Compressor de Ar','Gerador','Serra Circular','Bomba de Concreto','Banheiro Químico','Roçadeira','Motosserra','Outros Equipamentos'],'Serviços Terceirizados':['Projeto Estrutural','Projeto Elétrico','Projeto Hidráulico','Projeto Arquitetônico','Sondagem/Solo','Topografia','Instalação Elétrica','Instalação Hidráulica','Impermeabilização','Paisagismo','Limpeza de Obra','Demolição','Transporte de Entulho','Roçagem/Capina','Dedetização','Outros Serviços'],'Despesas Administrativas':['Alvará','ART/RRT','Licença Ambiental','Seguro Obra','EPI','Escritório/Administrativo','Combustível','Alimentação Equipe','Hospedagem','Internet/Telefone','Reprografia','Multas/Taxas Municipais','Seguro de Vida Equipe','Outros Admin'],'Infraestrutura':['Terraplanagem','Fundação','Drenagem','Pavimentação','Muros de Arrimo','Rede Elétrica Externa','Rede de Água','Rede de Esgoto','Iluminação Externa','Calçamento','Outros Infraestrutura'],'Acabamentos':['Revestimento Interno','Revestimento Externo','Forro','Piso Interno','Piso Externo','Esquadrias (Portas)','Esquadrias (Janelas)','Bancadas','Louças Sanitárias','Metais Sanitários','Rodapé','Soleiras','Peitoris','Outros Acabamentos'],'Jardinagem e Paisagismo':['Grama','Mudas e Plantas','Terra Vegetal/Adubo','Sistema de Irrigação','Poda e Manutenção','Roçagem','Capina','Limpeza de Terreno','Corte de Árvore','Mobiliário de Jardim','Iluminação de Jardim','Pedras Decorativas','Outros Jardinagem'],'Saneamento':['Fossa Séptica','Sumidouro','Rede Coletora de Esgoto','Estação de Tratamento','Caixa de Gordura','Caixa de Inspeção','Tubulação de Esgoto','Poço Artesiano','Cisterna','Outros Saneamento'],'Outros':['Taxas e Licenças','Imprevistos','Locação de Veículo','Frete/Transporte','Outros Diversos']};
@@ -1425,6 +1433,9 @@ const App={
       else if(tc==='real')totCusReal+=val;
     });
     const totApo=apoF.reduce((a,i)=>a+toN(getFuzzy(i,['valor_aportado','valor_aporte'])||i.valor||0),0);
+    // Despesas gerais da empresa (sem vínculo com obra): entram no DRE e nos Indicadores
+    // apenas quando NÃO há filtro de obra/status ativo — não dá para atribuí-las a uma obra.
+    const totDes=(obra||status)?0:(this.state.data.despesas||[]).reduce((a,i)=>a+toN(getFuzzy(i,['valor'])||0),0);
     const saldo=totRec-totCus;
     const margem=totBrut>0?(saldo/totBrut)*100:0;
 
@@ -1553,7 +1564,7 @@ const App={
     const dreEl=document.getElementById('dre-body');
     if(dreEl){
       const resultOp=totRec-totCus;          // Fat.Líquido − Custos
-      const resultLiq=resultOp;               // sem IRPJ/CSLL aqui
+      const resultLiq=resultOp-totDes;        // desconta também as Despesas gerais da empresa
       // Função de linha do DRE
       const dreRow=(label,val,opts={})=>{
         const{indent=0,bold=false,sep=false,big=false,sub=false,isNeg=false,isInfo=false,extraHtml=''}=opts;
@@ -1587,22 +1598,26 @@ const App={
         dreRow('(−) Custos Totais',-totCus,{indent:1,isNeg:true,extraHtml:mgBrut(totCus)}),
         totCusPrev>0?dreRow('↳ Previsto',-totCusPrev,{indent:2,sub:true,isNeg:true}):'',
         totCusReal>0?dreRow('↳ Real',-totCusReal,{indent:2,sub:true,isNeg:true}):'',
-        // ── BLOCO 5: RESULTADO ──
+        // ── BLOCO 5: RESULTADO OPERACIONAL ──
         dreRow('(=) Resultado Operacional (EBIT)',resultOp,{bold:true,sep:true,extraHtml:mgBrut(resultOp)}),
+        // ── BLOCO 6: DESPESAS GERAIS (empresa, sem vínculo com obra) ──
+        totDes>0?dreRow('(−) Despesas Gerais',-totDes,{indent:1,isNeg:true,extraHtml:mgBrut(totDes)}):'',
         // ── RESULTADO FINAL ──
         dreRow('(=) Resultado Líquido',resultLiq,{bold:true,sep:true,big:true,extraHtml:mgBrut(resultLiq)}),
       ].join('');
+      // Margem exibida no DRE já considera as Despesas gerais (resultado final / bruto)
+      const margemDre=totBrut>0?(resultLiq/totBrut)*100:0;
       const mEl=document.getElementById('dre-margem');
-      if(mEl){mEl.textContent=fmtPct(margem);mEl.style.color=margem>=20?'var(--green)':margem>=0?'var(--orange)':'var(--red)';}
+      if(mEl){mEl.textContent=fmtPct(margemDre);mEl.style.color=margemDre>=20?'var(--green)':margemDre>=0?'var(--orange)':'var(--red)';}
       const mBar=document.getElementById('dre-margem-bar');
-      if(mBar){mBar.style.width=Math.max(0,Math.min(100,margem)).toFixed(1)+'%';mBar.style.background=margem>=20?'var(--green)':margem>=0?'var(--orange)':'var(--red)';}
+      if(mBar){mBar.style.width=Math.max(0,Math.min(100,margemDre)).toFixed(1)+'%';mBar.style.background=margemDre>=20?'var(--green)':margemDre>=0?'var(--orange)':'var(--red)';}
     }
 
     /* ── INDICADORES CONSOLIDADOS (valor + % sobre bruto) ── */
     const fil=document.getElementById('fin-ind-list');
     if(fil){
       const pct=(v,base)=>base>0?fmtPct(v/base*100):'—';
-      const resultLiqInd=totRec-totCus; // resultado líquido para indicadores
+      const resultLiqInd=totRec-totCus-totDes; // resultado líquido (já com Despesas gerais)
       const indRows=[
         // RECEITA BRUTA
         {l:'Faturamento Bruto',         v:totBrut,          p:'100%',                       cv:'var(--blue)',   cp:'var(--text-3)',bold:true},
@@ -1619,6 +1634,8 @@ const App={
         {l:'(−) Custos Totais',         v:totCus,            p:pct(totCus,totBrut),          cv:'var(--red)',    cp:'var(--red)'},
         {l:'↳ Previsto',               v:totCusPrev,         p:pct(totCusPrev,totCus),       cv:'var(--orange)', cp:'var(--text-3)',sub:true},
         {l:'↳ Real',                   v:totCusReal,         p:pct(totCusReal,totCus),       cv:'var(--red)',    cp:'var(--text-3)',sub:true},
+        // DESPESAS GERAIS (empresa, sem vínculo com obra)
+        {l:'(−) Despesas Gerais',       v:totDes,            p:pct(totDes,totBrut),          cv:'var(--red)',    cp:'var(--red)'},
         // RESULTADO
         {l:'Total Aportes',             v:totApo,            p:'—',                          cv:'var(--purple)', cp:'var(--text-3)'},
         {l:'Resultado Líquido Final',   v:resultLiqInd,      p:pct(resultLiqInd,totBrut),   cv:resultLiqInd>=0?'var(--green)':'var(--red)',cp:resultLiqInd>=0?'var(--green)':'var(--red)',bold:true,sep:true},
@@ -1786,28 +1803,25 @@ const App={
 
     /* Chart Fat por Obra: removido a pedido */
 
-    /* Custos por Especificação: popular filtro de categoria e listagem */
+    /* Custos por Especificação: o filtro é a ESPECIFICAÇÃO (não existe mais "categoria"
+       desde a fusão das colunas em Custos) e a tabela lista as descrições daquela
+       especificação, sem repetir a especificação em coluna. */
     {
-      // Acumula por categoria → especificação → {total, desc}
-      const catMap2={};  // {cat: {espec: {total, desc}}}
+      const agg={}; // chave espec|||desc → {espec, desc, total}
       cusF.forEach(i=>{
-        const cat=getFuzzy(i,['tipo_custo','tipo'])||'Outros';
-        const espec=getFuzzy(i,['especificacao','especif'])||'—';
-        const desc=getFuzzy(i,['descricao','desc'])||'';
+        const espec=getFuzzy(i,['especificacao','especif'])||getFuzzy(i,['tipo_custo','tipo'])||'—';
+        const desc=getFuzzy(i,['descricao','desc'])||'—';
         const val=toN(getFuzzy(i,['p_total','ptotal'])||i.valor||0);
-        if(!catMap2[cat])catMap2[cat]={};
-        if(!catMap2[cat][espec])catMap2[cat][espec]={total:0,desc:''};
-        catMap2[cat][espec].total+=val;
-        if(desc&&!catMap2[cat][espec].desc)catMap2[cat][espec].desc=desc;
+        const key=espec+'|||'+desc;
+        if(!agg[key])agg[key]={espec,desc,total:0};
+        agg[key].total+=val;
       });
-      // Armazena para uso posterior no filtro
-      this.state._custosEspecMap=catMap2;
-      this.state._cusF=cusF;
-      // Popular select de categorias
+      this.state._custosEspecRows=Object.values(agg);
       const sel=document.getElementById('filter-custo-cat');
       if(sel){
         const cur=sel.value;
-        sel.innerHTML='<option value="">Todas as Categorias</option>'+Object.keys(catMap2).sort().map(k=>`<option value="${k}"${cur===k?' selected':''}>${k}</option>`).join('');
+        const especs=[...new Set(this.state._custosEspecRows.map(r=>r.espec))].sort();
+        sel.innerHTML='<option value="">Todas as Especificações</option>'+especs.map(k=>`<option value="${k}"${cur===k?' selected':''}>${k}</option>`).join('');
       }
       this._renderCustosEspec();
     }
@@ -1828,41 +1842,29 @@ const App={
   },
 
   _renderCustosEspec(){
-    const catMap2=this.state._custosEspecMap||{};
+    const all=this.state._custosEspecRows||[];
     const sel=document.getElementById('filter-custo-cat');
-    const catFilter=sel?sel.value:'';
+    const especFilter=sel?sel.value:'';
     const list=document.getElementById('custo-espec-list');
     if(!list)return;
-    // Monta lista filtrada
-    let rows=[];
-    const cats=catFilter?[catFilter]:Object.keys(catMap2);
-    cats.forEach(cat=>{
-      Object.entries(catMap2[cat]||{}).forEach(([espec,obj])=>{
-        const val=typeof obj==='object'?obj.total:obj;
-        const desc=typeof obj==='object'?obj.desc:'';
-        rows.push({cat,espec,desc,val});
-      });
-    });
-    rows.sort((a,b)=>b.val-a.val);
+    const rows=(especFilter?all.filter(r=>r.espec===especFilter):all).slice().sort((a,b)=>b.total-a.total);
     if(!rows.length){list.innerHTML='<div style="font-size:12px;color:var(--text-3);padding:12px">Nenhum dado disponível</div>';return;}
-    const total=rows.reduce((s,r)=>s+r.val,0);
+    const total=rows.reduce((s,r)=>s+r.total,0);
     const pal=['#0071E3','#34C759','#FF9500','#FF3B30','#AF52DE','#5AC8FA','#FF6B35','#00B4D8','#1D1D1F'];
     list.innerHTML=`<table style="width:100%;border-collapse:collapse">
       <thead><tr>
-        <th style="text-align:left;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text-3);padding:4px 8px;border-bottom:1px solid var(--border)">Especificação</th>
         <th style="text-align:left;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text-3);padding:4px 8px;border-bottom:1px solid var(--border)">Descrição</th>
         <th style="text-align:right;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text-3);padding:4px 8px;border-bottom:1px solid var(--border)">Total</th>
         <th style="text-align:right;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text-3);padding:4px 8px;border-bottom:1px solid var(--border)">%</th>
       </tr></thead>
       <tbody>${rows.slice(0,25).map((r,i)=>{
-        const pct=total>0?fmtPct(r.val/total*100):fmtPct(0);
+        const pct=total>0?fmtPct(r.total/total*100):fmtPct(0);
         const col=pal[i%pal.length];
         return `<tr style="border-bottom:1px solid var(--border)">
-          <td style="padding:5px 8px;font-size:11px;color:var(--text-1);font-weight:500;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${r.espec}">
-            <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${col};margin-right:5px;flex-shrink:0"></span>${r.espec.length>18?r.espec.slice(0,18)+'…':r.espec}
+          <td style="padding:5px 8px;font-size:11px;color:var(--text-1);font-weight:500;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${r.espec} — ${r.desc}">
+            <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${col};margin-right:5px;flex-shrink:0"></span>${r.desc.length>30?r.desc.slice(0,30)+'…':r.desc}
           </td>
-          <td style="padding:5px 8px;font-size:10px;color:var(--text-2);max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${r.desc}">${r.desc?r.desc.slice(0,20)+(r.desc.length>20?'…':''):'—'}</td>
-          <td style="padding:5px 8px;font-size:11px;font-weight:700;color:var(--red);text-align:right;white-space:nowrap">${fmt(r.val)}</td>
+          <td style="padding:5px 8px;font-size:11px;font-weight:700;color:var(--red);text-align:right;white-space:nowrap">${fmt(r.total)}</td>
           <td style="padding:5px 8px;font-size:10px;color:var(--text-3);text-align:right">${pct}</td>
         </tr>`;
       }).join('')}</tbody>
@@ -2018,8 +2020,8 @@ const App={
       <td><input data-field="${K.lanc}" class="cap-fi" value="${lancVal}" readonly style="cursor:not-allowed;color:var(--text-3)"></td>
       <td><select data-field="${K.tipo}" data-required="1" class="cap-fi-sel desp-tipo"><option value="">Selecione</option><option value="Prevista" ${tipoVal==='Prevista'?'selected':''}>Prevista</option><option value="Real" ${tipoVal==='Real'?'selected':''}>Real</option></select></td>
       <td><input type="date" data-field="${K.dataDesp}" data-required="1" class="cap-fi" value="${dataDespVal}"></td>
+      <td><select data-field="${K.cat}" data-required="1" class="cap-fi-sel"><option value="">Especificação</option>${catOpts}</select></td>
       <td><input data-field="${K.desc}" data-required="1" class="cap-fi" value="${gv(K.desc)}" placeholder="Ex.: Aluguel do escritório"></td>
-      <td><select data-field="${K.cat}" data-required="1" class="cap-fi-sel"><option value="">Selecione</option>${catOpts}</select></td>
       <td><input data-field="${K.forn}" data-required="1" class="cap-fi" value="${gv(K.forn)}" placeholder="Quem recebeu"></td>
       <td><select data-field="${K.fpg}" data-required="1" class="cap-fi-sel"><option value="">Selecione</option>${fpgOpts}</select></td>
       <td><select data-field="${K.status}" data-required="1" class="cap-fi-sel desp-status" onchange="App._despStatusChange(this)"><option value="">Selecione</option><option value="Pendente" ${statusVal==='Pendente'?'selected':''}>Pendente</option><option value="Pago" ${isPago?'selected':''}>Pago</option></select></td>
@@ -2036,8 +2038,33 @@ const App={
     const tipoSel=tr.querySelector('.desp-tipo');
     if(tipoSel)tipoSel.addEventListener('change',()=>App._despRecalcTotais());
   },
+  /* Controle de alterações não salvas (para o aviso de "sair sem salvar") */
+  _despDirty:false,
+  _despNavPendente:null,
+  _despSairConfirma(){
+    document.getElementById('confirm-desp-sair').classList.remove('open');
+    this._despDirty=false;
+    this._despRender(); // descarta as edições, recarregando o que está salvo
+    const alvo=this._despNavPendente;this._despNavPendente=null;
+    if(alvo)UI.nav(alvo);
+  },
+  _despSairCancela(){
+    document.getElementById('confirm-desp-sair').classList.remove('open');
+    this._despNavPendente=null;
+  },
   _despRender(){
     const tbody=document.getElementById('desp-tbody');if(!tbody)return;
+    // Listener de "sujou" (registrado uma única vez): qualquer digitação/alteração
+    // na tabela marca que há edições pendentes.
+    if(!this._despListenersOk){
+      this._despListenersOk=true;
+      const marca=e=>{if(e.target.closest&&e.target.closest('#desp-tbody'))App._despDirty=true;};
+      document.addEventListener('input',marca);
+      document.addEventListener('change',marca);
+    }
+    // Se há edições não salvas, NÃO reconstrói a tabela (o renderAll roda após
+    // qualquer salvamento/atualização em tempo real e apagaria o que foi digitado).
+    if(this._despDirty){this._despRecalcTotais();return;}
     const K=this._despK();
     const items=(App.state.data.despesas||[]).slice().sort((a,b)=>{
       const da=parseDate(getFuzzy(a,['data_despesa'])||'')||new Date(0);
@@ -2055,6 +2082,7 @@ const App={
     const tr=tbody.lastElementChild;
     this._despWireRow(tr);
     tr.querySelector('select,input:not([readonly])')?.focus();
+    this._despDirty=true;
   },
   _despStatusChange(sel){
     const tr=sel.closest('tr');
@@ -2101,6 +2129,7 @@ const App={
     const tr=this._despRowParaExcluir;this._despRowParaExcluir=null;
     if(!tr)return;
     tr.remove();
+    this._despDirty=true; // exclusão só é efetivada no Salvar
     this._despRecalcTotais();
   },
   _despDelRowCancel(){
@@ -2170,6 +2199,7 @@ const App={
         });
         App.state.data=data;
         App.state._busy=false;
+        App._despDirty=false; // tudo salvo — a tabela pode ser reconstruída do banco
         UI._hideBusy();
         App.renderAll();
         toast('Salvo com sucesso!','success');
@@ -2191,8 +2221,9 @@ const App={
   _relatorioCache:null,
   _relTituloTipo:{consolidado:'Relatório Financeiro Consolidado',comparativo:'Faturamento Líquido × Custos × Despesas',indicadores:'Indicadores Financeiros (VPL · TIR · Ponto de Equilíbrio)',faturamento:'Faturamento e Recebimentos',custos:'Custos (Analítico)',despesas:'Despesas (Analítico)',aportes:'Aportes (Analítico)'},
   /* Envelopa as tabelas dos analíticos: cabeçalho fixo + rolagem vertical limitada
-     (~20 linhas visíveis; o resto rola). O th do .cap-tbl já é sticky. */
-  _relTabelaWrap(tableHtml){return '<div style="overflow:auto;max-height:660px;border:1px solid var(--border);border-radius:10px">'+tableHtml+'</div>';},
+     (~20 linhas visíveis; o resto rola pela barra lateral, sempre visível).
+     O th do .cap-tbl já é sticky. */
+  _relTabelaWrap(tableHtml){return '<div style="overflow-x:auto;overflow-y:scroll;max-height:665px;border:1px solid var(--border);border-radius:10px">'+tableHtml+'</div>';},
   _relatorioObraOpcoes(){
     const sel=document.getElementById('rel-obra');if(!sel)return;
     const atual=sel.value;
@@ -2263,20 +2294,15 @@ const App={
     const despesas=obraSel?[]:(App.state.data.despesas||[]).filter(i=>dentroPeriodo(getFuzzy(i,['data_despesa'])||''));
     const despesaTotal=despesas.reduce((s,i)=>s+parseStoredNumber(getFuzzy(i,['valor'])||0),0);
 
-    const saldo=(fatLiquido+aporteTotal)-(custoTotal+despesaTotal);
+    const deducoes=Math.max(0,fatBruto-fatLiquido);
+    const resultado=fatLiquido-custoTotal-despesaTotal;
+    const margem=fatBruto>0?(resultado/fatBruto)*100:0;
 
-    let html='<div style="max-width:640px;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:6px 20px">';
-    html+=this._relLinha('Custos',custoTotal);
-    html+=this._relLinha('Faturamento Bruto',fatBruto);
-    html+=this._relLinha('Faturamento Líquido',fatLiquido);
-    html+=this._relLinha('Aportes',aporteTotal);
-    html+=this._relLinha('Despesas',despesaTotal);
-    html+=this._relLinha('Saldo',saldo,true);
-    html+='</div>';
-    if(obraSel)html+='<p style="font-size:11px;color:var(--text-3);margin-top:10px;max-width:640px">* Despesas são gastos gerais da empresa, sem vínculo com uma obra específica — por isso não entram no total quando um filtro de obra está ativo.</p>';
-
-    const el=document.getElementById('rel-resumo');if(el)el.innerHTML=html;
-    this._relatorioCache={tipo:'consolidado',obraSel,dIni,dFim,dados:{custoTotal,fatBruto,fatLiquido,aporteTotal,despesaTotal,saldo}};
+    // Na tela, o Consolidado é o DRE + Indicadores (blocos vindos do Dashboard, já
+    // atualizados pelo renderDashboard). A tabela-resumo antiga foi removida a pedido.
+    const el=document.getElementById('rel-resumo');
+    if(el)el.innerHTML=(obraSel||dIni||dFim)?'<p style="font-size:11px;color:var(--text-3);max-width:680px;margin-bottom:4px">* O DRE e os Indicadores abaixo mostram a visão consolidada da empresa (não aplicam os filtros de obra/período deste seletor). O PDF exportado usa os filtros selecionados.</p>':'';
+    this._relatorioCache={tipo:'consolidado',obraSel,dIni,dFim,dados:{custoTotal,fatBruto,fatLiquido,deducoes,aporteTotal,despesaTotal,resultado,margem}};
   },
   /* Agrupa fluxos por mês (chave AAAA-MM) — base do gráfico do Comparativo e do VPL/TIR. */
   _relPorMes(lista,getData,getValor){
@@ -2426,14 +2452,19 @@ const App={
     const custosVar=meses.reduce((s,k)=>s+(mCus[k]||0),0);
     const fixos=meses.reduce((s,k)=>s+(mDes[k]||0),0);
     const margemContrib=receita>0?1-(custosVar/receita):0;
-    const pontoEq=margemContrib>0?fixos/margemContrib:null;
+    let pontoEq=margemContrib>0?fixos/margemContrib:null;
+    // Nunca deixa NaN/Infinity vazar para a tela ou para o PDF
+    if(tir!==null&&!isFinite(tir))tir=null;
+    if(pontoEq!==null&&!isFinite(pontoEq))pontoEq=null;
 
     const card=(t,v,sub)=>`<div style="flex:1;min-width:220px;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px"><div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.6px;color:var(--text-3);margin-bottom:6px">${t}</div><div style="font-size:24px;font-weight:800;color:var(--blue)">${v}</div><div style="font-size:11px;color:var(--text-3);margin-top:6px;line-height:1.5">${sub}</div></div>`;
     let html=`<div style="display:flex;align-items:center;gap:10px;margin-bottom:16px"><label style="font-size:12px;font-weight:700;color:var(--text-2)">Taxa de desconto (% a.m.):</label><input id="rel-taxa-vpl" type="text" inputmode="decimal" value="${String(taxa).replace('.',',')}" onchange="App._relatorioGerar()" style="width:80px;padding:7px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;text-align:left"></div>`;
     html+='<div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:16px">';
-    html+=card('VPL — Valor Presente Líquido',fmt(vpl),`Fluxos mensais descontados a ${String(taxa).replace('.',',')}% a.m. · ${meses.length} mês(es) no período`);
-    html+=card('TIR — Taxa Interna de Retorno',tir===null?'—':tir.toLocaleString('pt-BR',{maximumFractionDigits:2})+'% a.m.',tir===null?'Não calculável: o fluxo precisa ter entradas e saídas (troca de sinal).':'Taxa que zera o VPL do fluxo mensal.');
-    html+=card('Ponto de Equilíbrio',pontoEq===null?'—':fmt(pontoEq),pontoEq===null?'Não calculável: margem de contribuição ≤ 0.':`Receita necessária p/ cobrir custos e despesas · margem de contribuição ${(margemContrib*100).toLocaleString('pt-BR',{maximumFractionDigits:1})}%`);
+    const tirOk=tir!==null&&isFinite(tir);
+    const peOk=pontoEq!==null&&isFinite(pontoEq);
+    html+=card('VPL — Valor Presente Líquido',isFinite(vpl)?fmt(vpl):'Sem dados no período',`É quanto o fluxo de caixa do período vale hoje, descontado a ${String(taxa).replace('.',',')}% ao mês · ${meses.length} mês(es) considerado(s)`);
+    html+=card('TIR — Taxa Interna de Retorno',tirOk?tir.toLocaleString('pt-BR',{maximumFractionDigits:2})+'% a.m.':'Não calculável',tirOk?'É a taxa de rentabilidade mensal do fluxo de caixa do período.':'Para calcular a TIR é preciso ter, no período, pelo menos um mês com resultado positivo e um mês com resultado negativo (entradas e saídas).');
+    html+=card('Ponto de Equilíbrio',peOk?fmt(pontoEq):'Não calculável',peOk?`Receita mínima necessária para cobrir todos os custos e despesas · margem de contribuição ${isFinite(margemContrib)?(margemContrib*100).toLocaleString('pt-BR',{maximumFractionDigits:1}):'—'}%`:'Para calcular é preciso ter receita no período e custos menores que a receita (margem de contribuição positiva).');
     html+='</div>';
     // Tabela do fluxo mensal usado no cálculo (transparência do número)
     const linhasFluxo=meses.map((k,n)=>{const[y,m]=k.split('-');const nome=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'][+m-1]+'/'+y;return `<tr><td>${nome}</td><td>${fmt(mLiq[k]||0)}</td><td>${fmt(mCus[k]||0)}</td><td>${fmt(mDes[k]||0)}</td><td style="font-weight:700;color:${fluxos[n]<0?'var(--red)':'var(--green)'}">${fmt(fluxos[n])}</td></tr>`;}).join('');
@@ -2483,9 +2514,9 @@ const App={
     }));
     const total=linhas.reduce((s,l)=>s+l.valor,0);
     let html=this._relTabelaWrap('<table class="cap-tbl" style="width:100%;min-width:760px">'+
-      '<thead><tr><th>Data</th><th>Descrição</th><th>Categoria</th><th>Fornecedor/Beneficiário</th><th>Forma Pgto</th><th>Valor</th></tr></thead><tbody>'+
+      '<thead><tr><th>Data</th><th>Especificação</th><th>Descrição</th><th>Fornecedor/Beneficiário</th><th>Forma Pgto</th><th>Valor</th></tr></thead><tbody>'+
       (linhas.length===0?'<tr><td colspan="6" style="color:var(--text-3);padding:20px">Nenhuma despesa encontrada</td></tr>':
-        linhas.map(l=>`<tr><td>${l.data}</td><td>${l.desc}</td><td>${l.cat}</td><td>${l.forn}</td><td>${l.fpg}</td><td>${fmt(l.valor)}</td></tr>`).join(''))+
+        linhas.map(l=>`<tr><td>${l.data}</td><td>${l.cat}</td><td>${l.desc}</td><td>${l.forn}</td><td>${l.fpg}</td><td>${fmt(l.valor)}</td></tr>`).join(''))+
       `</tbody><tfoot><tr><td colspan="5" style="font-weight:800">Total</td><td style="font-weight:800;color:var(--blue)">${fmt(total)}</td></tr></tfoot></table>`);
     const el=document.getElementById('rel-resumo');if(el)el.innerHTML=html;
     this._relatorioCache={tipo:'despesas',obraSel:'',dIni,dFim,dados:{linhas,total}};
@@ -2513,18 +2544,129 @@ const App={
     const el=document.getElementById('rel-resumo');if(el)el.innerHTML=html;
     this._relatorioCache={tipo:'aportes',obraSel,dIni,dFim,dados:{linhas,total}};
   },
+  /* Motor de PDF paginado dos Relatórios (mesmo paginador do Despesas): cabeçalho
+     (logo + título + filtros) e blocos "pre" (gráfico/resumos) na 1ª página, tabela
+     quebrando LINHA A LINHA entre as páginas e bloco final (totais) na última. */
+  _relExportPaginado(cfg){
+    const {titulo,subLinhas=[],preHtml='',theadHtml='',rowsArr=[],posHtml='',paisagem=false}=cfg;
+    const agora=new Date();
+    const dataHoraImpressao=agora.toLocaleDateString('pt-BR')+' '+agora.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+    const pageWmm=paisagem?297:210, pageHmm=paisagem?210:297;
+    const contentWmm=pageWmm-28;
+    const win=window.open('','_blank');
+    if(!win){toast('Não foi possível abrir o PDF. Permita pop-ups deste site no navegador e tente de novo.','error');return;}
+    win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>&nbsp;</title>
+      <style>
+        @page{margin:0;size:${paisagem?'A4 landscape':'A4'};}
+        *{box-sizing:border-box;}
+        html,body{margin:0;padding:0;background:#ccc;font-family:Arial,sans-serif;color:#1d1d1f;}
+        #rel-pdf-source{position:absolute;left:-9999px;top:0;width:${contentWmm}mm;}
+        table{border-collapse:collapse;width:100%;font-size:10px;table-layout:fixed;}
+        td,th{border-bottom:1px solid #e5e5ea;word-break:break-word;text-align:left;padding:5px;}
+        thead th{background:#f5f5f7;font-weight:800;}
+        h1{font-size:18px;margin:0;}
+        .sub{font-size:12px;color:#6e6e73;margin-top:2px;}
+        .pdf-page{position:relative;width:${pageWmm}mm;height:${pageHmm}mm;background:#fff;margin:0 auto 6mm;overflow:hidden;page-break-after:always;}
+        .pdf-page-inner{position:absolute;top:14mm;left:14mm;right:14mm;bottom:18mm;overflow:hidden;}
+        .pdf-page-footer{position:absolute;left:14mm;right:14mm;bottom:6mm;display:flex;justify-content:space-between;align-items:center;font-size:9px;color:#6e6e73;border-top:1px solid #e5e5ea;padding-top:5px;}
+        @media print{html,body{background:#fff;}.pdf-page{margin:0;box-shadow:none;}}
+        @media screen{.pdf-page{box-shadow:0 2px 12px rgba(0,0,0,.15);margin-top:6mm;}}
+      </style></head><body>
+      <div id="rel-pdf-source">
+        <div id="rel-pdf-head">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;border-bottom:2px solid #1d1d1f;padding-bottom:12px">
+            <img src="${PDF_LOGO_FULL_B64}" style="height:14mm;width:auto;display:block">
+            <div style="text-align:right"><h1>${titulo}</h1>${subLinhas.map(s=>`<div class="sub">${s}</div>`).join('')}</div>
+          </div>
+          ${preHtml}
+        </div>
+        ${theadHtml?`<table id="rel-pdf-thead-measure"><thead>${theadHtml}</thead></table>
+        <table><tbody id="rel-pdf-rows">${rowsArr.join('')}</tbody></table>`:'<div id="rel-pdf-rows-empty"></div>'}
+        <div id="rel-pdf-resumo">${posHtml}</div>
+      </div>
+      <div id="rel-pdf-pages"></div>
+      <script>
+      (function(){
+        function paginar(){
+          var mmToPx=96/25.4;
+          var alturaUtilPx=(${pageHmm}-14-18)*mmToPx;
+          var source=document.getElementById('rel-pdf-source');
+          var pagesContainer=document.getElementById('rel-pdf-pages');
+          var headEl=document.getElementById('rel-pdf-head');
+          var theadMeasure=document.getElementById('rel-pdf-thead-measure');
+          var theadHtmlStr=theadMeasure?theadMeasure.querySelector('thead').outerHTML:'';
+          var theadH=theadMeasure?theadMeasure.offsetHeight:0;
+          var rowsEls=Array.prototype.slice.call(document.querySelectorAll('#rel-pdf-rows tr'));
+          var resumoEl=document.getElementById('rel-pdf-resumo');
+          var headH=headEl.offsetHeight+18;
+          var resumoH=resumoEl.offsetHeight+18;
+
+          var paginas=[];
+          var i=0, first=true;
+          while(i<rowsEls.length || paginas.length===0){
+            var budget=alturaUtilPx-(rowsEls.length?theadH:0)-(first?headH:0);
+            var idxs=[], usado=0;
+            while(i<rowsEls.length){
+              var h=rowsEls[i].offsetHeight;
+              if(usado+h>budget && idxs.length>0)break;
+              idxs.push(i);usado+=h;i++;
+            }
+            paginas.push({idxs:idxs,head:first,remaining:budget-usado});
+            first=false;
+            if(i>=rowsEls.length)break;
+          }
+          var ultima=paginas[paginas.length-1];
+          if(ultima && resumoH<=ultima.remaining){ultima.resumo=true;}
+          else if(resumoEl.innerHTML.trim()){paginas.push({idxs:[],head:false,resumo:true});}
+
+          var totalPaginas=paginas.length;
+          var dataHora=${JSON.stringify(dataHoraImpressao)};
+          paginas.forEach(function(pg,idx){
+            var page=document.createElement('div');
+            page.className='pdf-page';
+            var inner=document.createElement('div');
+            inner.className='pdf-page-inner';
+            if(pg.head)inner.appendChild(headEl.cloneNode(true));
+            if(pg.idxs.length>0){
+              var tbl=document.createElement('table');
+              tbl.innerHTML=theadHtmlStr+'<tbody>'+pg.idxs.map(function(ri){return rowsEls[ri].outerHTML;}).join('')+'</tbody>';
+              inner.appendChild(tbl);
+            }
+            if(pg.resumo)inner.appendChild(resumoEl.cloneNode(true));
+            var footer=document.createElement('div');
+            footer.className='pdf-page-footer';
+            footer.innerHTML='<span>'+dataHora+'</span><span>Vixsul Empreendimentos — CNPJ 64.518.375/0001-20</span><span>Página '+(idx+1)+' de '+totalPaginas+'</span>';
+            page.appendChild(inner);
+            page.appendChild(footer);
+            pagesContainer.appendChild(page);
+          });
+          source.remove();
+          setTimeout(function(){window.focus();window.print();},250);
+        }
+        if(document.readyState==='complete'){paginar();}
+        else{window.addEventListener('load',paginar);}
+      })();
+      <\/script>
+      </body></html>`);
+    win.document.close();
+  },
   _relatorioExportPDF(){
     const c=this._relatorioCache;
     if(!c){toast('Aguarde o relatório carregar e tente novamente.','error');return;}
-    const agora=new Date();
-    const dataHoraImpressao=agora.toLocaleDateString('pt-BR')+' '+agora.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
     const periodoTxt=(c.dIni||c.dFim)?`Período: ${c.dIni?dateBR(c.dIni):'início'} até ${c.dFim?dateBR(c.dFim):'hoje'}`:'Período: todo o histórico';
+    const subLinhas=[`<strong>${c.obraSel||'Todas as Obras'}</strong>`].concat((c.dIni||c.dFim)?[periodoTxt]:[]);
     const linhaP=(label,val,destaque)=>`<div style="display:flex;justify-content:space-between;padding:8px 0;${destaque?'margin-top:6px;border-top:2px solid #1d1d1f;padding-top:12px':'border-bottom:1px solid #e5e5ea'}"><span style="font-size:${destaque?'14px':'12px'};font-weight:${destaque?800:600}">${label}</span><span style="font-size:${destaque?'16px':'13px'};font-weight:800;color:${destaque?'#0071E3':'#1d1d1f'}">${fmt(val)}</span></div>`;
+    const linhaTxt=(label,txt)=>`<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #e5e5ea"><span style="font-size:12px;font-weight:600">${label}</span><span style="font-size:13px;font-weight:800">${txt}</span></div>`;
+    const totalBox=(pares)=>`<div style="margin-top:10px;border:1px solid #e5e5ea;border-radius:8px;padding:12px 16px">${pares.map(p=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0"><span style="font-size:12px;font-weight:800">${p[0]}</span><span style="font-size:14px;font-weight:800;color:#0071E3">${p[1]}</span></div>`).join('')}</div>`;
+    const cfg={titulo:this._relTituloTipo[c.tipo]||'Relatório',subLinhas};
 
-    let corpo='',precisaPaisagem=false;
     if(c.tipo==='comparativo'){
       const d=c.dados;
-      corpo=linhaP('Faturamento Líquido',d.fatLiquido)+linhaP('(−) Custos',-d.custoTotal)
+      // Gráfico da tela vira imagem dentro do PDF
+      let chartImg='';
+      try{if(this._relChartComp)chartImg=`<img src="${this._relChartComp.toBase64Image()}" style="width:100%;margin-bottom:14px;border:1px solid #e5e5ea;border-radius:8px">`;}catch(e){}
+      cfg.preHtml=chartImg
+        +linhaP('Faturamento Líquido',d.fatLiquido)+linhaP('(−) Custos',-d.custoTotal)
         +'<div style="padding:8px 0 2px;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:#6e6e73">Despesas</div>'
         +linhaP('· Deduções Fiscais (impostos sobre faturamento)',-d.deducoes)
         +linhaP('· Demais Despesas',-d.despOutras)
@@ -2532,66 +2674,48 @@ const App={
         +'<p style="font-size:9px;color:#6e6e73;margin-top:8px">* As Deduções Fiscais (Bruto − Líquido) já estão descontadas no Faturamento Líquido — aparecem como destaque e não subtraem duas vezes no Resultado.</p>';
     } else if(c.tipo==='indicadores'){
       const d=c.dados;
-      corpo=linhaP('VPL — Valor Presente Líquido ('+String(d.taxa).replace('.',',')+'% a.m.)',d.vpl)
-        +`<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #e5e5ea"><span style="font-size:12px;font-weight:600">TIR — Taxa Interna de Retorno</span><span style="font-size:13px;font-weight:800">${d.tir===null?'—':d.tir.toLocaleString('pt-BR',{maximumFractionDigits:2})+'% a.m.'}</span></div>`
-        +`<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #e5e5ea"><span style="font-size:12px;font-weight:600">Ponto de Equilíbrio</span><span style="font-size:13px;font-weight:800">${d.pontoEq===null?'—':fmt(d.pontoEq)}</span></div>`
-        +'<div style="margin-top:14px;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:#6e6e73">Fluxo de caixa mensal</div>'
-        +'<table style="width:100%;border-collapse:collapse;font-size:10px;margin-top:6px"><thead><tr style="background:#f5f5f7"><th style="text-align:left;padding:5px">Mês</th><th style="text-align:left;padding:5px">Fat. Líquido</th><th style="text-align:left;padding:5px">Custos</th><th style="text-align:left;padding:5px">Despesas</th><th style="text-align:left;padding:5px">Fluxo</th></tr></thead><tbody>'
-        +d.meses.map((k,n)=>{const[y,m]=k.split('-');const nome=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'][+m-1]+'/'+y;return `<tr><td style="padding:5px;border-bottom:1px solid #e5e5ea">${nome}</td><td style="padding:5px;border-bottom:1px solid #e5e5ea">${fmt(d.mLiq[k]||0)}</td><td style="padding:5px;border-bottom:1px solid #e5e5ea">${fmt(d.mCus[k]||0)}</td><td style="padding:5px;border-bottom:1px solid #e5e5ea">${fmt(d.mDes[k]||0)}</td><td style="padding:5px;border-bottom:1px solid #e5e5ea;font-weight:700">${fmt(d.fluxos[n])}</td></tr>`;}).join('')
-        +'</tbody></table>';
+      const tirOk=d.tir!==null&&isFinite(d.tir);
+      const peOk=d.pontoEq!==null&&isFinite(d.pontoEq);
+      cfg.preHtml=linhaP('VPL — Valor Presente Líquido ('+String(d.taxa).replace('.',',')+'% a.m.)',d.vpl)
+        +linhaTxt('TIR — Taxa Interna de Retorno',tirOk?d.tir.toLocaleString('pt-BR',{maximumFractionDigits:2})+'% a.m.':'Não calculável no período')
+        +linhaTxt('Ponto de Equilíbrio',peOk?fmt(d.pontoEq):'Não calculável no período')
+        +'<div style="margin-top:14px;margin-bottom:6px;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:#6e6e73">Fluxo de caixa mensal</div>';
+      cfg.theadHtml='<tr><th>Mês</th><th>Fat. Líquido</th><th>Custos</th><th>Despesas</th><th>Fluxo do Mês</th></tr>';
+      cfg.rowsArr=d.meses.map((k,n)=>{const[y,m]=k.split('-');const nome=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'][+m-1]+'/'+y;return `<tr><td>${nome}</td><td>${fmt(d.mLiq[k]||0)}</td><td>${fmt(d.mCus[k]||0)}</td><td>${fmt(d.mDes[k]||0)}</td><td style="font-weight:700">${fmt(d.fluxos[n])}</td></tr>`;});
     } else if(c.tipo==='faturamento'){
-      precisaPaisagem=true;
-      corpo='<table style="width:100%;border-collapse:collapse;font-size:10px"><thead><tr style="background:#f5f5f7"><th style="text-align:left;padding:5px">Obra</th><th style="text-align:left;padding:5px">Lançamento</th><th style="text-align:left;padding:5px">Emissão NF</th><th style="text-align:left;padding:5px">Dt. Ant. NF</th><th style="text-align:left;padding:5px">Recebimento</th><th style="text-align:right;padding:5px">Bruto</th><th style="text-align:right;padding:5px">Líquido</th></tr></thead><tbody>'+
-        c.dados.linhas.map(l=>`<tr><td style="padding:5px;border-bottom:1px solid #e5e5ea">${l.obra}</td><td style="padding:5px;border-bottom:1px solid #e5e5ea">${l.lanc}</td><td style="padding:5px;border-bottom:1px solid #e5e5ea">${l.emissao}</td><td style="padding:5px;border-bottom:1px solid #e5e5ea">${l.antNf}</td><td style="padding:5px;border-bottom:1px solid #e5e5ea">${l.receb}</td><td style="padding:5px;border-bottom:1px solid #e5e5ea;text-align:right">${fmt(l.bruto)}</td><td style="padding:5px;border-bottom:1px solid #e5e5ea;text-align:right">${fmt(l.liquido)}</td></tr>`).join('')+
-        `</tbody><tfoot><tr><td colspan="5" style="text-align:right;font-weight:800;padding:6px 5px">Total</td><td style="text-align:right;font-weight:800;padding:6px 5px">${fmt(c.dados.totBruto)}</td><td style="text-align:right;font-weight:800;padding:6px 5px">${fmt(c.dados.totLiquido)}</td></tr></tfoot></table>`;
+      cfg.paisagem=true;
+      cfg.theadHtml='<tr><th>Obra</th><th>Lançamento</th><th>Emissão NF</th><th>Dt. Ant. NF</th><th>Recebimento</th><th>Bruto</th><th>Líquido</th></tr>';
+      cfg.rowsArr=c.dados.linhas.map(l=>`<tr><td>${l.obra}</td><td>${l.lanc}</td><td>${l.emissao}</td><td>${l.antNf}</td><td>${l.receb}</td><td>${fmt(l.bruto)}</td><td>${fmt(l.liquido)}</td></tr>`);
+      cfg.posHtml=totalBox([['Total Bruto',fmt(c.dados.totBruto)],['Total Líquido',fmt(c.dados.totLiquido)]]);
     } else if(c.tipo==='custos'){
-      precisaPaisagem=true;
-      corpo='<table style="width:100%;border-collapse:collapse;font-size:10px"><thead><tr style="background:#f5f5f7"><th style="text-align:left;padding:5px">Obra</th><th style="text-align:left;padding:5px">Data Pgto</th><th style="text-align:left;padding:5px">Tipo</th><th style="text-align:left;padding:5px">Descrição</th><th style="text-align:right;padding:5px">Valor</th></tr></thead><tbody>'+
-        c.dados.linhas.map(l=>`<tr><td style="padding:5px;border-bottom:1px solid #e5e5ea">${l.obra}</td><td style="padding:5px;border-bottom:1px solid #e5e5ea">${l.data}</td><td style="padding:5px;border-bottom:1px solid #e5e5ea">${l.tipo}</td><td style="padding:5px;border-bottom:1px solid #e5e5ea">${l.desc}</td><td style="padding:5px;border-bottom:1px solid #e5e5ea;text-align:right">${fmt(l.valor)}</td></tr>`).join('')+
-        `</tbody><tfoot><tr><td colspan="4" style="text-align:right;font-weight:800;padding:6px 5px">Total</td><td style="text-align:right;font-weight:800;padding:6px 5px">${fmt(c.dados.total)}</td></tr></tfoot></table>`;
+      cfg.paisagem=true;
+      cfg.theadHtml='<tr><th>Obra</th><th>Data Pgto</th><th>Tipo</th><th>Descrição</th><th>Valor</th></tr>';
+      cfg.rowsArr=c.dados.linhas.map(l=>`<tr><td>${l.obra}</td><td>${l.data}</td><td>${l.tipo}</td><td>${l.desc}</td><td>${fmt(l.valor)}</td></tr>`);
+      cfg.posHtml=totalBox([['Total',fmt(c.dados.total)]]);
     } else if(c.tipo==='despesas'){
-      precisaPaisagem=true;
-      corpo='<table style="width:100%;border-collapse:collapse;font-size:10px"><thead><tr style="background:#f5f5f7"><th style="text-align:left;padding:5px">Data</th><th style="text-align:left;padding:5px">Descrição</th><th style="text-align:left;padding:5px">Categoria</th><th style="text-align:left;padding:5px">Fornecedor/Beneficiário</th><th style="text-align:left;padding:5px">Forma Pgto</th><th style="text-align:right;padding:5px">Valor</th></tr></thead><tbody>'+
-        c.dados.linhas.map(l=>`<tr><td style="padding:5px;border-bottom:1px solid #e5e5ea">${l.data}</td><td style="padding:5px;border-bottom:1px solid #e5e5ea">${l.desc}</td><td style="padding:5px;border-bottom:1px solid #e5e5ea">${l.cat}</td><td style="padding:5px;border-bottom:1px solid #e5e5ea">${l.forn}</td><td style="padding:5px;border-bottom:1px solid #e5e5ea">${l.fpg}</td><td style="padding:5px;border-bottom:1px solid #e5e5ea;text-align:right">${fmt(l.valor)}</td></tr>`).join('')+
-        `</tbody><tfoot><tr><td colspan="5" style="text-align:right;font-weight:800;padding:6px 5px">Total</td><td style="text-align:right;font-weight:800;padding:6px 5px">${fmt(c.dados.total)}</td></tr></tfoot></table>`;
+      cfg.paisagem=true;
+      cfg.theadHtml='<tr><th>Data</th><th>Especificação</th><th>Descrição</th><th>Fornecedor/Beneficiário</th><th>Forma Pgto</th><th>Valor</th></tr>';
+      cfg.rowsArr=c.dados.linhas.map(l=>`<tr><td>${l.data}</td><td>${l.cat}</td><td>${l.desc}</td><td>${l.forn}</td><td>${l.fpg}</td><td>${fmt(l.valor)}</td></tr>`);
+      cfg.posHtml=totalBox([['Total',fmt(c.dados.total)]]);
     } else if(c.tipo==='aportes'){
-      corpo='<table style="width:100%;border-collapse:collapse;font-size:10.5px"><thead><tr style="background:#f5f5f7"><th style="text-align:left;padding:5px">Obra</th><th style="text-align:left;padding:5px">Quem Aportou</th><th style="text-align:left;padding:5px">Data</th><th style="text-align:right;padding:5px">Valor</th></tr></thead><tbody>'+
-        c.dados.linhas.map(l=>`<tr><td style="padding:5px;border-bottom:1px solid #e5e5ea">${l.obra}</td><td style="padding:5px;border-bottom:1px solid #e5e5ea">${l.quem}</td><td style="padding:5px;border-bottom:1px solid #e5e5ea">${l.data}</td><td style="padding:5px;border-bottom:1px solid #e5e5ea;text-align:right">${fmt(l.valor)}</td></tr>`).join('')+
-        `</tbody><tfoot><tr><td colspan="3" style="text-align:right;font-weight:800;padding:6px 5px">Total</td><td style="text-align:right;font-weight:800;padding:6px 5px">${fmt(c.dados.total)}</td></tr></tfoot></table>`;
+      cfg.theadHtml='<tr><th>Obra</th><th>Quem Aportou</th><th>Data</th><th>Valor</th></tr>';
+      cfg.rowsArr=c.dados.linhas.map(l=>`<tr><td>${l.obra}</td><td>${l.quem}</td><td>${l.data}</td><td>${fmt(l.valor)}</td></tr>`);
+      cfg.posHtml=totalBox([['Total',fmt(c.dados.total)]]);
     } else {
+      // Consolidado: DRE resumido (com Despesas gerais) + indicadores básicos
       const d=c.dados;
-      corpo=linhaP('Custos',d.custoTotal)+linhaP('Faturamento Bruto',d.fatBruto)+linhaP('Faturamento Líquido',d.fatLiquido)+linhaP('Aportes',d.aporteTotal)+linhaP('Despesas',d.despesaTotal)+linhaP('Saldo',d.saldo,true);
+      cfg.preHtml='<div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:#6e6e73;margin-bottom:4px">Demonstração do Resultado</div>'
+        +linhaP('(+) Faturamento Bruto',d.fatBruto)
+        +linhaP('(−) Deduções Fiscais',-d.deducoes)
+        +linhaP('(=) Receita Líquida (Fat. Líquido)',d.fatLiquido)
+        +linhaP('(−) Custos Totais',-d.custoTotal)
+        +linhaP('(−) Despesas Gerais',-d.despesaTotal)
+        +linhaP('(=) Resultado Líquido',d.resultado,true)
+        +'<div style="margin-top:16px;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:#6e6e73;margin-bottom:4px">Indicadores</div>'
+        +linhaP('Total Aportes',d.aporteTotal)
+        +linhaTxt('Margem Líquida',isFinite(d.margem)?d.margem.toLocaleString('pt-BR',{maximumFractionDigits:1})+'%':'—');
     }
-
-    const pageWmm=precisaPaisagem?297:210, pageHmm=precisaPaisagem?210:297;
-    const win=window.open('','_blank');
-    if(!win){toast('Não foi possível abrir o PDF. Permita pop-ups deste site no navegador e tente de novo.','error');return;}
-    win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>&nbsp;</title>
-      <style>
-        @page{margin:0;size:${precisaPaisagem?'A4 landscape':'A4'};}
-        *{box-sizing:border-box;}
-        html,body{margin:0;padding:0;background:#ccc;font-family:Arial,sans-serif;color:#1d1d1f;}
-        .pdf-page{position:relative;width:${pageWmm}mm;height:${pageHmm}mm;background:#fff;margin:6mm auto;overflow:hidden;}
-        .pdf-page-inner{position:absolute;top:14mm;left:14mm;right:14mm;bottom:18mm;overflow:hidden;}
-        .pdf-page-footer{position:absolute;left:14mm;right:14mm;bottom:6mm;display:flex;justify-content:space-between;align-items:center;font-size:9px;color:#6e6e73;border-top:1px solid #e5e5ea;padding-top:5px;}
-        h1{font-size:18px;margin:0}
-        .sub{font-size:12px;color:#6e6e73;margin-bottom:4px;}
-        @media print{html,body{background:#fff;}.pdf-page{margin:0;}}
-        @media screen{.pdf-page{box-shadow:0 2px 12px rgba(0,0,0,.15);}}
-      </style></head><body>
-      <div class="pdf-page">
-        <div class="pdf-page-inner">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;border-bottom:2px solid #1d1d1f;padding-bottom:12px">
-            <img src="${PDF_LOGO_FULL_B64}" style="height:14mm;width:auto;display:block">
-            <div style="text-align:right"><h1>${this._relTituloTipo[c.tipo]||'Relatório'}</h1><div class="sub" style="margin-top:2px"><strong>${c.obraSel||'Todas as Obras'}</strong></div>${(c.dIni||c.dFim)?`<div class="sub">${periodoTxt}</div>`:''}</div>
-          </div>
-          ${corpo}
-        </div>
-        <div class="pdf-page-footer"><span>${dataHoraImpressao}</span><span>Vixsul Empreendimentos — CNPJ 64.518.375/0001-20</span><span>Página 1 de 1</span></div>
-      </div>
-      <script>function _vxp(){setTimeout(function(){window.focus();window.print();},250);}if(document.readyState==='complete'){_vxp();}else{window.addEventListener('load',_vxp);}<\/script>
-      </body></html>`);
-    win.document.close();
+    this._relExportPaginado(cfg);
   },
 
   /* Exporta a lista de Despesas ATUALMENTE FILTRADA (mesma busca da tela) como PDF,
@@ -2621,11 +2745,19 @@ const App={
       const st=getFuzzy(i,['status_pagamento','status_pgto'])||'—';
       const dpg=dateBR(getFuzzy(i,['data_pagamento','data_pgto'])||'')||'—';
       const valor=parseStoredNumber(getFuzzy(i,['valor'])||0);
-      return `<tr><td style="text-align:left;padding:5px">${tipo}</td><td style="text-align:left;padding:5px">${data}</td><td style="text-align:left;padding:5px">${desc}</td><td style="text-align:left;padding:5px">${cat}</td><td style="text-align:left;padding:5px">${forn}</td><td style="text-align:left;padding:5px">${fpg}</td><td style="text-align:left;padding:5px">${st}</td><td style="text-align:left;padding:5px">${dpg}</td><td style="text-align:left;padding:5px">${fmt(valor)}</td></tr>`;
+      return `<tr><td style="text-align:left;padding:5px">${tipo}</td><td style="text-align:left;padding:5px">${data}</td><td style="text-align:left;padding:5px">${cat}</td><td style="text-align:left;padding:5px">${desc}</td><td style="text-align:left;padding:5px">${forn}</td><td style="text-align:left;padding:5px">${fpg}</td><td style="text-align:left;padding:5px">${st}</td><td style="text-align:left;padding:5px">${dpg}</td><td style="text-align:left;padding:5px">${fmt(valor)}</td></tr>`;
     });
-    const total=items.reduce((s,i)=>s+parseStoredNumber(getFuzzy(i,['valor'])||0),0);
-    const theadHtml=`<tr style="background:#f5f5f7"><th style="text-align:left;padding:5px">Tipo</th><th style="text-align:left;padding:5px">Data Despesa</th><th style="text-align:left;padding:5px">Descrição</th><th style="text-align:left;padding:5px">Categoria</th><th style="text-align:left;padding:5px">Fornecedor/Beneficiário</th><th style="text-align:left;padding:5px">Forma Pgto</th><th style="text-align:left;padding:5px">Status</th><th style="text-align:left;padding:5px">Data Pgto</th><th style="text-align:left;padding:5px">Valor</th></tr>`;
-    const resumoHtml=`<div style="margin-top:10px;border:1px solid #e5e5ea;border-radius:8px;padding:12px 16px;display:flex;justify-content:space-between;align-items:center"><span style="font-size:13px;font-weight:800">Total</span><span style="font-size:16px;font-weight:800;color:#0071E3">${fmt(total)}</span></div>`;
+    // Resumo igual ao da tela: Previstas, Reais e Total (não só o total)
+    const totPrev=items.reduce((s,i)=>s+((getFuzzy(i,['tipo_despesa','tipo'])||'')!=='Real'?parseStoredNumber(getFuzzy(i,['valor'])||0):0),0);
+    const totReal=items.reduce((s,i)=>s+((getFuzzy(i,['tipo_despesa','tipo'])||'')==='Real'?parseStoredNumber(getFuzzy(i,['valor'])||0):0),0);
+    const total=totPrev+totReal;
+    const theadHtml=`<tr style="background:#f5f5f7"><th style="text-align:left;padding:5px">Tipo</th><th style="text-align:left;padding:5px">Data Despesa</th><th style="text-align:left;padding:5px">Especificação</th><th style="text-align:left;padding:5px">Descrição</th><th style="text-align:left;padding:5px">Fornecedor/Beneficiário</th><th style="text-align:left;padding:5px">Forma Pgto</th><th style="text-align:left;padding:5px">Status</th><th style="text-align:left;padding:5px">Data Pgto</th><th style="text-align:left;padding:5px">Valor</th></tr>`;
+    const resumoHtml=`<div style="margin-top:10px;border:1px solid #e5e5ea;border-radius:8px;padding:12px 16px">
+      <div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.6px;color:#6e6e73;margin-bottom:8px">Resumo</div>
+      <div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #f0f0f2;font-size:12px"><span>Despesas Previstas</span><span style="font-weight:700">${fmt(totPrev)}</span></div>
+      <div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #f0f0f2;font-size:12px"><span>Despesas Reais</span><span style="font-weight:700">${fmt(totReal)}</span></div>
+      <div style="display:flex;justify-content:space-between;padding-top:8px;margin-top:4px;border-top:2px solid #1d1d1f"><span style="font-size:13px;font-weight:800">Total</span><span style="font-size:16px;font-weight:800;color:#0071E3">${fmt(total)}</span></div>
+    </div>`;
 
     const agora=new Date();
     const dataHoraImpressao=agora.toLocaleDateString('pt-BR')+' '+agora.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
@@ -2872,6 +3004,14 @@ const UI={
     // Bloqueia acesso a seções sem permissão (o menu já as esconde; isto protege o acesso
     // direto/programático). Cai na primeira seção permitida.
     if(this._allowedViews && !this._allowedViews.includes(v)) v=this._allowedViews[0]||'dashboard';
+    // Despesas tem edição inline direto na tela: se houver alterações não salvas,
+    // pergunta antes de trocar de tela (senão o que foi digitado se perde).
+    const saindoDespesas=document.getElementById('view-despesas')?.classList.contains('active');
+    if(saindoDespesas&&v!=='despesas'&&App._despDirty&&!App.state._busy){
+      App._despNavPendente=v;
+      document.getElementById('confirm-desp-sair').classList.add('open');
+      return;
+    }
     document.querySelectorAll('.view').forEach(el=>el.classList.remove('active'));
     document.querySelectorAll('.nav-link').forEach(el=>el.classList.remove('active'));
     const vEl=document.getElementById('view-'+v);if(vEl)vEl.classList.add('active');
@@ -7511,6 +7651,20 @@ window.onload=()=>{
     setTimeout(()=>{if(cpfEl)cpfEl.focus();},100);
   }
 };
+
+// Redimensionar a janela com o Dashboard aberto podia deixar os gráficos
+// deformados/estourados até um F5. Agora, ao terminar o redimensionamento
+// (debounce), o dashboard é re-renderizado (os gráficos são recriados do zero).
+(function(){
+  let t=null;
+  window.addEventListener('resize',()=>{
+    if(t)clearTimeout(t);
+    t=setTimeout(()=>{
+      const dashAtivo=document.getElementById('view-dashboard')?.classList.contains('active');
+      if(dashAtivo&&App.state.data&&!App.state._busy)App.renderDashboard();
+    },250);
+  });
+})();
 </script>
 </body>
 </html>
