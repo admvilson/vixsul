@@ -547,7 +547,7 @@ tbody tr:hover td{background:rgba(0,113,227,.02);}
         <select id="f-status" class="filter-select" style="font-size:12px;padding:6px 26px 6px 10px" onchange="App.renderDashboard()"><option value="">Todos os Status</option><option value="Ganha - Em Andamento">Em Andamento</option><option value="Ganha - Finalizada">Finalizadas</option><option value="Ganha - Aguardando Liberação">Ag. Liberação</option></select>
         <button onclick="App.clearFilters()" style="background:none;border:1px solid var(--border);border-radius:8px;padding:5px 10px;font-size:11px;font-weight:600;color:var(--text-2);cursor:pointer">✕ Limpar</button>
         <span id="dash-filter-label" style="margin-left:auto;font-size:11px;font-weight:600;color:var(--blue)"></span>
-        <button type="button" title="Exportar Dashboard em PDF" onclick="UI._dashboardExportPDF()" style="display:flex;align-items:center;justify-content:center;width:32px;height:32px;flex-shrink:0;border:1px solid rgba(0,113,227,.3);background:rgba(0,113,227,.08);color:var(--blue);border-radius:8px;cursor:pointer"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8" rx="1"/><line x1="17" y1="11.5" x2="17" y2="11.5" stroke-linecap="round" stroke-width="2.4"/></svg></button>
+        <button type="button" title="Exportar Dashboard em PDF" onclick="App._dashboardExportPDF()" style="display:flex;align-items:center;justify-content:center;width:32px;height:32px;flex-shrink:0;border:1px solid rgba(0,113,227,.3);background:rgba(0,113,227,.08);color:var(--blue);border-radius:8px;cursor:pointer"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8" rx="1"/><line x1="17" y1="11.5" x2="17" y2="11.5" stroke-linecap="round" stroke-width="2.4"/></svg></button>
       </div>
 
       <div class="dash-scroll">
@@ -879,7 +879,7 @@ tbody tr:hover td{background:rgba(0,113,227,.02);}
         <div class="search-box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg><input type="text" id="find-despesas" placeholder="Buscar despesa..." oninput="App.render('despesas')"></div>
         <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
           <button class="btn-primary" style="background:#1D1D1F" onclick="UI.openEditor('despesas',null)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Nova Despesa</button>
-          <button type="button" title="Exportar PDF" onclick="UI._despesasExportPDF()" style="display:flex;align-items:center;justify-content:center;width:36px;height:36px;flex-shrink:0;border:1px solid rgba(0,113,227,.3);background:rgba(0,113,227,.08);color:var(--blue);border-radius:8px;cursor:pointer"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8" rx="1"/><line x1="17" y1="11.5" x2="17" y2="11.5" stroke-linecap="round" stroke-width="2.4"/></svg></button>
+          <button type="button" title="Exportar PDF" onclick="App._despesasExportPDF()" style="display:flex;align-items:center;justify-content:center;width:36px;height:36px;flex-shrink:0;border:1px solid rgba(0,113,227,.3);background:rgba(0,113,227,.08);color:var(--blue);border-radius:8px;cursor:pointer"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8" rx="1"/><line x1="17" y1="11.5" x2="17" y2="11.5" stroke-linecap="round" stroke-width="2.4"/></svg></button>
         </div>
       </div>
       <div class="cards-scroll" style="padding:0 28px 28px">
@@ -894,7 +894,7 @@ tbody tr:hover td{background:rgba(0,113,227,.02);}
     <div class="view" id="view-relatorios">
       <div class="view-toolbar">
         <div class="toolbar-left">
-          <select class="filter-select" id="rel-tipo" onchange="UI._relatorioGerar()">
+          <select class="filter-select" id="rel-tipo" onchange="App._relatorioGerar()">
             <optgroup label="Resumos">
               <option value="consolidado">Financeiro Consolidado</option>
               <option value="comparativo">Fat. Líquido × Custos × Despesas</option>
@@ -907,11 +907,11 @@ tbody tr:hover td{background:rgba(0,113,227,.02);}
               <option value="aportes">Aportes</option>
             </optgroup>
           </select>
-          <select class="filter-select" id="rel-obra" onchange="UI._relatorioGerar()"><option value="">Todas as Obras</option></select>
-          <input type="date" class="filter-select" id="rel-data-ini" onchange="UI._relatorioGerar()" title="Data início do período">
-          <input type="date" class="filter-select" id="rel-data-fim" onchange="UI._relatorioGerar()" title="Data fim do período">
+          <select class="filter-select" id="rel-obra" onchange="App._relatorioGerar()"><option value="">Todas as Obras</option></select>
+          <input type="date" class="filter-select" id="rel-data-ini" onchange="App._relatorioGerar()" title="Data início do período">
+          <input type="date" class="filter-select" id="rel-data-fim" onchange="App._relatorioGerar()" title="Data fim do período">
         </div>
-        <button type="button" title="Exportar PDF" onclick="UI._relatorioExportPDF()" style="display:flex;align-items:center;justify-content:center;width:36px;height:36px;flex-shrink:0;border:1px solid rgba(0,113,227,.3);background:rgba(0,113,227,.08);color:var(--blue);border-radius:8px;cursor:pointer"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8" rx="1"/><line x1="17" y1="11.5" x2="17" y2="11.5" stroke-linecap="round" stroke-width="2.4"/></svg></button>
+        <button type="button" title="Exportar PDF" onclick="App._relatorioExportPDF()" style="display:flex;align-items:center;justify-content:center;width:36px;height:36px;flex-shrink:0;border:1px solid rgba(0,113,227,.3);background:rgba(0,113,227,.08);color:var(--blue);border-radius:8px;cursor:pointer"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8" rx="1"/><line x1="17" y1="11.5" x2="17" y2="11.5" stroke-linecap="round" stroke-width="2.4"/></svg></button>
       </div>
       <div class="cards-scroll" style="padding:24px 28px">
         <div id="rel-titulo" style="font-size:16px;font-weight:800;margin-bottom:2px">Relatório Financeiro Consolidado</div>
@@ -2581,7 +2581,7 @@ const UI={
     document.title=titles[v]||v; // título da aba do navegador acompanha a seção clicada
     if(v==='dashboard'&&App.state.data)App.renderDashboard();
     if(v==='usuarios')this.carregarUsuarios();
-    if(v==='relatorios')this._relatorioObraOpcoes();
+    if(v==='relatorios')App._relatorioObraOpcoes(); // funções de relatório vivem no App (junto do render), não no UI
     this.toggleSidebar(false); // fecha o menu lateral (modo gaveta) após navegar em telas pequenas
   },
 
@@ -4993,7 +4993,7 @@ const UI={
     const baseLbl='Base de preços: '+esc(emb.tabela||'')+' — '+esc(emb.base||'')+' · EMBASA';
     const headHtml=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;border-bottom:2px solid #1d1d1f;padding-bottom:10px">
         <img src="${PDF_LOGO_FULL_B64}" style="height:12mm;width:auto;display:block">
-        <h1 style="margin:0;text-align:right">${esc(titulo)}</h1>
+        <div style="text-align:right"><h1 style="margin:0;text-align:right">Orçamento</h1><div style="font-size:12px;color:#6e6e73;margin-top:2px"><strong>${esc(titulo)}</strong></div></div>
       </div>
       <div class="secs">
         <div class="sec">
