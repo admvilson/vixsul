@@ -49,6 +49,16 @@ CREATE TABLE IF NOT EXISTS despesas (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- Etapas: cronograma de avanço da obra (uma linha por etapa).
+-- row_data guarda: titulo_obra, nome_etapa, data_inicio, data_fim, peso (% físico),
+-- avanco (% concluído) e valor (R$ previsto da etapa) — base do Gantt, da Curva S
+-- e do Cronograma Físico-financeiro.
+CREATE TABLE IF NOT EXISTS etapas (
+  id         BIGSERIAL PRIMARY KEY,
+  row_data   JSONB       NOT NULL DEFAULT '{}',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 -- ── Índices para consultas do CAP ──────────────
 CREATE INDEX IF NOT EXISTS idx_cap_lancamento
   ON cap ((row_data->>'data_lancamento'));
@@ -96,6 +106,7 @@ ALTER TABLE cap          ENABLE ROW LEVEL SECURITY;
 ALTER TABLE orcamentos   ENABLE ROW LEVEL SECURITY;
 ALTER TABLE usuarios     ENABLE ROW LEVEL SECURITY;
 ALTER TABLE despesas     ENABLE ROW LEVEL SECURITY;
+ALTER TABLE etapas       ENABLE ROW LEVEL SECURITY;
 
 -- Política: permite SELECT, INSERT, UPDATE, DELETE para todos
 -- (a proteção real é feita pela tela de login do sistema)
@@ -108,6 +119,7 @@ CREATE POLICY "acesso_total" ON cap          FOR ALL USING (true) WITH CHECK (tr
 CREATE POLICY "acesso_total" ON orcamentos   FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "acesso_total" ON usuarios     FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "acesso_total" ON despesas     FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "acesso_total" ON etapas       FOR ALL USING (true) WITH CHECK (true);
 
 -- ══════════════════════════════════════════════════════════
 --  REALTIME — necessário para que uma máquina veja na hora
@@ -123,3 +135,4 @@ ALTER PUBLICATION supabase_realtime ADD TABLE aportes;
 ALTER PUBLICATION supabase_realtime ADD TABLE cap;
 ALTER PUBLICATION supabase_realtime ADD TABLE orcamentos;
 ALTER PUBLICATION supabase_realtime ADD TABLE despesas;
+ALTER PUBLICATION supabase_realtime ADD TABLE etapas;

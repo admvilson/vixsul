@@ -952,6 +952,11 @@ tbody tr:hover td{background:rgba(0,113,227,.02);}
               <option value="despesas">Despesas</option>
               <option value="aportes">Aportes</option>
             </optgroup>
+            <optgroup label="Cronograma & Curvas">
+              <option value="curva-s">Curva S (Previsto × Realizado)</option>
+              <option value="curva-abc">Curva ABC (Custos)</option>
+              <option value="cronograma-ff">Cronograma Físico-financeiro</option>
+            </optgroup>
           </select>
           <select class="filter-select" id="rel-obra" onchange="App._relatorioGerar()"><option value="">Todas as Obras</option></select>
           <input type="date" class="filter-select" id="rel-data-ini" onchange="App._relatorioGerar()" title="Data início do período">
@@ -2263,7 +2268,7 @@ const App={
      têm vínculo com obra, então só entram no Consolidado com "Todas as
      Obras" selecionado. */
   _relatorioCache:null,
-  _relTituloTipo:{consolidado:'Relatório Financeiro Consolidado',comparativo:'Faturamento Líquido × Custos × Despesas',indicadores:'Indicadores Financeiros (VPL · TIR · Ponto de Equilíbrio)',faturamento:'Faturamento e Recebimentos',custos:'Custos (Analítico)',despesas:'Despesas (Analítico)',aportes:'Aportes (Analítico)'},
+  _relTituloTipo:{consolidado:'Relatório Financeiro Consolidado',comparativo:'Faturamento Líquido × Custos × Despesas',indicadores:'Indicadores Financeiros (VPL · TIR · Ponto de Equilíbrio)',faturamento:'Faturamento e Recebimentos',custos:'Custos (Analítico)',despesas:'Despesas (Analítico)',aportes:'Aportes (Analítico)','curva-s':'Curva S — Previsto × Realizado','curva-abc':'Curva ABC — Custos','cronograma-ff':'Cronograma Físico-financeiro'},
   /* Envelopa as tabelas dos analíticos: cabeçalho fixo + rolagem vertical limitada
      (~20 linhas visíveis; o resto rola pela barra lateral, sempre visível).
      O th do .cap-tbl já é sticky. */
@@ -2302,6 +2307,9 @@ const App={
       else if(tipo==='custos')this._relGerarCustos(obraSel,dIni,dFim);
       else if(tipo==='despesas')this._relGerarDespesasAnalitico(dIni,dFim);
       else if(tipo==='aportes')this._relGerarAportesAnalitico(obraSel,dIni,dFim);
+      else if(tipo==='curva-s')this._relGerarCurvaS(obraSel,dIni,dFim);
+      else if(tipo==='curva-abc')this._relGerarCurvaABC(obraSel,dIni,dFim);
+      else if(tipo==='cronograma-ff')this._relGerarCronogramaFF(obraSel,dIni,dFim);
       else this._relGerarConsolidado(obraSel,dIni,dFim);
     }catch(err){
       const el=document.getElementById('rel-resumo');
@@ -2588,6 +2596,119 @@ const App={
     const el=document.getElementById('rel-resumo');if(el)el.innerHTML=html;
     this._relatorioCache={tipo:'aportes',obraSel,dIni,dFim,dados:{linhas,total}};
   },
+  /* Distribui um valor ao longo dos meses entre ini e fim, proporcional aos dias de
+     cada mês (base da Curva S e do Cronograma Físico-financeiro). */
+  _relDistribuiPorMes(ini,fim,valor,acc){
+    if(!ini||!fim||!(valor>0))return;
+    const a=new Date(ini.getFullYear(),ini.getMonth(),ini.getDate());
+    const b=new Date(fim.getFullYear(),fim.getMonth(),fim.getDate());
+    if(b<a)return;
+    const totalDias=Math.round((b-a)/86400000)+1;
+    let cur=new Date(a);
+    while(cur<=b){
+      const mKey=cur.getFullYear()+'-'+String(cur.getMonth()+1).padStart(2,'0');
+      const fimMes=new Date(cur.getFullYear(),cur.getMonth()+1,0);
+      const ateMes=fimMes<b?fimMes:b;
+      const dias=Math.round((ateMes-cur)/86400000)+1;
+      acc[mKey]=(acc[mKey]||0)+valor*dias/totalDias;
+      cur=new Date(cur.getFullYear(),cur.getMonth()+1,1);
+    }
+  },
+  _relAviso(txt){return '<div style="font-size:13px;color:var(--text-2);background:var(--surface);border:1px dashed var(--border);border-radius:12px;padding:22px 24px;line-height:1.6">'+txt+'</div>';},
+  _REL_MES:['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'],
+  /* Curva ABC — custos rankeados por valor, % acumulada e classificação A/B/C (Pareto). */
+  _relChartABC:null,
+  _relGerarCurvaABC(obraSel,dIni,dFim){
+    const custos=this._relFiltraCustos(obraSel,dIni,dFim);
+    const agg={};
+    custos.forEach(i=>{const nome=getFuzzy(i,['descricao','especificacao','tipo_custo','tipo'])||'—';agg[nome]=(agg[nome]||0)+this._relCustoValor(i);});
+    let itens=Object.entries(agg).map(([nome,val])=>({nome,val})).filter(x=>x.val>0).sort((a,b)=>b.val-a.val);
+    const total=itens.reduce((s,x)=>s+x.val,0);
+    let acum=0;
+    itens.forEach(x=>{acum+=x.val;x.pct=total>0?x.val/total*100:0;x.pAcum=total>0?acum/total*100:0;x.classe=x.pAcum<=80?'A':(x.pAcum<=95?'B':'C');});
+    const el=document.getElementById('rel-resumo');
+    if(this._relChartABC){this._relChartABC.destroy();this._relChartABC=null;}
+    if(!itens.length){el.innerHTML=this._relAviso('Nenhum custo no período para montar a Curva ABC. Lance custos na(s) obra(s) ou ajuste o filtro de período.');this._relatorioCache={tipo:'curva-abc',obraSel,dIni,dFim,dados:{itens:[],total:0,classes:[]}};return;}
+    const classe=(c,cor)=>{const arr=itens.filter(x=>x.classe===c);return {c,n:arr.length,v:arr.reduce((s,x)=>s+x.val,0),cor};};
+    const resumoClasses=[classe('A','#FF3B30'),classe('B','#FF9500'),classe('C','#34C759')];
+    const cards=resumoClasses.map(r=>`<div style="flex:1;border:1px solid var(--border);border-radius:12px;padding:12px 14px"><div style="display:flex;align-items:center;gap:6px;margin-bottom:4px"><span style="width:10px;height:10px;border-radius:3px;background:${r.cor}"></span><span style="font-size:12px;font-weight:800">Classe ${r.c}</span></div><div style="font-size:16px;font-weight:800;color:${r.cor}">${fmt(r.v)}</div><div style="font-size:11px;color:var(--text-3)">${r.n} item(ns) · ${total>0?fmtPct(r.v/total*100):'0%'}</div></div>`).join('');
+    const badge=cl=>`<span style="display:inline-block;padding:2px 8px;border-radius:99px;font-size:10px;font-weight:800;color:#fff;background:${cl==='A'?'#FF3B30':cl==='B'?'#FF9500':'#34C759'}">${cl}</span>`;
+    const linhas=itens.map((x,i)=>`<tr><td>${i+1}</td><td>${(x.nome||'—').replace(/</g,'&lt;')}</td><td>${fmt(x.val)}</td><td>${fmtPct(x.pct)}</td><td>${fmtPct(x.pAcum)}</td><td>${badge(x.classe)}</td></tr>`).join('');
+    let html='<div style="display:flex;gap:12px;margin-bottom:16px">'+cards+'</div>';
+    html+='<div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px 20px;margin-bottom:16px"><canvas id="rel-abc-chart" height="90"></canvas></div>';
+    html+=this._relTabelaWrap('<table class="cap-tbl" style="width:100%;min-width:660px"><thead><tr><th>#</th><th>Item</th><th>Valor</th><th>%</th><th>% Acum.</th><th>Classe</th></tr></thead><tbody>'+linhas+'</tbody></table>');
+    el.innerHTML=html;
+    try{
+      const ctx=document.getElementById('rel-abc-chart');const topN=itens.slice(0,20);
+      if(ctx&&typeof Chart!=='undefined'){
+        this._relChartABC=new Chart(ctx,{data:{labels:topN.map(x=>x.nome.length>14?x.nome.slice(0,14)+'…':x.nome),datasets:[
+          {type:'bar',label:'Valor',data:topN.map(x=>x.val),backgroundColor:'rgba(0,113,227,.7)',yAxisID:'y',order:2},
+          {type:'line',label:'% Acumulado',data:topN.map(x=>x.pAcum),borderColor:'#FF3B30',backgroundColor:'#FF3B30',yAxisID:'y1',tension:.3,borderWidth:2.5,pointRadius:3,order:1}
+        ]},options:{responsive:true,plugins:{legend:{position:'bottom',labels:{boxWidth:12,font:{size:10}}}},scales:{y:{ticks:{callback:v=>'R$ '+Number(v).toLocaleString('pt-BR')}},y1:{position:'right',min:0,max:100,ticks:{callback:v=>v+'%'},grid:{display:false}}}}});
+      }
+    }catch(e){console.error('curva ABC:',e);}
+    this._relatorioCache={tipo:'curva-abc',obraSel,dIni,dFim,dados:{itens,total,classes:resumoClasses}};
+  },
+  /* Curva S — acumulado Previsto (etapas, valor distribuído por mês) × Realizado (custos reais). */
+  _relChartS:null,
+  _relGerarCurvaS(obraSel,dIni,dFim){
+    const K=UI._etapasK();
+    const etapas=(App.state.data.etapas||[]).filter(e=>!obraSel||(getFuzzy(e,[K.obra,'titulo_obra','obra'])||'')===obraSel);
+    const prevMes={};
+    etapas.forEach(e=>{const ini=parseDate(getFuzzy(e,[K.ini,'data_inicio'])||'');const fim=parseDate(getFuzzy(e,[K.fim,'data_fim'])||'');const val=parseStoredNumber(getFuzzy(e,[K.valor,'valor'])||0);this._relDistribuiPorMes(ini,fim,val,prevMes);});
+    const custos=this._relFiltraCustos(obraSel,dIni,dFim);
+    const realMes=this._relPorMes(custos,i=>getFuzzy(i,['data_pagamento','data_pgto','data_lancamento'])||'',i=>this._relCustoValor(i));
+    const meses=[...new Set([...Object.keys(prevMes),...Object.keys(realMes)])].sort();
+    const el=document.getElementById('rel-resumo');
+    if(this._relChartS){this._relChartS.destroy();this._relChartS=null;}
+    if(!meses.length){el.innerHTML=this._relAviso('Sem dados para a Curva S. Cadastre as etapas (com <strong>valor previsto</strong>) da obra em <strong>Obras → Cronograma</strong> e/ou lance custos no período.');this._relatorioCache={tipo:'curva-s',obraSel,dIni,dFim,dados:{meses:[],linhasTabela:[]}};return;}
+    let accP=0,accR=0;const prevAcum=[],realAcum=[];
+    meses.forEach(k=>{accP+=prevMes[k]||0;accR+=realMes[k]||0;prevAcum.push(accP);realAcum.push(accR);});
+    const totalPrev=accP;
+    const lbl=meses.map(k=>{const[y,m]=k.split('-');return this._REL_MES[+m-1]+'/'+y.slice(2);});
+    const linhasTabela=meses.map((k,n)=>({mes:lbl[n],prevMes:prevMes[k]||0,prevAcum:prevAcum[n],realMes:realMes[k]||0,realAcum:realAcum[n],pctFis:totalPrev>0?prevAcum[n]/totalPrev*100:0}));
+    const linhas=linhasTabela.map(l=>`<tr><td>${l.mes}</td><td>${fmt(l.prevMes)}</td><td>${fmt(l.prevAcum)}</td><td>${fmt(l.realMes)}</td><td>${fmt(l.realAcum)}</td><td>${totalPrev>0?fmtPct(l.pctFis):'—'}</td></tr>`).join('');
+    let html='<div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px 20px;margin-bottom:16px"><canvas id="rel-curvas-chart" height="88"></canvas></div>';
+    html+=this._relTabelaWrap('<table class="cap-tbl" style="width:100%;min-width:660px"><thead><tr><th>Mês</th><th>Previsto (mês)</th><th>Previsto (acum.)</th><th>Realizado (mês)</th><th>Realizado (acum.)</th><th>% Físico prev.</th></tr></thead><tbody>'+linhas+'</tbody></table>');
+    if(!etapas.some(e=>parseStoredNumber(getFuzzy(e,[K.valor,'valor'])||0)>0))html+='<p style="font-size:11px;color:var(--text-3);margin-top:10px">* Nenhuma etapa com valor previsto: a curva "Previsto" fica zerada. Cadastre o cronograma da obra em Obras → Cronograma.</p>';
+    el.innerHTML=html;
+    try{
+      const ctx=document.getElementById('rel-curvas-chart');
+      if(ctx&&typeof Chart!=='undefined'){
+        this._relChartS=new Chart(ctx,{type:'line',data:{labels:lbl,datasets:[
+          {label:'Previsto (acum.)',data:prevAcum,borderColor:'#0071E3',backgroundColor:'rgba(0,113,227,.10)',fill:true,tension:.35,borderWidth:2.5,pointRadius:3},
+          {label:'Realizado (acum.)',data:realAcum,borderColor:'#34C759',backgroundColor:'rgba(52,199,89,.10)',fill:true,tension:.35,borderWidth:2.5,pointRadius:3}
+        ]},options:{responsive:true,plugins:{legend:{position:'bottom',labels:{boxWidth:12,font:{size:10}}}},scales:{y:{ticks:{callback:v=>'R$ '+Number(v).toLocaleString('pt-BR')}}}}});
+      }
+    }catch(e){console.error('curva S:',e);}
+    this._relatorioCache={tipo:'curva-s',obraSel,dIni,dFim,dados:{meses,lbl,prevAcum,realAcum,totalPrev,linhasTabela}};
+  },
+  /* Cronograma Físico-financeiro — matriz Etapas × Meses (R$ previsto distribuído + pesos). */
+  _relGerarCronogramaFF(obraSel,dIni,dFim){
+    const K=UI._etapasK();
+    const etapas=(App.state.data.etapas||[]).filter(e=>!obraSel||(getFuzzy(e,[K.obra,'titulo_obra','obra'])||'')===obraSel)
+      .sort((a,b)=>{const da=parseDate(getFuzzy(a,[K.ini,'data_inicio'])||'')||new Date(0);const db=parseDate(getFuzzy(b,[K.ini,'data_inicio'])||'')||new Date(0);return da-db;});
+    const el=document.getElementById('rel-resumo');
+    if(!etapas.length){el.innerHTML=this._relAviso('Cadastre as etapas da obra em <strong>Obras → Cronograma</strong> para gerar o Cronograma Físico-financeiro.'+(obraSel?'':' Dica: selecione uma obra no filtro acima.'));this._relatorioCache={tipo:'cronograma-ff',obraSel,dIni,dFim,dados:{rows:[]}};return;}
+    const parsed=etapas.map(e=>({ini:parseDate(getFuzzy(e,[K.ini,'data_inicio'])||''),fim:parseDate(getFuzzy(e,[K.fim,'data_fim'])||''),nome:getFuzzy(e,[K.nome,'nome_etapa','nome'])||'—',peso:parseFloat(String(getFuzzy(e,[K.peso,'peso'])||0).replace(',','.'))||0,valor:parseStoredNumber(getFuzzy(e,[K.valor,'valor'])||0)}));
+    let min=Infinity,max=-Infinity;
+    parsed.forEach(p=>{if(p.ini&&p.ini.getTime()<min)min=p.ini.getTime();if(p.fim&&p.fim.getTime()>max)max=p.fim.getTime();});
+    if(!isFinite(min)||!isFinite(max)){el.innerHTML=this._relAviso('As etapas precisam ter início e fim preenchidos para montar o cronograma.');this._relatorioCache={tipo:'cronograma-ff',obraSel,dIni,dFim,dados:{rows:[]}};return;}
+    const meses=[];let d=new Date(min);d.setDate(1);while(d.getTime()<=max){meses.push(d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'));d=new Date(d.getFullYear(),d.getMonth()+1,1);}
+    const lbl=meses.map(k=>{const[y,m]=k.split('-');return this._REL_MES[+m-1]+'/'+y.slice(2);});
+    const rows=parsed.map(p=>{const dist={};this._relDistribuiPorMes(p.ini,p.fim,p.valor,dist);return {nome:p.nome,peso:p.peso,valor:p.valor,dist};});
+    const totMes=meses.map(k=>rows.reduce((s,r)=>s+(r.dist[k]||0),0));
+    const totValor=rows.reduce((s,r)=>s+r.valor,0);
+    const totPeso=rows.reduce((s,r)=>s+r.peso,0);
+    let acc=0;const acumMes=totMes.map(v=>{acc+=v;return acc;});
+    const thMeses=lbl.map(l=>`<th class="r">${l}</th>`).join('');
+    const bodyRows=rows.map(r=>`<tr><td>${(r.nome||'—').replace(/</g,'&lt;')}</td><td class="r">${r.peso?r.peso+'%':'—'}</td><td class="r">${fmt(r.valor)}</td>${meses.map(k=>`<td class="r">${r.dist[k]?fmt(r.dist[k]):'—'}</td>`).join('')}</tr>`).join('');
+    const totRow=`<tr style="font-weight:800;background:var(--bg)"><td>Total do mês</td><td class="r">${totPeso?Math.round(totPeso*10)/10+'%':'—'}</td><td class="r">${fmt(totValor)}</td>${totMes.map(v=>`<td class="r">${fmt(v)}</td>`).join('')}</tr>`;
+    const acumRow=`<tr style="font-weight:700;color:var(--blue)"><td colspan="3">Acumulado (R$)</td>${acumMes.map(v=>`<td class="r">${fmt(v)}</td>`).join('')}</tr>`;
+    const tabela='<table class="cap-tbl" style="width:100%;min-width:'+(440+meses.length*92)+'px"><thead><tr><th>Etapa</th><th class="r">Peso</th><th class="r">Valor</th>'+thMeses+'</tr></thead><tbody>'+bodyRows+totRow+acumRow+'</tbody></table>';
+    el.innerHTML=this._relTabelaWrap(tabela);
+    this._relatorioCache={tipo:'cronograma-ff',obraSel,dIni,dFim,dados:{meses,lbl,rows,totMes,acumMes,totValor,totPeso}};
+  },
   /* Motor de PDF paginado dos Relatórios (mesmo paginador do Despesas): cabeçalho
      (logo + título + filtros) e blocos "pre" (gráfico/resumos) na 1ª página, tabela
      quebrando LINHA A LINHA entre as páginas e bloco final (totais) na última. */
@@ -2752,6 +2873,30 @@ const App={
       cfg.theadHtml='<tr><th>Obra</th><th>Quem Aportou</th><th>Data</th><th>Valor</th></tr>';
       cfg.rowsArr=c.dados.linhas.map(l=>`<tr><td>${l.obra}</td><td>${l.quem}</td><td>${l.data}</td><td>${fmt(l.valor)}</td></tr>`);
       cfg.posHtml=totalBox([['Total',fmt(c.dados.total)]]);
+    } else if(c.tipo==='curva-abc'){
+      cfg.paisagem=true;
+      const d=c.dados;
+      let chartImg='';try{if(this._relChartABC)chartImg=`<img src="${this._relChartABC.toBase64Image()}" style="width:100%;max-height:92mm;object-fit:contain;margin-bottom:12px;border:1px solid #e5e5ea;border-radius:8px">`;}catch(e){}
+      cfg.preHtml=chartImg+(d.classes||[]).map(r=>linhaTxt('Classe '+r.c+' — '+r.n+' item(ns)',fmt(r.v))).join('');
+      cfg.theadHtml='<tr><th>#</th><th>Item</th><th>Valor</th><th>%</th><th>% Acum.</th><th>Classe</th></tr>';
+      cfg.rowsArr=(d.itens||[]).map((x,i)=>`<tr><td>${i+1}</td><td>${(x.nome||'—').replace(/</g,'&lt;')}</td><td>${fmt(x.val)}</td><td>${fmtPct(x.pct)}</td><td>${fmtPct(x.pAcum)}</td><td>${x.classe}</td></tr>`);
+      cfg.posHtml=totalBox([['Total',fmt(d.total)]]);
+    } else if(c.tipo==='curva-s'){
+      cfg.paisagem=true;
+      const d=c.dados;
+      let chartImg='';try{if(this._relChartS)chartImg=`<img src="${this._relChartS.toBase64Image()}" style="width:100%;max-height:92mm;object-fit:contain;margin-bottom:12px;border:1px solid #e5e5ea;border-radius:8px">`;}catch(e){}
+      cfg.preHtml=chartImg||'<p style="font-size:12px">Sem dados para a Curva S no período.</p>';
+      cfg.theadHtml='<tr><th>Mês</th><th>Previsto (mês)</th><th>Previsto (acum.)</th><th>Realizado (mês)</th><th>Realizado (acum.)</th></tr>';
+      cfg.rowsArr=(d.linhasTabela||[]).map(l=>`<tr><td>${l.mes}</td><td>${fmt(l.prevMes)}</td><td>${fmt(l.prevAcum)}</td><td>${fmt(l.realMes)}</td><td>${fmt(l.realAcum)}</td></tr>`);
+    } else if(c.tipo==='cronograma-ff'){
+      cfg.paisagem=true;
+      const d=c.dados;
+      if(!d.rows||!d.rows.length){cfg.preHtml='<p style="font-size:12px">Cadastre as etapas da obra (Obras → Cronograma) para gerar o cronograma físico-financeiro.</p>';}
+      else{
+        cfg.theadHtml='<tr><th>Etapa</th><th>Peso</th><th>Valor</th>'+d.lbl.map(l=>`<th>${l}</th>`).join('')+'</tr>';
+        cfg.rowsArr=d.rows.map(r=>`<tr><td>${(r.nome||'—').replace(/</g,'&lt;')}</td><td>${r.peso?r.peso+'%':'—'}</td><td>${fmt(r.valor)}</td>${d.meses.map(k=>`<td>${r.dist[k]?fmt(r.dist[k]):'—'}</td>`).join('')}</tr>`);
+        cfg.posHtml=totalBox([['Valor Total Previsto',fmt(d.totValor)]]);
+      }
     } else {
       // Consolidado: DRE resumido (com Despesas gerais) + indicadores básicos
       cfg.paisagem=true;
@@ -5664,6 +5809,285 @@ const UI={
   /* Esqueleto comum: cabeçalho azul (estilo CAP) + tabela + botão adicionar + resumo.
      Quando obraName vier vazio (fluxo "Novo"), mostra um seletor de obra em vez do
      nome fixo — ao escolher a obra, _grOnObraChange recarrega a listagem daquela obra. */
+  /* ═══════════════════════ ETAPAS / CRONOGRAMA (aba da Obra) ═══════════════════════
+     Editor de etapas (nome · início · fim · peso% · avanço% · valor previsto) com um
+     gráfico de Gantt que se atualiza em tempo real. Alimenta também a Curva S e o
+     Cronograma Físico-financeiro nos Relatórios. Tabela nova "etapas" no Supabase. */
+  _etapasCtx:null,
+  _ETAPA_PAL:['#0071E3','#34C759','#FF9500','#AF52DE','#5AC8FA','#FF3B30','#FF6B35','#00B4D8'],
+  _etapasK(){
+    const h=(App.state.data.metadata&&App.state.data.metadata.etapas)||[];
+    const nH=h.map(x=>norm(x));
+    const f=(test,fb)=>{const i=nH.findIndex(test);return i>=0?nH[i]:fb;};
+    return {
+      obra:f(c=>c.includes('titulo_obra')||c.includes('obra'),'titulo_obra'),
+      nome:f(c=>c.includes('nome'),'nome_etapa'),
+      ini:f(c=>c.includes('inicio'),'data_inicio'),
+      fim:f(c=>c.includes('fim')||c.includes('termino'),'data_fim'),
+      peso:f(c=>c.includes('peso'),'peso'),
+      avanco:f(c=>c.includes('avanco'),'avanco'),
+      valor:f(c=>c.includes('valor'),'valor')
+    };
+  },
+  _etapasDaObra(obraName,K){
+    K=K||this._etapasK();
+    return (App.state.data.etapas||[]).filter(e=>(getFuzzy(e,[K.obra,'titulo_obra','obra'])||'')===obraName)
+      .sort((a,b)=>{const da=parseDate(getFuzzy(a,[K.ini,'data_inicio'])||'')||new Date(0);const db=parseDate(getFuzzy(b,[K.ini,'data_inicio'])||'')||new Date(0);return da-db;});
+  },
+  _etapasMakeRow(K,it){
+    const esc=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');
+    const rowid=it?it.rowid:'';
+    const nome=it?(getFuzzy(it,[K.nome,'nome_etapa','nome'])||''):'';
+    const ini=this._toISO(it?(getFuzzy(it,[K.ini,'data_inicio'])||''):'');
+    const fim=this._toISO(it?(getFuzzy(it,[K.fim,'data_fim'])||''):'');
+    const peso=it?String(getFuzzy(it,[K.peso,'peso'])??''):'';
+    const avanco=it?String(getFuzzy(it,[K.avanco,'avanco'])??''):'';
+    const valorN=it?parseStoredNumber(getFuzzy(it,[K.valor,'valor'])||0):0;
+    return `<tr data-rowid="${rowid}">
+      <td><input type="text" class="cap-fi" data-field="${K.nome}" data-k="nome" value="${esc(nome)}" placeholder="Ex.: Fundação" oninput="UI._etapasRecalc()"></td>
+      <td><input type="date" class="cap-fi" data-field="${K.ini}" data-k="ini" value="${ini}" onchange="UI._etapasRecalc()"></td>
+      <td><input type="date" class="cap-fi" data-field="${K.fim}" data-k="fim" value="${fim}" onchange="UI._etapasRecalc()"></td>
+      <td><input type="text" inputmode="decimal" class="cap-fi" style="text-align:right" data-field="${K.peso}" data-k="peso" value="${peso}" placeholder="0" oninput="UI._etapasPctMask(this);UI._etapasRecalc()"></td>
+      <td><input type="text" inputmode="decimal" class="cap-fi" style="text-align:right" data-field="${K.avanco}" data-k="avanco" value="${avanco}" placeholder="0" oninput="UI._etapasPctMask(this);UI._etapasRecalc()"></td>
+      <td><input type="text" class="cap-fi mask-currency" style="text-align:right" data-field="${K.valor}" data-k="valor" value="${valorN>0?fmt(valorN):''}" placeholder="R$ 0,00" oninput="UI._etapasRecalc()"></td>
+      <td style="width:36px"><button type="button" class="cap-row-btn del" onclick="UI._etapasDelRow(this)" title="Remover etapa"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"><path d="M3 6h18"/><path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/><path d="M19 6l-1 14a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1L5 6"/><path d="M10 11v5"/><path d="M14 11v5"/></svg></button></td>
+    </tr>`;
+  },
+  _etapasPctMask(el){
+    let v=el.value.replace(/[^\d.,]/g,'').replace(/\./g,',');
+    const n=parseFloat(v.replace(',','.'));
+    if(isFinite(n)&&n>100)v='100';
+    el.value=v;
+  },
+  _etapasBuild(obraName){
+    const K=this._etapasK();
+    this._etapasCtx={obraName,K};
+    const items=this._etapasDaObra(obraName,K);
+    const rows=(items.length?items:[null]).map(it=>this._etapasMakeRow(K,it)).join('');
+    const form=document.getElementById('form-upsert');
+    form.removeAttribute('style');
+    form.innerHTML=`
+    <div style="flex:1;overflow-y:auto;padding:16px 24px 28px">
+      <div style="margin-bottom:12px">
+        <div style="font-size:15px;font-weight:800;color:var(--text-1)">Cronograma de Avanço</div>
+        <div style="font-size:11px;color:var(--text-3)">Cadastre as etapas da obra — o Gantt e o avanço global se atualizam em tempo real.</div>
+      </div>
+      <div class="gr-table-wrap" style="max-height:320px">
+        <table class="cap-tbl" style="width:100%;min-width:840px;table-layout:fixed">
+          <thead><tr>
+            <th style="width:230px">Etapa</th><th style="width:130px">Início</th><th style="width:130px">Fim</th>
+            <th style="width:80px" class="r">Peso %</th><th style="width:90px" class="r">Avanço %</th><th style="width:140px" class="r">Valor Previsto</th><th style="width:36px"></th>
+          </tr></thead>
+          <tbody id="etapas-tbody">${rows}</tbody>
+        </table>
+      </div>
+      <button type="button" onclick="UI._etapasAddRow()" style="margin-top:10px;display:flex;align-items:center;gap:5px;font-size:11px;font-weight:600;color:var(--blue);background:rgba(0,113,227,.07);border:1px dashed rgba(0,113,227,.4);border-radius:7px;padding:6px 14px;cursor:pointer">
+        <span style="font-size:16px;line-height:1">+</span> Adicionar etapa
+      </button>
+      <div class="cap-resumo" style="display:flex;flex-wrap:wrap;gap:22px;margin-top:16px">
+        <div><div style="font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--text-3)">Total Peso</div><div id="etapas-tot-peso" style="font-size:16px;font-weight:800;color:var(--text-1)">0%</div></div>
+        <div><div style="font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--text-3)">Avanço Global</div><div id="etapas-avanco" style="font-size:16px;font-weight:800;color:var(--green)">0%</div></div>
+        <div><div style="font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--text-3)">Valor Total Previsto</div><div id="etapas-tot-valor" style="font-size:16px;font-weight:800;color:var(--blue)">R$ 0,00</div></div>
+        <div id="etapas-peso-aviso" style="align-self:center;font-size:11px;font-weight:600;color:var(--orange,#FF9500);display:none"></div>
+      </div>
+      <div style="margin-top:20px;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px 18px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><div style="font-size:13px;font-weight:800;color:var(--text-1)">Gráfico de Gantt</div><div style="font-size:10px;color:var(--text-3)"><span style="display:inline-block;width:8px;height:2px;background:var(--red);vertical-align:middle;margin-right:4px"></span>Hoje</div></div>
+        <div id="etapas-gantt"></div>
+      </div>
+    </div>`;
+    form.querySelectorAll('#etapas-tbody .mask-currency').forEach(el=>maskCurrency(el));
+    this._etapasRecalc();
+  },
+  _etapasAddRow(){
+    const tbody=document.getElementById('etapas-tbody');if(!tbody||!this._etapasCtx)return;
+    tbody.insertAdjacentHTML('beforeend',this._etapasMakeRow(this._etapasCtx.K,null));
+    const tr=tbody.lastElementChild;
+    tr.querySelectorAll('.mask-currency').forEach(el=>maskCurrency(el));
+    tr.querySelector('input')?.focus();
+    if(App.state.obraHub)App.state.obraHub._dirtyTabs.add('etapas');
+    this._etapasRecalc();
+  },
+  _etapasDelRow(btn){
+    const tr=btn.closest('tr');if(!tr)return;
+    tr.remove();
+    if(App.state.obraHub)App.state.obraHub._dirtyTabs.add('etapas');
+    const tbody=document.getElementById('etapas-tbody');
+    if(tbody&&!tbody.querySelector('tr'))this._etapasAddRow();
+    else this._etapasRecalc();
+  },
+  _etapasLerLinhas(){
+    const tbody=document.getElementById('etapas-tbody');if(!tbody)return [];
+    return [...tbody.querySelectorAll('tr')].map(tr=>{
+      const g=k=>tr.querySelector('[data-k="'+k+'"]');
+      return {
+        rowid:tr.dataset.rowid||'',
+        nome:(g('nome').value||'').trim(),
+        ini:(g('ini').value||'').trim(),
+        fim:(g('fim').value||'').trim(),
+        peso:parseFloat((g('peso').value||'').replace(',','.'))||0,
+        avanco:parseFloat((g('avanco').value||'').replace(',','.'))||0,
+        valor:parseStoredNumber(g('valor').value||0)
+      };
+    });
+  },
+  _etapasRecalc(){
+    const linhas=this._etapasLerLinhas();
+    const started=linhas.filter(l=>l.nome||l.ini||l.fim||l.peso||l.valor);
+    const totPeso=started.reduce((s,l)=>s+l.peso,0);
+    const totValor=started.reduce((s,l)=>s+l.valor,0);
+    const avGlobal=totPeso>0?started.reduce((s,l)=>s+l.peso*Math.max(0,Math.min(100,l.avanco)),0)/totPeso:0;
+    const set=(id,v)=>{const el=document.getElementById(id);if(el)el.textContent=v;};
+    set('etapas-tot-peso',(Math.round(totPeso*10)/10)+'%');
+    set('etapas-avanco',(Math.round(avGlobal*10)/10)+'%');
+    set('etapas-tot-valor',fmt(totValor));
+    const aviso=document.getElementById('etapas-peso-aviso');
+    if(aviso){
+      if(started.length&&Math.abs(totPeso-100)>0.5){aviso.style.display='';aviso.textContent='⚠ A soma dos pesos é '+(Math.round(totPeso*10)/10)+'% (o ideal é 100%).';}
+      else aviso.style.display='none';
+    }
+    this._etapasRenderGantt(linhas);
+  },
+  _etapasRenderGantt(linhas){
+    const cont=document.getElementById('etapas-gantt');if(!cont)return;
+    linhas=linhas||this._etapasLerLinhas();
+    const comData=linhas.filter(l=>(l.nome||l.ini||l.fim)&&parseDate(l.ini)&&parseDate(l.fim));
+    if(!comData.length){cont.innerHTML='<div style="padding:22px;text-align:center;color:var(--text-3);font-size:13px">Preencha o nome, o início e o fim das etapas para visualizar o Gantt.</div>';return;}
+    let min=Infinity,max=-Infinity;
+    comData.forEach(l=>{const a=parseDate(l.ini).getTime(),b=parseDate(l.fim).getTime();if(a<min)min=a;if(b>max)max=b;});
+    if(max<=min)max=min+86400000;
+    const span=max-min;
+    const pct=t=>(t-min)/span*100;
+    const nomesMes=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+    const meses=[];let d=new Date(min);d.setDate(1);
+    while(d.getTime()<=max){meses.push(new Date(d));d.setMonth(d.getMonth()+1);}
+    const gridCols=meses.map(m=>{const p=pct(m.getTime());return(p>=0&&p<=100)?`<div style="position:absolute;left:${p}%;top:0;bottom:0;width:1px;background:var(--border)"></div>`:'';}).join('');
+    const gridLabels=meses.map((m,i)=>{const p=Math.max(0,pct(m.getTime()));const pNext=i+1<meses.length?pct(meses[i+1].getTime()):100;const w=Math.max(0,pNext-p);return `<div style="position:absolute;left:${p}%;width:${w}%;text-align:center;font-size:9px;font-weight:700;color:var(--text-3);text-transform:uppercase">${nomesMes[m.getMonth()]}/${String(m.getFullYear()).slice(2)}</div>`;}).join('');
+    const hoje=Date.now();
+    const hojeLine=(hoje>=min&&hoje<=max)?`<div style="position:absolute;left:${pct(hoje)}%;top:0;bottom:0;width:2px;background:var(--red);opacity:.55;pointer-events:none;z-index:1"></div>`:'';
+    const LEFT=180;
+    const rowsHtml=comData.map((l,i)=>{
+      const a=parseDate(l.ini).getTime(),b=parseDate(l.fim).getTime();
+      const left=pct(a),width=Math.max(1.2,pct(b)-pct(a));
+      const col=this._ETAPA_PAL[i%this._ETAPA_PAL.length];
+      const av=Math.max(0,Math.min(100,l.avanco));
+      const esc=s=>String(s==null?'':s).replace(/</g,'&lt;');
+      return `<div style="display:flex;align-items:center;height:30px;border-bottom:1px solid var(--border)">
+        <div style="width:${LEFT}px;flex-shrink:0;padding-right:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;font-weight:600;color:var(--text-1)" title="${esc(l.nome)}">${esc(l.nome)||'(sem nome)'}${l.peso?` <span style="color:var(--text-3);font-weight:500">· ${l.peso}%</span>`:''}</div>
+        <div style="position:relative;flex:1;height:100%">
+          <div style="position:absolute;left:${left}%;width:${width}%;top:6px;height:18px;background:${col}22;border:1px solid ${col};border-radius:5px;overflow:hidden;z-index:2">
+            <div style="position:absolute;left:0;top:0;bottom:0;width:${av}%;background:${col}"></div>
+            <span style="position:absolute;left:6px;top:50%;transform:translateY(-50%);font-size:9px;font-weight:700;color:${av>55?'#fff':col};white-space:nowrap;z-index:2">${Math.round(av)}%</span>
+          </div>
+        </div>
+      </div>`;
+    }).join('');
+    cont.innerHTML=`
+      <div style="display:flex;align-items:flex-end;margin-bottom:2px">
+        <div style="width:${LEFT}px;flex-shrink:0;font-size:10px;font-weight:800;text-transform:uppercase;color:var(--text-3);padding-bottom:4px">Etapa</div>
+        <div style="position:relative;flex:1;height:16px">${gridLabels}</div>
+      </div>
+      <div style="position:relative">
+        <div style="position:absolute;left:${LEFT}px;right:0;top:0;bottom:0;pointer-events:none">${gridCols}${hojeLine}</div>
+        ${rowsHtml}
+      </div>`;
+  },
+  _etapasValidar(){
+    const tbody=document.getElementById('etapas-tbody');if(!tbody)return true;
+    let ok=true;
+    [...tbody.querySelectorAll('tr')].forEach(tr=>{
+      const g=k=>tr.querySelector('[data-k="'+k+'"]');
+      [g('nome'),g('ini'),g('fim')].forEach(el=>el&&el.classList.remove('err'));
+      const nome=(g('nome').value||'').trim(),ini=(g('ini').value||'').trim(),fim=(g('fim').value||'').trim();
+      const peso=(g('peso').value||'').trim(),valor=(g('valor').value||'').trim();
+      const started=nome||ini||fim||peso||(valor&&parseStoredNumber(valor)>0);
+      if(!started)return;
+      if(!nome){g('nome').classList.add('err');ok=false;}
+      if(!ini){g('ini').classList.add('err');ok=false;}
+      if(!fim){g('fim').classList.add('err');ok=false;}
+      if(ini&&fim&&parseDate(fim)&&parseDate(ini)&&parseDate(fim)<parseDate(ini)){g('fim').classList.add('err');ok=false;}
+    });
+    if(!ok)toast('Revise as etapas: nome, início e fim são obrigatórios e o fim não pode ser antes do início.','error');
+    return ok;
+  },
+  async _etapasSalvar(){
+    if(App.state._busy)return;
+    if(!this._etapasValidar())return;
+    const ctx=this._etapasCtx;if(!ctx)return;
+    const K=ctx.K,obraName=ctx.obraName;
+    const form=document.getElementById('form-upsert');
+    cleanMoneyFields(form);
+    const trs=[...document.querySelectorAll('#etapas-tbody tr')];
+    const rows=trs.map(tr=>{
+      const g=k=>tr.querySelector('[data-k="'+k+'"]');
+      const started=(g('nome').value||'').trim()||(g('ini').value||'').trim()||(g('fim').value||'').trim();
+      if(!started)return null;
+      const rowid=tr.dataset.rowid||'';
+      const original=rowid?(App.state.data.etapas||[]).find(i=>String(i.rowid)===String(rowid)):null;
+      const obj=original?{...original}:{};
+      delete obj.rowid;delete obj.visualId;delete obj._aba;
+      obj[K.obra]=obraName;
+      tr.querySelectorAll('[data-field]').forEach(el=>{obj[el.dataset.field]=(el.value||'').trim();});
+      return {rowid,obj};
+    }).filter(Boolean);
+    App.state._busy=true;UI._showBusy('Salvando…');
+    const originalIds=this._etapasDaObra(obraName,K).map(i=>String(i.rowid));
+    const keptIds=new Set(rows.filter(r=>r.rowid).map(r=>r.rowid));
+    const deleteIds=originalIds.filter(id=>!keptIds.has(id));
+    const runOne=(fn,args)=>new Promise((resolve,reject)=>{google.script.run.withSuccessHandler(res=>(res&&res.ok)?resolve(res):reject((res&&res.msg)||'Erro ao salvar.')).withFailureHandler(reject)[fn](...args);});
+    try{
+      await Promise.all([
+        ...rows.map(r=>runOne('upsertRegistroLote',['Etapas',r.obj,r.rowid||null])),
+        ...deleteIds.map(id=>runOne('excluirRegistroLote',['Etapas',id]))
+      ]);
+      const data=await new Promise((resolve,reject)=>{google.script.run.withSuccessHandler(resolve).withFailureHandler(reject).getSistemaData();});
+      App.state.data=data;App.state._busy=false;UI._hideBusy();
+      if(this._obraHubCache)delete this._obraHubCache.etapas;
+      if(App.state.obraHub){App.state.obraHub._dirtyTabs.delete('etapas');if(App.state.obraHub.tab==='etapas')this._etapasBuild(obraName);}
+      toast('Cronograma salvo!','success');
+    }catch(err){App.state._busy=false;UI._hideBusy();toast(typeof err==='string'?err:'Erro ao salvar.','error');console.error(err);}
+  },
+  _etapasExportPDF(){
+    const ctx=this._etapasCtx;if(!ctx){toast('Abra o cronograma de uma obra primeiro.','error');return;}
+    const linhas=this._etapasLerLinhas().filter(l=>l.nome||l.ini||l.fim);
+    if(!linhas.length){toast('Cadastre ao menos uma etapa para exportar.','error');return;}
+    const totPeso=linhas.reduce((s,l)=>s+l.peso,0);
+    const totValor=linhas.reduce((s,l)=>s+l.valor,0);
+    const avGlobal=totPeso>0?linhas.reduce((s,l)=>s+l.peso*Math.max(0,Math.min(100,l.avanco)),0)/totPeso:0;
+    const ganttHtml=(document.getElementById('etapas-gantt')||{}).innerHTML||'';
+    const rowsHtml=linhas.map(l=>`<tr><td>${(l.nome||'—').replace(/</g,'&lt;')}</td><td>${dateBR(l.ini)||'—'}</td><td>${dateBR(l.fim)||'—'}</td><td style="text-align:right">${l.peso?l.peso+'%':'—'}</td><td style="text-align:right">${Math.round(Math.max(0,Math.min(100,l.avanco)))}%</td><td style="text-align:right">${fmt(l.valor)}</td></tr>`).join('');
+    const agora=new Date();
+    const dataHora=agora.toLocaleDateString('pt-BR')+' '+agora.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+    const win=window.open('','_blank');
+    if(!win){toast('Não foi possível abrir o PDF. Permita pop-ups deste site e tente de novo.','error');return;}
+    win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>&nbsp;</title>
+      <style>@page{margin:0;size:A4 landscape;}*{box-sizing:border-box;}html,body{margin:0;padding:0;background:#ccc;font-family:Arial,sans-serif;color:#1d1d1f;}
+      h1{font-size:17px;margin:0}.sub{font-size:12px;color:#6e6e73;margin-top:2px}
+      table{border-collapse:collapse;width:100%;font-size:10px}td,th{border-bottom:1px solid #e5e5ea;text-align:left;padding:5px 8px}thead th{background:#f5f5f7;font-weight:800}
+      .pdf-page{position:relative;width:297mm;min-height:210mm;background:#fff;margin:6mm auto;overflow:hidden;}
+      .pdf-page-inner{position:absolute;top:14mm;left:14mm;right:14mm;bottom:16mm;overflow:hidden;}
+      .pdf-page-footer{position:absolute;left:14mm;right:14mm;bottom:6mm;display:flex;justify-content:space-between;font-size:9px;color:#6e6e73;border-top:1px solid #e5e5ea;padding-top:5px;}
+      @media print{html,body{background:#fff;}.pdf-page{margin:0;}}</style></head><body>
+      <div class="pdf-page"><div class="pdf-page-inner">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;border-bottom:2px solid #1d1d1f;padding-bottom:12px">
+          <img src="${PDF_LOGO_FULL_B64}" style="height:19mm;width:auto;display:block">
+          <div style="text-align:right"><h1>Cronograma de Avanço</h1><div class="sub">${(ctx.obraName||'').replace(/</g,'&lt;')}</div></div>
+        </div>
+        <div style="display:flex;gap:22px;margin-bottom:12px">
+          <div><div style="font-size:9px;font-weight:800;text-transform:uppercase;color:#6e6e73">Avanço Global</div><div style="font-size:16px;font-weight:800;color:#34C759">${Math.round(avGlobal*10)/10}%</div></div>
+          <div><div style="font-size:9px;font-weight:800;text-transform:uppercase;color:#6e6e73">Total Peso</div><div style="font-size:16px;font-weight:800">${Math.round(totPeso*10)/10}%</div></div>
+          <div><div style="font-size:9px;font-weight:800;text-transform:uppercase;color:#6e6e73">Valor Total Previsto</div><div style="font-size:16px;font-weight:800;color:#0071E3">${fmt(totValor)}</div></div>
+        </div>
+        <table><thead><tr><th>Etapa</th><th>Início</th><th>Fim</th><th style="text-align:right">Peso %</th><th style="text-align:right">Avanço %</th><th style="text-align:right">Valor Previsto</th></tr></thead><tbody>${rowsHtml}</tbody></table>
+        <div style="margin-top:16px;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:#6e6e73;margin-bottom:8px">Gráfico de Gantt</div>
+        <div>${ganttHtml}</div>
+      </div>
+      <div class="pdf-page-footer"><span>${dataHora}</span><span>Vixsul Empreendimentos — CNPJ 64.518.375/0001-20</span><span>Cronograma</span></div>
+      </div>
+      <script>function _vxp(){setTimeout(function(){window.focus();window.print();},250);}if(document.readyState==='complete'){_vxp();}else{window.addEventListener('load',_vxp);}<\/script>
+      </body></html>`);
+    win.document.close();
+  },
+
   _grShell(view,obraName,theadHtml,tbodyHtml,minWidth,resumoHtml){
     const obraOpts=obraName?'':this._grObrasElegiveis(view).map(n=>`<option value="${n}">${n}</option>`).join('');
     const obraBlockHtml=obraName
@@ -6548,7 +6972,7 @@ const UI={
      Faturamentos | Aportes | CAP | Orçamentos). Cada aba reaproveita o editor já existente,
      porém filtrado/vinculado a ESTA obra. O botão Salvar salva a aba ativa e permanece na
      obra (re-renderiza a aba com os dados atualizados). */
-  _OBRA_HUB_TABS:[['dados','Obra'],['custos','Custo'],['faturamentos','Faturamento'],['aportes','Aporte'],['cap','CAP'],['orcamentos','Orçamento']],
+  _OBRA_HUB_TABS:[['dados','Obra'],['custos','Custo'],['faturamentos','Faturamento'],['aportes','Aporte'],['cap','CAP'],['orcamentos','Orçamento'],['etapas','Cronograma']],
   openObraHub(rowid){
     if(App.state._busy)return;
     if(this._capCalcTimer){clearTimeout(this._capCalcTimer);this._capCalcTimer=null;}
@@ -6641,6 +7065,7 @@ const UI={
       else if(tab==='custos'||tab==='faturamentos'||tab==='aportes'){ this.openGroupEditor(tab,obraName); }
       else if(tab==='cap'){ this._obraHubBuildCAP(obraName); }
       else if(tab==='orcamentos'){ this._obraHubBuildOrcamento(obraName); }
+      else if(tab==='etapas'){ this._etapasBuild(obraName); }
     }
     if(tab!=='orcamentos'){
       const t=document.getElementById('editor-title');if(t)t.textContent=obraName||'Nova Obra';
@@ -6848,6 +7273,7 @@ const UI={
     if(tab==='custos'||tab==='faturamentos'||tab==='aportes')return this._grValidarLinhas();
     if(tab==='cap')return this._capValidarLinhas();
     if(tab==='orcamentos')return this._orcValidar();
+    if(tab==='etapas')return this._etapasValidar();
     return true;
   },
   /* Espera o save disparado terminar (busy chega a ficar true e depois volta a false).
@@ -6876,8 +7302,12 @@ const UI={
     const tab=tabs[idx];
     if(hub.tab!==tab)this._obraHubTab(tab);
     if(!this._obraHubValidarAbaAtual(tab))return; // erro de validação nesta aba: para aqui, sem mexer nas outras
-    App.save({preventDefault(){}});
-    await this._obraHubAguardarSalvar();
+    if(tab==='etapas'){
+      await this._etapasSalvar(); // Etapas tem seu próprio save (upsert/exclui em lote), não passa pelo App.save
+    } else {
+      App.save({preventDefault(){}});
+      await this._obraHubAguardarSalvar();
+    }
     await this._obraHubSalvarTudo(tabs,idx+1,tabOriginal);
   },
   /* Botão PDF (ícone): imprime a aba selecionada no momento. */
@@ -6887,6 +7317,7 @@ const UI={
     else if(tab==='custos'||tab==='faturamentos'||tab==='aportes')this._grExportPDF();
     else if(tab==='cap')this._capExportPDF();
     else if(tab==='orcamentos')this._orcExportPDF();
+    else if(tab==='etapas')this._etapasExportPDF();
   },
   /* Botão Excluir (ícone): exclui a obra E todos os lançamentos dentro dela. */
   _obraHubExcluirTudo(){
@@ -6906,6 +7337,7 @@ const UI={
     push('Aportes financeiros',App.state.data.aportes,'titulo_obra');
     push('CAP',App.state.data.cap,'titulo_obra');
     push('Orçamentos',App.state.data.orcamentos,'titulo');
+    push('Etapas',App.state.data.etapas,'titulo_obra');
     alvos.push({aba:'Obras',id:hub.rowid});
     App.state._busy=true; this._showBusy('Excluindo…');
     const runOne=(aba,id)=>new Promise((res,rej)=>{ google.script.run.withSuccessHandler(r=>(r&&r.ok)?res(r):rej((r&&r.msg)||'Erro ao excluir.')).withFailureHandler(rej).excluirRegistroLote(aba,id); });
