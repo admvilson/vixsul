@@ -163,11 +163,11 @@ function _parseAcessos(v){
 
 async function _listarUsuarios() {
   const { data, error } = await _sb.from('usuarios')
-    .select('id,nome,cpf,perfil,status,acessos').order('id', { ascending: true });
+    .select('id,nome,cpf,perfil,status,email,acessos').order('id', { ascending: true });
   if (error) return { ok: false, msg: error.message };
   const usuarios = (data || []).map(u => ({
     id: u.id, nome: u.nome, cpf: u.cpf, perfil: u.perfil, status: u.status,
-    acessos: _parseAcessos(u.acessos)
+    email: u.email || '', acessos: _parseAcessos(u.acessos)
   }));
   return { ok: true, usuarios };
 }
@@ -181,6 +181,7 @@ async function _salvarUsuario(dados, id) {
     cpf,
     perfil: dados.perfil || 'Usuário',
     status: dados.status || 'ativo',
+    email: String(dados.email || '').trim(),
     acessos: Array.isArray(dados.acessos) ? JSON.stringify(dados.acessos) : null
   };
   // Só grava a senha se veio preenchida (na edição, em branco = mantém a atual).
@@ -202,6 +203,49 @@ async function _excluirUsuario(id) {
   const { error } = await _sb.from('usuarios').delete().eq('id', Number(id));
   if (error) return { ok: false, msg: error.message };
   return await _listarUsuarios();
+}
+
+// ─── Recuperação/alteração de senha ────────────────────────────────────────────
+async function _buscarUsuario(cpf) {
+  const cpfNorm = String(cpf || '').replace(/[.\-\s]/g, '').trim();
+  if (!cpfNorm) return null;
+  const { data, error } = await _sb.from('usuarios').select('*');
+  if (error || !data) return null;
+  return data.find(r => String(r.cpf || '').replace(/[.\-\s]/g, '').trim() === cpfNorm) || null;
+}
+
+// "Esqueci a senha": só o CPF. Retorna o e-mail cadastrado (para o app enviar o código
+// por e-mail via FormSubmit) — ou avisa que o CPF não tem cadastro.
+async function _buscarEmailPorCpf(cpf) {
+  const u = await _buscarUsuario(cpf);
+  if (!u) return { ok: false, existe: false, msg: 'CPF não possui cadastro.' };
+  const email = String(u.email || '').trim();
+  if (!email) return { ok: true, existe: true, temEmail: false, nome: u.nome || '' };
+  return { ok: true, existe: true, temEmail: true, email, nome: u.nome || '' };
+}
+
+// "Alterar senha": CPF + senha atual + nova senha.
+async function _alterarSenha(cpf, senhaAtual, senhaNova) {
+  const u = await _buscarUsuario(cpf);
+  if (!u) return { ok: false, existe: false, msg: 'CPF não possui cadastro.' };
+  if (String(u.senha || '').trim() !== String(senhaAtual || '').trim())
+    return { ok: false, msg: 'A senha anterior informada está incorreta.' };
+  const nova = String(senhaNova || '').trim();
+  if (nova.length < 4) return { ok: false, msg: 'A nova senha deve ter ao menos 4 caracteres.' };
+  const { error } = await _sb.from('usuarios').update({ senha: nova }).eq('id', u.id);
+  if (error) return { ok: false, msg: error.message };
+  return { ok: true, msg: 'Senha alterada com sucesso.' };
+}
+
+// Redefinição após validar o código de 6 dígitos enviado por e-mail (esqueci a senha).
+async function _redefinirSenhaPorCpf(cpf, senhaNova) {
+  const u = await _buscarUsuario(cpf);
+  if (!u) return { ok: false, existe: false, msg: 'CPF não possui cadastro.' };
+  const nova = String(senhaNova || '').trim();
+  if (nova.length < 4) return { ok: false, msg: 'A nova senha deve ter ao menos 4 caracteres.' };
+  const { error } = await _sb.from('usuarios').update({ senha: nova }).eq('id', u.id);
+  if (error) return { ok: false, msg: error.message };
+  return { ok: true, msg: 'Senha redefinida com sucesso.' };
 }
 
 // ─── Tempo real: avisa a página quando outra máquina/aba salva ou exclui algo ──
@@ -231,7 +275,10 @@ const _FNS = {
   login:                (a,b)     => _login(a,b),
   listarUsuarios:       ()        => _listarUsuarios(),
   salvarUsuario:        (a,b)     => _salvarUsuario(a,b),
-  excluirUsuario:       (a)       => _excluirUsuario(a)
+  excluirUsuario:       (a)       => _excluirUsuario(a),
+  buscarEmailPorCpf:    (a)       => _buscarEmailPorCpf(a),
+  alterarSenha:         (a,b,c)   => _alterarSenha(a,b,c),
+  redefinirSenhaPorCpf: (a,b)     => _redefinirSenhaPorCpf(a,b)
 };
 
 window.google = {
