@@ -132,6 +132,39 @@ async function _excluirComposicaoCAP(dataLancamento, tituloObra) {
   return { ok: true };
 }
 
+// ─── Hash de senha (PBKDF2-SHA256 via Web Crypto API — nativo do navegador, sem libs) ──
+// Formato armazenado: "pbkdf2$<iterações>$<saltBase64>$<hashBase64>". Senhas antigas em
+// texto puro (de antes desta atualização) continuam sendo aceitas no login — no primeiro
+// login bem-sucedido com uma senha "legada", ela é migrada para hash automaticamente e em
+// silêncio (o usuário não percebe nada, só passa a estar protegido a partir dali).
+const _PBKDF2_ITERACOES = 100000;
+function _bufParaB64(buf) { return btoa(String.fromCharCode(...new Uint8Array(buf))); }
+function _b64ParaBuf(b64) { return Uint8Array.from(atob(b64), c => c.charCodeAt(0)); }
+async function _pbkdf2(senha, saltBytes, iteracoes) {
+  const enc = new TextEncoder();
+  const keyMaterial = await crypto.subtle.importKey('raw', enc.encode(senha), { name: 'PBKDF2' }, false, ['deriveBits']);
+  const bits = await crypto.subtle.deriveBits({ name: 'PBKDF2', salt: saltBytes, iterations: iteracoes, hash: 'SHA-256' }, keyMaterial, 256);
+  return _bufParaB64(bits);
+}
+async function _hashSenha(senhaPlana) {
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const hash = await _pbkdf2(senhaPlana, salt, _PBKDF2_ITERACOES);
+  return 'pbkdf2$' + _PBKDF2_ITERACOES + '$' + _bufParaB64(salt) + '$' + hash;
+}
+async function _verificarSenha(senhaPlana, armazenada) {
+  const s = String(armazenada || '');
+  if (!s.startsWith('pbkdf2$')) {
+    // Senha legada (texto puro, de antes do hash) — compara direto.
+    return { ok: s === String(senhaPlana || '').trim(), legado: true };
+  }
+  const partes = s.split('$');
+  if (partes.length !== 4) return { ok: false, legado: false };
+  const iteracoes = Number(partes[1]) || _PBKDF2_ITERACOES;
+  const salt = _b64ParaBuf(partes[2]);
+  const hashCalculado = await _pbkdf2(senhaPlana, salt, iteracoes);
+  return { ok: hashCalculado === partes[3], legado: false };
+}
+
 async function _login(cpf, senha) {
   const cpfNorm   = String(cpf   || '').replace(/[.\-\s]/g, '').trim();
   const senhaTrim = String(senha  || '').trim();
@@ -145,8 +178,15 @@ async function _login(cpf, senha) {
   if (!u) return { ok: false, msg: 'CPF não encontrado.' };
   if (String(u.status || 'ativo').toLowerCase() !== 'ativo')
     return { ok: false, msg: 'Usuário inativo. Entre em contato com o administrador.' };
-  if (String(u.senha || '').trim() !== senhaTrim)
-    return { ok: false, msg: 'Senha incorreta.' };
+
+  const verif = await _verificarSenha(senhaTrim, u.senha);
+  if (!verif.ok) return { ok: false, msg: 'Senha incorreta.' };
+
+  // Migração silenciosa: senha antiga em texto puro vira hash assim que loga com sucesso.
+  if (verif.legado) {
+    const novoHash = await _hashSenha(senhaTrim);
+    await _sb.from('usuarios').update({ senha: novoHash }).eq('id', u.id);
+  }
 
   return { ok: true, nome: u.nome || cpf, perfil: u.perfil || 'Usuário', acessos: _parseAcessos(u.acessos) };
 }
@@ -184,8 +224,9 @@ async function _salvarUsuario(dados, id) {
     email: String(dados.email || '').trim(),
     acessos: Array.isArray(dados.acessos) ? JSON.stringify(dados.acessos) : null
   };
-  // Só grava a senha se veio preenchida (na edição, em branco = mantém a atual).
-  if (dados.senha) payload.senha = String(dados.senha).trim();
+  // Só grava a senha se veio preenchida (na edição, em branco = mantém a atual). Sempre
+  // gravada como hash, nunca em texto puro.
+  if (dados.senha) payload.senha = await _hashSenha(String(dados.senha).trim());
 
   let error;
   if (id && Number(id) > 0) {
@@ -228,11 +269,13 @@ async function _buscarEmailPorCpf(cpf) {
 async function _alterarSenha(cpf, senhaAtual, senhaNova) {
   const u = await _buscarUsuario(cpf);
   if (!u) return { ok: false, existe: false, msg: 'CPF não possui cadastro.' };
-  if (String(u.senha || '').trim() !== String(senhaAtual || '').trim())
+  const verif = await _verificarSenha(String(senhaAtual || '').trim(), u.senha);
+  if (!verif.ok)
     return { ok: false, msg: 'A senha anterior informada está incorreta.' };
   const nova = String(senhaNova || '').trim();
   if (nova.length < 4) return { ok: false, msg: 'A nova senha deve ter ao menos 4 caracteres.' };
-  const { error } = await _sb.from('usuarios').update({ senha: nova }).eq('id', u.id);
+  const hash = await _hashSenha(nova);
+  const { error } = await _sb.from('usuarios').update({ senha: hash }).eq('id', u.id);
   if (error) return { ok: false, msg: error.message };
   return { ok: true, msg: 'Senha alterada com sucesso.' };
 }
@@ -243,7 +286,8 @@ async function _redefinirSenhaPorCpf(cpf, senhaNova) {
   if (!u) return { ok: false, existe: false, msg: 'CPF não possui cadastro.' };
   const nova = String(senhaNova || '').trim();
   if (nova.length < 4) return { ok: false, msg: 'A nova senha deve ter ao menos 4 caracteres.' };
-  const { error } = await _sb.from('usuarios').update({ senha: nova }).eq('id', u.id);
+  const hash = await _hashSenha(nova);
+  const { error } = await _sb.from('usuarios').update({ senha: hash }).eq('id', u.id);
   if (error) return { ok: false, msg: error.message };
   return { ok: true, msg: 'Senha redefinida com sucesso.' };
 }
