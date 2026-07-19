@@ -74,8 +74,9 @@ CREATE TABLE IF NOT EXISTS usuarios (
   senha      TEXT NOT NULL,
   perfil     TEXT NOT NULL DEFAULT 'Usuário',
   status     TEXT NOT NULL DEFAULT 'ativo',
-  email      TEXT,   -- e-mail do usuário; usado no "Esqueci a senha" (código por e-mail)
+  email      TEXT,   -- e-mail do usuário; usado no "Esqueci a senha" (código por e-mail) e no login do Usuário Externo
   acessos    TEXT,   -- JSON com os módulos que o usuário pode ver; NULL = todos
+  tipo_usuario TEXT NOT NULL DEFAULT 'interno', -- 'interno' (entra com CPF) ou 'externo' (entra com e-mail, só vê Obras → Avanço & Gantt)
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -83,6 +84,7 @@ CREATE TABLE IF NOT EXISTS usuarios (
 -- (SQL Editor → New query) para habilitar o controle de acesso e a recuperação de senha:
 ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS acessos TEXT;
 ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS email TEXT;
+ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS tipo_usuario TEXT NOT NULL DEFAULT 'interno';
 
 -- ── Usuário administrador inicial ──────────────
 -- TROQUE o CPF e a senha antes de usar em produção!

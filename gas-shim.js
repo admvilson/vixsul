@@ -178,6 +178,9 @@ async function _login(cpf, senha) {
   if (!u) return { ok: false, msg: 'Usuário não encontrado.' };
   if (String(u.status || 'ativo').toLowerCase() !== 'ativo')
     return { ok: false, msg: 'Usuário inativo. Entre em contato com o administrador.' };
+  // Usuário externo entra pelo CPF/e-mail? Não — externo é só por e-mail, na outra aba.
+  if (String(u.tipo_usuario || 'interno').toLowerCase() === 'externo')
+    return { ok: false, msg: 'Este usuário deve entrar pela opção "Usuário Externo".' };
 
   const verif = await _verificarSenha(senhaTrim, u.senha);
   if (!verif.ok) return { ok: false, msg: 'Senha incorreta.' };
@@ -188,7 +191,38 @@ async function _login(cpf, senha) {
     await _sb.from('usuarios').update({ senha: novoHash }).eq('id', u.id);
   }
 
-  return { ok: true, nome: u.nome || cpf, perfil: u.perfil || 'Usuário', acessos: _parseAcessos(u.acessos) };
+  return { ok: true, nome: u.nome || cpf, perfil: u.perfil || 'Usuário', acessos: _parseAcessos(u.acessos), tipoUsuario: 'interno' };
+}
+
+// Usuário Externo: entra com E-MAIL + senha (não tem CPF cadastrado pra digitar) e,
+// independente do que estiver salvo em "acessos", só enxerga o módulo Obras — a tela
+// de Obras, por sua vez, restringe ainda mais e mostra só a aba Avanço & Gantt (ver
+// UI._obraHubRenderTabs no index.html). Só loga quem estiver marcado tipo_usuario='externo',
+// pra não misturar com a conta interna da mesma pessoa (se ela tiver as duas).
+async function _loginExterno(email, senha) {
+  const emailNorm = String(email || '').trim().toLowerCase();
+  const senhaTrim = String(senha || '').trim();
+  if (!emailNorm || !senhaTrim) return { ok: false, msg: 'E-mail e senha são obrigatórios.' };
+
+  const { data, error } = await _sb.from('usuarios').select('*');
+  if (error) return { ok: false, msg: 'Erro ao acessar banco de dados.' };
+  if (!data || data.length === 0) return { ok: false, msg: 'Nenhum usuário cadastrado.' };
+
+  const u = data.find(r => String(r.email || '').trim().toLowerCase() === emailNorm
+    && String(r.tipo_usuario || 'interno').toLowerCase() === 'externo');
+  if (!u) return { ok: false, msg: 'Usuário não encontrado.' };
+  if (String(u.status || 'ativo').toLowerCase() !== 'ativo')
+    return { ok: false, msg: 'Usuário inativo. Entre em contato com o administrador.' };
+
+  const verif = await _verificarSenha(senhaTrim, u.senha);
+  if (!verif.ok) return { ok: false, msg: 'Senha incorreta.' };
+
+  if (verif.legado) {
+    const novoHash = await _hashSenha(senhaTrim);
+    await _sb.from('usuarios').update({ senha: novoHash }).eq('id', u.id);
+  }
+
+  return { ok: true, nome: u.nome || email, perfil: 'Usuário Externo', acessos: ['obras'], tipoUsuario: 'externo' };
 }
 
 // ─── Controle de acesso: gestão de usuários (tela Admin) ───────────────────────
@@ -203,18 +237,22 @@ function _parseAcessos(v){
 
 async function _listarUsuarios() {
   const { data, error } = await _sb.from('usuarios')
-    .select('id,nome,cpf,perfil,status,email,acessos').order('id', { ascending: true });
+    .select('id,nome,cpf,perfil,status,email,acessos,tipo_usuario').order('id', { ascending: true });
   if (error) return { ok: false, msg: error.message };
   const usuarios = (data || []).map(u => ({
     id: u.id, nome: u.nome, cpf: u.cpf, perfil: u.perfil, status: u.status,
-    email: u.email || '', acessos: _parseAcessos(u.acessos)
+    email: u.email || '', acessos: _parseAcessos(u.acessos),
+    tipoUsuario: String(u.tipo_usuario || 'interno').toLowerCase() === 'externo' ? 'externo' : 'interno'
   }));
   return { ok: true, usuarios };
 }
 
 async function _salvarUsuario(dados, id) {
   const cpf = String(dados.cpf || '').replace(/[.\-\s]/g, '').trim();
+  const tipoUsuario = dados.tipoUsuario === 'externo' ? 'externo' : 'interno';
   if (!String(dados.nome || '').trim() || !cpf) return { ok: false, msg: 'Nome e CPF são obrigatórios.' };
+  if (tipoUsuario === 'externo' && !String(dados.email || '').trim())
+    return { ok: false, msg: 'E-mail é obrigatório para Usuário Externo (é como ele faz login).' };
 
   const payload = {
     nome: String(dados.nome).trim(),
@@ -222,7 +260,8 @@ async function _salvarUsuario(dados, id) {
     perfil: dados.perfil || 'Usuário',
     status: dados.status || 'ativo',
     email: String(dados.email || '').trim(),
-    acessos: Array.isArray(dados.acessos) ? JSON.stringify(dados.acessos) : null
+    acessos: tipoUsuario === 'externo' ? JSON.stringify(['obras']) : (Array.isArray(dados.acessos) ? JSON.stringify(dados.acessos) : null),
+    tipo_usuario: tipoUsuario
   };
   // Só grava a senha se veio preenchida (na edição, em branco = mantém a atual). Sempre
   // gravada como hash, nunca em texto puro.
@@ -317,6 +356,7 @@ const _FNS = {
   salvarComposicaoCAP:  (a,b,c,d) => _salvarComposicaoCAP(a,b,c,d),
   excluirComposicaoCAP: (a,b)     => _excluirComposicaoCAP(a,b),
   login:                (a,b)     => _login(a,b),
+  loginExterno:         (a,b)     => _loginExterno(a,b),
   listarUsuarios:       ()        => _listarUsuarios(),
   salvarUsuario:        (a,b)     => _salvarUsuario(a,b),
   excluirUsuario:       (a)       => _excluirUsuario(a),
