@@ -175,7 +175,7 @@ async function _login(cpf, senha) {
   if (!data || data.length === 0) return { ok: false, msg: 'Nenhum usuário cadastrado.' };
 
   const u = data.find(r => String(r.cpf || '').replace(/[.\-\s]/g, '').trim() === cpfNorm);
-  if (!u) return { ok: false, msg: 'CPF não encontrado.' };
+  if (!u) return { ok: false, msg: 'Usuário não encontrado.' };
   if (String(u.status || 'ativo').toLowerCase() !== 'ativo')
     return { ok: false, msg: 'Usuário inativo. Entre em contato com o administrador.' };
 

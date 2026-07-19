@@ -58,6 +58,11 @@ body{font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;background:
 .search-box input{border:none;background:none;outline:none;font-size:13px;font-weight:500;color:var(--text-1);width:100%;}
 .search-box input::placeholder{color:var(--text-3);}
 .filter-select{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:9px 36px 9px 14px;font-size:13px;font-weight:600;color:var(--text-1);appearance:none;outline:none;cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23aeaeb2' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center;}
+/* Seletores de largura fixa (Relatórios/Dashboard): evita que o texto selecionado
+   empurre o layout — em Relatórios, os que ligam/desligam por tipo ficam dentro de
+   #rel-filtros-extra (largura TOTAL fixa), então o botão Exportar PDF nunca se desloca. */
+.rel-filter-fixed{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex-shrink:0;}
+.chart-ano-select{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:4px 22px 4px 8px;font-size:10px;font-weight:700;color:var(--text-2);appearance:none;outline:none;cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23aeaeb2' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 6px center;}
 .btn-primary{background:var(--blue);color:white;border:none;border-radius:980px;padding:10px 22px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;transition:opacity .15s,transform .1s;display:flex;align-items:center;gap:6px;}
 .btn-primary:hover{opacity:.88;transform:scale(1.02);}
 .card{background:var(--surface);border-radius:18px;border:1px solid rgba(0,0,0,.06);box-shadow:0 1px 3px rgba(0,0,0,.04);}
@@ -199,7 +204,7 @@ tbody tr:hover td{background:rgba(0,113,227,.02);}
 .cap-tbl tr:last-child td{border-bottom:none;}
 /* Tabelas dos Relatórios analíticos: cabeçalho fixo + exatamente ~20 linhas visíveis,
    o restante rola pela barra lateral (sempre visível), igual à tabela do form Despesas. */
-.rel-tbl-scroll{overflow-x:auto;overflow-y:scroll;max-height:430px;border:1px solid var(--border);border-radius:10px;}
+.rel-tbl-scroll{overflow-x:auto;overflow-y:scroll;max-height:375px;border:1px solid var(--border);border-radius:10px;}
 .rel-tbl-scroll .cap-tbl td{padding:6px 8px;height:16px;}
 .rel-tbl-scroll::-webkit-scrollbar{width:11px;height:11px;}
 .rel-tbl-scroll::-webkit-scrollbar-track{background:var(--bg);border-radius:99px;}
@@ -585,10 +590,9 @@ tbody tr:hover td{background:rgba(0,113,227,.02);}
       <div style="position:sticky;top:0;z-index:30;background:rgba(245,245,247,.97);backdrop-filter:blur(20px);border-bottom:1px solid var(--border);padding:9px 28px;display:flex;align-items:center;gap:8px;flex-shrink:0;flex-wrap:wrap">
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--text-3)" stroke-width="2.5"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
         <span style="font-size:10px;font-weight:700;letter-spacing:.7px;text-transform:uppercase;color:var(--text-3)">Filtros</span>
-        <select id="f-obra" class="filter-select" style="font-size:12px;padding:6px 26px 6px 10px;max-width:200px" onchange="App.renderDashboard()"><option value="">Todas as Obras</option></select>
-        <select id="f-tipo-fat" class="filter-select" style="font-size:12px;padding:6px 26px 6px 10px" onchange="App.renderDashboard()"><option value="">Previsto + Real</option><option value="Previsto">Somente Previsto</option><option value="Real">Somente Real</option></select>
-        <select id="f-status" class="filter-select" style="font-size:12px;padding:6px 26px 6px 10px" onchange="App.renderDashboard()"><option value="">Todos os Status</option><option value="Ganha - Em Andamento">Em Andamento</option><option value="Ganha - Finalizada">Finalizadas</option><option value="Ganha - Aguardando Liberação">Ag. Liberação</option></select>
-        <button onclick="App.clearFilters()" style="background:none;border:1px solid var(--border);border-radius:8px;padding:5px 10px;font-size:11px;font-weight:600;color:var(--text-2);cursor:pointer">✕ Limpar</button>
+        <select id="f-obra" class="filter-select rel-filter-fixed" style="width:230px" onchange="App.renderDashboard()"><option value="">Todas as Obras</option></select>
+        <select id="f-tipo-fat" class="filter-select rel-filter-fixed" style="width:200px" onchange="App.renderDashboard()"><option value="">Previsto + Real</option><option value="Previsto">Somente Previsto</option><option value="Real">Somente Real</option></select>
+        <select id="f-status" class="filter-select rel-filter-fixed" style="width:230px" onchange="App.renderDashboard()"><option value="">Todos os Status</option><option value="Ganha - Em Andamento">Em Andamento</option><option value="Ganha - Finalizada">Finalizadas</option><option value="Ganha - Aguardando Liberação">Ag. Liberação</option></select>
         <span id="dash-filter-label" style="margin-left:auto;font-size:11px;font-weight:600;color:var(--blue)"></span>
         <button type="button" title="Exportar Dashboard em PDF" onclick="App._dashboardExportPDF()" style="display:flex;align-items:center;justify-content:center;width:32px;height:32px;flex-shrink:0;border:1px solid rgba(0,113,227,.3);background:rgba(0,113,227,.08);color:var(--blue);border-radius:8px;cursor:pointer"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8" rx="1"/><line x1="17" y1="11.5" x2="17" y2="11.5" stroke-linecap="round" stroke-width="2.4"/></svg></button>
       </div>
@@ -640,8 +644,8 @@ tbody tr:hover td{background:rgba(0,113,227,.02);}
 
         </div>
 
-        <!-- ══ LINHA 2: 5 cards — Obras Ativas | Obras Concluídas | Obras em Atraso | ROI | Margem ══ -->
-        <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:18px">
+        <!-- ══ LINHA 2: 4 cards — Obras Ativas | Obras Concluídas | Obras em Atraso | Margem ══ -->
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:18px">
           <!-- Obras Ativas -->
           <div class="kpi-pro" style="background:rgba(255,149,0,.04);border:1px solid rgba(255,149,0,.18)">
             <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">
@@ -669,15 +673,6 @@ tbody tr:hover td{background:rgba(0,113,227,.02);}
             <div class="kpi-pro-value" id="kpi-atraso" style="color:var(--red)">—</div>
             <div class="kpi-pro-delta" id="kpi-atraso-delta" style="margin-top:4px;color:var(--red)">—</div>
           </div>
-          <!-- ROI -->
-          <div class="kpi-pro" style="background:rgba(175,82,222,.04);border:1px solid rgba(175,82,222,.18)">
-            <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">
-              <span class="kpi-pro-label" style="color:var(--purple)">ROI sobre Aportes</span>
-              <span style="width:24px;height:24px;background:rgba(175,82,222,.15);border-radius:6px;display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#AF52DE" stroke-width="2.5"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg></span>
-            </div>
-            <div class="kpi-pro-value" id="kpi-roi" style="color:var(--purple)">—</div>
-            <div class="kpi-pro-delta" id="kpi-roi-delta" style="margin-top:4px">—</div>
-          </div>
           <!-- Margem Líquida -->
           <div class="kpi-pro" id="kpi-margem-card" style="background:rgba(52,199,89,.04);border:1px solid rgba(52,199,89,.18)">
             <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">
@@ -704,7 +699,10 @@ tbody tr:hover td{background:rgba(0,113,227,.02);}
                 <div class="chart-pro-title" style="font-size:12px">Faturamento Bruto · Líquido · Custos por Período</div>
                 <div style="font-size:10px;color:var(--text-3);font-weight:500;margin-top:1px">Evolução mensal — Fat. por Recebimento · Custos por Data Pgto</div>
               </div>
-              <span class="chart-pro-badge" id="badge-meses" style="flex-shrink:0;margin-left:10px">—</span>
+              <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;margin-left:10px">
+                <select id="dash-ano-line" class="chart-ano-select" onchange="App.renderDashboard()"><option value="">Todos os anos</option></select>
+                <span class="chart-pro-badge" id="badge-meses">—</span>
+              </div>
             </div>
             <div style="position:relative;height:240px;margin-top:6px"><canvas id="chart-line"></canvas></div>
           </div>
@@ -729,16 +727,13 @@ tbody tr:hover td{background:rgba(0,113,227,.02);}
 
         </div>
 
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:18px">
+        <div style="display:grid;grid-template-columns:1fr;gap:12px;margin-bottom:18px">
           <div class="chart-pro">
-            <div class="chart-pro-title">Fat. Líquido vs Custos por Período</div>
-            <div class="chart-pro-sub">Recebimento vs Data Pgto — detecta desequilíbrio de caixa</div>
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+              <div><div class="chart-pro-title">Fat. Líquido vs Custos por Período</div><div class="chart-pro-sub">Recebimento vs Data Pgto — detecta desequilíbrio de caixa</div></div>
+              <select id="dash-ano-custosEvolucao" class="chart-ano-select" style="flex-shrink:0" onchange="App.renderDashboard()"><option value="">Todos os anos</option></select>
+            </div>
             <div style="height:155px"><canvas id="chart-custos-evolucao"></canvas></div>
-          </div>
-          <div class="chart-pro">
-            <div class="chart-pro-title">Fluxo de Caixa Acumulado (Fat. Real)</div>
-            <div class="chart-pro-sub">Saldo efetivo acumulado — Fat. Real − Custos pagos</div>
-            <div style="height:155px"><canvas id="chart-fluxo"></canvas></div>
           </div>
         </div>
 
@@ -803,28 +798,6 @@ tbody tr:hover td{background:rgba(0,113,227,.02);}
               <select id="filter-custo-cat" class="filter-select" style="font-size:11px;padding:4px 22px 4px 8px" onchange="App._renderCustosEspec()"><option value="">Todas as Categorias</option></select>
             </div>
             <div style="overflow:auto;max-height:210px;margin-top:4px" id="custo-espec-list"></div>
-          </div>
-        </div>
-
-        <!-- ════ SEÇÃO E: APORTES & INDICADORES ════ -->
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px"><span style="height:1px;flex:1;background:var(--border)"></span><span style="font-size:9px;font-weight:800;letter-spacing:.9px;text-transform:uppercase;color:var(--text-3);white-space:nowrap">📊 Aportes</span><span style="height:1px;flex:1;background:var(--border)"></span></div>
-
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:32px">
-          <!-- Aportes por Fonte -->
-          <div class="chart-pro" style="display:flex;flex-direction:column">
-            <div class="chart-pro-title">Aportes por Fonte</div>
-            <div class="chart-pro-sub">Distribuição de capital por origem</div>
-            <div style="display:flex;align-items:center;justify-content:center;margin-top:8px;height:190px">
-              <canvas id="chart-aportes-fonte"></canvas>
-            </div>
-          </div>
-          <!-- Evolução dos Aportes -->
-          <div class="chart-pro" style="display:flex;flex-direction:column">
-            <div class="chart-pro-title">Evolução dos Aportes</div>
-            <div class="chart-pro-sub">Por data de aporte — mensal e acumulado</div>
-            <div style="flex:1;min-height:0;margin-top:8px;height:190px">
-              <canvas id="chart-aportes-evolucao"></canvas>
-            </div>
           </div>
         </div>
 
@@ -940,11 +913,11 @@ tbody tr:hover td{background:rgba(0,113,227,.02);}
     <div class="view" id="view-relatorios">
       <div class="view-toolbar">
         <div class="toolbar-left">
-          <select class="filter-select" id="rel-tipo" onchange="App._relatorioGerar()">
+          <select class="filter-select" id="rel-tipo" style="width:300px" onchange="App._relatorioGerar()">
             <optgroup label="Resumos financeiros">
               <option value="consolidado">Financeiro Consolidado</option>
               <option value="comparativo">Fat. Líquido × Custos × Despesas</option>
-              <option value="indicadores">Indicadores (VPL · TIR · Ponto de Equilíbrio)</option>
+              <option value="indicadores">Indicadores (ROI · TIR · VPL · Ponto de Equilíbrio)</option>
             </optgroup>
             <optgroup label="Analíticos (detalhados)">
               <option value="faturamento">Faturamento e Recebimentos</option>
@@ -958,9 +931,16 @@ tbody tr:hover td{background:rgba(0,113,227,.02);}
               <option value="cronograma-ff">Cronograma Físico-financeiro</option>
             </optgroup>
           </select>
-          <select class="filter-select" id="rel-obra" onchange="App._relatorioGerar()"><option value="">Todas as Obras</option></select>
-          <input type="date" class="filter-select" id="rel-data-ini" onchange="App._relatorioGerar()" title="Data início do período">
-          <input type="date" class="filter-select" id="rel-data-fim" onchange="App._relatorioGerar()" title="Data fim do período">
+          <!-- Largura TOTAL fixa (676px = soma dos 4 seletores + gaps no cenário com todos
+               visíveis) — dentro dela cada seletor liga/desliga com display:none normal
+               (colapsa e os visíveis se compactam, sem buraco), mas a caixa em si nunca
+               muda de tamanho, então o botão Exportar PDF depois dela nunca se desloca. -->
+          <div id="rel-filtros-extra" style="display:flex;gap:12px;width:806px;flex-shrink:0">
+            <select class="filter-select" id="rel-obra" style="width:230px" onchange="App._relatorioGerar()"><option value="">Todas as Obras</option></select>
+            <select class="filter-select" id="rel-tipo-pr" style="width:200px" onchange="App._relatorioGerar()" title="Filtra por Previsto ou Real"><option value="">Previsto + Real</option><option value="Previsto">Somente Previsto</option><option value="Real">Somente Real</option></select>
+            <select class="filter-select" id="rel-ano" style="width:150px" onchange="App._relatorioGerar()" title="Filtra por ano"><option value="">Todos os anos</option></select>
+            <select class="filter-select" id="rel-mes" style="width:190px" onchange="App._relatorioGerar()" title="Filtra por mês"><option value="">Todos os meses</option><option value="1">Janeiro</option><option value="2">Fevereiro</option><option value="3">Março</option><option value="4">Abril</option><option value="5">Maio</option><option value="6">Junho</option><option value="7">Julho</option><option value="8">Agosto</option><option value="9">Setembro</option><option value="10">Outubro</option><option value="11">Novembro</option><option value="12">Dezembro</option></select>
+          </div>
         </div>
         <button type="button" title="Exportar PDF" onclick="App._relatorioExportPDF()" style="display:flex;align-items:center;justify-content:center;width:36px;height:36px;flex-shrink:0;border:1px solid rgba(0,113,227,.3);background:rgba(0,113,227,.08);color:var(--blue);border-radius:8px;cursor:pointer"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8" rx="1"/><line x1="17" y1="11.5" x2="17" y2="11.5" stroke-linecap="round" stroke-width="2.4"/></svg></button>
       </div>
@@ -985,6 +965,11 @@ tbody tr:hover td{background:rgba(0,113,227,.02);}
             <div class="chart-pro-title">Indicadores Consolidados</div>
             <div class="chart-pro-sub">Resumo executivo · valor e % sobre faturamento bruto</div>
             <div id="fin-ind-list" style="margin-top:10px"></div>
+          </div>
+          <div class="chart-pro">
+            <div class="chart-pro-title">Fluxo de Caixa Acumulado (Fat. Real)</div>
+            <div class="chart-pro-sub">Saldo efetivo acumulado — Fat. Real − Custos pagos</div>
+            <div style="height:220px;margin-top:8px"><canvas id="rel-fluxo-chart"></canvas></div>
           </div>
         </div>
       </div>
@@ -1174,7 +1159,21 @@ const COL_LABELS={
 /* R\u00f3tulo de exibi\u00e7\u00e3o para uma chave normalizada: usa o mapa conhecido ou "humaniza" (troca "_" por espa\u00e7o e capitaliza) */
 function labelHeader(key){if(COL_LABELS[key])return COL_LABELS[key];return String(key||'').replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase());}
 function statusPillHtml(s){const sl=(s||'').toLowerCase();let cls='pill-gray';if(sl.includes('andamento'))cls='pill-blue';else if(sl.includes('finalizada'))cls='pill-green';else if(sl.includes('aguardando'))cls='pill-orange';else if(sl.includes('cancelada')||sl.includes('preço')||sl.includes('perdida'))cls='pill-red';return `<span class="status-pill ${cls}">${s||'—'}</span>`;}
-function parseDate(str){if(!str)return null;str=String(str).trim();if(str.includes('/')){const[d,m,y]=str.split('/');return new Date(+y,+m-1,+d);}if(str.includes('-')){const[y,m,d]=str.split('-');return new Date(+y,+m-1,+d);}return null;}
+function parseDate(str){
+  if(!str)return null;
+  str=String(str).trim();
+  // Datas tipo "2026-01-15T14:30:00.000Z" (ISO com hora) já apareceram em alguns
+  // registros — corta tudo depois do "T"/espaço antes de dividir por "-"/"/", senão o
+  // pedaço do dia vira algo tipo "15T00:00:00.000Z", +d vira NaN, e essa Data "Invalid
+  // Date" passa incólume por checagens como "if(!d)" (Invalid Date é um objeto truthy),
+  // aparecendo mais adiante como "undefined/N" (de "NaN".slice(2)) em rótulos de mês.
+  str=str.split(/[T ]/)[0];
+  let d;
+  if(str.includes('/')){const[dd,mm,yy]=str.split('/');d=new Date(+yy,+mm-1,+dd);}
+  else if(str.includes('-')){const[yy,mm,dd]=str.split('-');d=new Date(+yy,+mm-1,+dd);}
+  else return null;
+  return isNaN(d.getTime())?null:d;
+}
 function toISO(dt){if(!dt)return '';return `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;}
 function todayISO(){return toISO(new Date());}
 /* Data e hora atual formatada para exibição no campo Data Lançamento */
@@ -1377,11 +1376,6 @@ const App={
     }
   },
 
-  clearFilters(){
-    ['f-obra','f-tipo-fat','f-status'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
-    this.renderDashboard();
-  },
-
   _applyFilters(arr,type,obrasComStatus){
     const obra=document.getElementById('f-obra')?.value||'';
     const tipoFat=document.getElementById('f-tipo-fat')?.value||'';
@@ -1520,11 +1514,6 @@ const App={
     setEl('kpi-atraso',String(atrasadasArr.length));
     const atEl=document.getElementById('kpi-atraso-delta');
     if(atEl){atEl.textContent=atrasadasArr.length===0?'Todas no prazo ✓':atrasadasArr.length===1?'1 obra vencida':'obras vencidas';atEl.style.color=atrasadasArr.length===0?'var(--green)':'#a06000';}
-    // ROI
-    const roiPct=totApo>0?(saldo/totApo*100):0;
-    setEl('kpi-roi',roiPct===0?'—':fmtPct(roiPct),roiPct>=0?'var(--purple)':'var(--red)');
-    const roiDEl=document.getElementById('kpi-roi-delta');
-    if(roiDEl){roiDEl.textContent=totApo>0?`sobre ${fmt(totApo)} aportados`:'Sem aportes registrados';roiDEl.className='kpi-pro-delta delta-neutral';}
     // Margem Líquida
     setEl('kpi-margem-val',fmtPct(margem),margem>=20?'var(--green)':margem>=0?'var(--orange)':'var(--red)');
     const mgCard=document.getElementById('kpi-margem-card');
@@ -1739,17 +1728,32 @@ const App={
       meses[k].cus+=toN(getFuzzy(i,['p_total','ptotal'])||i.valor||0);
     });
     const labels=Object.keys(meses).sort();
-    const labelsS=labels.map(fmtLbl);
-    const dataBrut=labels.map(m=>meses[m]?.brut||0);
-    const dataLiq=labels.map(m=>meses[m]?.liq||0);
-    const dataCus=labels.map(m=>meses[m]?.cus||0);
     const dataReal=labels.map(m=>meses[m]?.real||0);
     const dataRecebido=labels.map(m=>meses[m]?.recebido||0);
+
+    // Filtro de Ano por card: cada um dos 3 gráficos temporais tem seu próprio seletor
+    // (dash-ano-line/custosEvolucao/fluxo), populado com os anos presentes nos dados.
+    const anosDisponiveis=[...new Set(labels.map(k=>k.split('-')[0]))].sort();
+    const popularAnoSelect=id=>{
+      const sel=document.getElementById(id);if(!sel)return;
+      const cur=sel.value;
+      sel.innerHTML='<option value="">Todos os anos</option>'+anosDisponiveis.map(a=>`<option value="${a}"${cur===a?' selected':''}>${a}</option>`).join('');
+    };
+    ['dash-ano-line','dash-ano-custosEvolucao','dash-ano-fluxo'].forEach(popularAnoSelect);
+    const labelsPorAno=selectId=>{
+      const ano=document.getElementById(selectId)?.value||'';
+      return ano?labels.filter(k=>k.startsWith(ano+'-')):labels;
+    };
 
     /* Chart 1 – Linhas com área: Bruto (área) + Líquido (linha) + Custos (tracejada) */
     D('line');
     const cLine=document.getElementById('chart-line');
     if(cLine){
+      const labelsLine=labelsPorAno('dash-ano-line');
+      const labelsLineS=labelsLine.map(fmtLbl);
+      const dataBrut=labelsLine.map(m=>meses[m]?.brut||0);
+      const dataLiq=labelsLine.map(m=>meses[m]?.liq||0);
+      const dataCus=labelsLine.map(m=>meses[m]?.cus||0);
       const ctx1=cLine.getContext('2d');
       const gradBrut=ctx1.createLinearGradient(0,0,0,230);
       gradBrut.addColorStop(0,'rgba(0,113,227,.18)');
@@ -1760,7 +1764,7 @@ const App={
       const nPts=dataBrut.length;
       this.state.charts.line=new Chart(cLine,{
         type:'line',
-        data:{labels:labelsS,datasets:[
+        data:{labels:labelsLineS,datasets:[
           {label:'Fat. Bruto',   data:dataBrut,borderColor:'#0071E3',backgroundColor:gradBrut,fill:true,tension:.4,borderWidth:2.5,pointRadius:nPts<=24?3:0,pointHoverRadius:6,pointBackgroundColor:'#fff',pointBorderColor:'#0071E3',pointBorderWidth:2,order:3},
           {label:'Fat. Líquido', data:dataLiq, borderColor:'#34C759',backgroundColor:gradLiq, fill:true,tension:.4,borderWidth:2,  pointRadius:nPts<=24?3:0,pointHoverRadius:5,pointBackgroundColor:'#fff',pointBorderColor:'#34C759',pointBorderWidth:2,order:2},
           {label:'Custos',       data:dataCus, borderColor:'#FF3B30',backgroundColor:'transparent',fill:false,tension:.4,borderWidth:2,borderDash:[6,3],pointRadius:0,pointHoverRadius:5,pointBackgroundColor:'#FF3B30',order:1},
@@ -1832,14 +1836,13 @@ const App={
     /* Chart 3 – Fat. Líquido vs Custos por período (barras) */
     D('custosEvolucao');
     const cEv=document.getElementById('chart-custos-evolucao');
-    if(cEv)this.state.charts.custosEvolucao=new Chart(cEv,{type:'bar',data:{labels:labelsS,datasets:[{label:'Fat. Líquido',data:dataLiq,backgroundColor:'rgba(52,199,89,.65)',borderRadius:3,borderSkipped:false},{label:'Custos',data:dataCus,backgroundColor:'rgba(255,59,48,.65)',borderRadius:3,borderSkipped:false}]},options:tOpts(true)});
-
-    /* Chart 4 – Fluxo de Caixa Acumulado (usa Fat. Efetivo Real − Custos) */
-    D('fluxo');
-    let acum=0;
-    const fluxo=labels.map(m=>{acum+=(meses[m]?.real||0)-(meses[m]?.cus||0);return Math.round(acum);});
-    const cFx=document.getElementById('chart-fluxo');
-    if(cFx)this.state.charts.fluxo=new Chart(cFx,{type:'bar',data:{labels:labelsS,datasets:[{label:'Fluxo Acum. (Real)',data:fluxo,backgroundColor:fluxo.map(v=>v>=0?'rgba(52,199,89,.75)':'rgba(255,59,48,.75)'),borderRadius:3,borderSkipped:false}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>` Fluxo: ${fmt(c.raw)}`}}},scales:{x:{grid:{display:false},ticks:{font:{size:9,family:'Inter'},color:'#AEAEB2',maxTicksLimit:12}},y:{display:false}}}});
+    if(cEv){
+      const labelsEv=labelsPorAno('dash-ano-custosEvolucao');
+      const labelsEvS=labelsEv.map(fmtLbl);
+      const dataLiqEv=labelsEv.map(m=>meses[m]?.liq||0);
+      const dataCusEv=labelsEv.map(m=>meses[m]?.cus||0);
+      this.state.charts.custosEvolucao=new Chart(cEv,{type:'bar',data:{labels:labelsEvS,datasets:[{label:'Fat. Líquido',data:dataLiqEv,backgroundColor:'rgba(52,199,89,.65)',borderRadius:3,borderSkipped:false},{label:'Custos',data:dataCusEv,backgroundColor:'rgba(255,59,48,.65)',borderRadius:3,borderSkipped:false}]},options:tOpts(true)});
+    }
 
     /* Chart 5 – Composição da Margem */
     D('margemDonut');
@@ -1875,19 +1878,6 @@ const App={
       this._renderCustosEspec();
     }
 
-    /* Chart 8 – Aportes por fonte (donut) */
-    D('aportesFonte');
-    const fonteMap={};apoF.forEach(i=>{const f=getFuzzy(i,['quem_aportou','quem','fonte'])||'Outros';fonteMap[f]=(fonteMap[f]||0)+toN(getFuzzy(i,['valor_aportado','valor_aporte'])||i.valor||0);});
-    const fK=Object.keys(fonteMap);
-    const cAF=document.getElementById('chart-aportes-fonte');
-    if(cAF&&fK.length)this.state.charts.aportesFonte=new Chart(cAF,{type:'doughnut',data:{labels:fK,datasets:[{data:fK.map(k=>fonteMap[k]),backgroundColor:['#0071E3','#AF52DE','#34C759','#FF9500','#FF3B30'],borderWidth:0,hoverOffset:6}]},options:{responsive:true,maintainAspectRatio:false,cutout:'55%',plugins:{legend:{display:true,position:'bottom',labels:{font:{size:10,family:'Inter'},boxWidth:10,padding:6,color:'#6E6E73'}},tooltip:{callbacks:{label:c=>` ${c.label}: ${fmt(c.raw)}`}}}}});
-
-    /* Chart 9 – Evolução dos aportes (por data_aporte) */
-    D('aportesEv');
-    const aM={};apoF.forEach(i=>{const k=this._getDateApo(i);if(!k)return;aM[k]=(aM[k]||0)+toN(getFuzzy(i,['valor_aportado','valor_aporte'])||i.valor||0);});
-    const aLabels=Object.keys(aM).sort();
-    const cAE=document.getElementById('chart-aportes-evolucao');
-    if(cAE&&aLabels.length){let aA=0;const aAc=aLabels.map(m=>{aA+=aM[m];return aA;});this.state.charts.aportesEv=new Chart(cAE,{type:'line',data:{labels:aLabels.map(fmtLbl),datasets:[{label:'Mensal',data:aLabels.map(m=>aM[m]),borderColor:'#AF52DE',backgroundColor:'rgba(175,82,222,.1)',fill:true,tension:.4,borderWidth:2,pointRadius:3,pointHoverRadius:5,pointBackgroundColor:'#AF52DE'},{label:'Acumulado',data:aAc,borderColor:'rgba(175,82,222,.4)',borderDash:[4,3],borderWidth:1.5,tension:.4,pointRadius:0,fill:false}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:true,position:'top',labels:{font:{size:10,weight:'600',family:'Inter'},boxWidth:10,padding:8,color:'#6E6E73'}},tooltip:{callbacks:{label:c=>` ${c.dataset.label}: ${fmt(c.raw)}`}}},scales:{x:{grid:{display:false},ticks:{font:{size:9,family:'Inter'},color:'#AEAEB2'}},y:{display:false}}}});}
   },
 
   _renderCustosEspec(){
@@ -2261,6 +2251,36 @@ const App={
     })();
   },
 
+  /* Gráficos Chart.js renderizam o canvas na resolução da TELA (geralmente pequena, ex.
+     ~570×240px) — ao esticar essa imagem pra "width:100%" numa página A4, ela sai borrada.
+     `devicePixelRatio` só é respeitado por Chart.js NA CRIAÇÃO do gráfico (mudar depois e
+     chamar resize() não funciona: com responsive:true o resize() faz um early-return
+     quando o tamanho CSS não mudou, então o backing store do canvas nunca é recalculado —
+     confirmado testando ao vivo). Por isso cria um gráfico TEMPORÁRIO e offscreen, do
+     mesmo tipo/dados/opções do original mas já nascendo com devicePixelRatio alto, tira a
+     imagem dele e descarta — o gráfico visível na tela nunca é tocado. Usado por TODOS os
+     exports de gráfico em PDF (Dashboard, Comparativo, Curva S, Curva ABC, Fluxo do
+     Consolidado). */
+  _chartImgHD(ch,escala){
+    if(!ch)return '';
+    let tmpCanvas=null,tmpChart=null;
+    try{
+      const w=ch.canvas.clientWidth||400,h=ch.canvas.clientHeight||220;
+      tmpCanvas=document.createElement('canvas');
+      tmpCanvas.style.cssText=`position:fixed;left:-9999px;top:0;width:${w}px;height:${h}px`;
+      document.body.appendChild(tmpCanvas);
+      const raw=(ch.config&&ch.config._config)||{};
+      const opts=Object.assign({},raw.options||{},{responsive:false,animation:false,devicePixelRatio:escala||3});
+      tmpChart=new Chart(tmpCanvas,{type:raw.type,data:raw.data,options:opts});
+      return tmpChart.toBase64Image('image/png',1);
+    }catch(e){
+      try{return ch.toBase64Image();}catch(e2){return '';}
+    }finally{
+      if(tmpChart)try{tmpChart.destroy();}catch(e){}
+      if(tmpCanvas&&tmpCanvas.parentNode)tmpCanvas.parentNode.removeChild(tmpCanvas);
+    }
+  },
+
   /* ═══════════════════════ RELATÓRIOS ═══════════════════════
      4 tipos de relatório, escolhidos em #rel-tipo. Cada um calcula seus
      próprios dados e guarda em _relatorioCache (usado depois por
@@ -2268,17 +2288,37 @@ const App={
      têm vínculo com obra, então só entram no Consolidado com "Todas as
      Obras" selecionado. */
   _relatorioCache:null,
-  _relTituloTipo:{consolidado:'Relatório Financeiro Consolidado',comparativo:'Faturamento Líquido × Custos × Despesas',indicadores:'Indicadores Financeiros (VPL · TIR · Ponto de Equilíbrio)',faturamento:'Faturamento e Recebimentos',custos:'Custos (Analítico)',despesas:'Despesas (Analítico)',aportes:'Aportes (Analítico)','curva-s':'Curva S — Previsto × Realizado','curva-abc':'Curva ABC — Custos','cronograma-ff':'Cronograma Físico-financeiro'},
+  _relTituloTipo:{consolidado:'Relatório Financeiro Consolidado',comparativo:'Faturamento Líquido × Custos × Despesas',indicadores:'Indicadores Financeiros (ROI · TIR · VPL · Ponto de Equilíbrio)',faturamento:'Faturamento e Recebimentos',custos:'Custos (Analítico)',despesas:'Despesas (Analítico)',aportes:'Aportes (Analítico)','curva-s':'Curva S — Previsto × Realizado','curva-abc':'Curva ABC — Custos','cronograma-ff':'Cronograma Físico-financeiro'},
   /* Envelopa as tabelas dos analíticos: cabeçalho fixo + rolagem vertical limitada
      (~20 linhas visíveis; o resto rola pela barra lateral, sempre visível).
      O th do .cap-tbl já é sticky. */
   _relTabelaWrap(tableHtml){return '<div class="rel-tbl-scroll">'+tableHtml+'</div>';},
+  /* Caixa de Total FORA da tabela (abaixo dela) — antes ficava dentro de um <tfoot>
+     junto com as linhas roláveis, então só aparecia se o usuário rolasse até o fim. */
+  _relTotalFora(pares){
+    return `<div style="margin-top:12px;border:1px solid var(--border);border-radius:10px;padding:12px 18px;display:flex;gap:28px;flex-wrap:wrap;background:var(--surface)">${pares.map(p=>`<div style="display:flex;align-items:center;gap:8px"><span style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.4px;color:var(--text-3)">${p[0]}</span><span style="font-size:16px;font-weight:800;color:var(--blue)">${p[1]}</span></div>`).join('')}</div>`;
+  },
   _relatorioObraOpcoes(){
     const sel=document.getElementById('rel-obra');if(!sel)return;
     const atual=sel.value;
     const nomes=(App.state.data.obras||[]).map(o=>getFuzzy(o,['titulo_obra','nome_obra','titulo'])||'').filter(Boolean);
     sel.innerHTML='<option value="">Todas as Obras</option>'+nomes.map(n=>`<option value="${n}" ${n===atual?'selected':''}>${n}</option>`).join('');
+    this._relatorioPopularAnos();
     this._relatorioGerar();
+  },
+  /* Anos disponíveis no seletor "rel-ano" — todos os anos com pelo menos um lançamento
+     em custos/faturamentos/despesas/aportes (não depende do tipo de relatório aberto). */
+  _relatorioPopularAnos(){
+    const sel=document.getElementById('rel-ano');if(!sel)return;
+    const atual=sel.value;
+    const anos=new Set();
+    const add=(arr,campos)=>(arr||[]).forEach(i=>{const d=parseDate(getFuzzy(i,campos)||'');if(d)anos.add(d.getFullYear());});
+    add(App.state.data.custos,['data_pagamento','data_pgto','data_lancamento']);
+    add(App.state.data.faturamentos,['data_lancamento']);
+    add(App.state.data.despesas,['data_despesa']);
+    add(App.state.data.aportes,['data_aporte']);
+    const anosOrdenados=[...anos].sort((a,b)=>b-a);
+    sel.innerHTML='<option value="">Todos os anos</option>'+anosOrdenados.map(a=>`<option value="${a}" ${String(a)===atual?'selected':''}>${a}</option>`).join('');
   },
   _relDentroPeriodo(data,dIni,dFim){
     if(!dIni&&!dFim)return true;
@@ -2287,74 +2327,225 @@ const App={
     if(dFim&&d>new Date(dFim+'T23:59:59'))return false;
     return true;
   },
+  _relDentroAno(data,ano){
+    if(!ano)return true;
+    const d=parseDate(data);if(!d)return true; // sem data não filtra por ano (não descarta o registro)
+    return String(d.getFullYear())===String(ano);
+  },
+  _relDentroMes(data,mes){
+    if(!mes)return true;
+    const d=parseDate(data);if(!d)return true; // sem data não filtra por mês (não descarta o registro)
+    return String(d.getMonth()+1)===String(mes);
+  },
+  /* Compara o campo Previsto/Real de um item com o filtro selecionado. Despesas gravam
+     "Prevista" (não "Previsto") no banco — o seletor usa sempre o rótulo "Previsto" para
+     manter um vocabulário único na tela, então mapeia aqui na comparação. */
+  _relTipoPRMatch(valorCampo,tipoPR){
+    if(!tipoPR)return true;
+    const v=(valorCampo||'').trim().toLowerCase();
+    if(tipoPR==='Previsto')return v==='previsto'||v==='prevista';
+    return v===tipoPR.toLowerCase();
+  },
   _relLinha(label,val,destaque){
     return `<div style="display:flex;justify-content:space-between;align-items:center;padding:12px 0;${destaque?'margin-top:8px;border-top:2px solid var(--text-1)':'border-bottom:1px solid var(--border)'}"><span style="font-size:${destaque?'14px':'13px'};font-weight:${destaque?800:600};color:${destaque?'var(--text-1)':'var(--text-2)'}">${label}</span><span style="font-size:${destaque?'18px':'14px'};font-weight:800;color:${destaque?(val<0?'var(--red)':'var(--blue)'):'var(--text-1)'}">${fmt(val)}</span></div>`;
   },
+  // Tipos que aceitam o filtro Previsto/Real (Aportes não tem essa classificação nos
+  // dados — não faria sentido mostrar um filtro que nunca teria efeito nenhum).
+  _REL_TIPOS_COM_PR:['consolidado','comparativo','indicadores','faturamento','custos','despesas'],
+  // Tipos que aceitam o filtro de Ano (todos, menos o Cronograma Físico-financeiro —
+  // que sempre mostra o intervalo inteiro das etapas cadastradas).
+  _REL_TIPOS_COM_ANO:['consolidado','comparativo','indicadores','faturamento','custos','despesas','aportes','curva-s','curva-abc'],
+  // Tipos que também aceitam o filtro de Mês, além do Ano (os "resumos" — Consolidado/
+  // Comparativo/Indicadores — ficam só no Ano, o Mês faria a visão mensal virar só 1 mês).
+  _REL_TIPOS_COM_MES:['faturamento','custos','despesas','aportes','curva-s','curva-abc'],
   _relatorioGerar(){
     try{
       const tipo=document.getElementById('rel-tipo')?.value||'consolidado';
       const obraSel=document.getElementById('rel-obra')?.value||'';
-      const dIni=document.getElementById('rel-data-ini')?.value||'';
-      const dFim=document.getElementById('rel-data-fim')?.value||'';
+      // O filtro de período (data início/fim) foi substituído por Ano+Mês em todos os
+      // tipos de relatório — os campos continuam no DOM (ocultos) só para não quebrar
+      // nada que ainda leia o id, mas nunca mais são exibidos nem influenciam o filtro.
+      const dIni='',dFim='';
+      const tipoPR=document.getElementById('rel-tipo-pr')?.value||'';
+      const ano=document.getElementById('rel-ano')?.value||'';
+      const mes=document.getElementById('rel-mes')?.value||'';
       const titEl=document.getElementById('rel-titulo');if(titEl)titEl.textContent=this._relTituloTipo[tipo]||'Relatório';
-      const subEl=document.getElementById('rel-sub');if(subEl)subEl.textContent=obraSel||'Todas as obras';
+      const subEl=document.getElementById('rel-sub');
+      if(subEl){
+        if(tipo==='consolidado'){
+          const partes=['Visão consolidada da empresa'];
+          if(ano)partes.push(ano);
+          if(tipoPR)partes.push(tipoPR);
+          subEl.textContent=partes.join(' · ');
+        } else subEl.textContent=obraSel||'Todas as obras';
+      }
       // DRE + Indicadores (blocos vindos do Dashboard) só aparecem no Consolidado
       const dreWrap=document.getElementById('rel-dre-wrap');
       if(dreWrap)dreWrap.style.display=(tipo==='consolidado')?'':'none';
-      if(tipo==='faturamento')this._relGerarFaturamento(obraSel,dIni,dFim);
-      else if(tipo==='comparativo')this._relGerarComparativo(obraSel,dIni,dFim);
-      else if(tipo==='indicadores')this._relGerarIndicadores(obraSel,dIni,dFim);
-      else if(tipo==='custos')this._relGerarCustos(obraSel,dIni,dFim);
-      else if(tipo==='despesas')this._relGerarDespesasAnalitico(dIni,dFim);
-      else if(tipo==='aportes')this._relGerarAportesAnalitico(obraSel,dIni,dFim);
-      else if(tipo==='curva-s')this._relGerarCurvaS(obraSel,dIni,dFim);
-      else if(tipo==='curva-abc')this._relGerarCurvaABC(obraSel,dIni,dFim);
+      // display:none normal — os seletores ficam dentro de #rel-filtros-extra, que tem
+      // largura TOTAL fixa (ver HTML), então os visíveis se compactam entre si (sem
+      // buraco) e o botão Exportar PDF depois da caixa nunca se desloca.
+      const setVis=(id,mostrar)=>{const el=document.getElementById(id);if(el)el.style.display=mostrar?'':'none';};
+      setVis('rel-obra',tipo!=='consolidado');
+      setVis('rel-tipo-pr',this._REL_TIPOS_COM_PR.includes(tipo));
+      setVis('rel-ano',this._REL_TIPOS_COM_ANO.includes(tipo));
+      setVis('rel-mes',this._REL_TIPOS_COM_MES.includes(tipo));
+      if(tipo==='faturamento')this._relGerarFaturamento(obraSel,dIni,dFim,tipoPR,ano,mes);
+      else if(tipo==='comparativo')this._relGerarComparativo(obraSel,dIni,dFim,tipoPR,ano);
+      else if(tipo==='indicadores')this._relGerarIndicadores(obraSel,dIni,dFim,tipoPR,ano);
+      else if(tipo==='custos')this._relGerarCustos(obraSel,dIni,dFim,tipoPR,ano,mes);
+      else if(tipo==='despesas')this._relGerarDespesasAnalitico(dIni,dFim,tipoPR,ano,mes);
+      else if(tipo==='aportes')this._relGerarAportesAnalitico(obraSel,dIni,dFim,ano,mes);
+      else if(tipo==='curva-s')this._relGerarCurvaS(obraSel,dIni,dFim,ano,mes);
+      else if(tipo==='curva-abc')this._relGerarCurvaABC(obraSel,dIni,dFim,ano,mes);
       else if(tipo==='cronograma-ff')this._relGerarCronogramaFF(obraSel,dIni,dFim);
-      else this._relGerarConsolidado(obraSel,dIni,dFim);
+      else this._relGerarConsolidado(tipoPR,ano);
     }catch(err){
       const el=document.getElementById('rel-resumo');
       if(el)el.innerHTML='<div style="color:var(--red);font-size:13px;padding:16px;border:1px solid rgba(255,59,48,.3);border-radius:10px;background:rgba(255,59,48,.05)"><strong>Erro ao gerar o relatório:</strong><br>'+(err&&err.message?err.message:String(err))+'</div>';
       console.error('Relatório:',err);
     }
   },
-  _relGerarConsolidado(obraSel,dIni,dFim){
-    const dentroPeriodo=dt=>this._relDentroPeriodo(dt,dIni,dFim);
-    const pertenceObra=nomeObra=>!obraSel||nomeObra===obraSel;
+  /* Consolidado: SEMPRE a visão da empresa inteira (sem filtro de obra/período — por
+     isso esses seletores ficam ocultos, ver _relatorioGerar). Os dois parâmetros de
+     visão são Previsto/Real e Ano. Constrói seu PRÓPRIO DRE + Indicadores (mesma
+     estrutura visual usada em renderDashboard(), mas independente dela — trocar de tela
+     para o Dashboard recalcula/sobrescreve #dre-body/#fin-ind-list com os filtros do
+     Dashboard normalmente, sem conflito, pois nunca ficam visíveis ao mesmo tempo). */
+  _relGerarConsolidado(tipoPR,ano){
+    const toN=v=>{if(v===null||v===undefined||v==='')return 0;const s=String(v).trim().replace(/R\$\s*/g,'').replace(/\s/g,'');if(!s)return 0;if(s.includes(',')&&s.includes('.')){const lD=s.lastIndexOf('.');const lC=s.lastIndexOf(',');return lC>lD?parseFloat(s.replace(/\./g,'').replace(',','.'))||0:parseFloat(s.replace(/,/g,''))||0;}if(s.includes(',')&&!s.includes('.'))return parseFloat(s.replace(',','.'))||0;return parseFloat(s)||0;};
 
-    const custos=(App.state.data.custos||[]).filter(i=>{
-      const nome=getFuzzy(i,['titulo_obra','nome_obra','obra','titulo'])||'';
-      const dt=getFuzzy(i,['data_pagamento','data_pgto','data_lancamento'])||'';
-      return pertenceObra(nome)&&dentroPeriodo(dt);
+    const fats=(App.state.data.faturamentos||[]).filter(i=>this._relDentroAno(getFuzzy(i,['data_lancamento'])||'',ano)&&this._relTipoPRMatch(getFuzzy(i,['tipo_faturamento','tipo_fat','tipo'])||'',tipoPR));
+    const custos=(App.state.data.custos||[]).filter(i=>this._relDentroAno(getFuzzy(i,['data_pagamento','data_pgto','data_lancamento'])||'',ano)&&this._relTipoPRMatch(getFuzzy(i,['tipo_de_custo','tipo_custo_pr'])||'',tipoPR));
+    const despesas=(App.state.data.despesas||[]).filter(i=>this._relDentroAno(getFuzzy(i,['data_despesa'])||'',ano)&&this._relTipoPRMatch(getFuzzy(i,['tipo_despesa','tipo'])||'',tipoPR));
+    const aportes=(App.state.data.aportes||[]).filter(i=>this._relDentroAno(getFuzzy(i,['data_aporte'])||'',ano));
+
+    let totBrut=0,totRec=0,totInss=0,totIrpf=0,totSimp=0,totAntec=0,totSeg=0;
+    let totFatReal=0,totFatPrev=0,totFatRecLiqReal=0,totFatRecLiqPrev=0,totRecebido=0;
+    fats.forEach(i=>{
+      totBrut+=toN(getFuzzy(i,['faturamento_bruto','bruto','valor_bruto'])||i.valor||0);
+      totRec +=toN(getFuzzy(i,['faturamento_liquido','resultado_liquido','liquido','valor_liquido'])||0);
+      totInss +=toN(getFuzzy(i,['imposto_inss','inss'])||0);
+      totIrpf +=toN(getFuzzy(i,['imposto_irpf','irpf'])||0);
+      totSimp +=toN(getFuzzy(i,['tributo_simples','simples'])||0);
+      totAntec+=toN(getFuzzy(i,['antecipacao_nf','antecipacao'])||0);
+      totSeg  +=toN(getFuzzy(i,['seguro_contrato','seguro'])||0);
+      const tp=(getFuzzy(i,['tipo_faturamento','tipo_fat','tipo'])||'').trim().toLowerCase();
+      if(tp==='real'){
+        const brut=toN(getFuzzy(i,['faturamento_bruto','bruto','valor_bruto'])||i.valor||0);
+        totFatReal+=brut;
+        totFatRecLiqReal+=toN(getFuzzy(i,['faturamento_liquido','resultado_liquido','liquido','valor_liquido'])||0);
+        if(getFuzzy(i,['data_recebimento','recebimento'])||'')
+          totRecebido+=toN(getFuzzy(i,['faturamento_liquido','resultado_liquido','liquido','valor_liquido'])||0);
+      } else if(tp==='previsto'){
+        totFatPrev+=toN(getFuzzy(i,['faturamento_bruto','bruto','valor_bruto'])||i.valor||0);
+        totFatRecLiqPrev+=toN(getFuzzy(i,['faturamento_liquido','resultado_liquido','liquido','valor_liquido'])||0);
+      }
     });
-    const custoTotal=custos.reduce((s,i)=>s+(typeof i.p_total==='number'?i.p_total:parseFloat(String(i.p_total||i.ptotal||i.valor||0).replace(/[^\d.,]/g,'').replace(',','.'))||0),0);
-
-    const fats=(App.state.data.faturamentos||[]).filter(i=>{
-      const nome=getFuzzy(i,['titulo_obra','nome_obra','obra','titulo'])||'';
-      const dt=getFuzzy(i,['data_lancamento'])||'';
-      return pertenceObra(nome)&&dentroPeriodo(dt);
+    const totDeducoes=totInss+totIrpf+totSimp+totAntec+totSeg;
+    let totCus=0,totCusPrev=0,totCusReal=0;
+    custos.forEach(i=>{
+      const val=toN(getFuzzy(i,['p_total','ptotal'])||i.valor||0);
+      totCus+=val;
+      const tc=(getFuzzy(i,['tipo_de_custo','tipo_custo_pr'])||'').trim().toLowerCase();
+      if(tc==='previsto')totCusPrev+=val;
+      else if(tc==='real')totCusReal+=val;
     });
-    const fatBruto=fats.reduce((s,i)=>s+parseFloat(i.faturamento_bruto||i.bruto||i.valor_bruto||i.valor||0),0);
-    const fatLiquido=fats.reduce((s,i)=>s+parseFloat(i.faturamento_liquido||i.resultado_liquido||i.liquido||i.valor_liquido||0),0);
+    const totApo=aportes.reduce((a,i)=>a+toN(getFuzzy(i,['valor_aportado','valor_aporte'])||i.valor||0),0);
+    const totDes=despesas.reduce((a,i)=>a+toN(getFuzzy(i,['valor'])||0),0);
+    const resultOp=totRec-totCus;
+    const resultLiq=resultOp-totDes;
 
-    const aportes=(App.state.data.aportes||[]).filter(i=>{
-      const nome=getFuzzy(i,['titulo_obra','nome_obra','obra','titulo'])||'';
-      const dt=getFuzzy(i,['data_aporte'])||'';
-      return pertenceObra(nome)&&dentroPeriodo(dt);
-    });
-    const aporteTotal=aportes.reduce((s,i)=>s+parseFloat(i.valor_aportado||i.valor_aporte||i.valor||0),0);
+    const dreRow=(label,val,opts={})=>{
+      const{indent=0,bold=false,sep=false,big=false,sub=false,isNeg=false,isInfo=false,extraHtml=''}=opts;
+      const color=isInfo?'var(--purple)':isNeg?(val<0?'var(--red)':'var(--green)'):val>=0?'var(--green)':'var(--red)';
+      const fmtVal=isNeg?`<span style="color:var(--red);">(${fmt(Math.abs(val))})</span>`:fmt(Math.abs(val));
+      return `<div class="dre-row${sep?' dre-sep':''}${big?' dre-big':''}${sub?' dre-sub':''}">
+        <span class="dre-label" style="padding-left:${indent*14}px;font-weight:${bold?700:400};color:${bold?'var(--text-1)':'var(--text-2)'}">${label}</span>
+        <span class="dre-val" style="color:${color};font-weight:${bold?700:500}">${fmtVal}${extraHtml}</span>
+      </div>`;
+    };
+    const mgBrut=v=>totBrut>0?` <span style="font-size:9px;color:var(--text-3);font-weight:400">(${fmtPct(v/totBrut*100)})</span>`:'';
+    const dreEl=document.getElementById('dre-body');
+    let margemDre=0;
+    if(dreEl){
+      dreEl.innerHTML=[
+        dreRow('(+) Faturamento Bruto',totBrut,{bold:true,extraHtml:mgBrut(totBrut)}),
+        totFatPrev>0?dreRow('↳ Previsto (Bruto)',totFatPrev,{indent:1,sub:true,extraHtml:mgBrut(totFatPrev)}):'',
+        totFatReal>0?dreRow('↳ Real / Efetivado (Bruto)',totFatReal,{indent:1,sub:true,extraHtml:mgBrut(totFatReal)}):'',
+        dreRow('(−) Deduções Fiscais',-totDeducoes,{indent:1,isNeg:true,extraHtml:mgBrut(totDeducoes)}),
+        totInss>0?dreRow('INSS',-totInss,{indent:2,sub:true,isNeg:true}):'',
+        totIrpf>0?dreRow('IRPF',-totIrpf,{indent:2,sub:true,isNeg:true}):'',
+        totSimp>0?dreRow('Simples Nacional',-totSimp,{indent:2,sub:true,isNeg:true}):'',
+        totAntec>0?dreRow('Antecipação NF',-totAntec,{indent:2,sub:true,isNeg:true}):'',
+        totSeg>0?dreRow('Seguro Contrato',-totSeg,{indent:2,sub:true,isNeg:true}):'',
+        dreRow('(=) Receita Líquida (Fat. Líq.)',totRec,{bold:true,sep:true,extraHtml:mgBrut(totRec)}),
+        totFatRecLiqPrev>0?dreRow('↳ Previsto (Líquido)',totFatRecLiqPrev,{indent:1,sub:true,extraHtml:mgBrut(totFatRecLiqPrev)}):'',
+        totFatRecLiqReal>0?dreRow('↳ Real / Efetivado (Líquido)',totFatRecLiqReal,{indent:1,sub:true,extraHtml:mgBrut(totFatRecLiqReal)}):'',
+        totRecebido>0?dreRow('↳ Já Recebido (caixa)',totRecebido,{indent:1,sub:true,isInfo:true}):'',
+        dreRow('(−) Custos Totais',-totCus,{indent:1,isNeg:true,extraHtml:mgBrut(totCus)}),
+        totCusPrev>0?dreRow('↳ Previsto',-totCusPrev,{indent:2,sub:true,isNeg:true}):'',
+        totCusReal>0?dreRow('↳ Real',-totCusReal,{indent:2,sub:true,isNeg:true}):'',
+        dreRow('(=) Resultado Operacional (EBIT)',resultOp,{bold:true,sep:true,extraHtml:mgBrut(resultOp)}),
+        totDes>0?dreRow('(−) Despesas Gerais',-totDes,{indent:1,isNeg:true,extraHtml:mgBrut(totDes)}):'',
+        dreRow('(=) Resultado Líquido',resultLiq,{bold:true,sep:true,big:true,extraHtml:mgBrut(resultLiq)}),
+      ].join('');
+      margemDre=totBrut>0?(resultLiq/totBrut)*100:0;
+      const mEl=document.getElementById('dre-margem');if(mEl)mEl.textContent=fmtPct(margemDre);
+      const mBar=document.getElementById('dre-margem-bar');if(mBar)mBar.style.width=Math.max(0,Math.min(100,margemDre))+'%';
+    }
 
-    const despesas=obraSel?[]:(App.state.data.despesas||[]).filter(i=>dentroPeriodo(getFuzzy(i,['data_despesa'])||''));
-    const despesaTotal=despesas.reduce((s,i)=>s+parseStoredNumber(getFuzzy(i,['valor'])||0),0);
+    const pct=(v,base)=>base>0?fmtPct(v/base*100):'—';
+    const resultLiqInd=totRec-totCus-totDes;
+    const indRows=[
+      {l:'Faturamento Bruto',v:totBrut,p:'100%',cv:'var(--blue)',cp:'var(--text-3)',bold:true},
+      totFatPrev>0?{l:'↳ Previsto (Bruto)',v:totFatPrev,p:pct(totFatPrev,totBrut),cv:'var(--orange)',cp:'var(--text-3)',sub:true}:null,
+      totFatReal>0?{l:'↳ Real (Bruto)',v:totFatReal,p:pct(totFatReal,totBrut),cv:'var(--green)',cp:'var(--text-3)',sub:true}:null,
+      {l:'(−) Deduções Fiscais',v:totDeducoes,p:pct(totDeducoes,totBrut),cv:'var(--orange)',cp:'var(--orange)'},
+      {l:'Faturamento Líquido',v:totRec,p:pct(totRec,totBrut),cv:'var(--green)',cp:'var(--green)',bold:true},
+      totFatRecLiqPrev>0?{l:'↳ Previsto (Líquido)',v:totFatRecLiqPrev,p:pct(totFatRecLiqPrev,totRec),cv:'var(--orange)',cp:'var(--text-3)',sub:true}:null,
+      totFatRecLiqReal>0?{l:'↳ Real (Líquido)',v:totFatRecLiqReal,p:pct(totFatRecLiqReal,totRec),cv:'var(--green)',cp:'var(--text-3)',sub:true}:null,
+      totRecebido>0?{l:'↳ Já Recebido (caixa)',v:totRecebido,p:pct(totRecebido,totRec),cv:'var(--blue)',cp:'var(--text-3)',sub:true}:null,
+      {l:'(−) Custos Totais',v:totCus,p:pct(totCus,totBrut),cv:'var(--red)',cp:'var(--red)'},
+      totCusPrev>0?{l:'↳ Previsto',v:totCusPrev,p:pct(totCusPrev,totCus),cv:'var(--orange)',cp:'var(--text-3)',sub:true}:null,
+      totCusReal>0?{l:'↳ Real',v:totCusReal,p:pct(totCusReal,totCus),cv:'var(--red)',cp:'var(--text-3)',sub:true}:null,
+      {l:'(−) Despesas Gerais',v:totDes,p:pct(totDes,totBrut),cv:'var(--red)',cp:'var(--red)'},
+      {l:'Total Aportes',v:totApo,p:'—',cv:'var(--purple)',cp:'var(--text-3)'},
+      {l:'Resultado Líquido Final',v:resultLiqInd,p:pct(resultLiqInd,totBrut),cv:resultLiqInd>=0?'var(--green)':'var(--red)',cp:resultLiqInd>=0?'var(--green)':'var(--red)',bold:true,sep:true},
+    ].filter(Boolean);
+    const fil=document.getElementById('fin-ind-list');
+    if(fil){
+      fil.innerHTML=`<div style="display:grid;grid-template-columns:1fr auto auto;gap:0;border-radius:8px;overflow:hidden">
+        <div style="padding:4px 8px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text-3);border-bottom:1px solid var(--border)">Indicador</div>
+        <div style="padding:4px 8px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text-3);text-align:right;border-bottom:1px solid var(--border)">Valor</div>
+        <div style="padding:4px 8px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text-3);text-align:right;border-bottom:1px solid var(--border)">%</div>
+        ${indRows.map(r=>{const sep=r.sep?'border-top:2px solid var(--border);padding-top:7px;margin-top:2px':'';return`
+        <div style="padding:5px 8px;font-size:11px;color:var(--text-2);border-bottom:1px solid var(--border);padding-left:${r.sub?'18px':'8px'};font-weight:${r.bold?700:r.sub?400:500};${sep}">${r.l}</div>
+        <div style="padding:5px 8px;font-size:11px;font-weight:${r.bold?800:r.sub?500:700};color:${r.cv};text-align:right;border-bottom:1px solid var(--border);white-space:nowrap;${sep}">${fmt(r.v)}</div>
+        <div style="padding:5px 8px;font-size:11px;font-weight:${r.bold?700:500};color:${r.cp};text-align:right;${sep}">${r.p}</div>`}).join('')}
+      </div>`;
+    }
 
-    const deducoes=Math.max(0,fatBruto-fatLiquido);
-    const resultado=fatLiquido-custoTotal-despesaTotal;
-    const margem=fatBruto>0?(resultado/fatBruto)*100:0;
-
-    // Na tela, o Consolidado é o DRE + Indicadores (blocos vindos do Dashboard, já
-    // atualizados pelo renderDashboard). A tabela-resumo antiga foi removida a pedido.
     const el=document.getElementById('rel-resumo');
-    if(el)el.innerHTML=(obraSel||dIni||dFim)?'<p style="font-size:11px;color:var(--text-3);max-width:680px;margin-bottom:4px">* O DRE e os Indicadores abaixo mostram a visão consolidada da empresa (não aplicam os filtros de obra/período deste seletor). O PDF exportado usa os filtros selecionados.</p>':'';
-    this._relatorioCache={tipo:'consolidado',obraSel,dIni,dFim,dados:{custoTotal,fatBruto,fatLiquido,deducoes,aporteTotal,despesaTotal,resultado,margem}};
+    if(el)el.innerHTML='';
+
+    // Fluxo de Caixa Acumulado (Fat. Real) — movido do Dashboard pra cá. Mesma lógica:
+    // acumula (faturamento bruto Real do mês) − (custos pagos do mês) mês a mês.
+    const mRealBrut=this._relPorMes(fats.filter(i=>(getFuzzy(i,['tipo_faturamento','tipo_fat','tipo'])||'').trim().toLowerCase()==='real'),i=>getFuzzy(i,['data_lancamento'])||'',i=>toN(getFuzzy(i,['faturamento_bruto','bruto','valor_bruto'])||i.valor||0));
+    const mCusFluxo=this._relPorMes(custos,i=>getFuzzy(i,['data_pagamento','data_pgto','data_lancamento'])||'',i=>toN(getFuzzy(i,['p_total','ptotal'])||i.valor||0));
+    const mesesFluxo=[...new Set([...Object.keys(mRealBrut),...Object.keys(mCusFluxo)])].sort();
+    let acumF=0;
+    const fluxoData=mesesFluxo.map(k=>{acumF+=(mRealBrut[k]||0)-(mCusFluxo[k]||0);return Math.round(acumF);});
+    const fluxoLbl=mesesFluxo.map(k=>{const[y,m]=k.split('-');return this._REL_MES[+m-1]+'/'+y.slice(2);});
+    if(this._relChartFluxo){this._relChartFluxo.destroy();this._relChartFluxo=null;}
+    try{
+      const cFx=document.getElementById('rel-fluxo-chart');
+      if(cFx&&typeof Chart!=='undefined'&&mesesFluxo.length){
+        this._relChartFluxo=new Chart(cFx,{type:'bar',data:{labels:fluxoLbl,datasets:[{label:'Fluxo Acum. (Real)',data:fluxoData,backgroundColor:fluxoData.map(v=>v>=0?'rgba(52,199,89,.75)':'rgba(255,59,48,.75)'),borderRadius:3,borderSkipped:false}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>` Fluxo: ${fmt(c.raw)}`}}},scales:{x:{grid:{display:false},ticks:{font:{size:9,family:'Inter'},color:'#AEAEB2',maxTicksLimit:12}},y:{display:false}}}});
+      }
+    }catch(e){console.error('fluxo consolidado:',e);}
+
+    this._relatorioCache={tipo:'consolidado',tipoPR,ano,dados:{totBrut,totRec,totCus,totDes,totApo,resultLiq,margem:margemDre,fluxoLbl,fluxoData}};
   },
   /* Agrupa fluxos por mês (chave AAAA-MM) — base do gráfico do Comparativo e do VPL/TIR. */
   _relPorMes(lista,getData,getValor){
@@ -2366,12 +2557,12 @@ const App={
     });
     return m;
   },
-  _relGerarFaturamento(obraSel,dIni,dFim){
-    const dentroPeriodo=dt=>this._relDentroPeriodo(dt,dIni,dFim);
+  _relGerarFaturamento(obraSel,dIni,dFim,tipoPR,ano,mes){
+    const dentroPeriodo=dt=>this._relDentroPeriodo(dt,dIni,dFim)&&this._relDentroAno(dt,ano)&&this._relDentroMes(dt,mes);
     const fats=(App.state.data.faturamentos||[]).filter(i=>{
       const nome=getFuzzy(i,['titulo_obra','nome_obra','obra','titulo'])||'';
       const dt=getFuzzy(i,['data_lancamento'])||'';
-      return (!obraSel||nome===obraSel)&&dentroPeriodo(dt);
+      return (!obraSel||nome===obraSel)&&dentroPeriodo(dt)&&this._relTipoPRMatch(getFuzzy(i,['tipo_faturamento','tipo_fat','tipo'])||'',tipoPR);
     }).sort((a,b)=>{
       const da=parseDate(getFuzzy(a,['data_lancamento'])||'')||new Date(0);
       const db=parseDate(getFuzzy(b,['data_lancamento'])||'')||new Date(0);
@@ -2391,16 +2582,17 @@ const App={
       '<thead><tr><th>Obra</th><th>Lançamento</th><th>Emissão NF</th><th>Dt. Ant. NF</th><th>Recebimento</th><th>Bruto</th><th>Líquido</th></tr></thead><tbody>'+
       (linhas.length===0?'<tr><td colspan="7" style="color:var(--text-3);padding:20px">Nenhum faturamento encontrado</td></tr>':
         linhas.map(l=>`<tr><td>${l.obra}</td><td>${l.lanc}</td><td>${l.emissao}</td><td>${l.antNf}</td><td>${l.receb}</td><td>${fmt(l.bruto)}</td><td>${fmt(l.liquido)}</td></tr>`).join(''))+
-      `</tbody><tfoot><tr><td colspan="5" style="font-weight:800">Total</td><td style="font-weight:800;color:var(--blue)">${fmt(totBruto)}</td><td style="font-weight:800;color:var(--blue)">${fmt(totLiquido)}</td></tr></tfoot></table>`);
+      '</tbody></table>');
+    html+=this._relTotalFora([['Total Bruto',fmt(totBruto)],['Total Líquido',fmt(totLiquido)]]);
     const el=document.getElementById('rel-resumo');if(el)el.innerHTML=html;
-    this._relatorioCache={tipo:'faturamento',obraSel,dIni,dFim,dados:{linhas,totBruto,totLiquido}};
+    this._relatorioCache={tipo:'faturamento',obraSel,dIni,dFim,tipoPR,ano,mes,dados:{linhas,totBruto,totLiquido}};
   },
   /* Helpers de filtro reaproveitados pelos analíticos ─────────────── */
-  _relFiltraCustos(obraSel,dIni,dFim){
+  _relFiltraCustos(obraSel,dIni,dFim,tipoPR,ano,mes){
     return (App.state.data.custos||[]).filter(i=>{
       const nome=getFuzzy(i,['titulo_obra','nome_obra','obra','titulo'])||'';
       const dt=getFuzzy(i,['data_pagamento','data_pgto','data_lancamento'])||'';
-      return (!obraSel||nome===obraSel)&&this._relDentroPeriodo(dt,dIni,dFim);
+      return (!obraSel||nome===obraSel)&&this._relDentroPeriodo(dt,dIni,dFim)&&this._relDentroAno(dt,ano)&&this._relDentroMes(dt,mes)&&this._relTipoPRMatch(getFuzzy(i,['tipo_de_custo','tipo_custo_pr'])||'',tipoPR);
     });
   },
   _relCustoValor(i){return typeof i.p_total==='number'?i.p_total:parseFloat(String(i.p_total||i.ptotal||i.valor||0).replace(/[^\d.,]/g,'').replace(',','.'))||0;},
@@ -2410,16 +2602,16 @@ const App={
      (impostos = Bruto − Líquido dos faturamentos) entram como "despesa", mas
      separadas das demais despesas, como pedido. */
   _relChartComp:null,
-  _relGerarComparativo(obraSel,dIni,dFim){
-    const dentroPeriodo=dt=>this._relDentroPeriodo(dt,dIni,dFim);
-    const fats=(App.state.data.faturamentos||[]).filter(i=>(!obraSel||(getFuzzy(i,['titulo_obra','nome_obra','obra','titulo'])||'')===obraSel)&&dentroPeriodo(getFuzzy(i,['data_lancamento'])||''));
+  _relGerarComparativo(obraSel,dIni,dFim,tipoPR,ano){
+    const dentroPeriodo=dt=>this._relDentroPeriodo(dt,dIni,dFim)&&this._relDentroAno(dt,ano);
+    const fats=(App.state.data.faturamentos||[]).filter(i=>(!obraSel||(getFuzzy(i,['titulo_obra','nome_obra','obra','titulo'])||'')===obraSel)&&dentroPeriodo(getFuzzy(i,['data_lancamento'])||'')&&this._relTipoPRMatch(getFuzzy(i,['tipo_faturamento','tipo_fat','tipo'])||'',tipoPR));
     const fatLiq=i=>parseFloat(i.faturamento_liquido||i.resultado_liquido||i.liquido||i.valor_liquido||0);
     const fatBru=i=>parseFloat(i.faturamento_bruto||i.bruto||i.valor_bruto||i.valor||0);
     const fatLiquido=fats.reduce((s,i)=>s+fatLiq(i),0);
     const deducoes=fats.reduce((s,i)=>s+Math.max(0,fatBru(i)-fatLiq(i)),0);
-    const custosL=this._relFiltraCustos(obraSel,dIni,dFim);
+    const custosL=this._relFiltraCustos(obraSel,dIni,dFim,tipoPR,ano);
     const custoTotal=custosL.reduce((s,i)=>s+this._relCustoValor(i),0);
-    const despL=obraSel?[]:(App.state.data.despesas||[]).filter(i=>dentroPeriodo(getFuzzy(i,['data_despesa'])||''));
+    const despL=obraSel?[]:(App.state.data.despesas||[]).filter(i=>dentroPeriodo(getFuzzy(i,['data_despesa'])||'')&&this._relTipoPRMatch(getFuzzy(i,['tipo_despesa','tipo'])||'',tipoPR));
     const despOutras=despL.reduce((s,i)=>s+parseStoredNumber(getFuzzy(i,['valor'])||0),0);
     const resultado=fatLiquido-custoTotal-despOutras;
 
@@ -2464,18 +2656,18 @@ const App={
         });
       }
     }catch(e){console.error('gráfico comparativo:',e);}
-    this._relatorioCache={tipo:'comparativo',obraSel,dIni,dFim,dados:{fatLiquido,custoTotal,deducoes,despOutras,resultado}};
+    this._relatorioCache={tipo:'comparativo',obraSel,dIni,dFim,tipoPR,ano,dados:{fatLiquido,custoTotal,deducoes,despOutras,resultado}};
   },
 
   /* Indicadores Financeiros: VPL, TIR (fluxo mensal) e Ponto de Equilíbrio.
      Fluxo de caixa mensal = (Fat. Líquido do mês) − (Custos do mês) − (Despesas do mês).
      A taxa de desconto (% a.m.) é editável na própria tela. */
-  _relGerarIndicadores(obraSel,dIni,dFim){
-    const dentroPeriodo=dt=>this._relDentroPeriodo(dt,dIni,dFim);
-    const fats=(App.state.data.faturamentos||[]).filter(i=>(!obraSel||(getFuzzy(i,['titulo_obra','nome_obra','obra','titulo'])||'')===obraSel)&&dentroPeriodo(getFuzzy(i,['data_lancamento'])||''));
+  _relGerarIndicadores(obraSel,dIni,dFim,tipoPR,ano){
+    const dentroPeriodo=dt=>this._relDentroPeriodo(dt,dIni,dFim)&&this._relDentroAno(dt,ano);
+    const fats=(App.state.data.faturamentos||[]).filter(i=>(!obraSel||(getFuzzy(i,['titulo_obra','nome_obra','obra','titulo'])||'')===obraSel)&&dentroPeriodo(getFuzzy(i,['data_lancamento'])||'')&&this._relTipoPRMatch(getFuzzy(i,['tipo_faturamento','tipo_fat','tipo'])||'',tipoPR));
     const fatLiq=i=>parseFloat(i.faturamento_liquido||i.resultado_liquido||i.liquido||i.valor_liquido||0);
-    const custosL=this._relFiltraCustos(obraSel,dIni,dFim);
-    const despL=obraSel?[]:(App.state.data.despesas||[]).filter(i=>dentroPeriodo(getFuzzy(i,['data_despesa'])||''));
+    const custosL=this._relFiltraCustos(obraSel,dIni,dFim,tipoPR,ano);
+    const despL=obraSel?[]:(App.state.data.despesas||[]).filter(i=>dentroPeriodo(getFuzzy(i,['data_despesa'])||'')&&this._relTipoPRMatch(getFuzzy(i,['tipo_despesa','tipo'])||'',tipoPR));
     const mLiq=this._relPorMes(fats,i=>getFuzzy(i,['data_lancamento'])||'',fatLiq);
     const mCus=this._relPorMes(custosL,i=>getFuzzy(i,['data_pagamento','data_pgto','data_lancamento'])||'',i=>this._relCustoValor(i));
     const mDes=this._relPorMes(despL,i=>getFuzzy(i,['data_despesa'])||'',i=>parseStoredNumber(getFuzzy(i,['valor'])||0));
@@ -2509,25 +2701,33 @@ const App={
     if(tir!==null&&!isFinite(tir))tir=null;
     if(pontoEq!==null&&!isFinite(pontoEq))pontoEq=null;
 
-    const card=(t,v,sub)=>`<div style="flex:1;min-width:220px;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px"><div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.6px;color:var(--text-3);margin-bottom:6px">${t}</div><div style="font-size:24px;font-weight:800;color:var(--blue)">${v}</div><div style="font-size:11px;color:var(--text-3);margin-top:6px;line-height:1.5">${sub}</div></div>`;
+    // ROI sobre Aportes (movido do Dashboard pra cá): resultado do período ÷ total aportado.
+    const aportesL=(App.state.data.aportes||[]).filter(i=>(!obraSel||(getFuzzy(i,['titulo_obra','nome_obra','obra','titulo'])||'')===obraSel)&&this._relDentroAno(getFuzzy(i,['data_aporte'])||'',ano));
+    const totApoInd=aportesL.reduce((s,i)=>s+parseFloat(i.valor_aportado||i.valor_aporte||i.valor||0),0);
+    const resultadoPeriodo=receita-custosVar-fixos;
+    const roiPct=totApoInd>0?(resultadoPeriodo/totApoInd*100):0;
+    const roiOk=totApoInd>0;
+
+    const card=(t,v,sub,cor)=>`<div style="flex:1;min-width:220px;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px"><div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.6px;color:var(--text-3);margin-bottom:6px">${t}</div><div style="font-size:24px;font-weight:800;color:${cor||'var(--blue)'}">${v}</div><div style="font-size:11px;color:var(--text-3);margin-top:6px;line-height:1.5">${sub}</div></div>`;
     let html=`<div style="display:flex;align-items:center;gap:10px;margin-bottom:16px"><label style="font-size:12px;font-weight:700;color:var(--text-2)">Taxa de desconto (% a.m.):</label><input id="rel-taxa-vpl" type="text" inputmode="decimal" value="${String(taxa).replace('.',',')}" onchange="App._relatorioGerar()" style="width:80px;padding:7px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;text-align:left"></div>`;
     html+='<div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:16px">';
     const tirOk=tir!==null&&isFinite(tir);
     const peOk=pontoEq!==null&&isFinite(pontoEq);
-    html+=card('VPL — Valor Presente Líquido',isFinite(vpl)?fmt(vpl):'Sem dados no período',`É quanto o fluxo de caixa do período vale hoje, descontado a ${String(taxa).replace('.',',')}% ao mês · ${meses.length} mês(es) considerado(s)`);
+    html+=card('ROI — Retorno sobre Aportes',roiOk?fmtPct(roiPct):'Sem aportes no período',roiOk?`Resultado do período (${fmt(resultadoPeriodo)}) sobre ${fmt(totApoInd)} aportados`:'Não há aportes registrados no período/obra selecionados para calcular o ROI.',roiOk?(roiPct>=0?'var(--blue)':'var(--red)'):'var(--blue)');
     html+=card('TIR — Taxa Interna de Retorno',tirOk?tir.toLocaleString('pt-BR',{maximumFractionDigits:2})+'% a.m.':'Não calculável',tirOk?'É a taxa de rentabilidade mensal do fluxo de caixa do período.':'Para calcular a TIR é preciso ter, no período, pelo menos um mês com resultado positivo e um mês com resultado negativo (entradas e saídas).');
+    html+=card('VPL — Valor Presente Líquido',isFinite(vpl)?fmt(vpl):'Sem dados no período',`É quanto o fluxo de caixa do período vale hoje, descontado a ${String(taxa).replace('.',',')}% ao mês · ${meses.length} mês(es) considerado(s)`);
     html+=card('Ponto de Equilíbrio',peOk?fmt(pontoEq):'Não calculável',peOk?`Receita mínima necessária para cobrir todos os custos e despesas · margem de contribuição ${isFinite(margemContrib)?(margemContrib*100).toLocaleString('pt-BR',{maximumFractionDigits:1}):'—'}%`:'Para calcular é preciso ter receita no período e custos menores que a receita (margem de contribuição positiva).');
     html+='</div>';
     // Tabela do fluxo mensal usado no cálculo (transparência do número)
     const linhasFluxo=meses.map((k,n)=>{const[y,m]=k.split('-');const nome=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'][+m-1]+'/'+y;return `<tr><td>${nome}</td><td>${fmt(mLiq[k]||0)}</td><td>${fmt(mCus[k]||0)}</td><td>${fmt(mDes[k]||0)}</td><td style="font-weight:700;color:${fluxos[n]<0?'var(--red)':'var(--green)'}">${fmt(fluxos[n])}</td></tr>`;}).join('');
     html+=this._relTabelaWrap('<table class="cap-tbl" style="width:100%;min-width:560px"><thead><tr><th>Mês</th><th>Fat. Líquido</th><th>Custos</th><th>Despesas</th><th>Fluxo do Mês</th></tr></thead><tbody>'+(linhasFluxo||'<tr><td colspan="5" style="color:var(--text-3);padding:20px">Sem movimentações no período</td></tr>')+'</tbody></table>');
     const el=document.getElementById('rel-resumo');if(el)el.innerHTML=html;
-    this._relatorioCache={tipo:'indicadores',obraSel,dIni,dFim,dados:{vpl,tir,pontoEq,taxa,margemContrib,meses,fluxos,mLiq,mCus,mDes}};
+    this._relatorioCache={tipo:'indicadores',obraSel,dIni,dFim,tipoPR,ano,dados:{vpl,tir,pontoEq,taxa,margemContrib,meses,fluxos,mLiq,mCus,mDes,roiPct,roiOk,totApoInd,resultadoPeriodo}};
   },
 
   /* Custos (Analítico): lista item a item, com totais. */
-  _relGerarCustos(obraSel,dIni,dFim){
-    const custos=this._relFiltraCustos(obraSel,dIni,dFim).sort((a,b)=>{
+  _relGerarCustos(obraSel,dIni,dFim,tipoPR,ano,mes){
+    const custos=this._relFiltraCustos(obraSel,dIni,dFim,tipoPR,ano,mes).sort((a,b)=>{
       const da=parseDate(getFuzzy(a,['data_pagamento','data_pgto','data_lancamento'])||'')||new Date(0);
       const db=parseDate(getFuzzy(b,['data_pagamento','data_pgto','data_lancamento'])||'')||new Date(0);
       return db-da;
@@ -2544,14 +2744,18 @@ const App={
       '<thead><tr><th>Obra</th><th>Data Pgto</th><th>Tipo</th><th>Descrição</th><th>Valor</th></tr></thead><tbody>'+
       (linhas.length===0?'<tr><td colspan="5" style="color:var(--text-3);padding:20px">Nenhum custo encontrado</td></tr>':
         linhas.map(l=>`<tr><td>${l.obra}</td><td>${l.data}</td><td>${l.tipo}</td><td>${l.desc}</td><td>${fmt(l.valor)}</td></tr>`).join(''))+
-      `</tbody><tfoot><tr><td colspan="4" style="font-weight:800">Total</td><td style="font-weight:800;color:var(--blue)">${fmt(total)}</td></tr></tfoot></table>`);
+      '</tbody></table>');
+    html+=this._relTotalFora([['Total',fmt(total)]]);
     const el=document.getElementById('rel-resumo');if(el)el.innerHTML=html;
-    this._relatorioCache={tipo:'custos',obraSel,dIni,dFim,dados:{linhas,total}};
+    this._relatorioCache={tipo:'custos',obraSel,dIni,dFim,tipoPR,ano,mes,dados:{linhas,total}};
   },
 
   /* Despesas (Analítico): lista item a item, com total (não usa filtro de obra). */
-  _relGerarDespesasAnalitico(dIni,dFim){
-    const despesas=(App.state.data.despesas||[]).filter(i=>this._relDentroPeriodo(getFuzzy(i,['data_despesa'])||'',dIni,dFim)).sort((a,b)=>{
+  _relGerarDespesasAnalitico(dIni,dFim,tipoPR,ano,mes){
+    const despesas=(App.state.data.despesas||[]).filter(i=>{
+      const dt=getFuzzy(i,['data_despesa'])||'';
+      return this._relDentroPeriodo(dt,dIni,dFim)&&this._relDentroAno(dt,ano)&&this._relDentroMes(dt,mes)&&this._relTipoPRMatch(getFuzzy(i,['tipo_despesa','tipo'])||'',tipoPR);
+    }).sort((a,b)=>{
       const da=parseDate(getFuzzy(a,['data_despesa'])||'')||new Date(0);
       const db=parseDate(getFuzzy(b,['data_despesa'])||'')||new Date(0);
       return db-da;
@@ -2569,14 +2773,18 @@ const App={
       '<thead><tr><th>Data</th><th>Especificação</th><th>Descrição</th><th>Fornecedor/Beneficiário</th><th>Forma Pgto</th><th>Valor</th></tr></thead><tbody>'+
       (linhas.length===0?'<tr><td colspan="6" style="color:var(--text-3);padding:20px">Nenhuma despesa encontrada</td></tr>':
         linhas.map(l=>`<tr><td>${l.data}</td><td>${l.cat}</td><td>${l.desc}</td><td>${l.forn}</td><td>${l.fpg}</td><td>${fmt(l.valor)}</td></tr>`).join(''))+
-      `</tbody><tfoot><tr><td colspan="5" style="font-weight:800">Total</td><td style="font-weight:800;color:var(--blue)">${fmt(total)}</td></tr></tfoot></table>`);
+      '</tbody></table>');
+    html+=this._relTotalFora([['Total',fmt(total)]]);
     const el=document.getElementById('rel-resumo');if(el)el.innerHTML=html;
-    this._relatorioCache={tipo:'despesas',obraSel:'',dIni,dFim,dados:{linhas,total}};
+    this._relatorioCache={tipo:'despesas',obraSel:'',dIni,dFim,tipoPR,ano,mes,dados:{linhas,total}};
   },
 
   /* Aportes (Analítico): lista item a item, com total. */
-  _relGerarAportesAnalitico(obraSel,dIni,dFim){
-    const aportes=(App.state.data.aportes||[]).filter(i=>(!obraSel||(getFuzzy(i,['titulo_obra','nome_obra','obra','titulo'])||'')===obraSel)&&this._relDentroPeriodo(getFuzzy(i,['data_aporte'])||'',dIni,dFim)).sort((a,b)=>{
+  _relGerarAportesAnalitico(obraSel,dIni,dFim,ano,mes){
+    const aportes=(App.state.data.aportes||[]).filter(i=>{
+      const dt=getFuzzy(i,['data_aporte'])||'';
+      return (!obraSel||(getFuzzy(i,['titulo_obra','nome_obra','obra','titulo'])||'')===obraSel)&&this._relDentroPeriodo(dt,dIni,dFim)&&this._relDentroAno(dt,ano)&&this._relDentroMes(dt,mes);
+    }).sort((a,b)=>{
       const da=parseDate(getFuzzy(a,['data_aporte'])||'')||new Date(0);
       const db=parseDate(getFuzzy(b,['data_aporte'])||'')||new Date(0);
       return db-da;
@@ -2592,9 +2800,10 @@ const App={
       '<thead><tr><th>Obra</th><th>Quem Aportou</th><th>Data</th><th>Valor</th></tr></thead><tbody>'+
       (linhas.length===0?'<tr><td colspan="4" style="color:var(--text-3);padding:20px">Nenhum aporte encontrado</td></tr>':
         linhas.map(l=>`<tr><td>${l.obra}</td><td>${l.quem}</td><td>${l.data}</td><td>${fmt(l.valor)}</td></tr>`).join(''))+
-      `</tbody><tfoot><tr><td colspan="3" style="font-weight:800">Total</td><td style="font-weight:800;color:var(--blue)">${fmt(total)}</td></tr></tfoot></table>`);
+      '</tbody></table>');
+    html+=this._relTotalFora([['Total',fmt(total)]]);
     const el=document.getElementById('rel-resumo');if(el)el.innerHTML=html;
-    this._relatorioCache={tipo:'aportes',obraSel,dIni,dFim,dados:{linhas,total}};
+    this._relatorioCache={tipo:'aportes',obraSel,dIni,dFim,ano,mes,dados:{linhas,total}};
   },
   /* Distribui um valor ao longo dos meses entre ini e fim, proporcional aos dias de
      cada mês (base da Curva S e do Cronograma Físico-financeiro). */
@@ -2618,8 +2827,8 @@ const App={
   _REL_MES:['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'],
   /* Curva ABC — custos rankeados por valor, % acumulada e classificação A/B/C (Pareto). */
   _relChartABC:null,
-  _relGerarCurvaABC(obraSel,dIni,dFim){
-    const custos=this._relFiltraCustos(obraSel,dIni,dFim);
+  _relGerarCurvaABC(obraSel,dIni,dFim,ano,mes){
+    const custos=this._relFiltraCustos(obraSel,dIni,dFim,'',ano,mes);
     const agg={};
     custos.forEach(i=>{const nome=getFuzzy(i,['descricao','especificacao','tipo_custo','tipo'])||'—';agg[nome]=(agg[nome]||0)+this._relCustoValor(i);});
     let itens=Object.entries(agg).map(([nome,val])=>({nome,val})).filter(x=>x.val>0).sort((a,b)=>b.val-a.val);
@@ -2628,7 +2837,7 @@ const App={
     itens.forEach(x=>{acum+=x.val;x.pct=total>0?x.val/total*100:0;x.pAcum=total>0?acum/total*100:0;x.classe=x.pAcum<=80?'A':(x.pAcum<=95?'B':'C');});
     const el=document.getElementById('rel-resumo');
     if(this._relChartABC){this._relChartABC.destroy();this._relChartABC=null;}
-    if(!itens.length){el.innerHTML=this._relAviso('Nenhum custo no período para montar a Curva ABC. Lance custos na(s) obra(s) ou ajuste o filtro de período.');this._relatorioCache={tipo:'curva-abc',obraSel,dIni,dFim,dados:{itens:[],total:0,classes:[]}};return;}
+    if(!itens.length){el.innerHTML=this._relAviso('Nenhum custo no período para montar a Curva ABC. Lance custos na(s) obra(s) ou ajuste o filtro de período.');this._relatorioCache={tipo:'curva-abc',obraSel,dIni,dFim,ano,mes,dados:{itens:[],total:0,classes:[]}};return;}
     const classe=(c,cor)=>{const arr=itens.filter(x=>x.classe===c);return {c,n:arr.length,v:arr.reduce((s,x)=>s+x.val,0),cor};};
     const resumoClasses=[classe('A','#FF3B30'),classe('B','#FF9500'),classe('C','#34C759')];
     const cards=resumoClasses.map(r=>`<div style="flex:1;border:1px solid var(--border);border-radius:12px;padding:12px 14px"><div style="display:flex;align-items:center;gap:6px;margin-bottom:4px"><span style="width:10px;height:10px;border-radius:3px;background:${r.cor}"></span><span style="font-size:12px;font-weight:800">Classe ${r.c}</span></div><div style="font-size:16px;font-weight:800;color:${r.cor}">${fmt(r.v)}</div><div style="font-size:11px;color:var(--text-3)">${r.n} item(ns) · ${total>0?fmtPct(r.v/total*100):'0%'}</div></div>`).join('');
@@ -2647,41 +2856,48 @@ const App={
         ]},options:{responsive:true,plugins:{legend:{position:'bottom',labels:{boxWidth:12,font:{size:10}}}},scales:{y:{ticks:{callback:v=>'R$ '+Number(v).toLocaleString('pt-BR')}},y1:{position:'right',min:0,max:100,ticks:{callback:v=>v+'%'},grid:{display:false}}}}});
       }
     }catch(e){console.error('curva ABC:',e);}
-    this._relatorioCache={tipo:'curva-abc',obraSel,dIni,dFim,dados:{itens,total,classes:resumoClasses}};
+    this._relatorioCache={tipo:'curva-abc',obraSel,dIni,dFim,ano,mes,dados:{itens,total,classes:resumoClasses}};
   },
   /* Curva S — acumulado Previsto (etapas, valor distribuído por mês) × Realizado (custos reais). */
   _relChartS:null,
-  _relGerarCurvaS(obraSel,dIni,dFim){
+  _relGerarCurvaS(obraSel,dIni,dFim,ano,mes){
     const K=UI._etapasK();
     const etapas=(App.state.data.etapas||[]).filter(e=>!obraSel||(getFuzzy(e,[K.obra,'titulo_obra','obra'])||'')===obraSel);
     const prevMes={};
     etapas.forEach(e=>{const ini=parseDate(getFuzzy(e,[K.ini,'data_inicio'])||'');const fim=parseDate(getFuzzy(e,[K.fim,'data_fim'])||'');const val=parseStoredNumber(getFuzzy(e,[K.valor,'valor'])||0);this._relDistribuiPorMes(ini,fim,val,prevMes);});
-    const custos=this._relFiltraCustos(obraSel,dIni,dFim);
+    // "Realizado" tem que ser só custo REAL (já pago) — sem filtrar por tipoPR aqui, um
+    // custo marcado "Previsto" (ainda não pago) também entrava na soma, inflando a curva
+    // de Realizado com valores que na verdade são orçamento futuro, não gasto ocorrido.
+    const custos=this._relFiltraCustos(obraSel,dIni,dFim,'Real');
     const realMes=this._relPorMes(custos,i=>getFuzzy(i,['data_pagamento','data_pgto','data_lancamento'])||'',i=>this._relCustoValor(i));
-    const meses=[...new Set([...Object.keys(prevMes),...Object.keys(realMes)])].sort();
+    const mesesTodos=[...new Set([...Object.keys(prevMes),...Object.keys(realMes)])].sort();
     const el=document.getElementById('rel-resumo');
     if(this._relChartS){this._relChartS.destroy();this._relChartS=null;}
-    if(!meses.length){el.innerHTML=this._relAviso('Sem dados para a Curva S. Cadastre as etapas (com <strong>valor previsto</strong>) da obra em <strong>Obras → Avanço & Gantt</strong> e/ou lance custos no período.');this._relatorioCache={tipo:'curva-s',obraSel,dIni,dFim,dados:{meses:[],linhasTabela:[]}};return;}
-    let accP=0,accR=0;const prevAcum=[],realAcum=[];
-    meses.forEach(k=>{accP+=prevMes[k]||0;accR+=realMes[k]||0;prevAcum.push(accP);realAcum.push(accR);});
+    if(!mesesTodos.length){el.innerHTML=this._relAviso('Sem dados para a Curva S. Cadastre as etapas (com <strong>valor previsto</strong>) da obra em <strong>Obras → Avanço & Gantt</strong> e/ou lance custos no período.');this._relatorioCache={tipo:'curva-s',obraSel,dIni,dFim,ano,mes,dados:{meses:[],linhasTabela:[]}};return;}
+    // O acumulado é sempre calculado sobre a linha do tempo INTEIRA (senão "acumulado"
+    // perderia o sentido ao filtrar por Ano/Mês) — o filtro só recorta quais meses aparecem.
+    let accP=0,accR=0;const acumPorMes={};
+    mesesTodos.forEach(k=>{accP+=prevMes[k]||0;accR+=realMes[k]||0;acumPorMes[k]={prevAcum:accP,realAcum:accR};});
     const totalPrev=accP;
+    const meses=mesesTodos.filter(k=>{const[y,m]=k.split('-');return this._relDentroAno(y+'-01-01',ano)&&this._relDentroMes(y+'-'+m+'-01',mes);});
     const lbl=meses.map(k=>{const[y,m]=k.split('-');return this._REL_MES[+m-1]+'/'+y.slice(2);});
-    const linhasTabela=meses.map((k,n)=>({mes:lbl[n],prevMes:prevMes[k]||0,prevAcum:prevAcum[n],realMes:realMes[k]||0,realAcum:realAcum[n],pctFis:totalPrev>0?prevAcum[n]/totalPrev*100:0}));
+    const linhasTabela=meses.map((k,n)=>({mes:lbl[n],prevMes:prevMes[k]||0,prevAcum:acumPorMes[k].prevAcum,realMes:realMes[k]||0,realAcum:acumPorMes[k].realAcum,pctFis:totalPrev>0?acumPorMes[k].prevAcum/totalPrev*100:0}));
+    const prevAcum=linhasTabela.map(l=>l.prevAcum),realAcum=linhasTabela.map(l=>l.realAcum);
     const linhas=linhasTabela.map(l=>`<tr><td>${l.mes}</td><td>${fmt(l.prevMes)}</td><td>${fmt(l.prevAcum)}</td><td>${fmt(l.realMes)}</td><td>${fmt(l.realAcum)}</td><td>${totalPrev>0?fmtPct(l.pctFis):'—'}</td></tr>`).join('');
     let html='<div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px 20px;margin-bottom:16px"><canvas id="rel-curvas-chart" height="88"></canvas></div>';
-    html+=this._relTabelaWrap('<table class="cap-tbl" style="width:100%;min-width:660px"><thead><tr><th>Mês</th><th>Previsto (mês)</th><th>Previsto (acum.)</th><th>Realizado (mês)</th><th>Realizado (acum.)</th><th>% Físico prev.</th></tr></thead><tbody>'+linhas+'</tbody></table>');
+    html+=this._relTabelaWrap('<table class="cap-tbl" style="width:100%;min-width:660px"><thead><tr><th>Mês</th><th>Previsto (mês)</th><th>Previsto (acum.)</th><th>Realizado (mês)</th><th>Realizado (acum.)</th><th>% Físico prev.</th></tr></thead><tbody>'+(linhas||'<tr><td colspan="6" style="color:var(--text-3);padding:20px">Nenhum mês no filtro selecionado</td></tr>')+'</tbody></table>');
     if(!etapas.some(e=>parseStoredNumber(getFuzzy(e,[K.valor,'valor'])||0)>0))html+='<p style="font-size:11px;color:var(--text-3);margin-top:10px">* Nenhuma etapa com valor previsto: a curva "Previsto" fica zerada. Cadastre o cronograma da obra em Obras → Avanço & Gantt.</p>';
     el.innerHTML=html;
     try{
       const ctx=document.getElementById('rel-curvas-chart');
-      if(ctx&&typeof Chart!=='undefined'){
+      if(ctx&&typeof Chart!=='undefined'&&meses.length){
         this._relChartS=new Chart(ctx,{type:'line',data:{labels:lbl,datasets:[
           {label:'Previsto (acum.)',data:prevAcum,borderColor:'#0071E3',backgroundColor:'rgba(0,113,227,.10)',fill:true,tension:.35,borderWidth:2.5,pointRadius:3},
           {label:'Realizado (acum.)',data:realAcum,borderColor:'#34C759',backgroundColor:'rgba(52,199,89,.10)',fill:true,tension:.35,borderWidth:2.5,pointRadius:3}
         ]},options:{responsive:true,plugins:{legend:{position:'bottom',labels:{boxWidth:12,font:{size:10}}}},scales:{y:{ticks:{callback:v=>'R$ '+Number(v).toLocaleString('pt-BR')}}}}});
       }
     }catch(e){console.error('curva S:',e);}
-    this._relatorioCache={tipo:'curva-s',obraSel,dIni,dFim,dados:{meses,lbl,prevAcum,realAcum,totalPrev,linhasTabela}};
+    this._relatorioCache={tipo:'curva-s',obraSel,dIni,dFim,ano,mes,dados:{meses,lbl,prevAcum,realAcum,totalPrev,linhasTabela}};
   },
   /* Cronograma Físico-financeiro — matriz Etapas × Meses (R$ previsto distribuído + pesos). */
   _relGerarCronogramaFF(obraSel,dIni,dFim){
@@ -2703,10 +2919,20 @@ const App={
     let acc=0;const acumMes=totMes.map(v=>{acc+=v;return acc;});
     const thMeses=lbl.map(l=>`<th>${l}</th>`).join('');
     const bodyRows=rows.map(r=>`<tr><td>${(r.nome||'—').replace(/</g,'&lt;')}</td><td>${r.peso?r.peso+'%':'—'}</td><td>${fmt(r.valor)}</td>${meses.map(k=>`<td>${r.dist[k]?fmt(r.dist[k]):'—'}</td>`).join('')}</tr>`).join('');
-    const totRow=`<tr style="font-weight:800;background:var(--bg)"><td>Total do mês</td><td>${totPeso?Math.round(totPeso*10)/10+'%':'—'}</td><td>${fmt(totValor)}</td>${totMes.map(v=>`<td>${fmt(v)}</td>`).join('')}</tr>`;
-    const acumRow=`<tr style="font-weight:700;color:var(--blue)"><td colspan="3">Acumulado (R$)</td>${acumMes.map(v=>`<td>${fmt(v)}</td>`).join('')}</tr>`;
-    const tabela='<table class="cap-tbl" style="width:100%;min-width:'+(440+meses.length*92)+'px"><thead><tr><th>Etapa</th><th>Peso</th><th>Valor</th>'+thMeses+'</tr></thead><tbody>'+bodyRows+totRow+acumRow+'</tbody></table>';
-    el.innerHTML=this._relTabelaWrap(tabela);
+    // Fundo branco (var(--surface)), igual à caixa de Total do "Custos (Analítico)"
+    // (_relTotalFora) — antes usava var(--bg), um cinza que destoava do resto dos totais.
+    // Célula com mais altura (padding) e negrito, no mesmo peso visual do _relTotalFora.
+    const tdTot='padding:12px 8px;font-size:12px;font-weight:800';
+    const totRow=`<tr style="background:var(--surface)"><td style="${tdTot}">Total do mês</td><td style="${tdTot}">${totPeso?Math.round(totPeso*10)/10+'%':'—'}</td><td style="${tdTot}">${fmt(totValor)}</td>${totMes.map(v=>`<td style="${tdTot}">${fmt(v)}</td>`).join('')}</tr>`;
+    const acumRow=`<tr style="background:var(--surface)"><td colspan="3" style="${tdTot};color:var(--blue)">Acumulado (R$)</td>${acumMes.map(v=>`<td style="${tdTot};color:var(--blue)">${fmt(v)}</td>`).join('')}</tr>`;
+    // <col> idênticas nas duas tabelas garante que as colunas ficam alinhadas entre a
+    // parte rolável (etapas) e a parte fixa de baixo (Total do mês / Acumulado), que
+    // agora fica sempre visível em vez de só aparecer ao rolar até o fim.
+    const cols='<col style="width:170px">'+'<col style="width:70px">'+'<col style="width:110px">'+meses.map(()=>'<col style="width:90px">').join('');
+    const minW=350+meses.length*90;
+    const tabela=`<table class="cap-tbl" style="width:100%;min-width:${minW}px;table-layout:fixed">${cols}<thead><tr><th>Etapa</th><th>Peso</th><th>Valor</th>${thMeses}</tr></thead><tbody>${bodyRows}</tbody></table>`;
+    const tabelaTotais=`<table class="cap-tbl" style="width:100%;min-width:${minW}px;table-layout:fixed">${cols}<tbody>${totRow}${acumRow}</tbody></table>`;
+    el.innerHTML=this._relTabelaWrap(tabela)+`<div style="overflow-x:auto;margin-top:2px;border:1px solid var(--border);border-radius:10px;background:var(--surface)">${tabelaTotais}</div>`;
     this._relatorioCache={tipo:'cronograma-ff',obraSel,dIni,dFim,dados:{meses,lbl,rows,totMes,acumMes,totValor,totPeso}};
   },
   /* Motor de PDF paginado dos Relatórios (mesmo paginador do Despesas): cabeçalho
@@ -2734,7 +2960,10 @@ const App={
         td,th{border-bottom:1px solid #e5e5ea;word-break:break-word;text-align:left;padding:5px;}
         thead th{background:#f5f5f7;font-weight:800;}
         h1{font-size:18px;margin:0;}
-        .sub{font-size:12px;color:#6e6e73;margin-top:2px;}
+        .sub{font-size:12px;color:#6e6e73;margin-top:2px;font-weight:400;}
+        .sub-caption{font-size:8px;font-weight:800;text-transform:uppercase;letter-spacing:.6px;color:#aeaeb2;margin-bottom:5px;}
+        .sub-pills{display:flex;justify-content:flex-start;flex-wrap:wrap;gap:6px;margin-bottom:14px;}
+        .sub-pill{display:inline-flex;align-items:center;padding:4px 11px;border-radius:99px;background:#f0f6ff;border:1px solid #cfe3ff;color:#0071E3;font-size:10px;font-weight:700;white-space:nowrap;}
         :root{--blue:#0071E3;--bg:#F5F5F7;--surface:#FFFFFF;--border:#E5E5EA;--text-1:#1D1D1F;--text-2:#6E6E73;--text-3:#AEAEB2;--green:#34C759;--red:#FF3B30;--orange:#FF9500;--purple:#AF52DE;}
         .dre-row{display:flex;justify-content:space-between;align-items:center;padding:5px 12px;border-radius:7px;}
         .dre-sep{background:rgba(0,0,0,.03);border-radius:8px;padding:7px 12px;margin:3px 0;}
@@ -2742,7 +2971,7 @@ const App={
         .dre-sub{opacity:.8;}
         .dre-label{font-size:12px;color:var(--text-2);}
         .dre-val{font-size:12px;font-weight:600;display:flex;align-items:center;gap:4px;}
-        .rel-pdf-bloco{margin-bottom:1px;}
+        .rel-pdf-bloco{margin-bottom:10px;}
         .pdf-page{position:relative;width:${pageWmm}mm;height:${pageHmm}mm;background:#fff;margin:0 auto 6mm;overflow:hidden;page-break-after:always;}
         .pdf-page-inner{position:absolute;top:14mm;left:14mm;right:14mm;bottom:18mm;overflow:hidden;}
         .pdf-page-footer{position:absolute;left:14mm;right:14mm;bottom:6mm;display:flex;justify-content:space-between;align-items:center;font-size:9px;color:#6e6e73;border-top:1px solid #e5e5ea;padding-top:5px;}
@@ -2751,10 +2980,11 @@ const App={
       </style></head><body>
       <div id="rel-pdf-source">
         <div id="rel-pdf-head">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;border-bottom:2px solid #1d1d1f;padding-bottom:12px">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;border-bottom:2px solid #1d1d1f;padding-bottom:12px">
             <img src="${PDF_LOGO_FULL_B64}" style="height:19mm;width:auto;display:block">
-            <div style="text-align:right"><h1>${titulo}</h1>${subLinhas.map(s=>`<div class="sub">${s}</div>`).join('')}</div>
+            <div style="text-align:right"><h1>${titulo}</h1>${subLinhas.length?`<div class="sub">${subLinhas[0]}</div>`:''}</div>
           </div>
+          ${subLinhas.length>1?`<div class="sub-caption">Filtros aplicados</div><div class="sub-pills">${subLinhas.slice(1).map(s=>`<span class="sub-pill">${s}</span>`).join('')}</div>`:''}
           ${preHtml}
         </div>
         ${theadHtml?`<table id="rel-pdf-thead-measure"><thead>${theadHtml}</thead></table>
@@ -2776,8 +3006,11 @@ const App={
           var theadH=theadMeasure?theadMeasure.offsetHeight:0;
           var rowsEls=Array.prototype.slice.call(document.querySelectorAll('#rel-pdf-rows tr'));
           var blocosEls=Array.prototype.slice.call(document.querySelectorAll('#rel-pdf-blocos > .rel-pdf-bloco'));
-          var isTable=rowsEls.length>0;
-          var itemsEls=isTable?rowsEls:blocosEls;
+          // Sequência única e mista: linhas de tabela e blocos livres na MESMA ordem em que
+          // foram passados (ex.: tabela de etapas seguida do Gantt) — cada um paginado e,
+          // se dois itens do mesmo tipo caem na mesma página, agrupados numa única <table>/<div>.
+          var itemsEls=rowsEls.map(function(el){return {type:'row',el:el};})
+            .concat(blocosEls.map(function(el){return {type:'bloco',el:el};}));
           var resumoEl=document.getElementById('rel-pdf-resumo');
           var headH=headEl.offsetHeight+18;
           var resumoH=resumoEl.offsetHeight+18;
@@ -2785,12 +3018,21 @@ const App={
           var paginas=[];
           var i=0, first=true;
           while(i<itemsEls.length || paginas.length===0){
-            var budget=alturaUtilPx-(isTable&&itemsEls.length?theadH:0)-(first?headH:0);
-            var idxs=[], usado=0;
+            var budget=alturaUtilPx-(first?headH:0);
+            var idxs=[], usado=0, temRow=false;
             while(i<itemsEls.length){
-              var h=itemsEls[i].offsetHeight;
+              var it=itemsEls[i];
+              var extra=(it.type==='row'&&!temRow)?theadH:0;
+              // offsetHeight não inclui margin-bottom — sem somar isso aqui, o orçamento de
+              // altura da página ficava sempre menor do que a altura real renderizada (a
+              // diferença crescia a cada bloco), estourando a altura física da página, que
+              // tem overflow:hidden — o excesso simplesmente sumia (cortado), não paginava.
+              var mb=(it.type==='bloco')?(parseFloat(getComputedStyle(it.el).marginBottom)||0):0;
+              var h=it.el.offsetHeight+extra+mb;
               if(usado+h>budget && idxs.length>0)break;
-              idxs.push(i);usado+=h;i++;
+              idxs.push(i);usado+=h;
+              if(it.type==='row')temRow=true;
+              i++;
             }
             paginas.push({idxs:idxs,head:first,remaining:budget-usado});
             first=false;
@@ -2808,17 +3050,24 @@ const App={
             var inner=document.createElement('div');
             inner.className='pdf-page-inner';
             if(pg.head)inner.appendChild(headEl.cloneNode(true));
-            if(pg.idxs.length>0){
-              if(isTable){
+            var runs=[];
+            pg.idxs.forEach(function(ri){
+              var it=itemsEls[ri];
+              var last=runs[runs.length-1];
+              if(last&&last.type===it.type){last.htmls.push(it.el.outerHTML);}
+              else{runs.push({type:it.type,htmls:[it.el.outerHTML]});}
+            });
+            runs.forEach(function(run){
+              if(run.type==='row'){
                 var tbl=document.createElement('table');
-                tbl.innerHTML=theadHtmlStr+'<tbody>'+pg.idxs.map(function(ri){return itemsEls[ri].outerHTML;}).join('')+'</tbody>';
+                tbl.innerHTML=theadHtmlStr+'<tbody>'+run.htmls.join('')+'</tbody>';
                 inner.appendChild(tbl);
               } else {
                 var wrap=document.createElement('div');
-                wrap.innerHTML=pg.idxs.map(function(ri){return itemsEls[ri].outerHTML;}).join('');
+                wrap.innerHTML=run.htmls.join('');
                 inner.appendChild(wrap);
               }
-            }
+            });
             if(pg.resumo)inner.appendChild(resumoEl.cloneNode(true));
             var footer=document.createElement('div');
             footer.className='pdf-page-footer';
@@ -2840,8 +3089,18 @@ const App={
   _relatorioExportPDF(){
     const c=this._relatorioCache;
     if(!c){toast('Aguarde o relatório carregar e tente novamente.','error');return;}
-    const periodoTxt=(c.dIni||c.dFim)?`Período: ${c.dIni?dateBR(c.dIni):'início'} até ${c.dFim?dateBR(c.dFim):'hoje'}`:'Período: todo o histórico';
-    const subLinhas=[`<strong>${c.obraSel||'Todas as Obras'}</strong>`].concat((c.dIni||c.dFim)?[periodoTxt]:[]);
+    // Cabeçalho do PDF sempre reflete os filtros REALMENTE em uso hoje (Obra, Ano, Mês,
+    // Previsto/Real) — o antigo filtro de período (data início/fim) não existe mais.
+    const mesNomes=['','Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+    // Sempre informa CADA filtro aplicável ao tipo de relatório, mesmo quando o filtro
+    // está no valor "todos"/"ambos" — antes a linha simplesmente sumia quando vazia, o
+    // que passava a impressão de que o PDF não dizia quais filtros foram usados.
+    const subLinhas=c.tipo==='consolidado'
+      ?['Visão consolidada da empresa',c.ano||'Todos os anos',c.tipoPR||'Previsto + Real']
+      :[c.obraSel||'Todas as Obras']
+        .concat(this._REL_TIPOS_COM_ANO.includes(c.tipo)?[c.ano||'Todos os anos']:[])
+        .concat(this._REL_TIPOS_COM_MES.includes(c.tipo)?[c.mes?mesNomes[+c.mes]:'Todos os meses']:[])
+        .concat(this._REL_TIPOS_COM_PR.includes(c.tipo)?[c.tipoPR||'Previsto + Real']:[]);
     const linhaP=(label,val,destaque)=>`<div style="display:flex;justify-content:space-between;padding:8px 0;${destaque?'margin-top:6px;border-top:2px solid #1d1d1f;padding-top:12px':'border-bottom:1px solid #e5e5ea'}"><span style="font-size:${destaque?'14px':'12px'};font-weight:${destaque?800:600}">${label}</span><span style="font-size:${destaque?'16px':'13px'};font-weight:800;color:${destaque?'#0071E3':'#1d1d1f'}">${fmt(val)}</span></div>`;
     const linhaTxt=(label,txt)=>`<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #e5e5ea"><span style="font-size:12px;font-weight:600">${label}</span><span style="font-size:13px;font-weight:800">${txt}</span></div>`;
     const totalBox=(pares)=>`<div style="margin-top:10px;border:1px solid #e5e5ea;border-radius:8px;padding:12px 16px">${pares.map(p=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0"><span style="font-size:12px;font-weight:800">${p[0]}</span><span style="font-size:14px;font-weight:800;color:#0071E3">${p[1]}</span></div>`).join('')}</div>`;
@@ -2852,7 +3111,7 @@ const App={
       const d=c.dados;
       // Gráfico da tela vira imagem dentro do PDF
       let chartImg='';
-      try{if(this._relChartComp)chartImg=`<img src="${this._relChartComp.toBase64Image()}" style="width:100%;max-height:95mm;object-fit:contain;margin-bottom:14px;border:1px solid #e5e5ea;border-radius:8px">`;}catch(e){}
+      try{if(this._relChartComp)chartImg=`<img src="${this._chartImgHD(this._relChartComp)}" style="width:100%;max-height:95mm;object-fit:contain;margin-bottom:14px;border:1px solid #e5e5ea;border-radius:8px">`;}catch(e){}
       cfg.preHtml=chartImg
         +linhaP('Faturamento Líquido',d.fatLiquido)+linhaP('(−) Custos',-d.custoTotal)
         +'<div style="padding:8px 0 2px;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:#6e6e73">Despesas</div>'
@@ -2865,11 +3124,12 @@ const App={
       const d=c.dados;
       const tirOk=d.tir!==null&&isFinite(d.tir);
       const peOk=d.pontoEq!==null&&isFinite(d.pontoEq);
-      // Cards na íntegra (VPL · TIR · Ponto de Equilíbrio), lado a lado no formato paisagem
+      // Cards na íntegra (ROI · TIR · VPL · Ponto de Equilíbrio), lado a lado no formato paisagem
       const cardPdf=(t,v,sub,calc)=>`<div style="flex:1;border:1px solid #e5e5ea;border-radius:12px;padding:16px 18px;background:#fafafa"><div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.6px;color:#6e6e73;margin-bottom:6px">${t}</div><div style="font-size:22px;font-weight:800;color:${calc?'#0071E3':'#8a8a8e'}">${v}</div><div style="font-size:10px;color:#6e6e73;margin-top:6px;line-height:1.5">${sub}</div></div>`;
       cfg.preHtml='<div style="display:flex;gap:14px;margin-bottom:16px">'
-        +cardPdf('VPL — Valor Presente Líquido',isFinite(d.vpl)?fmt(d.vpl):'Sem dados no período',`Quanto o fluxo de caixa do período vale hoje, descontado a ${String(d.taxa).replace('.',',')}% ao mês · ${d.meses.length} mês(es).`,isFinite(d.vpl))
+        +cardPdf('ROI — Retorno sobre Aportes',d.roiOk?fmtPct(d.roiPct):'Sem aportes no período',d.roiOk?`Resultado do período (${fmt(d.resultadoPeriodo)}) sobre ${fmt(d.totApoInd)} aportados`:'Não há aportes registrados no período/obra selecionados.',d.roiOk)
         +cardPdf('TIR — Taxa Interna de Retorno',tirOk?d.tir.toLocaleString('pt-BR',{maximumFractionDigits:2})+'% a.m.':'Não calculável',tirOk?'Taxa de rentabilidade mensal do fluxo de caixa do período.':'É preciso ter, no período, ao menos um mês positivo e um negativo (entradas e saídas).',tirOk)
+        +cardPdf('VPL — Valor Presente Líquido',isFinite(d.vpl)?fmt(d.vpl):'Sem dados no período',`Quanto o fluxo de caixa do período vale hoje, descontado a ${String(d.taxa).replace('.',',')}% ao mês · ${d.meses.length} mês(es).`,isFinite(d.vpl))
         +cardPdf('Ponto de Equilíbrio',peOk?fmt(d.pontoEq):'Não calculável',peOk?`Receita mínima para cobrir custos e despesas · margem de contribuição ${isFinite(d.margemContrib)?(d.margemContrib*100).toLocaleString('pt-BR',{maximumFractionDigits:1}):'—'}%.`:'É preciso ter receita no período e custos menores que a receita (margem de contribuição positiva).',peOk)
         +'</div>'
         +'<div style="margin-top:6px;margin-bottom:6px;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:#6e6e73">Fluxo de caixa mensal</div>';
@@ -2898,15 +3158,17 @@ const App={
     } else if(c.tipo==='curva-abc'){
       cfg.paisagem=true;
       const d=c.dados;
-      let chartImg='';try{if(this._relChartABC)chartImg=`<img src="${this._relChartABC.toBase64Image()}" style="width:100%;max-height:92mm;object-fit:contain;margin-bottom:12px;border:1px solid #e5e5ea;border-radius:8px">`;}catch(e){}
-      cfg.preHtml=chartImg+(d.classes||[]).map(r=>linhaTxt('Classe '+r.c+' — '+r.n+' item(ns)',fmt(r.v))).join('');
+      let chartImg='';try{if(this._relChartABC)chartImg=`<img src="${this._chartImgHD(this._relChartABC)}" style="width:100%;max-height:92mm;object-fit:contain;margin-bottom:12px;border:1px solid #e5e5ea;border-radius:8px">`;}catch(e){}
+      // Cards de Classe A/B/C (mesmo visual da tela) ACIMA do gráfico, não só a listinha de texto.
+      const cardsAbc=(d.classes||[]).map(r=>`<div style="flex:1;border:1px solid #e5e5ea;border-radius:12px;padding:12px 14px"><div style="display:flex;align-items:center;gap:6px;margin-bottom:4px"><span style="width:10px;height:10px;border-radius:3px;background:${r.cor}"></span><span style="font-size:12px;font-weight:800">Classe ${r.c}</span></div><div style="font-size:16px;font-weight:800;color:${r.cor}">${fmt(r.v)}</div><div style="font-size:11px;color:#6e6e73">${r.n} item(ns) · ${d.total>0?fmtPct(r.v/d.total*100):'0%'}</div></div>`).join('');
+      cfg.preHtml=`<div style="display:flex;gap:12px;margin-bottom:14px">${cardsAbc}</div>`+chartImg;
       cfg.theadHtml='<tr><th>#</th><th>Item</th><th>Valor</th><th>%</th><th>% Acum.</th><th>Classe</th></tr>';
       cfg.rowsArr=(d.itens||[]).map((x,i)=>`<tr><td>${i+1}</td><td>${(x.nome||'—').replace(/</g,'&lt;')}</td><td>${fmt(x.val)}</td><td>${fmtPct(x.pct)}</td><td>${fmtPct(x.pAcum)}</td><td>${x.classe}</td></tr>`);
       cfg.posHtml=totalBox([['Total',fmt(d.total)]]);
     } else if(c.tipo==='curva-s'){
       cfg.paisagem=true;
       const d=c.dados;
-      let chartImg='';try{if(this._relChartS)chartImg=`<img src="${this._relChartS.toBase64Image()}" style="width:100%;max-height:92mm;object-fit:contain;margin-bottom:12px;border:1px solid #e5e5ea;border-radius:8px">`;}catch(e){}
+      let chartImg='';try{if(this._relChartS)chartImg=`<img src="${this._chartImgHD(this._relChartS)}" style="width:100%;max-height:92mm;object-fit:contain;margin-bottom:12px;border:1px solid #e5e5ea;border-radius:8px">`;}catch(e){}
       cfg.preHtml=chartImg||'<p style="font-size:12px">Sem dados para a Curva S no período.</p>';
       cfg.theadHtml='<tr><th>Mês</th><th>Previsto (mês)</th><th>Previsto (acum.)</th><th>Realizado (mês)</th><th>Realizado (acum.)</th></tr>';
       cfg.rowsArr=(d.linhasTabela||[]).map(l=>`<tr><td>${l.mes}</td><td>${fmt(l.prevMes)}</td><td>${fmt(l.prevAcum)}</td><td>${fmt(l.realMes)}</td><td>${fmt(l.realAcum)}</td></tr>`);
@@ -2917,7 +3179,13 @@ const App={
       else{
         cfg.theadHtml='<tr><th>Etapa</th><th>Peso</th><th>Valor</th>'+d.lbl.map(l=>`<th>${l}</th>`).join('')+'</tr>';
         cfg.rowsArr=d.rows.map(r=>`<tr><td>${(r.nome||'—').replace(/</g,'&lt;')}</td><td>${r.peso?r.peso+'%':'—'}</td><td>${fmt(r.valor)}</td>${d.meses.map(k=>`<td>${r.dist[k]?fmt(r.dist[k]):'—'}</td>`).join('')}</tr>`);
-        cfg.posHtml=totalBox([['Valor Total Previsto',fmt(d.totValor)]]);
+        // Total do mês/Acumulado ficam FORA da tabela paginada (mesmo tratamento da tela)
+        // — como tabela separada com o mesmo cabeçalho, pra não se perder entre páginas.
+        const theadTot='<thead>'+cfg.theadHtml+'</thead>';
+        const tdTotPdf='padding:12px 8px;font-size:12px;font-weight:800';
+        const totRow=`<tr style="background:#fff"><td style="${tdTotPdf}">Total do mês</td><td style="${tdTotPdf}">${d.totPeso?Math.round(d.totPeso*10)/10+'%':'—'}</td><td style="${tdTotPdf}">${fmt(d.totValor)}</td>${d.totMes.map(v=>`<td style="${tdTotPdf}">${fmt(v)}</td>`).join('')}</tr>`;
+        const acumRow=`<tr style="background:#fff"><td colspan="3" style="${tdTotPdf};color:#0071E3">Acumulado (R$)</td>${d.acumMes.map(v=>`<td style="${tdTotPdf};color:#0071E3">${fmt(v)}</td>`).join('')}</tr>`;
+        cfg.posHtml=`<table class="cap-tbl" style="width:100%;margin-top:6px">${theadTot}<tbody>${totRow}${acumRow}</tbody></table>`+totalBox([['Valor Total Previsto',fmt(d.totValor)]]);
       }
     } else {
       // Consolidado: exporta o DRE e os Indicadores Consolidados NA ÍNTEGRA — mesmos dados
@@ -2953,6 +3221,14 @@ const App={
             +`</div>`);
         }
       }
+      // Fluxo de Caixa Acumulado (gráfico) — mesmo padrão de imagem embutida usado no
+      // Comparativo/Curva ABC/Curva S.
+      try{
+        if(this._relChartFluxo){
+          blocos.push('<div style="font-size:13px;font-weight:800;color:#1d1d1f;margin:16px 0 2px">Fluxo de Caixa Acumulado (Fat. Real)</div><div style="font-size:11px;color:#6e6e73;margin-bottom:8px">Saldo efetivo acumulado — Fat. Real − Custos pagos</div>');
+          blocos.push(`<img src="${this._chartImgHD(this._relChartFluxo)}" style="width:100%;max-height:90mm;object-fit:contain;border:1px solid #e5e5ea;border-radius:8px">`);
+        }
+      }catch(e){}
       if(blocos.length<=1)blocos.push('<p style="font-size:12px;color:#6e6e73">Sem dados disponíveis.</p>');
       cfg.blocosArr=blocos;
     }
@@ -3103,27 +3379,53 @@ const App={
      a página seguinte automaticamente, exatamente como as tabelas dos Relatórios já fazem. */
   _dashboardExportPDF(){
     const val=id=>document.getElementById(id)?.textContent||'—';
-    const kpi=(label,value,cor)=>`<div style="border:1px solid #e5e5ea;border-radius:10px;padding:10px 12px;background:#fafafa"><div style="font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:#6e6e73;margin-bottom:4px">${label}</div><div style="font-size:16px;font-weight:800;color:${cor||'#1d1d1f'}">${value}</div></div>`;
-    const kpis=kpi('Faturamento Bruto',val('kpi-bruto'))+kpi('Faturamento Líquido',val('kpi-receita'),'#0071E3')+kpi('Custos Totais',val('kpi-custo'),'#FF3B30')+kpi('Total Aportes',val('kpi-aportes'),'#AF52DE')+kpi('ROI sobre Aportes',val('kpi-roi'),'#34C759')+kpi('Margem Líquida',val('kpi-margem-val'))+kpi('Obras Ativas',val('kpi-obras-ativas'))+kpi('Obras Concluídas',val('kpi-obras-fin'))+kpi('Obras em Atraso',val('kpi-atraso'),'#FF9500');
-    // Cada gráfico é seu PRÓPRIO bloco (altura de imagem sempre limitada), assim o
-    // paginador nunca precisa cortar um gráfico ao meio — ele inteiro pula pra próxima página.
-    const chartBlock=(key,titulo,alturaMm)=>{try{const ch=this.state.charts&&this.state.charts[key];if(!ch)return '';return `<div style="border:1px solid #e5e5ea;border-radius:10px;padding:10px 12px;margin-bottom:10px"><div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:#6e6e73;margin-bottom:6px">${titulo}</div><img src="${ch.toBase64Image()}" style="width:100%;max-height:${alturaMm}mm;object-fit:contain;display:block"></div>`;}catch(e){return '';}};
-    const chartRow=(itens)=>{const html=itens.filter(Boolean).join('');return html?`<div style="display:flex;gap:10px;margin-bottom:0">${itens.map(h=>h?`<div style="flex:1;min-width:0">${h}</div>`:'').join('')}</div>`:'';};
-    const custoTblEl=document.getElementById('custo-espec-list');
-    const custoTbl=custoTblEl&&custoTblEl.innerHTML.trim()?`<div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:#6e6e73;margin-bottom:6px">Custos por Especificação</div>${custoTblEl.innerHTML}`:'';
+    // Faixa colorida no topo do card (border-top) por categoria de métrica — dá hierarquia
+    // visual imediata (fundo branco em vez do cinza chapado de antes, mais "profissional").
+    const kpi=(label,value,cor)=>{const c=cor||'#1d1d1f';return `<div style="border:1px solid #e5e5ea;border-top:3px solid ${c};border-radius:10px;padding:10px 12px;background:#fff"><div style="font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:#6e6e73;margin-bottom:4px">${label}</div><div style="font-size:16px;font-weight:800;color:${c}">${value}</div></div>`;};
+    const kpis=kpi('Faturamento Bruto',val('kpi-bruto'))+kpi('Faturamento Líquido',val('kpi-receita'),'#0071E3')+kpi('Custos Totais',val('kpi-custo'),'#FF3B30')+kpi('Total Aportes',val('kpi-aportes'),'#AF52DE')+kpi('Margem Líquida',val('kpi-margem-val'),'#34C759')+kpi('Obras Ativas',val('kpi-obras-ativas'))+kpi('Obras Concluídas',val('kpi-obras-fin'))+kpi('Obras em Atraso',val('kpi-atraso'),'#FF9500');
+    // Cada gráfico é seu PRÓPRIO bloco, exportado em alta resolução via _chartImgHD()
+    // (evita o borrão de esticar um canvas pequeno pra "width:100%" numa folha A4) e com
+    // altura limitada, assim o paginador nunca precisa cortar um gráfico ao meio — ele
+    // inteiro pula pra próxima página.
+    const chartBlock=(key,titulo,alturaMm)=>{try{const ch=this.state.charts&&this.state.charts[key];if(!ch)return '';return `<div style="border:1px solid #e5e5ea;border-radius:10px;padding:10px 12px"><div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:#6e6e73;margin-bottom:6px">${titulo}</div><img src="${this._chartImgHD(ch)}" style="width:100%;max-height:${alturaMm}mm;object-fit:contain;display:block"></div>`;}catch(e){return '';}};
+    const chartRow=(itens)=>{const html=itens.filter(Boolean).join('');return html?`<div style="display:flex;gap:10px">${itens.map(h=>h?`<div style="flex:1;min-width:0">${h}</div>`:'').join('')}</div>`:'';};
+    const secao=(titulo)=>`<div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:#6e6e73;margin:6px 0 2px">${titulo}</div>`;
     const filtroTxt=document.getElementById('dash-filter-label')?.textContent||'';
 
+    // Card com título+moldura, pro conteúdo clonado da tela (tabelas/listas) ganhar o
+    // mesmo visual dos cards de KPI/gráfico — antes cada seção tinha um estilo próprio
+    // (só um rótulo em cima, sem moldura), o que deixava o PDF com aparência inconsistente.
+    const cardSecao=(titulo,conteudoHtml)=>`<div style="border:1px solid #e5e5ea;border-radius:10px;padding:10px 12px">${secao(titulo)}${conteudoHtml}</div>`;
+
     const blocos=[];
-    blocos.push('<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">'+kpis+'</div>');
+    // Alertas (ex.: resultado negativo) — só entra se houver algum visível na tela.
+    const alertsEl=document.getElementById('dash-alerts');
+    if(alertsEl&&alertsEl.style.display!=='none'&&alertsEl.innerHTML.trim())blocos.push(alertsEl.innerHTML);
+    blocos.push(secao('Indicadores-Chave')+`<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px">${kpis}</div>`);
     const lineBlock=chartBlock('line','Faturamento Bruto · Líquido · Custos por Período',85);
     if(lineBlock)blocos.push(lineBlock);
     const donutBlock=chartBlock('tipoFatDonut','Previsto vs Real',70);
     const evolBlock=chartBlock('custosEvolucao','Fat. Líquido vs Custos',70);
     const margemBlock=chartBlock('margemDonut','Composição da Margem',70);
-    const linha2=chartRow([evolBlock,donutBlock]);
+    // Os 3 gráficos menores lado a lado numa única fileira, em vez de 2+1 desalinhado —
+    // ocupam a largura toda igualmente e ficam mais fáceis de comparar.
+    const linha2=chartRow([evolBlock,donutBlock,margemBlock]);
     if(linha2)blocos.push(linha2);
-    if(margemBlock)blocos.push(`<div style="max-width:340px">${margemBlock}</div>`);
-    if(custoTbl)blocos.push(custoTbl);
+    // Ranking de Rentabilidade por Obra — tabela real, clonada tal como está na tela.
+    const rankEl=document.getElementById('rank-table-obras');
+    if(rankEl&&rankEl.querySelector('tbody')?.children.length){
+      blocos.push(cardSecao('Ranking de Rentabilidade por Obra',rankEl.outerHTML));
+    }
+    // Deduções Fiscais Detalhadas + Status do Portfólio — HTML tal como está na tela.
+    const dedEl=document.getElementById('fin-deducoes-list');
+    const statusEl=document.getElementById('status-bars');
+    const dedHtml=(dedEl&&dedEl.innerHTML.trim())?cardSecao('Deduções Fiscais Detalhadas',dedEl.innerHTML):'';
+    const statusHtml=(statusEl&&statusEl.innerHTML.trim())?cardSecao('Status do Portfólio',statusEl.innerHTML):'';
+    const linha3=chartRow([dedHtml,statusHtml]);
+    if(linha3)blocos.push(linha3);
+    // Custos por Especificação
+    const custoTblEl=document.getElementById('custo-espec-list');
+    if(custoTblEl&&custoTblEl.innerHTML.trim())blocos.push(cardSecao('Custos por Especificação',custoTblEl.innerHTML));
 
     this._relExportPaginado({
       titulo:'Dashboard',
@@ -6023,13 +6325,21 @@ const UI={
       const atraso=esp-Math.round(av);
       const esc=s=>String(s==null?'':s).replace(/</g,'&lt;');
       const marcador=(hoje>=a&&hoje<=b)?`<div title="Previsto para hoje: ${esp}% (${atraso>0?'atrasada em '+atraso+'%':'em dia'})" style="position:absolute;left:${esp}%;top:-4px;bottom:-4px;width:2px;background:#1d1d1f;z-index:3"></div>`:'';
-      return `<div style="display:flex;align-items:center;height:30px;border-bottom:1px solid var(--border)">
+      // A linha inteira ganha position:relative + z-index:1: sem isso, ela é um filho não
+      // posicionado do container externo, e a camada de grade+linha-de-hoje (position:absolute
+      // logo acima, com z-index:auto) sempre pinta POR CIMA de conteúdo não posicionado —
+      // regra do CSS, independente da ordem no DOM. Na prática só ficava visível como bug na
+      // 1ª etapa porque a linha de grade do 1º mês cai bem perto de left:0%, exatamente onde
+      // fica o rótulo de % dela.
+      return `<div style="position:relative;z-index:1;display:flex;align-items:center;height:30px;border-bottom:1px solid var(--border)">
         <div style="width:${LEFT}px;flex-shrink:0;padding-right:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;font-weight:600;color:var(--text-1)" title="${esc(l.nome)}">${esc(l.nome)||'(sem nome)'}${l.peso?` <span style="color:var(--text-3);font-weight:500">· ${l.peso}%</span>`:''}</div>
         <div style="position:relative;flex:1;height:100%">
           <div style="position:absolute;left:${left}%;width:${width}%;top:6px;height:18px;background:${col}22;border:1px solid ${col};border-radius:5px;overflow:hidden;z-index:2">
             <div style="position:absolute;left:0;top:0;bottom:0;width:${av}%;background:${col}"></div>
-            <span style="position:absolute;left:6px;top:50%;transform:translateY(-50%);font-size:9px;font-weight:700;color:${av>55?'#fff':col};white-space:nowrap;z-index:2">${Math.round(av)}%</span>
           </div>
+          ${(left+width)>90
+            ? `<span style="position:absolute;left:${left+width}%;transform:translateX(calc(-100% - 6px));top:6px;height:18px;line-height:18px;font-size:9px;font-weight:700;color:#1d1d1f;white-space:nowrap;z-index:3">${Math.round(av)}%</span>`
+            : `<span style="position:absolute;left:calc(${left+width}% + 6px);top:6px;height:18px;line-height:18px;font-size:9px;font-weight:700;color:#1d1d1f;white-space:nowrap;z-index:3">${Math.round(av)}%</span>`}
           ${marcador}
         </div>
       </div>`;
@@ -6040,7 +6350,7 @@ const UI={
         <div style="position:relative;flex:1;height:16px">${gridLabels}</div>
       </div>
       <div style="position:relative">
-        <div style="position:absolute;left:${LEFT}px;right:0;top:0;bottom:0;pointer-events:none">${gridCols}${hojeLine}</div>
+        <div style="position:absolute;left:${LEFT}px;right:0;top:0;bottom:0;pointer-events:none;z-index:0">${gridCols}${hojeLine}</div>
         ${rowsHtml}
       </div>`;
   },
@@ -6099,6 +6409,68 @@ const UI={
       toast('Cronograma salvo!','success');
     }catch(err){App.state._busy=false;UI._hideBusy();toast(typeof err==='string'?err:'Erro ao salvar.','error');console.error(err);}
   },
+  /* Reconstrói o Gantt como uma sequência de blocos (1 régua de meses + 1 bloco por etapa,
+     cada linha desenhando suas próprias linhas de grade/marcador "Hoje") para o motor
+     paginado — assim, com muitas etapas, o gráfico flui para novas páginas normalmente em
+     vez de ficar cortado numa página única de altura fixa (bug relatado). */
+  _etapasGanttBlocosPDF(linhas){
+    const comData=linhas.filter(l=>(l.nome||l.ini||l.fim)&&parseDate(l.ini)&&parseDate(l.fim));
+    if(!comData.length)return [];
+    let min=Infinity,max=-Infinity;
+    comData.forEach(l=>{const a=parseDate(l.ini).getTime(),b=parseDate(l.fim).getTime();if(a<min)min=a;if(b>max)max=b;});
+    if(max<=min)max=min+86400000;
+    const span=max-min;
+    const pct=t=>(t-min)/span*100;
+    const nomesMes=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+    const meses=[];let d=new Date(min);d.setDate(1);
+    while(d.getTime()<=max){meses.push(new Date(d));d.setMonth(d.getMonth()+1);}
+    const LEFT=170;
+    const gridLabels=meses.map((m,i)=>{const p=Math.max(0,pct(m.getTime()));const pNext=i+1<meses.length?pct(meses[i+1].getTime()):100;const w=Math.max(0,pNext-p);return `<div style="position:absolute;left:${p}%;width:${w}%;text-align:center;font-size:9px;font-weight:700;color:#6e6e73;text-transform:uppercase">${nomesMes[m.getMonth()]}/${String(m.getFullYear()).slice(2)}</div>`;}).join('');
+    const gridCols=meses.map(m=>{const p=pct(m.getTime());return(p>=0&&p<=100)?`<div style="position:absolute;left:${p}%;top:0;bottom:0;width:1px;background:#e5e5ea"></div>`:'';}).join('');
+    const hoje=Date.now();
+    const hojeLine=(hoje>=min&&hoje<=max)?`<div style="position:absolute;left:${pct(hoje)}%;top:0;bottom:0;width:2px;background:#FF3B30;opacity:.55"></div>`:'';
+    const esperadoHoje=(a,b)=>{if(hoje<=a)return 0;if(hoje>=b)return 100;return (hoje-a)/(b-a)*100;};
+    const blocos=[];
+    // Afasta um pouco o gráfico da tabela de etapas que vem logo acima dele (rowsArr) —
+    // sem essa margem, os dois ficam colados na quebra de página/bloco.
+    // Legenda "Hoje" / "Avanço previsto (diário)" na íntegra, mesma posição do formulário:
+    // ao lado do título "Gráfico de Gantt", alinhada à direita na mesma linha.
+    blocos.push(`<div style="display:flex;justify-content:space-between;align-items:center;margin-top:18px;margin-bottom:10px">
+        <div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:#6e6e73">Gráfico de Gantt</div>
+        <div style="display:flex;gap:14px;font-size:9px;color:#6e6e73"><span><span style="display:inline-block;width:8px;height:2px;background:#FF3B30;vertical-align:middle;margin-right:4px"></span>Hoje</span><span><span style="display:inline-block;width:2px;height:10px;background:#1d1d1f;vertical-align:middle;margin-right:4px"></span>Avanço previsto (diário)</span></div>
+      </div>
+      <div style="display:flex;align-items:flex-end">
+        <div style="width:${LEFT}px;flex-shrink:0;font-size:10px;font-weight:800;text-transform:uppercase;color:#6e6e73;padding-bottom:4px">Etapa</div>
+        <div style="position:relative;flex:1;height:16px">${gridLabels}</div>
+      </div>`);
+    comData.forEach((l,i)=>{
+      const a=parseDate(l.ini).getTime(),b=parseDate(l.fim).getTime();
+      const left=pct(a),width=Math.max(1.2,pct(b)-pct(a));
+      const col=this._ETAPA_PAL[i%this._ETAPA_PAL.length];
+      const av=Math.max(0,Math.min(100,l.avanco));
+      const esp=Math.round(esperadoHoje(a,b));
+      const marcador=(hoje>=a&&hoje<=b)?`<div style="position:absolute;left:${esp}%;top:-4px;bottom:-4px;width:2px;background:#1d1d1f"></div>`:'';
+      const esc=s=>String(s==null?'':s).replace(/</g,'&lt;');
+      // O rótulo de % fica FORA da barra, logo à FRENTE dela (depois do fim da barra), na
+      // cor de preenchimento — antes ficava dentro, sobre o próprio preenchimento (mesma
+      // cor, ilegível). Quando a barra termina quase no fim do Gantt (>90%), o rótulo vira
+      // pra dentro/à esquerda do fim (translateX) pra não estourar a borda direita e sumir.
+      blocos.push(`<div style="display:flex;align-items:center;height:26px;border-bottom:1px solid #e5e5ea">
+        <div style="width:${LEFT}px;flex-shrink:0;padding-right:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;font-weight:600;color:#1d1d1f">${esc(l.nome)||'(sem nome)'}${l.peso?` <span style="color:#6e6e73;font-weight:500">· ${l.peso}%</span>`:''}</div>
+        <div style="position:relative;flex:1;height:100%">
+          <div style="position:absolute;left:0;top:0;bottom:0;right:0;pointer-events:none">${gridCols}${hojeLine}</div>
+          <div style="position:absolute;left:${left}%;width:${width}%;top:4px;height:16px;background:${col}22;border:1px solid ${col};border-radius:5px;overflow:hidden;z-index:2">
+            <div style="position:absolute;left:0;top:0;bottom:0;width:${av}%;background:${col}"></div>
+          </div>
+          ${(left+width)>90
+            ? `<span style="position:absolute;left:${left+width}%;transform:translateX(calc(-100% - 6px));top:4px;height:16px;line-height:16px;font-size:8px;font-weight:700;color:#1d1d1f;white-space:nowrap;z-index:3">${Math.round(av)}%</span>`
+            : `<span style="position:absolute;left:calc(${left+width}% + 6px);top:4px;height:16px;line-height:16px;font-size:8px;font-weight:700;color:#1d1d1f;white-space:nowrap;z-index:3">${Math.round(av)}%</span>`}
+          ${marcador}
+        </div>
+      </div>`);
+    });
+    return blocos;
+  },
   _etapasExportPDF(){
     const ctx=this._etapasCtx;if(!ctx){toast('Abra o cronograma de uma obra primeiro.','error');return;}
     const linhas=this._etapasLerLinhas().filter(l=>l.nome||l.ini||l.fim);
@@ -6106,39 +6478,18 @@ const UI={
     const totPeso=linhas.reduce((s,l)=>s+l.peso,0);
     const totValor=linhas.reduce((s,l)=>s+l.valor,0);
     const avGlobal=totPeso>0?linhas.reduce((s,l)=>s+l.peso*Math.max(0,Math.min(100,l.avanco)),0)/totPeso:0;
-    const ganttHtml=(document.getElementById('etapas-gantt')||{}).innerHTML||'';
-    const rowsHtml=linhas.map(l=>`<tr><td>${(l.nome||'—').replace(/</g,'&lt;')}</td><td>${dateBR(l.ini)||'—'}</td><td>${dateBR(l.fim)||'—'}</td><td style="text-align:right">${l.peso?l.peso+'%':'—'}</td><td style="text-align:right">${Math.round(Math.max(0,Math.min(100,l.avanco)))}%</td><td style="text-align:right">${fmt(l.valor)}</td></tr>`).join('');
-    const agora=new Date();
-    const dataHora=agora.toLocaleDateString('pt-BR')+' '+agora.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
-    const win=window.open('','_blank');
-    if(!win){toast('Não foi possível abrir o PDF. Permita pop-ups deste site e tente de novo.','error');return;}
-    win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>&nbsp;</title>
-      <style>@page{margin:0;size:A4 landscape;}*{box-sizing:border-box;}html,body{margin:0;padding:0;background:#ccc;font-family:Arial,sans-serif;color:#1d1d1f;}
-      h1{font-size:17px;margin:0}.sub{font-size:12px;color:#6e6e73;margin-top:2px}
-      table{border-collapse:collapse;width:100%;font-size:10px}td,th{border-bottom:1px solid #e5e5ea;text-align:left;padding:5px 8px}thead th{background:#f5f5f7;font-weight:800}
-      .pdf-page{position:relative;width:297mm;min-height:210mm;background:#fff;margin:6mm auto;overflow:hidden;}
-      .pdf-page-inner{position:absolute;top:14mm;left:14mm;right:14mm;bottom:16mm;overflow:hidden;}
-      .pdf-page-footer{position:absolute;left:14mm;right:14mm;bottom:6mm;display:flex;justify-content:space-between;font-size:9px;color:#6e6e73;border-top:1px solid #e5e5ea;padding-top:5px;}
-      @media print{html,body{background:#fff;}.pdf-page{margin:0;}}</style></head><body>
-      <div class="pdf-page"><div class="pdf-page-inner">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;border-bottom:2px solid #1d1d1f;padding-bottom:12px">
-          <img src="${PDF_LOGO_FULL_B64}" style="height:19mm;width:auto;display:block">
-          <div style="text-align:right"><h1>Avanço & Gantt</h1><div class="sub">${(ctx.obraName||'').replace(/</g,'&lt;')}</div></div>
-        </div>
-        <div style="display:flex;gap:22px;margin-bottom:12px">
-          <div><div style="font-size:9px;font-weight:800;text-transform:uppercase;color:#6e6e73">Avanço Global</div><div style="font-size:16px;font-weight:800;color:#34C759">${Math.round(avGlobal*10)/10}%</div></div>
-          <div><div style="font-size:9px;font-weight:800;text-transform:uppercase;color:#6e6e73">Total Peso</div><div style="font-size:16px;font-weight:800">${Math.round(totPeso*10)/10}%</div></div>
-          <div><div style="font-size:9px;font-weight:800;text-transform:uppercase;color:#6e6e73">Valor Total Previsto</div><div style="font-size:16px;font-weight:800;color:#0071E3">${fmt(totValor)}</div></div>
-        </div>
-        <table><thead><tr><th>Etapa</th><th>Início</th><th>Fim</th><th style="text-align:right">Peso %</th><th style="text-align:right">Avanço %</th><th style="text-align:right">Valor Previsto</th></tr></thead><tbody>${rowsHtml}</tbody></table>
-        <div style="margin-top:16px;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:#6e6e73;margin-bottom:8px">Gráfico de Gantt</div>
-        <div>${ganttHtml}</div>
-      </div>
-      <div class="pdf-page-footer"><span>${dataHora}</span><span>Vixsul Empreendimentos — CNPJ 64.518.375/0001-20</span><span>Cronograma</span></div>
-      </div>
-      <script>function _vxp(){setTimeout(function(){window.focus();window.print();},250);}if(document.readyState==='complete'){_vxp();}else{window.addEventListener('load',_vxp);}<\/script>
-      </body></html>`);
-    win.document.close();
+    // Mesma ordem e visual "compacto" (largura natural, não flex:1 esticando) do resumo
+    // que aparece no formulário — aqui ACIMA da tabela (preHtml), onde estava originalmente.
+    const kpi=(label,val,cor)=>`<div><div style="font-size:9px;font-weight:800;text-transform:uppercase;color:#6e6e73">${label}</div><div style="font-size:16px;font-weight:800;color:${cor||'#1d1d1f'}">${val}</div></div>`;
+    App._relExportPaginado({
+      titulo:'Avanço & Gantt',
+      subLinhas:[(ctx.obraName||'').replace(/</g,'&lt;')],
+      paisagem:true,
+      preHtml:`<div style="display:flex;gap:22px;margin-bottom:14px">${kpi('Total Peso',Math.round(totPeso*10)/10+'%')}${kpi('Avanço Global',Math.round(avGlobal*10)/10+'%','#34C759')}${kpi('Valor Total Previsto',fmt(totValor),'#0071E3')}</div>`,
+      theadHtml:'<tr><th>Etapa</th><th>Início</th><th>Fim</th><th style="text-align:right">Peso %</th><th style="text-align:right">Avanço %</th><th style="text-align:right">Valor Previsto</th></tr>',
+      rowsArr:linhas.map(l=>`<tr><td>${(l.nome||'—').replace(/</g,'&lt;')}</td><td>${dateBR(l.ini)||'—'}</td><td>${dateBR(l.fim)||'—'}</td><td style="text-align:right">${l.peso?l.peso+'%':'—'}</td><td style="text-align:right">${Math.round(Math.max(0,Math.min(100,l.avanco)))}%</td><td style="text-align:right">${fmt(l.valor)}</td></tr>`),
+      blocosArr:this._etapasGanttBlocosPDF(linhas)
+    });
   },
 
   _grShell(view,obraName,theadHtml,tbodyHtml,minWidth,resumoHtml){
