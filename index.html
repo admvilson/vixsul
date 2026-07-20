@@ -1024,7 +1024,7 @@ tbody tr:hover td{background:rgba(0,113,227,.02);}
       <div><div style="font-size:12px;font-weight:700;color:var(--text-2);margin-bottom:4px">Nome</div><input id="usr-nome" class="field-input" style="width:100%" placeholder="Nome completo"></div>
       <div><div style="font-size:12px;font-weight:700;color:var(--text-2);margin-bottom:4px">E-mail <span style="color:var(--red)">*</span></div><input id="usr-email" class="field-input" type="email" style="width:100%" placeholder="email@dominio.com"><div style="font-size:10px;color:var(--text-3);margin-top:2px">Usado na recuperação de senha (envio do código).</div></div>
       <div style="display:flex;gap:12px">
-        <div style="flex:1"><div style="font-size:12px;font-weight:700;color:var(--text-2);margin-bottom:4px">CPF</div><input id="usr-cpf" class="field-input" style="width:100%" inputmode="numeric" placeholder="000.000.000-00" oninput="UI._usrMaskCpf(this)" onblur="UI._usrValidarCpf(this)"></div>
+        <div id="usr-cpf-wrap" style="flex:1"><div style="font-size:12px;font-weight:700;color:var(--text-2);margin-bottom:4px">CPF</div><input id="usr-cpf" class="field-input" style="width:100%" inputmode="numeric" placeholder="000.000.000-00" oninput="UI._usrMaskCpf(this)" onblur="UI._usrValidarCpf(this)"></div>
         <div style="flex:1"><div style="font-size:12px;font-weight:700;color:var(--text-2);margin-bottom:4px">Senha</div><input id="usr-senha" class="field-input" type="password" style="width:100%" placeholder="••••••"><div id="usr-senha-hint" style="font-size:10px;color:var(--text-3);margin-top:2px"></div></div>
       </div>
       <div style="display:flex;gap:12px">
@@ -1033,6 +1033,10 @@ tbody tr:hover td{background:rgba(0,113,227,.02);}
       </div>
       <div id="usr-perfil-wrap" style="flex:1"><div style="font-size:12px;font-weight:700;color:var(--text-2);margin-bottom:4px">Perfil</div><select id="usr-perfil" class="field-input field-select" style="width:100%" onchange="UI._usrPerfilChange()"><option value="Usuário">Usuário</option><option value="admin">Administrador</option></select></div>
       <div id="usr-externo-aviso" style="display:none;font-size:12px;color:var(--text-3);background:rgba(0,113,227,.06);border:1px solid rgba(0,113,227,.18);border-radius:8px;padding:10px 12px">O Usuário Externo entra com <strong>e-mail e senha</strong> e só tem acesso a <strong>Obras → Avanço &amp; Gantt</strong>.</div>
+      <div id="usr-obras-wrap" style="display:none">
+        <div style="font-size:12px;font-weight:700;color:var(--text-2);margin-bottom:6px">Obras que pode acessar</div>
+        <div id="usr-obras" style="display:grid;grid-template-columns:1fr 1fr;gap:6px 14px;max-height:160px;overflow-y:auto"></div>
+      </div>
       <div id="usr-acessos-wrap">
         <div style="font-size:12px;font-weight:700;color:var(--text-2);margin-bottom:6px">Seções que pode acessar</div>
         <div id="usr-acessos" style="display:grid;grid-template-columns:1fr 1fr;gap:6px 14px"></div>
@@ -1944,7 +1948,10 @@ const App={
     if(view==='obras'){
       const grid=document.getElementById('grid-obras');if(!grid)return;
       const stF=document.getElementById('filter-obras-status')?.value||'';
+      const sess=Auth._session;
+      const obrasPermitidas=(sess&&sess.tipoUsuario==='externo')?(sess.obrasPermitidas||[]).map(String):null;
       const items=base.filter(i=>{
+        if(obrasPermitidas&&!obrasPermitidas.includes(String(i.rowid)))return false;
         const nome=(getFuzzy(i,['titulo_obra','nome_obra','titulo'])||'').toLowerCase();
         const st=getFuzzy(i,['status_proposta','status_obra','status_da_obra','status'])||'';
         return nome.includes(q)&&(!stF||st===stF);
@@ -3674,6 +3681,12 @@ const UI={
     // acessos: novo = todas marcadas; edição = as salvas (null = todas).
     const sel=u?(Array.isArray(u.acessos)?u.acessos:this._MODULOS.map(m=>m[0])):this._MODULOS.map(m=>m[0]);
     document.getElementById('usr-acessos').innerHTML=this._MODULOS.map(([k,l])=>`<label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer"><input type="checkbox" class="usr-acesso" value="${k}" ${sel.includes(k)?'checked':''}>${l}</label>`).join('');
+    // obras permitidas (só usado por Usuário Externo): lista todas as obras cadastradas.
+    const obrasSel=u?(Array.isArray(u.obrasPermitidas)?u.obrasPermitidas.map(String):[]):[];
+    const obras=App.state.data.obras||[];
+    document.getElementById('usr-obras').innerHTML=obras.length
+      ?obras.map(o=>{const nome=getFuzzy(o,['titulo_obra','nome_obra','titulo'])||`Obra #${o.rowid}`;return `<label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer"><input type="checkbox" class="usr-obra" value="${o.rowid}" ${obrasSel.includes(String(o.rowid))?'checked':''}>${nome.replace(/</g,'&lt;')}</label>`;}).join('')
+      :'<div style="font-size:12px;color:var(--text-3)">Nenhuma obra cadastrada ainda.</div>';
     document.getElementById('usr-del-btn').style.display=u?'inline-flex':'none';
     const errEl=document.getElementById('usr-err');errEl.style.display='none';errEl.textContent='';
     this._usrTipoChange();
@@ -3681,9 +3694,12 @@ const UI={
   },
   _usrTipoChange(){
     const ext=document.getElementById('usr-tipo').value==='externo';
+    document.getElementById('usr-cpf-wrap').style.display=ext?'none':'';
     document.getElementById('usr-perfil-wrap').style.display=ext?'none':'';
     document.getElementById('usr-externo-aviso').style.display=ext?'':'none';
+    document.getElementById('usr-obras-wrap').style.display=ext?'':'none';
     if(ext){
+      document.getElementById('usr-cpf').classList.remove('err');
       document.getElementById('usr-perfil').value='Usuário';
       document.getElementById('usr-acessos-wrap').style.display='none';
       document.getElementById('usr-acessos-admin').style.display='none';
@@ -3704,20 +3720,22 @@ const UI={
     const tipoUsuario=document.getElementById('usr-tipo').value==='externo'?'externo':'interno';
     const dados={
       nome:document.getElementById('usr-nome').value.trim(),
-      cpf:document.getElementById('usr-cpf').value,
+      cpf:tipoUsuario==='externo'?'':document.getElementById('usr-cpf').value,
       email:document.getElementById('usr-email').value.trim(),
       senha:document.getElementById('usr-senha').value,
       perfil:tipoUsuario==='externo'?'Usuário':perfil,
       status:document.getElementById('usr-status').value,
       tipoUsuario:tipoUsuario,
-      acessos:tipoUsuario==='externo'?['obras']:(perfil==='admin'?null:[...document.querySelectorAll('#usr-acessos .usr-acesso:checked')].map(c=>c.value))
+      acessos:tipoUsuario==='externo'?['obras']:(perfil==='admin'?null:[...document.querySelectorAll('#usr-acessos .usr-acesso:checked')].map(c=>c.value)),
+      obrasPermitidas:tipoUsuario==='externo'?[...document.querySelectorAll('#usr-obras .usr-obra:checked')].map(c=>c.value):[]
     };
     const fail=m=>{errEl.textContent=m;errEl.style.display='block';};
     if(!dados.nome)return fail('Informe o nome.');
-    if(!this._validarCPF(dados.cpf)){document.getElementById('usr-cpf').classList.add('err');return fail('CPF inválido. Digite um CPF válido.');}
+    if(tipoUsuario==='interno'&&!this._validarCPF(dados.cpf)){document.getElementById('usr-cpf').classList.add('err');return fail('CPF inválido. Digite um CPF válido.');}
     if(!dados.email||!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(dados.email)){document.getElementById('usr-email').classList.add('err');return fail('Informe um e-mail válido (usado na recuperação de senha).');}
     if(!id&&!dados.senha)return fail('Defina uma senha para o novo usuário.');
-    if(tipoUsuario!=='externo'&&perfil!=='admin'&&dados.acessos.length===0)return fail('Selecione ao menos uma seção de acesso.');
+    if(tipoUsuario==='interno'&&perfil!=='admin'&&dados.acessos.length===0)return fail('Selecione ao menos uma seção de acesso.');
+    if(tipoUsuario==='externo'&&dados.obrasPermitidas.length===0)return fail('Selecione ao menos uma obra que o usuário externo pode acessar.');
     const btn=document.querySelector('#modal-usuario .confirm-yes');const prev=btn.innerHTML;btn.disabled=true;btn.innerHTML='Salvando…';
     google.script.run
       .withSuccessHandler(res=>{
@@ -7419,6 +7437,8 @@ const UI={
   _OBRA_HUB_TABS:[['dados','Obra'],['custos','Custo'],['faturamentos','Faturamento'],['aportes','Aporte'],['cap','CAP'],['orcamentos','Orçamento'],['etapas','Avanço & Gantt']],
   openObraHub(rowid){
     if(App.state._busy)return;
+    const sessExt=Auth._session&&Auth._session.tipoUsuario==='externo';
+    if(sessExt&&rowid&&!(Auth._session.obrasPermitidas||[]).map(String).includes(String(rowid)))return;
     if(this._capCalcTimer){clearTimeout(this._capCalcTimer);this._capCalcTimer=null;}
     let obraName='';
     if(rowid){
@@ -8480,15 +8500,27 @@ const Auth={
       return;
     }
 
+    const isExt=this._loginTipo==='externo';
+    if(isExt&&!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(user)){
+      uEl.classList.add('err');
+      document.getElementById('login-err-msg').textContent='Informe um e-mail válido.';
+      err.classList.add('show');
+      return;
+    }
+    if(!isExt&&!UI._validarCPF(user)){
+      uEl.classList.add('err');
+      document.getElementById('login-err-msg').textContent='Informe um CPF válido.';
+      err.classList.add('show');
+      return;
+    }
+
     btn.disabled=true;
     btn.innerHTML='<span class="btn-spin"></span> Verificando…';
-
-    const isExt=this._loginTipo==='externo';
     const runner=google.script.run
       .withSuccessHandler(res=>{
         btn.disabled=false;btn.innerHTML='Entrar';
         if(res.ok){
-          this._session={nome:res.nome,perfil:res.perfil,acessos:res.acessos||null,cpf:isExt?'':user,tipoUsuario:res.tipoUsuario||(isExt?'externo':'interno')};
+          this._session={nome:res.nome,perfil:res.perfil,acessos:res.acessos||null,cpf:isExt?'':user,tipoUsuario:res.tipoUsuario||(isExt?'externo':'interno'),obrasPermitidas:res.obrasPermitidas||[]};
           this._saveSession();
           this._applySession();
           document.getElementById('login-screen').classList.add('hidden');
@@ -8555,11 +8587,6 @@ const Auth={
      dígitos do "Esqueci a senha" é gerado aqui e enviado ao e-mail do usuário pelo
      MESMO serviço do formulário Trabalhe Conosco (FormSubmit) — expira em 2 min. */
   _pw:null,
-  _pwCpfMask(el){
-    let v=el.value.replace(/\D/g,'').slice(0,11);
-    v=v.replace(/(\d{3})(\d)/,'$1.$2').replace(/(\d{3})\.(\d{3})(\d)/,'$1.$2.$3').replace(/(\d{3})\.(\d{3})\.(\d{3})(\d)/,'$1.$2.$3-$4');
-    el.value=v;
-  },
   _maskEmail(e){
     const s=String(e||'');const at=s.indexOf('@');if(at<1)return s;
     const u=s.slice(0,at),d=s.slice(at);
@@ -8567,7 +8594,7 @@ const Auth={
     return vis+'•'.repeat(Math.max(3,u.length-vis.length))+d;
   },
   _pwAdminBox(intro){
-    const i=intro||'Não localizamos um cadastro com este CPF.';
+    const i=intro||'Não localizamos um cadastro com este e-mail.';
     return '<div class="pw-msg err show">'+i+'<br><br>Para regularizar seu acesso, entre em contato com o Administrador:<br><strong>Vilson Souza Oliveira</strong><br>📞 (77) 98114-7919</div>';
   },
   _pwFeedback(type,msg){
@@ -8575,7 +8602,7 @@ const Auth={
     el.className='pw-msg '+type+' show';el.innerHTML=msg;
   },
   _pwOpen(mode){
-    this._pw={mode,step:mode==='alterar'?'form':'cpf',cpf:'',email:'',nome:'',code:'',expirado:false,restante:0,timer:null};
+    this._pw={mode,step:mode==='alterar'?'form':'email',email:'',nome:'',code:'',expirado:false,restante:0,timer:null};
     document.getElementById('pw-overlay').classList.add('open');
     this._pwRender();
   },
@@ -8584,29 +8611,21 @@ const Auth={
     this._pw=null;
     document.getElementById('pw-overlay').classList.remove('open');
   },
-  _pwNaoEhMeuEmail(){this._pw.step='naoemail';this._pwRender();},
   _pwRender(){
     const p=this._pw;if(!p)return;
     const box=document.getElementById('pw-box');
     const fb='<div class="pw-msg" id="pw-feedback"></div><div id="pw-feedback-admin"></div>';
-    const cpfField=`<div class="login-field"><label class="login-label">CPF</label><div class="login-input-wrap"><input type="text" id="pw-cpf" class="login-input" placeholder="000.000.000-00" value="${p.cpf||''}" oninput="Auth._pwCpfMask(this)"></div></div>`;
+    const emailField=`<div class="login-field"><label class="login-label">E-mail</label><div class="login-input-wrap"><input type="email" id="pw-email" class="login-input" placeholder="seu@email.com" value="${p.email||''}"></div></div>`;
     let h='';
     if(p.mode==='alterar'){
-      h=`<div class="pw-title">Alterar senha</div><div class="pw-desc">Informe seu CPF, a senha anterior e a nova senha.</div>${fb}${cpfField}
+      h=`<div class="pw-title">Alterar senha</div><div class="pw-desc">Informe seu e-mail cadastrado, a senha anterior e a nova senha.</div>${fb}${emailField}
         <div class="login-field"><label class="login-label">Senha anterior</label><div class="login-input-wrap"><input type="password" id="pw-senha-ant" class="login-input" placeholder="Senha atual"></div></div>
         <div class="login-field"><label class="login-label">Nova senha</label><div class="login-input-wrap"><input type="password" id="pw-senha-nova" class="login-input" placeholder="Nova senha"></div></div>
         <div class="login-field"><label class="login-label">Confirmar nova senha</label><div class="login-input-wrap"><input type="password" id="pw-senha-conf" class="login-input" placeholder="Repita a nova senha"></div></div>
         <div class="pw-actions"><button class="pw-btn pw-btn-ghost" onclick="Auth._pwClose()">Cancelar</button><button class="pw-btn pw-btn-primary" id="pw-submit" onclick="Auth._pwAlterarSubmit()">Alterar senha</button></div>`;
-    } else if(p.step==='cpf'){
-      h=`<div class="pw-title">Esqueci minha senha</div><div class="pw-desc">Informe seu CPF. Vamos localizar o e-mail cadastrado e enviar um código de verificação.</div>${fb}${cpfField}
-        <div class="pw-actions"><button class="pw-btn pw-btn-ghost" onclick="Auth._pwClose()">Cancelar</button><button class="pw-btn pw-btn-primary" id="pw-submit" onclick="Auth._pwEsqueciCpf()">Continuar</button></div>`;
-    } else if(p.step==='confirmaEmail'){
-      h=`<div class="pw-title">Confirme seu e-mail</div><div class="pw-desc">Encontramos este e-mail vinculado ao seu CPF:</div>
-        <div class="pw-msg info show" style="text-align:center;font-size:16px;letter-spacing:.5px">${this._maskEmail(p.email)}</div>${fb}
-        <div class="pw-desc">Este e-mail é seu? Enviaremos um código de 6 dígitos para ele.</div>
-        <div class="pw-actions"><button class="pw-btn pw-btn-ghost" onclick="Auth._pwNaoEhMeuEmail()">Não é meu e-mail</button><button class="pw-btn pw-btn-primary" onclick="Auth._pwEnviarCodigo()">Sim, enviar código</button></div>`;
-    } else if(p.step==='naoemail'){
-      h=`<div class="pw-title">E-mail não confere</div>${this._pwAdminBox('O e-mail cadastrado para este CPF não é o seu.')}<div class="pw-actions"><button class="pw-btn pw-btn-primary" onclick="Auth._pwClose()">Entendi</button></div>`;
+    } else if(p.step==='email'){
+      h=`<div class="pw-title">Esqueci minha senha</div><div class="pw-desc">Informe seu e-mail cadastrado. Vamos enviar um código de verificação para ele.</div>${fb}${emailField}
+        <div class="pw-actions"><button class="pw-btn pw-btn-ghost" onclick="Auth._pwClose()">Cancelar</button><button class="pw-btn pw-btn-primary" id="pw-submit" onclick="Auth._pwEsqueciEmail()">Continuar</button></div>`;
     } else if(p.step==='codigo'){
       h=`<div class="pw-title">Digite o código</div><div class="pw-desc">Enviamos um código de 6 dígitos para <strong>${this._maskEmail(p.email)}</strong>.</div>${fb}
         <input type="text" inputmode="numeric" maxlength="6" id="pw-code" class="pw-code-input" placeholder="------" oninput="this.value=this.value.replace(/\\D/g,'').slice(0,6)">
@@ -8621,12 +8640,13 @@ const Auth={
     box.innerHTML=h;
   },
   _pwAlterarSubmit(){
-    const cpf=document.getElementById('pw-cpf').value.trim();
+    const email=document.getElementById('pw-email').value.trim();
     const ant=document.getElementById('pw-senha-ant').value.trim();
     const nova=document.getElementById('pw-senha-nova').value.trim();
     const conf=document.getElementById('pw-senha-conf').value.trim();
     document.getElementById('pw-feedback-admin').innerHTML='';
-    if(!cpf||!ant||!nova){this._pwFeedback('err','Preencha o CPF, a senha anterior e a nova senha.');return;}
+    if(!email||!ant||!nova){this._pwFeedback('err','Preencha o e-mail, a senha anterior e a nova senha.');return;}
+    if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){this._pwFeedback('err','Informe um e-mail válido.');return;}
     if(nova.length<4){this._pwFeedback('err','A nova senha deve ter ao menos 4 caracteres.');return;}
     if(nova!==conf){this._pwFeedback('err','A confirmação da nova senha não confere.');return;}
     const btn=document.getElementById('pw-submit');if(btn){btn.disabled=true;btn.textContent='Alterando...';}
@@ -8634,21 +8654,21 @@ const Auth={
       if(res&&res.ok){this._pwFeedback('ok','Senha alterada com sucesso! Use a nova senha para entrar.');setTimeout(()=>this._pwClose(),2200);}
       else if(res&&res.existe===false){document.getElementById('pw-feedback-admin').innerHTML=this._pwAdminBox();if(btn){btn.disabled=false;btn.textContent='Alterar senha';}}
       else{this._pwFeedback('err',(res&&res.msg)||'Não foi possível alterar a senha.');if(btn){btn.disabled=false;btn.textContent='Alterar senha';}}
-    }).withFailureHandler(()=>{this._pwFeedback('err','Erro de conexão. Tente novamente.');if(btn){btn.disabled=false;btn.textContent='Alterar senha';}}).alterarSenha(cpf,ant,nova);
+    }).withFailureHandler(()=>{this._pwFeedback('err','Erro de conexão. Tente novamente.');if(btn){btn.disabled=false;btn.textContent='Alterar senha';}}).alterarSenhaPorEmail(email,ant,nova);
   },
-  _pwEsqueciCpf(){
-    const cpf=document.getElementById('pw-cpf').value.trim();
+  _pwEsqueciEmail(){
+    const email=document.getElementById('pw-email').value.trim();
     document.getElementById('pw-feedback-admin').innerHTML='';
-    if(!cpf){this._pwFeedback('err','Informe o seu CPF.');return;}
-    this._pw.cpf=cpf;
+    if(!email){this._pwFeedback('err','Informe o seu e-mail.');return;}
+    if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){this._pwFeedback('err','Informe um e-mail válido.');return;}
+    this._pw.email=email;
     const btn=document.getElementById('pw-submit');if(btn){btn.disabled=true;btn.textContent='Verificando...';}
     google.script.run.withSuccessHandler(res=>{
       if(btn){btn.disabled=false;btn.textContent='Continuar';}
-      if(!res||res.existe===false){document.getElementById('pw-feedback-admin').innerHTML=this._pwAdminBox();return;}
-      if(!res.temEmail){document.getElementById('pw-feedback-admin').innerHTML=this._pwAdminBox('Este CPF não possui um e-mail cadastrado, então não é possível enviar o código.');return;}
-      this._pw.email=res.email;this._pw.nome=res.nome||'';
-      this._pw.step='confirmaEmail';this._pwRender();
-    }).withFailureHandler(()=>{if(btn){btn.disabled=false;btn.textContent='Continuar';}this._pwFeedback('err','Erro de conexão. Tente novamente.');}).buscarEmailPorCpf(cpf);
+      if(!res||!res.existe){document.getElementById('pw-feedback-admin').innerHTML=this._pwAdminBox();return;}
+      this._pw.nome=res.nome||'';
+      this._pwEnviarCodigo();
+    }).withFailureHandler(()=>{if(btn){btn.disabled=false;btn.textContent='Continuar';}this._pwFeedback('err','Erro de conexão. Tente novamente.');}).buscarUsuarioPorEmail(email);
   },
   async _pwEnviarCodigo(){
     const p=this._pw;if(!p)return;
@@ -8704,7 +8724,7 @@ const Auth={
     google.script.run.withSuccessHandler(res=>{
       if(res&&res.ok){this._pwFeedback('ok','Senha redefinida com sucesso! Você já pode entrar com a nova senha.');setTimeout(()=>this._pwClose(),2200);}
       else{this._pwFeedback('err',(res&&res.msg)||'Não foi possível redefinir a senha.');if(btn){btn.disabled=false;btn.textContent='Redefinir senha';}}
-    }).withFailureHandler(()=>{this._pwFeedback('err','Erro de conexão. Tente novamente.');if(btn){btn.disabled=false;btn.textContent='Redefinir senha';}}).redefinirSenhaPorCpf(p.cpf,n);
+    }).withFailureHandler(()=>{this._pwFeedback('err','Erro de conexão. Tente novamente.');if(btn){btn.disabled=false;btn.textContent='Redefinir senha';}}).redefinirSenhaPorEmail(p.email,n);
   },
 
   logout(idleExpired=false){
@@ -8759,10 +8779,12 @@ window.onload=()=>{
     formUpsertEl.addEventListener('input',limparErroAoDigitar);
     formUpsertEl.addEventListener('change',limparErroAoDigitar);
   }
-  // Máscara CPF no campo de login
+  // Máscara CPF no campo de login (só no modo Usuário Interno; no modo Usuário
+  // Externo o campo vira e-mail e não deve ter dígitos removidos ao digitar).
   const cpfEl=document.getElementById('login-user');
   if(cpfEl){
     cpfEl.addEventListener('input',function(){
+      if(Auth._loginTipo==='externo')return;
       let v=this.value.replace(/\D/g,'');
       if(v.length>11)v=v.slice(0,11);
       v=v.replace(/(\d{3})(\d)/,'$1.$2')

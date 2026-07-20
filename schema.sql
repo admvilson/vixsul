@@ -70,13 +70,14 @@ CREATE INDEX IF NOT EXISTS idx_cap_titulo_obra
 CREATE TABLE IF NOT EXISTS usuarios (
   id         BIGSERIAL PRIMARY KEY,
   nome       TEXT,
-  cpf        TEXT UNIQUE NOT NULL,
+  cpf        TEXT UNIQUE,   -- obrigatório só para Usuário Interno; Usuário Externo não tem CPF cadastrado (fica NULL)
   senha      TEXT NOT NULL,
   perfil     TEXT NOT NULL DEFAULT 'Usuário',
   status     TEXT NOT NULL DEFAULT 'ativo',
-  email      TEXT,   -- e-mail do usuário; usado no "Esqueci a senha" (código por e-mail) e no login do Usuário Externo
+  email      TEXT,   -- e-mail do usuário; usado no "Esqueci a senha"/"Alterar senha" e no login do Usuário Externo
   acessos    TEXT,   -- JSON com os módulos que o usuário pode ver; NULL = todos
   tipo_usuario TEXT NOT NULL DEFAULT 'interno', -- 'interno' (entra com CPF) ou 'externo' (entra com e-mail, só vê Obras → Avanço & Gantt)
+  obras_permitidas TEXT, -- JSON com os rowids das obras que o Usuário Externo pode acessar; só usado quando tipo_usuario='externo'
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -85,6 +86,8 @@ CREATE TABLE IF NOT EXISTS usuarios (
 ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS acessos TEXT;
 ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS email TEXT;
 ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS tipo_usuario TEXT NOT NULL DEFAULT 'interno';
+ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS obras_permitidas TEXT;
+ALTER TABLE usuarios ALTER COLUMN cpf DROP NOT NULL;
 
 -- ── Usuário administrador inicial ──────────────
 -- TROQUE o CPF e a senha antes de usar em produção!
