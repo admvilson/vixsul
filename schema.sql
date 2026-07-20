@@ -81,6 +81,10 @@ CREATE TABLE IF NOT EXISTS usuarios (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- Não pode haver dois usuários com o mesmo e-mail (índice parcial: ignora linhas antigas
+-- com e-mail em branco, então não quebra se já existir mais de uma sem e-mail cadastrado).
+CREATE UNIQUE INDEX IF NOT EXISTS usuarios_email_unico_idx ON usuarios (lower(email)) WHERE email IS NOT NULL AND email <> '';
+
 -- Se a tabela "usuarios" já existia antes desta atualização, rode só estas linhas
 -- (SQL Editor → New query) para habilitar o controle de acesso e a recuperação de senha:
 ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS acessos TEXT;

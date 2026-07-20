@@ -1033,7 +1033,7 @@ tbody tr:hover td{background:rgba(0,113,227,.02);}
         <div style="flex:1"><div style="font-size:12px;font-weight:700;color:var(--text-2);margin-bottom:4px">Status</div><select id="usr-status" class="field-input field-select" style="width:100%"><option value="ativo">Ativo</option><option value="inativo">Inativo</option></select></div>
       </div>
       <div id="usr-perfil-wrap" style="flex:1"><div style="font-size:12px;font-weight:700;color:var(--text-2);margin-bottom:4px">Perfil</div><select id="usr-perfil" class="field-input field-select" style="width:100%" onchange="UI._usrPerfilChange()"><option value="Usuário">Usuário</option><option value="admin">Administrador</option></select></div>
-      <div id="usr-externo-aviso" style="display:none;font-size:12px;color:var(--text-3);background:rgba(0,113,227,.06);border:1px solid rgba(0,113,227,.18);border-radius:8px;padding:10px 12px">O Usuário Externo entra com <strong>e-mail e senha</strong> e só tem acesso a <strong>Obras → Avanço &amp; Gantt</strong>.</div>
+      <div id="usr-externo-aviso" style="display:none;font-size:12px;color:var(--text-3);background:rgba(0,113,227,.06);border:1px solid rgba(0,113,227,.18);border-radius:8px;padding:10px 12px">O Usuário Externo entra com <strong>e-mail e senha</strong> e só tem acesso a <strong>Obras → Avanço &amp; Gantt</strong> e <strong>Relatórios → Cronograma Físico-financeiro</strong>.</div>
       <div id="usr-obras-wrap" style="display:none">
         <div style="font-size:12px;font-weight:700;color:var(--text-2);margin-bottom:6px">Obras que pode acessar</div>
         <div id="usr-obras" style="display:grid;grid-template-columns:1fr 1fr;gap:6px 14px;max-height:160px;overflow-y:auto"></div>
@@ -1326,7 +1326,7 @@ function cleanMoneyFields(form){
 /* ═══ APP ═══ */
 const App={
   state:{data:null,charts:{},editing:null,_busy:false},
-  init(silent){
+  init(silent,onDone){
     if(silent&&this.state._busy)return; // evita pisar em um salvamento/exclusão em andamento nesta própria janela
     const btn=document.getElementById('refresh-btn');
     if(!silent)btn.classList.add('loading');
@@ -1338,8 +1338,9 @@ const App={
         document.getElementById('sync-time').textContent='Sincronizado às '+new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
         /* força redimensionamento dos charts após reflow */requestAnimationFrame(()=>{requestAnimationFrame(()=>{Object.values(this.state.charts).forEach(ch=>{if(ch&&ch.resize)try{ch.resize();}catch(e){}});});});
         this._initRealtime();
+        if(onDone)onDone();
       })
-      .withFailureHandler(err=>{if(!silent){btn.classList.remove('loading');toast('Erro ao carregar dados.','error');}console.error(err);})
+      .withFailureHandler(err=>{if(!silent){btn.classList.remove('loading');toast('Erro ao carregar dados.','error');}console.error(err);if(onDone)onDone(err);})
       .getSistemaData();
   },
   /* Assina mudanças em tempo real (Supabase Realtime): quando qualquer usuário salva/exclui
@@ -8551,19 +8552,29 @@ const Auth={
     btn.innerHTML='<span class="btn-spin"></span> Verificando…';
     const runner=google.script.run
       .withSuccessHandler(res=>{
-        btn.disabled=false;btn.innerHTML='Entrar';
         if(res.ok){
           this._session={nome:res.nome,perfil:res.perfil,acessos:res.acessos||null,cpf:isExt?'':user,tipoUsuario:res.tipoUsuario||(isExt?'externo':'interno'),obrasPermitidas:res.obrasPermitidas||[]};
           this._saveSession();
           this._applySession();
-          document.getElementById('login-screen').classList.add('hidden');
-          const as2=document.getElementById('app-shell');
-          if(as2)as2.classList.remove('hidden');
-          document.documentElement.dataset.authed='1';
-          UI.nav(isExt?'obras':'dashboard');
-          App.init();
-          this._startIdleWatcher();
+          btn.innerHTML='<span class="btn-spin"></span> Carregando…';
+          // Só troca de tela DEPOIS que os dados terminarem de carregar — evita mostrar
+          // a interface "crua" (sem os filtros/restrições aplicados) por uma fração de segundo.
+          App.init(false,loadErr=>{
+            btn.disabled=false;btn.innerHTML='Entrar';
+            if(loadErr){
+              document.getElementById('login-err-msg').textContent='Erro ao carregar os dados. Tente novamente.';
+              err.classList.add('show');
+              return;
+            }
+            document.getElementById('login-screen').classList.add('hidden');
+            const as2=document.getElementById('app-shell');
+            if(as2)as2.classList.remove('hidden');
+            document.documentElement.dataset.authed='1';
+            UI.nav(isExt?'obras':'dashboard');
+            this._startIdleWatcher();
+          });
         } else {
+          btn.disabled=false;btn.innerHTML='Entrar';
           uEl.classList.add('err');pEl.classList.add('err');
           document.getElementById('login-err-msg').textContent=res.msg||'Usuário ou senha incorretos.';
           err.classList.add('show');
@@ -8686,6 +8697,7 @@ const Auth={
       h=`<div class="pw-title">Digite o código</div><div class="pw-desc">Enviamos um código de 6 dígitos para <strong>${this._maskEmail(p.email)}</strong>.</div>${fb}
         <input type="text" inputmode="numeric" maxlength="6" id="pw-code" class="pw-code-input" placeholder="------" oninput="this.value=this.value.replace(/\\D/g,'').slice(0,6)">
         <div class="pw-timer" id="pw-timer">Expira em 2:00</div>
+        <div id="pw-primeira-vez-hint" class="pw-msg info show" style="display:none;margin-top:12px">Não recebeu? Se este é o primeiro código enviado a este e-mail, o remetente (FormSubmit) pode ter mandado um e-mail pedindo para <strong>ativar o envio</strong> em vez do código — confira a caixa de entrada (e o spam), clique em ativar e depois toque em "Enviar novo código".</div>
         <div class="pw-actions"><button class="pw-btn pw-btn-ghost" onclick="Auth._pwClose()">Cancelar</button><button class="pw-btn pw-btn-primary" id="pw-validar" onclick="Auth._pwValidarCodigo()">Validar</button></div>`;
     } else if(p.step==='novaSenha'){
       h=`<div class="pw-title">Nova senha</div><div class="pw-desc">Código validado! Defina sua nova senha.</div>${fb}
@@ -8766,12 +8778,22 @@ const Auth={
     if(p.step!=='codigo'){p.step='codigo';this._pwRender();}
     this._pwFeedback('info','Enviando o código para o seu e-mail...');
     try{
-      await fetch('https://formsubmit.co/ajax/'+encodeURIComponent(p.email),{
+      const resp=await fetch('https://formsubmit.co/ajax/'+encodeURIComponent(p.email),{
         method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json'},
         body:JSON.stringify({_subject:'Código de recuperação de senha — Vixsul Empreendimentos',_template:'box',Nome:p.nome||'Usuário',Codigo:p.code,Mensagem:'Use o código '+p.code+' para redefinir sua senha no sistema Vixsul. O código expira em 2 minutos. Se não foi você que solicitou, ignore este e-mail.'})
       });
+      let body=null; try{body=await resp.json();}catch(e){}
+      if(!resp.ok || (body && String(body.success).toLowerCase()==='false')){
+        this._pwFeedback('err',(body&&body.message)?('Não foi possível enviar o código: '+body.message):'Não foi possível enviar o código agora. Tente novamente em instantes.');
+        return;
+      }
       const fbEl=document.getElementById('pw-feedback');if(fbEl)fbEl.className='pw-msg';
       this._pwStartTimer();
+      // Se este e-mail nunca recebeu um código por aqui antes, o FormSubmit pode ter mandado
+      // um e-mail de ATIVAÇÃO em vez do código (é assim que ele evita spam em envios novos) —
+      // avisa isso de forma persistente pra quem não recebeu não ficar sem saber o motivo.
+      const hint=document.getElementById('pw-primeira-vez-hint');
+      if(hint)hint.style.display='';
     }catch(e){
       this._pwFeedback('err','Não foi possível enviar o e-mail agora. Verifique a conexão e tente novamente.');
     }
@@ -8889,11 +8911,15 @@ window.onload=()=>{
   if(savedSession){
     Auth._session=savedSession;
     Auth._applySession();
-    document.getElementById('login-screen').classList.add('hidden');
-    if(appShell)appShell.classList.remove('hidden');
-    UI.nav('dashboard');
-    App.init();
-    Auth._startIdleWatcher();
+    // Só troca para a tela do sistema DEPOIS que os dados terminarem de carregar — evita
+    // mostrar a interface sem as restrições do usuário aplicadas por uma fração de segundo.
+    App.init(false,loadErr=>{
+      if(loadErr)return; // mantém a tela de login visível; usuário pode tentar entrar de novo
+      document.getElementById('login-screen').classList.add('hidden');
+      if(appShell)appShell.classList.remove('hidden');
+      UI.nav(savedSession.tipoUsuario==='externo'?'obras':'dashboard');
+      Auth._startIdleWatcher();
+    });
   } else {
     if(appShell)appShell.classList.add('hidden');
     document.title='Acesso'; // sem sessão: tela de login → aba "Acesso"

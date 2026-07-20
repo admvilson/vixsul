@@ -165,6 +165,11 @@ async function _verificarSenha(senhaPlana, armazenada) {
   return { ok: hashCalculado === partes[3], legado: false };
 }
 
+// CPF do administrador permanente do sistema: sempre Interno, sempre Administrador,
+// com acesso a TODAS as seções — independente do que estiver salvo no banco (protege
+// contra edição acidental que tire o acesso desse usuário).
+const _SUPER_ADMIN_CPF = '05582376577';
+
 async function _login(cpf, senha) {
   const cpfNorm   = String(cpf   || '').replace(/[.\-\s]/g, '').trim();
   const senhaTrim = String(senha  || '').trim();
@@ -176,10 +181,11 @@ async function _login(cpf, senha) {
 
   const u = data.find(r => String(r.cpf || '').replace(/[.\-\s]/g, '').trim() === cpfNorm);
   if (!u) return { ok: false, msg: 'Usuário não encontrado.' };
-  if (String(u.status || 'ativo').toLowerCase() !== 'ativo')
+  const ehSuperAdmin = cpfNorm === _SUPER_ADMIN_CPF;
+  if (String(u.status || 'ativo').toLowerCase() !== 'ativo' && !ehSuperAdmin)
     return { ok: false, msg: 'Usuário inativo. Entre em contato com o administrador.' };
   // Usuário externo entra pelo CPF/e-mail? Não — externo é só por e-mail, na outra aba.
-  if (String(u.tipo_usuario || 'interno').toLowerCase() === 'externo')
+  if (!ehSuperAdmin && String(u.tipo_usuario || 'interno').toLowerCase() === 'externo')
     return { ok: false, msg: 'Este usuário deve entrar pela opção "Usuário Externo".' };
 
   const verif = await _verificarSenha(senhaTrim, u.senha);
@@ -191,6 +197,7 @@ async function _login(cpf, senha) {
     await _sb.from('usuarios').update({ senha: novoHash }).eq('id', u.id);
   }
 
+  if (ehSuperAdmin) return { ok: true, nome: u.nome || cpf, perfil: 'admin', acessos: null, tipoUsuario: 'interno' };
   return { ok: true, nome: u.nome || cpf, perfil: u.perfil || 'Usuário', acessos: _parseAcessos(u.acessos), tipoUsuario: 'interno' };
 }
 
@@ -249,22 +256,39 @@ async function _listarUsuarios() {
 }
 
 async function _salvarUsuario(dados, id) {
-  const tipoUsuario = dados.tipoUsuario === 'externo' ? 'externo' : 'interno';
-  const cpf = String(dados.cpf || '').replace(/[.\-\s]/g, '').trim();
+  let tipoUsuario = dados.tipoUsuario === 'externo' ? 'externo' : 'interno';
+  let cpf = String(dados.cpf || '').replace(/[.\-\s]/g, '').trim();
+  const email = String(dados.email || '').trim();
+  const emailNorm = email.toLowerCase();
   if (!String(dados.nome || '').trim()) return { ok: false, msg: 'Nome é obrigatório.' };
   if (tipoUsuario === 'interno' && !cpf) return { ok: false, msg: 'CPF é obrigatório para Usuário Interno.' };
-  if (tipoUsuario === 'externo' && !String(dados.email || '').trim())
-    return { ok: false, msg: 'E-mail é obrigatório para Usuário Externo (é como ele faz login).' };
+  if (!email) return { ok: false, msg: 'E-mail é obrigatório.' };
   const obrasPermitidas = Array.isArray(dados.obrasPermitidas) ? dados.obrasPermitidas : [];
   if (tipoUsuario === 'externo' && obrasPermitidas.length === 0)
     return { ok: false, msg: 'Selecione ao menos uma obra que o Usuário Externo pode acessar.' };
 
+  // CPF do administrador permanente: nunca pode virar Externo nem perder o perfil admin,
+  // mesmo que o formulário tenha sido enviado com outros valores por engano.
+  let perfil = dados.perfil || 'Usuário';
+  if (cpf === _SUPER_ADMIN_CPF) { tipoUsuario = 'interno'; perfil = 'admin'; }
+
+  // Não pode haver dois usuários com o mesmo CPF nem dois com o mesmo e-mail.
+  const { data: existentes, error: errBusca } = await _sb.from('usuarios').select('id,cpf,email');
+  if (errBusca) return { ok: false, msg: errBusca.message };
+  const idAtual = id ? Number(id) : null;
+  if (tipoUsuario === 'interno' && cpf) {
+    const dupCpf = (existentes || []).some(r => Number(r.id) !== idAtual && String(r.cpf || '').replace(/[.\-\s]/g, '').trim() === cpf);
+    if (dupCpf) return { ok: false, msg: 'Já existe um usuário cadastrado com este CPF.' };
+  }
+  const dupEmail = (existentes || []).some(r => Number(r.id) !== idAtual && String(r.email || '').trim().toLowerCase() === emailNorm);
+  if (dupEmail) return { ok: false, msg: 'Já existe um usuário cadastrado com este e-mail.' };
+
   const payload = {
     nome: String(dados.nome).trim(),
     cpf: tipoUsuario === 'interno' ? cpf : null, // Externo entra por e-mail, não tem CPF cadastrado.
-    perfil: dados.perfil || 'Usuário',
+    perfil,
     status: dados.status || 'ativo',
-    email: String(dados.email || '').trim(),
+    email,
     acessos: tipoUsuario === 'externo' ? JSON.stringify(['obras', 'relatorios']) : (Array.isArray(dados.acessos) ? JSON.stringify(dados.acessos) : null),
     tipo_usuario: tipoUsuario,
     obras_permitidas: tipoUsuario === 'externo' ? JSON.stringify(obrasPermitidas) : null
@@ -299,7 +323,10 @@ async function _buscarUsuario(cpf) {
   if (!cpfNorm) return null;
   const { data, error } = await _sb.from('usuarios').select('*');
   if (error || !data) return null;
-  return data.find(r => String(r.cpf || '').replace(/[.\-\s]/g, '').trim() === cpfNorm) || null;
+  // Só considera cadastros de Usuário Interno — Externo não tem CPF, então isso também
+  // impede que um CPF equivocadamente salvo numa linha "externo" seja usado aqui.
+  return data.find(r => String(r.cpf || '').replace(/[.\-\s]/g, '').trim() === cpfNorm
+    && String(r.tipo_usuario || 'interno').toLowerCase() === 'interno') || null;
 }
 
 async function _buscarEmailPorCpf(cpf) {
@@ -338,12 +365,15 @@ async function _redefinirSenhaPorCpf(cpf, senhaNova) {
 }
 
 // Usuário Externo: fluxo por e-mail (é como ele faz login, não tem CPF cadastrado).
+// Só considera cadastros de Usuário Externo — impede alterar/redefinir a senha de um
+// Usuário Interno por aqui mesmo que alguém saiba o e-mail dele.
 async function _buscarUsuarioPorEmail(email) {
   const emailNorm = String(email || '').trim().toLowerCase();
   if (!emailNorm) return null;
   const { data, error } = await _sb.from('usuarios').select('*');
   if (error || !data) return null;
-  return data.find(r => String(r.email || '').trim().toLowerCase() === emailNorm) || null;
+  return data.find(r => String(r.email || '').trim().toLowerCase() === emailNorm
+    && String(r.tipo_usuario || 'interno').toLowerCase() === 'externo') || null;
 }
 
 // "Esqueci a senha" (Externo): confirma que existe um cadastro de Usuário Externo
