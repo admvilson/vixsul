@@ -6263,7 +6263,8 @@ const UI={
   },
   _etapasBuild(obraName){
     const K=this._etapasK();
-    this._etapasCtx={obraName,K};
+    const isExt=Auth._session&&Auth._session.tipoUsuario==='externo';
+    this._etapasCtx={obraName,K,isExt};
     const items=this._etapasDaObra(obraName,K);
     const rows=(items.length?items:[null]).map(it=>this._etapasMakeRow(K,it)).join('');
     const form=document.getElementById('form-upsert');
@@ -6284,7 +6285,7 @@ const UI={
           <tbody id="etapas-tbody">${rows}</tbody>
         </table>
       </div>
-      <button type="button" onclick="UI._etapasAddRow()" style="margin-top:10px;display:flex;align-items:center;gap:5px;font-size:11px;font-weight:600;color:var(--blue);background:rgba(0,113,227,.07);border:1px dashed rgba(0,113,227,.4);border-radius:7px;padding:6px 14px;cursor:pointer">
+      <button type="button" id="etapas-add-btn" onclick="UI._etapasAddRow()" style="margin-top:10px;display:flex;align-items:center;gap:5px;font-size:11px;font-weight:600;color:var(--blue);background:rgba(0,113,227,.07);border:1px dashed rgba(0,113,227,.4);border-radius:7px;padding:6px 14px;cursor:pointer">
         <span style="font-size:16px;line-height:1">+</span> Adicionar etapa
       </button>
       <div class="cap-resumo" style="display:flex;flex-wrap:wrap;gap:22px;margin-top:16px">
@@ -6300,9 +6301,15 @@ const UI={
     </div>`;
     form.querySelectorAll('#etapas-tbody .mask-currency').forEach(el=>maskCurrency(el));
     form.querySelectorAll('#etapas-tbody tr').forEach(tr=>this._etapasDateBounds(tr));
+    if(isExt){
+      const addBtn=document.getElementById('etapas-add-btn');if(addBtn)addBtn.style.display='none';
+      form.querySelectorAll('#etapas-tbody input').forEach(el=>el.disabled=true);
+      form.querySelectorAll('#etapas-tbody .cap-row-btn.del').forEach(el=>el.style.display='none');
+    }
     this._etapasRecalc();
   },
   _etapasAddRow(){
+    if(this._etapasCtx&&this._etapasCtx.isExt)return;
     const tbody=document.getElementById('etapas-tbody');if(!tbody||!this._etapasCtx)return;
     tbody.insertAdjacentHTML('beforeend',this._etapasMakeRow(this._etapasCtx.K,null));
     const tr=tbody.lastElementChild;
@@ -6313,6 +6320,7 @@ const UI={
     this._etapasRecalc();
   },
   _etapasDelRow(btn){
+    if(this._etapasCtx&&this._etapasCtx.isExt)return;
     const tr=btn.closest('tr');if(!tr)return;
     tr.remove();
     if(App.state.obraHub)App.state.obraHub._dirtyTabs.add('etapas');
@@ -7487,7 +7495,7 @@ const UI={
     const svgSave='<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>';
     const svgDel='<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2M19 6l-1 14a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1L5 6"/></svg>';
     const acoes=`<div style="display:flex;align-items:center;gap:8px;flex-shrink:0;padding-left:8px">`+
-      `<button type="button" title="Salvar" onclick="UI._obraHubSalvar()" style="display:flex;align-items:center;justify-content:center;width:32px;height:32px;border:1px solid rgba(52,199,89,.35);background:rgba(52,199,89,.1);color:var(--green);border-radius:8px;cursor:pointer">${svgSave}</button>`+
+      (isExt?'':`<button type="button" title="Salvar" onclick="UI._obraHubSalvar()" style="display:flex;align-items:center;justify-content:center;width:32px;height:32px;border:1px solid rgba(52,199,89,.35);background:rgba(52,199,89,.1);color:var(--green);border-radius:8px;cursor:pointer">${svgSave}</button>`)+
       `<button type="button" title="Imprimir / Exportar PDF da aba atual" onclick="UI._obraHubPDF()" style="display:flex;align-items:center;justify-content:center;width:32px;height:32px;border:1px solid rgba(0,113,227,.3);background:rgba(0,113,227,.08);color:var(--blue);border-radius:8px;cursor:pointer">${svgPrint}</button>`+
       (isExt?'':`<button type="button" title="Excluir obra e tudo dentro dela" onclick="UI._obraHubExcluirTudo()" style="display:flex;align-items:center;justify-content:center;width:32px;height:32px;border:1px solid rgba(255,59,48,.3);background:rgba(255,59,48,.08);color:var(--red);border-radius:8px;cursor:pointer">${svgDel}</button>`)+
       `</div>`;
@@ -7585,7 +7593,8 @@ const UI={
   _obraHubAtualizarLapis(){
     const pen=document.getElementById('obra-hub-edit-nome');if(!pen)return;
     const hub=App.state.obraHub;
-    pen.style.display=(hub && hub.nomeConfirmado)?'flex':'none';
+    const isExt=Auth._session&&Auth._session.tipoUsuario==='externo';
+    pen.style.display=(hub && hub.nomeConfirmado && !isExt)?'flex':'none';
   },
   /* Lápis do cabeçalho: transforma o título num campo editável, com o prefixo "OBRA NN/AA - "
      como RÓTULO fixo (não editável) + um campo só para o texto depois do " - ". Assim é
@@ -7593,6 +7602,7 @@ const UI={
      acompanha ao lado. */
   _obraHubEditarNome(){
     const hub=App.state.obraHub;if(!hub||!hub.nomeConfirmado)return;
+    if(Auth._session&&Auth._session.tipoUsuario==='externo')return;
     const cur=hub.obraName||'';
     const idx=cur.indexOf(' - ');
     const prefix=idx>=0?cur.slice(0,idx+3):'';
@@ -7727,6 +7737,7 @@ const UI={
      em qualquer aba da obra, não só a que está na tela no momento. */
   _obraHubSalvar(){
     if(App.state._busy)return;
+    if(Auth._session&&Auth._session.tipoUsuario==='externo')return;
     const hub=App.state.obraHub;if(!hub)return;
     if(hub.isNew){ this._obraHubPreSaveIds=(App.state.data.obras||[]).map(r=>String(r.rowid)); App.save({preventDefault(){}}); return; }
     const tabs=[hub.tab,...hub._dirtyTabs].filter((t,i,arr)=>arr.indexOf(t)===i);
@@ -8580,6 +8591,8 @@ const Auth={
     UI._allowedViews=allowed;
     const btnNovaObra=document.getElementById('btn-nova-obra');
     if(btnNovaObra)btnNovaObra.style.display=(s.tipoUsuario==='externo')?'none':'';
+    const filtroStatus=document.getElementById('filter-obras-status');
+    if(filtroStatus)filtroStatus.style.display=(s.tipoUsuario==='externo')?'none':'';
   },
 
   /* ═══════════ Recuperação / alteração de senha ═══════════
