@@ -954,6 +954,7 @@ tbody tr:hover td{background:rgba(0,113,227,.02);}
               <option value="cronograma-ff">Cronograma Físico-financeiro</option>
             </optgroup>
           </select>
+          <script>window.__relTipoOriginalHTML=document.getElementById('rel-tipo').innerHTML;</script>
           <!-- Largura TOTAL fixa (676px = soma dos 4 seletores + gaps no cenário com todos
                visíveis) — dentro dela cada seletor liga/desliga com display:none normal
                (colapsa e os visíveis se compactam, sem buraco), mas a caixa em si nunca
@@ -2333,8 +2334,29 @@ const App={
   _relatorioObraOpcoes(){
     const sel=document.getElementById('rel-obra');if(!sel)return;
     const atual=sel.value;
-    const nomes=(App.state.data.obras||[]).map(o=>getFuzzy(o,['titulo_obra','nome_obra','titulo'])||'').filter(Boolean);
-    sel.innerHTML='<option value="">Todas as Obras</option>'+nomes.map(n=>`<option value="${n}" ${n===atual?'selected':''}>${n}</option>`).join('');
+    const sess=Auth._session;
+    const isExt=sess&&sess.tipoUsuario==='externo';
+    const tipoSel=document.getElementById('rel-tipo');
+    if(tipoSel){
+      if(isExt){
+        if(tipoSel.options.length!==1){
+          tipoSel.innerHTML='<option value="cronograma-ff">Cronograma Físico-financeiro</option>';
+          tipoSel.value='cronograma-ff';
+        }
+        tipoSel.disabled=true;
+      } else if(tipoSel.disabled||tipoSel.options.length===1){
+        tipoSel.innerHTML=window.__relTipoOriginalHTML;
+        tipoSel.disabled=false;
+      }
+    }
+    let obras=App.state.data.obras||[];
+    if(isExt){
+      const permitidas=(sess.obrasPermitidas||[]).map(String);
+      obras=obras.filter(o=>permitidas.includes(String(o.rowid)));
+    }
+    const nomes=obras.map(o=>getFuzzy(o,['titulo_obra','nome_obra','titulo'])||'').filter(Boolean);
+    sel.innerHTML=(isExt?'':'<option value="">Todas as Obras</option>')+nomes.map(n=>`<option value="${n}" ${n===atual?'selected':''}>${n}</option>`).join('');
+    if(isExt&&!sel.value&&nomes.length)sel.value=nomes[0];
     this._relatorioPopularAnos();
     this._relatorioGerar();
   },
@@ -3726,7 +3748,7 @@ const UI={
       perfil:tipoUsuario==='externo'?'Usuário':perfil,
       status:document.getElementById('usr-status').value,
       tipoUsuario:tipoUsuario,
-      acessos:tipoUsuario==='externo'?['obras']:(perfil==='admin'?null:[...document.querySelectorAll('#usr-acessos .usr-acesso:checked')].map(c=>c.value)),
+      acessos:tipoUsuario==='externo'?['obras','relatorios']:(perfil==='admin'?null:[...document.querySelectorAll('#usr-acessos .usr-acesso:checked')].map(c=>c.value)),
       obrasPermitidas:tipoUsuario==='externo'?[...document.querySelectorAll('#usr-obras .usr-obra:checked')].map(c=>c.value):[]
     };
     const fail=m=>{errEl.textContent=m;errEl.style.display='block';};
@@ -8607,7 +8629,7 @@ const Auth={
     return vis+'•'.repeat(Math.max(3,u.length-vis.length))+d;
   },
   _pwAdminBox(intro){
-    const i=intro||'Não localizamos um cadastro com este e-mail.';
+    const i=intro||'Não localizamos um cadastro com este CPF.';
     return '<div class="pw-msg err show">'+i+'<br><br>Para regularizar seu acesso, entre em contato com o Administrador:<br><strong>Vilson Souza Oliveira</strong><br>📞 (77) 98114-7919</div>';
   },
   _pwFeedback(type,msg){
@@ -8615,7 +8637,8 @@ const Auth={
     el.className='pw-msg '+type+' show';el.innerHTML=msg;
   },
   _pwOpen(mode){
-    this._pw={mode,step:mode==='alterar'?'form':'email',email:'',nome:'',code:'',expirado:false,restante:0,timer:null};
+    const tipo=this._loginTipo==='externo'?'externo':'interno';
+    this._pw={mode,tipo,step:mode==='alterar'?'form':(tipo==='externo'?'email':'cpf'),cpf:'',email:'',nome:'',code:'',expirado:false,restante:0,timer:null};
     document.getElementById('pw-overlay').classList.add('open');
     this._pwRender();
   },
@@ -8624,21 +8647,41 @@ const Auth={
     this._pw=null;
     document.getElementById('pw-overlay').classList.remove('open');
   },
+  _pwNaoEhMeuEmail(){this._pw.step='naoemail';this._pwRender();},
   _pwRender(){
     const p=this._pw;if(!p)return;
     const box=document.getElementById('pw-box');
     const fb='<div class="pw-msg" id="pw-feedback"></div><div id="pw-feedback-admin"></div>';
+    const cpfField=`<div class="login-field"><label class="login-label">CPF</label><div class="login-input-wrap"><input type="text" id="pw-cpf" class="login-input" placeholder="000.000.000-00" value="${p.cpf||''}" oninput="Auth._pwCpfMask(this)"></div></div>`;
     const emailField=`<div class="login-field"><label class="login-label">E-mail</label><div class="login-input-wrap"><input type="email" id="pw-email" class="login-input" placeholder="seu@email.com" value="${p.email||''}"></div></div>`;
     let h='';
     if(p.mode==='alterar'){
-      h=`<div class="pw-title">Alterar senha</div><div class="pw-desc">Informe seu e-mail cadastrado, a senha anterior e a nova senha.</div>${fb}${emailField}
-        <div class="login-field"><label class="login-label">Senha anterior</label><div class="login-input-wrap"><input type="password" id="pw-senha-ant" class="login-input" placeholder="Senha atual"></div></div>
-        <div class="login-field"><label class="login-label">Nova senha</label><div class="login-input-wrap"><input type="password" id="pw-senha-nova" class="login-input" placeholder="Nova senha"></div></div>
-        <div class="login-field"><label class="login-label">Confirmar nova senha</label><div class="login-input-wrap"><input type="password" id="pw-senha-conf" class="login-input" placeholder="Repita a nova senha"></div></div>
-        <div class="pw-actions"><button class="pw-btn pw-btn-ghost" onclick="Auth._pwClose()">Cancelar</button><button class="pw-btn pw-btn-primary" id="pw-submit" onclick="Auth._pwAlterarSubmit()">Alterar senha</button></div>`;
+      if(p.tipo==='externo'){
+        h=`<div class="pw-title">Alterar senha</div><div class="pw-desc">Informe seu e-mail cadastrado, a senha anterior e a nova senha.</div>${fb}${emailField}
+          <div class="login-field"><label class="login-label">Senha anterior</label><div class="login-input-wrap"><input type="password" id="pw-senha-ant" class="login-input" placeholder="Senha atual"></div></div>
+          <div class="login-field"><label class="login-label">Nova senha</label><div class="login-input-wrap"><input type="password" id="pw-senha-nova" class="login-input" placeholder="Nova senha"></div></div>
+          <div class="login-field"><label class="login-label">Confirmar nova senha</label><div class="login-input-wrap"><input type="password" id="pw-senha-conf" class="login-input" placeholder="Repita a nova senha"></div></div>
+          <div class="pw-actions"><button class="pw-btn pw-btn-ghost" onclick="Auth._pwClose()">Cancelar</button><button class="pw-btn pw-btn-primary" id="pw-submit" onclick="Auth._pwAlterarSubmit()">Alterar senha</button></div>`;
+      } else {
+        h=`<div class="pw-title">Alterar senha</div><div class="pw-desc">Informe seu CPF, a senha anterior e a nova senha.</div>${fb}${cpfField}
+          <div class="login-field"><label class="login-label">Senha anterior</label><div class="login-input-wrap"><input type="password" id="pw-senha-ant" class="login-input" placeholder="Senha atual"></div></div>
+          <div class="login-field"><label class="login-label">Nova senha</label><div class="login-input-wrap"><input type="password" id="pw-senha-nova" class="login-input" placeholder="Nova senha"></div></div>
+          <div class="login-field"><label class="login-label">Confirmar nova senha</label><div class="login-input-wrap"><input type="password" id="pw-senha-conf" class="login-input" placeholder="Repita a nova senha"></div></div>
+          <div class="pw-actions"><button class="pw-btn pw-btn-ghost" onclick="Auth._pwClose()">Cancelar</button><button class="pw-btn pw-btn-primary" id="pw-submit" onclick="Auth._pwAlterarSubmit()">Alterar senha</button></div>`;
+      }
+    } else if(p.step==='cpf'){
+      h=`<div class="pw-title">Esqueci minha senha</div><div class="pw-desc">Informe seu CPF. Vamos localizar o e-mail cadastrado e enviar um código de verificação.</div>${fb}${cpfField}
+        <div class="pw-actions"><button class="pw-btn pw-btn-ghost" onclick="Auth._pwClose()">Cancelar</button><button class="pw-btn pw-btn-primary" id="pw-submit" onclick="Auth._pwEsqueciCpf()">Continuar</button></div>`;
     } else if(p.step==='email'){
-      h=`<div class="pw-title">Esqueci minha senha</div><div class="pw-desc">Informe seu e-mail cadastrado. Vamos enviar um código de verificação para ele.</div>${fb}${emailField}
-        <div class="pw-actions"><button class="pw-btn pw-btn-ghost" onclick="Auth._pwClose()">Cancelar</button><button class="pw-btn pw-btn-primary" id="pw-submit" onclick="Auth._pwEsqueciEmail()">Continuar</button></div>`;
+      h=`<div class="pw-title">Esqueci minha senha</div><div class="pw-desc">Informe seu e-mail cadastrado como Usuário Externo. Vamos enviar um código de verificação para ele.</div>${fb}${emailField}
+        <div class="pw-actions"><button class="pw-btn pw-btn-ghost" onclick="Auth._pwClose()">Cancelar</button><button class="pw-btn pw-btn-primary" id="pw-submit" onclick="Auth._pwEsqueciEmailExterno()">Continuar</button></div>`;
+    } else if(p.step==='confirmaEmail'){
+      h=`<div class="pw-title">Confirme seu e-mail</div><div class="pw-desc">Encontramos este e-mail vinculado ao seu CPF:</div>
+        <div class="pw-msg info show" style="text-align:center;font-size:16px;letter-spacing:.5px">${this._maskEmail(p.email)}</div>${fb}
+        <div class="pw-desc">Este e-mail é seu? Enviaremos um código de 6 dígitos para ele.</div>
+        <div class="pw-actions"><button class="pw-btn pw-btn-ghost" onclick="Auth._pwNaoEhMeuEmail()">Não é meu e-mail</button><button class="pw-btn pw-btn-primary" onclick="Auth._pwEnviarCodigo()">Sim, enviar código</button></div>`;
+    } else if(p.step==='naoemail'){
+      h=`<div class="pw-title">E-mail não confere</div>${this._pwAdminBox('O e-mail cadastrado para este CPF não é o seu.')}<div class="pw-actions"><button class="pw-btn pw-btn-primary" onclick="Auth._pwClose()">Entendi</button></div>`;
     } else if(p.step==='codigo'){
       h=`<div class="pw-title">Digite o código</div><div class="pw-desc">Enviamos um código de 6 dígitos para <strong>${this._maskEmail(p.email)}</strong>.</div>${fb}
         <input type="text" inputmode="numeric" maxlength="6" id="pw-code" class="pw-code-input" placeholder="------" oninput="this.value=this.value.replace(/\\D/g,'').slice(0,6)">
@@ -8652,24 +8695,57 @@ const Auth={
     }
     box.innerHTML=h;
   },
+  _pwCpfMask(el){
+    let v=el.value.replace(/\D/g,'').slice(0,11);
+    v=v.replace(/(\d{3})(\d)/,'$1.$2').replace(/(\d{3})\.(\d{3})(\d)/,'$1.$2.$3').replace(/(\d{3})\.(\d{3})\.(\d{3})(\d)/,'$1.$2.$3-$4');
+    el.value=v;
+  },
   _pwAlterarSubmit(){
-    const email=document.getElementById('pw-email').value.trim();
+    const p=this._pw;
     const ant=document.getElementById('pw-senha-ant').value.trim();
     const nova=document.getElementById('pw-senha-nova').value.trim();
     const conf=document.getElementById('pw-senha-conf').value.trim();
     document.getElementById('pw-feedback-admin').innerHTML='';
-    if(!email||!ant||!nova){this._pwFeedback('err','Preencha o e-mail, a senha anterior e a nova senha.');return;}
-    if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){this._pwFeedback('err','Informe um e-mail válido.');return;}
-    if(nova.length<4){this._pwFeedback('err','A nova senha deve ter ao menos 4 caracteres.');return;}
-    if(nova!==conf){this._pwFeedback('err','A confirmação da nova senha não confere.');return;}
-    const btn=document.getElementById('pw-submit');if(btn){btn.disabled=true;btn.textContent='Alterando...';}
-    google.script.run.withSuccessHandler(res=>{
-      if(res&&res.ok){this._pwFeedback('ok','Senha alterada com sucesso! Use a nova senha para entrar.');setTimeout(()=>this._pwClose(),2200);}
-      else if(res&&res.existe===false){document.getElementById('pw-feedback-admin').innerHTML=this._pwAdminBox();if(btn){btn.disabled=false;btn.textContent='Alterar senha';}}
-      else{this._pwFeedback('err',(res&&res.msg)||'Não foi possível alterar a senha.');if(btn){btn.disabled=false;btn.textContent='Alterar senha';}}
-    }).withFailureHandler(()=>{this._pwFeedback('err','Erro de conexão. Tente novamente.');if(btn){btn.disabled=false;btn.textContent='Alterar senha';}}).alterarSenhaPorEmail(email,ant,nova);
+    if(p.tipo==='externo'){
+      const email=document.getElementById('pw-email').value.trim();
+      if(!email||!ant||!nova){this._pwFeedback('err','Preencha o e-mail, a senha anterior e a nova senha.');return;}
+      if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){this._pwFeedback('err','Informe um e-mail válido.');return;}
+      if(nova.length<4){this._pwFeedback('err','A nova senha deve ter ao menos 4 caracteres.');return;}
+      if(nova!==conf){this._pwFeedback('err','A confirmação da nova senha não confere.');return;}
+      const btn=document.getElementById('pw-submit');if(btn){btn.disabled=true;btn.textContent='Alterando...';}
+      google.script.run.withSuccessHandler(res=>{
+        if(res&&res.ok){this._pwFeedback('ok','Senha alterada com sucesso! Use a nova senha para entrar.');setTimeout(()=>this._pwClose(),2200);}
+        else if(res&&res.existe===false){document.getElementById('pw-feedback-admin').innerHTML=this._pwAdminBox('Não localizamos um cadastro com este e-mail.');if(btn){btn.disabled=false;btn.textContent='Alterar senha';}}
+        else{this._pwFeedback('err',(res&&res.msg)||'Não foi possível alterar a senha.');if(btn){btn.disabled=false;btn.textContent='Alterar senha';}}
+      }).withFailureHandler(()=>{this._pwFeedback('err','Erro de conexão. Tente novamente.');if(btn){btn.disabled=false;btn.textContent='Alterar senha';}}).alterarSenhaPorEmail(email,ant,nova);
+    } else {
+      const cpf=document.getElementById('pw-cpf').value.trim();
+      if(!cpf||!ant||!nova){this._pwFeedback('err','Preencha o CPF, a senha anterior e a nova senha.');return;}
+      if(nova.length<4){this._pwFeedback('err','A nova senha deve ter ao menos 4 caracteres.');return;}
+      if(nova!==conf){this._pwFeedback('err','A confirmação da nova senha não confere.');return;}
+      const btn=document.getElementById('pw-submit');if(btn){btn.disabled=true;btn.textContent='Alterando...';}
+      google.script.run.withSuccessHandler(res=>{
+        if(res&&res.ok){this._pwFeedback('ok','Senha alterada com sucesso! Use a nova senha para entrar.');setTimeout(()=>this._pwClose(),2200);}
+        else if(res&&res.existe===false){document.getElementById('pw-feedback-admin').innerHTML=this._pwAdminBox();if(btn){btn.disabled=false;btn.textContent='Alterar senha';}}
+        else{this._pwFeedback('err',(res&&res.msg)||'Não foi possível alterar a senha.');if(btn){btn.disabled=false;btn.textContent='Alterar senha';}}
+      }).withFailureHandler(()=>{this._pwFeedback('err','Erro de conexão. Tente novamente.');if(btn){btn.disabled=false;btn.textContent='Alterar senha';}}).alterarSenhaPorCpf(cpf,ant,nova);
+    }
   },
-  _pwEsqueciEmail(){
+  _pwEsqueciCpf(){
+    const cpf=document.getElementById('pw-cpf').value.trim();
+    document.getElementById('pw-feedback-admin').innerHTML='';
+    if(!cpf){this._pwFeedback('err','Informe o seu CPF.');return;}
+    this._pw.cpf=cpf;
+    const btn=document.getElementById('pw-submit');if(btn){btn.disabled=true;btn.textContent='Verificando...';}
+    google.script.run.withSuccessHandler(res=>{
+      if(btn){btn.disabled=false;btn.textContent='Continuar';}
+      if(!res||res.existe===false){document.getElementById('pw-feedback-admin').innerHTML=this._pwAdminBox();return;}
+      if(!res.temEmail){document.getElementById('pw-feedback-admin').innerHTML=this._pwAdminBox('Este CPF não possui um e-mail cadastrado, então não é possível enviar o código.');return;}
+      this._pw.email=res.email;this._pw.nome=res.nome||'';
+      this._pw.step='confirmaEmail';this._pwRender();
+    }).withFailureHandler(()=>{if(btn){btn.disabled=false;btn.textContent='Continuar';}this._pwFeedback('err','Erro de conexão. Tente novamente.');}).buscarEmailPorCpf(cpf);
+  },
+  _pwEsqueciEmailExterno(){
     const email=document.getElementById('pw-email').value.trim();
     document.getElementById('pw-feedback-admin').innerHTML='';
     if(!email){this._pwFeedback('err','Informe o seu e-mail.');return;}
@@ -8678,10 +8754,10 @@ const Auth={
     const btn=document.getElementById('pw-submit');if(btn){btn.disabled=true;btn.textContent='Verificando...';}
     google.script.run.withSuccessHandler(res=>{
       if(btn){btn.disabled=false;btn.textContent='Continuar';}
-      if(!res||!res.existe){document.getElementById('pw-feedback-admin').innerHTML=this._pwAdminBox();return;}
+      if(!res||!res.existe){document.getElementById('pw-feedback-admin').innerHTML=this._pwAdminBox('Não localizamos um cadastro de Usuário Externo com este e-mail.');return;}
       this._pw.nome=res.nome||'';
       this._pwEnviarCodigo();
-    }).withFailureHandler(()=>{if(btn){btn.disabled=false;btn.textContent='Continuar';}this._pwFeedback('err','Erro de conexão. Tente novamente.');}).buscarUsuarioPorEmail(email);
+    }).withFailureHandler(()=>{if(btn){btn.disabled=false;btn.textContent='Continuar';}this._pwFeedback('err','Erro de conexão. Tente novamente.');}).buscarUsuarioExternoPorEmail(email);
   },
   async _pwEnviarCodigo(){
     const p=this._pw;if(!p)return;
@@ -8734,10 +8810,11 @@ const Auth={
     if(n.length<4){this._pwFeedback('err','A nova senha deve ter ao menos 4 caracteres.');return;}
     if(n!==c){this._pwFeedback('err','As senhas não conferem.');return;}
     const btn=document.getElementById('pw-submit');if(btn){btn.disabled=true;btn.textContent='Salvando...';}
-    google.script.run.withSuccessHandler(res=>{
+    const runner=google.script.run.withSuccessHandler(res=>{
       if(res&&res.ok){this._pwFeedback('ok','Senha redefinida com sucesso! Você já pode entrar com a nova senha.');setTimeout(()=>this._pwClose(),2200);}
       else{this._pwFeedback('err',(res&&res.msg)||'Não foi possível redefinir a senha.');if(btn){btn.disabled=false;btn.textContent='Redefinir senha';}}
-    }).withFailureHandler(()=>{this._pwFeedback('err','Erro de conexão. Tente novamente.');if(btn){btn.disabled=false;btn.textContent='Redefinir senha';}}).redefinirSenhaPorEmail(p.email,n);
+    }).withFailureHandler(()=>{this._pwFeedback('err','Erro de conexão. Tente novamente.');if(btn){btn.disabled=false;btn.textContent='Redefinir senha';}});
+    if(p.tipo==='externo')runner.redefinirSenhaPorEmail(p.email,n);else runner.redefinirSenhaPorCpf(p.cpf,n);
   },
 
   logout(idleExpired=false){

@@ -222,7 +222,7 @@ async function _loginExterno(email, senha) {
     await _sb.from('usuarios').update({ senha: novoHash }).eq('id', u.id);
   }
 
-  return { ok: true, nome: u.nome || email, perfil: 'Usuário Externo', acessos: ['obras'], tipoUsuario: 'externo', obrasPermitidas: _parseAcessos(u.obras_permitidas) || [] };
+  return { ok: true, nome: u.nome || email, perfil: 'Usuário Externo', acessos: ['obras', 'relatorios'], tipoUsuario: 'externo', obrasPermitidas: _parseAcessos(u.obras_permitidas) || [] };
 }
 
 // ─── Controle de acesso: gestão de usuários (tela Admin) ───────────────────────
@@ -265,7 +265,7 @@ async function _salvarUsuario(dados, id) {
     perfil: dados.perfil || 'Usuário',
     status: dados.status || 'ativo',
     email: String(dados.email || '').trim(),
-    acessos: tipoUsuario === 'externo' ? JSON.stringify(['obras']) : (Array.isArray(dados.acessos) ? JSON.stringify(dados.acessos) : null),
+    acessos: tipoUsuario === 'externo' ? JSON.stringify(['obras', 'relatorios']) : (Array.isArray(dados.acessos) ? JSON.stringify(dados.acessos) : null),
     tipo_usuario: tipoUsuario,
     obras_permitidas: tipoUsuario === 'externo' ? JSON.stringify(obrasPermitidas) : null
   };
@@ -292,6 +292,52 @@ async function _excluirUsuario(id) {
 }
 
 // ─── Recuperação/alteração de senha ────────────────────────────────────────────
+// Usuário Interno: fluxo por CPF (como era antes) — localiza o e-mail cadastrado
+// para aquele CPF, o app pede confirmação ("é este seu e-mail?") antes de enviar o código.
+async function _buscarUsuario(cpf) {
+  const cpfNorm = String(cpf || '').replace(/[.\-\s]/g, '').trim();
+  if (!cpfNorm) return null;
+  const { data, error } = await _sb.from('usuarios').select('*');
+  if (error || !data) return null;
+  return data.find(r => String(r.cpf || '').replace(/[.\-\s]/g, '').trim() === cpfNorm) || null;
+}
+
+async function _buscarEmailPorCpf(cpf) {
+  const u = await _buscarUsuario(cpf);
+  if (!u) return { ok: false, existe: false, msg: 'CPF não possui cadastro.' };
+  const email = String(u.email || '').trim();
+  if (!email) return { ok: true, existe: true, temEmail: false, nome: u.nome || '' };
+  return { ok: true, existe: true, temEmail: true, email, nome: u.nome || '' };
+}
+
+// "Alterar senha" (Interno): CPF + senha atual + nova senha.
+async function _alterarSenhaPorCpf(cpf, senhaAtual, senhaNova) {
+  const u = await _buscarUsuario(cpf);
+  if (!u) return { ok: false, existe: false, msg: 'CPF não possui cadastro.' };
+  const verif = await _verificarSenha(String(senhaAtual || '').trim(), u.senha);
+  if (!verif.ok)
+    return { ok: false, msg: 'A senha anterior informada está incorreta.' };
+  const nova = String(senhaNova || '').trim();
+  if (nova.length < 4) return { ok: false, msg: 'A nova senha deve ter ao menos 4 caracteres.' };
+  const hash = await _hashSenha(nova);
+  const { error } = await _sb.from('usuarios').update({ senha: hash }).eq('id', u.id);
+  if (error) return { ok: false, msg: error.message };
+  return { ok: true, msg: 'Senha alterada com sucesso.' };
+}
+
+// Redefinição (Interno) após validar o código de 6 dígitos enviado por e-mail.
+async function _redefinirSenhaPorCpf(cpf, senhaNova) {
+  const u = await _buscarUsuario(cpf);
+  if (!u) return { ok: false, existe: false, msg: 'CPF não possui cadastro.' };
+  const nova = String(senhaNova || '').trim();
+  if (nova.length < 4) return { ok: false, msg: 'A nova senha deve ter ao menos 4 caracteres.' };
+  const hash = await _hashSenha(nova);
+  const { error } = await _sb.from('usuarios').update({ senha: hash }).eq('id', u.id);
+  if (error) return { ok: false, msg: error.message };
+  return { ok: true, msg: 'Senha redefinida com sucesso.' };
+}
+
+// Usuário Externo: fluxo por e-mail (é como ele faz login, não tem CPF cadastrado).
 async function _buscarUsuarioPorEmail(email) {
   const emailNorm = String(email || '').trim().toLowerCase();
   if (!emailNorm) return null;
@@ -300,15 +346,16 @@ async function _buscarUsuarioPorEmail(email) {
   return data.find(r => String(r.email || '').trim().toLowerCase() === emailNorm) || null;
 }
 
-// "Esqueci a senha" / "Alterar senha": localiza o usuário pelo e-mail digitado —
-// avisa se não há cadastro com esse e-mail, sem revelar mais nada.
-async function _buscarUsuarioPorEmailPublico(email) {
+// "Esqueci a senha" (Externo): confirma que existe um cadastro de Usuário Externo
+// (tipo_usuario='externo') com esse e-mail antes de enviar o código.
+async function _buscarUsuarioExternoPorEmail(email) {
   const u = await _buscarUsuarioPorEmail(email);
-  if (!u) return { ok: true, existe: false, msg: 'E-mail não possui cadastro.' };
+  if (!u || String(u.tipo_usuario || 'interno').toLowerCase() !== 'externo')
+    return { ok: true, existe: false, msg: 'E-mail não possui cadastro de Usuário Externo.' };
   return { ok: true, existe: true, nome: u.nome || '' };
 }
 
-// "Alterar senha": e-mail + senha atual + nova senha.
+// "Alterar senha" (Externo): e-mail + senha atual + nova senha.
 async function _alterarSenhaPorEmail(email, senhaAtual, senhaNova) {
   const u = await _buscarUsuarioPorEmail(email);
   if (!u) return { ok: false, existe: false, msg: 'E-mail não possui cadastro.' };
@@ -364,9 +411,12 @@ const _FNS = {
   listarUsuarios:       ()        => _listarUsuarios(),
   salvarUsuario:        (a,b)     => _salvarUsuario(a,b),
   excluirUsuario:       (a)       => _excluirUsuario(a),
-  buscarUsuarioPorEmail:  (a)     => _buscarUsuarioPorEmailPublico(a),
-  alterarSenhaPorEmail:   (a,b,c) => _alterarSenhaPorEmail(a,b,c),
-  redefinirSenhaPorEmail: (a,b)   => _redefinirSenhaPorEmail(a,b)
+  buscarEmailPorCpf:         (a)     => _buscarEmailPorCpf(a),
+  alterarSenhaPorCpf:        (a,b,c) => _alterarSenhaPorCpf(a,b,c),
+  redefinirSenhaPorCpf:      (a,b)   => _redefinirSenhaPorCpf(a,b),
+  buscarUsuarioExternoPorEmail: (a)  => _buscarUsuarioExternoPorEmail(a),
+  alterarSenhaPorEmail:      (a,b,c) => _alterarSenhaPorEmail(a,b,c),
+  redefinirSenhaPorEmail:    (a,b)   => _redefinirSenhaPorEmail(a,b)
 };
 
 window.google = {
