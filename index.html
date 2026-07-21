@@ -7509,6 +7509,16 @@ const UI={
 
     _esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');},
 
+    // Extrai a mensagem real do erro que o Google devolveu (em vez de só o código HTTP),
+    // pra dar pra diagnosticar exatamente o que falhou (permissão, cota, pasta não
+    // encontrada etc.) em vez de um "Falhou" genérico.
+    async _erroResposta(resp){
+      try{
+        const body=await resp.json();
+        return (body&&body.error&&(body.error.message||body.error))||('HTTP '+resp.status);
+      }catch(e){ return 'HTTP '+resp.status; }
+    },
+
     render(obraName,isExt,obraRowid){
       this._obraAtual=obraName;
       this._obraAtualRowid=obraRowid;
@@ -7625,20 +7635,23 @@ const UI={
           }
         });
       }
-      this._tokenClient.requestAccessToken({prompt:this._accessToken?'':'consent'});
+      // prompt vazio: só mostra a tela de autorização do Google quando for REALMENTE
+      // necessário (primeira vez, ou se o acesso foi revogado) — nas próximas vezes,
+      // mesmo depois de recarregar a página, o Google reemite o token OK sem popup.
+      this._tokenClient.requestAccessToken({prompt:''});
     },
 
     async _enviarArquivos(){
       const fila=this._fila;this._fila=[];
       this._status(`Enviando ${fila.length>1?fila.length+' imagens':'imagem'}...`);
-      let ok=0,falhas=0;
+      let ok=0,falhas=0,ultimoErro='';
       for(const item of fila){
         try{ await this._enviarUmArquivo(item); ok++; }
-        catch(e){ console.error(e); falhas++; }
+        catch(e){ console.error(e); falhas++; ultimoErro=(e&&e.message)||String(e); }
         finally{ URL.revokeObjectURL(item.previewUrl); }
       }
-      this._status(falhas?`${ok} enviada(s), ${falhas} falhou(aram).`:'');
-      if(falhas)setTimeout(()=>this._status(''),4000);
+      this._status(falhas?`${ok} enviada(s), ${falhas} falhou(aram): ${ultimoErro}`:'');
+      if(falhas)setTimeout(()=>this._status(''),9000);
       App.init(true,()=>this.render(this._obraAtual,this._isExt,this._obraAtualRowid));
     },
 
@@ -7652,7 +7665,7 @@ const UI={
         headers:{Authorization:'Bearer '+this._accessToken,'Content-Type':'application/json'},
         body:JSON.stringify({name:this._obraAtual,mimeType:'application/vnd.google-apps.folder',parents:[this._DRIVE_FOLDER_ID]})
       });
-      if(!resp.ok)throw new Error('Falha ao criar a pasta da obra no Drive ('+resp.status+')');
+      if(!resp.ok)throw new Error('Falha ao criar a pasta da obra no Drive: '+await this._erroResposta(resp));
       const pasta=await resp.json();
       if(obraRow){
         const {rowid,visualId,_aba,...resto}=obraRow;
@@ -7676,7 +7689,7 @@ const UI={
         headers:{Authorization:'Bearer '+this._accessToken},
         body:form
       });
-      if(!resp.ok)throw new Error('Falha no upload ao Drive ('+resp.status+')');
+      if(!resp.ok)throw new Error('Falha no upload ao Drive: '+await this._erroResposta(resp));
       const arquivo=await resp.json();
       // Torna o arquivo acessível por link — necessário pra miniatura carregar no sistema.
       await fetch(`https://www.googleapis.com/drive/v3/files/${arquivo.id}/permissions`,{
