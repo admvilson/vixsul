@@ -59,6 +59,16 @@ CREATE TABLE IF NOT EXISTS etapas (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- Imagens da obra: NÃO guarda o arquivo em si, só metadados (id/nome/links do
+-- Google Drive) — as fotos ficam no Drive do usuário, não no banco do sistema.
+-- row_data guarda: titulo_obra, drive_file_id, nome_arquivo, url_visualizacao
+-- (link do Drive pra abrir/baixar) e url_thumb (miniatura).
+CREATE TABLE IF NOT EXISTS obra_imagens (
+  id         BIGSERIAL PRIMARY KEY,
+  row_data   JSONB       NOT NULL DEFAULT '{}',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 -- ── Índices para consultas do CAP ──────────────
 CREATE INDEX IF NOT EXISTS idx_cap_lancamento
   ON cap ((row_data->>'data_lancamento'));
@@ -116,6 +126,7 @@ ALTER TABLE orcamentos   ENABLE ROW LEVEL SECURITY;
 ALTER TABLE usuarios     ENABLE ROW LEVEL SECURITY;
 ALTER TABLE despesas     ENABLE ROW LEVEL SECURITY;
 ALTER TABLE etapas       ENABLE ROW LEVEL SECURITY;
+ALTER TABLE obra_imagens ENABLE ROW LEVEL SECURITY;
 
 -- Política: permite SELECT, INSERT, UPDATE, DELETE para todos
 -- (a proteção real é feita pela tela de login do sistema)
@@ -129,6 +140,7 @@ CREATE POLICY "acesso_total" ON orcamentos   FOR ALL USING (true) WITH CHECK (tr
 CREATE POLICY "acesso_total" ON usuarios     FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "acesso_total" ON despesas     FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "acesso_total" ON etapas       FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "acesso_total" ON obra_imagens FOR ALL USING (true) WITH CHECK (true);
 
 -- ══════════════════════════════════════════════════════════
 --  REALTIME — necessário para que uma máquina veja na hora
@@ -145,3 +157,15 @@ ALTER PUBLICATION supabase_realtime ADD TABLE cap;
 ALTER PUBLICATION supabase_realtime ADD TABLE orcamentos;
 ALTER PUBLICATION supabase_realtime ADD TABLE despesas;
 ALTER PUBLICATION supabase_realtime ADD TABLE etapas;
+ALTER PUBLICATION supabase_realtime ADD TABLE obra_imagens;
+
+-- Se este projeto já existia antes desta atualização, rode só este bloco
+-- (SQL Editor → New query) para criar a tabela de imagens da obra:
+-- CREATE TABLE IF NOT EXISTS obra_imagens (
+--   id         BIGSERIAL PRIMARY KEY,
+--   row_data   JSONB       NOT NULL DEFAULT '{}',
+--   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+-- );
+-- ALTER TABLE obra_imagens ENABLE ROW LEVEL SECURITY;
+-- CREATE POLICY "acesso_total" ON obra_imagens FOR ALL USING (true) WITH CHECK (true);
+-- ALTER PUBLICATION supabase_realtime ADD TABLE obra_imagens;

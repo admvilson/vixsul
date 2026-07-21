@@ -15,14 +15,16 @@ const _sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const _NOME_PARA_CHAVE = {
   'Obras':'obras','Custos':'custos',
   'Faturamentos':'faturamentos','Aportes financeiros':'aportes','CAP':'cap',
-  'Orçamentos':'orcamentos','Despesas':'despesas','Etapas':'etapas'
+  'Orçamentos':'orcamentos','Despesas':'despesas','Etapas':'etapas',
+  'Imagens da Obra':'obra_imagens'
 };
 const _ABA_NOME = {
   obras:'Obras', custos:'Custos',
   faturamentos:'Faturamentos', aportes:'Aportes financeiros', cap:'CAP',
-  orcamentos:'Orçamentos', despesas:'Despesas', etapas:'Etapas'
+  orcamentos:'Orçamentos', despesas:'Despesas', etapas:'Etapas',
+  obra_imagens:'Imagens da Obra'
 };
-const _CHAVES = ['obras','custos','faturamentos','aportes','cap','orcamentos','despesas','etapas'];
+const _CHAVES = ['obras','custos','faturamentos','aportes','cap','orcamentos','despesas','etapas','obra_imagens'];
 
 // ─── Funções que espelham o Código.gs ─────────────────────────────────────────
 

@@ -490,7 +490,7 @@ tbody tr:hover td{background:rgba(0,113,227,.02);}
     html:not([data-authed="1"]) #app-shell{display:none;}
     #app-shell.hidden{display:none!important;}
   </style>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script><script src="gas-shim.js?v=20260715b"></script></head>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script><script src="gas-shim.js?v=20260721a"></script><script src="https://accounts.google.com/gsi/client" async defer></script></head>
 <body>
 <div class="toast" id="toast"><span id="toast-icon"></span><span id="toast-msg">—</span></div>
 
@@ -6327,6 +6327,17 @@ const UI={
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><div style="font-size:13px;font-weight:800;color:var(--text-1)">Gráfico de Gantt</div><div style="display:flex;gap:14px;font-size:10px;color:var(--text-3)"><span><span style="display:inline-block;width:8px;height:2px;background:var(--red);vertical-align:middle;margin-right:4px"></span>Hoje</span><span><span style="display:inline-block;width:2px;height:10px;background:#1d1d1f;vertical-align:middle;margin-right:4px"></span>Avanço previsto (diário)</span></div></div>
         <div id="etapas-gantt"></div>
       </div>
+      <div style="margin-top:20px;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px 18px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+          <div><div style="font-size:13px;font-weight:800;color:var(--text-1)">Imagens da Obra</div><div style="font-size:10px;color:var(--text-3)">As fotos ficam salvas no Google Drive, não no sistema.</div></div>
+          <button type="button" id="imagens-add-btn" onclick="UI.ImagensObra.escolherArquivo()" style="display:flex;align-items:center;gap:5px;font-size:11px;font-weight:600;color:var(--blue);background:rgba(0,113,227,.07);border:1px dashed rgba(0,113,227,.4);border-radius:7px;padding:6px 14px;cursor:pointer;flex-shrink:0">
+            <span style="font-size:16px;line-height:1">+</span> Adicionar imagem
+          </button>
+        </div>
+        <input type="file" id="imagens-input" accept="image/*" multiple style="display:none" onchange="UI.ImagensObra.onArquivoEscolhido(event)">
+        <div id="imagens-status" style="display:none;font-size:11px;font-weight:600;color:var(--text-3);margin-bottom:10px"></div>
+        <div id="imagens-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:10px"></div>
+      </div>
     </div>`;
     form.querySelectorAll('#etapas-tbody .mask-currency').forEach(el=>maskCurrency(el));
     form.querySelectorAll('#etapas-tbody tr').forEach(tr=>this._etapasDateBounds(tr));
@@ -6336,6 +6347,7 @@ const UI={
       form.querySelectorAll('#etapas-tbody .cap-row-btn.del').forEach(el=>el.style.display='none');
     }
     this._etapasRecalc();
+    UI.ImagensObra.render(obraName,isExt);
   },
   _etapasAddRow(){
     if(this._etapasCtx&&this._etapasCtx.isExt)return;
@@ -7465,6 +7477,153 @@ const UI={
   },
 
 
+
+  /* ═══════════════════════ IMAGENS DA OBRA (Google Drive) ═══════════════════════
+     As fotos NÃO são armazenadas no banco do sistema — só o metadado (id, nome e links
+     do Drive) fica salvo na tabela "obra_imagens" (mesmo padrão JSONB das outras abas).
+     O upload vai direto do navegador para o Google Drive via OAuth (Google Identity
+     Services, escopo drive.file — o app só enxerga os arquivos que ele mesmo criar).
+     Depois do upload, o arquivo vira "qualquer um com o link pode ver" pra miniatura
+     conseguir carregar dentro do sistema sem exigir login do Google toda hora. */
+  ImagensObra:{
+    _GOOGLE_CLIENT_ID:'993051403005-0fjnpaftsjrdhnhf5t46dglp299tc72f.apps.googleusercontent.com',
+    _DRIVE_FOLDER_ID:'1aoKHZN4Zny_sDkpG72O9lW0fDQoOFw4A',
+    _DRIVE_SCOPE:'https://www.googleapis.com/auth/drive.file',
+    _tokenClient:null,
+    _accessToken:null,
+    _tokenExpiraEm:0,
+    _obraAtual:'',
+    _isExt:false,
+
+    render(obraName,isExt){
+      this._obraAtual=obraName;
+      this._isExt=isExt;
+      const addBtn=document.getElementById('imagens-add-btn');
+      if(addBtn)addBtn.style.display=isExt?'none':'';
+      const grid=document.getElementById('imagens-grid');
+      if(!grid)return;
+      const imgs=(App.state.data.obra_imagens||[]).filter(i=>i.titulo_obra===obraName);
+      if(!imgs.length){grid.innerHTML='<div style="grid-column:1/-1;font-size:11px;color:var(--text-3);padding:8px 0">Nenhuma imagem ainda.</div>';return;}
+      const esc=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');
+      grid.innerHTML=imgs.map(i=>`
+        <div style="position:relative;border-radius:10px;overflow:hidden;border:1px solid var(--border);aspect-ratio:1/1;background:var(--bg)">
+          <a href="${esc(i.url_visualizacao)}" target="_blank" rel="noopener" title="${esc(i.nome_arquivo)}">
+            <img src="${esc(i.url_thumb||i.url_visualizacao)}" loading="lazy" style="width:100%;height:100%;object-fit:cover;display:block" onerror="this.style.display='none'">
+          </a>
+          ${isExt?'':`<button type="button" onclick="UI.ImagensObra.remover('${i.rowid}')" title="Excluir" style="position:absolute;top:4px;right:4px;width:22px;height:22px;border:none;border-radius:6px;background:rgba(0,0,0,.55);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2M19 6l-1 14a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1L5 6"/></svg></button>`}
+        </div>`).join('');
+    },
+
+    escolherArquivo(){
+      if(this._isExt)return;
+      const inp=document.getElementById('imagens-input');
+      if(inp)inp.click();
+    },
+
+    _status(msg){
+      const el=document.getElementById('imagens-status');
+      if(!el)return;
+      if(!msg){el.style.display='none';el.textContent='';return;}
+      el.style.display='';el.textContent=msg;
+    },
+
+    onArquivoEscolhido(ev){
+      const files=[...(ev.target.files||[])];
+      ev.target.value='';
+      if(!files.length)return;
+      this._autenticar(()=>this._enviarArquivos(files));
+    },
+
+    _autenticar(onOk){
+      if(this._accessToken && Date.now()<this._tokenExpiraEm-15000){onOk();return;}
+      if(typeof google==='undefined'||!google.accounts||!google.accounts.oauth2){
+        this._status('Erro: biblioteca do Google não carregou. Verifique sua conexão e recarregue a página.');
+        return;
+      }
+      if(!this._tokenClient){
+        this._tokenClient=google.accounts.oauth2.initTokenClient({
+          client_id:this._GOOGLE_CLIENT_ID,
+          scope:this._DRIVE_SCOPE,
+          callback:(resp)=>{
+            if(resp&&resp.access_token){
+              this._accessToken=resp.access_token;
+              this._tokenExpiraEm=Date.now()+(Number(resp.expires_in||3600)*1000);
+              onOk();
+            } else {
+              this._status('Não foi possível autenticar com o Google Drive.');
+            }
+          }
+        });
+      }
+      this._tokenClient.requestAccessToken({prompt:this._accessToken?'':'consent'});
+    },
+
+    async _enviarArquivos(files){
+      this._status(`Enviando ${files.length>1?files.length+' imagens':'imagem'}...`);
+      let ok=0,falhas=0;
+      for(const file of files){
+        try{ await this._enviarUmArquivo(file); ok++; }
+        catch(e){ console.error(e); falhas++; }
+      }
+      this._status(falhas?`${ok} enviada(s), ${falhas} falhou(aram).`:'');
+      if(falhas)setTimeout(()=>this._status(''),4000);
+      App.init(true,()=>this.render(this._obraAtual,this._isExt));
+    },
+
+    async _enviarUmArquivo(file){
+      const metadata={name:file.name,parents:[this._DRIVE_FOLDER_ID]};
+      const form=new FormData();
+      form.append('metadata',new Blob([JSON.stringify(metadata)],{type:'application/json'}));
+      form.append('file',file);
+      const resp=await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,webViewLink,thumbnailLink',{
+        method:'POST',
+        headers:{Authorization:'Bearer '+this._accessToken},
+        body:form
+      });
+      if(!resp.ok)throw new Error('Falha no upload ao Drive ('+resp.status+')');
+      const arquivo=await resp.json();
+      // Torna o arquivo acessível por link — necessário pra miniatura carregar no sistema.
+      await fetch(`https://www.googleapis.com/drive/v3/files/${arquivo.id}/permissions`,{
+        method:'POST',
+        headers:{Authorization:'Bearer '+this._accessToken,'Content-Type':'application/json'},
+        body:JSON.stringify({role:'reader',type:'anyone'})
+      });
+      const dados={
+        titulo_obra:this._obraAtual,
+        drive_file_id:arquivo.id,
+        nome_arquivo:arquivo.name,
+        url_visualizacao:arquivo.webViewLink||('https://drive.google.com/file/d/'+arquivo.id+'/view'),
+        url_thumb:arquivo.thumbnailLink||''
+      };
+      await new Promise((resolve,reject)=>{
+        google.script.run.withSuccessHandler(res=>{
+          if(res&&res.ok)resolve(); else reject(new Error((res&&res.msg)||'Erro ao salvar no sistema.'));
+        }).withFailureHandler(()=>reject(new Error('Erro de conexão ao salvar.'))).upsertRegistro('Imagens da Obra',dados,null);
+      });
+    },
+
+    remover(rowid){
+      if(this._isExt||!rowid)return;
+      const img=(App.state.data.obra_imagens||[]).find(i=>String(i.rowid)===String(rowid));
+      if(!confirm('Excluir esta imagem? Ela também será apagada do Google Drive.'))return;
+      this._status('Excluindo...');
+      const finalizar=()=>{
+        google.script.run.withSuccessHandler(res=>{
+          this._status('');
+          if(res&&res.ok)App.init(true,()=>this.render(this._obraAtual,this._isExt));
+        }).withFailureHandler(()=>this._status('Erro ao excluir.')).excluirRegistro('Imagens da Obra',rowid);
+      };
+      if(img&&img.drive_file_id){
+        this._autenticar(()=>{
+          fetch(`https://www.googleapis.com/drive/v3/files/${img.drive_file_id}`,{method:'DELETE',headers:{Authorization:'Bearer '+this._accessToken}})
+            .catch(()=>{})
+            .finally(finalizar);
+        });
+      } else {
+        finalizar();
+      }
+    }
+  },
 
   /* ═══════════════════════ OBRA HUB ═══════════════════════
      Abre uma Obra existente como "central": um cabeçalho com abas (Dados da Obra | Custos |
