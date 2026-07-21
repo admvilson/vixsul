@@ -7504,6 +7504,7 @@ const UI={
     _obraAtual:'',
     _obraAtualRowid:null,
     _isExt:false,
+    _isAdmin:false,
     _fila:[],
 
     _esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');},
@@ -7512,25 +7513,35 @@ const UI={
       this._obraAtual=obraName;
       this._obraAtualRowid=obraRowid;
       this._isExt=isExt;
+      // Só o Administrador inclui/exclui fotos — Interno comum e Externo só visualizam.
+      this._isAdmin=UI._ehAdmin(Auth._session&&Auth._session.perfil);
       const addBtn=document.getElementById('imagens-add-btn');
-      if(addBtn)addBtn.style.display=isExt?'none':'';
+      if(addBtn)addBtn.style.display=this._isAdmin?'':'none';
       const grid=document.getElementById('imagens-grid');
       if(!grid)return;
       const imgs=(App.state.data.obra_imagens||[]).filter(i=>i.titulo_obra===obraName);
       if(!imgs.length){grid.innerHTML='<div style="grid-column:1/-1;font-size:11px;color:var(--text-3);padding:8px 0">Nenhuma imagem ainda.</div>';return;}
       const esc=this._esc;
-      grid.innerHTML=imgs.map(i=>`
+      const isAdmin=this._isAdmin;
+      grid.innerHTML=imgs.map(i=>{
+        // Não depende só do que foi salvo: se por algum motivo a miniatura não tiver sido
+        // gravada (uploads antigos, antes desta correção), reconstrói o link a partir do
+        // próprio id do arquivo — nunca cai pro link de visualização (que é uma página HTML,
+        // não uma imagem, e por isso nunca aparecia).
+        const thumb=i.url_thumb||(i.drive_file_id?('https://drive.google.com/thumbnail?id='+i.drive_file_id+'&sz=w400'):i.url_visualizacao);
+        return `
         <div style="position:relative;border-radius:10px;overflow:hidden;border:1px solid var(--border);background:var(--bg)">
           <a href="${esc(i.url_visualizacao)}" target="_blank" rel="noopener" title="${esc(i.descricao||i.nome_arquivo)}" style="display:block;aspect-ratio:1/1">
-            <img src="${esc(i.url_thumb||i.url_visualizacao)}" loading="lazy" style="width:100%;height:100%;object-fit:cover;display:block" onerror="this.style.display='none'">
+            <img src="${esc(thumb)}" loading="lazy" style="width:100%;height:100%;object-fit:cover;display:block" onerror="this.style.display='none'">
           </a>
           ${i.descricao?`<div style="font-size:10px;color:var(--text-2);padding:5px 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${esc(i.descricao)}">${esc(i.descricao)}</div>`:''}
-          ${isExt?'':`<button type="button" onclick="UI.ImagensObra.remover('${i.rowid}')" title="Excluir" style="position:absolute;top:4px;right:4px;width:22px;height:22px;border:none;border-radius:6px;background:rgba(0,0,0,.55);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2M19 6l-1 14a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1L5 6"/></svg></button>`}
-        </div>`).join('');
+          ${isAdmin?`<button type="button" onclick="UI.ImagensObra.remover('${i.rowid}')" title="Excluir" style="position:absolute;top:4px;right:4px;width:22px;height:22px;border:none;border-radius:6px;background:rgba(0,0,0,.55);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2M19 6l-1 14a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1L5 6"/></svg></button>`:''}
+        </div>`;
+      }).join('');
     },
 
     escolherArquivo(){
-      if(this._isExt)return;
+      if(!this._isAdmin)return;
       const inp=document.getElementById('imagens-input');
       if(inp)inp.click();
     },
@@ -7660,7 +7671,7 @@ const UI={
       const form=new FormData();
       form.append('metadata',new Blob([JSON.stringify(metadata)],{type:'application/json'}));
       form.append('file',item.file);
-      const resp=await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,webViewLink,thumbnailLink',{
+      const resp=await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,webViewLink',{
         method:'POST',
         headers:{Authorization:'Bearer '+this._accessToken},
         body:form
@@ -7679,7 +7690,10 @@ const UI={
         nome_arquivo:arquivo.name,
         descricao:item.descricao.trim(),
         url_visualizacao:arquivo.webViewLink||('https://drive.google.com/file/d/'+arquivo.id+'/view'),
-        url_thumb:arquivo.thumbnailLink||''
+        // Não usa o campo "thumbnailLink" da API: ele costuma vir vazio logo após o upload
+        // (o Drive gera a miniatura de forma assíncrona) — esse endpoint de thumbnail público
+        // funciona na hora, sem precisar esperar nem se autenticar de novo pra exibir.
+        url_thumb:'https://drive.google.com/thumbnail?id='+arquivo.id+'&sz=w400'
       };
       await new Promise((resolve,reject)=>{
         google.script.run.withSuccessHandler(res=>{
@@ -7689,7 +7703,7 @@ const UI={
     },
 
     remover(rowid){
-      if(this._isExt||!rowid)return;
+      if(!this._isAdmin||!rowid)return;
       const img=(App.state.data.obra_imagens||[]).find(i=>String(i.rowid)===String(rowid));
       if(!confirm('Excluir esta imagem? Ela também será apagada do Google Drive.'))return;
       this._status('Excluindo...');
