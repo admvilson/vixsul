@@ -554,6 +554,11 @@ tbody tr:hover td{background:rgba(0,113,227,.02);}
   <div class="pw-box" id="pw-box"><!-- conteúdo montado por Auth._pwRender() --></div>
 </div>
 
+<!-- ═══════════════ MODAL DESCRIÇÃO DAS IMAGENS DA OBRA (antes de enviar ao Drive) ═══════════════ -->
+<div class="pw-overlay" id="imagens-upload-overlay">
+  <div class="pw-box" id="imagens-upload-box" style="max-width:460px"><!-- conteúdo montado por UI.ImagensObra._renderModalUpload() --></div>
+</div>
+
 <div class="confirm-overlay" id="confirm-overlay">
   <div class="confirm-box">
     <div class="confirm-icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg></div>
@@ -6329,7 +6334,7 @@ const UI={
       </div>
       <div style="margin-top:20px;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px 18px">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-          <div><div style="font-size:13px;font-weight:800;color:var(--text-1)">Imagens da Obra</div><div style="font-size:10px;color:var(--text-3)">As fotos ficam salvas no Google Drive, não no sistema.</div></div>
+          <div style="font-size:13px;font-weight:800;color:var(--text-1)">Imagens da Obra</div>
           <button type="button" id="imagens-add-btn" onclick="UI.ImagensObra.escolherArquivo()" style="display:flex;align-items:center;gap:5px;font-size:11px;font-weight:600;color:var(--blue);background:rgba(0,113,227,.07);border:1px dashed rgba(0,113,227,.4);border-radius:7px;padding:6px 14px;cursor:pointer;flex-shrink:0">
             <span style="font-size:16px;line-height:1">+</span> Adicionar imagem
           </button>
@@ -6347,7 +6352,7 @@ const UI={
       form.querySelectorAll('#etapas-tbody .cap-row-btn.del').forEach(el=>el.style.display='none');
     }
     this._etapasRecalc();
-    UI.ImagensObra.render(obraName,isExt);
+    UI.ImagensObra.render(obraName,isExt,App.state.obraHub&&App.state.obraHub.rowid);
   },
   _etapasAddRow(){
     if(this._etapasCtx&&this._etapasCtx.isExt)return;
@@ -7479,10 +7484,14 @@ const UI={
 
 
   /* ═══════════════════════ IMAGENS DA OBRA (Google Drive) ═══════════════════════
-     As fotos NÃO são armazenadas no banco do sistema — só o metadado (id, nome e links
-     do Drive) fica salvo na tabela "obra_imagens" (mesmo padrão JSONB das outras abas).
-     O upload vai direto do navegador para o Google Drive via OAuth (Google Identity
-     Services, escopo drive.file — o app só enxerga os arquivos que ele mesmo criar).
+     As fotos NÃO são armazenadas no banco do sistema — só o metadado (id, nome,
+     descrição e links do Drive) fica salvo na tabela "obra_imagens" (mesmo padrão
+     JSONB das outras abas). O upload vai direto do navegador para o Google Drive via
+     OAuth (Google Identity Services, escopo drive.file — o app só enxerga os arquivos
+     que ele mesmo criar). Cada obra tem sua PRÓPRIA subpasta dentro da pasta raiz do
+     Drive (nomeada com o título da obra); o id dessa subpasta fica salvo na própria
+     linha da obra (campo _drive_folder_id) pra nunca criar duas pastas com o mesmo
+     nome — a segunda foto em diante já reaproveita a pasta que a primeira criou.
      Depois do upload, o arquivo vira "qualquer um com o link pode ver" pra miniatura
      conseguir carregar dentro do sistema sem exigir login do Google toda hora. */
   ImagensObra:{
@@ -7493,10 +7502,15 @@ const UI={
     _accessToken:null,
     _tokenExpiraEm:0,
     _obraAtual:'',
+    _obraAtualRowid:null,
     _isExt:false,
+    _fila:[],
 
-    render(obraName,isExt){
+    _esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');},
+
+    render(obraName,isExt,obraRowid){
       this._obraAtual=obraName;
+      this._obraAtualRowid=obraRowid;
       this._isExt=isExt;
       const addBtn=document.getElementById('imagens-add-btn');
       if(addBtn)addBtn.style.display=isExt?'none':'';
@@ -7504,12 +7518,13 @@ const UI={
       if(!grid)return;
       const imgs=(App.state.data.obra_imagens||[]).filter(i=>i.titulo_obra===obraName);
       if(!imgs.length){grid.innerHTML='<div style="grid-column:1/-1;font-size:11px;color:var(--text-3);padding:8px 0">Nenhuma imagem ainda.</div>';return;}
-      const esc=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');
+      const esc=this._esc;
       grid.innerHTML=imgs.map(i=>`
-        <div style="position:relative;border-radius:10px;overflow:hidden;border:1px solid var(--border);aspect-ratio:1/1;background:var(--bg)">
-          <a href="${esc(i.url_visualizacao)}" target="_blank" rel="noopener" title="${esc(i.nome_arquivo)}">
+        <div style="position:relative;border-radius:10px;overflow:hidden;border:1px solid var(--border);background:var(--bg)">
+          <a href="${esc(i.url_visualizacao)}" target="_blank" rel="noopener" title="${esc(i.descricao||i.nome_arquivo)}" style="display:block;aspect-ratio:1/1">
             <img src="${esc(i.url_thumb||i.url_visualizacao)}" loading="lazy" style="width:100%;height:100%;object-fit:cover;display:block" onerror="this.style.display='none'">
           </a>
+          ${i.descricao?`<div style="font-size:10px;color:var(--text-2);padding:5px 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${esc(i.descricao)}">${esc(i.descricao)}</div>`:''}
           ${isExt?'':`<button type="button" onclick="UI.ImagensObra.remover('${i.rowid}')" title="Excluir" style="position:absolute;top:4px;right:4px;width:22px;height:22px;border:none;border-radius:6px;background:rgba(0,0,0,.55);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2M19 6l-1 14a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1L5 6"/></svg></button>`}
         </div>`).join('');
     },
@@ -7527,11 +7542,55 @@ const UI={
       el.style.display='';el.textContent=msg;
     },
 
+    /* Antes de enviar, pede uma descrição pra cada foto escolhida (modal com prévia local). */
     onArquivoEscolhido(ev){
       const files=[...(ev.target.files||[])];
       ev.target.value='';
       if(!files.length)return;
-      this._autenticar(()=>this._enviarArquivos(files));
+      this._fila=files.map(file=>({file,descricao:'',previewUrl:URL.createObjectURL(file)}));
+      document.getElementById('imagens-upload-overlay').classList.add('open');
+      this._renderModalUpload();
+    },
+
+    _renderModalUpload(){
+      const box=document.getElementById('imagens-upload-box');
+      if(!box)return;
+      const esc=this._esc;
+      const linhas=this._fila.map((item,i)=>`
+        <div style="display:flex;gap:10px;align-items:center;margin-bottom:12px">
+          <img src="${item.previewUrl}" style="width:52px;height:52px;object-fit:cover;border-radius:8px;border:1px solid var(--border);flex-shrink:0">
+          <div style="flex:1;min-width:0">
+            <div style="font-size:10.5px;color:var(--text-3);margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(item.file.name)}</div>
+            <input type="text" class="login-input" style="width:100%" placeholder="Descrição da foto" value="${esc(item.descricao)}" oninput="UI.ImagensObra._descricaoAlterada(${i},this.value)">
+          </div>
+        </div>`).join('');
+      box.innerHTML=`
+        <div class="pw-title">Adicionar imagens</div>
+        <div class="pw-desc">Descreva cada foto antes de enviar.</div>
+        <div id="imagens-upload-erro" class="pw-msg err"></div>
+        <div style="max-height:320px;overflow-y:auto;margin-bottom:6px">${linhas}</div>
+        <div class="pw-actions"><button class="pw-btn pw-btn-ghost" onclick="UI.ImagensObra._modalCancelar()">Cancelar</button><button class="pw-btn pw-btn-primary" onclick="UI.ImagensObra._modalConfirmar()">Enviar</button></div>`;
+    },
+
+    _descricaoAlterada(i,valor){
+      if(this._fila[i])this._fila[i].descricao=valor;
+    },
+
+    _modalCancelar(){
+      this._fila.forEach(item=>URL.revokeObjectURL(item.previewUrl));
+      this._fila=[];
+      document.getElementById('imagens-upload-overlay').classList.remove('open');
+    },
+
+    _modalConfirmar(){
+      const semDescricao=this._fila.some(item=>!item.descricao.trim());
+      if(semDescricao){
+        const err=document.getElementById('imagens-upload-erro');
+        if(err){err.textContent='Preencha a descrição de todas as fotos.';err.classList.add('show');}
+        return;
+      }
+      document.getElementById('imagens-upload-overlay').classList.remove('open');
+      this._autenticar(()=>this._enviarArquivos());
     },
 
     _autenticar(onOk){
@@ -7558,23 +7617,49 @@ const UI={
       this._tokenClient.requestAccessToken({prompt:this._accessToken?'':'consent'});
     },
 
-    async _enviarArquivos(files){
-      this._status(`Enviando ${files.length>1?files.length+' imagens':'imagem'}...`);
+    async _enviarArquivos(){
+      const fila=this._fila;this._fila=[];
+      this._status(`Enviando ${fila.length>1?fila.length+' imagens':'imagem'}...`);
       let ok=0,falhas=0;
-      for(const file of files){
-        try{ await this._enviarUmArquivo(file); ok++; }
+      for(const item of fila){
+        try{ await this._enviarUmArquivo(item); ok++; }
         catch(e){ console.error(e); falhas++; }
+        finally{ URL.revokeObjectURL(item.previewUrl); }
       }
       this._status(falhas?`${ok} enviada(s), ${falhas} falhou(aram).`:'');
       if(falhas)setTimeout(()=>this._status(''),4000);
-      App.init(true,()=>this.render(this._obraAtual,this._isExt));
+      App.init(true,()=>this.render(this._obraAtual,this._isExt,this._obraAtualRowid));
     },
 
-    async _enviarUmArquivo(file){
-      const metadata={name:file.name,parents:[this._DRIVE_FOLDER_ID]};
+    /* Acha (ou cria, uma única vez) a subpasta desta obra dentro da pasta raiz do Drive —
+       o id fica salvo na própria linha da obra pra nunca duplicar a pasta. */
+    async _resolverPastaObra(){
+      const obraRow=(App.state.data.obras||[]).find(o=>String(o.rowid)===String(this._obraAtualRowid));
+      if(obraRow&&obraRow._drive_folder_id)return obraRow._drive_folder_id;
+      const resp=await fetch('https://www.googleapis.com/drive/v3/files?fields=id',{
+        method:'POST',
+        headers:{Authorization:'Bearer '+this._accessToken,'Content-Type':'application/json'},
+        body:JSON.stringify({name:this._obraAtual,mimeType:'application/vnd.google-apps.folder',parents:[this._DRIVE_FOLDER_ID]})
+      });
+      if(!resp.ok)throw new Error('Falha ao criar a pasta da obra no Drive ('+resp.status+')');
+      const pasta=await resp.json();
+      if(obraRow){
+        const {rowid,visualId,_aba,...resto}=obraRow;
+        await new Promise(resolve=>{
+          google.script.run.withSuccessHandler(()=>resolve()).withFailureHandler(()=>resolve())
+            .upsertRegistro('Obras',{...resto,_drive_folder_id:pasta.id},this._obraAtualRowid);
+        });
+        obraRow._drive_folder_id=pasta.id;
+      }
+      return pasta.id;
+    },
+
+    async _enviarUmArquivo(item){
+      const pastaId=await this._resolverPastaObra();
+      const metadata={name:item.file.name,parents:[pastaId]};
       const form=new FormData();
       form.append('metadata',new Blob([JSON.stringify(metadata)],{type:'application/json'}));
-      form.append('file',file);
+      form.append('file',item.file);
       const resp=await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,webViewLink,thumbnailLink',{
         method:'POST',
         headers:{Authorization:'Bearer '+this._accessToken},
@@ -7592,6 +7677,7 @@ const UI={
         titulo_obra:this._obraAtual,
         drive_file_id:arquivo.id,
         nome_arquivo:arquivo.name,
+        descricao:item.descricao.trim(),
         url_visualizacao:arquivo.webViewLink||('https://drive.google.com/file/d/'+arquivo.id+'/view'),
         url_thumb:arquivo.thumbnailLink||''
       };
@@ -7610,7 +7696,7 @@ const UI={
       const finalizar=()=>{
         google.script.run.withSuccessHandler(res=>{
           this._status('');
-          if(res&&res.ok)App.init(true,()=>this.render(this._obraAtual,this._isExt));
+          if(res&&res.ok)App.init(true,()=>this.render(this._obraAtual,this._isExt,this._obraAtualRowid));
         }).withFailureHandler(()=>this._status('Erro ao excluir.')).excluirRegistro('Imagens da Obra',rowid);
       };
       if(img&&img.drive_file_id){
