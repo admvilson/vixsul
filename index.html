@@ -4151,6 +4151,9 @@ const UI={
     let theadExtra='',rowExtra='',somaExtra=0,temExtra=false;
     headers.forEach((h,idx)=>{
       const c=nH[idx];if(c==='rowid'||skipList.includes(idx))return;
+      // Campos internos (prefixo "_", ex.: _drive_folder_id da galeria de fotos) não são
+      // do usuário — não entram no bloco "Outros Campos".
+      if(String(c).charAt(0)==='_')return;
       temExtra=true;
       const raw=gv(c);
       theadExtra+=`<th style="width:150px">${labelHeader(c)}</th>`;
@@ -6334,7 +6337,7 @@ const UI={
       </div>
       <div style="margin-top:20px;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px 18px">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-          <div style="font-size:13px;font-weight:800;color:var(--text-1)">Imagens da Obra</div>
+          <div><div style="font-size:13px;font-weight:800;color:var(--text-1)">Imagens da Obra</div><div style="font-size:10px;color:var(--text-3)">Galeria de fotos da obra</div></div>
           <button type="button" id="imagens-add-btn" onclick="UI.ImagensObra.escolherArquivo()" style="display:flex;align-items:center;gap:5px;font-size:11px;font-weight:600;color:var(--blue);background:rgba(0,113,227,.07);border:1px dashed rgba(0,113,227,.4);border-radius:7px;padding:6px 14px;cursor:pointer;flex-shrink:0">
             <span style="font-size:16px;line-height:1">+</span> Adicionar imagem
           </button>
@@ -7509,6 +7512,27 @@ const UI={
 
     _esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');},
 
+    // Se a miniatura do Drive não carregar na 1ª tentativa, tenta o outro endpoint público
+    // do Google (lh3) antes de desistir — e, se mesmo assim falhar, mostra um aviso no lugar
+    // (não some sem deixar rastro).
+    _imgErro(img){
+      const id=img.dataset.driveid||'';
+      if(id&&img.dataset.etapa!=='1'){
+        img.dataset.etapa='1';
+        img.src='https://lh3.googleusercontent.com/d/'+id+'=w600';
+        return;
+      }
+      img.onerror=null;img.style.display='none';
+      const a=img.parentElement;
+      if(a&&!a.querySelector('.img-ph')){
+        const d=document.createElement('div');
+        d.className='img-ph';
+        d.style.cssText='width:100%;height:100%;display:flex;align-items:center;justify-content:center;text-align:center;color:var(--text-3);font-size:10px;padding:6px;line-height:1.3';
+        d.textContent='Miniatura indisponível — toque para abrir no Drive';
+        a.appendChild(d);
+      }
+    },
+
     // Extrai a mensagem real do erro que o Google devolveu (em vez de só o código HTTP),
     // pra dar pra diagnosticar exatamente o que falhou (permissão, cota, pasta não
     // encontrada etc.) em vez de um "Falhou" genérico.
@@ -7534,15 +7558,16 @@ const UI={
       const esc=this._esc;
       const isAdmin=this._isAdmin;
       grid.innerHTML=imgs.map(i=>{
-        // Não depende só do que foi salvo: se por algum motivo a miniatura não tiver sido
-        // gravada (uploads antigos, antes desta correção), reconstrói o link a partir do
-        // próprio id do arquivo — nunca cai pro link de visualização (que é uma página HTML,
-        // não uma imagem, e por isso nunca aparecia).
-        const thumb=i.url_thumb||(i.drive_file_id?('https://drive.google.com/thumbnail?id='+i.drive_file_id+'&sz=w400'):i.url_visualizacao);
+        // Monta a miniatura a partir do id do arquivo no Drive (endpoint público de
+        // thumbnail) — não usa o link de visualização, que é uma página HTML e não uma
+        // imagem (era por isso que a foto nunca aparecia). referrerpolicy="no-referrer" é
+        // essencial: sem ele o Google costuma bloquear a imagem em páginas de outro domínio.
+        const driveId=i.drive_file_id||'';
+        const thumb=driveId?('https://drive.google.com/thumbnail?id='+driveId+'&sz=w600'):(i.url_thumb||i.url_visualizacao);
         return `
         <div style="position:relative;border-radius:10px;overflow:hidden;border:1px solid var(--border);background:var(--bg)">
           <a href="${esc(i.url_visualizacao)}" target="_blank" rel="noopener" title="${esc(i.descricao||i.nome_arquivo)}" style="display:block;aspect-ratio:1/1">
-            <img src="${esc(thumb)}" loading="lazy" style="width:100%;height:100%;object-fit:cover;display:block" onerror="this.style.display='none'">
+            <img src="${esc(thumb)}" data-driveid="${esc(driveId)}" referrerpolicy="no-referrer" loading="lazy" style="width:100%;height:100%;object-fit:cover;display:block" onerror="UI.ImagensObra._imgErro(this)">
           </a>
           ${i.descricao?`<div style="font-size:10px;color:var(--text-2);padding:5px 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${esc(i.descricao)}">${esc(i.descricao)}</div>`:''}
           ${isAdmin?`<button type="button" onclick="UI.ImagensObra.remover('${i.rowid}')" title="Excluir" style="position:absolute;top:4px;right:4px;width:22px;height:22px;border:none;border-radius:6px;background:rgba(0,0,0,.55);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2M19 6l-1 14a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1L5 6"/></svg></button>`:''}
@@ -7655,26 +7680,32 @@ const UI={
       App.init(true,()=>this.render(this._obraAtual,this._isExt,this._obraAtualRowid));
     },
 
-    /* Acha (ou cria, uma única vez) a subpasta desta obra dentro da pasta raiz do Drive —
-       o id fica salvo na própria linha da obra pra nunca duplicar a pasta. */
+    /* Acha (ou cria) a subpasta desta obra dentro da pasta raiz do Drive. Procura PRIMEIRO
+       uma subpasta já existente com o nome da obra (criada por este app) e só cria se não
+       achar — assim nunca duplica a pasta, sem precisar guardar nada na linha da obra (o que
+       poluía o formulário da obra com um campo "Outros Campos"). O id fica só num cache em
+       memória, por sessão, pra não repetir a busca a cada foto. */
     async _resolverPastaObra(){
-      const obraRow=(App.state.data.obras||[]).find(o=>String(o.rowid)===String(this._obraAtualRowid));
-      if(obraRow&&obraRow._drive_folder_id)return obraRow._drive_folder_id;
+      this._pastaCache=this._pastaCache||{};
+      const nome=this._obraAtual;
+      if(this._pastaCache[nome])return this._pastaCache[nome];
+      const nomeEsc=String(nome).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+      const q=`name = '${nomeEsc}' and mimeType = 'application/vnd.google-apps.folder' and '${this._DRIVE_FOLDER_ID}' in parents and trashed = false`;
+      const busca=await fetch('https://www.googleapis.com/drive/v3/files?spaces=drive&fields=files(id)&q='+encodeURIComponent(q),{
+        headers:{Authorization:'Bearer '+this._accessToken}
+      });
+      if(busca.ok){
+        const r=await busca.json();
+        if(r.files&&r.files.length){this._pastaCache[nome]=r.files[0].id;return r.files[0].id;}
+      }
       const resp=await fetch('https://www.googleapis.com/drive/v3/files?fields=id',{
         method:'POST',
         headers:{Authorization:'Bearer '+this._accessToken,'Content-Type':'application/json'},
-        body:JSON.stringify({name:this._obraAtual,mimeType:'application/vnd.google-apps.folder',parents:[this._DRIVE_FOLDER_ID]})
+        body:JSON.stringify({name:nome,mimeType:'application/vnd.google-apps.folder',parents:[this._DRIVE_FOLDER_ID]})
       });
       if(!resp.ok)throw new Error('Falha ao criar a pasta da obra no Drive: '+await this._erroResposta(resp));
       const pasta=await resp.json();
-      if(obraRow){
-        const {rowid,visualId,_aba,...resto}=obraRow;
-        await new Promise(resolve=>{
-          google.script.run.withSuccessHandler(()=>resolve()).withFailureHandler(()=>resolve())
-            .upsertRegistro('Obras',{...resto,_drive_folder_id:pasta.id},this._obraAtualRowid);
-        });
-        obraRow._drive_folder_id=pasta.id;
-      }
+      this._pastaCache[nome]=pasta.id;
       return pasta.id;
     },
 
