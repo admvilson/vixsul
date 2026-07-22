@@ -490,7 +490,7 @@ tbody tr:hover td{background:rgba(0,113,227,.02);}
     html:not([data-authed="1"]) #app-shell{display:none;}
     #app-shell.hidden{display:none!important;}
   </style>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script><script src="gas-shim.js?v=20260721a"></script><script src="https://accounts.google.com/gsi/client" async defer></script></head>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script><script src="gas-shim.js?v=20260721a"></script><script src="https://accounts.google.com/gsi/client" async defer></script><script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script></head>
 <body>
 <div class="toast" id="toast"><span id="toast-icon"></span><span id="toast-msg">—</span></div>
 
@@ -570,7 +570,6 @@ tbody tr:hover td{background:rgba(0,113,227,.02);}
     </div>
     <div style="display:flex;align-items:center;gap:14px;margin-top:14px;max-width:100%;padding:0 40px">
       <div id="imagens-viewer-desc" style="color:#fff;font-size:13px;text-align:center;flex:1;min-width:0;overflow-wrap:break-word"></div>
-      <a id="imagens-viewer-drive" href="#" target="_blank" rel="noopener" title="Abrir no Google Drive" style="flex-shrink:0;color:rgba(255,255,255,.7);display:flex;align-items:center;gap:5px;font-size:11px;font-weight:600;text-decoration:none"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>Drive</a>
     </div>
   </div>
 </div>
@@ -1094,6 +1093,15 @@ tbody tr:hover td{background:rgba(0,113,227,.02);}
     <div class="confirm-title">Excluir a obra inteira</div>
     <div class="confirm-msg">Isto exclui <strong>PERMANENTEMENTE</strong> a obra e <strong>tudo dentro dela</strong> (Custos, Faturamentos, Aportes, CAP e Orçamentos). Deseja continuar?</div>
     <div class="confirm-actions"><button class="confirm-yes" onclick="UI._obraExcluirTudoConfirma()">Sim, excluir tudo</button><button class="confirm-no" onclick="UI._obraExcluirTudoCancela()">Não</button></div>
+  </div>
+</div>
+<!-- CONFIRMAÇÃO DE EXCLUSÃO DE IMAGEM DA OBRA (mesmo design do Excluir Usuário) -->
+<div class="confirm-overlay" id="confirm-imagem-del">
+  <div class="confirm-box">
+    <div class="confirm-icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg></div>
+    <div class="confirm-title">Excluir imagem</div>
+    <div class="confirm-msg">Deseja <strong>EXCLUIR PERMANENTEMENTE</strong> esta imagem?</div>
+    <div class="confirm-actions"><button class="confirm-yes" onclick="UI.ImagensObra._removerConfirma()">Sim, excluir</button><button class="confirm-no" onclick="UI.ImagensObra._removerCancela()">Não</button></div>
   </div>
 </div>
 <!-- CONFIRMAÇÃO DE EXCLUSÃO DE USUÁRIO (mesmo design do Excluir Orçamento) -->
@@ -6354,9 +6362,14 @@ const UI={
       <div style="margin-top:20px;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px 18px">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
           <div><div style="font-size:13px;font-weight:800;color:var(--text-1)">Imagens da Obra</div><div style="font-size:10px;color:var(--text-3)">Galeria de fotos da obra</div></div>
-          <button type="button" id="imagens-add-btn" onclick="UI.ImagensObra.escolherArquivo()" style="display:flex;align-items:center;gap:5px;font-size:11px;font-weight:600;color:var(--blue);background:rgba(0,113,227,.07);border:1px dashed rgba(0,113,227,.4);border-radius:7px;padding:6px 14px;cursor:pointer;flex-shrink:0">
-            <span style="font-size:16px;line-height:1">+</span> Adicionar imagem
-          </button>
+          <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
+            <button type="button" id="imagens-add-btn" onclick="UI.ImagensObra.escolherArquivo()" style="display:flex;align-items:center;gap:5px;font-size:11px;font-weight:600;color:var(--blue);background:rgba(0,113,227,.07);border:1px dashed rgba(0,113,227,.4);border-radius:7px;padding:6px 14px;cursor:pointer">
+              <span style="font-size:16px;line-height:1">+</span> Adicionar imagem
+            </button>
+            <button type="button" id="imagens-download-btn" onclick="UI.ImagensObra.baixarSelecionadas()" style="display:none;align-items:center;gap:5px;font-size:11px;font-weight:600;color:var(--green);background:rgba(52,199,89,.08);border:1px solid rgba(52,199,89,.35);border-radius:7px;padding:6px 14px;cursor:pointer">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Baixar
+            </button>
+          </div>
         </div>
         <input type="file" id="imagens-input" accept="image/*" multiple style="display:none" onchange="UI.ImagensObra.onArquivoEscolhido(event)">
         <div id="imagens-status" style="display:none;font-size:11px;font-weight:600;color:var(--text-3);margin-bottom:10px"></div>
@@ -7525,6 +7538,7 @@ const UI={
     _isExt:false,
     _isAdmin:false,
     _fila:[],
+    _selecionadas:new Set(),
 
     _esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');},
 
@@ -7569,6 +7583,9 @@ const UI={
       if(addBtn)addBtn.style.display=this._isAdmin?'':'none';
       const grid=document.getElementById('imagens-grid');
       if(!grid)return;
+      // Troca de obra/reabertura: zera a seleção de download da vez anterior.
+      this._selecionadas=new Set();
+      this._atualizarBotaoDownload();
       const imgs=(App.state.data.obra_imagens||[]).filter(i=>i.titulo_obra===obraName);
       if(!imgs.length){grid.innerHTML='<div style="grid-column:1/-1;font-size:11px;color:var(--text-3);padding:8px 0">Nenhuma imagem ainda.</div>';return;}
       const esc=this._esc;
@@ -7582,6 +7599,7 @@ const UI={
         const thumb=driveId?('https://drive.google.com/thumbnail?id='+driveId+'&sz=w600'):(i.url_thumb||i.url_visualizacao);
         return `
         <div style="position:relative;border-radius:10px;overflow:hidden;border:1px solid var(--border);background:var(--bg)">
+          <input type="checkbox" onclick="event.stopPropagation()" onchange="UI.ImagensObra.toggleSelecao('${i.rowid}',this.checked)" title="Selecionar" style="position:absolute;top:5px;left:5px;width:17px;height:17px;z-index:1;cursor:pointer">
           <button type="button" onclick="UI.ImagensObra.abrirVisualizador('${i.rowid}')" title="${esc(i.descricao||i.nome_arquivo)}" style="display:block;width:100%;aspect-ratio:1/1;border:none;padding:0;background:none;cursor:pointer">
             <img src="${esc(thumb)}" data-driveid="${esc(driveId)}" referrerpolicy="no-referrer" loading="lazy" style="width:100%;height:100%;object-fit:cover;display:block;pointer-events:none" onerror="UI.ImagensObra._imgErro(this)">
           </button>
@@ -7604,12 +7622,30 @@ const UI={
       el.style.display='';el.textContent=msg;
     },
 
-    /* Antes de enviar, pede uma descrição pra cada foto escolhida (modal com prévia local). */
+    _ETAPA_LABELS:{inicio:'Início da Obra',durante:'Durante a Obra',fim:'Fim da Obra'},
+    _DESCRICAO_MAX:70,
+
+    /* AAAA-MM-DD (o formato do <input type=date>) direto pra DD/MM/AAAA, sem passar por
+       Date — new Date('AAAA-MM-DD') é interpretado como UTC meia-noite, e em fuso atrás
+       de UTC o dia exibido fica errado (mostra o dia anterior). */
+    _dataBR(iso){
+      const p=String(iso||'').split('-');
+      return p.length===3?(p[2]+'/'+p[1]+'/'+p[0]):'';
+    },
+    _hojeISO(){
+      const d=new Date();
+      return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+    },
+
+    /* Antes de enviar, pede etapa da obra, data e descrição pra cada foto (modal com
+       prévia local). Só pode haver UMA foto de "Início da Obra" e UMA de "Fim da Obra"
+       por obra — "Durante a Obra" não tem limite. */
     onArquivoEscolhido(ev){
       const files=[...(ev.target.files||[])];
       ev.target.value='';
       if(!files.length)return;
-      this._fila=files.map(file=>({file,descricao:'',previewUrl:URL.createObjectURL(file)}));
+      const hoje=this._hojeISO();
+      this._fila=files.map(file=>({file,descricao:'',etapa:'durante',data:hoje,previewUrl:URL.createObjectURL(file)}));
       document.getElementById('imagens-upload-overlay').classList.add('open');
       this._renderModalUpload();
     },
@@ -7618,24 +7654,37 @@ const UI={
       const box=document.getElementById('imagens-upload-box');
       if(!box)return;
       const esc=this._esc;
+      const opts=Object.entries(this._ETAPA_LABELS).map(([v,l])=>[v,l]);
       const linhas=this._fila.map((item,i)=>`
-        <div style="display:flex;gap:10px;align-items:center;margin-bottom:12px">
+        <div style="display:flex;gap:10px;align-items:flex-start;margin-bottom:14px">
           <img src="${item.previewUrl}" style="width:52px;height:52px;object-fit:cover;border-radius:8px;border:1px solid var(--border);flex-shrink:0">
           <div style="flex:1;min-width:0">
-            <div style="font-size:10.5px;color:var(--text-3);margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(item.file.name)}</div>
-            <input type="text" class="login-input" style="width:100%" placeholder="Descrição da foto" value="${esc(item.descricao)}" oninput="UI.ImagensObra._descricaoAlterada(${i},this.value)">
+            <div style="font-size:10.5px;color:var(--text-3);margin-bottom:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(item.file.name)}</div>
+            <div style="display:flex;gap:6px;margin-bottom:6px">
+              <select class="login-input" style="flex:1;padding:8px 6px;font-size:12px" onchange="UI.ImagensObra._etapaAlterada(${i},this.value)">
+                ${opts.map(([v,l])=>`<option value="${v}" ${item.etapa===v?'selected':''}>${esc(l)}</option>`).join('')}
+              </select>
+              <input type="date" class="login-input" style="width:150px;padding:8px 6px;font-size:12px" value="${esc(item.data)}" onchange="UI.ImagensObra._dataAlterada(${i},this.value)">
+            </div>
+            <input type="text" class="login-input" style="width:100%" placeholder="Descrição da foto (opcional)" maxlength="${this._DESCRICAO_MAX}" value="${esc(item.descricao)}" oninput="UI.ImagensObra._descricaoAlterada(${i},this.value)">
           </div>
         </div>`).join('');
       box.innerHTML=`
         <div class="pw-title">Adicionar imagens</div>
-        <div class="pw-desc">Descreva cada foto antes de enviar.</div>
+        <div class="pw-desc">Marque a etapa e a data de cada foto antes de enviar.</div>
         <div id="imagens-upload-erro" class="pw-msg err"></div>
-        <div style="max-height:320px;overflow-y:auto;margin-bottom:6px">${linhas}</div>
+        <div style="max-height:360px;overflow-y:auto;margin-bottom:6px">${linhas}</div>
         <div class="pw-actions"><button class="pw-btn pw-btn-ghost" onclick="UI.ImagensObra._modalCancelar()">Cancelar</button><button class="pw-btn pw-btn-primary" onclick="UI.ImagensObra._modalConfirmar()">Enviar</button></div>`;
     },
 
     _descricaoAlterada(i,valor){
-      if(this._fila[i])this._fila[i].descricao=valor;
+      if(this._fila[i])this._fila[i].descricao=valor.slice(0,this._DESCRICAO_MAX);
+    },
+    _etapaAlterada(i,valor){
+      if(this._fila[i])this._fila[i].etapa=valor;
+    },
+    _dataAlterada(i,valor){
+      if(this._fila[i])this._fila[i].data=valor;
     },
 
     _modalCancelar(){
@@ -7645,11 +7694,19 @@ const UI={
     },
 
     _modalConfirmar(){
-      const semDescricao=this._fila.some(item=>!item.descricao.trim());
-      if(semDescricao){
-        const err=document.getElementById('imagens-upload-erro');
-        if(err){err.textContent='Preencha a descrição de todas as fotos.';err.classList.add('show');}
-        return;
+      const err=document.getElementById('imagens-upload-erro');
+      const falhar=msg=>{if(err){err.textContent=msg;err.classList.add('show');}};
+      if(this._fila.some(item=>!item.data)){falhar('Preencha a data de todas as fotos.');return;}
+      // "Início da Obra" e "Fim da Obra" só podem existir uma vez por obra — conta tanto
+      // as fotos que já estão salvas quanto as que estão sendo enviadas agora juntas.
+      const existentes=(App.state.data.obra_imagens||[]).filter(i=>i.titulo_obra===this._obraAtual);
+      for(const chave of ['inicio','fim']){
+        const jaExiste=existentes.some(i=>i.etapa_obra===chave);
+        const naFila=this._fila.filter(item=>item.etapa===chave).length;
+        if(naFila>1||(jaExiste&&naFila>0)){
+          falhar(`Só pode haver uma foto marcada como "${this._ETAPA_LABELS[chave]}".`);
+          return;
+        }
       }
       document.getElementById('imagens-upload-overlay').classList.remove('open');
       this._autenticar(()=>this._enviarArquivos());
@@ -7763,11 +7820,16 @@ const UI={
         headers:{Authorization:'Bearer '+this._accessToken,'Content-Type':'application/json'},
         body:JSON.stringify({role:'reader',type:'anyone'})
       });
+      // A descrição exibida é a união de Etapa + Data + texto livre (o texto é opcional).
+      const partesDescricao=[this._ETAPA_LABELS[item.etapa]||item.etapa,this._dataBR(item.data)];
+      if(item.descricao.trim())partesDescricao.push(item.descricao.trim());
       const dados={
         titulo_obra:this._obraAtual,
         drive_file_id:arquivo.id,
         nome_arquivo:arquivo.name,
-        descricao:item.descricao.trim(),
+        etapa_obra:item.etapa,
+        data_foto:item.data,
+        descricao:partesDescricao.join(' • '),
         url_visualizacao:arquivo.webViewLink||('https://drive.google.com/file/d/'+arquivo.id+'/view'),
         // Não usa o campo "thumbnailLink" da API: ele costuma vir vazio logo após o upload
         // (o Drive gera a miniatura de forma assíncrona) — esse endpoint de thumbnail público
@@ -7784,8 +7846,20 @@ const UI={
 
     remover(rowid){
       if(!this._isAdmin||!rowid)return;
+      this._pendenteExcluir=rowid;
+      document.getElementById('confirm-imagem-del').classList.add('open');
+    },
+    _removerCancela(){
+      document.getElementById('confirm-imagem-del').classList.remove('open');
+      this._pendenteExcluir=null;
+    },
+    _removerConfirma(){
+      document.getElementById('confirm-imagem-del').classList.remove('open');
+      const rowid=this._pendenteExcluir;
+      this._pendenteExcluir=null;
+      if(!rowid)return;
       const img=(App.state.data.obra_imagens||[]).find(i=>String(i.rowid)===String(rowid));
-      if(!confirm('Excluir esta imagem? Ela também será apagada do Google Drive.'))return;
+      this.fecharVisualizador();
       this._status('Excluindo...');
       const finalizar=()=>{
         google.script.run.withSuccessHandler(res=>{
@@ -7802,7 +7876,6 @@ const UI={
       } else {
         finalizar();
       }
-      this.fecharVisualizador();
     },
 
     /* ── Visualizador em tela cheia: abre a foto DENTRO do sistema (sem ir pro Drive) ── */
@@ -7852,10 +7925,71 @@ const UI={
       img.dataset.driveid=driveId;
       img.src=full;
       document.getElementById('imagens-viewer-desc').textContent=item.descricao||item.nome_arquivo||'';
-      document.getElementById('imagens-viewer-drive').href=item.url_visualizacao||'#';
       const multi=this._visualizarLista.length>1;
       document.getElementById('imagens-viewer-prev').style.display=multi?'':'none';
       document.getElementById('imagens-viewer-next').style.display=multi?'':'none';
+    },
+
+    /* ── Seleção + download (uma foto direto, várias em um .zip) ── */
+    toggleSelecao(rowid,marcado){
+      const chave=String(rowid);
+      if(marcado)this._selecionadas.add(chave); else this._selecionadas.delete(chave);
+      this._atualizarBotaoDownload();
+    },
+    _atualizarBotaoDownload(){
+      const btn=document.getElementById('imagens-download-btn');
+      if(!btn)return;
+      const n=this._selecionadas.size;
+      btn.style.display=n?'flex':'none';
+      btn.lastChild.textContent=' '+(n>1?`Baixar (${n})`:'Baixar');
+    },
+    async baixarSelecionadas(){
+      const ids=this._selecionadas;
+      if(!ids.size)return;
+      const imgs=(App.state.data.obra_imagens||[]).filter(i=>ids.has(String(i.rowid)));
+      if(!imgs.length)return;
+      if(imgs.length===1){ this._baixarUmDireto(imgs[0]); return; }
+      this._autenticar(()=>this._baixarZip(imgs));
+    },
+    // Foto única já é pública ("qualquer um com o link") — baixa direto, sem precisar
+    // autenticar de novo.
+    _baixarUmDireto(img){
+      if(!img.drive_file_id)return;
+      const a=document.createElement('a');
+      a.href='https://drive.google.com/uc?export=download&id='+img.drive_file_id;
+      a.download=img.nome_arquivo||'foto.jpg';
+      a.rel='noopener';
+      document.body.appendChild(a);a.click();a.remove();
+    },
+    // Várias fotos: baixa o conteúdo de cada uma (autenticado, via API do Drive — o link
+    // público não permite ler os bytes de outro domínio) e junta tudo num .zip só.
+    async _baixarZip(imgs){
+      if(typeof JSZip==='undefined'){this._status('Erro: biblioteca de zip não carregou. Recarregue a página.');return;}
+      this._status('Preparando o download...');
+      try{
+        const zip=new JSZip();
+        const usados={};
+        for(const img of imgs){
+          const resp=await fetch(`https://www.googleapis.com/drive/v3/files/${img.drive_file_id}?alt=media`,{headers:{Authorization:'Bearer '+this._accessToken}});
+          if(!resp.ok)throw new Error('Falha ao baixar "'+(img.nome_arquivo||img.drive_file_id)+'": '+await this._erroResposta(resp));
+          const blob=await resp.blob();
+          let nome=img.nome_arquivo||('foto_'+img.drive_file_id+'.jpg');
+          if(usados[nome]){usados[nome]++;const p=nome.lastIndexOf('.');nome=p>0?(nome.slice(0,p)+' ('+usados[nome]+')'+nome.slice(p)):(nome+' ('+usados[nome]+')');}
+          else usados[nome]=1;
+          zip.file(nome,blob);
+        }
+        const conteudo=await zip.generateAsync({type:'blob'});
+        const url=URL.createObjectURL(conteudo);
+        const a=document.createElement('a');
+        a.href=url;a.download=(this._obraAtual||'fotos').replace(/[\\/:*?"<>|]/g,'-')+'.zip';
+        document.body.appendChild(a);a.click();a.remove();
+        setTimeout(()=>URL.revokeObjectURL(url),4000);
+        this._status('');
+      }catch(e){
+        console.error(e);
+        this._status('Erro ao gerar o zip: '+((e&&e.message)||e));
+        setTimeout(()=>this._status(''),9000);
+      }
     }
   },
 
