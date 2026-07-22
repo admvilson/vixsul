@@ -559,6 +559,22 @@ tbody tr:hover td{background:rgba(0,113,227,.02);}
   <div class="pw-box" id="imagens-upload-box" style="max-width:460px"><!-- conteúdo montado por UI.ImagensObra._renderModalUpload() --></div>
 </div>
 
+<!-- ═══════════════ VISUALIZADOR DE IMAGEM DA OBRA (em tela cheia, sem sair do sistema) ═══════════════ -->
+<div class="pw-overlay" id="imagens-viewer-overlay" style="z-index:9600;background:rgba(0,0,0,.86);padding:16px" onclick="if(event.target===this)UI.ImagensObra.fecharVisualizador()">
+  <div style="position:relative;max-width:min(94vw,900px);max-height:94vh;display:flex;flex-direction:column;align-items:center;width:100%">
+    <button type="button" onclick="UI.ImagensObra.fecharVisualizador()" title="Fechar" style="position:absolute;top:-6px;right:-6px;width:36px;height:36px;border:none;border-radius:50%;background:rgba(255,255,255,.15);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:1"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    <div style="position:relative;display:flex;align-items:center;justify-content:center;width:100%;flex:1;min-height:0">
+      <button type="button" id="imagens-viewer-prev" onclick="UI.ImagensObra._visualizarNav(-1)" title="Anterior" style="position:absolute;left:-4px;top:50%;transform:translateY(-50%);width:38px;height:38px;border:none;border-radius:50%;background:rgba(255,255,255,.15);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg></button>
+      <img id="imagens-viewer-img" referrerpolicy="no-referrer" style="max-width:100%;max-height:78vh;border-radius:10px;object-fit:contain;background:#111" onerror="UI.ImagensObra._imgErro(this)">
+      <button type="button" id="imagens-viewer-next" onclick="UI.ImagensObra._visualizarNav(1)" title="Próxima" style="position:absolute;right:-4px;top:50%;transform:translateY(-50%);width:38px;height:38px;border:none;border-radius:50%;background:rgba(255,255,255,.15);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg></button>
+    </div>
+    <div style="display:flex;align-items:center;gap:14px;margin-top:14px;max-width:100%;padding:0 40px">
+      <div id="imagens-viewer-desc" style="color:#fff;font-size:13px;text-align:center;flex:1;min-width:0;overflow-wrap:break-word"></div>
+      <a id="imagens-viewer-drive" href="#" target="_blank" rel="noopener" title="Abrir no Google Drive" style="flex-shrink:0;color:rgba(255,255,255,.7);display:flex;align-items:center;gap:5px;font-size:11px;font-weight:600;text-decoration:none"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>Drive</a>
+    </div>
+  </div>
+</div>
+
 <div class="confirm-overlay" id="confirm-overlay">
   <div class="confirm-box">
     <div class="confirm-icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg></div>
@@ -7566,9 +7582,9 @@ const UI={
         const thumb=driveId?('https://drive.google.com/thumbnail?id='+driveId+'&sz=w600'):(i.url_thumb||i.url_visualizacao);
         return `
         <div style="position:relative;border-radius:10px;overflow:hidden;border:1px solid var(--border);background:var(--bg)">
-          <a href="${esc(i.url_visualizacao)}" target="_blank" rel="noopener" title="${esc(i.descricao||i.nome_arquivo)}" style="display:block;aspect-ratio:1/1">
-            <img src="${esc(thumb)}" data-driveid="${esc(driveId)}" referrerpolicy="no-referrer" loading="lazy" style="width:100%;height:100%;object-fit:cover;display:block" onerror="UI.ImagensObra._imgErro(this)">
-          </a>
+          <button type="button" onclick="UI.ImagensObra.abrirVisualizador('${i.rowid}')" title="${esc(i.descricao||i.nome_arquivo)}" style="display:block;width:100%;aspect-ratio:1/1;border:none;padding:0;background:none;cursor:pointer">
+            <img src="${esc(thumb)}" data-driveid="${esc(driveId)}" referrerpolicy="no-referrer" loading="lazy" style="width:100%;height:100%;object-fit:cover;display:block;pointer-events:none" onerror="UI.ImagensObra._imgErro(this)">
+          </button>
           ${i.descricao?`<div style="font-size:10px;color:var(--text-2);padding:5px 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${esc(i.descricao)}">${esc(i.descricao)}</div>`:''}
           ${isAdmin?`<button type="button" onclick="UI.ImagensObra.remover('${i.rowid}')" title="Excluir" style="position:absolute;top:4px;right:4px;width:22px;height:22px;border:none;border-radius:6px;background:rgba(0,0,0,.55);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2M19 6l-1 14a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1L5 6"/></svg></button>`:''}
         </div>`;
@@ -7786,6 +7802,60 @@ const UI={
       } else {
         finalizar();
       }
+      this.fecharVisualizador();
+    },
+
+    /* ── Visualizador em tela cheia: abre a foto DENTRO do sistema (sem ir pro Drive) ── */
+    _visualizarLista:[],
+    _visualizarIdx:0,
+
+    abrirVisualizador(rowid){
+      const imgs=(App.state.data.obra_imagens||[]).filter(i=>i.titulo_obra===this._obraAtual);
+      const idx=imgs.findIndex(i=>String(i.rowid)===String(rowid));
+      if(idx<0)return;
+      this._visualizarLista=imgs;
+      this._visualizarIdx=idx;
+      this._renderVisualizador();
+      document.getElementById('imagens-viewer-overlay').classList.add('open');
+      if(!this._visualizarKeyBound){
+        this._visualizarKeyBound=true;
+        document.addEventListener('keydown',e=>{
+          const overlay=document.getElementById('imagens-viewer-overlay');
+          if(!overlay||!overlay.classList.contains('open'))return;
+          if(e.key==='Escape')this.fecharVisualizador();
+          else if(e.key==='ArrowLeft')this._visualizarNav(-1);
+          else if(e.key==='ArrowRight')this._visualizarNav(1);
+        });
+      }
+    },
+
+    fecharVisualizador(){
+      const overlay=document.getElementById('imagens-viewer-overlay');
+      if(overlay)overlay.classList.remove('open');
+    },
+
+    _visualizarNav(dir){
+      if(!this._visualizarLista.length)return;
+      this._visualizarIdx=(this._visualizarIdx+dir+this._visualizarLista.length)%this._visualizarLista.length;
+      this._renderVisualizador();
+    },
+
+    _renderVisualizador(){
+      const item=this._visualizarLista[this._visualizarIdx];
+      if(!item)return;
+      const driveId=item.drive_file_id||'';
+      const full=driveId?('https://drive.google.com/thumbnail?id='+driveId+'&sz=w1600'):(item.url_thumb||item.url_visualizacao);
+      const img=document.getElementById('imagens-viewer-img');
+      const ph=img.parentElement.querySelector('.img-ph');if(ph)ph.remove();
+      img.style.display='block';
+      img.removeAttribute('data-etapa');
+      img.dataset.driveid=driveId;
+      img.src=full;
+      document.getElementById('imagens-viewer-desc').textContent=item.descricao||item.nome_arquivo||'';
+      document.getElementById('imagens-viewer-drive').href=item.url_visualizacao||'#';
+      const multi=this._visualizarLista.length>1;
+      document.getElementById('imagens-viewer-prev').style.display=multi?'':'none';
+      document.getElementById('imagens-viewer-next').style.display=multi?'':'none';
     }
   },
 
