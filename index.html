@@ -7670,14 +7670,33 @@ const UI={
       const fila=this._fila;this._fila=[];
       this._status(`Enviando ${fila.length>1?fila.length+' imagens':'imagem'}...`);
       let ok=0,falhas=0,ultimoErro='';
+      const idsEnviados=[];
       for(const item of fila){
-        try{ await this._enviarUmArquivo(item); ok++; }
+        try{ const id=await this._enviarUmArquivo(item); ok++; idsEnviados.push(id); }
         catch(e){ console.error(e); falhas++; ultimoErro=(e&&e.message)||String(e); }
         finally{ URL.revokeObjectURL(item.previewUrl); }
       }
-      this._status(falhas?`${ok} enviada(s), ${falhas} falhou(aram): ${ultimoErro}`:'');
-      if(falhas)setTimeout(()=>this._status(''),9000);
-      App.init(true,()=>this.render(this._obraAtual,this._isExt,this._obraAtualRowid));
+      // Recarrega SEM o modo "silencioso": o modo silencioso pula a atualização inteira
+      // (sem aviso nenhum) se houver qualquer outro salvamento em andamento no sistema
+      // (App.state._busy) — foi por causa disso que fotos enviadas com sucesso podiam
+      // nunca aparecer na galeria até a próxima atualização manual da tela.
+      App.init(false,(erroCarregar)=>{
+        this.render(this._obraAtual,this._isExt,this._obraAtualRowid);
+        if(erroCarregar){
+          this._status('Foto(s) enviada(s), mas houve erro ao atualizar a tela. Clique em "Atualizar" no topo.');
+          return;
+        }
+        if(!falhas&&idsEnviados.length){
+          const agoraTem=(App.state.data.obra_imagens||[]).some(i=>idsEnviados.includes(i.drive_file_id));
+          if(!agoraTem){
+            console.warn('Imagem enviada e salva, mas não apareceu após recarregar. titulo_obra usado no envio:',this._obraAtual,'obras_imagens carregadas:',App.state.data.obra_imagens);
+            this._status('Enviada, mas não apareceu na lista — verifique se o nome da obra não mudou. Clique em "Atualizar".');
+            return;
+          }
+        }
+        this._status(falhas?`${ok} enviada(s), ${falhas} falhou(aram): ${ultimoErro}`:(ok?`${ok>1?ok+' imagens enviadas':'Imagem enviada'} com sucesso.`:''));
+        setTimeout(()=>this._status(''),falhas?9000:3000);
+      });
     },
 
     /* Acha (ou cria) a subpasta desta obra dentro da pasta raiz do Drive. Procura PRIMEIRO
@@ -7744,6 +7763,7 @@ const UI={
           if(res&&res.ok)resolve(); else reject(new Error((res&&res.msg)||'Erro ao salvar no sistema.'));
         }).withFailureHandler(()=>reject(new Error('Erro de conexão ao salvar.'))).upsertRegistro('Imagens da Obra',dados,null);
       });
+      return arquivo.id;
     },
 
     remover(rowid){
@@ -7754,7 +7774,7 @@ const UI={
       const finalizar=()=>{
         google.script.run.withSuccessHandler(res=>{
           this._status('');
-          if(res&&res.ok)App.init(true,()=>this.render(this._obraAtual,this._isExt,this._obraAtualRowid));
+          if(res&&res.ok)App.init(false,()=>this.render(this._obraAtual,this._isExt,this._obraAtualRowid));
         }).withFailureHandler(()=>this._status('Erro ao excluir.')).excluirRegistro('Imagens da Obra',rowid);
       };
       if(img&&img.drive_file_id){
