@@ -332,14 +332,14 @@ tbody tr:hover td{background:rgba(0,113,227,.02);}
 .pw-btn-primary{background:var(--blue);color:#fff;}
 .pw-btn-ghost{background:var(--bg);color:var(--text-2);}
 .pw-code-input{width:100%;text-align:center;letter-spacing:10px;font-size:26px;font-weight:800;font-family:inherit;padding:12px;border:2px solid var(--border);border-radius:14px;background:var(--bg);color:var(--text-1);outline:none;}
-/* Checkbox de seleção das fotos (Imagens da Obra) — estilo custom, mais moderno que o checkbox nativo do navegador */
-.img-check{position:absolute;top:6px;right:6px;z-index:1;width:22px;height:22px;cursor:pointer;}
+/* Checkbox de seleção das fotos (Imagens da Obra) — estilo custom (círculo, tipo Google/Apple Fotos), mais moderno e discreto que o checkbox nativo do navegador */
+.img-check{position:absolute;top:5px;right:5px;z-index:1;width:17px;height:17px;cursor:pointer;}
 .img-check input{position:absolute;opacity:0;width:100%;height:100%;margin:0;cursor:pointer;}
-.img-check .img-check-box{position:absolute;inset:0;border-radius:7px;background:rgba(0,0,0,.38);border:1.5px solid rgba(255,255,255,.85);backdrop-filter:blur(2px);display:flex;align-items:center;justify-content:center;transition:background .15s,border-color .15s,transform .1s;box-shadow:0 1px 4px rgba(0,0,0,.25);}
-.img-check .img-check-box svg{width:13px;height:13px;opacity:0;transform:scale(.5);transition:opacity .12s,transform .12s;stroke:#fff;}
-.img-check input:checked ~ .img-check-box{background:var(--blue);border-color:var(--blue);}
+.img-check .img-check-box{position:absolute;inset:0;border-radius:50%;background:rgba(0,0,0,.32);border:1.5px solid rgba(255,255,255,.9);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;transition:background .15s,border-color .15s,transform .12s;box-shadow:0 1px 3px rgba(0,0,0,.3);}
+.img-check .img-check-box svg{width:9px;height:9px;opacity:0;transform:scale(.4);transition:opacity .12s,transform .12s;stroke:#fff;}
+.img-check input:checked ~ .img-check-box{background:var(--blue);border-color:var(--blue);box-shadow:0 1px 4px rgba(0,113,227,.5);}
 .img-check input:checked ~ .img-check-box svg{opacity:1;transform:scale(1);}
-.img-check input:hover ~ .img-check-box{transform:scale(1.08);}
+.img-check:hover .img-check-box{transform:scale(1.15);}
 .pw-code-input:focus{border-color:var(--blue);}
 .pw-timer{text-align:center;font-size:13px;font-weight:700;color:var(--text-2);margin:12px 0;}
 .login-footer{margin-top:28px;padding-top:22px;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:center;gap:8px;}
@@ -7992,49 +7992,51 @@ const UI={
     async baixarSelecionadas(){
       const ids=this._selecionadas;
       if(!ids.size)return;
-      const imgs=(App.state.data.obra_imagens||[]).filter(i=>ids.has(String(i.rowid)));
+      const imgs=(App.state.data.obra_imagens||[]).filter(i=>ids.has(String(i.rowid))&&i.drive_file_id);
       if(!imgs.length)return;
-      if(imgs.length===1){ this._baixarUmDireto(imgs[0]); this._desmarcarTudo(); return; }
-      this._autenticar(()=>this._baixarZip(imgs));
+      this._autenticar(()=>this._baixarViaApi(imgs));
     },
-    // Foto única já é pública ("qualquer um com o link") — baixa direto, sem precisar
-    // autenticar de novo.
-    _baixarUmDireto(img){
-      if(!img.drive_file_id)return;
-      const a=document.createElement('a');
-      a.href='https://drive.google.com/uc?export=download&id='+img.drive_file_id;
-      a.download=img.nome_arquivo||'foto.jpg';
-      a.rel='noopener';
-      document.body.appendChild(a);a.click();a.remove();
-    },
-    // Várias fotos: baixa o conteúdo de cada uma (autenticado, via API do Drive — o link
-    // público não permite ler os bytes de outro domínio) e junta tudo num .zip só.
-    async _baixarZip(imgs){
-      if(typeof JSZip==='undefined'){this._status('Erro: biblioteca de zip não carregou. Recarregue a página.');return;}
+    // Baixa sempre pelo endpoint autenticado (nunca por um link que abra o Drive na tela) —
+    // assim nenhuma tela do Google chega a aparecer, tudo é feito em segundo plano.
+    // Uma foto só: baixa o arquivo direto. Mais de uma: junta tudo num .zip antes de baixar.
+    async _baixarViaApi(imgs){
       this._status('Preparando o download...');
       try{
-        const zip=new JSZip();
-        const usados={};
-        for(const img of imgs){
+        if(imgs.length===1){
+          const img=imgs[0];
           const resp=await fetch(`https://www.googleapis.com/drive/v3/files/${img.drive_file_id}?alt=media`,{headers:{Authorization:'Bearer '+this._accessToken}});
-          if(!resp.ok)throw new Error('Falha ao baixar "'+(img.nome_arquivo||img.drive_file_id)+'": '+await this._erroResposta(resp));
+          if(!resp.ok)throw new Error('Falha ao baixar a imagem: '+await this._erroResposta(resp));
           const blob=await resp.blob();
-          let nome=img.nome_arquivo||('foto_'+img.drive_file_id+'.jpg');
-          if(usados[nome]){usados[nome]++;const p=nome.lastIndexOf('.');nome=p>0?(nome.slice(0,p)+' ('+usados[nome]+')'+nome.slice(p)):(nome+' ('+usados[nome]+')');}
-          else usados[nome]=1;
-          zip.file(nome,blob);
+          const url=URL.createObjectURL(blob);
+          const a=document.createElement('a');
+          a.href=url;a.download=img.nome_arquivo||'foto.jpg';
+          document.body.appendChild(a);a.click();a.remove();
+          setTimeout(()=>URL.revokeObjectURL(url),4000);
+        } else {
+          if(typeof JSZip==='undefined'){this._status('Erro: biblioteca de zip não carregou. Recarregue a página.');return;}
+          const zip=new JSZip();
+          const usados={};
+          for(const img of imgs){
+            const resp=await fetch(`https://www.googleapis.com/drive/v3/files/${img.drive_file_id}?alt=media`,{headers:{Authorization:'Bearer '+this._accessToken}});
+            if(!resp.ok)throw new Error('Falha ao baixar "'+(img.nome_arquivo||img.drive_file_id)+'": '+await this._erroResposta(resp));
+            const blob=await resp.blob();
+            let nome=img.nome_arquivo||('foto_'+img.drive_file_id+'.jpg');
+            if(usados[nome]){usados[nome]++;const p=nome.lastIndexOf('.');nome=p>0?(nome.slice(0,p)+' ('+usados[nome]+')'+nome.slice(p)):(nome+' ('+usados[nome]+')');}
+            else usados[nome]=1;
+            zip.file(nome,blob);
+          }
+          const conteudo=await zip.generateAsync({type:'blob'});
+          const url=URL.createObjectURL(conteudo);
+          const a=document.createElement('a');
+          a.href=url;a.download=(this._obraAtual||'fotos').replace(/[\\/:*?"<>|]/g,'-')+'.zip';
+          document.body.appendChild(a);a.click();a.remove();
+          setTimeout(()=>URL.revokeObjectURL(url),4000);
         }
-        const conteudo=await zip.generateAsync({type:'blob'});
-        const url=URL.createObjectURL(conteudo);
-        const a=document.createElement('a');
-        a.href=url;a.download=(this._obraAtual||'fotos').replace(/[\\/:*?"<>|]/g,'-')+'.zip';
-        document.body.appendChild(a);a.click();a.remove();
-        setTimeout(()=>URL.revokeObjectURL(url),4000);
         this._status('');
         this._desmarcarTudo();
       }catch(e){
         console.error(e);
-        this._status('Erro ao gerar o zip: '+((e&&e.message)||e));
+        this._status('Erro ao baixar: '+((e&&e.message)||e));
         setTimeout(()=>this._status(''),9000);
       }
     }
