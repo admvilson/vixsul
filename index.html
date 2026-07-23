@@ -613,6 +613,7 @@ tbody tr:hover td{background:rgba(0,113,227,.02);}
     <button class="nav-link" id="nav-relatorios" onclick="UI.nav('relatorios')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M18.7 8 13 13.7l-4-4L3 16"/></svg>Relatórios</button>
     <div class="nav-section-label" id="nav-admin-label" style="margin-top:20px;display:none">Administração</div>
     <button class="nav-link" id="nav-usuarios" style="display:none" onclick="UI.nav('usuarios')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>Usuários</button>
+    <button class="nav-link" id="nav-lixeira" style="display:none" onclick="UI.nav('lixeira')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2M19 6l-1 14a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1L5 6"/></svg>Lixeira<span id="nav-lixeira-badge" style="display:none;margin-left:auto;background:var(--red);color:#fff;font-size:10px;font-weight:800;border-radius:999px;padding:1px 7px"></span></button>
   </nav>
 
   <div style="margin-top:auto;padding-top:14px;border-top:1px solid var(--border)">
@@ -871,6 +872,16 @@ tbody tr:hover td{background:rgba(0,113,227,.02);}
       </div>
       <div class="cards-scroll"><div class="obras-grid" id="grid-obras"></div></div>
     </div>
+    <!-- LIXEIRA -->
+    <div class="view" id="view-lixeira">
+      <div class="view-toolbar">
+        <div class="toolbar-left">
+          <div style="font-size:12px;color:var(--text-3);max-width:520px;line-height:1.5">Obras excluídas ficam aqui por até <strong>15 dias</strong> antes de serem apagadas em definitivo — dá pra restaurar a qualquer momento dentro desse prazo.</div>
+        </div>
+        <button id="btn-lixeira-esvaziar" class="btn-primary" style="background:var(--red)" onclick="App._lixeiraEsvaziar()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2M19 6l-1 14a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1L5 6"/></svg>Esvaziar lixeira</button>
+      </div>
+      <div class="cards-scroll"><div class="obras-grid" id="grid-lixeira"></div></div>
+    </div>
     <!-- CUSTOS -->
     <div class="view" id="view-custos">
       <div class="view-toolbar">
@@ -1094,13 +1105,22 @@ tbody tr:hover td{background:rgba(0,113,227,.02);}
     <div class="confirm-actions"><button class="confirm-yes" onclick="UI._sairSemSalvarConfirma()">Sim, sair</button><button class="confirm-no" onclick="UI._sairSemSalvarCancela()">Não</button></div>
   </div>
 </div>
-<!-- CONFIRMAÇÃO DE EXCLUSÃO DA OBRA E TUDO DENTRO DELA -->
+<!-- CONFIRMAÇÃO DE MOVER A OBRA (E TUDO DENTRO DELA) PARA A LIXEIRA -->
 <div class="confirm-overlay" id="confirm-obra-tudo">
   <div class="confirm-box">
     <div class="confirm-icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg></div>
     <div class="confirm-title">Excluir a obra inteira</div>
-    <div class="confirm-msg">Isto exclui <strong>PERMANENTEMENTE</strong> a obra e <strong>tudo dentro dela</strong> (Custos, Faturamentos, Aportes, CAP e Orçamentos). Deseja continuar?</div>
-    <div class="confirm-actions"><button class="confirm-yes" onclick="UI._obraExcluirTudoConfirma()">Sim, excluir tudo</button><button class="confirm-no" onclick="UI._obraExcluirTudoCancela()">Não</button></div>
+    <div class="confirm-msg">A obra e <strong>tudo dentro dela</strong> (Custos, Faturamentos, Aportes, CAP, Orçamentos, Etapas e Imagens) vão para a <strong>Lixeira</strong>. Dá pra restaurar em até 15 dias — depois disso a exclusão vira permanente. Deseja continuar?</div>
+    <div class="confirm-actions"><button class="confirm-yes" onclick="UI._obraExcluirTudoConfirma()">Sim, excluir</button><button class="confirm-no" onclick="UI._obraExcluirTudoCancela()">Não</button></div>
+  </div>
+</div>
+<!-- CONFIRMAÇÃO DE EXCLUSÃO PERMANENTE (LIXEIRA) -->
+<div class="confirm-overlay" id="confirm-lixeira-permanente">
+  <div class="confirm-box">
+    <div class="confirm-icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg></div>
+    <div class="confirm-title" id="confirm-lixeira-permanente-titulo">Excluir permanentemente</div>
+    <div class="confirm-msg" id="confirm-lixeira-permanente-msg">Isto exclui <strong>PERMANENTEMENTE</strong> a obra e tudo dentro dela. Não tem como desfazer. Deseja continuar?</div>
+    <div class="confirm-actions"><button class="confirm-yes" onclick="App._lixeiraPermanenteConfirma()">Sim, excluir</button><button class="confirm-no" onclick="App._lixeiraPermanenteCancela()">Não</button></div>
   </div>
 </div>
 <!-- CONFIRMAÇÃO DE EXCLUSÃO DE IMAGEM DA OBRA (mesmo design do Excluir Usuário) -->
@@ -1381,6 +1401,8 @@ const App={
         document.getElementById('sync-time').textContent='Sincronizado às '+new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
         /* força redimensionamento dos charts após reflow */requestAnimationFrame(()=>{requestAnimationFrame(()=>{Object.values(this.state.charts).forEach(ch=>{if(ch&&ch.resize)try{ch.resize();}catch(e){}});});});
         this._initRealtime();
+        this._lixeiraAtualizarBadge();
+        this._lixeiraAutoPurge();
         if(onDone)onDone();
       })
       .withFailureHandler(err=>{if(!silent){btn.classList.remove('loading');toast('Erro ao carregar dados.','error');}console.error(err);if(onDone)onDone(err);})
@@ -3626,6 +3648,133 @@ const App={
     </div>`;
   },
 
+  /* ═══════════════════════ LIXEIRA ═══════════════════════
+     Excluir uma Obra não apaga mais nada na hora: marca a obra e tudo dentro dela (Custos,
+     Faturamentos, Aportes, CAP, Orçamentos, Etapas, Imagens) com "_lixeira_em"/"_lixeira_obra_id"
+     (ver UI._obraExcluirTudoConfirma). Essas linhas somem das telas normais — o gas-shim já as
+     separa em App.state.data.lixeira[chave] — e só aparecem aqui, de onde dá pra restaurar ou
+     excluir de vez. Depois de 15 dias, a purga automática (_lixeiraAutoPurge) as apaga sozinha. */
+  _LIXEIRA_DIAS:15,
+  _lixeiraDiasRestantes(o){
+    const dt=new Date(o._lixeira_em);
+    const passados=(Date.now()-dt.getTime())/86400000;
+    return Math.max(0,Math.ceil(this._LIXEIRA_DIAS-passados));
+  },
+  _lixeiraContarItens(obraRowid){
+    const lx=this.state.data.lixeira||{};
+    let n=0;
+    Object.keys(lx).forEach(chave=>{
+      if(chave==='obras')return;
+      n+=(lx[chave]||[]).filter(r=>String(r._lixeira_obra_id)===String(obraRowid)).length;
+    });
+    return n;
+  },
+  // Junta a obra + todos os itens vinculados a ela (em qualquer tabela) que estão na lixeira —
+  // usa "_aba" (já vem pronto de cada linha, de _getSistemaData) pra saber em qual tabela salvar.
+  _lixeiraItensDaObra(obraRowid){
+    const lx=this.state.data.lixeira||{};
+    const todos=[];
+    Object.keys(lx).forEach(chave=>{
+      (lx[chave]||[]).forEach(r=>{ if(String(r._lixeira_obra_id)===String(obraRowid))todos.push(r); });
+    });
+    return todos;
+  },
+  _lixeiraAtualizarBadge(){
+    const badge=document.getElementById('nav-lixeira-badge');
+    if(!badge)return;
+    const n=((this.state.data&&this.state.data.lixeira&&this.state.data.lixeira.obras)||[]).length;
+    badge.style.display=n?'':'none';
+    badge.textContent=n>99?'99+':String(n);
+  },
+  _renderLixeira(){
+    const grid=document.getElementById('grid-lixeira');if(!grid)return;
+    const obras=((this.state.data.lixeira||{}).obras||[]).slice().sort((a,b)=>new Date(b._lixeira_em)-new Date(a._lixeira_em));
+    grid.innerHTML=obras.length===0
+      ?`<div class="empty-state" style="grid-column:1/-1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2M19 6l-1 14a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1L5 6"/></svg><p>A lixeira está vazia</p></div>`
+      :obras.map(o=>this._lixeiraCard(o)).join('');
+    const btnEsvaziar=document.getElementById('btn-lixeira-esvaziar');if(btnEsvaziar)btnEsvaziar.style.display=obras.length?'':'none';
+  },
+  _lixeiraCard(o){
+    const nome=getFuzzy(o,['titulo_obra','nome_obra','titulo'])||`Obra #${o.visualId||o.rowid}`;
+    const dias=this._lixeiraDiasRestantes(o);
+    const nItens=this._lixeiraContarItens(o.rowid);
+    return `<div class="lanc-card">
+      <div class="lanc-card-header"><span class="lanc-name">${nome}</span></div>
+      <div style="font-size:11px;color:var(--text-3);margin-bottom:2px">Excluída em ${dateBR(o._lixeira_em.slice(0,10))} · ${nItens} registro${nItens!==1?'s':''} vinculado${nItens!==1?'s':''}</div>
+      <div style="font-size:11px;font-weight:700;color:${dias<=3?'var(--red)':'var(--orange,#FF9500)'};margin-bottom:12px">${dias>0?`Exclusão automática em ${dias} dia${dias!==1?'s':''}`:'Será excluída em definitivo em breve'}</div>
+      <div style="display:flex;gap:8px">
+        <button type="button" class="pw-btn pw-btn-primary" style="flex:1;padding:9px;font-size:12.5px" onclick="App._lixeiraRestaurar(${o.rowid})">Restaurar</button>
+        <button type="button" class="pw-btn" style="flex:1;padding:9px;font-size:12.5px;background:rgba(255,59,48,.08);color:var(--red)" onclick="App._lixeiraExcluirPermanente(${o.rowid})">Excluir de vez</button>
+      </div>
+    </div>`;
+  },
+  _lixeiraRestaurar(obraRowid){
+    if(this.state._busy)return;
+    const itens=this._lixeiraItensDaObra(obraRowid);
+    if(!itens.length)return;
+    this.state._busy=true; UI._showBusy('Restaurando…');
+    const runOne=item=>new Promise((res,rej)=>{
+      const {_lixeira_em,_lixeira_obra_id,...limpo}=item;
+      google.script.run.withSuccessHandler(r=>(r&&r.ok)?res(r):rej((r&&r.msg)||'Erro ao restaurar.')).withFailureHandler(rej).upsertRegistroLote(item._aba,limpo,item.rowid);
+    });
+    (async()=>{
+      try{
+        await Promise.all(itens.map(runOne));
+        await new Promise(r=>setTimeout(r,50));
+        this.init(false,()=>{ this.state._busy=false; UI._hideBusy(); this._renderLixeira(); toast('Obra restaurada.','success'); });
+      }catch(err){ this.state._busy=false; UI._hideBusy(); toast(typeof err==='string'?err:'Erro ao restaurar.','error'); console.error(err); }
+    })();
+  },
+  _pendenteExcluirLixeira:null,
+  _lixeiraExcluirPermanente(obraRowid){
+    this._pendenteExcluirLixeira=[obraRowid];
+    const nome=getFuzzy((this.state.data.lixeira.obras||[]).find(o=>String(o.rowid)===String(obraRowid))||{},['titulo_obra','nome_obra','titulo'])||'esta obra';
+    document.getElementById('confirm-lixeira-permanente-titulo').textContent='Excluir permanentemente';
+    document.getElementById('confirm-lixeira-permanente-msg').innerHTML=`Isto exclui <strong>PERMANENTEMENTE</strong> "${nome}" e tudo dentro dela. Não tem como desfazer. Deseja continuar?`;
+    document.getElementById('confirm-lixeira-permanente').classList.add('open');
+  },
+  _lixeiraEsvaziar(){
+    const obras=(this.state.data.lixeira.obras||[]);
+    if(!obras.length)return;
+    this._pendenteExcluirLixeira=obras.map(o=>o.rowid);
+    document.getElementById('confirm-lixeira-permanente-titulo').textContent='Esvaziar a lixeira';
+    document.getElementById('confirm-lixeira-permanente-msg').innerHTML=`Isto exclui <strong>PERMANENTEMENTE</strong> ${obras.length>1?`as ${obras.length} obras`:'a obra'} na lixeira e tudo dentro ${obras.length>1?'delas':'dela'}. Não tem como desfazer. Deseja continuar?`;
+    document.getElementById('confirm-lixeira-permanente').classList.add('open');
+  },
+  _lixeiraPermanenteCancela(){
+    document.getElementById('confirm-lixeira-permanente').classList.remove('open');
+    this._pendenteExcluirLixeira=null;
+  },
+  _lixeiraPermanenteConfirma(){
+    document.getElementById('confirm-lixeira-permanente').classList.remove('open');
+    const obraRowids=this._pendenteExcluirLixeira;
+    this._pendenteExcluirLixeira=null;
+    if(!obraRowids||!obraRowids.length||this.state._busy)return;
+    UI._showBusy('Excluindo…'); this.state._busy=true;
+    const itens=obraRowids.flatMap(id=>this._lixeiraItensDaObra(id));
+    const runOne=item=>new Promise((res,rej)=>{
+      google.script.run.withSuccessHandler(r=>(r&&r.ok)?res(r):rej((r&&r.msg)||'Erro ao excluir.')).withFailureHandler(rej).excluirRegistroLote(item._aba,item.rowid);
+    });
+    (async()=>{
+      try{
+        await Promise.all(itens.map(runOne));
+        this.init(false,()=>{ this.state._busy=false; UI._hideBusy(); this._renderLixeira(); this._lixeiraAtualizarBadge(); toast('Excluído permanentemente.','success'); });
+      }catch(err){ this.state._busy=false; UI._hideBusy(); toast(typeof err==='string'?err:'Erro ao excluir.','error'); console.error(err); }
+    })();
+  },
+  // Roda a cada carga de dados: qualquer obra na lixeira há mais de 15 dias é apagada de vez,
+  // sem perguntar nada (silencioso) — é exatamente a "limpeza automática" da lixeira.
+  _lixeiraAutoPurge(){
+    if(this._lixeiraPurgando)return;
+    const obras=((this.state.data.lixeira||{}).obras||[]).filter(o=>this._lixeiraDiasRestantes(o)<=0);
+    if(!obras.length)return;
+    this._lixeiraPurgando=true;
+    const itens=obras.flatMap(o=>this._lixeiraItensDaObra(o.rowid));
+    const runOne=item=>new Promise(resolve=>{
+      google.script.run.withSuccessHandler(()=>resolve()).withFailureHandler(()=>resolve()).excluirRegistroLote(item._aba,item.rowid);
+    });
+    Promise.all(itens.map(runOne)).then(()=>{ this._lixeiraPurgando=false; this.init(true); });
+  },
 
 };
 
@@ -3656,12 +3805,13 @@ const UI={
     document.querySelectorAll('.nav-link').forEach(el=>el.classList.remove('active'));
     const vEl=document.getElementById('view-'+v);if(vEl)vEl.classList.add('active');
     const nEl=document.getElementById('nav-'+v);if(nEl)nEl.classList.add('active');
-    const titles={dashboard:'Dashboard',obras:'Obras',custos:'Custos',faturamentos:'Faturamentos',aportes:'Aportes',cap:'CAP',orcamentos:'Orçamentos',usuarios:'Usuários',despesas:'Despesas',relatorios:'Relatórios'};
+    const titles={dashboard:'Dashboard',obras:'Obras',custos:'Custos',faturamentos:'Faturamentos',aportes:'Aportes',cap:'CAP',orcamentos:'Orçamentos',usuarios:'Usuários',despesas:'Despesas',relatorios:'Relatórios',lixeira:'Lixeira'};
     const ttl=document.getElementById('view-title');if(ttl)ttl.textContent=titles[v]||v;
     document.title=titles[v]||v; // título da aba do navegador acompanha a seção clicada
     if(v==='dashboard'&&App.state.data)App.renderDashboard();
     if(v==='usuarios')this.carregarUsuarios();
     if(v==='relatorios')App._relatorioObraOpcoes(); // funções de relatório vivem no App (junto do render), não no UI
+    if(v==='lixeira')App._renderLixeira();
     this.toggleSidebar(false); // fecha o menu lateral (modo gaveta) após navegar em telas pequenas
   },
 
@@ -8433,31 +8583,41 @@ const UI={
     document.getElementById('confirm-obra-tudo').classList.add('open');
   },
   _obraExcluirTudoCancela(){ document.getElementById('confirm-obra-tudo').classList.remove('open'); },
+  /* "Excluir" a obra agora é um SOFT DELETE: em vez de apagar as linhas do banco, marca cada
+     uma (a obra + tudo dentro dela) com "_lixeira_em"/"_lixeira_obra_id" — elas somem das telas
+     normais e passam a aparecer só na Lixeira, de onde dá pra restaurar ou excluir de vez. */
   _obraExcluirTudoConfirma(){
     document.getElementById('confirm-obra-tudo').classList.remove('open');
     const hub=App.state.obraHub;if(!hub||!hub.rowid)return;
     const obraName=hub.obraName;
+    const agora=new Date().toISOString();
     const alvos=[];
-    const push=(aba,arr,campo)=>{(arr||[]).forEach(r=>{ if((getFuzzy(r,[campo])||'')===obraName) alvos.push({aba,id:r.rowid}); });};
+    const push=(aba,arr,campo)=>{(arr||[]).forEach(r=>{ if((getFuzzy(r,[campo])||'')===obraName) alvos.push({aba,item:r}); });};
     push('Custos',App.state.data.custos,'titulo_obra');
     push('Faturamentos',App.state.data.faturamentos,'titulo_obra');
     push('Aportes financeiros',App.state.data.aportes,'titulo_obra');
     push('CAP',App.state.data.cap,'titulo_obra');
     push('Orçamentos',App.state.data.orcamentos,'titulo');
     push('Etapas',App.state.data.etapas,'titulo_obra');
-    alvos.push({aba:'Obras',id:hub.rowid});
-    App.state._busy=true; this._showBusy('Excluindo…');
-    const runOne=(aba,id)=>new Promise((res,rej)=>{ google.script.run.withSuccessHandler(r=>(r&&r.ok)?res(r):rej((r&&r.msg)||'Erro ao excluir.')).withFailureHandler(rej).excluirRegistroLote(aba,id); });
+    push('Imagens da Obra',App.state.data.obra_imagens,'titulo_obra');
+    const obraRow=(App.state.data.obras||[]).find(o=>String(o.rowid)===String(hub.rowid));
+    if(obraRow)alvos.push({aba:'Obras',item:obraRow});
+    App.state._busy=true; this._showBusy('Movendo para a lixeira…');
+    const runOne=(aba,item)=>new Promise((res,rej)=>{
+      const dados={...item,_lixeira_em:agora,_lixeira_obra_id:hub.rowid};
+      google.script.run.withSuccessHandler(r=>(r&&r.ok)?res(r):rej((r&&r.msg)||'Erro ao mover para a lixeira.')).withFailureHandler(rej).upsertRegistroLote(aba,dados,item.rowid);
+    });
     (async()=>{
       try{
-        await Promise.all(alvos.map(a=>runOne(a.aba,a.id)));
+        await Promise.all(alvos.map(a=>runOne(a.aba,a.item)));
         const data=await new Promise((res,rej)=>{google.script.run.withSuccessHandler(res).withFailureHandler(rej).getSistemaData();});
         App.state.data=data; App.state._busy=false; UI._hideBusy();
         App.state.obraHub=null;
         UI.closeModal('modal-editor');
         App.renderAll();
-        toast('Obra e todos os lançamentos excluídos.','success');
-      }catch(err){ App.state._busy=false; UI._hideBusy(); toast(typeof err==='string'?err:'Erro ao excluir.','error'); console.error(err); }
+        App._lixeiraAtualizarBadge();
+        toast('Obra movida para a lixeira. Dá pra restaurar em até 15 dias.','success');
+      }catch(err){ App.state._busy=false; UI._hideBusy(); toast(typeof err==='string'?err:'Erro ao mover para a lixeira.','error'); console.error(err); }
     })();
   },
   /* Chamado pelos handlers de Salvar/Excluir quando estamos na central da obra: em vez de
@@ -9226,6 +9386,9 @@ const Auth={
     if(navU)navU.style.display=isAdmin?'':'none';
     if(navLbl)navLbl.style.display=isAdmin?'':'none';
     if(isAdmin)allowed.push('usuarios');
+    const navL=document.getElementById('nav-lixeira');
+    if(navL)navL.style.display=isAdmin?'':'none';
+    if(isAdmin){ allowed.push('lixeira'); App._lixeiraAtualizarBadge(); }
     UI._allowedViews=allowed;
     const btnNovaObra=document.getElementById('btn-nova-obra');
     if(btnNovaObra)btnNovaObra.style.display=(s.tipoUsuario==='externo')?'none':'';

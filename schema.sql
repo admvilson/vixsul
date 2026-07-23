@@ -69,6 +69,13 @@ CREATE TABLE IF NOT EXISTS obra_imagens (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- Lixeira: NÃO é uma tabela nova. Excluir uma Obra marca a própria linha (e a de tudo que
+-- está vinculado a ela — custos, faturamentos, aportes, cap, orcamentos, etapas, obra_imagens)
+-- com dois campos dentro do mesmo row_data: "_lixeira_em" (data/hora da exclusão, ISO) e
+-- "_lixeira_obra_id" (o rowid da obra, usado pra agrupar tudo que pertence a ela na hora de
+-- restaurar ou apagar de vez). O front-end (gas-shim._getSistemaData) separa essas linhas das
+-- listas normais automaticamente — nenhuma alteração de schema é necessária.
+
 -- ── Índices para consultas do CAP ──────────────
 CREATE INDEX IF NOT EXISTS idx_cap_lancamento
   ON cap ((row_data->>'data_lancamento'));

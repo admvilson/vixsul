@@ -29,7 +29,7 @@ const _CHAVES = ['obras','custos','faturamentos','aportes','cap','orcamentos','d
 // ─── Funções que espelham o Código.gs ─────────────────────────────────────────
 
 async function _getSistemaData() {
-  const pacote = { obras:[], custos:[], faturamentos:[], aportes:[], cap:[], metadata:{} };
+  const pacote = { obras:[], custos:[], faturamentos:[], aportes:[], cap:[], metadata:{}, lixeira:{} };
 
   // Busca as 5 tabelas em paralelo (antes era uma de cada vez, em sequência —
   // isso sozinho já multiplicava por 5 o tempo de qualquer atualização/sincronização).
@@ -40,15 +40,19 @@ async function _getSistemaData() {
   _CHAVES.forEach((chave, idx) => {
     const { data, error } = resultados[idx];
     if (error || !data || data.length === 0) {
-      pacote[chave] = []; pacote.metadata[chave] = []; return;
+      pacote[chave] = []; pacote.metadata[chave] = []; pacote.lixeira[chave] = []; return;
     }
 
     const headers = Object.keys(data[0].row_data || {});
     pacote.metadata[chave] = headers;
-    pacote[chave] = data.map((row, i) => ({
+    const todos = data.map((row, i) => ({
       rowid: row.id, visualId: i + 1, _aba: _ABA_NOME[chave],
       ...row.row_data
     }));
+    // Linhas marcadas com "_lixeira_em" (uma Obra excluída, ou um lançamento que pertencia
+    // a ela) ficam de fora das listas normais do sistema e só aparecem na tela da Lixeira.
+    pacote[chave] = todos.filter(r => !r._lixeira_em);
+    pacote.lixeira[chave] = todos.filter(r => r._lixeira_em);
   });
   return pacote;
 }
