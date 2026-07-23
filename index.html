@@ -8094,7 +8094,11 @@ const UI={
   /* Fechar (X) do editor: se houver alterações não salvas em QUALQUER aba (ativa ou em cache), pede confirmação. */
   _fecharEditor(){
     if(App.state._busy)return;
-    if(App.state.obraHub && App.state.obraHub._dirtyTabs.size>0){
+    // Usuário Externo só visualiza (não tem nada pra salvar) — não faz sentido perguntar
+    // "sair sem salvar?" pra ele, mesmo que alguma interação (ex.: marcar fotos pra baixar)
+    // tenha disparado o alerta de "suja" internamente.
+    const isExt=Auth._session&&Auth._session.tipoUsuario==='externo';
+    if(!isExt && App.state.obraHub && App.state.obraHub._dirtyTabs.size>0){
       document.getElementById('confirm-sair-sem-salvar').classList.add('open');
       return;
     }
