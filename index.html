@@ -332,6 +332,14 @@ tbody tr:hover td{background:rgba(0,113,227,.02);}
 .pw-btn-primary{background:var(--blue);color:#fff;}
 .pw-btn-ghost{background:var(--bg);color:var(--text-2);}
 .pw-code-input{width:100%;text-align:center;letter-spacing:10px;font-size:26px;font-weight:800;font-family:inherit;padding:12px;border:2px solid var(--border);border-radius:14px;background:var(--bg);color:var(--text-1);outline:none;}
+/* Checkbox de seleção das fotos (Imagens da Obra) — estilo custom, mais moderno que o checkbox nativo do navegador */
+.img-check{position:absolute;top:6px;right:6px;z-index:1;width:22px;height:22px;cursor:pointer;}
+.img-check input{position:absolute;opacity:0;width:100%;height:100%;margin:0;cursor:pointer;}
+.img-check .img-check-box{position:absolute;inset:0;border-radius:7px;background:rgba(0,0,0,.38);border:1.5px solid rgba(255,255,255,.85);backdrop-filter:blur(2px);display:flex;align-items:center;justify-content:center;transition:background .15s,border-color .15s,transform .1s;box-shadow:0 1px 4px rgba(0,0,0,.25);}
+.img-check .img-check-box svg{width:13px;height:13px;opacity:0;transform:scale(.5);transition:opacity .12s,transform .12s;stroke:#fff;}
+.img-check input:checked ~ .img-check-box{background:var(--blue);border-color:var(--blue);}
+.img-check input:checked ~ .img-check-box svg{opacity:1;transform:scale(1);}
+.img-check input:hover ~ .img-check-box{transform:scale(1.08);}
 .pw-code-input:focus{border-color:var(--blue);}
 .pw-timer{text-align:center;font-size:13px;font-weight:700;color:var(--text-2);margin:12px 0;}
 .login-footer{margin-top:28px;padding-top:22px;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:center;gap:8px;}
@@ -1099,8 +1107,8 @@ tbody tr:hover td{background:rgba(0,113,227,.02);}
 <div class="confirm-overlay" id="confirm-imagem-del">
   <div class="confirm-box">
     <div class="confirm-icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg></div>
-    <div class="confirm-title">Excluir imagem</div>
-    <div class="confirm-msg">Deseja <strong>EXCLUIR PERMANENTEMENTE</strong> esta imagem?</div>
+    <div class="confirm-title" id="confirm-imagem-del-titulo">Excluir imagem</div>
+    <div class="confirm-msg" id="confirm-imagem-del-msg">Deseja <strong>EXCLUIR PERMANENTEMENTE</strong> esta imagem?</div>
     <div class="confirm-actions"><button class="confirm-yes" onclick="UI.ImagensObra._removerConfirma()">Sim, excluir</button><button class="confirm-no" onclick="UI.ImagensObra._removerCancela()">Não</button></div>
   </div>
 </div>
@@ -6369,6 +6377,9 @@ const UI={
             <button type="button" id="imagens-download-btn" onclick="UI.ImagensObra.baixarSelecionadas()" style="display:none;align-items:center;gap:5px;font-size:11px;font-weight:600;color:var(--green);background:rgba(52,199,89,.08);border:1px solid rgba(52,199,89,.35);border-radius:7px;padding:6px 14px;cursor:pointer">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Baixar
             </button>
+            <button type="button" id="imagens-delete-selected-btn" onclick="UI.ImagensObra.excluirSelecionadas()" style="display:none;align-items:center;gap:5px;font-size:11px;font-weight:600;color:var(--red);background:rgba(255,59,48,.08);border:1px solid rgba(255,59,48,.35);border-radius:7px;padding:6px 14px;cursor:pointer">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"><path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2M19 6l-1 14a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1L5 6"/></svg> Excluir
+            </button>
           </div>
         </div>
         <input type="file" id="imagens-input" accept="image/*" multiple style="display:none" onchange="UI.ImagensObra.onArquivoEscolhido(event)">
@@ -7558,7 +7569,7 @@ const UI={
         const d=document.createElement('div');
         d.className='img-ph';
         d.style.cssText='width:100%;height:100%;display:flex;align-items:center;justify-content:center;text-align:center;color:var(--text-3);font-size:10px;padding:6px;line-height:1.3';
-        d.textContent='Miniatura indisponível — toque para abrir no Drive';
+        d.textContent='Miniatura indisponível — toque para abrir';
         a.appendChild(d);
       }
     },
@@ -7585,11 +7596,10 @@ const UI={
       if(!grid)return;
       // Troca de obra/reabertura: zera a seleção de download da vez anterior.
       this._selecionadas=new Set();
-      this._atualizarBotaoDownload();
+      this._atualizarBotoesSelecao();
       const imgs=(App.state.data.obra_imagens||[]).filter(i=>i.titulo_obra===obraName);
       if(!imgs.length){grid.innerHTML='<div style="grid-column:1/-1;font-size:11px;color:var(--text-3);padding:8px 0">Nenhuma imagem ainda.</div>';return;}
       const esc=this._esc;
-      const isAdmin=this._isAdmin;
       grid.innerHTML=imgs.map(i=>{
         // Monta a miniatura a partir do id do arquivo no Drive (endpoint público de
         // thumbnail) — não usa o link de visualização, que é uma página HTML e não uma
@@ -7599,12 +7609,14 @@ const UI={
         const thumb=driveId?('https://drive.google.com/thumbnail?id='+driveId+'&sz=w600'):(i.url_thumb||i.url_visualizacao);
         return `
         <div style="position:relative;border-radius:10px;overflow:hidden;border:1px solid var(--border);background:var(--bg)">
-          <input type="checkbox" onclick="event.stopPropagation()" onchange="UI.ImagensObra.toggleSelecao('${i.rowid}',this.checked)" title="Selecionar" style="position:absolute;top:5px;left:5px;width:17px;height:17px;z-index:1;cursor:pointer">
+          <label class="img-check" title="Selecionar" onclick="event.stopPropagation()">
+            <input type="checkbox" onchange="UI.ImagensObra.toggleSelecao('${i.rowid}',this.checked)">
+            <span class="img-check-box"><svg viewBox="0 0 24 24" fill="none" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+          </label>
           <button type="button" onclick="UI.ImagensObra.abrirVisualizador('${i.rowid}')" title="${esc(i.descricao||i.nome_arquivo)}" style="display:block;width:100%;aspect-ratio:1/1;border:none;padding:0;background:none;cursor:pointer">
             <img src="${esc(thumb)}" data-driveid="${esc(driveId)}" referrerpolicy="no-referrer" loading="lazy" style="width:100%;height:100%;object-fit:cover;display:block;pointer-events:none" onerror="UI.ImagensObra._imgErro(this)">
           </button>
           ${i.descricao?`<div style="font-size:10px;color:var(--text-2);padding:5px 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${esc(i.descricao)}">${esc(i.descricao)}</div>`:''}
-          ${isAdmin?`<button type="button" onclick="UI.ImagensObra.remover('${i.rowid}')" title="Excluir" style="position:absolute;top:4px;right:4px;width:22px;height:22px;border:none;border-radius:6px;background:rgba(0,0,0,.55);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2M19 6l-1 14a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1L5 6"/></svg></button>`:''}
         </div>`;
       }).join('');
     },
@@ -7728,7 +7740,7 @@ const UI={
               this._tokenExpiraEm=Date.now()+(Number(resp.expires_in||3600)*1000);
               onOk();
             } else {
-              this._status('Não foi possível autenticar com o Google Drive.');
+              this._status('Não foi possível autenticar.');
             }
           }
         });
@@ -7741,13 +7753,15 @@ const UI={
 
     async _enviarArquivos(){
       const fila=this._fila;this._fila=[];
-      this._status(`Enviando ${fila.length>1?fila.length+' imagens':'imagem'}...`);
+      const total=fila.length;
       let ok=0,falhas=0,ultimoErro='';
       const idsEnviados=[];
+      const atualizarStatus=()=>this._status(`Adicionando ${ok+falhas}/${total} ${total>1?'imagens':'imagem'}...`);
+      atualizarStatus();
       for(const item of fila){
         try{ const id=await this._enviarUmArquivo(item); ok++; idsEnviados.push(id); }
         catch(e){ console.error(e); falhas++; ultimoErro=(e&&e.message)||String(e); }
-        finally{ URL.revokeObjectURL(item.previewUrl); }
+        finally{ URL.revokeObjectURL(item.previewUrl); atualizarStatus(); }
       }
       // Recarrega SEM o modo "silencioso": o modo silencioso pula a atualização inteira
       // (sem aviso nenhum) se houver qualquer outro salvamento em andamento no sistema
@@ -7795,7 +7809,7 @@ const UI={
         headers:{Authorization:'Bearer '+this._accessToken,'Content-Type':'application/json'},
         body:JSON.stringify({name:nome,mimeType:'application/vnd.google-apps.folder',parents:[this._DRIVE_FOLDER_ID]})
       });
-      if(!resp.ok)throw new Error('Falha ao criar a pasta da obra no Drive: '+await this._erroResposta(resp));
+      if(!resp.ok)throw new Error('Falha ao preparar o armazenamento da obra: '+await this._erroResposta(resp));
       const pasta=await resp.json();
       this._pastaCache[nome]=pasta.id;
       return pasta.id;
@@ -7812,7 +7826,7 @@ const UI={
         headers:{Authorization:'Bearer '+this._accessToken},
         body:form
       });
-      if(!resp.ok)throw new Error('Falha no upload ao Drive: '+await this._erroResposta(resp));
+      if(!resp.ok)throw new Error('Falha no envio da imagem: '+await this._erroResposta(resp));
       const arquivo=await resp.json();
       // Torna o arquivo acessível por link — necessário pra miniatura carregar no sistema.
       await fetch(`https://www.googleapis.com/drive/v3/files/${arquivo.id}/permissions`,{
@@ -7844,9 +7858,14 @@ const UI={
       return arquivo.id;
     },
 
-    remover(rowid){
-      if(!this._isAdmin||!rowid)return;
-      this._pendenteExcluir=rowid;
+    excluirSelecionadas(){
+      if(!this._isAdmin||!this._selecionadas.size)return;
+      this._pendenteExcluir=[...this._selecionadas];
+      const n=this._pendenteExcluir.length;
+      const titulo=document.getElementById('confirm-imagem-del-titulo');
+      const msg=document.getElementById('confirm-imagem-del-msg');
+      if(titulo)titulo.textContent=n>1?'Excluir imagens':'Excluir imagem';
+      if(msg)msg.innerHTML=`Deseja <strong>EXCLUIR PERMANENTEMENTE</strong> ${n>1?`estas ${n} imagens`:'esta imagem'}?`;
       document.getElementById('confirm-imagem-del').classList.add('open');
     },
     _removerCancela(){
@@ -7855,27 +7874,42 @@ const UI={
     },
     _removerConfirma(){
       document.getElementById('confirm-imagem-del').classList.remove('open');
-      const rowid=this._pendenteExcluir;
+      const rowids=this._pendenteExcluir;
       this._pendenteExcluir=null;
-      if(!rowid)return;
-      const img=(App.state.data.obra_imagens||[]).find(i=>String(i.rowid)===String(rowid));
+      if(!rowids||!rowids.length)return;
       this.fecharVisualizador();
-      this._status('Excluindo...');
-      const finalizar=()=>{
-        google.script.run.withSuccessHandler(res=>{
-          this._status('');
-          if(res&&res.ok)App.init(false,()=>this.render(this._obraAtual,this._isExt,this._obraAtualRowid));
-        }).withFailureHandler(()=>this._status('Erro ao excluir.')).excluirRegistro('Imagens da Obra',rowid);
-      };
-      if(img&&img.drive_file_id){
-        this._autenticar(()=>{
+      const total=rowids.length;
+      const imgs=(App.state.data.obra_imagens||[]).filter(i=>rowids.includes(String(i.rowid)));
+      let feitas=0;
+      const atualizarStatus=()=>this._status(`Excluindo ${feitas}/${total} ${total>1?'imagens':'imagem'}...`);
+      atualizarStatus();
+      const excluirUm=rowid=>new Promise(resolve=>{
+        const img=imgs.find(i=>String(i.rowid)===String(rowid));
+        const finalizar=()=>{
+          google.script.run.withSuccessHandler(()=>resolve())
+            .withFailureHandler(()=>resolve()).excluirRegistro('Imagens da Obra',rowid);
+        };
+        if(img&&img.drive_file_id){
           fetch(`https://www.googleapis.com/drive/v3/files/${img.drive_file_id}`,{method:'DELETE',headers:{Authorization:'Bearer '+this._accessToken}})
-            .catch(()=>{})
-            .finally(finalizar);
+            .catch(()=>{}).finally(finalizar);
+        } else {
+          finalizar();
+        }
+      });
+      const rodar=async()=>{
+        for(const rowid of rowids){
+          await excluirUm(rowid);
+          feitas++;
+          atualizarStatus();
+        }
+        this._selecionadas.clear();
+        App.init(false,()=>{
+          this.render(this._obraAtual,this._isExt,this._obraAtualRowid);
+          this._status(total>1?`${feitas} imagens excluídas.`:'Imagem excluída.');
+          setTimeout(()=>this._status(''),3000);
         });
-      } else {
-        finalizar();
-      }
+      };
+      if(imgs.some(i=>i.drive_file_id))this._autenticar(rodar); else rodar();
     },
 
     /* ── Visualizador em tela cheia: abre a foto DENTRO do sistema (sem ir pro Drive) ── */
@@ -7934,21 +7968,33 @@ const UI={
     toggleSelecao(rowid,marcado){
       const chave=String(rowid);
       if(marcado)this._selecionadas.add(chave); else this._selecionadas.delete(chave);
-      this._atualizarBotaoDownload();
+      this._atualizarBotoesSelecao();
     },
-    _atualizarBotaoDownload(){
-      const btn=document.getElementById('imagens-download-btn');
-      if(!btn)return;
+    _atualizarBotoesSelecao(){
       const n=this._selecionadas.size;
-      btn.style.display=n?'flex':'none';
-      btn.lastChild.textContent=' '+(n>1?`Baixar (${n})`:'Baixar');
+      const btnBaixar=document.getElementById('imagens-download-btn');
+      if(btnBaixar){
+        btnBaixar.style.display=n?'flex':'none';
+        btnBaixar.lastChild.textContent=' '+(n>1?`Baixar (${n})`:'Baixar');
+      }
+      const btnExcluir=document.getElementById('imagens-delete-selected-btn');
+      if(btnExcluir){
+        btnExcluir.style.display=(n&&this._isAdmin)?'flex':'none';
+        btnExcluir.lastChild.textContent=' '+(n>1?`Excluir (${n})`:'Excluir');
+      }
+    },
+    // Desmarca todas as fotos selecionadas (usado depois de um download concluído).
+    _desmarcarTudo(){
+      this._selecionadas.clear();
+      document.querySelectorAll('#imagens-grid .img-check input[type=checkbox]').forEach(cb=>cb.checked=false);
+      this._atualizarBotoesSelecao();
     },
     async baixarSelecionadas(){
       const ids=this._selecionadas;
       if(!ids.size)return;
       const imgs=(App.state.data.obra_imagens||[]).filter(i=>ids.has(String(i.rowid)));
       if(!imgs.length)return;
-      if(imgs.length===1){ this._baixarUmDireto(imgs[0]); return; }
+      if(imgs.length===1){ this._baixarUmDireto(imgs[0]); this._desmarcarTudo(); return; }
       this._autenticar(()=>this._baixarZip(imgs));
     },
     // Foto única já é pública ("qualquer um com o link") — baixa direto, sem precisar
@@ -7985,6 +8031,7 @@ const UI={
         document.body.appendChild(a);a.click();a.remove();
         setTimeout(()=>URL.revokeObjectURL(url),4000);
         this._status('');
+        this._desmarcarTudo();
       }catch(e){
         console.error(e);
         this._status('Erro ao gerar o zip: '+((e&&e.message)||e));
