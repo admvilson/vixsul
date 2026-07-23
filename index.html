@@ -7724,7 +7724,25 @@ const UI={
       this._autenticar(()=>this._enviarArquivos());
     },
 
+    _TOKEN_CACHE_KEY:'vixsul_imgs_gtoken',
+
+    // Guarda o token na sessão do navegador (sessionStorage) pra sobreviver a um F5/troca
+    // de aba dentro do mesmo período de validade — sem isso, cada recarga de página perdia
+    // o token em memória e precisava pedir um novo, o que reabre (mesmo que rápido) a
+    // janela do Google a cada vez.
+    _salvarTokenCache(){
+      try{ sessionStorage.setItem(this._TOKEN_CACHE_KEY,JSON.stringify({token:this._accessToken,exp:this._tokenExpiraEm})); }catch(e){}
+    },
+    _lerTokenCache(){
+      if(this._accessToken)return;
+      try{
+        const c=JSON.parse(sessionStorage.getItem(this._TOKEN_CACHE_KEY)||'null');
+        if(c&&c.token&&c.exp>Date.now()){ this._accessToken=c.token; this._tokenExpiraEm=c.exp; }
+      }catch(e){}
+    },
+
     _autenticar(onOk){
+      this._lerTokenCache();
       if(this._accessToken && Date.now()<this._tokenExpiraEm-15000){onOk();return;}
       if(typeof google==='undefined'||!google.accounts||!google.accounts.oauth2){
         this._status('Erro: biblioteca do Google não carregou. Verifique sua conexão e recarregue a página.');
@@ -7738,6 +7756,7 @@ const UI={
             if(resp&&resp.access_token){
               this._accessToken=resp.access_token;
               this._tokenExpiraEm=Date.now()+(Number(resp.expires_in||3600)*1000);
+              this._salvarTokenCache();
               onOk();
             } else {
               this._status('Não foi possível autenticar.');
@@ -7747,7 +7766,7 @@ const UI={
       }
       // prompt vazio: só mostra a tela de autorização do Google quando for REALMENTE
       // necessário (primeira vez, ou se o acesso foi revogado) — nas próximas vezes,
-      // mesmo depois de recarregar a página, o Google reemite o token OK sem popup.
+      // dentro da mesma sessão do navegador, o token é reaproveitado sem abrir nada.
       this._tokenClient.requestAccessToken({prompt:''});
     },
 
