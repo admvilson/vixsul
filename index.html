@@ -8162,12 +8162,19 @@ const UI={
     // com o link" desde o upload) — sem autenticar, sem pedir login do Google. Selecionando
     // mais de uma, baixa uma de cada vez (arquivos separados, não um .zip): juntar tudo num
     // .zip exigiria ler os bytes via API autenticada, o que traria o login de volta.
+    // IMPORTANTE: os cliques são disparados TODOS na hora, sem setTimeout — um download
+    // iniciado de dentro de um setTimeout perde o "gesto do usuário" (o clique original) e o
+    // navegador trata como download automático, bloqueando tudo depois do primeiro. Disparando
+    // tudo em sequência síncrona, o navegador só pode pedir 1 permissão ("permitir múltiplos
+    // downloads deste site") — depois de aceitar essa 1 vez, os próximos cliques já baixam
+    // direto (o navegador lembra a permissão para este site).
     baixarSelecionadas(){
       const ids=this._selecionadas;
       if(!ids.size)return;
       const imgs=(App.state.data.obra_imagens||[]).filter(i=>ids.has(String(i.rowid))&&i.drive_file_id);
       if(!imgs.length)return;
-      imgs.forEach((img,i)=>setTimeout(()=>this._baixarDireto(img),i*350));
+      imgs.forEach(img=>this._baixarDireto(img));
+      if(imgs.length>1){ this._status('Se o navegador perguntar se pode baixar vários arquivos, clique em "Permitir".'); setTimeout(()=>this._status(''),8000); }
       this._desmarcarTudo();
     },
     _baixarDireto(img){
