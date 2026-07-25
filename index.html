@@ -498,7 +498,7 @@ tbody tr:hover td{background:rgba(0,113,227,.02);}
     html:not([data-authed="1"]) #app-shell{display:none;}
     #app-shell.hidden{display:none!important;}
   </style>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script><script src="gas-shim.js?v=20260721a"></script><script src="https://accounts.google.com/gsi/client" async defer></script><script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script></head>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script><script src="gas-shim.js?v=20260721a"></script><script src="https://accounts.google.com/gsi/client" async defer></script></head>
 <body>
 <div class="toast" id="toast"><span id="toast-icon"></span><span id="toast-msg">—</span></div>
 
@@ -8158,56 +8158,24 @@ const UI={
       document.querySelectorAll('#imagens-grid .img-check input[type=checkbox]').forEach(cb=>cb.checked=false);
       this._atualizarBotoesSelecao();
     },
-    async baixarSelecionadas(){
+    // Baixa direto pelo link público do arquivo (a foto já é compartilhada como "qualquer um
+    // com o link" desde o upload) — sem autenticar, sem pedir login do Google. Selecionando
+    // mais de uma, baixa uma de cada vez (arquivos separados, não um .zip): juntar tudo num
+    // .zip exigiria ler os bytes via API autenticada, o que traria o login de volta.
+    baixarSelecionadas(){
       const ids=this._selecionadas;
       if(!ids.size)return;
       const imgs=(App.state.data.obra_imagens||[]).filter(i=>ids.has(String(i.rowid))&&i.drive_file_id);
       if(!imgs.length)return;
-      this._autenticar(()=>this._baixarViaApi(imgs));
+      imgs.forEach((img,i)=>setTimeout(()=>this._baixarDireto(img),i*350));
+      this._desmarcarTudo();
     },
-    // Baixa sempre pelo endpoint autenticado (nunca por um link que abra o Drive na tela) —
-    // assim nenhuma tela do Google chega a aparecer, tudo é feito em segundo plano.
-    // Uma foto só: baixa o arquivo direto. Mais de uma: junta tudo num .zip antes de baixar.
-    async _baixarViaApi(imgs){
-      this._status('Preparando o download...');
-      try{
-        if(imgs.length===1){
-          const img=imgs[0];
-          const resp=await fetch(`https://www.googleapis.com/drive/v3/files/${img.drive_file_id}?alt=media`,{headers:{Authorization:'Bearer '+this._accessToken}});
-          if(!resp.ok)throw new Error('Falha ao baixar a imagem: '+await this._erroResposta(resp));
-          const blob=await resp.blob();
-          const url=URL.createObjectURL(blob);
-          const a=document.createElement('a');
-          a.href=url;a.download=img.nome_arquivo||'foto.jpg';
-          document.body.appendChild(a);a.click();a.remove();
-          setTimeout(()=>URL.revokeObjectURL(url),4000);
-        } else {
-          if(typeof JSZip==='undefined'){this._status('Erro: biblioteca de zip não carregou. Recarregue a página.');return;}
-          const zip=new JSZip();
-          const usados={};
-          for(const img of imgs){
-            const resp=await fetch(`https://www.googleapis.com/drive/v3/files/${img.drive_file_id}?alt=media`,{headers:{Authorization:'Bearer '+this._accessToken}});
-            if(!resp.ok)throw new Error('Falha ao baixar "'+(img.nome_arquivo||img.drive_file_id)+'": '+await this._erroResposta(resp));
-            const blob=await resp.blob();
-            let nome=img.nome_arquivo||('foto_'+img.drive_file_id+'.jpg');
-            if(usados[nome]){usados[nome]++;const p=nome.lastIndexOf('.');nome=p>0?(nome.slice(0,p)+' ('+usados[nome]+')'+nome.slice(p)):(nome+' ('+usados[nome]+')');}
-            else usados[nome]=1;
-            zip.file(nome,blob);
-          }
-          const conteudo=await zip.generateAsync({type:'blob'});
-          const url=URL.createObjectURL(conteudo);
-          const a=document.createElement('a');
-          a.href=url;a.download=(this._obraAtual||'fotos').replace(/[\\/:*?"<>|]/g,'-')+'.zip';
-          document.body.appendChild(a);a.click();a.remove();
-          setTimeout(()=>URL.revokeObjectURL(url),4000);
-        }
-        this._status('');
-        this._desmarcarTudo();
-      }catch(e){
-        console.error(e);
-        this._status('Erro ao baixar: '+((e&&e.message)||e));
-        setTimeout(()=>this._status(''),9000);
-      }
+    _baixarDireto(img){
+      const a=document.createElement('a');
+      a.href='https://drive.google.com/uc?export=download&id='+img.drive_file_id;
+      a.download=img.nome_arquivo||'foto.jpg';
+      a.rel='noopener';
+      document.body.appendChild(a);a.click();a.remove();
     }
   },
 
