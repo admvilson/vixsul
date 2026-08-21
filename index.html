@@ -5661,7 +5661,7 @@ const UI={
       const s=document.createElement('script');
       // "?v=" força o navegador/CDN a buscar de novo em vez de reaproveitar um 404
       // antigo em cache (aconteceu durante as trocas de domínio do site).
-      s.src=src+(src.includes('?')?'&':'?')+'v=20260713';
+      s.src=src+(src.includes('?')?'&':'?')+'v=20260821';
       s.onload=resolve; s.onerror=()=>reject(new Error('arquivo '+src+' não encontrado'));
       document.head.appendChild(s);
     });
@@ -5719,6 +5719,13 @@ const UI={
     if(!(window.EMBASA_TABELAS&&window.EMBASA_TABELAS[id]))await this._orcInject(man.arquivo);
     const d=window.EMBASA_TABELAS&&window.EMBASA_TABELAS[id];
     if(!d||!Array.isArray(d.itens)||d.itens.length===0)throw new Error('tabela '+id+' vazia');
+    // O semestre vale SEMPRE o do manifesto, nunca o que está dentro do arquivo de dados.
+    // Cada tabela repete o próprio "semestre" no arquivo dela (são 12 arquivos), e esses
+    // arquivos têm 1MB+ e ficam muito tempo no cache do navegador: se o manifesto for
+    // atualizado e um arquivo antigo continuar em cache, os dois discordam e o seletor
+    // filtra por um semestre que não existe mais — deixando a lista de tabelas vazia
+    // ("nenhuma tabela incluída neste semestre"). Com o manifesto mandando, não desalinha.
+    d.semestre=man.semestre;
     this._orcIndexar(d);
     this._embasaCache[id]=d; this._embasa=d;
     return d;
@@ -5921,8 +5928,11 @@ const UI={
       : `<input id="orc-titulo" class="cap-sticky-title" value="${esc(titVal)}" readonly style="border:1px solid transparent;background:transparent;padding:0 2px;max-width:420px;width:100%;outline:none;font-family:inherit">`;
 
     // Seletores de semestre (2026 em diante) + tabela (todas do semestre, agrupadas).
-    const semAtivo=emb.semestre;
+    // Se o semestre da tabela ativa não estiver na lista visível (base antiga em cache,
+    // semestre removido do manifesto...), cai no primeiro disponível em vez de filtrar
+    // por um valor inexistente e mostrar a lista de tabelas vazia.
     const semestres=this._orcSemestresVisiveis();
+    const semAtivo=semestres.includes(emb.semestre)?emb.semestre:(semestres[0]||emb.semestre);
     const semOpts=semestres.map(s=>`<option value="${esc(s)}" ${s===semAtivo?'selected':''}>${esc(s)}</option>`).join('');
     const tabOpts=this._orcTabOptionsHtml(semAtivo,emb.id);
 
