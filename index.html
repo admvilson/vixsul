@@ -5981,8 +5981,13 @@ const UI={
       </div>
 
       <div style="background:rgba(0,113,227,.05);border:1px dashed rgba(0,113,227,.3);border-radius:10px;padding:12px 14px;margin-bottom:14px">
-        <div style="font-size:11px;font-weight:700;color:var(--blue);margin-bottom:6px">Colar planilha (Descrição + Quant.) — uma linha por item, separadas por TAB, ; ou vírgula. Também aceita o "Meu Código" no lugar da descrição.</div>
-        <textarea id="orc-paste" rows="4" placeholder="Ex.:&#10;CONCRETO ARMADO P/CX/P.V.(ACO=40KG,FORMA=15M2)&#9;1,49&#10;LOCAÇÃO DE RETROESCAVADEIRA, INCLUSIVE OPERADOR E COMBUSTIVEL&#9;8" style="width:100%;border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:12px;font-family:inherit;resize:vertical"></textarea>
+        <div style="font-size:11px;font-weight:700;color:var(--blue);margin-bottom:6px">Colar planilha — uma linha por item, colunas separadas por TAB (copiar direto do Excel) ou ";"</div>
+        <div style="font-size:10.5px;color:var(--text-3);margin-bottom:7px;line-height:1.55">
+          <strong style="color:var(--text-2)">Orçamento completo (6 colunas):</strong> Item · Código · Especificação · Unid. · Quant. · P. Unit. — entra exatamente como informado, sem buscar na EMBASA.<br>
+          <strong style="color:var(--text-2)">Só descrição (2 colunas):</strong> Descrição · Quant. — o preço vem da tabela EMBASA selecionada acima.
+        </div>
+        <textarea id="orc-paste" rows="4" placeholder="Orçamento completo:&#10;1.1&#9;01.91.02&#9;LOCACAO DE VEICULO 1.0&#9;MES&#9;2&#9;10.552,01&#10;1.2&#9;02.01.05&#9;ESCAVACAO MANUAL DE VALA&#9;M3&#9;15,5&#9;87,40&#10;&#10;Ou só descrição + quantidade:&#10;CONCRETO ARMADO P/CX/P.V.(ACO=40KG,FORMA=15M2)&#9;1,49" style="width:100%;border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:12px;font-family:inherit;resize:vertical"></textarea>
+        <label style="display:flex;align-items:center;gap:6px;margin-top:8px;font-size:11px;color:var(--text-2);cursor:pointer"><input type="checkbox" id="orc-paste-final" checked style="cursor:pointer;width:14px;height:14px">O P. Unit. informado já é o valor final (não aplicar BDI/Desconto por cima)</label>
         <button type="button" onclick="UI._orcProcessarColagem()" style="margin-top:8px;font-size:12px;font-weight:700;color:#fff;background:var(--blue);border:none;border-radius:8px;padding:7px 16px;cursor:pointer">Processar e adicionar</button>
       </div>
 
@@ -6057,6 +6062,8 @@ const UI={
       // sem "acumular" o ajuste); ao sair do campo mostra o P.Unit. já ajustado.
       const base=parseStoredNumber(item.p_unit_base!=null?item.p_unit_base:item.p_unit);
       tr.dataset.base=base||0;
+      // "Preço final": o P.Unit. informado entra como está, sem BDI/Desconto (ver _orcRecalc).
+      tr.dataset.semfator=item.sem_fator?'1':'0';
       tr.innerHTML=`
         <td><input class="cap-fi orc-mc" value="${esc(mc)}" placeholder="—" style="font-size:11px"></td>
         <td><input class="cap-fi orc-cod-man" value="${esc(cod)}" placeholder="Código"></td>
@@ -6146,8 +6153,12 @@ const UI={
       // da EMBASA; na manual, do que o usuário digitou (dataset.base). O P.Unit. é
       // arredondado em 2 casas e é ESSE valor (o mesmo que aparece na tela) que multiplica
       // a Quant. — assim o P.Total confere com P.Unit. × Quant. exibidos.
+      // Exceção: linha marcada como "preço final" (orçamento já fechado, inserido pelo
+      // usuário) usa fator 1 — o P.Unit. vale exatamente o que foi informado, sem BDI
+      // nem Desconto por cima, senão o valor digitado mudaria sozinho.
+      const semFator=tr.dataset.semfator==='1';
       const base=parseFloat(tr.dataset.base)||0;
-      const punit=Math.round(base*fator*100)/100;
+      const punit=Math.round(base*(semFator?1:fator)*100)/100;
       // Atualiza o campo com o P.Unit. ajustado — menos na linha manual enquanto está em
       // foco (aí o campo mostra a base sendo digitada, para não acumular o ajuste).
       if(pu && (!manual || document.activeElement!==pu)) pu.value=punit>0?fmt(punit):'';
@@ -6157,18 +6168,39 @@ const UI={
     });
     const tEl=document.getElementById('orc-total');if(tEl)tEl.textContent=fmt(total);
   },
-  /* Processa o texto colado: cada linha vira um item. Última "coluna" numérica = Quant.;
-     o resto = Descrição (ou Meu Código). Sem correspondência → linha manual. */
+  /* Processa o texto colado. Dois formatos, detectados linha a linha:
+     • 6 colunas ou mais → orçamento COMPLETO já precificado: Item, Código, Especificação,
+       Unid., Quant., P.Unit. Entra exatamente como veio (linha manual), sem consultar a
+       EMBASA — assim nada que o usuário informou é sobrescrito por um item parecido.
+     • até 5 colunas → formato antigo: Descrição (ou Meu Código) + Quant. na última coluna,
+       e o preço vem da tabela EMBASA quando a descrição casa exatamente.
+     Separadores: TAB (o que Excel/Sheets usam ao copiar) ou ";". */
   _orcProcessarColagem(){
     const ta=document.getElementById('orc-paste');if(!ta)return;
     const linhas=ta.value.split(/\r?\n/).map(l=>l.trim()).filter(Boolean);
     if(linhas.length===0){toast('Cole ao menos uma linha.','error');return;}
-    let add=0,semMatch=0;
-    linhas.forEach(l=>{
+    const chk=document.getElementById('orc-paste-final');
+    const precoFinal=chk?chk.checked:true;
+    const cols=l=>{const t=l.split('\t');return t.length>=2?t:l.split(';');};
+    // Ignora o cabeçalho, quando vem colado junto com os dados: tem coluna "Quant." mas
+    // o que está NA coluna da quantidade não é número (num item de verdade, seria).
+    const ehCabecalho=l=>{
+      const c=cols(l);
+      if(c.length<5)return false;
+      return c.map(x=>this._orcNorm(x)).some(x=>x==='QUANT'||x==='QUANTIDADE') && parseStoredNumber(c[4])===0;
+    };
+    let add=0,semMatch=0,completos=0;
+    linhas.forEach((l,i)=>{
+      if(i===0&&ehCabecalho(l))return;
+      const c=cols(l);
+      if(c.length>=6){
+        const mc=c[0].trim(), codigo=c[1].trim(), descricao=c[2].trim(), unidade=c[3].trim();
+        this._orcAddRow({manual:true,sem_fator:precoFinal,mc,codigo,descricao,unidade,
+          quant:parseStoredNumber(c[4]),p_unit_base:parseStoredNumber(c[5])});
+        add++;completos++;return;
+      }
       let desc=l,quant=0;
-      let m=l.split('\t');
-      if(m.length<2)m=l.split(';');
-      if(m.length>=2){ desc=m.slice(0,-1).join(' ').trim(); quant=parseStoredNumber(m[m.length-1]); }
+      if(c.length>=2){ desc=c.slice(0,-1).join(' ').trim(); quant=parseStoredNumber(c[c.length-1]); }
       else { const mm=l.match(/^(.*?)[\s,;]+([\d.]+,\d+|\d+)$/); if(mm){desc=mm[1].trim();quant=parseStoredNumber(mm[2]);} }
       // Só casa quando a descrição (ou Meu Código) bate EXATAMENTE com a tabela EMBASA —
       // evita puxar o preço de um item parecido. Sem correspondência exata → linha manual.
@@ -6180,7 +6212,8 @@ const UI={
     ta.value='';
     this._orcRecalc();
     this._orcUpdateLock();
-    toast(add+' item(ns) adicionado(s)'+(semMatch?', '+semMatch+' sem correspondência (preencha manualmente)':'')+'.',semMatch?'':'success');
+    const det=[completos?completos+' com preço informado':'',semMatch?semMatch+' sem correspondência (preencha manualmente)':''].filter(Boolean).join(', ');
+    toast(add+' item(ns) adicionado(s)'+(det?' — '+det:'')+'.',semMatch?'':'success');
   },
   _orcColetar(){
     const itens=[];
@@ -6196,10 +6229,11 @@ const UI={
       if(!desc&&!quant&&!cod)return; // linha vazia
       // Manual e casada: P.Unit. = base × fator (a base manual vem do dataset.base digitado).
       // Arredonda o P.Unit. em 2 casas e usa esse valor exibido para o P.Total = P.Unit. × Quant.
+      const semFator=tr.dataset.semfator==='1';
       const base=parseFloat(tr.dataset.base)||0;
-      const punit=Math.round(base*fator*100)/100;
+      const punit=Math.round(base*(semFator?1:fator)*100)/100;
       const ptot=Math.round(punit*quant*100)/100;
-      itens.push({manual,mc:mc,codigo:cod,descricao:desc,unidade:un,quant:quant,p_unit_base:base,p_unit:punit,p_total:ptot});
+      itens.push({manual,sem_fator:semFator,mc:mc,codigo:cod,descricao:desc,unidade:un,quant:quant,p_unit_base:base,p_unit:punit,p_total:ptot});
     });
     return itens;
   },
