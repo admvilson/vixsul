@@ -5667,13 +5667,28 @@ const UI={
     });
   },
   _orcIndexar(d){
-    d._byNorm={}; d._byMc={}; d._byCod={};
+    d._byNorm={}; d._byMc={}; d._byCod={}; d._byCodNorm={};
     d.itens.forEach(it=>{
       it._norm=this._orcNorm(it.descricao);
       (d._byNorm[it._norm]=d._byNorm[it._norm]||[]).push(it);
-      if(it.mc)d._byMc[this._orcNorm(it.mc)]=it;
-      if(it.codigo&&!d._byCod[it.codigo])d._byCod[it.codigo]=it;
+      // Da tabela 2026.1 em diante a EMBASA tirou a coluna "Item" do relatório — sobrou só o
+      // CÓDIGO. Nessas tabelas o "mc" é apenas a numeração sequencial da nossa coluna Item
+      // (1, 2, 3...), e numeração pura NÃO pode entrar na busca: digitar "12" acharia a 12ª
+      // linha em vez de um serviço. Só indexa o "mc" quando ele é um código de verdade
+      // (tem algo além de dígito), como nas tabelas até 2026.
+      if(it.mc&&/\D/.test(String(it.mc)))d._byMc[this._orcNorm(it.mc)]=it;
+      if(it.codigo){
+        if(!d._byCod[it.codigo])d._byCod[it.codigo]=it;
+        const cn=this._orcNorm(it.codigo);
+        if(cn&&!d._byCodNorm[cn])d._byCodNorm[cn]=it;
+      }
     });
+  },
+  /* Normaliza o que foi digitado quando pode ser um CÓDIGO: aceita tanto "01.91.02" quanto
+     "01.91.02/EMBASA" (como aparece no PDF da EMBASA), porque o código é só o trecho antes
+     da barra. */
+  _orcNormCod(s){
+    return this._orcNorm(String(s==null?'':s).replace(/\s*\/\s*EMBASA\s*$/i,''));
   },
   _embasaSemestres:null,
   async _embasaLoadManifest(){
@@ -5735,6 +5750,10 @@ const UI={
   _orcBuscar(query,limit=10){
     const emb=this._embasa;if(!emb)return [];
     const qn=this._orcNorm(query);if(!qn)return [];
+    // Código primeiro: é a identificação mais específica e, da 2026.1 em diante, é a única
+    // que o relatório da EMBASA traz.
+    const qc=this._orcNormCod(query);
+    if(emb._byCodNorm[qc])return [emb._byCodNorm[qc]];
     if(emb._byMc[qn])return [emb._byMc[qn]];
     if(emb._byNorm[qn])return emb._byNorm[qn].slice(0,limit);
     const words=qn.split(' ').filter(Boolean);
@@ -5751,6 +5770,8 @@ const UI={
   _orcMatchExato(query){
     const emb=this._embasa;if(!emb)return null;
     const qn=this._orcNorm(query);if(!qn)return null;
+    const qc=this._orcNormCod(query);
+    if(emb._byCodNorm[qc])return emb._byCodNorm[qc];
     if(emb._byMc[qn])return emb._byMc[qn];
     if(emb._byNorm[qn])return emb._byNorm[qn][0];
     return null;
