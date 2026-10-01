@@ -1117,12 +1117,16 @@ tbody tr:hover td{background:rgba(0,113,227,.02);}
             </optgroup>
             <optgroup label="Engenharia">
               <option value="eng-resultado">Resultado por obra</option>
+              <option value="eng-orcado-realizado">Orçado × Realizado por categoria</option>
               <option value="eng-valor-agregado">Desempenho físico-financeiro (Valor Agregado)</option>
               <option value="eng-prazos">Prazos das obras</option>
               <option value="eng-medicoes">Medições e saldo contratual</option>
               <option value="eng-diario">Diário de obra — resumo</option>
               <option value="eng-documentos">Documentos e vencimentos</option>
               <option value="eng-fornecedores">Compras por fornecedor (Curva ABC)</option>
+            </optgroup>
+            <optgroup label="Comercial">
+              <option value="eng-comercial">Propostas e taxa de sucesso</option>
             </optgroup>
           </select>
           <script>window.__relTipoOriginalHTML=document.getElementById('rel-tipo').innerHTML;</script>
@@ -8452,7 +8456,7 @@ const UI={
      Faturamentos | Aportes | CAP | Orçamentos). Cada aba reaproveita o editor já existente,
      porém filtrado/vinculado a ESTA obra. O botão Salvar salva a aba ativa e permanece na
      obra (re-renderiza a aba com os dados atualizados). */
-  _OBRA_HUB_TABS:[['dados','Obra'],['custos','Custo'],['faturamentos','Faturamento'],['aportes','Aporte'],['cap','CAP'],['orcamentos','Orçamento'],['etapas','Avanço & Gantt']],
+  _OBRA_HUB_TABS:[['resumo','Resumo'],['dados','Obra'],['custos','Custo'],['faturamentos','Faturamento'],['aportes','Aporte'],['cap','CAP'],['orcamentos','Orçamento'],['etapas','Avanço & Gantt']],
   openObraHub(rowid){
     if(App.state._busy)return;
     const sessExt=Auth._session&&Auth._session.tipoUsuario==='externo';
@@ -8465,7 +8469,8 @@ const UI={
       obraName=getFuzzy(data,['titulo_obra','nome_obra','titulo'])||'';
     }
     // Usuário Externo só enxerga a aba Avanço & Gantt — abre direto nela em vez de "Dados".
-    const tabInicial=(Auth._session&&Auth._session.tipoUsuario==='externo'&&rowid)?'etapas':'dados';
+    // Obra existente abre no Resumo (painel de decisão da obra); obra nova, nos Dados.
+    const tabInicial=(Auth._session&&Auth._session.tipoUsuario==='externo'&&rowid)?'etapas':(rowid&&UI._obraHubBuildResumo?'resumo':'dados');
     App.state.obraHub={rowid:rowid||null,obraName,tab:tabInicial,isNew:!rowid,nomeConfirmado:!!rowid,_dirtyTabs:new Set()};
     // Detecta alterações não salvas (uma vez): qualquer digitação/mudança no formulário marca
     // a ABA ATIVA no momento como "suja" — cada aba tem seu próprio estado (a troca de aba
@@ -8550,8 +8555,11 @@ const UI={
     hub.tab=tab;
     this._obraHubRenderTabs();
     const obraName=hub.obraName;
+    // O Resumo só mostra números — sempre redesenha com os dados atuais (nunca do cache).
+    if(tab==='resumo'&&this._obraHubCache)delete this._obraHubCache.resumo;
     if(!this._obraHubRestoreTab(tab)){
-      if(tab==='dados'){ this._obraHubBuildDados(hub.rowid); }
+      if(tab==='resumo'){ this._obraHubBuildResumo(obraName); }
+      else if(tab==='dados'){ this._obraHubBuildDados(hub.rowid); }
       else if(tab==='custos'||tab==='faturamentos'||tab==='aportes'){ this.openGroupEditor(tab,obraName); }
       else if(tab==='cap'){ this._obraHubBuildCAP(obraName); }
       else if(tab==='orcamentos'){ this._obraHubBuildOrcamento(obraName); }
@@ -8754,7 +8762,8 @@ const UI={
     if(Auth._session&&Auth._session.tipoUsuario==='externo')return;
     const hub=App.state.obraHub;if(!hub)return;
     if(hub.isNew){ this._obraHubPreSaveIds=(App.state.data.obras||[]).map(r=>String(r.rowid)); App.save({preventDefault(){}}); return; }
-    const tabs=[hub.tab,...hub._dirtyTabs].filter((t,i,arr)=>arr.indexOf(t)===i);
+    const tabs=[hub.tab,...hub._dirtyTabs].filter((t,i,arr)=>t!=='resumo'&&arr.indexOf(t)===i);
+    if(!tabs.length){toast('Nada para salvar: o Resumo só mostra a situação da obra. Edite nas outras abas.','info');return;}
     this._obraHubSalvarTudo(tabs,0,hub.tab);
   },
   /* Valida a aba ATIVA com a MESMA validação que o Salvar daquela aba já usa — chamada
@@ -8806,7 +8815,8 @@ const UI={
   /* Botão PDF (ícone): imprime a aba selecionada no momento. */
   _obraHubPDF(){
     const tab=App.state.obraHub?App.state.obraHub.tab:'';
-    if(tab==='dados')this._obraExportPDF();
+    if(tab==='resumo')Eng.pdfPainel(App.state.obraHub.obraName);
+    else if(tab==='dados')this._obraExportPDF();
     else if(tab==='custos'||tab==='faturamentos'||tab==='aportes')this._grExportPDF();
     else if(tab==='cap')this._capExportPDF();
     else if(tab==='orcamentos')this._orcExportPDF();
@@ -10085,7 +10095,9 @@ const Fin=(function(){
       const real=cn(r[kTipo])==='real',dPg=dt(r[kData]);
       const pago=real&&!!dPg&&dPg<=h;
       const desc=[r.tipo,getFuzzy(r,['especificacao']),getFuzzy(r,['descricao'])].filter(Boolean).filter((x,i,a)=>a.indexOf(x)===i).join(' — ');
-      out.push({tipo:'custo',sent:-1,r,valor:Math.abs(val(getFuzzy(r,['p_total','ptotal']))),venc:dPg||dt(getFuzzy(r,['data_lancamento'])),pago,dataBaixa:pago?dPg:null,
+      // custo Previsto não tem data de pagamento (o editor só libera a data para Real):
+      // sem data definida — antes vencia na data do lançamento e virava "atraso" falso
+      out.push({tipo:'custo',sent:-1,r,valor:Math.abs(val(getFuzzy(r,['p_total','ptotal']))),venc:dPg||(real?dt(getFuzzy(r,['data_lancamento'])):null),pago,dataBaixa:pago?dPg:null,
         desc:desc||'Custo da obra',origem:getFuzzy(r,['titulo_obra'])||'—',quem:getFuzzy(r,['fornecedor'])||'',kTipo,kData});
     });
     (d.despesas||[]).forEach(r=>{
@@ -10101,7 +10113,10 @@ const Fin=(function(){
       const recebido=real&&!!dRec&&dRec<=h;
       const liq=val(getFuzzy(r,['faturamento_liquido','resultado_liquido','valor_liquido','liquido'])),bruto=val(getFuzzy(r,['faturamento_bruto','valor_bruto','bruto']));
       const nf=getFuzzy(r,['n_nf']);
-      out.push({tipo:'fat',sent:1,r,valor:Math.abs(liq||bruto),bruto:Math.abs(bruto),venc:dRec||dt(getFuzzy(r,['emissao_nf']))||dt(getFuzzy(r,['data_lancamento'])),pago:recebido,dataBaixa:recebido?dRec:null,
+      // sem data de recebimento: nota emitida (Real) vence 30 dias depois da emissão (prazo usual
+      // de pagamento do contratante); faturamento previsto sem data fica "sem data definida"
+      const dEm=dt(getFuzzy(r,['emissao_nf']))||dt(getFuzzy(r,['data_lancamento']));
+      out.push({tipo:'fat',sent:1,r,valor:Math.abs(liq||bruto),bruto:Math.abs(bruto),venc:dRec||(real&&dEm?addD(dEm,30):null),pago:recebido,dataBaixa:recebido?dRec:null,
         desc:(nf?'NF '+nf:'Faturamento')+(real?'':' (previsto)'),origem:getFuzzy(r,['titulo_obra'])||'—',quem:'',kTipo,kRec});
     });
     (d.aportes||[]).forEach(r=>{
@@ -10864,9 +10879,11 @@ const Atencao=(function(){
     const obras=d.obras||[],emAnd=obras.filter(o=>cn(getFuzzy(o,['status_proposta','status_obra','status_da_obra','status'])).includes('andamento'));
     const abrir=o=>pode('obras')?{rot:'Abrir obra',go:()=>UI.openObraHub(o.rowid)}:null;
     // prazo vencido
-    const vencidas=emAnd.filter(o=>{const tp=dt(getFuzzy(o,['termino_previsto','data_termino_previsto','data_termino','previsao']));return tp&&tp<h;});
-    if(vencidas.length)out.push({nivel:'alto',ico:'⏱',titulo:'Obras com prazo vencido',valor:String(vencidas.length),detalhe:'Em andamento com o término previsto já passado — risco de multa contratual. Peça aditivo de prazo ou atualize o término.',
-      itens:vencidas.slice(0,3).map(o=>{const tp=dt(getFuzzy(o,['termino_previsto','data_termino_previsto','data_termino','previsao']));return `${nomeObra(o)} · venceu em ${brDe(tp)}`;}),acao:vencidas.length===1?abrir(vencidas[0]):(pode('obras')?{rot:'Ver obras',go:()=>UI.nav('obras')}:null)});
+    // término vigente: o da obra, prorrogado pelos aditivos de prazo (módulo Eng)
+    const termino=o=>(typeof Eng!=='undefined'&&Eng.datasObra)?Eng.datasObra(o).fim:dt(getFuzzy(o,['termino_previsto','data_termino_previsto','data_termino','previsao']));
+    const vencidas=emAnd.filter(o=>{const tp=termino(o);return tp&&tp<h;});
+    if(vencidas.length)out.push({nivel:'alto',ico:'⏱',titulo:'Obras com prazo vencido',valor:String(vencidas.length),detalhe:'Em andamento com o término (já contando aditivos de prazo) passado — risco de multa contratual. Registre o aditivo de prazo em Medições ou atualize o término.',
+      itens:vencidas.slice(0,3).map(o=>`${nomeObra(o)} · venceu em ${brDe(termino(o))}`),acao:vencidas.length===1?abrir(vencidas[0]):(pode('obras')?{rot:'Ver obras',go:()=>UI.nav('obras')}:null)});
 
     // cronograma (etapas) e custo × avanço físico
     const K=UI._etapasK(),etapas=d.etapas||[];
@@ -11011,7 +11028,7 @@ const Eng=(function(){
     };
     const cards=ordem.filter(s=>grupos[s]&&grupos[s].length).map(s=>{
       const os=grupos[s],sl=cn(s);let meta='';
-      if(sl.includes('andamento')){const v=os.filter(o=>{const tp=dt(getFuzzy(o,['termino_previsto','data_termino_previsto','data_termino','previsao']));return tp&&tp<h;}).length;meta=v?`<span class="t-err">${v} com prazo vencido</span>`:'<span class="t-ok">todas no prazo</span>';}
+      if(sl.includes('andamento')){const v=os.filter(o=>{const tp=Eng.datasObra?Eng.datasObra(o).fim:dt(getFuzzy(o,['termino_previsto','data_termino_previsto','data_termino','previsao']));return tp&&tp<h;}).length;meta=v?`<span class="t-err">${v} com prazo vencido</span>`:'<span class="t-ok">todas no prazo</span>';}
       else if(sl.includes('enviada')){const l=os.map(o=>dt(getFuzzy(o,['limite_proposta']))).filter(d=>d&&d>=h).sort((a,b)=>a-b);if(l.length)meta=`próximo limite de entrega: ${brDe(l[0])}`;}
       else if(sl.includes('finalizada'))meta='obras concluídas';
       return card(s,os,tomStatus(s),meta,s);
@@ -11136,6 +11153,8 @@ const Eng=(function(){
   // → o antigo vira histórico (não conta como vencido nem gera alerta)
   const chaveDoc=d=>cn(d.tipo)+'|'+(d.titulo_obra||'')+'|'+cn(d.descricao);
   function situacaoDoc(d){
+    // aditivo de contrato (cadastrado em Medições) não vence — é parte do contrato
+    if(d.tipo==='Aditivo contratual')return {rot:'Aditivo do contrato',tom:'roxo',ord:3,dias:null,adt:true};
     const v=dt(d.data_validade);
     if(v&&(D().documentos||[]).some(o=>o!==d&&String(o.rowid)!==String(d.rowid)&&chaveDoc(o)===chaveDoc(d)&&dt(o.data_validade)>v))return {rot:'Renovado (histórico)',tom:'',ord:4,dias:null,subst:true};
     if(!v)return {rot:'Sem validade',tom:'',ord:3,dias:null};
@@ -11149,7 +11168,7 @@ const Eng=(function(){
   function renderDocumentos(){
     const box=document.getElementById('eng-documentos');if(!box)return;
     const todos=(D().documentos||[]).map(d=>({d,s:situacaoDoc(d)}));
-    const lista=todos.filter(x=>(!DC.obra||(DC.obra==='__empresa'?!x.d.titulo_obra:x.d.titulo_obra===DC.obra))&&(!DC.sit||(DC.sit==='venc'?x.s.ord===0:DC.sit==='breve'?(x.s.dias!=null&&x.s.dias>=0&&x.s.dias<=30):x.s.tom==='verde')))
+    const lista=todos.filter(x=>(!DC.obra||(DC.obra==='__empresa'?!x.d.titulo_obra:x.d.titulo_obra===DC.obra))&&(!DC.sit||(DC.sit==='venc'?x.s.ord===0:DC.sit==='breve'?(x.s.dias!=null&&x.s.dias>=0&&x.s.dias<=30):DC.sit==='adt'?!!x.s.adt:x.s.tom==='verde')))
       .sort((a,b)=>a.s.ord-b.s.ord||((a.s.dias==null?9e9:a.s.dias)-(b.s.dias==null?9e9:b.s.dias)));
     const venc=todos.filter(x=>x.s.ord===0).length,breve=todos.filter(x=>x.s.dias!=null&&x.s.dias>=0&&x.s.dias<=30).length;
     App._docLista=lista.map(x=>x.d);
@@ -11157,14 +11176,15 @@ const Eng=(function(){
       ${cab('Documentos e certidões','Certidões negativas, seguros, ART, licenças e contratos, com a validade de cada um. Em obra pública, certidão vencida trava a medição e o pagamento — o sistema avisa no Dashboard 15 dias antes de vencer.',`<button type="button" class="fin-bt pri" data-dc="novo">+ Novo documento</button>`)}
       <div class="fin-kpis">${kpi(venc?'vermelho':'verde','Vencidos',venc,venc?'renove o quanto antes':'nenhum vencido')}${kpi(breve?'laranja':'verde','Vencem em até 30 dias',breve,'programe a renovação')}${kpi('','Documentos cadastrados',todos.length,'da empresa e das obras')}</div>
       <div class="fin-card"><div class="fin-card-cab"><div class="fin-filtros"><select class="filter-select" data-dc="obra"><option value="">Empresa e todas as obras</option><option value="__empresa" ${DC.obra==='__empresa'?'selected':''}>Só os da empresa</option>${obrasNomes().map(o=>`<option ${DC.obra===o?'selected':''}>${fe(o)}</option>`).join('')}</select>
-        <select class="filter-select" data-dc="sit"><option value="">Todas as situações</option><option value="venc" ${DC.sit==='venc'?'selected':''}>Vencidos</option><option value="breve" ${DC.sit==='breve'?'selected':''}>Vencem em até 30 dias</option><option value="ok" ${DC.sit==='ok'?'selected':''}>Válidos</option></select></div></div>
+        <select class="filter-select" data-dc="sit"><option value="">Todas as situações</option><option value="venc" ${DC.sit==='venc'?'selected':''}>Vencidos</option><option value="breve" ${DC.sit==='breve'?'selected':''}>Vencem em até 30 dias</option><option value="ok" ${DC.sit==='ok'?'selected':''}>Válidos</option><option value="adt" ${DC.sit==='adt'?'selected':''}>Aditivos de contrato</option></select></div></div>
       ${lista.length?`<div class="fin-rolar"><table class="fin-tab"><thead><tr><th>Situação</th><th>Documento</th><th class="fin-esconder-cel">Obra</th><th>Validade</th><th></th></tr></thead><tbody>
-        ${lista.map((x,i)=>`<tr><td><span class="eng-pill ${x.s.tom}">${x.s.rot}</span></td><td><b>${fe(x.d.tipo)}</b><small>${fe([x.d.descricao,x.d.numero?'nº '+x.d.numero:'',x.d.orgao].filter(Boolean).join(' · '))}</small></td><td class="fin-esconder-cel">${fe(x.d.titulo_obra||'Empresa')}</td><td style="white-space:nowrap">${x.d.data_validade?brDe(dt(x.d.data_validade)):'—'}<small>${x.d.data_emissao?'emitido '+brDe(dt(x.d.data_emissao)):''}</small></td><td><div class="eng-acoes">${x.d.link?`<a class="fin-bt mini" href="${fe(x.d.link)}" target="_blank" rel="noopener">Abrir</a>`:''}<button type="button" class="fin-bt mini" data-dc="renovar" data-i="${i}" title="Cadastrar a nova via deste documento">Renovar</button><button type="button" class="fin-bt mini" data-dc="editar" data-i="${i}">Editar</button><button type="button" class="fin-bt mini" data-dc="excluir" data-i="${i}">Excluir</button></div></td></tr>`).join('')}
+        ${lista.map((x,i)=>`<tr><td><span class="eng-pill ${x.s.tom}">${x.s.rot}</span></td><td><b>${fe(x.d.tipo)}${x.s.adt&&x.d.numero?' — '+fe(x.d.numero):''}</b><small>${fe(x.s.adt?[x.d.aditivo_valor?'valor '+fmt(val(x.d.aditivo_valor)):'',x.d.novo_termino?'novo término '+brDe(dt(x.d.novo_termino)):'',x.d.descricao].filter(Boolean).join(' · '):[x.d.descricao,x.d.numero?'nº '+x.d.numero:'',x.d.orgao].filter(Boolean).join(' · '))}</small></td><td class="fin-esconder-cel">${fe(x.d.titulo_obra||'Empresa')}</td><td style="white-space:nowrap">${x.d.data_validade?brDe(dt(x.d.data_validade)):'—'}<small>${x.d.data_emissao?(x.s.adt?'assinado ':'emitido ')+brDe(dt(x.d.data_emissao)):''}</small></td><td><div class="eng-acoes">${x.d.link?`<a class="fin-bt mini" href="${fe(x.d.link)}" target="_blank" rel="noopener">Abrir</a>`:''}${x.s.adt?'':`<button type="button" class="fin-bt mini" data-dc="renovar" data-i="${i}" title="Cadastrar a nova via deste documento">Renovar</button>`}<button type="button" class="fin-bt mini" data-dc="editar" data-i="${i}">Editar</button><button type="button" class="fin-bt mini" data-dc="excluir" data-i="${i}">Excluir</button></div></td></tr>`).join('')}
       </tbody></table></div>`:`<div class="fin-vazio">${todos.length?'Nenhum documento neste filtro.':'Nenhum documento cadastrado ainda. Comece pelas certidões negativas (Federal, Estadual, Municipal, FGTS e Trabalhista).'}</div>`}</div>
     </div>`;
     box.onchange=ev=>{const s=ev.target.closest('[data-dc]');if(!s||s.tagName!=='SELECT')return;DC[s.dataset.dc]=s.value;renderDocumentos();};
     box.onclick=ev=>{const b=ev.target.closest('button[data-dc]');if(!b)return;const d=App._docLista[+b.dataset.i];
       if(b.dataset.dc==='novo')formulario(CFG_DOC,null);
+      else if(b.dataset.dc==='editar'&&d&&d.tipo==='Aditivo contratual')Eng.editarAditivo(d);
       else if(b.dataset.dc==='editar'&&d)formulario(CFG_DOC,d);
       else if(b.dataset.dc==='excluir'&&d)apagar(CFG_DOC,d,d.tipo+(d.descricao?' — '+d.descricao:''));
       // renovar = cadastrar a nova via com os mesmos dados, datas em branco (a antiga fica como histórico)
@@ -11210,17 +11230,19 @@ const Eng=(function(){
       ${cab('Diário de obra','O registro de cada dia de obra: tempo, condição de trabalho, equipe, equipamentos, serviços e ocorrências. É a prova que sustenta pedido de aditivo de prazo (dias de chuva e impraticáveis) e a defesa em qualquer questionamento da fiscalização.',`<button type="button" class="fin-bt" data-rd="pdf">Exportar PDF</button><button type="button" class="fin-bt pri" data-rd="novo">+ Registrar dia</button>`)}
       <div class="fin-filtros"><select class="filter-select" data-rd="obra"><option value="">Todas as obras</option>${obrasNomes().map(o=>`<option ${RD.obra===o?'selected':''}>${fe(o)}</option>`).join('')}</select>
         <select class="filter-select" data-rd="mes"><option value="__todos" ${RD.mes==='__todos'?'selected':''}>Todos os meses</option>${meses.map(m=>`<option value="${m}" ${RD.mes===m?'selected':''}>${nomeMes(m)}</option>`).join('')}</select></div>
-      <div class="fin-kpis">${kpi('','Dias registrados',lista.length,RD.obra?'nesta obra':'somando as obras')}${kpi(imp?'vermelho':'verde','Dias impraticáveis',imp,'base para aditivo de prazo')}${kpi(chuva?'laranja':'verde','Dias com chuva',chuva,'manhã ou tarde')}${kpi('','Efetivo médio',efMed?n2(efMed).replace(',00',''):'—','pessoas por dia registrado')}</div>
+      <div class="fin-kpis">${kpi('','Dias registrados',lista.length,RD.obra?'nesta obra':'somando as obras')}${kpi(imp?'vermelho':'verde','Dias impraticáveis',imp,'base para aditivo de prazo')}${kpi(chuva?'laranja':'verde','Dias com chuva',chuva,'manhã ou tarde')}${kpi('','Efetivo médio',efMed?n2(efMed).replace(',00',''):'—','pessoas por dia registrado')}${kpi('','Fotos dos dias',lista.reduce((s,r)=>s+Eng.fotosDoDia(r.titulo_obra,r.data).length,0),'ligadas pela obra e pela data')}</div>
       <div class="fin-card">${lista.length?lista.map((r,i)=>{const d=dt(r.data);return `<div class="eng-dia">
         <div class="eng-dia-data"><b>${d?String(d.getDate()).padStart(2,'0'):'—'}</b><span>${d?DIAS_SEM[d.getDay()].slice(0,3)+' · '+brDe(d).slice(3,5)+'/'+String(d.getFullYear()).slice(2):''}</span></div>
         <div class="eng-dia-txt"><div class="linha">${RD.obra?'':`<b>${fe(r.titulo_obra)}</b>`}<span class="eng-pill ${tomCond(r.condicao)}">${fe(r.condicao||'—')}</span><span class="eng-pill ${choveu(r)?'azul':''}">manhã: ${fe(r.clima_manha||'—')} · tarde: ${fe(r.clima_tarde||'—')}</span>${r.efetivo_total?`<span class="eng-pill">${fe(r.efetivo_total)} pessoas</span>`:''}</div>
-          <p>${fe(r.atividades||'')}</p>${r.ocorrencias?`<small><b>Ocorrências:</b> ${fe(r.ocorrencias)}</small>`:''}${r.visitas?`<small><b>Visitas:</b> ${fe(r.visitas)}</small>`:''}<small>${fe(r.responsavel?'Registrado por '+r.responsavel:'')}</small></div>
-        <div class="eng-acoes"><button type="button" class="fin-bt mini" data-rd="pdfdia" data-i="${i}">PDF</button><button type="button" class="fin-bt mini" data-rd="editar" data-i="${i}">Editar</button><button type="button" class="fin-bt mini" data-rd="excluir" data-i="${i}">Excluir</button></div></div>`;}).join('')
+          <p>${fe(r.atividades||'')}</p>${r.ocorrencias?`<small><b>Ocorrências:</b> ${fe(r.ocorrencias)}</small>`:''}${r.visitas?`<small><b>Visitas:</b> ${fe(r.visitas)}</small>`:''}<small>${fe(r.responsavel?'Registrado por '+r.responsavel:'')}</small>${Eng.fotosHtml(r.titulo_obra,r.data,i)}</div>
+        <div class="eng-acoes">${Eng.podeFotos()?`<button type="button" class="fin-bt mini" data-rd="fotos" data-i="${i}" title="Incluir fotos deste dia (vão também para a galeria da obra)">+ Fotos</button>`:''}<button type="button" class="fin-bt mini" data-rd="pdfdia" data-i="${i}">PDF</button><button type="button" class="fin-bt mini" data-rd="editar" data-i="${i}">Editar</button><button type="button" class="fin-bt mini" data-rd="excluir" data-i="${i}">Excluir</button></div></div>`;}).join('')
         :`<div class="fin-vazio">${todos.length?'Nenhum registro neste filtro.':'Nenhum dia registrado ainda. O ideal é registrar no fim de cada dia de obra.'}</div>`}</div>
     </div>`;
     box.onchange=ev=>{const s=ev.target.closest('select[data-rd]');if(!s)return;RD[s.dataset.rd]=s.value;renderDiario();};
     box.onclick=ev=>{const b=ev.target.closest('button[data-rd]');if(!b)return;const r=App._rdoLista[+b.dataset.i];
-      if(b.dataset.rd==='novo'){formulario(CFG_RDO,null);if(RD.obra)setTimeout(()=>{const el=document.querySelector('#fin-jan [data-f="titulo_obra"]');if(el)el.value=RD.obra;},40);}
+      if(b.dataset.rd==='foto'&&r)Eng.verFoto(Eng.fotosDoDia(r.titulo_obra,r.data),+b.dataset.f);
+      else if(b.dataset.rd==='fotos'&&r)Eng.enviarFotos(r.titulo_obra,r.data);
+      else if(b.dataset.rd==='novo'){formulario(CFG_RDO,null);if(RD.obra)setTimeout(()=>{const el=document.querySelector('#fin-jan [data-f="titulo_obra"]');if(el)el.value=RD.obra;},40);}
       else if(b.dataset.rd==='editar'&&r)formulario(CFG_RDO,r);
       else if(b.dataset.rd==='excluir'&&r)apagar(CFG_RDO,r,`${r.titulo_obra} — ${brDe(dt(r.data))}`);
       else if(b.dataset.rd==='pdfdia'&&r)pdfDiario([r],`${r.titulo_obra} · ${brDe(dt(r.data))}`);
@@ -11238,12 +11260,13 @@ const Eng=(function(){
       <div style="font-size:10.5px;margin-bottom:4px"><b>Serviços executados:</b><br>${bl(r.atividades)}</div>
       ${r.ocorrencias?`<div style="font-size:10.5px;margin-bottom:4px"><b>Ocorrências:</b><br>${bl(r.ocorrencias)}</div>`:''}
       ${r.visitas?`<div style="font-size:10.5px;margin-bottom:4px"><b>Visitas e fiscalização:</b><br>${bl(r.visitas)}</div>`:''}
+      ${Eng.fotosPdf(r.titulo_obra,r.data)}
       <div style="display:flex;gap:30px;margin-top:22px;font-size:9.5px;color:#6e6e73"><div style="flex:1;border-top:1px solid #1d1d1f;padding-top:3px">Responsável pela obra${r.responsavel?' — '+bl(r.responsavel):''}</div><div style="flex:1;border-top:1px solid #1d1d1f;padding-top:3px">Fiscalização</div></div></div>`;});
     App._relExportPaginado({titulo:'Diário de Obra (RDO)',subLinhas:[sub,`${regs.length} dia${regs.length!==1?'s':''} registrado${regs.length!==1?'s':''}`],blocosArr:blocos});
   }
 
   return {D,U,nomeObra,statusObra,obrasNomes,n2,numBR,cab,kpi,formulario,apagar,campoHtml,
-    renderFornecedores,renderDocumentos,renderDiario,datalistFornecedores,situacaoDoc,compradoPorFornecedor,choveu,DIAS_SEM};
+    renderFornecedores,renderDocumentos,renderDiario,datalistFornecedores,situacaoDoc,compradoPorFornecedor,choveu,DIAS_SEM,_RD:RD,_DC:DC};
 })();
 </script>
 <script>
@@ -11304,11 +11327,15 @@ const Eng=(function(){
   const valorMed=m=>{const v=val(m.valor_total);return v||(m.itens||[]).reduce((s,it)=>s+r2((+it.qtd||0)*(+it.p_unit||0)),0);};
   function resumoMedicoes(ob){
     const orc=baseDaObra(ob),ms=medsDaObra(ob);
-    const contrato=orc?(val(orc.total_obra)||itensBase(orc).reduce((s,x)=>s+r2(x.qtd_contrato*x.p_unit),0)):0;
+    const base=orc?(val(orc.total_obra)||itensBase(orc).reduce((s,x)=>s+r2(x.qtd_contrato*x.p_unit),0)):0;
+    // contrato vigente = orçamento + aditivos de valor (acréscimo ou supressão)
+    const adts=aditivosDaObra(ob),adtValor=adts.reduce((s,a)=>s+val(a.aditivo_valor),0);
+    const contrato=orc?base+adtValor:0;
     const medido=ms.reduce((s,m)=>s+valorMed(m),0);
     const soma=st=>ms.filter(m=>m.status===st).reduce((s,m)=>s+valorMed(m),0);
-    return {orc,ms,contrato,medido,pct:contrato?medido/contrato*100:0,saldo:contrato-medido,faturado:soma('Faturada'),aprovado:soma('Aprovada'),ult:ms[ms.length-1]||null};
+    return {orc,ms,base,adts,adtValor,contrato,medido,pct:contrato?medido/contrato*100:0,saldo:contrato-medido,faturado:soma('Faturada'),aprovado:soma('Aprovada'),ult:ms[ms.length-1]||null};
   }
+  const aditivosDaObra=ob=>(D().documentos||[]).filter(d=>d.tipo==='Aditivo contratual'&&d.titulo_obra===ob).sort((a,b)=>String(a.data_emissao||'').localeCompare(String(b.data_emissao||'')));
   const barra=p=>`<div class="eng-barra" title="${pct(p)}"><i class="${p>100.05?'estouro':p>=99.95?'cheia':''}" style="width:${Math.min(100,Math.max(0,p))}%"></i></div>`;
 
   /* ═══════════════ tela de Medições ═══════════════ */
@@ -11342,13 +11369,14 @@ const Eng=(function(){
           :'<div class="fin-aviso laranja"><div>Ainda não existe nenhum orçamento no sistema. Cadastre o orçamento da obra em <b>Obras › abrir a obra › Orçamentos</b> e volte aqui.</div></div>'}</div>`;
       } else {
         const outros=orcsDaObra(ob).filter(o=>String(o.rowid)!==String(r.orc.rowid));
-        corpo=`<div class="fin-kpis">${kpi('','Valor do contrato',fmt(r.contrato),`orçamento “${fe(tituloOrc(r.orc))}” · ${itensBase(r.orc).length} itens`)}${kpi('verde','Medido acumulado',fmt(r.medido),pct(r.pct)+' do contrato')}${kpi(r.saldo<0?'vermelho':'laranja','Saldo a medir',fmt(r.saldo),r.saldo<0?'passou do contrato — precisa de aditivo':'falta executar')}${kpi(r.aprovado?'vermelho':'verde','Aprovado e não faturado',fmt(r.aprovado),`faturado: ${fmt(r.faturado)}`)}</div>
+        corpo=`<div class="fin-kpis">${kpi('',r.adts.length?'Contrato vigente':'Valor do contrato',fmt(r.contrato),r.adts.length?`orçamento ${fmt(r.base)} ${r.adtValor<0?'−':'+'} aditivos ${fmt(Math.abs(r.adtValor))}`:`orçamento “${fe(tituloOrc(r.orc))}” · ${itensBase(r.orc).length} itens`)}${kpi('verde','Medido acumulado',fmt(r.medido),pct(r.pct)+' do contrato')}${kpi(r.saldo<0?'vermelho':'laranja','Saldo a medir',fmt(r.saldo),r.saldo<0?'passou do contrato — precisa de aditivo':'falta executar')}${kpi(r.aprovado?'vermelho':'verde','Aprovado e não faturado',fmt(r.aprovado),`faturado: ${fmt(r.faturado)}`)}</div>
           <div class="fin-card"><div class="fin-card-cab"><div><h3>Boletins de medição</h3><p class="fin-sub" style="margin-bottom:0">${r.pct?barra(r.pct).replace('eng-barra','eng-barra" style="max-width:360px;margin-top:6px'):''}</p></div>
             ${!r.ms.length&&outros.length?`<button type="button" class="fin-bt" data-me="trocarorc" title="Escolher outra revisão do orçamento como contrato">Trocar orçamento-base</button>`:''}</div>
           ${r.ms.length?`<div class="fin-rolar"><table class="fin-tab"><thead><tr><th>Nº</th><th>Período</th><th class="fin-esconder-cel">Data</th><th>Situação</th><th class="num">Valor</th><th class="num fin-esconder-cel">Acumulado</th><th class="fin-esconder-cel">% do contrato</th><th></th></tr></thead><tbody>
             ${(()=>{let ac=0;return r.ms.map((m,i)=>{ac+=valorMed(m);const p=r.contrato?ac/r.contrato*100:0;return `<tr><td><b>${fe(m.numero)}</b></td><td>${m.periodo_ini?brDe(dt(m.periodo_ini)):'—'} a ${m.periodo_fim?brDe(dt(m.periodo_fim)):'—'}</td><td class="fin-esconder-cel">${brDe(dt(m.data_medicao))}</td><td><span class="eng-pill ${tomMed(m.status)}">${fe(m.status||'—')}</span></td><td class="num"><b>${fmt(valorMed(m))}</b></td><td class="num fin-esconder-cel">${fmt(ac)}</td><td class="fin-esconder-cel" style="min-width:120px"><div style="display:flex;gap:8px;align-items:center">${barra(p)}<small style="margin:0">${pct(p)}</small></div></td>
               <td><div class="eng-acoes"><button type="button" class="fin-bt mini" data-me="abrir" data-i="${i}">Abrir</button><button type="button" class="fin-bt mini" data-me="pdf" data-i="${i}">PDF</button>${m.status==='Aprovada'?`<button type="button" class="fin-bt mini verde" data-me="faturar" data-i="${i}" title="Lançar o faturamento previsto desta medição">Faturar</button>`:''}<button type="button" class="fin-bt mini" data-me="excluir" data-i="${i}">Excluir</button></div></td></tr>`;}).join('');})()}
-          </tbody></table></div>`:'<div class="fin-vazio">Nenhuma medição ainda. Clique em “+ Nova medição” para lançar a 1ª.</div>'}</div>`;
+          </tbody></table></div>`:'<div class="fin-vazio">Nenhuma medição ainda. Clique em “+ Nova medição” para lançar a 1ª.</div>'}</div>`
+          +Eng.aditivosCard(ob);
       }
       box.innerHTML=`<div class="fin-wrap">${cab('Medições — '+fe(ob),texto,selObra+(r.orc?'<button type="button" class="fin-bt pri" data-me="novo">+ Nova medição</button>':''))}${corpo}</div>`;
       App._medLista=r.ms;
@@ -11360,6 +11388,8 @@ const Eng=(function(){
       if(a==='ir'){const x=App._medPainel[+b.dataset.i];if(x){ME.obra=x.ob;renderMedicoes();document.querySelector('#view-medicoes .cards-scroll')?.scrollTo(0,0);}}
       else if(a==='usarorc'){const v=box.querySelector('[data-me="orcsel"]').value;ME.base[ME.obra]=v;renderMedicoes();}
       else if(a==='trocarorc')trocarBase(ME.obra);
+      else if(a==='adt-novo')Eng.editarAditivo(null,ME.obra);
+      else if(a==='adt-editar'||a==='adt-excluir'){const ad=aditivosDaObra(ME.obra)[+b.dataset.a];if(ad)(a==='adt-editar'?Eng.editarAditivo(ad):Eng.excluirAditivo(ad));}
       else if(a==='novo')abrirEditor(ME.obra,null);
       else if(a==='abrir'&&m)abrirEditor(ME.obra,m);
       else if(a==='pdf'&&m)pdfBoletim(m);
@@ -11546,7 +11576,9 @@ const Eng=(function(){
     const info=(l,v)=>`<div style="flex:1;min-width:120px"><div style="font-size:8px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:#8a8a8e">${l}</div><div style="font-size:11px;font-weight:700;margin-top:2px">${v}</div></div>`;
     const pre=`<div style="display:flex;gap:12px;flex-wrap:wrap;border:1px solid #e5e5ea;border-radius:8px;padding:10px 12px;margin-bottom:10px">${info('Obra',fe(ob))}${info('Contrato nº',fe(getFuzzy(obra,['numero_contrato','num_contrato','n_contrato'])||'—'))}${info('Medição nº',fe(m.numero))}${info('Período',`${m.periodo_ini?brDe(dt(m.periodo_ini)):'—'} a ${m.periodo_fim?brDe(dt(m.periodo_fim)):'—'}`)}${info('Data da medição',brDe(dt(m.data_medicao)))}${info('Situação',fe(m.status||'—'))}</div>`;
     const lin=(l,v,d)=>`<div style="display:flex;justify-content:space-between;padding:4px 0;${d?'border-top:2px solid #1d1d1f;margin-top:4px;padding-top:7px;font-weight:800;font-size:13px':'border-bottom:1px solid #e5e5ea;font-size:11.5px'}"><span>${l}</span><b${d?' style="color:#0071E3"':''}>${v}</b></div>`;
-    const pos=`<div style="display:flex;gap:24px;margin-top:12px;align-items:flex-start"><div style="flex:1;border:1px solid #e5e5ea;border-radius:8px;padding:10px 14px">${lin('Valor do contrato',fmt(tC))}${lin('Acumulado anterior',fmt(tA-tN))}${lin('Acumulado até esta medição',fmt(tA)+' ('+pct(tC?tA/tC*100:0)+')')}${lin('Saldo do contrato',fmt(tC-tA))}${lin('Valor desta medição',fmt(tN),true)}</div>
+    // aditivos de valor assinados até a data desta medição entram no contrato vigente
+    const adV=aditivosDaObra(ob).filter(a=>!a.data_emissao||!m.data_medicao||String(a.data_emissao)<=String(m.data_medicao)).reduce((s,a)=>s+val(a.aditivo_valor),0),tV=tC+adV;
+    const pos=`<div style="display:flex;gap:24px;margin-top:12px;align-items:flex-start"><div style="flex:1;border:1px solid #e5e5ea;border-radius:8px;padding:10px 14px">${lin('Valor do contrato (orçamento)',fmt(tC))}${adV?lin('Aditivos de valor',fmt(adV))+lin('Contrato vigente',fmt(tV)):''}${lin('Acumulado anterior',fmt(tA-tN))}${lin('Acumulado até esta medição',fmt(tA)+' ('+pct(tV?tA/tV*100:0)+')')}${lin('Saldo do contrato',fmt(tV-tA))}${lin('Valor desta medição',fmt(tN),true)}</div>
       <div style="flex:1;font-size:10px;color:#6e6e73">${m.observacao?`<b>Observação:</b> ${fe(m.observacao)}`:''}<div style="display:flex;gap:24px;margin-top:46px"><div style="flex:1;border-top:1px solid #1d1d1f;padding-top:4px;text-align:center">Vixsul Empreendimentos<br>Responsável técnico</div><div style="flex:1;border-top:1px solid #1d1d1f;padding-top:4px;text-align:center">Fiscalização do contratante</div></div></div></div>`;
     App._relExportPaginado({titulo:'Boletim de Medição',subLinhas:[`${fe(ob)} · Medição nº ${fe(m.numero)}`],paisagem:true,preHtml:pre,
       theadHtml:'<tr><th style="width:4%">Item</th><th style="width:8%">Código</th><th style="width:30%">Descrição</th><th style="width:4%">Un.</th><th style="width:7%;text-align:right">Contrato</th><th style="width:7%;text-align:right">Acum. ant.</th><th style="width:7%;text-align:right">Nesta med.</th><th style="width:7%;text-align:right">Acum. atual</th><th style="width:5%;text-align:right">%</th><th style="width:9%;text-align:right">P. unit.</th><th style="width:12%;text-align:right">Valor nesta med.</th></tr>',
@@ -11568,7 +11600,10 @@ const Eng=(function(){
   }
   const custoReal=ob=>(D().custos||[]).filter(c=>(getFuzzy(c,['titulo_obra'])||'')===ob&&cn(getFuzzy(c,['tipo_de_custo','tipo_custo_pr']))==='real').reduce((s,c)=>s+Math.abs(val(getFuzzy(c,['p_total','ptotal']))),0);
   function fatReal(ob){let b=0,l=0;(D().faturamentos||[]).forEach(f=>{if((getFuzzy(f,['titulo_obra'])||'')!==ob)return;if(cn(getFuzzy(f,['tipo_faturamento','tipo_fat','tipo']))!=='real')return;b+=val(getFuzzy(f,['faturamento_bruto','bruto']));l+=val(getFuzzy(f,['faturamento_liquido','resultado_liquido','liquido']));});return {b,l};}
-  const datasObra=o=>{const ini=dt(getFuzzy(o,['inicio_obra','data_inicio']));let fim=dt(getFuzzy(o,['termino_previsto','data_termino_previsto','previsao']));const pz=Number(String(getFuzzy(o,['prazo_contratual'])||'').replace(/\D/g,''))||0;if(!fim&&ini&&pz)fim=addD(ini,pz);return {ini,fim,pz,fimReal:dt(getFuzzy(o,['termino_ocorrido','data_termino_ocorrido']))};};
+  // término VIGENTE: o da obra (ou início + prazo contratual), prorrogado pelo aditivo de prazo mais longo
+  const datasObra=o=>{const ini=dt(getFuzzy(o,['inicio_obra','data_inicio']));let fim=dt(getFuzzy(o,['termino_previsto','data_termino_previsto','previsao']));const pz=Number(String(getFuzzy(o,['prazo_contratual'])||'').replace(/\D/g,''))||0;if(!fim&&ini&&pz)fim=addD(ini,pz);
+    const fimOriginal=fim;aditivosDaObra(nomeObra(o)).forEach(a=>{const n=dt(a.novo_termino);if(n&&(!fim||n>fim))fim=n;});
+    return {ini,fim,fimOriginal,prorrogado:!!(fim&&fimOriginal&&fim>fimOriginal),pz,fimReal:dt(getFuzzy(o,['termino_ocorrido','data_termino_ocorrido']))};};
 
   /* ═══════════════ RELATÓRIOS DE ENGENHARIA ═══════════════
      Cada um devolve {kpis, cols, linhas, total, nota, vazio}; o mesmo resultado desenha a
@@ -11670,7 +11705,7 @@ const Eng=(function(){
         else if(fi.tem&&pDec!=null&&pDec-fi.real>10){sit='Atrasada';tom='laranja';}
         else if(dO.fim){sit='No prazo';tom='verde';}
         let proj=null;if(dO.ini&&fi.tem&&fi.real>0)proj=addD(dO.ini,Math.round(Math.max(1,dec)/(fi.real/100)));
-        return [`<b>${fe(ob)}</b>`,brDe(dO.ini),brDe(dO.fim),dO.pz?dO.pz+' dias':'—',dec!=null?dec+' dias'+(pDec!=null?`<br><small style="color:#6e6e73">${pct(pDec,0)} do prazo</small>`:''):'—',fi.tem?pct(fi.real,0):'—',cor(sit,tom),proj?cor(brDe(proj),dO.fim&&proj>addD(dO.fim,3)?'vermelho':'verde'):'—'];
+        return [`<b>${fe(ob)}</b>`,brDe(dO.ini),brDe(dO.fim)+(dO.prorrogado?`<br><small style="color:#6e6e73">prorrogado (era ${brDe(dO.fimOriginal)})</small>`:''),dO.pz?dO.pz+' dias':'—',dec!=null?dec+' dias'+(pDec!=null?`<br><small style="color:#6e6e73">${pct(pDec,0)} do prazo</small>`:''):'—',fi.tem?pct(fi.real,0):'—',cor(sit,tom),proj?cor(brDe(proj),dO.fim&&proj>addD(dO.fim,3)?'vermelho':'verde'):'—'];
       });
       return {kpis:null,cols:[C('Obra'),C('Início',1),C('Término previsto',1),C('Prazo contratual',1),C('Decorrido',1),C('Físico real',1),C('Situação'),C('Término projetado',1)],linhas,total:null,
         nota:'Término projetado = mantendo o ritmo de execução até hoje (avanço físico das etapas ÷ dias decorridos). "Atrasada" = avanço físico mais de 10 pontos abaixo do tempo de prazo já consumido.',vazio:'Nenhuma obra em andamento.'};
@@ -11700,14 +11735,14 @@ const Eng=(function(){
       const R=REL[tipo];if(!R)return ger.apply(this,arguments);
       const el=document.getElementById('rel-resumo');
       try{
-        const obraSel=document.getElementById('rel-obra')?.value||'';
+        const obraSel=R.semObra?'':(document.getElementById('rel-obra')?.value||'');
         const ano=R.anoMes?(document.getElementById('rel-ano')?.value||''):'',mes=R.anoMes?(document.getElementById('rel-mes')?.value||''):'';
         const mesN=['','Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
         document.getElementById('rel-titulo').textContent=R.titulo;
         document.getElementById('rel-sub').textContent=[obraSel||'Todas as obras'].concat(R.anoMes?[ano||'Todos os anos',mes?mesN[+mes]:'Todos os meses']:[]).join(' · ');
         const dre=document.getElementById('rel-dre-wrap');if(dre)dre.style.display='none';
         const vis=(id,m)=>{const e=document.getElementById(id);if(e)e.style.display=m?'':'none';};
-        vis('rel-obra',true);vis('rel-tipo-pr',false);vis('rel-ano',!!R.anoMes);vis('rel-mes',!!R.anoMes);
+        vis('rel-obra',!R.semObra);vis('rel-tipo-pr',false);vis('rel-ano',!!R.anoMes);vis('rel-mes',!!R.anoMes);
         const r=R.gerar(obraSel,ano,mes);
         if(el)el.innerHTML=relHtml(r);
         this._relatorioCache={tipo,obraSel,ano,mes,tipoPR:'',dados:r,eng:true};
@@ -11744,6 +11779,7 @@ const Eng=(function(){
     and.forEach(ob=>{
       const r=resumoMedicoes(ob);
       if(r.ult&&dt(r.ult.data_medicao)&&dias(dt(r.ult.data_medicao),h)>35)semMed.push(`${ob} · última em ${brDe(dt(r.ult.data_medicao))}`);
+      else if(!r.ult&&r.orc){const o=(D().obras||[]).find(x=>nomeObra(x)===ob),ini=o&&datasObra(o).ini;if(ini&&dias(ini,h)>35)semMed.push(`${ob} · nenhuma desde o início (${brDe(ini)})`);}
       if(r.contrato&&r.pct>=90)quase.push(`${ob} · ${pct(r.pct,0)} medido`);
       const rd=(D().diario_obra||[]).filter(x=>x.titulo_obra===ob).map(x=>dt(x.data)).filter(Boolean).sort((a,b)=>b-a)[0];
       if(rd&&dias(rd,h)>7)semRdo.push(`${ob} · último em ${brDe(rd)}`);
@@ -11774,7 +11810,401 @@ const Eng=(function(){
       if(v&&!(v==='medicoes'&&ME.edit))App._renderEng(v);
     }catch(e){console.error(e);}
   };
-  Object.assign(Eng,{renderMedicoes,alertas,resumoMedicoes,fisico,capOrcado,custoReal,fatReal,REL,_ME:ME});
+  Object.assign(Eng,{renderMedicoes,alertas,resumoMedicoes,fisico,capOrcado,custoReal,fatReal,REL,_ME:ME,aditivosDaObra,datasObra,valorMed,medsDaObra,emAndamento,barra,cor,pct});
+})();
+</script>
+<!-- ═══════════════════ ENGENHARIA (parte 3): fotos do diário, aditivos, painel da obra, saúde das obras ═══════════════════ -->
+<style>
+.eng-fotos{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;}
+.eng-fotos button{width:64px;height:64px;border-radius:9px;overflow:hidden;border:1px solid var(--border);padding:0;background:var(--bg);cursor:pointer;position:relative;flex:none;}
+.eng-fotos img{width:100%;height:100%;object-fit:cover;display:block;pointer-events:none;}
+.eng-fotos .mais{position:absolute;inset:0;background:rgba(0,0,0,.55);color:#fff;font-weight:800;font-size:14px;display:grid;place-items:center;}
+.eng-fotos-fila{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px;max-height:380px;overflow-y:auto;}
+.eng-foto-item img{width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:10px;border:1px solid var(--border);display:block;}
+.eng-foto-item input{width:100%;margin-top:5px;padding:6px 8px;border:1px solid var(--border);border-radius:8px;font:12px Inter,sans-serif;}
+.eng-sem{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;white-space:nowrap;color:var(--text-1);}
+.eng-sem i{width:10px;height:10px;border-radius:50%;background:#C7C7CC;flex:none;}
+.eng-sem.verde i{background:#34C759;} .eng-sem.amarelo i{background:#FF9500;} .eng-sem.vermelho i{background:#FF3B30;}
+.eng-sem small{font-weight:500;color:var(--text-3);font-size:11px;}
+.eng-saude-tab tbody tr{cursor:pointer;} .eng-saude-tab tbody tr:hover td{background:var(--bg);}
+.eng-legenda{display:flex;gap:14px;flex-wrap:wrap;font-size:11px;color:var(--text-3);margin-top:10px;}
+.op-wrap{display:flex;flex-direction:column;gap:14px;}
+.op-topo{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:center;}
+.op-sinais{display:flex;gap:8px;flex-wrap:wrap;}
+.op-sinal{display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:12px;background:var(--bg);font-size:12.5px;font-weight:700;color:var(--text-1);}
+.op-sinal i{width:12px;height:12px;border-radius:50%;background:#C7C7CC;flex:none;}
+.op-sinal.verde i{background:#34C759;} .op-sinal.amarelo i{background:#FF9500;} .op-sinal.vermelho i{background:#FF3B30;}
+.op-sinal small{font-weight:500;color:var(--text-2);}
+.op-grade{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px;}
+.op-card{background:var(--surface);border:1px solid rgba(0,0,0,.07);border-radius:16px;padding:14px 16px;}
+.op-card h4{font-size:13px;font-weight:800;color:var(--text-1);margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;gap:8px;}
+.op-linha{display:flex;justify-content:space-between;gap:12px;padding:6px 0;border-bottom:1px solid var(--bg);font-size:12.5px;}
+.op-linha:last-child{border-bottom:0;}
+.op-linha span{color:var(--text-2);} .op-linha b{color:var(--text-1);text-align:right;}
+.op-cat{display:grid;grid-template-columns:minmax(100px,1fr) 1.4fr auto;gap:10px;align-items:center;font-size:11.5px;padding:4px 0;color:var(--text-2);}
+.op-cat-b{display:flex;flex-direction:column;gap:3px;}
+.op-cat-b i{display:block;height:6px;border-radius:99px;background:#D1D1D6;}
+.op-cat-b i.real{background:var(--blue);} .op-cat-b i.real.acima{background:var(--red);}
+.op-acoes{display:flex;gap:6px;flex-wrap:wrap;}
+.op-dicas{font-size:12px;color:var(--text-2);line-height:1.6;margin:0;padding-left:18px;}
+.op-mini{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px;padding-top:9px;border-top:1px solid var(--bg);font-size:11px;color:var(--text-2);}
+.op-mini b{color:var(--text-1);}
+</style>
+<script>
+/* ═══════════════════════════ ENGENHARIA (parte 3) ═══════════════════════════
+   • Fotos do diário: são as MESMAS fotos da galeria da obra (tabela obra_imagens), ligadas ao
+     dia pela obra + data da foto. Foto enviada pelo diário cai na galeria; foto da galeria com
+     a data de um dia registrado aparece no diário. O envio reaproveita o da galeria
+     (UI.ImagensObra) — mesma pasta da obra, mesma regra (só o Administrador inclui).
+   • Aditivos de contrato: ficam na tabela de Documentos (tipo "Aditivo contratual"), com valor
+     (acréscimo/supressão) e/ou novo término. Entram no contrato vigente (Medições, relatórios)
+     e no término vigente da obra (alertas de prazo, relatórios).
+   • Painel da obra (aba "Resumo" da obra) e "Carteira e saúde das obras" (Dashboard): juntam
+     prazo, custo, medição, caixa e resultado projetado numa leitura só, com semáforo. */
+(function(){
+  const {D,U,nomeObra,statusObra,obrasNomes,numBR,cab,kpi,formulario}=Eng;
+  const {janela,confirmar,executar,salvar,excluir,fe,cn,dt,brDe,isoDe,hoje0,addD,dias,dinheiro,val}=U;
+  const IO=()=>UI.ImagensObra;
+  const ehAdmin=()=>!!UI._ehAdmin(Auth._session&&Auth._session.perfil);
+  const ehExt=()=>!!(Auth._session&&Auth._session.tipoUsuario==='externo');
+  const pode=v=>!UI._allowedViews||UI._allowedViews.includes(v);
+  const pct=(v,c)=>v==null||!isFinite(v)?'—':(Math.round(v*10)/10).toLocaleString('pt-BR',{maximumFractionDigits:c==null?1:c})+'%';
+  const idx2=v=>v==null||!isFinite(v)?'—':v.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+  // moeda digitada: "25.000,00", "25000,5", "-3.200" ou "25000.00" (gravado)
+  const moeda=s=>{let t=String(s==null?'':s).trim().replace(/[^\d,.\-]/g,'');if(!t)return 0;if(t.includes(','))t=t.replace(/\./g,'').replace(',','.');else if(/^-?\d{1,3}(\.\d{3})+$/.test(t))t=t.replace(/\./g,'');const n=parseFloat(t);return isNaN(n)?0:n;};
+  const n2=v=>(Math.round((+v||0)*100)/100).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+
+  /* ═══════════════ FOTOS DO DIÁRIO ═══════════════ */
+  const fotosDoDia=(ob,dataISO)=>(D().obra_imagens||[]).filter(i=>i.titulo_obra===ob&&dataISO&&String(i.data_foto||'')===String(dataISO));
+  const miniatura=(i,w)=>i.drive_file_id?`https://drive.google.com/thumbnail?id=${encodeURIComponent(i.drive_file_id)}&sz=w${w||400}`:(i.url_thumb||i.url_visualizacao||'');
+  function fotosHtml(ob,dataISO,i){
+    const fs=fotosDoDia(ob,dataISO);if(!fs.length)return '';
+    const max=6,vis=fs.slice(0,max);
+    return `<div class="eng-fotos">${vis.map((f,k)=>`<button type="button" data-rd="foto" data-i="${i}" data-f="${k}" title="${fe(f.descricao||'Foto')}"><img src="${fe(miniatura(f,200))}" data-driveid="${fe(f.drive_file_id||'')}" referrerpolicy="no-referrer" loading="lazy" alt="" onerror="UI.ImagensObra._imgErro(this)">${k===max-1&&fs.length>max?`<span class="mais">+${fs.length-max+1}</span>`:''}</button>`).join('')}</div>`;
+  }
+  function fotosPdf(ob,dataISO){
+    const fs=fotosDoDia(ob,dataISO).slice(0,6);if(!fs.length)return '';
+    return `<div style="margin:6px 0 4px"><div style="font-size:10.5px;font-weight:700;margin-bottom:4px">Fotos do dia</div><div style="display:flex;gap:6px;flex-wrap:wrap">${fs.map(f=>`<div style="width:58mm"><img src="${fe(miniatura(f,800))}" referrerpolicy="no-referrer" style="width:58mm;height:40mm;object-fit:cover;border-radius:4px;border:1px solid #e5e5ea;display:block"><div style="font-size:8.5px;color:#6e6e73;margin-top:2px;height:11px;overflow:hidden">${fe(String(f.descricao||'').split(' • ').slice(2).join(' • '))}</div></div>`).join('')}</div></div>`;
+  }
+  function verFoto(lista,k){
+    if(!lista||!lista[k])return;
+    const io=IO();io._obraAtual=lista[k].titulo_obra;
+    io.abrirVisualizador(lista[k].rowid);               // abre o visualizador da galeria (setas e Esc)
+    io._visualizarLista=lista;io._visualizarIdx=k;io._renderVisualizador();   // navegando só pelas fotos deste dia
+  }
+  function enviarFotos(ob,dataISO){
+    if(!ehAdmin())return toast('Só o Administrador inclui fotos (mesma regra da galeria da obra).','error');
+    if(App.state._busy)return toast('Aguarde: o sistema ainda está salvando outra coisa.','error');
+    const inp=document.createElement('input');inp.type='file';inp.accept='image/*';inp.multiple=true;
+    inp.onchange=()=>{
+      const files=[...(inp.files||[])].filter(f=>/^image\//.test(f.type));
+      if(!files.length)return toast('Escolha arquivos de imagem.','error');
+      const fila=files.map(file=>({file,descricao:'',etapa:'durante',data:dataISO,previewUrl:URL.createObjectURL(file)}));
+      janela(`Fotos do dia ${brDe(dt(dataISO))}`,`<div class="fin-resumo"><b>${fe(ob)}</b><br>As fotos entram na galeria da obra com esta data e aparecem neste dia do diário.</div>
+        <div class="eng-fotos-fila">${fila.map((f,k)=>`<div class="eng-foto-item"><img src="${f.previewUrl}" alt=""><input data-desc="${k}" maxlength="50" placeholder="Descrição (opcional)"></div>`).join('')}</div>`,
+        [{html:'Cancelar'},{html:`Enviar ${fila.length} foto${fila.length>1?'s':''}`,cls:'pri',acao:async j=>{
+          fila.forEach((f,k)=>{const d=(j.querySelector(`[data-desc="${k}"]`).value||'').trim();f.descricao=d?'Diário de obra · '+d:'Diário de obra';});
+          const io=IO();io._obraAtual=ob;
+          io._autenticar(()=>subir(ob,fila));   // pede o acesso agora (ainda dentro do clique)
+        }}],620);
+    };
+    inp.click();
+  }
+  async function subir(ob,fila){
+    const io=IO();let ok=0,falhas=0,ultimo='';
+    App.state._busy=true;
+    try{
+      for(let k=0;k<fila.length;k++){
+        UI._showBusy(`Enviando foto ${k+1} de ${fila.length}…`);
+        try{io._obraAtual=ob;await io._enviarUmArquivo(fila[k]);ok++;}
+        catch(e){falhas++;ultimo=(e&&e.message)||String(e);console.error(e);}
+        finally{URL.revokeObjectURL(fila[k].previewUrl);}
+      }
+    }finally{App.state._busy=false;UI._hideBusy();}
+    await new Promise(r=>App.init(false,()=>r()));
+    toast(falhas?`${ok} foto(s) enviada(s); ${falhas} não foi(ram): ${ultimo}`:(ok>1?`${ok} fotos enviadas.`:'Foto enviada.'),falhas?'error':'success');
+  }
+
+  /* ═══════════════ ADITIVOS DE CONTRATO ═══════════════ */
+  const TIPO_ADT='Aditivo contratual';
+  const CFG_ADT={aba:'Documentos',nomeItem:'aditivo',campos:[
+    {k:'titulo_obra',label:'Obra',tipo:'obra',obrig:true,inteira:true},
+    {k:'numero',label:'Identificação',ph:'Ex.: 1º Termo Aditivo'},
+    {k:'data_emissao',label:'Data de assinatura',tipo:'data',obrig:true},
+    {k:'aditivo_valor',label:'Valor do aditivo (R$)',tipo:'num',ph:'Ex.: 25.000,00 (supressão: -25.000,00)'},
+    {k:'novo_termino',label:'Novo término da obra',tipo:'data'},
+    {k:'descricao',label:'Motivo / objeto',tipo:'area',obrig:true,inteira:true,linhas:2,ph:'Ex.: acréscimo de 300 m de rede na Rua B; chuvas acima da média em agosto'},
+    {k:'link',label:'Link do arquivo assinado',tipo:'url',inteira:true,ph:'https://…'}
+  ],validar:o=>{
+    o.tipo=TIPO_ADT;
+    const v=moeda(o.aditivo_valor);o.aditivo_valor=v?dinheiro(v):'';
+    if(!v&&!o.novo_termino)return 'Informe o valor do aditivo, o novo término, ou os dois.';
+    return '';
+  }};
+  function editarAditivo(a,ob){
+    if(a)formulario(CFG_ADT,{...a,aditivo_valor:a.aditivo_valor?n2(val(a.aditivo_valor)):''});
+    else{formulario(CFG_ADT,null);if(ob)setTimeout(()=>{const el=document.querySelector('#fin-jan [data-f="titulo_obra"]');if(el)el.value=ob;},40);}
+  }
+  function excluirAditivo(a){
+    confirmar('Excluir o aditivo?',`<b>${fe(a.numero||'Aditivo')}</b> de <b>${fe(a.titulo_obra)}</b> será excluído de vez — o contrato e o término da obra voltam a não contar com ele.`,'Sim, excluir',async()=>{await executar(()=>excluir('Documentos',a.rowid));toast('Aditivo excluído.','success');});
+  }
+  function aditivosCard(ob){
+    const ads=Eng.aditivosDaObra(ob),r=Eng.resumoMedicoes(ob),o=(D().obras||[]).find(x=>nomeObra(x)===ob),dO=o?Eng.datasObra(o):{};
+    const totV=ads.reduce((s,a)=>s+val(a.aditivo_valor),0),pctV=r.base?totV/r.base*100:0;
+    return `<div class="fin-card"><div class="fin-card-cab"><div><h3>Aditivos do contrato</h3><p class="fin-sub" style="margin-bottom:0">Acréscimo ou supressão de valor e prorrogação de prazo. Entram no contrato vigente e no término da obra em todo o sistema.${ads.length?` Total em valor: <b>${fmt(totV)}</b> (${pct(pctV)} do orçamento${Math.abs(pctV)>25?' — <b class="t-err">acima do limite legal de 25%</b>':''}).`:''}${dO.prorrogado?` Término vigente: <b>${brDe(dO.fim)}</b> (era ${brDe(dO.fimOriginal)}).`:''}</p></div>
+      <button type="button" class="fin-bt" data-me="adt-novo">+ Aditivo</button></div>
+      ${ads.length?`<div class="fin-rolar"><table class="fin-tab"><thead><tr><th>Aditivo</th><th>Assinado em</th><th class="num">Valor</th><th>Novo término</th><th class="fin-esconder-cel">Motivo</th><th></th></tr></thead><tbody>
+        ${ads.map((a,k)=>`<tr><td><b>${fe(a.numero||'Aditivo '+(k+1))}</b></td><td>${brDe(dt(a.data_emissao))}</td><td class="num">${a.aditivo_valor?fmt(val(a.aditivo_valor)):'—'}</td><td>${a.novo_termino?brDe(dt(a.novo_termino)):'—'}</td><td class="fin-esconder-cel" style="max-width:320px">${fe(a.descricao||'')}</td>
+          <td><div class="eng-acoes">${a.link?`<a class="fin-bt mini" href="${fe(a.link)}" target="_blank" rel="noopener">Abrir</a>`:''}<button type="button" class="fin-bt mini" data-me="adt-editar" data-a="${k}">Editar</button><button type="button" class="fin-bt mini" data-me="adt-excluir" data-a="${k}">Excluir</button></div></td></tr>`).join('')}
+      </tbody></table></div>`:'<div class="fin-vazio" style="padding:14px">Nenhum aditivo nesta obra.</div>'}</div>`;
+  }
+
+  /* ═══════════════ SAÚDE DA OBRA (um cálculo só para o painel da obra e o Dashboard) ═══════════════ */
+  function capInfo(ob){
+    const g={};(D().cap||[]).forEach(r=>{if((getFuzzy(r,['titulo_obra'])||'')!==ob)return;const l=getFuzzy(r,['data_lancamento'])||'';(g[l]=g[l]||[]).push(r);});
+    const l=Object.keys(g).sort((a,b)=>(dt(a)||0)-(dt(b)||0)).pop();const rows=l!=null?g[l]:[],r0=rows[0]||{};
+    const cats={};rows.forEach(r=>{const c=getFuzzy(r,['especificacao'])||r.tipo||'Outros';cats[c]=(cats[c]||0)+val(getFuzzy(r,['sub_total','subtotal']));});
+    return {tem:rows.length>0,custo:rows.reduce((s,r)=>s+val(getFuzzy(r,['sub_total','subtotal'])),0),bruto:val(r0.orcamento_bruto),liquido:val(r0.valor_orcamento_liquido),lucro:val(r0.valor_lucratividade_prevista),cats};
+  }
+  const CATS=()=>typeof TIPOS_CUSTO!=='undefined'?Object.keys(TIPOS_CUSTO):[];
+  const catCusto=c=>{const cs=CATS(),e=getFuzzy(c,['especificacao']),t=c.tipo!=null?c.tipo:(c.tipo_custo||'');return cs.includes(e)?e:cs.includes(t)?t:(t||e||'Outros');};
+  const ehReal=c=>cn(getFuzzy(c,['tipo_de_custo','tipo_custo_pr']))==='real';
+  function realPorCat(ob){const o={};(D().custos||[]).forEach(c=>{if(ob&&(getFuzzy(c,['titulo_obra'])||'')!==ob)return;if(!ehReal(c))return;const k=catCusto(c);o[k]=(o[k]||0)+Math.abs(val(getFuzzy(c,['p_total','ptotal'])));});return o;}
+  const tomIdx=v=>v==null?'cinza':v>=0.95?'verde':v>=0.85?'amarelo':'vermelho';
+  function saude(o){
+    const ob=nomeObra(o),h=hoje0();
+    const rm=Eng.resumoMedicoes(ob),fi=Eng.fisico(ob,h),cap=capInfo(ob),dO=Eng.datasObra(o),fr=Eng.fatReal(ob),ac=Eng.custoReal(ob);
+    const bac=cap.custo||fi.valor||0,pv=bac*fi.prev/100,ev=bac*fi.real/100;
+    const spi=fi.tem&&pv>0?ev/pv:null,cpi=fi.tem&&ac>0&&ev>0?ev/ac:null;
+    // aditivo de valor traz serviço junto: o custo dele é projetado na mesma proporção do contrato original
+    const fatorAdt=rm.base>0&&rm.contrato>0?rm.contrato/rm.base:1;
+    const eac=(cpi?bac/cpi:Math.max(bac,ac))*fatorAdt;
+    const receita=rm.contrato||cap.bruto||0;
+    // quanto do bruto fica depois de impostos e retenções: histórico da obra › CAP › padrão do sistema
+    const fatorLiq=fr.b>0&&fr.l>0?fr.l/fr.b:(cap.bruto>0&&cap.liquido>0?cap.liquido/cap.bruto:0.8863);
+    const recLiq=receita*fatorLiq,resProj=receita?recLiq-eac:null,margemProj=receita&&recLiq?resProj/recLiq*100:null;
+    const margemPrev=cap.liquido>0&&cap.lucro?cap.lucro/cap.liquido*100:null;
+    const dec=dO.ini?Math.max(0,dias(dO.ini,h)):null,durT=dO.ini&&dO.fim?Math.max(1,dias(dO.ini,dO.fim)):null;
+    const proj=dO.ini&&fi.tem&&fi.real>0?addD(dO.ini,Math.round(Math.max(1,dec)/(fi.real/100))):null;
+    const vencido=!!(dO.fim&&h>dO.fim&&Eng.emAndamento(o));
+    // caixa da obra: recebido − pago (negativo = dinheiro da empresa empatado na obra)
+    const ms=Fin.movimentos().filter(m=>m.origem===ob&&m.tipo!=='despesa');
+    const S=f=>ms.filter(f).reduce((s,m)=>s+m.valor,0);
+    const recebido=S(m=>m.tipo==='fat'&&m.pago),pago=S(m=>m.sent<0&&m.pago),aportes=S(m=>m.tipo==='aporte'),aReceber=S(m=>m.tipo==='fat'&&!m.pago),aPagar=S(m=>m.sent<0&&!m.pago);
+    // medição atrasada: última há mais de 35 dias — ou nenhuma, com a obra começada há mais de 35 dias
+    const semMed=rm.ult?!!(dt(rm.ult.data_medicao)&&dias(dt(rm.ult.data_medicao),h)>35):!!(rm.orc&&dO.ini&&dias(dO.ini,h)>35);
+    const sinal={
+      prazo:vencido?'vermelho':spi==null?'cinza':tomIdx(spi),
+      custo:tomIdx(cpi),
+      resultado:margemProj==null?'cinza':margemProj<0?'vermelho':(margemProj<5||(margemPrev!=null&&margemProj<margemPrev*0.7))?'amarelo':'verde',
+      medicao:!rm.orc?'cinza':(rm.aprovado>0||semMed)?'amarelo':'verde'
+    };
+    return {o,ob,rm,fi,cap,dO,fr,ac,bac,pv,ev,spi,cpi,eac,fatorAdt,receita,fatorLiq,recLiq,resProj,margemProj,margemPrev,dec,durT,proj,vencido,recebido,pago,aportes,aReceber,aPagar,caixa:recebido-pago,semMed,sinal};
+  }
+  const SIN_ROT={verde:'no rumo',amarelo:'atenção',vermelho:'crítico',cinza:'sem dados'};
+  const sem=(tom,txt)=>`<span class="eng-sem ${tom}"><i></i>${txt}</span>`;
+
+  /* ═══════════════ PAINEL DA OBRA (aba "Resumo") ═══════════════ */
+  function painelHtml(ob){
+    const o=(D().obras||[]).find(x=>nomeObra(x)===ob);if(!o)return '<div class="fin-vazio">Obra não encontrada.</div>';
+    const s=saude(o),h=hoje0(),rm=s.rm;
+    const linha=(l,v)=>`<div class="op-linha"><span>${l}</span><b>${v}</b></div>`;
+    const sinal=(k,rot,sub)=>`<div class="op-sinal ${s.sinal[k]}"><i></i>${rot}<small>${sub}</small></div>`;
+    // orçado × realizado por categoria
+    const real=realPorCat(ob),cats=[...new Set(Object.keys(s.cap.cats).concat(Object.keys(real)))].map(c=>({c,o:s.cap.cats[c]||0,r:real[c]||0})).filter(x=>x.o||x.r).sort((a,b)=>Math.max(b.o,b.r)-Math.max(a.o,a.r));
+    const maxC=cats.reduce((m,x)=>Math.max(m,x.o,x.r),0)||1;
+    const docs=(D().documentos||[]).filter(d=>!d.titulo_obra||d.titulo_obra===ob).map(d=>({d,st:Eng.situacaoDoc(d)})).filter(x=>x.st.ord<=1);
+    const rdos=(D().diario_obra||[]).filter(r=>r.titulo_obra===ob).sort((a,b)=>String(b.data).localeCompare(String(a.data)));
+    const imp=rdos.filter(r=>r.condicao==='Impraticável').length;
+    const fotos=(D().obra_imagens||[]).filter(i=>i.titulo_obra===ob).sort((a,b)=>String(b.data_foto||'').localeCompare(String(a.data_foto||''))).slice(0,8);
+    App._opFotos=fotos;
+    // o que fazer agora (decisões)
+    const dicas=[];
+    if(s.vencido)dicas.push(`Prazo vencido em ${brDe(s.dO.fim)} — registre o aditivo de prazo (Medições › Aditivos) ou atualize o término; sem isso há risco de multa.`);
+    else if(s.proj&&s.dO.fim&&s.proj>addD(s.dO.fim,7))dicas.push(`No ritmo atual a obra termina em ${brDe(s.proj)}, depois do término vigente (${brDe(s.dO.fim)}): reforce a equipe ou prepare o pedido de prazo${imp?` (o diário já tem ${imp} dia${imp>1?'s':''} impraticáve${imp>1?'is':'l'} registrado${imp>1?'s':''})`:''}.`);
+    if(s.cpi!=null&&s.cpi<0.95)dicas.push(`Cada R$ 1,00 gasto está rendendo R$ ${idx2(s.cpi)} de obra: o custo final estimado é ${fmt(s.eac)} contra ${fmt(s.bac*s.fatorAdt)} orçado${s.fatorAdt!==1?' (já com os aditivos)':''}. Veja abaixo as categorias que passaram do orçado.`);
+    if(rm.aprovado>0)dicas.push(`${fmt(rm.aprovado)} em medição aprovada e ainda sem nota — fature (Medições › Faturar).`);
+    if(s.semMed)dicas.push(rm.ult?`Sem medição há mais de 35 dias (última em ${brDe(dt(rm.ult.data_medicao))}) — serviço feito e não cobrado.`:`Nenhuma medição desde o início da obra (${brDe(s.dO.ini)}) — serviço feito e não cobrado.`);
+    if(s.caixa<0&&Math.abs(s.caixa)>0)dicas.push(`A obra consumiu ${fmt(-s.caixa)} a mais do que recebeu até hoje (capital da empresa empatado). ${s.aReceber?`Há ${fmt(s.aReceber)} a receber lançados.`:''}`);
+    if(rm.contrato&&rm.pct>=90)dicas.push(`${pct(rm.pct,0)} do contrato já medido — avalie aditivo de valor (se ainda há serviço) ou o encerramento.`);
+    if(docs.length)dicas.push(`${docs.length} documento${docs.length>1?'s':''} vencido${docs.length>1?'s':''} ou vencendo em 15 dias (da obra ou da empresa).`);
+    if(!s.fi.tem)dicas.push('Cadastre as etapas com peso e avanço (aba Avanço & Gantt): sem elas não dá para medir atraso nem custo × avanço.');
+    if(!s.cap.tem)dicas.push('Sem composição de custos (aba CAP): sem o custo orçado não dá para controlar o gasto da obra.');
+    if(!rm.orc&&Eng.emAndamento(o))dicas.push('Sem orçamento ligado — cadastre o orçamento (aba Orçamento) para medir e acompanhar o contrato.');
+    const pend=[];if(s.aReceber)pend.push(linha('A receber (faturamentos)',fmt(s.aReceber)));if(s.aPagar)pend.push(linha('A pagar (custos)',fmt(s.aPagar)));
+    docs.slice(0,4).forEach(x=>pend.push(linha(fe(x.d.tipo),`<span class="eng-pill ${x.st.tom}">${x.st.rot}</span>`)));
+    const ext=ehExt();
+    return `<div class="op-wrap">
+      <div class="op-topo"><div class="op-sinais">${sinal('prazo','Prazo',s.spi!=null?'SPI '+idx2(s.spi):s.vencido?'vencido':'sem cronograma')}${sinal('custo','Custo',s.cpi!=null?'CPI '+idx2(s.cpi):'sem dados')}${sinal('resultado','Resultado',s.margemProj!=null?'margem '+pct(s.margemProj):'sem contrato')}${sinal('medicao','Medição',!rm.orc?'sem orçamento':rm.aprovado?'a faturar':s.semMed?'atrasada':'em dia')}</div>
+        <div class="op-acoes">${pode('medicoes')?'<button type="button" class="fin-bt" data-op="medicoes">Medições</button>':''}${pode('diario')?'<button type="button" class="fin-bt" data-op="diario">Diário de obra</button>':''}</div></div>
+      <div class="fin-kpis">
+        ${kpi('',rm.adts&&rm.adts.length?'Contrato vigente':'Contrato',s.receita?fmt(s.receita):'—',rm.orc?(rm.adts.length?`com ${rm.adts.length} aditivo${rm.adts.length>1?'s':''}`:'orçamento da obra'):(s.cap.bruto?'orçamento bruto do CAP':'cadastre o orçamento'))}
+        ${kpi(rm.pct>=90?'laranja':'verde','Medido',fmt(rm.medido),rm.contrato?pct(rm.pct)+' · saldo '+fmt(rm.saldo):'sem medições')}
+        ${kpi('','Faturado (notas)',fmt(s.fr.b),'recebido '+fmt(s.recebido))}
+        ${kpi(s.cpi!=null&&s.cpi<0.95?'vermelho':'','Custo real',fmt(s.ac),s.bac?pct(s.ac/s.bac*100,0)+' do orçado ('+fmt(s.bac)+')':'sem custo orçado')}
+        ${kpi(s.resProj!=null&&s.resProj<0?'vermelho':s.sinal.resultado==='amarelo'?'laranja':'verde','Resultado projetado',s.resProj!=null?fmt(s.resProj):'—',s.margemProj!=null?'margem '+pct(s.margemProj)+(s.margemPrev!=null?' · prevista '+pct(s.margemPrev):''):'')}
+        ${kpi(s.caixa<0?'vermelho':'verde','Caixa da obra',fmt(s.caixa),'recebido − pago'+(s.aportes?' · aportes '+fmt(s.aportes):''))}
+      </div>
+      ${dicas.length?`<div class="op-card"><h4>O que pede decisão agora</h4><ul class="op-dicas">${dicas.map(d=>`<li>${fe(d)}</li>`).join('')}</ul></div>`:'<div class="at-ok" style="margin:0"><span>✓</span><div><b>Obra no rumo.</b> Prazo, custo, medição e caixa sem nada pedindo ação.</div></div>'}
+      <div class="op-grade">
+        <div class="op-card"><h4>Prazo e avanço</h4>
+          ${linha('Início',brDe(s.dO.ini))}${linha('Término vigente',brDe(s.dO.fim)+(s.dO.prorrogado?` <small style="color:var(--text-3)">(era ${brDe(s.dO.fimOriginal)})</small>`:''))}
+          ${linha('Prazo decorrido',s.dec!=null?s.dec+' dias'+(s.durT?' · '+pct(s.dec/s.durT*100,0):''):'—')}
+          ${linha('Avanço físico',s.fi.tem?`${pct(s.fi.real,0)} executado · ${pct(s.fi.prev,0)} previsto`:'cadastre as etapas')}
+          ${s.fi.tem?`<div style="margin:6px 0 2px">${Eng.barra(s.fi.real)}</div>`:''}
+          ${linha('Índice de prazo (SPI)',s.spi!=null?sem(tomIdx(s.spi),idx2(s.spi)):'—')}
+          ${linha('Término projetado',s.proj?`<span class="${s.dO.fim&&s.proj>addD(s.dO.fim,3)?'t-err':'t-ok'}">${brDe(s.proj)}</span>`:'—')}
+        </div>
+        <div class="op-card"><h4>Custo</h4>
+          ${linha('Custo orçado (CAP)',s.bac?fmt(s.bac):'—')}${linha('Custo real até hoje',fmt(s.ac))}
+          ${linha('Valor do que foi executado',s.fi.tem&&s.bac?fmt(s.ev):'—')}
+          ${linha('Índice de custo (CPI)',s.cpi!=null?sem(tomIdx(s.cpi),idx2(s.cpi)):'—')}
+          ${linha('Custo final estimado',s.bac?`<span class="${s.eac>s.bac*s.fatorAdt*1.005?'t-err':'t-ok'}">${fmt(s.eac)}</span>${s.fatorAdt!==1?' <small style="color:var(--text-3)">(com aditivos)</small>':''}`:'—')}
+          ${cats.length?`<div style="margin-top:8px;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text-3)">Orçado × realizado por categoria</div>${cats.slice(0,7).map(x=>`<div class="op-cat"><span title="${fe(x.c)}" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${fe(x.c)}</span><div class="op-cat-b"><i style="width:${x.o/maxC*100}%"></i><i class="real ${x.o&&x.r>x.o?'acima':''}" style="width:${x.r/maxC*100}%"></i></div><b style="color:${x.o&&x.r>x.o?'var(--red)':'var(--text-1)'}">${x.o?pct(x.r/x.o*100,0):'sem orç.'}</b></div>`).join('')}<div class="eng-legenda"><span>▬ cinza: orçado</span><span style="color:var(--blue)">▬ azul: realizado</span><span style="color:var(--red)">▬ vermelho: passou</span></div>`:''}
+        </div>
+        <div class="op-card"><h4>Medições e contrato ${pode('medicoes')&&!ext?'<button type="button" class="fin-bt mini" data-op="aditivo">+ Aditivo</button>':''}</h4>
+          ${linha('Contrato (orçamento)',rm.orc?fmt(rm.base):'—')}${rm.adts&&rm.adts.length?linha(`Aditivos (${rm.adts.length})`,fmt(rm.adtValor)):''}
+          ${linha('Medido acumulado',rm.contrato?`${fmt(rm.medido)} · ${pct(rm.pct)}`:fmt(rm.medido))}
+          ${linha('Faturado das medições',fmt(rm.faturado))}${linha('Aprovado e não faturado',rm.aprovado?`<span class="t-err">${fmt(rm.aprovado)}</span>`:fmt(0))}
+          ${linha('Última medição',rm.ult?`nº ${fe(rm.ult.numero)} · ${brDe(dt(rm.ult.data_medicao))} · ${fe(rm.ult.status||'')}`:'—')}
+        </div>
+        <div class="op-card"><h4>Caixa e pendências</h4>
+          ${linha('Recebido (notas)',fmt(s.recebido))}${linha('Pago (custos)',fmt(s.pago))}${linha('Caixa da obra',`<span class="${s.caixa<0?'t-err':'t-ok'}">${fmt(s.caixa)}</span>`)}
+          ${pend.join('')||linha('Pendências','nenhuma')}
+        </div>
+        <div class="op-card"><h4>Diário de obra</h4>
+          ${rdos.length?linha('Dias registrados',`${rdos.length}${imp?` · <span class="t-err">${imp} impraticáve${imp>1?'is':'l'}</span>`:''}`)+rdos.slice(0,3).map(r=>linha(brDe(dt(r.data)),`<span style="font-weight:500;color:var(--text-2)">${fe(String(r.atividades||'').slice(0,70))}${String(r.atividades||'').length>70?'…':''}</span>`)).join(''):'<div class="fin-vazio" style="padding:10px">Nenhum dia registrado.</div>'}
+        </div>
+        <div class="op-card"><h4>Fotos recentes</h4>
+          ${fotos.length?`<div class="eng-fotos">${fotos.map((f,k)=>`<button type="button" data-op="foto" data-f="${k}" title="${fe(f.descricao||'')}"><img src="${fe(miniatura(f,200))}" data-driveid="${fe(f.drive_file_id||'')}" referrerpolicy="no-referrer" loading="lazy" alt="" onerror="UI.ImagensObra._imgErro(this)"></button>`).join('')}</div>`:'<div class="fin-vazio" style="padding:10px">Nenhuma foto. Inclua pela aba Obra (Imagens da Obra) ou pelo Diário.</div>'}
+        </div>
+      </div>
+      <div style="font-size:11px;color:var(--text-3);line-height:1.5">Como é calculado: avanço = etapas (peso × avanço); custo orçado = composição mais recente do CAP; SPI = executado ÷ previsto para hoje; CPI = valor executado ÷ custo real; custo final estimado = orçado ÷ CPI (aditivo de valor soma custo na mesma proporção do contrato); resultado projetado = contrato vigente × ${pct(s.fatorLiq*100)} (o que sobra depois de impostos e retenções${s.fr.b>0?', pelo histórico da obra':''}) − custo final estimado.</div>
+    </div>`;
+  }
+  function abrirPainel(ob){
+    const form=document.getElementById('form-upsert');if(!form)return;
+    form.removeAttribute('style');
+    form.style.cssText='display:flex;flex-direction:column;padding:0;gap:0;overflow:hidden;grid-template-columns:unset;';
+    form.innerHTML=`<div class="op-scroll" style="flex:1;overflow-y:auto;padding:16px 24px 28px">${painelHtml(ob)}</div>`;
+    form.querySelector('.op-scroll').onclick=ev=>{
+      const b=ev.target.closest('[data-op]');if(!b)return;const a=b.dataset.op;
+      if(a==='foto')return verFoto(App._opFotos,+b.dataset.f);
+      if(a==='aditivo')return editarAditivo(null,ob);
+      const hub=App.state.obraHub;
+      if(hub&&hub._dirtyTabs&&hub._dirtyTabs.size)return toast('Há alterações não salvas em outra aba da obra — salve ou feche a obra antes.','error');
+      UI.closeModal('modal-editor');
+      if(a==='medicoes'){Eng._ME.edit=null;Eng._ME.obra=ob;UI.nav('medicoes');}
+      else if(a==='diario'){Eng._RD.obra=ob;Eng._RD.mes='__todos';UI.nav('diario');}
+    };
+  }
+  function pdfPainel(ob){
+    const o=(D().obras||[]).find(x=>nomeObra(x)===ob);if(!o)return;
+    const s=saude(o),rm=s.rm;
+    const C={verde:'#34C759',amarelo:'#FF9500',vermelho:'#FF3B30',cinza:'#C7C7CC'};
+    const ponto=t=>`<span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${C[t]};margin-right:5px;vertical-align:middle"></span>`;
+    const L=(l,v)=>`<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #eee;font-size:11px"><span style="color:#6e6e73">${l}</span><b>${v}</b></div>`;
+    const card=(t,c)=>`<div style="flex:1;border:1px solid #e5e5ea;border-radius:8px;padding:9px 12px;min-width:0"><div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:#6e6e73;margin-bottom:4px">${t}</div>${c}</div>`;
+    const blocos=[
+      `<div style="display:flex;gap:16px;font-size:11.5px;font-weight:700;margin-bottom:6px">${[['prazo','Prazo'],['custo','Custo'],['resultado','Resultado'],['medicao','Medição']].map(([k,r])=>`<span>${ponto(s.sinal[k])}${r}: ${SIN_ROT[s.sinal[k]]}</span>`).join('')}</div>`,
+      `<div style="display:flex;gap:10px">${card('Contrato e medição',L('Contrato vigente',fmt(s.receita))+L('Medido',fmt(rm.medido)+' ('+pct(rm.pct)+')')+L('Saldo a medir',fmt(rm.saldo))+L('Aprovado a faturar',fmt(rm.aprovado)))}${card('Prazo',L('Início',brDe(s.dO.ini))+L('Término vigente',brDe(s.dO.fim))+L('Físico real / previsto',s.fi.tem?pct(s.fi.real,0)+' / '+pct(s.fi.prev,0):'—')+L('Término projetado',brDe(s.proj)))}${card('Custo',L('Orçado (CAP)',fmt(s.bac))+L('Real',fmt(s.ac))+L('CPI / SPI',idx2(s.cpi)+' / '+idx2(s.spi))+L('Custo final estimado',fmt(s.eac)))}${card('Resultado e caixa',L('Resultado projetado',s.resProj!=null?fmt(s.resProj):'—')+L('Margem projetada / prevista',pct(s.margemProj)+' / '+pct(s.margemPrev))+L('Recebido − pago',fmt(s.caixa))+L('A receber',fmt(s.aReceber)))}</div>`
+    ];
+    const real=realPorCat(ob),cats=[...new Set(Object.keys(s.cap.cats).concat(Object.keys(real)))].map(c=>({c,o:s.cap.cats[c]||0,r:real[c]||0})).filter(x=>x.o||x.r).sort((a,b)=>b.o-a.o);
+    if(cats.length)blocos.push(`<div style="font-size:12px;font-weight:800;margin:12px 0 4px">Orçado × realizado por categoria</div><table><thead><tr><th>Categoria</th><th style="text-align:right">Orçado</th><th style="text-align:right">Realizado</th><th style="text-align:right">Diferença</th><th style="text-align:right">% consumido</th></tr></thead><tbody>${cats.map(x=>`<tr><td>${fe(x.c)}</td><td style="text-align:right">${fmt(x.o)}</td><td style="text-align:right">${fmt(x.r)}</td><td style="text-align:right;color:${x.r>x.o?'#C4231A':'#1D6B33'}">${fmt(x.o-x.r)}</td><td style="text-align:right">${x.o?pct(x.r/x.o*100,0):'—'}</td></tr>`).join('')}</tbody></table>`);
+    const ads=rm.adts||[];
+    if(ads.length)blocos.push(`<div style="font-size:12px;font-weight:800;margin:12px 0 4px">Aditivos</div><table><thead><tr><th>Aditivo</th><th>Assinado</th><th style="text-align:right">Valor</th><th>Novo término</th><th>Motivo</th></tr></thead><tbody>${ads.map(a=>`<tr><td>${fe(a.numero||'—')}</td><td>${brDe(dt(a.data_emissao))}</td><td style="text-align:right">${a.aditivo_valor?fmt(val(a.aditivo_valor)):'—'}</td><td>${a.novo_termino?brDe(dt(a.novo_termino)):'—'}</td><td>${fe(a.descricao||'')}</td></tr>`).join('')}</tbody></table>`);
+    if(rm.ms.length)blocos.push(`<div style="font-size:12px;font-weight:800;margin:12px 0 4px">Medições</div><table><thead><tr><th>Nº</th><th>Data</th><th>Situação</th><th style="text-align:right">Valor</th></tr></thead><tbody>${rm.ms.map(m=>`<tr><td>${fe(m.numero)}</td><td>${brDe(dt(m.data_medicao))}</td><td>${fe(m.status||'')}</td><td style="text-align:right">${fmt(Eng.valorMed(m))}</td></tr>`).join('')}</tbody></table>`);
+    App._relExportPaginado({titulo:'Painel da Obra',subLinhas:[fe(ob),'Situação em '+brDe(hoje0())],paisagem:true,blocosArr:blocos});
+  }
+
+  /* ═══════════════ DASHBOARD: CARTEIRA E SAÚDE DAS OBRAS ═══════════════ */
+  function renderSaude(){
+    const at=document.getElementById('dash-atencao');if(!at||!App.state.data)return;
+    let box=document.getElementById('dash-saude');
+    if(!box){box=document.createElement('div');box.id='dash-saude';at.after(box);}
+    if(ehExt()||(!pode('obras')&&!pode('medicoes'))){box.innerHTML='';return;}
+    const L=(D().obras||[]).filter(Eng.emAndamento).map(o=>{try{return saude(o);}catch(e){console.error(e);return null;}}).filter(Boolean);
+    if(!L.length){box.innerHTML='';return;}
+    const h=hoje0(),d30=addD(h,-30);
+    const carteira=L.reduce((s,x)=>s+Math.max(0,x.rm.saldo||0),0);
+    const med30=(D().medicoes||[]).filter(m=>{const d=dt(m.data_medicao);return d&&d>=d30&&d<=h;}).reduce((s,m)=>s+Eng.valorMed(m),0);
+    const comRes=L.filter(x=>x.resProj!=null),resT=comRes.reduce((s,x)=>s+x.resProj,0),recT=comRes.reduce((s,x)=>s+x.recLiq,0);
+    const empatado=L.reduce((s,x)=>s+Math.min(0,x.caixa),0);
+    App._saudeLista=L;
+    box.innerHTML=`<div class="at-card"><div class="at-cab"><b>Carteira e saúde das obras em andamento (${L.length})</b><span>clique numa obra para abrir o painel dela</span></div>
+      <div class="fin-kpis" style="margin-bottom:12px">${kpi('','Carteira a executar',fmt(carteira),'saldo a medir dos contratos vigentes')}${kpi('verde','Medido nos últimos 30 dias',fmt(med30),'produção faturável do mês')}${kpi(resT<0?'vermelho':'verde','Resultado projetado',fmt(resT),recT?'margem '+pct(resT/recT*100)+' sobre a receita líquida':'')}${kpi(empatado<0?'laranja':'verde','Capital empatado nas obras',fmt(-empatado),'pago a mais do que recebido')}</div>
+      <div class="fin-rolar"><table class="fin-tab eng-saude-tab"><thead><tr><th>Obra</th><th>Físico</th><th>Prazo</th><th>Custo</th><th>Medição</th><th class="num">Resultado projetado</th><th class="num fin-esconder-cel">Caixa da obra</th></tr></thead><tbody>
+        ${L.map((x,i)=>`<tr data-sd="${i}"><td><b>${fe(x.ob)}</b><small>término ${brDe(x.dO.fim)}${x.proj&&x.dO.fim&&x.proj>addD(x.dO.fim,3)?` · <span class="t-err">projetado ${brDe(x.proj)}</span>`:''}</small></td>
+          <td style="min-width:110px">${x.fi.tem?`<div style="display:flex;gap:6px;align-items:center">${Eng.barra(x.fi.real)}<small style="margin:0">${pct(x.fi.real,0)}</small></div><small>previsto ${pct(x.fi.prev,0)}</small>`:'<small>sem etapas</small>'}</td>
+          <td>${sem(x.sinal.prazo,x.vencido?'vencido':x.spi!=null?idx2(x.spi):'—')}</td><td>${sem(x.sinal.custo,x.cpi!=null?idx2(x.cpi):'—')}</td>
+          <td>${sem(x.sinal.medicao,x.rm.contrato?pct(x.rm.pct,0):'—')}${x.rm.aprovado?`<small class="t-err">${fmt(x.rm.aprovado)} a faturar</small>`:''}</td>
+          <td class="num">${x.resProj!=null?`<span class="${x.resProj<0?'t-err':''}">${fmt(x.resProj)}</span><small>${pct(x.margemProj)}</small>`:'—'}</td>
+          <td class="num fin-esconder-cel"><span class="${x.caixa<0?'t-err':''}">${fmt(x.caixa)}</span></td></tr>`).join('')}
+      </tbody></table></div>
+      <div class="eng-legenda">${sem('verde','no rumo')}${sem('amarelo','atenção')}${sem('vermelho','crítico')}${sem('cinza','sem dados')}<span>Prazo = SPI (executado ÷ previsto) · Custo = CPI (valor executado ÷ custo real) · Resultado = contrato vigente líquido − custo final estimado</span></div></div>`;
+    box.onclick=ev=>{const tr=ev.target.closest('tr[data-sd]');if(!tr)return;const x=App._saudeLista[+tr.dataset.sd];if(x&&pode('obras'))UI.openObraHub(x.o.rowid);};
+  }
+
+  /* ═══════════════ RELATÓRIOS: Orçado × Realizado e Comercial ═══════════════ */
+  const C=(t,num)=>({t,num});
+  const corT=(t,tom)=>`<span style="color:${{vermelho:'#C4231A',laranja:'#A35A00',verde:'#1D6B33'}[tom]||'inherit'};font-weight:700">${t}</span>`;
+  Eng.REL['eng-orcado-realizado']={titulo:'Orçado × Realizado por Categoria',gerar(obraSel){
+    const obras=(D().obras||[]).filter(o=>obraSel?nomeObra(o)===obraSel:capInfo(nomeObra(o)).tem);
+    const orc={};obras.forEach(o=>{const ci=capInfo(nomeObra(o));Object.entries(ci.cats).forEach(([c,v])=>orc[c]=(orc[c]||0)+v);});
+    const nomes=new Set(obras.map(nomeObra));
+    const real={};(D().custos||[]).forEach(c=>{const ob=getFuzzy(c,['titulo_obra'])||'';if(!nomes.has(ob)||!ehReal(c))return;const k=catCusto(c);real[k]=(real[k]||0)+Math.abs(val(getFuzzy(c,['p_total','ptotal'])));});
+    const cats=[...new Set(Object.keys(orc).concat(Object.keys(real)))].map(c=>({c,o:orc[c]||0,r:real[c]||0})).sort((a,b)=>b.o-a.o||b.r-a.r);
+    const tO=cats.reduce((s,x)=>s+x.o,0),tR=cats.reduce((s,x)=>s+x.r,0);
+    let fis=null;if(obraSel){const f=Eng.fisico(obraSel,hoje0());if(f.tem)fis=f.real;}
+    return {kpis:[['Custo orçado (CAP)',fmt(tO),obraSel?'composição mais recente':`${obras.length} obra${obras.length!==1?'s':''} com CAP`,''],['Custo realizado',fmt(tR),tO?pct(tR/tO*100)+' do orçado':'',tO&&tR>tO?'vermelho':''],['Saldo do orçamento de custo',fmt(tO-tR),tO-tR<0?'já passou do orçado':'ainda disponível',tO-tR<0?'vermelho':'verde'],['Avanço físico',fis!=null?pct(fis):'—',fis!=null?'compare com o % consumido':'escolha uma obra com etapas','']],
+      cols:[C('Categoria'),C('Orçado',1),C('Realizado',1),C('Diferença',1),C('% consumido',1)],
+      linhas:cats.map(x=>{const p=x.o?x.r/x.o*100:null;return [`<b>${fe(x.c)}</b>`,fmt(x.o),fmt(x.r),corT(fmt(x.o-x.r),x.r>x.o?'vermelho':'verde'),p==null?corT('sem orçamento','laranja'):corT(pct(p,0),p>100?'vermelho':fis!=null&&p>fis+15?'laranja':'')];}),
+      total:['Total',fmt(tO),fmt(tR),fmt(tO-tR),tO?pct(tR/tO*100,0):'—'],
+      nota:'Orçado = composição mais recente do CAP de cada obra; realizado = custos Real lançados na obra, pela Especificação. Uma categoria com % consumido bem acima do avanço físico da obra é sinal de estouro antes de ele acontecer. "Sem orçamento" = gasto numa categoria que não estava no CAP.',
+      vazio:'Nenhuma obra com composição de custos (CAP).'};
+  }};
+  Eng.REL['eng-comercial']={titulo:'Comercial — Propostas e Taxa de Sucesso',semObra:true,anoMes:false,gerar(){
+    const obras=D().obras||[];
+    const valorProp=o=>{const ob=nomeObra(o);const orc=(D().orcamentos||[]).filter(x=>cn(getFuzzy(x,['titulo','nome_obra','titulo_obra']))===cn(ob)).sort((a,b)=>(dt(getFuzzy(b,['data_lancamento']))||0)-(dt(getFuzzy(a,['data_lancamento']))||0))[0];return orc?val(orc.total_obra):capInfo(ob).bruto;};
+    const L=obras.map(o=>({o,ob:nomeObra(o),st:statusObra(o)||'Sem situação',v:valorProp(o),lim:dt(getFuzzy(o,['limite_proposta'])),env:dt(getFuzzy(o,['envio_proposta']))}));
+    const g=f=>L.filter(x=>f(cn(x.st)));
+    const ganhas=g(s=>s.startsWith('ganha')),perdidas=g(s=>s.startsWith('perdida')),porPreco=g(s=>s.includes('por preco')),disputa=g(s=>s.includes('aguardando resultado')),naoEnv=g(s=>s==='nao enviada');
+    const soma=l=>l.reduce((s,x)=>s+(x.v||0),0);
+    const taxaN=ganhas.length+perdidas.length?ganhas.length/(ganhas.length+perdidas.length)*100:null;
+    const taxaV=soma(ganhas)+soma(perdidas)?soma(ganhas)/(soma(ganhas)+soma(perdidas))*100:null;
+    const carteira=(D().obras||[]).filter(Eng.emAndamento).reduce((s,o)=>s+Math.max(0,Eng.resumoMedicoes(nomeObra(o)).saldo||0),0);
+    const ordem=STATUS_OPTS.concat(['Sem situação']);
+    const tomSt=s=>{const c=cn(s);return c.startsWith('ganha')?'verde':c.startsWith('perdida')?'vermelho':c.includes('aguardando')?'laranja':'';};
+    return {kpis:[['Taxa de sucesso',taxaN!=null?pct(taxaN,0):'—',`${ganhas.length} ganha${ganhas.length!==1?'s':''} de ${ganhas.length+perdidas.length} decidida${ganhas.length+perdidas.length!==1?'s':''}${taxaV!=null?' · '+pct(taxaV,0)+' em valor':''}`,taxaN!=null&&taxaN<20?'laranja':'verde'],['Em disputa',fmt(soma(disputa)),`${disputa.length} proposta${disputa.length!==1?'s':''} aguardando resultado`,''],['Perdidas por preço',String(porPreco.length),porPreco.length?fmt(soma(porPreco))+' — reveja o BDI/custos dessas':'nenhuma',porPreco.length>=3?'laranja':''],['Carteira a executar',fmt(carteira),`${naoEnv.length} proposta${naoEnv.length!==1?'s':''} ainda não enviada${naoEnv.length!==1?'s':''}`,'verde']],
+      cols:[C('Obra / proposta'),C('Situação'),C('Valor da proposta',1),C('Limite de entrega',1),C('Envio',1)],
+      linhas:L.slice().sort((a,b)=>ordem.indexOf(a.st)-ordem.indexOf(b.st)||(b.v-a.v)).map(x=>[`<b>${fe(x.ob)}</b>`,corT(fe(x.st),tomSt(x.st)),x.v?fmt(x.v):'—',brDe(x.lim),brDe(x.env)]),
+      total:['Total','',fmt(soma(L)),'',''],
+      nota:'Valor da proposta = orçamento com o nome da obra (ou o orçamento bruto do CAP). Taxa de sucesso = ganhas ÷ (ganhas + perdidas). Muitas perdas "por preço" indicam BDI ou custos acima do mercado; taxa muito alta pode indicar preço baixo demais (margem deixada na mesa).',
+      vazio:'Nenhuma obra ou proposta cadastrada.'};
+  }};
+  Object.keys(Eng.REL).forEach(k=>App._relTituloTipo[k]=Eng.REL[k].titulo);
+  // Comercial não filtra por obra (é a visão da carteira toda)
+  (function(){const ger=App._relatorioGerar;App._relatorioGerar=function(){const r=ger.apply(this,arguments);const t=document.getElementById('rel-tipo')?.value;const R=Eng.REL[t];if(R&&R.semObra){const e=document.getElementById('rel-obra');if(e)e.style.display='none';const sub=document.getElementById('rel-sub');if(sub)sub.textContent='Todas as obras e propostas';}return r;};})();
+
+  /* ═══════════════ ligação com o resto do sistema ═══════════════ */
+  // aba "Resumo" da central da obra
+  UI._obraHubBuildResumo=function(ob){abrirPainel(ob);};
+  // cartão da obra (tela Obras): faixa com avanço, medição e resultado das obras em andamento
+  (function(){const oc=App._obraCard;App._obraCard=function(i){
+    let h=oc.apply(this,arguments);
+    try{
+      if(ehExt()||!Eng.emAndamento(i))return h;
+      const s=saude(i);
+      const faixa=`<div class="op-mini">${sem(s.sinal.prazo,'Físico '+(s.fi.tem?pct(s.fi.real,0):'—'))}${sem(s.sinal.medicao,'Medido '+(s.rm.contrato?pct(s.rm.pct,0):'—'))}${sem(s.sinal.resultado,'Resultado '+(s.margemProj!=null?pct(s.margemProj,0):'—'))}</div>`;
+      const k=h.lastIndexOf('</div>');if(k>0)h=h.slice(0,k)+faixa+h.slice(k);
+    }catch(e){console.error(e);}
+    return h;
+  };})();
+  // Dashboard e atualização do painel aberto
+  (function(){const rd=App.renderDashboard;App.renderDashboard=function(){const r=rd.apply(this,arguments);try{renderSaude();}catch(e){console.error(e);}return r;};})();
+  (function(){const ra=App.renderAll;App.renderAll=function(){ra.apply(this,arguments);try{const hub=App.state.obraHub;if(hub&&hub.tab==='resumo'&&document.getElementById('modal-editor')?.classList.contains('open'))abrirPainel(hub.obraName);}catch(e){console.error(e);}};})();
+
+  Object.assign(Eng,{fotosDoDia,fotosHtml,fotosPdf,verFoto,enviarFotos,podeFotos:ehAdmin,editarAditivo,excluirAditivo,aditivosCard,saude,capInfo,realPorCat,painelHtml,pdfPainel,renderSaude});
 })();
 </script>
 </body>
