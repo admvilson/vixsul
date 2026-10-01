@@ -176,3 +176,32 @@ ALTER PUBLICATION supabase_realtime ADD TABLE obra_imagens;
 -- ALTER TABLE obra_imagens ENABLE ROW LEVEL SECURITY;
 -- CREATE POLICY "acesso_total" ON obra_imagens FOR ALL USING (true) WITH CHECK (true);
 -- ALTER PUBLICATION supabase_realtime ADD TABLE obra_imagens;
+
+-- ══════════════════════════════════════════════════════════
+--  ENGENHARIA (2026-10): Medições, Diário de obra, Documentos
+--  e certidões, Fornecedores.
+--  Projeto que já existia: rode SÓ este bloco (SQL Editor → New
+--  query → colar → Run). Pode rodar mais de uma vez sem erro.
+--
+--  medicoes     → um boletim de medição por linha: titulo_obra, numero,
+--                 periodo, status, itens (JSON: código, descrição, unidade,
+--                 preço e quantidade medida de cada item do orçamento).
+--  diario_obra  → um dia de obra por linha (clima, efetivo, atividades…).
+--  documentos   → certidões, seguros, ART, licenças, com data de validade.
+--  fornecedores → cadastro de fornecedores.
+-- ══════════════════════════════════════════════════════════
+DO $$
+DECLARE t TEXT;
+BEGIN
+  FOREACH t IN ARRAY ARRAY['medicoes','diario_obra','documentos','fornecedores'] LOOP
+    EXECUTE format('CREATE TABLE IF NOT EXISTS %I (id BIGSERIAL PRIMARY KEY, row_data JSONB NOT NULL DEFAULT ''{}'', created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())', t);
+    EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', t);
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename=t AND policyname='acesso_total') THEN
+      EXECUTE format('CREATE POLICY "acesso_total" ON %I FOR ALL USING (true) WITH CHECK (true)', t);
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname='supabase_realtime' AND schemaname='public' AND tablename=t) THEN
+      EXECUTE format('ALTER PUBLICATION supabase_realtime ADD TABLE %I', t);
+    END IF;
+  END LOOP;
+END $$;
+NOTIFY pgrst, 'reload schema';

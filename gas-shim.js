@@ -16,15 +16,21 @@ const _NOME_PARA_CHAVE = {
   'Obras':'obras','Custos':'custos',
   'Faturamentos':'faturamentos','Aportes financeiros':'aportes','CAP':'cap',
   'Orçamentos':'orcamentos','Despesas':'despesas','Etapas':'etapas',
-  'Imagens da Obra':'obra_imagens'
+  'Imagens da Obra':'obra_imagens',
+  'Medições':'medicoes','Diário de obra':'diario_obra','Documentos':'documentos','Fornecedores':'fornecedores'
 };
 const _ABA_NOME = {
   obras:'Obras', custos:'Custos',
   faturamentos:'Faturamentos', aportes:'Aportes financeiros', cap:'CAP',
   orcamentos:'Orçamentos', despesas:'Despesas', etapas:'Etapas',
-  obra_imagens:'Imagens da Obra'
+  obra_imagens:'Imagens da Obra',
+  medicoes:'Medições', diario_obra:'Diário de obra', documentos:'Documentos', fornecedores:'Fornecedores'
 };
-const _CHAVES = ['obras','custos','faturamentos','aportes','cap','orcamentos','despesas','etapas','obra_imagens'];
+// Tabelas de engenharia (2026-10): ficam numa lista à parte porque dependem do SQL de
+// instalação (schema.sql) — enquanto ele não roda, a leitura delas volta vazia sem afetar
+// as outras, e o tempo real delas fica num canal separado (ver subscribeRealtime).
+const _CHAVES_ENG = ['medicoes','diario_obra','documentos','fornecedores'];
+const _CHAVES = ['obras','custos','faturamentos','aportes','cap','orcamentos','despesas','etapas','obra_imagens'].concat(_CHAVES_ENG);
 
 // ─── Funções que espelham o Código.gs ─────────────────────────────────────────
 
@@ -424,10 +430,20 @@ async function _redefinirSenhaPorEmail(email, senhaNova) {
 // os dados sozinhas.
 function subscribeRealtime(onChange) {
   const canal = _sb.channel('vixsul-mudancas');
-  _CHAVES.forEach((chave) => {
+  _CHAVES.filter(c => !_CHAVES_ENG.includes(c)).forEach((chave) => {
     canal.on('postgres_changes', { event: '*', schema: 'public', table: chave }, () => onChange(chave));
   });
   canal.subscribe();
+  // Canal separado para as tabelas de engenharia: se o SQL delas ainda não rodou (ou a
+  // tabela não está na publicação de tempo real), um erro aqui não derruba o tempo real
+  // das tabelas de sempre.
+  try {
+    const canalEng = _sb.channel('vixsul-engenharia');
+    _CHAVES_ENG.forEach((chave) => {
+      canalEng.on('postgres_changes', { event: '*', schema: 'public', table: chave }, () => onChange(chave));
+    });
+    canalEng.subscribe();
+  } catch (e) { console.warn('Tempo real das tabelas de engenharia indisponível:', e); }
   return canal;
 }
 window.subscribeRealtime = subscribeRealtime;
