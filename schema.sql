@@ -193,7 +193,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE obra_imagens;
 DO $$
 DECLARE t TEXT;
 BEGIN
-  FOREACH t IN ARRAY ARRAY['medicoes','diario_obra','documentos','fornecedores','contratos','acoes'] LOOP
+  FOREACH t IN ARRAY ARRAY['medicoes','diario_obra','documentos','fornecedores','contratos','acoes','reunioes','planejamento'] LOOP
     EXECUTE format('CREATE TABLE IF NOT EXISTS %I (id BIGSERIAL PRIMARY KEY, row_data JSONB NOT NULL DEFAULT ''{}'', created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())', t);
     EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', t);
     IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename=t AND policyname='acesso_total') THEN
