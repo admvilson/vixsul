@@ -498,6 +498,7 @@ tbody tr:hover td{background:rgba(0,113,227,.02);}
 .vx-painel{position:absolute;top:calc(100% + 10px);left:0;width:350px;background:#fff;border:1px solid var(--border);border-radius:18px;box-shadow:0 24px 60px -12px rgba(20,20,60,.28);padding:10px;opacity:0;visibility:hidden;transform:translateY(8px) scale(.985);transform-origin:top left;transition:opacity .16s ease .1s,transform .16s ease .1s,visibility 0s linear .26s;z-index:70;}
 .vx-painel::before{content:"";position:absolute;left:0;right:0;top:-14px;height:14px;}
 .vx-cat:last-child>.vx-painel{left:auto;right:0;transform-origin:top right;}
+.vx-painel.largo{width:640px;} .vx-painel.largo .vx-painel-itens{grid-template-columns:1fr 1fr;}
 @media (hover:hover) and (min-width:901px){.vx-cat:hover:not(.vx-fechar)>.vx-painel{opacity:1;visibility:visible;transform:none;transition-delay:0s;}}
 .vx-cat:focus-within:not(.vx-fechar)>.vx-painel,.vx-cat.aberto:not(.vx-fechar)>.vx-painel{opacity:1;visibility:visible;transform:none;transition-delay:0s;}
 .vx-painel-cab{padding:10px 12px 12px;margin-bottom:6px;border-bottom:1px solid var(--border);}
@@ -549,6 +550,7 @@ tbody tr:hover td{background:rgba(0,113,227,.02);}
   .vx-cat-link>.vx-cat-bt{width:100%;padding:12px 10px;font-size:14px;}
   .vx-painel{position:static;width:auto;opacity:1;visibility:visible;transform:none;box-shadow:none;border:0;padding:0;transition:none;}
   .vx-painel::before,.vx-painel-cab{display:none;}
+  .vx-painel.largo{width:auto;} .vx-painel.largo .vx-painel-itens{grid-template-columns:1fr;}
   .vx-eu-txt,.vx-sync{display:none;}
   .vx-eu-caixa{padding-left:8px;}
 }
@@ -575,7 +577,7 @@ tbody tr:hover td{background:rgba(0,113,227,.02);}
     html:not([data-authed="1"]) #app-shell{display:none;}
     #app-shell.hidden{display:none!important;}
   </style>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script><script src="gas-shim.js?v=20261001a"></script><script src="https://accounts.google.com/gsi/client" async defer></script></head>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script><script src="gas-shim.js?v=20261002a"></script><script src="https://accounts.google.com/gsi/client" async defer></script></head>
 <body>
 <div class="toast" id="toast"><span id="toast-icon"></span><span id="toast-msg">—</span></div>
 
@@ -692,12 +694,16 @@ tbody tr:hover td{background:rgba(0,113,227,.02);}
         <li class="vx-cat vx-cat-link"><button type="button" class="vx-cat-bt vx-alvo" id="nav-obras" onclick="UI.nav('obras')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 20h20M4 20V10l8-8 8 8v10M10 20v-6h4v6"/></svg>Obras</button></li>
         <li class="vx-cat">
           <button type="button" class="vx-cat-bt" aria-haspopup="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 18h20v3H2zM4 18v-4a8 8 0 0 1 16 0v4M12 6V3M9 6.6V4.2M15 6.6V4.2"/></svg>Engenharia<span class="vx-seta"></span></button>
-          <div class="vx-painel">
-            <div class="vx-painel-cab"><b>Engenharia</b><span>Medições do contrato, diário de obra e os documentos que a obra pública exige em dia.</span></div>
+          <div class="vx-painel largo">
+            <div class="vx-painel-cab"><b>Engenharia e contratos</b><span>O contrato do começo ao fim: viabilidade, planejamento da execução, medição, diário, plano de ação e documentos.</span></div>
             <div class="vx-painel-itens">
+              <button type="button" class="vx-item vx-alvo" id="nav-contratos" onclick="UI.nav('contratos')"><span class="vx-item-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M8 13h8M8 17h5"/></svg></span><span class="vx-item-txt"><b>Contratos</b><small>Prazos, vigência, garantia, reajuste e o ciclo de cada contrato</small></span></button>
+              <button type="button" class="vx-item vx-alvo" id="nav-planejamento" onclick="UI.nav('planejamento')"><span class="vx-item-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="8" height="4" rx="1"/><rect x="9" y="10" width="9" height="4" rx="1"/><rect x="13" y="16" width="8" height="4" rx="1"/><path d="M7 8v4h2M15 14v4h-2"/></svg></span><span class="vx-item-txt"><b>Planejamento</b><small>Sequência da execução, caminho crítico e frentes liberadas</small></span></button>
               <button type="button" class="vx-item vx-alvo" id="nav-medicoes" onclick="UI.nav('medicoes')"><span class="vx-item-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 17L17 3l4 4L7 21z"/><path d="M7 13l2 2M10 10l2 2M13 7l2 2"/></svg></span><span class="vx-item-txt"><b>Medições</b><small>Boletim de medição por item do orçamento, saldo do contrato</small></span></button>
               <button type="button" class="vx-item vx-alvo" id="nav-diario" onclick="UI.nav('diario')"><span class="vx-item-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V3H6.5A2.5 2.5 0 0 0 4 5.5z"/><path d="M8 7h8M8 11h6"/></svg></span><span class="vx-item-txt"><b>Diário de obra</b><small>Clima, equipe, serviços e ocorrências de cada dia</small></span></button>
+              <button type="button" class="vx-item vx-alvo" id="nav-acoes" onclick="UI.nav('acoes')"><span class="vx-item-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></span><span class="vx-item-txt"><b>Plano de ação</b><small>Pendências, riscos e ações com responsável e prazo</small></span></button>
               <button type="button" class="vx-item vx-alvo" id="nav-documentos" onclick="UI.nav('documentos')"><span class="vx-item-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><polyline points="9 15 11 17 15 13"/></svg></span><span class="vx-item-txt"><b>Documentos e certidões</b><small>Certidões, seguros, ART e licenças com aviso de vencimento</small></span></button>
+              <button type="button" class="vx-item vx-alvo" id="nav-viabilidade" onclick="UI.nav('viabilidade')"><span class="vx-item-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/></svg></span><span class="vx-item-txt"><b>Viabilidade</b><small>Lucro, capital de giro e retorno antes de assumir o contrato</small></span></button>
             </div>
           </div>
         </li>
@@ -998,6 +1004,10 @@ tbody tr:hover td{background:rgba(0,113,227,.02);}
     <div class="view" id="view-medicoes"><div class="cards-scroll"><div id="eng-medicoes"></div></div></div>
     <div class="view" id="view-diario"><div class="cards-scroll"><div id="eng-diario"></div></div></div>
     <div class="view" id="view-documentos"><div class="cards-scroll"><div id="eng-documentos"></div></div></div>
+    <div class="view" id="view-contratos"><div class="cards-scroll"><div id="eng-contratos"></div></div></div>
+    <div class="view" id="view-planejamento"><div class="cards-scroll"><div id="eng-planejamento"></div></div></div>
+    <div class="view" id="view-acoes"><div class="cards-scroll"><div id="eng-acoes"></div></div></div>
+    <div class="view" id="view-viabilidade"><div class="cards-scroll"><div id="eng-viabilidade"></div></div></div>
     <div class="view" id="view-fornecedores"><div class="cards-scroll"><div id="eng-fornecedores"></div></div></div>
     <!-- CUSTOS -->
     <div class="view" id="view-custos">
@@ -3927,7 +3937,7 @@ const UI={
      "contas" e "conciliacao" mostram dinheiro de TODAS as obras e da empresa: quem já
      tinha acessos restritos antes delas existirem NÃO as ganha sozinho — o Admin marca
      em Usuários (quem não tem restrição, ou é Admin, vê tudo como sempre). */
-  _MODULOS:[['dashboard','Dashboard'],['obras','Obras'],['medicoes','Medições'],['diario','Diário de obra'],['documentos','Documentos e certidões'],['despesas','Despesas'],['contas','Contas a pagar e receber'],['conciliacao','Conciliação bancária'],['fornecedores','Fornecedores'],['relatorios','Relatórios']],
+  _MODULOS:[['dashboard','Dashboard'],['obras','Obras'],['contratos','Contratos'],['planejamento','Planejamento'],['medicoes','Medições'],['acoes','Plano de ação'],['viabilidade','Viabilidade'],['diario','Diário de obra'],['documentos','Documentos e certidões'],['despesas','Despesas'],['contas','Contas a pagar e receber'],['conciliacao','Conciliação bancária'],['fornecedores','Fornecedores'],['relatorios','Relatórios']],
   _allowedViews:null, // preenchido por Auth._applySession; null = sem restrição
   /* Admin = qualquer perfil que comece com "admin" (admin, Admin, Administrador, …). */
   _ehAdmin(perfil){return String(perfil||'').trim().toLowerCase().startsWith('admin');},
@@ -3949,7 +3959,7 @@ const UI={
     const nEl=document.getElementById('nav-'+v);if(nEl)nEl.classList.add('active');
     this._navMarcar();
     this._navFecharPaineis();
-    const titles={dashboard:'Dashboard',obras:'Obras',custos:'Custos',faturamentos:'Faturamentos',aportes:'Aportes',cap:'CAP',orcamentos:'Orçamentos',usuarios:'Usuários',despesas:'Despesas da empresa',relatorios:'Relatórios',lixeira:'Lixeira',contas:'Contas a pagar e receber',conciliacao:'Conciliação bancária',medicoes:'Medições',diario:'Diário de obra',documentos:'Documentos e certidões',fornecedores:'Fornecedores'};
+    const titles={dashboard:'Dashboard',obras:'Obras',custos:'Custos',faturamentos:'Faturamentos',aportes:'Aportes',cap:'CAP',orcamentos:'Orçamentos',usuarios:'Usuários',despesas:'Despesas da empresa',relatorios:'Relatórios',lixeira:'Lixeira',contas:'Contas a pagar e receber',conciliacao:'Conciliação bancária',medicoes:'Medições',diario:'Diário de obra',documentos:'Documentos e certidões',fornecedores:'Fornecedores',contratos:'Contratos',planejamento:'Planejamento da obra',acoes:'Plano de ação',viabilidade:'Viabilidade do contrato'};
     const ttl=document.getElementById('view-title');if(ttl)ttl.textContent=titles[v]||v;
     document.title=titles[v]||v; // título da aba do navegador acompanha a seção clicada
     if(v==='dashboard'&&App.state.data)App.renderDashboard();
@@ -8849,6 +8859,8 @@ const UI={
     push('Medições',App.state.data.medicoes,'titulo_obra');
     push('Diário de obra',App.state.data.diario_obra,'titulo_obra');
     push('Documentos',App.state.data.documentos,'titulo_obra');
+    push('Contratos',App.state.data.contratos,'titulo_obra');
+    push('Plano de ação',App.state.data.acoes,'titulo_obra');
     const obraRow=(App.state.data.obras||[]).find(o=>String(o.rowid)===String(hub.rowid));
     if(obraRow)alvos.push({aba:'Obras',item:obraRow});
     App.state._busy=true; this._showBusy('Movendo para a lixeira…');
@@ -11235,13 +11247,14 @@ const Eng=(function(){
         <div class="eng-dia-data"><b>${d?String(d.getDate()).padStart(2,'0'):'—'}</b><span>${d?DIAS_SEM[d.getDay()].slice(0,3)+' · '+brDe(d).slice(3,5)+'/'+String(d.getFullYear()).slice(2):''}</span></div>
         <div class="eng-dia-txt"><div class="linha">${RD.obra?'':`<b>${fe(r.titulo_obra)}</b>`}<span class="eng-pill ${tomCond(r.condicao)}">${fe(r.condicao||'—')}</span><span class="eng-pill ${choveu(r)?'azul':''}">manhã: ${fe(r.clima_manha||'—')} · tarde: ${fe(r.clima_tarde||'—')}</span>${r.efetivo_total?`<span class="eng-pill">${fe(r.efetivo_total)} pessoas</span>`:''}</div>
           <p>${fe(r.atividades||'')}</p>${r.ocorrencias?`<small><b>Ocorrências:</b> ${fe(r.ocorrencias)}</small>`:''}${r.visitas?`<small><b>Visitas:</b> ${fe(r.visitas)}</small>`:''}<small>${fe(r.responsavel?'Registrado por '+r.responsavel:'')}</small>${Eng.fotosHtml(r.titulo_obra,r.data,i)}</div>
-        <div class="eng-acoes">${Eng.podeFotos()?`<button type="button" class="fin-bt mini" data-rd="fotos" data-i="${i}" title="Incluir fotos deste dia (vão também para a galeria da obra)">+ Fotos</button>`:''}<button type="button" class="fin-bt mini" data-rd="pdfdia" data-i="${i}">PDF</button><button type="button" class="fin-bt mini" data-rd="editar" data-i="${i}">Editar</button><button type="button" class="fin-bt mini" data-rd="excluir" data-i="${i}">Excluir</button></div></div>`;}).join('')
+        <div class="eng-acoes">${r.ocorrencias&&Eng.novaAcao&&(!UI._allowedViews||UI._allowedViews.includes('acoes'))?`<button type="button" class="fin-bt mini" data-rd="acao" data-i="${i}" title="Transformar a ocorrência numa ação do plano, com responsável e prazo">→ Ação</button>`:''}${Eng.podeFotos()?`<button type="button" class="fin-bt mini" data-rd="fotos" data-i="${i}" title="Incluir fotos deste dia (vão também para a galeria da obra)">+ Fotos</button>`:''}<button type="button" class="fin-bt mini" data-rd="pdfdia" data-i="${i}">PDF</button><button type="button" class="fin-bt mini" data-rd="editar" data-i="${i}">Editar</button><button type="button" class="fin-bt mini" data-rd="excluir" data-i="${i}">Excluir</button></div></div>`;}).join('')
         :`<div class="fin-vazio">${todos.length?'Nenhum registro neste filtro.':'Nenhum dia registrado ainda. O ideal é registrar no fim de cada dia de obra.'}</div>`}</div>
     </div>`;
     box.onchange=ev=>{const s=ev.target.closest('select[data-rd]');if(!s)return;RD[s.dataset.rd]=s.value;renderDiario();};
     box.onclick=ev=>{const b=ev.target.closest('button[data-rd]');if(!b)return;const r=App._rdoLista[+b.dataset.i];
       if(b.dataset.rd==='foto'&&r)Eng.verFoto(Eng.fotosDoDia(r.titulo_obra,r.data),+b.dataset.f);
       else if(b.dataset.rd==='fotos'&&r)Eng.enviarFotos(r.titulo_obra,r.data);
+      else if(b.dataset.rd==='acao'&&r)Eng.novaAcao({titulo_obra:r.titulo_obra,tipo:'Pendência',o_que:String(r.ocorrencias).slice(0,150),por_que:'Ocorrência registrada no diário de '+brDe(dt(r.data)),origem:'Diário de obra '+brDe(dt(r.data))});
       else if(b.dataset.rd==='novo'){formulario(CFG_RDO,null);if(RD.obra)setTimeout(()=>{const el=document.querySelector('#fin-jan [data-f="titulo_obra"]');if(el)el.value=RD.obra;},40);}
       else if(b.dataset.rd==='editar'&&r)formulario(CFG_RDO,r);
       else if(b.dataset.rd==='excluir'&&r)apagar(CFG_RDO,r,`${r.titulo_obra} — ${brDe(dt(r.data))}`);
@@ -11626,22 +11639,22 @@ const Eng=(function(){
         nota:'Resultado = faturamento líquido REAL − custos REAIS lançados na obra. Não inclui as despesas da empresa (escritório, pró-labore etc.). Contrato = orçamento da obra (o mesmo usado nas Medições). Físico = avanço informado nas etapas do cronograma.',vazio:'Nenhuma obra ganha ou com lançamentos.'};
     }},
     'eng-valor-agregado':{titulo:'Desempenho Físico-financeiro (Valor Agregado)',gerar(obraSel){
-      const h=hoje0(),linhas=[];let sPV=0,sEV=0,sAC=0,sBAC=0;
+      const h=hoje0(),linhas=[],spis=[];let sPV=0,sEV=0,sAC=0,sBAC=0,sEVc=0;
       obrasRel(obraSel,emAndamento).forEach(o=>{
         const ob=nomeObra(o),fi=fisico(ob,h);if(!fi.tem)return;
-        const bac=capOrcado(ob)||fi.valor;if(bac<=0)return;
-        const pv=bac*fi.prev/100,ev=bac*fi.real/100,ac=custoReal(ob);
-        const spi=pv>0?ev/pv:null,cpi=ac>0?ev/ac:null,eac=cpi?bac/cpi:bac,vac=bac-eac;
+        // custo orçado só do CAP; CPI só com 20% ou mais executado (antes, compra antecipada distorce)
+        const bac=capOrcado(ob),pv=bac*fi.prev/100,ev=bac*fi.real/100,ac=custoReal(ob);
+        const spi=fi.prev>0?fi.real/fi.prev:null,cpi=bac>0&&ac>0&&fi.real>=20?ev/ac:null,eac=bac>0?(cpi?bac/cpi:Math.max(bac,ac)):null,vac=eac!=null?bac-eac:null;
         const dO=datasObra(o),ini=dO.ini||fi.ini,fim=dO.fim||fi.fim;
         let proj=null;if(ini&&fim&&fi.real>0){const decorrido=Math.max(1,(h-ini)/864e5);proj=addD(ini,Math.round(decorrido/(fi.real/100)));}
-        sPV+=pv;sEV+=ev;sAC+=ac;sBAC+=bac;
-        linhas.push([`<b>${fe(ob)}</b>`,pct(fi.prev,0),pct(fi.real,0),indice(spi),fmt(bac),fmt(ev),fmt(ac),indice(cpi),fmt(eac),cor(fmt(vac),vac<0?'vermelho':'verde'),fim?brDe(fim):'—',proj?cor(brDe(proj),fim&&proj>addD(fim,3)?'vermelho':'verde'):'—']);
+        if(spi!=null)spis.push(spi);if(bac>0){sPV+=pv;sEV+=ev;sBAC+=bac;if(cpi){sAC+=ac;sEVc+=ev;}}
+        linhas.push([`<b>${fe(ob)}</b>`,pct(fi.prev,0),pct(fi.real,0),indice(spi),bac?fmt(bac):'<small style="color:#6e6e73">sem CAP</small>',bac?fmt(ev):'—',fmt(ac),cpi?indice(cpi):`<small style="color:#6e6e73">${bac?'só após 20%':'—'}</small>`,eac!=null?fmt(eac):'—',vac!=null?cor(fmt(vac),vac<0?'vermelho':'verde'):'—',fim?brDe(fim):'—',proj?cor(brDe(proj),fim&&proj>addD(fim,3)?'vermelho':'verde'):'—']);
       });
-      const spi=sPV>0?sEV/sPV:null,cpi=sAC>0?sEV/sAC:null;
+      const spi=sPV>0?sEV/sPV:(spis.length?spis.reduce((a,b)=>a+b,0)/spis.length:null),cpi=sAC>0?sEVc/sAC:null;
       return {kpis:[['Índice de prazo (SPI)',spi==null?'—':spi.toLocaleString('pt-BR',{maximumFractionDigits:2}),spi==null?'':spi>=0.995?'obras no ritmo planejado':'abaixo de 1 = obras atrasadas',spi!=null&&spi<0.9?'vermelho':spi!=null&&spi<0.995?'laranja':'verde'],['Índice de custo (CPI)',cpi==null?'—':cpi.toLocaleString('pt-BR',{maximumFractionDigits:2}),cpi==null?'':cpi>=0.995?'gastando dentro do orçado':'abaixo de 1 = gastando mais que o orçado',cpi!=null&&cpi<0.9?'vermelho':cpi!=null&&cpi<0.995?'laranja':'verde'],['Custo orçado (BAC)',fmt(sBAC),'soma das obras analisadas',''],['Custo final estimado (EAC)',cpi?fmt(sBAC/cpi):fmt(sBAC),cpi?(sBAC/cpi>sBAC?'estouro de '+fmt(sBAC/cpi-sBAC):'economia de '+fmt(sBAC-sBAC/cpi)):'',cpi&&cpi<0.995?'vermelho':'verde']],
         cols:[C('Obra'),C('Físico previsto',1),C('Físico real',1),C('SPI prazo',1),C('Custo orçado (BAC)',1),C('Valor agregado (EV)',1),C('Custo real (AC)',1),C('CPI custo',1),C('Custo final estimado',1),C('Sobra / estouro',1),C('Término previsto',1),C('Término projetado',1)],
         linhas,total:null,
-        nota:'<b>Como ler:</b> o <b>SPI</b> compara o que foi executado com o que deveria estar executado hoje — 1,00 é no prazo; 0,90 quer dizer que a obra anda 10% mais devagar que o planejado. O <b>CPI</b> compara o valor do que foi executado com o que já se gastou — 1,00 é no orçamento; 0,85 quer dizer que cada R$ 1,00 gasto só rendeu R$ 0,85 de obra. O <b>custo final estimado</b> é quanto a obra deve custar no fim se o ritmo de gasto continuar igual. Base: custo orçado = composição mais recente do CAP (ou o valor das etapas); avanço = etapas do cronograma; custo real = custos Real da obra.',
+        nota:'<b>Como ler:</b> o <b>SPI</b> compara o que foi executado com o que deveria estar executado hoje — 1,00 é no prazo; 0,90 quer dizer que a obra anda 10% mais devagar que o planejado. O <b>CPI</b> compara o valor do que foi executado com o que já se gastou — 1,00 é no orçamento; 0,85 quer dizer que cada R$ 1,00 gasto só rendeu R$ 0,85 de obra. O <b>custo final estimado</b> é quanto a obra deve custar no fim se o ritmo de gasto continuar igual. Base: custo orçado = composição mais recente do CAP (sem CAP a obra não tem custo orçado); avanço = etapas do cronograma; custo real = custos Real da obra. O CPI só é calculado a partir de 20% de avanço físico: antes disso, a compra antecipada de material (tubos, PVs) distorce o índice.',
         vazio:'Nenhuma obra em andamento com etapas (peso e avanço) e custo orçado. Cadastre as etapas em Obras › abrir a obra › Cronograma, e a composição de custos no CAP.'};
     }},
     'eng-medicoes':{titulo:'Medições e Saldo Contratual',gerar(obraSel){
@@ -11810,7 +11823,7 @@ const Eng=(function(){
       if(v&&!(v==='medicoes'&&ME.edit))App._renderEng(v);
     }catch(e){console.error(e);}
   };
-  Object.assign(Eng,{renderMedicoes,alertas,resumoMedicoes,fisico,capOrcado,custoReal,fatReal,REL,_ME:ME,aditivosDaObra,datasObra,valorMed,medsDaObra,emAndamento,barra,cor,pct});
+  Object.assign(Eng,{renderMedicoes,alertas,resumoMedicoes,fisico,capOrcado,custoReal,fatReal,REL,_ME:ME,aditivosDaObra,datasObra,valorMed,medsDaObra,emAndamento,barra,cor,pct,itensBase,itensDaObra,baseDaObra,acumulado,orcDe});
 })();
 </script>
 <!-- ═══════════════════ ENGENHARIA (parte 3): fotos do diário, aditivos, painel da obra, saúde das obras ═══════════════════ -->
@@ -11932,13 +11945,14 @@ const Eng=(function(){
     {k:'numero',label:'Identificação',ph:'Ex.: 1º Termo Aditivo'},
     {k:'data_emissao',label:'Data de assinatura',tipo:'data',obrig:true},
     {k:'aditivo_valor',label:'Valor do aditivo (R$)',tipo:'num',ph:'Ex.: 25.000,00 (supressão: -25.000,00)'},
-    {k:'novo_termino',label:'Novo término da obra',tipo:'data'},
+    {k:'novo_termino',label:'Novo término da execução',tipo:'data'},
+    {k:'nova_vigencia',label:'Novo fim da vigência do contrato',tipo:'data'},
     {k:'descricao',label:'Motivo / objeto',tipo:'area',obrig:true,inteira:true,linhas:2,ph:'Ex.: acréscimo de 300 m de rede na Rua B; chuvas acima da média em agosto'},
     {k:'link',label:'Link do arquivo assinado',tipo:'url',inteira:true,ph:'https://…'}
   ],validar:o=>{
     o.tipo=TIPO_ADT;
     const v=moeda(o.aditivo_valor);o.aditivo_valor=v?dinheiro(v):'';
-    if(!v&&!o.novo_termino)return 'Informe o valor do aditivo, o novo término, ou os dois.';
+    if(!v&&!o.novo_termino&&!o.nova_vigencia)return 'Informe o valor do aditivo, o novo término ou a nova vigência.';
     return '';
   }};
   function editarAditivo(a,ob){
@@ -11974,15 +11988,18 @@ const Eng=(function(){
   function saude(o){
     const ob=nomeObra(o),h=hoje0();
     const rm=Eng.resumoMedicoes(ob),fi=Eng.fisico(ob,h),cap=capInfo(ob),dO=Eng.datasObra(o),fr=Eng.fatReal(ob),ac=Eng.custoReal(ob);
-    const bac=cap.custo||fi.valor||0,pv=bac*fi.prev/100,ev=bac*fi.real/100;
-    const spi=fi.tem&&pv>0?ev/pv:null,cpi=fi.tem&&ac>0&&ev>0?ev/ac:null;
+    // custo orçado vem SÓ do CAP (o valor das etapas é preço de VENDA, não custo)
+    const bac=cap.custo||0,pv=bac*fi.prev/100,ev=bac*fi.real/100;
+    // SPI = executado ÷ previsto para hoje. CPI só a partir de 20% executado: antes disso a compra
+    // antecipada de material (tubos, PVs) distorce o índice e o custo final estimado sairia absurdo
+    const spi=fi.tem&&fi.prev>0?fi.real/fi.prev:null,cpi=fi.tem&&bac>0&&ac>0&&fi.real>=20?ev/ac:null;
     // aditivo de valor traz serviço junto: o custo dele é projetado na mesma proporção do contrato original
     const fatorAdt=rm.base>0&&rm.contrato>0?rm.contrato/rm.base:1;
-    const eac=(cpi?bac/cpi:Math.max(bac,ac))*fatorAdt;
+    const eac=bac>0?(cpi?bac/cpi:Math.max(bac,ac))*fatorAdt:null;
     const receita=rm.contrato||cap.bruto||0;
     // quanto do bruto fica depois de impostos e retenções: histórico da obra › CAP › padrão do sistema
     const fatorLiq=fr.b>0&&fr.l>0?fr.l/fr.b:(cap.bruto>0&&cap.liquido>0?cap.liquido/cap.bruto:0.8863);
-    const recLiq=receita*fatorLiq,resProj=receita?recLiq-eac:null,margemProj=receita&&recLiq?resProj/recLiq*100:null;
+    const recLiq=receita*fatorLiq,resProj=receita&&eac!=null?recLiq-eac:null,margemProj=resProj!=null&&recLiq?resProj/recLiq*100:null;
     const margemPrev=cap.liquido>0&&cap.lucro?cap.lucro/cap.liquido*100:null;
     const dec=dO.ini?Math.max(0,dias(dO.ini,h)):null,durT=dO.ini&&dO.fim?Math.max(1,dias(dO.ini,dO.fim)):null;
     const proj=dO.ini&&fi.tem&&fi.real>0?addD(dO.ini,Math.round(Math.max(1,dec)/(fi.real/100))):null;
@@ -12035,14 +12052,14 @@ const Eng=(function(){
     docs.slice(0,4).forEach(x=>pend.push(linha(fe(x.d.tipo),`<span class="eng-pill ${x.st.tom}">${x.st.rot}</span>`)));
     const ext=ehExt();
     return `<div class="op-wrap">
-      <div class="op-topo"><div class="op-sinais">${sinal('prazo','Prazo',s.spi!=null?'SPI '+idx2(s.spi):s.vencido?'vencido':'sem cronograma')}${sinal('custo','Custo',s.cpi!=null?'CPI '+idx2(s.cpi):'sem dados')}${sinal('resultado','Resultado',s.margemProj!=null?'margem '+pct(s.margemProj):'sem contrato')}${sinal('medicao','Medição',!rm.orc?'sem orçamento':rm.aprovado?'a faturar':s.semMed?'atrasada':'em dia')}</div>
+      <div class="op-topo"><div class="op-sinais">${sinal('prazo','Prazo',s.spi!=null?'SPI '+idx2(s.spi):s.vencido?'vencido':'sem cronograma')}${sinal('custo','Custo',s.cpi!=null?'CPI '+idx2(s.cpi):'sem dados')}${sinal('resultado','Resultado',s.margemProj!=null?'margem '+pct(s.margemProj):s.receita?'sem CAP':'sem contrato')}${sinal('medicao','Medição',!rm.orc?'sem orçamento':rm.aprovado?'a faturar':s.semMed?'atrasada':'em dia')}</div>
         <div class="op-acoes">${pode('medicoes')?'<button type="button" class="fin-bt" data-op="medicoes">Medições</button>':''}${pode('diario')?'<button type="button" class="fin-bt" data-op="diario">Diário de obra</button>':''}</div></div>
       <div class="fin-kpis">
         ${kpi('',rm.adts&&rm.adts.length?'Contrato vigente':'Contrato',s.receita?fmt(s.receita):'—',rm.orc?(rm.adts.length?`com ${rm.adts.length} aditivo${rm.adts.length>1?'s':''}`:'orçamento da obra'):(s.cap.bruto?'orçamento bruto do CAP':'cadastre o orçamento'))}
         ${kpi(rm.pct>=90?'laranja':'verde','Medido',fmt(rm.medido),rm.contrato?pct(rm.pct)+' · saldo '+fmt(rm.saldo):'sem medições')}
         ${kpi('','Faturado (notas)',fmt(s.fr.b),'recebido '+fmt(s.recebido))}
         ${kpi(s.cpi!=null&&s.cpi<0.95?'vermelho':'','Custo real',fmt(s.ac),s.bac?pct(s.ac/s.bac*100,0)+' do orçado ('+fmt(s.bac)+')':'sem custo orçado')}
-        ${kpi(s.resProj!=null&&s.resProj<0?'vermelho':s.sinal.resultado==='amarelo'?'laranja':'verde','Resultado projetado',s.resProj!=null?fmt(s.resProj):'—',s.margemProj!=null?'margem '+pct(s.margemProj)+(s.margemPrev!=null?' · prevista '+pct(s.margemPrev):''):'')}
+        ${kpi(s.resProj!=null&&s.resProj<0?'vermelho':s.sinal.resultado==='amarelo'?'laranja':'verde','Resultado projetado',s.resProj!=null?fmt(s.resProj):'—',s.margemProj!=null?'margem '+pct(s.margemProj)+(s.margemPrev!=null?' · prevista '+pct(s.margemPrev):''):(s.receita?'cadastre o custo orçado (CAP)':''))}
         ${kpi(s.caixa<0?'vermelho':'verde','Caixa da obra',fmt(s.caixa),'recebido − pago'+(s.aportes?' · aportes '+fmt(s.aportes):''))}
       </div>
       ${dicas.length?`<div class="op-card"><h4>O que pede decisão agora</h4><ul class="op-dicas">${dicas.map(d=>`<li>${fe(d)}</li>`).join('')}</ul></div>`:'<div class="at-ok" style="margin:0"><span>✓</span><div><b>Obra no rumo.</b> Prazo, custo, medição e caixa sem nada pedindo ação.</div></div>'}
@@ -12079,14 +12096,14 @@ const Eng=(function(){
           ${fotos.length?`<div class="eng-fotos">${fotos.map((f,k)=>`<button type="button" data-op="foto" data-f="${k}" title="${fe(f.descricao||'')}"><img src="${fe(miniatura(f,200))}" data-driveid="${fe(f.drive_file_id||'')}" referrerpolicy="no-referrer" loading="lazy" alt="" onerror="UI.ImagensObra._imgErro(this)"></button>`).join('')}</div>`:'<div class="fin-vazio" style="padding:10px">Nenhuma foto. Inclua pela aba Obra (Imagens da Obra) ou pelo Diário.</div>'}
         </div>
       </div>
-      <div style="font-size:11px;color:var(--text-3);line-height:1.5">Como é calculado: avanço = etapas (peso × avanço); custo orçado = composição mais recente do CAP; SPI = executado ÷ previsto para hoje; CPI = valor executado ÷ custo real; custo final estimado = orçado ÷ CPI (aditivo de valor soma custo na mesma proporção do contrato); resultado projetado = contrato vigente × ${pct(s.fatorLiq*100)} (o que sobra depois de impostos e retenções${s.fr.b>0?', pelo histórico da obra':''}) − custo final estimado.</div>
+      <div style="font-size:11px;color:var(--text-3);line-height:1.5">Como é calculado: avanço = etapas (peso × avanço); custo orçado = composição mais recente do CAP; SPI = executado ÷ previsto para hoje; CPI = valor executado ÷ custo real (só a partir de 20% de avanço — antes disso, compra antecipada de material distorce); custo final estimado = orçado ÷ CPI (aditivo de valor soma custo na mesma proporção do contrato); resultado projetado = contrato vigente × ${pct(s.fatorLiq*100)} (o que sobra depois de impostos e retenções${s.fr.b>0?', pelo histórico da obra':''}) − custo final estimado.</div>
     </div>`;
   }
   function abrirPainel(ob){
     const form=document.getElementById('form-upsert');if(!form)return;
     form.removeAttribute('style');
     form.style.cssText='display:flex;flex-direction:column;padding:0;gap:0;overflow:hidden;grid-template-columns:unset;';
-    form.innerHTML=`<div class="op-scroll" style="flex:1;overflow-y:auto;padding:16px 24px 28px">${painelHtml(ob)}</div>`;
+    form.innerHTML=`<div class="op-scroll" style="flex:1;overflow-y:auto;padding:16px 24px 28px">${Eng.painelHtml(ob)}</div>`;
     form.querySelector('.op-scroll').onclick=ev=>{
       const b=ev.target.closest('[data-op]');if(!b)return;const a=b.dataset.op;
       if(a==='foto')return verFoto(App._opFotos,+b.dataset.f);
@@ -12096,6 +12113,7 @@ const Eng=(function(){
       UI.closeModal('modal-editor');
       if(a==='medicoes'){Eng._ME.edit=null;Eng._ME.obra=ob;UI.nav('medicoes');}
       else if(a==='diario'){Eng._RD.obra=ob;Eng._RD.mes='__todos';UI.nav('diario');}
+      else if(Eng.irPara)Eng.irPara(a,ob);
     };
   }
   function pdfPainel(ob){
@@ -12107,7 +12125,7 @@ const Eng=(function(){
     const card=(t,c)=>`<div style="flex:1;border:1px solid #e5e5ea;border-radius:8px;padding:9px 12px;min-width:0"><div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:#6e6e73;margin-bottom:4px">${t}</div>${c}</div>`;
     const blocos=[
       `<div style="display:flex;gap:16px;font-size:11.5px;font-weight:700;margin-bottom:6px">${[['prazo','Prazo'],['custo','Custo'],['resultado','Resultado'],['medicao','Medição']].map(([k,r])=>`<span>${ponto(s.sinal[k])}${r}: ${SIN_ROT[s.sinal[k]]}</span>`).join('')}</div>`,
-      `<div style="display:flex;gap:10px">${card('Contrato e medição',L('Contrato vigente',fmt(s.receita))+L('Medido',fmt(rm.medido)+' ('+pct(rm.pct)+')')+L('Saldo a medir',fmt(rm.saldo))+L('Aprovado a faturar',fmt(rm.aprovado)))}${card('Prazo',L('Início',brDe(s.dO.ini))+L('Término vigente',brDe(s.dO.fim))+L('Físico real / previsto',s.fi.tem?pct(s.fi.real,0)+' / '+pct(s.fi.prev,0):'—')+L('Término projetado',brDe(s.proj)))}${card('Custo',L('Orçado (CAP)',fmt(s.bac))+L('Real',fmt(s.ac))+L('CPI / SPI',idx2(s.cpi)+' / '+idx2(s.spi))+L('Custo final estimado',fmt(s.eac)))}${card('Resultado e caixa',L('Resultado projetado',s.resProj!=null?fmt(s.resProj):'—')+L('Margem projetada / prevista',pct(s.margemProj)+' / '+pct(s.margemPrev))+L('Recebido − pago',fmt(s.caixa))+L('A receber',fmt(s.aReceber)))}</div>`
+      `<div style="display:flex;gap:10px">${card('Contrato e medição',L('Contrato vigente',fmt(s.receita))+L('Medido',fmt(rm.medido)+' ('+pct(rm.pct)+')')+L('Saldo a medir',fmt(rm.saldo))+L('Aprovado a faturar',fmt(rm.aprovado)))}${card('Prazo',L('Início',brDe(s.dO.ini))+L('Término vigente',brDe(s.dO.fim))+L('Físico real / previsto',s.fi.tem?pct(s.fi.real,0)+' / '+pct(s.fi.prev,0):'—')+L('Término projetado',brDe(s.proj)))}${card('Custo',L('Orçado (CAP)',fmt(s.bac))+L('Real',fmt(s.ac))+L('CPI / SPI',idx2(s.cpi)+' / '+idx2(s.spi))+L('Custo final estimado',s.eac!=null?fmt(s.eac):'—'))}${card('Resultado e caixa',L('Resultado projetado',s.resProj!=null?fmt(s.resProj):'—')+L('Margem projetada / prevista',pct(s.margemProj)+' / '+pct(s.margemPrev))+L('Recebido − pago',fmt(s.caixa))+L('A receber',fmt(s.aReceber)))}</div>`
     ];
     const real=realPorCat(ob),cats=[...new Set(Object.keys(s.cap.cats).concat(Object.keys(real)))].map(c=>({c,o:s.cap.cats[c]||0,r:real[c]||0})).filter(x=>x.o||x.r).sort((a,b)=>b.o-a.o);
     if(cats.length)blocos.push(`<div style="font-size:12px;font-weight:800;margin:12px 0 4px">Orçado × realizado por categoria</div><table><thead><tr><th>Categoria</th><th style="text-align:right">Orçado</th><th style="text-align:right">Realizado</th><th style="text-align:right">Diferença</th><th style="text-align:right">% consumido</th></tr></thead><tbody>${cats.map(x=>`<tr><td>${fe(x.c)}</td><td style="text-align:right">${fmt(x.o)}</td><td style="text-align:right">${fmt(x.r)}</td><td style="text-align:right;color:${x.r>x.o?'#C4231A':'#1D6B33'}">${fmt(x.o-x.r)}</td><td style="text-align:right">${x.o?pct(x.r/x.o*100,0):'—'}</td></tr>`).join('')}</tbody></table>`);
@@ -12132,7 +12150,7 @@ const Eng=(function(){
     const empatado=L.reduce((s,x)=>s+Math.min(0,x.caixa),0);
     App._saudeLista=L;
     box.innerHTML=`<div class="at-card"><div class="at-cab"><b>Carteira e saúde das obras em andamento (${L.length})</b><span>clique numa obra para abrir o painel dela</span></div>
-      <div class="fin-kpis" style="margin-bottom:12px">${kpi('','Carteira a executar',fmt(carteira),'saldo a medir dos contratos vigentes')}${kpi('verde','Medido nos últimos 30 dias',fmt(med30),'produção faturável do mês')}${kpi(resT<0?'vermelho':'verde','Resultado projetado',fmt(resT),recT?'margem '+pct(resT/recT*100)+' sobre a receita líquida':'')}${kpi(empatado<0?'laranja':'verde','Capital empatado nas obras',fmt(-empatado),'pago a mais do que recebido')}</div>
+      <div class="fin-kpis" style="margin-bottom:12px">${kpi('','Carteira a executar',fmt(carteira),'saldo a medir dos contratos vigentes')}${kpi('verde','Medido nos últimos 30 dias',fmt(med30),'produção faturável do mês')}${kpi(resT<0?'vermelho':'verde','Resultado projetado',comRes.length?fmt(resT):'—',comRes.length?(recT?'margem '+pct(resT/recT*100)+' sobre a receita líquida':''):'cadastre o custo orçado (CAP) das obras')}${kpi(empatado<0?'laranja':'verde','Capital empatado nas obras',fmt(-empatado),'pago a mais do que recebido')}</div>
       <div class="fin-rolar"><table class="fin-tab eng-saude-tab"><thead><tr><th>Obra</th><th>Físico</th><th>Prazo</th><th>Custo</th><th>Medição</th><th class="num">Resultado projetado</th><th class="num fin-esconder-cel">Caixa da obra</th></tr></thead><tbody>
         ${L.map((x,i)=>`<tr data-sd="${i}"><td><b>${fe(x.ob)}</b><small>término ${brDe(x.dO.fim)}${x.proj&&x.dO.fim&&x.proj>addD(x.dO.fim,3)?` · <span class="t-err">projetado ${brDe(x.proj)}</span>`:''}</small></td>
           <td style="min-width:110px">${x.fi.tem?`<div style="display:flex;gap:6px;align-items:center">${Eng.barra(x.fi.real)}<small style="margin:0">${pct(x.fi.real,0)}</small></div><small>previsto ${pct(x.fi.prev,0)}</small>`:'<small>sem etapas</small>'}</td>
@@ -12205,6 +12223,742 @@ const Eng=(function(){
   (function(){const ra=App.renderAll;App.renderAll=function(){ra.apply(this,arguments);try{const hub=App.state.obraHub;if(hub&&hub.tab==='resumo'&&document.getElementById('modal-editor')?.classList.contains('open'))abrirPainel(hub.obraName);}catch(e){console.error(e);}};})();
 
   Object.assign(Eng,{fotosDoDia,fotosHtml,fotosPdf,verFoto,enviarFotos,podeFotos:ehAdmin,editarAditivo,excluirAditivo,aditivosCard,saude,capInfo,realPorCat,painelHtml,pdfPainel,renderSaude});
+})();
+</script>
+<!-- ═══════════════════ GESTÃO DE CONTRATOS: Contratos, Planejamento, Plano de ação, Viabilidade ═══════════════════ -->
+<style>
+.ct-ciclo{display:grid;gap:6px;}
+.ct-passo{display:flex;gap:10px;align-items:center;padding:8px 10px;border-radius:11px;background:var(--bg);font-size:12.5px;color:var(--text-1);}
+.ct-passo>i{width:22px;height:22px;border-radius:50%;flex:none;display:grid;place-items:center;font-style:normal;font-size:12px;font-weight:800;background:#fff;border:2px solid #C7C7CC;color:var(--text-3);}
+.ct-passo.ok>i{background:#34C759;border-color:#34C759;color:#fff;}
+.ct-passo.prox{background:rgba(0,113,227,.07);box-shadow:inset 0 0 0 1px rgba(0,113,227,.25);}
+.ct-passo.prox>i{border-color:var(--blue);color:var(--blue);}
+.ct-passo small{display:block;color:var(--text-3);font-size:11px;margin-top:1px;}
+.ct-passo .fin-bt{margin-left:auto;}
+.ct-passo>div{min-width:0;flex:1;}
+.ct-barra{height:8px;border-radius:99px;background:var(--bg);overflow:hidden;min-width:80px;}
+.ct-barra i{display:block;height:100%;background:#34C759;border-radius:99px;}
+.ct-tl{position:relative;height:84px;margin:6px 4px 2px;}
+.ct-tl-eixo{position:absolute;left:0;right:0;top:22px;height:4px;border-radius:4px;background:var(--bg);}
+.ct-tl-feito{position:absolute;left:0;top:22px;height:4px;border-radius:4px;background:var(--blue);}
+.ct-tl-m{position:absolute;top:14px;transform:translateX(-50%);text-align:center;font-size:10.5px;color:var(--text-2);white-space:nowrap;}
+.ct-tl-m span{display:block;line-height:1.3;}
+.ct-tl-m b{display:block;width:12px;height:12px;border-radius:50%;margin:2px auto 6px;background:#fff;border:3px solid var(--text-3);}
+.ct-tl-m.azul b{border-color:var(--blue);} .ct-tl-m.vermelho b{border-color:var(--red);} .ct-tl-m.verde b{border-color:#34C759;} .ct-tl-m.hoje b{background:var(--red);border-color:var(--red);width:8px;height:8px;margin-top:4px;}
+.pl-gantt{display:grid;gap:3px;}
+.pl-linha{display:grid;grid-template-columns:230px 1fr;gap:10px;align-items:center;font-size:11.5px;}
+.pl-linha>span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text-1);}
+.pl-trilho{position:relative;height:18px;background:var(--bg);border-radius:5px;}
+.pl-barra{position:absolute;top:3px;height:12px;border-radius:4px;background:#8E8E93;overflow:hidden;min-width:3px;}
+.pl-barra i{position:absolute;left:0;top:0;bottom:0;background:rgba(0,0,0,.28);}
+.pl-barra.crit{background:#FF3B30;} .pl-barra.ok{background:#34C759;} .pl-barra.and{background:var(--blue);} .pl-barra.lib{background:#FF9500;}
+.pl-marca{position:absolute;top:-2px;bottom:-2px;width:2px;}
+.pl-marca.hoje{background:rgba(255,59,48,.65);} .pl-marca.term{border-left:2px dashed #1D1D1F;width:0;}
+.pl-regua{display:grid;grid-template-columns:230px 1fr;gap:10px;font-size:10px;color:var(--text-3);font-weight:700;text-transform:uppercase;}
+.pl-regua>div{position:relative;height:14px;}
+.pl-regua>div span{position:absolute;transform:translateX(-2px);}
+.vb-grade{display:grid;grid-template-columns:minmax(260px,330px) 1fr;gap:16px;align-items:start;}
+.vb-grade .fin-fld{margin-bottom:8px;}
+.vb-graf{display:flex;align-items:stretch;gap:3px;height:170px;padding:4px 0;border-bottom:1px solid var(--border);}
+.vb-col{flex:1;display:flex;flex-direction:column;min-width:6px;}
+.vb-col .pos{display:flex;align-items:flex-end;} .vb-col .neg{display:flex;align-items:flex-start;}
+.vb-col .pos i,.vb-col .neg i{display:block;width:100%;border-radius:3px;}
+.vb-col .pos i{background:#34C759;} .vb-col .neg i{background:#FF3B30;}
+.vb-col.sim .pos i{background:#0071E3;}
+.vb-eixo{display:flex;gap:3px;font-size:9.5px;color:var(--text-3);margin-top:3px;}
+.vb-eixo span{flex:1;text-align:center;min-width:6px;overflow:hidden;}
+.vb-veredito{padding:12px 14px;border-radius:12px;font-size:13px;line-height:1.5;}
+.vb-veredito.verde{background:rgba(52,199,89,.08);border:1px solid rgba(52,199,89,.3);}
+.vb-veredito.amarelo{background:rgba(255,149,0,.08);border:1px solid rgba(255,149,0,.3);}
+.vb-veredito.vermelho{background:rgba(255,59,48,.06);border:1px solid rgba(255,59,48,.3);}
+@media (max-width:900px){.vb-grade{grid-template-columns:1fr;} .pl-linha,.pl-regua{grid-template-columns:110px 1fr;}}
+</style>
+<script>
+/* ═══════════════════════════ GESTÃO DE CONTRATOS ═══════════════════════════
+   O ciclo completo de um contrato de obra pública, num lugar só:
+   • Contratos — ficha (contratante, valor, vigência, garantia, reajuste, fiscal) + o ciclo de
+     vida em passos (proposta → assinatura → garantia → ART → OS → planejamento → mobilização →
+     medições → reajuste → as built → recebimentos → encerramento). O que já está lançado no
+     sistema marca o passo sozinho; o resto se marca com um clique. Nº do contrato, ordem de
+     serviço e prazo continuam gravados NA OBRA (um dado, um lugar) — esta ficha só os edita.
+   • Planejamento — gera as etapas a partir do ORÇAMENTO (agrupa os itens por fase de execução,
+     peso = valor, sequência e dependências típicas de obra de saneamento linear), calcula o
+     caminho crítico já com o avanço real, mostra as frentes liberadas para começar e o término
+     projetado; o avanço de cada etapa pode vir direto das MEDIÇÕES (sem digitar duas vezes).
+   • Plano de ação — 5W2H por obra (pendências, riscos, não conformidades, pedidos à fiscalização).
+   • Viabilidade — fluxo de caixa mês a mês de um contrato (lucro, maior necessidade de caixa,
+     VPL, TIR, retorno) somado à carteira atual: o contrato cabe no caixa da empresa? */
+(function(){
+  const {D,U,nomeObra,statusObra,obrasNomes,cab,kpi,campoHtml,formulario}=Eng;
+  const {janela,confirmar,executar,salvar,excluir,fe,cn,dt,brDe,isoDe,hoje0,addD,dias,dinheiro,val,kRow}=U;
+  const pode=v=>!UI._allowedViews||UI._allowedViews.includes(v);
+  const pct=(v,c)=>v==null||!isFinite(v)?'—':(Math.round(v*10)/10).toLocaleString('pt-BR',{maximumFractionDigits:c==null?1:c})+'%';
+  const moeda=s=>{let t=String(s==null?'':s).trim().replace(/[^\d,.\-]/g,'');if(!t)return 0;if(t.includes(','))t=t.replace(/\./g,'').replace(',','.');else if(/^-?\d{1,3}(\.\d{3})+$/.test(t))t=t.replace(/\./g,'');const n=parseFloat(t);return isNaN(n)?0:n;};
+  const n2=v=>(Math.round((+v||0)*100)/100).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+  const r2=n=>Math.round((+n||0)*100)/100;
+  const addM=(d,n)=>{const x=new Date(d);x.setMonth(x.getMonth()+n);return x;};
+  const obraDe=ob=>(D().obras||[]).find(o=>nomeObra(o)===ob)||null;
+  const ganha=o=>cn(statusObra(o)).startsWith('ganha');
+  const finalizada=o=>cn(statusObra(o)).includes('finalizada');
+  const MES=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
+  const mesRot=d=>MES[d.getMonth()]+'/'+String(d.getFullYear()).slice(2);
+  const quando=n=>n==null?'—':n<0?`venceu há ${-n} dia${-n!==1?'s':''}`:n===0?'vence hoje':`faltam ${n} dia${n!==1?'s':''}`;
+  const sem=(tom,txt)=>`<span class="eng-sem ${tom}"><i></i>${txt}</span>`;
+  const selObra=(atual,attr,lista,vazio)=>`<select class="filter-select" ${attr}><option value="">${fe(vazio)}</option>${lista.map(o=>`<option ${atual===o?'selected':''}>${fe(o)}</option>`).join('')}</select>`;
+  const linha=(l,v)=>`<div class="op-linha"><span>${l}</span><b>${v}</b></div>`;
+  const obrasAtivas=()=>(D().obras||[]).filter(o=>ganha(o)&&!finalizada(o)).map(nomeObra).sort((a,b)=>a.localeCompare(b,'pt-BR'));
+  const rolarTopo=v=>{const s=document.querySelector(`#view-${v} .cards-scroll`);if(s)s.scrollTop=0;};
+
+  /* ═══════════════════════════ CONTRATOS ═══════════════════════════ */
+  const contratoDe=ob=>(D().contratos||[]).find(c=>c.titulo_obra===ob)||null;
+  const docsObra=(ob,re)=>(D().documentos||[]).filter(d=>d.titulo_obra===ob&&re.test(String(d.tipo||'')));
+  // O ciclo de vida do contrato. auto = o sistema reconhece pelo que já foi lançado.
+  const CICLO=[
+    {k:'proposta',rot:'Orçamento da proposta',dica:'Obras › abrir a obra › Orçamento',auto:x=>!!Eng.baseDaObra(x.ob)},
+    {k:'cap',rot:'Custo orçado (CAP) e margem prevista',dica:'Obras › abrir a obra › CAP',auto:x=>Eng.capInfo(x.ob).tem},
+    {k:'assinatura',rot:'Contrato assinado',dica:'Editar dados do contrato › data de assinatura',auto:x=>!!dt(x.c.data_assinatura)},
+    {k:'garantia',rot:'Garantia contratual entregue',mm:true,dica:'Documentos › Seguro-garantia (ou marque aqui)',auto:x=>docsObra(x.ob,/garantia/i).length>0||!!dt(x.c.garantia_validade)},
+    {k:'art',rot:'ART da obra registrada no CREA',mm:true,dica:'Documentos › ART / RRT (ou marque aqui)',auto:x=>docsObra(x.ob,/ART/).length>0},
+    {k:'os',rot:'Ordem de serviço recebida',dica:'Editar dados do contrato › data da OS',auto:x=>!!x.dO.ini},
+    {k:'planejamento',rot:'Planejamento da execução (etapas)',dica:'Engenharia › Planejamento › Gerar a partir do orçamento',auto:x=>Eng.fisico(x.ob,hoje0()).tem},
+    {k:'mobilizacao',rot:'Mobilização e diário de obra iniciado',mm:true,dica:'Engenharia › Diário de obra (ou marque aqui)',auto:x=>(D().diario_obra||[]).some(r=>r.titulo_obra===x.ob)},
+    {k:'medicao',rot:'Medições mensais em dia',dica:'Engenharia › Medições',auto:x=>x.rm.ms.length>0},
+    {k:'reajuste',rot:'Reajuste pedido (12 meses após a data-base)',dica:'Peça por ofício ao fiscal, com o índice do contrato',opcional:true},
+    {k:'asbuilt',rot:'Cadastro técnico / as built entregue',dica:'Exigido para o recebimento da obra'},
+    {k:'rec_prov',rot:'Termo de recebimento provisório',dica:'Emitido pela fiscalização ao fim da execução'},
+    {k:'rec_def',rot:'Termo de recebimento definitivo',dica:'Após o prazo de observação'},
+    {k:'encerramento',rot:'Garantia devolvida e contrato encerrado',dica:'Peça a liberação da garantia após o recebimento definitivo'}
+  ];
+  function info(o){
+    const ob=nomeObra(o),c=contratoDe(ob)||{},h=hoje0();
+    const dO=Eng.datasObra(o),rm=Eng.resumoMedicoes(ob),ads=Eng.aditivosDaObra(ob);
+    const valorOrig=val(c.valor_contrato)||rm.base||0,adV=ads.reduce((s,a)=>s+val(a.aditivo_valor),0);
+    let vig=dt(c.vigencia_fim);const vigOrig=vig;ads.forEach(a=>{const n=dt(a.nova_vigencia);if(n&&(!vig||n>vig))vig=n;});
+    let garVal=dt(c.garantia_validade);docsObra(ob,/garantia/i).forEach(d=>{const v=dt(d.data_validade);if(v&&(!garVal||v>garVal))garVal=v;});
+    const exigeGar=c.garantia_tipo?c.garantia_tipo!=='Não exigida':!!garVal;
+    const dataBase=dt(c.data_base),reaj=dataBase?addM(dataBase,12):null,ck=c.checklist||{};
+    const diasVig=vig?dias(h,vig):null;
+    const sVig=!vig?'cinza':diasVig<=30?'vermelho':diasVig<=60?'amarelo':(dO.fim&&!finalizada(o)&&dias(dO.fim,vig)<30)?'amarelo':'verde';
+    const sGar=!exigeGar?'cinza':!garVal?'amarelo':garVal<h?'vermelho':(vig&&garVal<vig)||dias(h,garVal)<=30?'amarelo':'verde';
+    const reajDisp=!!(reaj&&h>=reaj&&!ck.reajuste&&c.indice_reajuste!=='Sem reajuste previsto');
+    const x={o,ob,c,dO,rm};
+    const ciclo=CICLO.map(p=>{const sis=p.auto?!!p.auto(x):false;return {...p,sis,feito:sis||!!ck[p.k],data:ck[p.k]||''};});
+    const obrig=ciclo.filter(p=>!p.opcional),feitos=obrig.filter(p=>p.feito).length;
+    return {o,ob,c,tem:!!contratoDe(ob),dO,rm,ads,valorOrig,adV,adPct:valorOrig?adV/valorOrig*100:0,vigente:valorOrig+adV,vig,vigOrig,diasVig,garVal,exigeGar,dataBase,reaj,reajDisp,sVig,sGar,ciclo,feitos,total:obrig.length,prox:obrig.find(p=>!p.feito)||null};
+  }
+  const CT={obra:'',filtro:'ativos'};
+  function renderContratos(){
+    const box=document.getElementById('eng-contratos');if(!box)return;
+    if(CT.obra&&obraDe(CT.obra))return renderContrato(box,CT.obra);
+    CT.obra='';
+    const todas=(D().obras||[]).filter(ganha).map(info);
+    const lista=todas.filter(x=>CT.filtro==='todos'||(CT.filtro==='ativos'?!finalizada(x.o):finalizada(x.o)&&x.feitos<x.total)).sort((a,b)=>a.ob.localeCompare(b.ob,'pt-BR'));
+    const at=todas.filter(x=>!finalizada(x.o));
+    const vigAlerta=at.filter(x=>x.sVig==='vermelho'||x.sVig==='amarelo').length,garAlerta=at.filter(x=>x.sGar==='vermelho'||x.sGar==='amarelo').length,reaj=at.filter(x=>x.reajDisp).length,semCad=at.filter(x=>!x.tem).length;
+    App._ctLista=lista;
+    box.innerHTML=`<div class="fin-wrap">
+      ${cab('Contratos','A gestão de cada contrato do começo ao fim: valor e aditivos (limite legal de 25%), prazo de execução e de VIGÊNCIA, garantia, reajuste anual e o ciclo de vida em passos. Atenção: aditivo de prazo só pode ser assinado ANTES de a vigência acabar.',`<select class="filter-select" data-ct="filtro"><option value="ativos" ${CT.filtro==='ativos'?'selected':''}>Contratos em execução</option><option value="encerrar" ${CT.filtro==='encerrar'?'selected':''}>Obras finalizadas com encerramento pendente</option><option value="todos" ${CT.filtro==='todos'?'selected':''}>Todos os contratos</option></select>`)}
+      <div class="fin-kpis">${kpi('','Carteira contratada',fmt(at.reduce((s,x)=>s+x.vigente,0)),`${at.length} contrato${at.length!==1?'s':''} em execução`)}${kpi(vigAlerta?'vermelho':'verde','Vigência pedindo atenção',vigAlerta,'vence em até 60 dias ou não cobre o término')}${kpi(garAlerta?'laranja':'verde','Garantias a regularizar',garAlerta,'vencida, vencendo ou antes do fim da vigência')}${kpi(reaj?'laranja':'verde','Reajustes disponíveis',reaj,reaj?'12 meses da data-base já passaram':'nenhum pendente')}${semCad?kpi('laranja','Sem ficha do contrato',semCad,'cadastre para o sistema vigiar prazos'):''}</div>
+      <div class="fin-card">${lista.length?`<div class="fin-rolar"><table class="fin-tab eng-saude-tab"><thead><tr><th>Obra / contrato</th><th class="num">Valor vigente</th><th>Execução</th><th>Vigência</th><th class="fin-esconder-cel">Garantia</th><th class="fin-esconder-cel">Reajuste</th><th>Ciclo</th></tr></thead><tbody>
+        ${lista.map((x,i)=>`<tr data-ct="abrir" data-i="${i}"><td><b>${fe(x.ob)}</b><small>${x.tem?fe([getFuzzy(x.o,['numero_contrato','num_contrato','n_contrato'])?'nº '+getFuzzy(x.o,['numero_contrato','num_contrato','n_contrato']):'',x.c.contratante].filter(Boolean).join(' · ')):'<span class="t-warn">ficha do contrato não cadastrada</span>'}</small></td>
+          <td class="num">${x.vigente?fmt(x.vigente):'—'}${x.adV?`<small>${x.adV>0?'+':''}${pct(x.adPct)} em aditivos</small>`:''}</td>
+          <td>${x.dO.fim?`${brDe(x.dO.fim)}<small>${finalizada(x.o)?'finalizada':quando(dias(hoje0(),x.dO.fim)).replace('venceu','passou')}</small>`:'—'}</td>
+          <td>${sem(x.sVig,x.vig?brDe(x.vig):'sem data')}${x.vig?`<small>${quando(x.diasVig)}</small>`:''}</td>
+          <td class="fin-esconder-cel">${sem(x.sGar,!x.exigeGar?'—':x.garVal?brDe(x.garVal):'não informada')}</td>
+          <td class="fin-esconder-cel">${x.reaj?sem(x.reajDisp?'amarelo':'verde',x.reajDisp?'disponível':brDe(x.reaj)):'<small>sem data-base</small>'}</td>
+          <td style="min-width:110px"><div style="display:flex;gap:6px;align-items:center"><div class="ct-barra"><i style="width:${x.feitos/x.total*100}%"></i></div><small style="margin:0">${x.feitos}/${x.total}</small></div>${x.prox?`<small>próximo: ${fe(x.prox.rot)}</small>`:'<small class="t-ok">concluído</small>'}</td></tr>`).join('')}
+      </tbody></table></div>`:'<div class="fin-vazio">Nenhum contrato neste filtro. Os contratos aparecem a partir das obras com situação "Ganha".</div>'}</div>
+    </div>`;
+    box.onchange=ev=>{const s=ev.target.closest('select[data-ct="filtro"]');if(s){CT.filtro=s.value;renderContratos();}};
+    box.onclick=ev=>{const tr=ev.target.closest('tr[data-ct="abrir"]');if(!tr)return;const x=App._ctLista[+tr.dataset.i];if(x){CT.obra=x.ob;renderContratos();rolarTopo('contratos');}};
+  }
+  function renderContrato(box,ob){
+    const o=obraDe(ob),x=info(o),c=x.c,h=hoje0(),rm=x.rm;
+    const numCt=getFuzzy(o,['numero_contrato','num_contrato','n_contrato']);
+    // linha do tempo: assinatura → OS → término vigente → fim da vigência
+    const marcos=[[dt(c.data_assinatura),'Assinatura','azul'],[x.dO.ini,'Ordem de serviço','azul'],[x.dO.fim,'Término da execução',x.dO.fim&&x.dO.fim<h&&!finalizada(o)?'vermelho':'verde'],[x.vig,'Fim da vigência',x.sVig==='vermelho'?'vermelho':'azul']].filter(m=>m[0]);
+    let tl='';
+    if(marcos.length>=2){
+      const t0=Math.min(...marcos.map(m=>m[0].getTime()),h.getTime()),t1=Math.max(...marcos.map(m=>m[0].getTime()),h.getTime()),sp=Math.max(1,t1-t0),p=t=>((t-t0)/sp*94+3).toFixed(2);
+      // rótulos de datas próximas alternam entre duas alturas para não se sobreporem
+      const pts=marcos.map(m=>({t:m[0].getTime(),rot:`${m[1]}<br>${brDe(m[0])}`,cls:m[2]})).concat([{t:h.getTime(),rot:'hoje',cls:'hoje'}]).sort((a,b)=>a.t-b.t);
+      let ult=-99,lin=0;pts.forEach(q=>{const pos=+p(q.t);lin=pos-ult<16?(lin+1)%2:0;ult=pos;q.pos=pos;q.lin=lin;});
+      tl=`<div class="ct-tl"><div class="ct-tl-eixo"></div><div class="ct-tl-feito" style="width:${p(h.getTime())}%"></div>${pts.map(q=>`<div class="ct-tl-m ${q.cls}" style="left:${q.pos}%"><b></b><span style="padding-top:${q.lin*26}px">${q.rot}</span></div>`).join('')}</div>`;
+    }
+    const acoes=(D().acoes||[]).filter(a=>a.titulo_obra===ob&&!/conclu|cancel/i.test(a.status||''));
+    const atras=acoes.filter(a=>dt(a.quando)&&dt(a.quando)<h);
+    const avisos=[];
+    if(!x.tem)avisos.push('Cadastre a ficha do contrato (botão "Editar dados do contrato") para o sistema vigiar vigência, garantia e reajuste.');
+    if(x.vig&&x.diasVig<0)avisos.push(`A VIGÊNCIA DO CONTRATO ACABOU em ${brDe(x.vig)}. Sem vigência não é possível aditivar nem receber por serviço novo — procure o jurídico/fiscal imediatamente.`);
+    else if(x.vig&&x.diasVig<=60)avisos.push(`A vigência acaba em ${brDe(x.vig)} (${quando(x.diasVig)}). Se a obra não terminar e for recebida até lá, o aditivo de prazo precisa ser ASSINADO antes dessa data.`);
+    else if(x.vig&&x.dO.fim&&!finalizada(o)&&dias(x.dO.fim,x.vig)<30)avisos.push(`A vigência (${brDe(x.vig)}) termina menos de 30 dias depois do término da execução (${brDe(x.dO.fim)}): não sobra tempo para o recebimento. Peça a prorrogação da vigência junto com qualquer aditivo de prazo.`);
+    if(x.dO.fim&&x.dO.fim<h&&!finalizada(o))avisos.push(`O prazo de execução terminou em ${brDe(x.dO.fim)} e a obra não está finalizada: registre o aditivo de prazo${x.vig&&x.diasVig>=0?` (antes do fim da vigência, ${brDe(x.vig)})`:''} ou finalize a obra.`);
+    if(x.sGar==='vermelho')avisos.push(`A garantia contratual venceu em ${brDe(x.garVal)} — renove ou peça o endosso à seguradora.`);
+    else if(x.sGar==='amarelo'&&x.garVal&&x.vig&&x.garVal<x.vig)avisos.push(`A garantia vale até ${brDe(x.garVal)}, antes do fim da vigência (${brDe(x.vig)}) — peça o endosso de prorrogação.`);
+    else if(x.sGar==='amarelo'&&!x.garVal)avisos.push('Informe a validade da garantia (ficha do contrato ou Documentos › Seguro-garantia).');
+    if(x.reajDisp)avisos.push(`Reajuste disponível desde ${brDe(x.reaj)} (12 meses da data-base ${brDe(x.dataBase)}${x.c.indice_reajuste?', índice '+x.c.indice_reajuste:''}). Peça por ofício: o reajuste não é automático e, se não for pedido antes de assinar um aditivo ou de encerrar o contrato, o direito pode se perder.`);
+    if(Math.abs(x.adPct)>25)avisos.push(`Os aditivos de valor somam ${pct(x.adPct)} do contrato — acima do limite legal de 25% (Lei 13.303/2016, art. 81 §1º).`);
+    else if(Math.abs(x.adPct)>20)avisos.push(`Os aditivos já somam ${pct(x.adPct)} do contrato: sobra pouca margem até o limite legal de 25%.`);
+    if(atras.length)avisos.push(`${atras.length} ação${atras.length>1?'ões':''} do plano de ação com prazo vencido.`);
+    App._ctAtual=x;
+    box.innerHTML=`<div class="fin-wrap">
+      <div><button type="button" class="vx-pasta-voltar" data-ct="voltar">← Contratos</button></div>
+      ${cab('Contrato — '+fe(ob),fe([numCt?'Contrato nº '+numCt:'',c.contratante,c.objeto].filter(Boolean).join(' · ')||'Ficha do contrato ainda não cadastrada.'),`<button type="button" class="fin-bt pri" data-ct="editar">Editar dados do contrato</button>${pode('obras')?'<button type="button" class="fin-bt" data-ct="painel">Painel da obra</button>':''}${pode('planejamento')?'<button type="button" class="fin-bt" data-ct="planejamento">Planejamento</button>':''}`)}
+      ${avisos.length?`<div class="op-card" style="border-color:rgba(255,149,0,.4)"><h4>O que pede ação neste contrato</h4><ul class="op-dicas">${avisos.map(a=>`<li>${fe(a)}</li>`).join('')}</ul></div>`:''}
+      <div class="fin-kpis">${kpi('','Valor vigente',x.vigente?fmt(x.vigente):'—',x.adV?`assinado ${fmt(x.valorOrig)} · aditivos ${pct(x.adPct)}`:'sem aditivos de valor')}${kpi('verde','Medido',fmt(rm.medido),x.vigente?pct(rm.medido/x.vigente*100)+' do contrato':'')}${kpi('laranja','Saldo a executar',x.vigente?fmt(x.vigente-rm.medido):'—','')}${kpi(x.sVig==='vermelho'?'vermelho':x.sVig==='amarelo'?'laranja':'','Vigência',x.vig?brDe(x.vig):'—',x.vig?quando(x.diasVig):'informe na ficha')}</div>
+      ${tl?`<div class="fin-card"><h3>Linha do tempo</h3>${tl}</div>`:''}
+      <div class="op-grade">
+        <div class="op-card"><h4>Dados do contrato</h4>
+          ${linha('Contratante',fe(c.contratante||'—'))}${linha('Nº do contrato',fe(numCt||'—'))}${linha('Licitação',fe([c.modalidade,c.numero_licitacao].filter(Boolean).join(' · ')||'—'))}
+          ${linha('Assinatura',brDe(dt(c.data_assinatura)))}${linha('Ordem de serviço',brDe(x.dO.ini))}${linha('Prazo de execução',getFuzzy(o,['prazo_contratual'])?fe(getFuzzy(o,['prazo_contratual']))+' dias':'—')}
+          ${linha('Término da execução',brDe(x.dO.fim)+(x.dO.prorrogado?` <small style="color:var(--text-3)">(era ${brDe(x.dO.fimOriginal)})</small>`:''))}${linha('Fim da vigência',brDe(x.vig)+(x.vigOrig&&x.vig>x.vigOrig?` <small style="color:var(--text-3)">(era ${brDe(x.vigOrig)})</small>`:''))}
+          ${linha('Fiscal',fe([c.fiscal,c.fiscal_contato].filter(Boolean).join(' · ')||'—'))}${linha('Responsável técnico',fe(c.responsavel_tecnico||'—'))}${linha('Preposto na obra',fe(c.preposto||'—'))}
+        </div>
+        <div class="op-card"><h4>Garantia e reajuste</h4>
+          ${linha('Garantia',fe(c.garantia_tipo||'—')+(c.garantia_pct?` · ${fe(c.garantia_pct)}%${x.vigente?' ('+fmt(x.vigente*moeda(c.garantia_pct)/100)+')':''}`:''))}
+          ${linha('Validade da garantia',x.garVal?sem(x.sGar,brDe(x.garVal)):'—')}
+          ${linha('Data-base do orçamento',brDe(x.dataBase))}${linha('Índice de reajuste',fe(c.indice_reajuste||'—'))}
+          ${linha('Reajuste disponível a partir de',x.reaj?sem(x.reajDisp?'amarelo':'verde',brDe(x.reaj)):'—')}
+          ${linha('Aditivos de valor',x.ads.length?`${fmt(x.adV)} · ${pct(x.adPct)} <small style="color:var(--text-3)">(limite 25%)</small>`:'nenhum')}
+          <div class="op-acoes" style="margin-top:8px"><button type="button" class="fin-bt mini" data-ct="aditivo">+ Aditivo</button>${pode('acoes')?'<button type="button" class="fin-bt mini" data-ct="acao">+ Ação</button>':''}</div>
+        </div>
+      </div>
+      <div class="fin-card"><div class="fin-card-cab"><div><h3>Ciclo de vida do contrato</h3><p class="fin-sub" style="margin-bottom:0">${x.feitos} de ${x.total} passos concluídos. Os passos com "automático" o sistema reconhece pelo que já foi lançado; os outros, marque quando acontecerem.</p></div><div class="ct-barra" style="width:180px"><i style="width:${x.feitos/x.total*100}%"></i></div></div>
+        <div class="ct-ciclo">${x.ciclo.map((p,i)=>`<div class="ct-passo ${p.feito?'ok':''} ${x.prox&&x.prox.k===p.k?'prox':''}"><i>${p.feito?'✓':i+1}</i><div><b>${fe(p.rot)}</b>${p.opcional?' <small style="display:inline">(quando couber)</small>':''}<small>${p.feito?(p.sis?'automático — já lançado no sistema':'marcado em '+brDe(dt(p.data))):fe(p.dica)}</small></div>${p.sis||(p.auto&&!p.mm)?'':`<button type="button" class="fin-bt mini" data-ct="passo" data-k="${p.k}">${p.feito?'Desmarcar':'Marcar feito'}</button>`}</div>`).join('')}</div></div>
+      ${acoes.length?`<div class="fin-card"><h3>Ações abertas deste contrato (${acoes.length})</h3><div class="fin-rolar"><table class="fin-tab"><tbody>${acoes.slice(0,6).map(a=>`<tr><td><span class="eng-pill ${a.prioridade==='Alta'?'vermelho':a.prioridade==='Média'?'laranja':''}">${fe(a.prioridade||'')}</span></td><td><b>${fe(a.o_que)}</b><small>${fe(a.tipo||'')} · ${fe(a.quem||'')}</small></td><td class="${dt(a.quando)&&dt(a.quando)<h?'t-err':''}" style="white-space:nowrap">${brDe(dt(a.quando))}</td></tr>`).join('')}</tbody></table></div></div>`:''}
+    </div>`;
+    box.onchange=null;
+    box.onclick=ev=>{
+      const b=ev.target.closest('[data-ct]');if(!b)return;const a=b.dataset.ct;
+      if(a==='voltar'){CT.obra='';renderContratos();}
+      else if(a==='editar')editarContrato(ob);
+      else if(a==='aditivo')Eng.editarAditivo(null,ob);
+      else if(a==='acao')novaAcao({titulo_obra:ob,tipo:'Pendência'});
+      else if(a==='passo')marcarPasso(ob,b.dataset.k);
+      else if(a==='painel')UI.openObraHub(o.rowid);
+      else if(a==='planejamento'){PL.obra=ob;UI.nav('planejamento');}
+    };
+  }
+  const CAMPOS_CT=[
+    {k:'contratante',label:'Contratante',padrao:'EMBASA'},
+    {k:'modalidade',label:'Modalidade da licitação',tipo:'sel',ops:['Licitação (Lei 13.303 — estatais)','Concorrência (Lei 14.133)','Pregão','Dispensa / contratação direta','Contrato privado']},
+    {k:'numero_licitacao',label:'Nº da licitação / processo'},
+    {k:'data_assinatura',label:'Data de assinatura',tipo:'data'},
+    {k:'objeto',label:'Objeto do contrato',tipo:'area',inteira:true,linhas:2},
+    {k:'valor_contrato',label:'Valor assinado (R$)',tipo:'num'},
+    {k:'vigencia_fim',label:'Fim da vigência',tipo:'data'},
+    {k:'data_base',label:'Data-base do orçamento (reajuste)',tipo:'data'},
+    {k:'indice_reajuste',label:'Índice de reajuste',tipo:'sel',ops:['INCC-DI (FGV)','IPCA (IBGE)','Índice da contratante','Sem reajuste previsto']},
+    {k:'garantia_tipo',label:'Garantia contratual',tipo:'sel',ops:['Seguro-garantia','Caução em dinheiro','Fiança bancária','Não exigida']},
+    {k:'garantia_pct',label:'Garantia (% do contrato)',tipo:'num',ph:'Ex.: 5'},
+    {k:'garantia_validade',label:'Validade da garantia',tipo:'data'},
+    {k:'fiscal',label:'Fiscal do contrato'},
+    {k:'fiscal_contato',label:'Contato do fiscal'},
+    {k:'responsavel_tecnico',label:'Responsável técnico (Vixsul)'},
+    {k:'preposto',label:'Preposto / encarregado na obra'},
+    {k:'observacoes',label:'Observações',tipo:'area',inteira:true,linhas:2}
+  ];
+  function editarContrato(ob){
+    const o=obraDe(ob);if(!o)return;
+    const c=contratoDe(ob),rm=Eng.resumoMedicoes(ob);
+    const kNum=kRow(o,['numero_contrato','num_contrato','n_contrato'],'numero_contrato'),kIni=kRow(o,['inicio_obra','data_inicio'],'inicio_obra'),kPz=kRow(o,['prazo_contratual'],'prazo_contratual');
+    const orc=Eng.baseDaObra(ob);
+    const pad={valor_contrato:rm.base?n2(rm.base):'',data_base:orc?isoDe(dt(getFuzzy(orc,['data_lancamento']))||hoje0()):''};
+    const v=k=>c&&c[k]!=null&&c[k]!==''?(k==='valor_contrato'?n2(val(c[k])):c[k]):(pad[k]||'');
+    const termTxt=()=>{const j=document.getElementById('fin-jan');const os=j.querySelector('[data-f="os"]').value,pz=parseInt(j.querySelector('[data-f="prazo"]').value,10);const t=os&&pz>0?addD(dt(os),pz):null;j.querySelector('[data-term]').innerHTML=t?`Término da execução = OS + prazo = <b>${brDe(t)}</b>. Sugestão de fim de vigência (término + 90 dias para o recebimento): <b>${brDe(addD(t,90))}</b>.`:'Informe a OS e o prazo para o sistema calcular o término da execução.';};
+    const j=janela('Dados do contrato — '+ob,`<div class="fin-aviso"><div>Nº do contrato, ordem de serviço e prazo ficam gravados na própria obra (aparecem também no cartão e no formulário da obra).</div></div>
+      <div class="fin-linha">
+        <div class="fin-fld"><label>Nº do contrato</label><input data-f="numero" value="${fe(getFuzzy(o,['numero_contrato','num_contrato','n_contrato'])||'')}"></div>
+        <div class="fin-fld"><label>Ordem de serviço (início)</label><input type="date" data-f="os" value="${fe(dt(getFuzzy(o,['inicio_obra','data_inicio']))?isoDe(dt(getFuzzy(o,['inicio_obra','data_inicio']))):'')}"></div>
+        <div class="fin-fld"><label>Prazo de execução (dias)</label><input data-f="prazo" inputmode="numeric" value="${fe(String(getFuzzy(o,['prazo_contratual'])||'').replace(/\D/g,''))}"></div>
+      </div>
+      <div class="fin-resumo" data-term></div>
+      <div class="fin-linha">${CAMPOS_CT.map(f=>campoHtml(f,v(f.k))).join('')}</div>`,
+      [{html:'Cancelar'},{html:'Salvar',cls:'pri',acao:async j=>{
+        const g=k=>(j.querySelector(`[data-f="${k}"]`)?.value||'').trim();
+        const obj=c?{...c}:{titulo_obra:ob,data_lancamento:todayDateTime()};
+        CAMPOS_CT.forEach(f=>obj[f.k]=g(f.k));obj.titulo_obra=ob;
+        obj.valor_contrato=obj.valor_contrato?dinheiro(moeda(obj.valor_contrato)):'';
+        obj.garantia_pct=obj.garantia_pct?String(moeda(obj.garantia_pct)).replace('.',','):'';
+        if(obj.vigencia_fim&&obj.data_assinatura&&obj.vigencia_fim<obj.data_assinatura)throw new Error('O fim da vigência não pode ser antes da assinatura.');
+        const os=g('os'),pz=g('prazo').replace(/\D/g,''),num=g('numero');
+        const o2={...o};o2[kNum]=num;o2[kIni]=os;o2[kPz]=pz;
+        if(num)o2[kRow(o,['obra_com_ct','com_ct','possui_contrato'],'obra_com_ct')]='Sim';
+        // término previsto da obra = início + dias previstos (mesma regra do formulário da obra)
+        const kDur=kRow(o,['duracao_prevista','duracao'],'duracao_prevista');
+        if(!String(o2[kDur]||'').trim()&&pz)o2[kDur]=pz;
+        const dur=parseInt(o2[kDur],10);if(os&&dur>0)o2[kRow(o,['termino_previsto','data_termino_previsto'],'termino_previsto')]=isoDe(addD(dt(os),dur));
+        await executar(async()=>{await salvar('Obras',o2,o.rowid);await salvar('Contratos',obj,c?c.rowid:null);});
+        toast('Contrato salvo.','success');
+      }}],760);
+    termTxt();j.oninput=ev=>{if(ev.target.matches('[data-f="os"],[data-f="prazo"]'))termTxt();};j.onchange=j.oninput;
+  }
+  async function marcarPasso(ob,k){
+    const c=contratoDe(ob),obj=c?{...c}:{titulo_obra:ob,data_lancamento:todayDateTime()};
+    const ck={...(obj.checklist||{})};if(ck[k])delete ck[k];else ck[k]=isoDe(hoje0());obj.checklist=ck;
+    try{await executar(()=>salvar('Contratos',obj,c?c.rowid:null));}catch(e){return toast(e.message||String(e),'error');}
+    renderContratos();
+  }
+
+  /* ═══════════════════════════ PLANO DE AÇÃO (5W2H) ═══════════════════════════ */
+  const TIPOS_ACAO=['Pendência','Ação corretiva','Risco','Não conformidade','Solicitação à fiscalização','Interferência / liberação','Melhoria de processo'];
+  const ST_ACAO=['Aberta','Em andamento','Concluída','Cancelada'],PRIO=['Alta','Média','Baixa'];
+  let origemPendente='';
+  const CFG_ACAO={aba:'Plano de ação',nomeItem:'ação',larg:720,campos:[
+    {k:'o_que',label:'O que fazer',obrig:true,inteira:true,ph:'Ex.: pedir à fiscalização a liberação do trecho da Rua B'},
+    {k:'titulo_obra',label:'Obra',tipo:'obra',vazio:'Da empresa (não é de uma obra)'},
+    {k:'tipo',label:'Tipo',tipo:'sel',ops:TIPOS_ACAO,obrig:true,padrao:'Pendência'},
+    {k:'por_que',label:'Por que (motivo, risco ou impacto)',tipo:'area',inteira:true,linhas:2},
+    {k:'quem',label:'Quem (responsável)',obrig:true,lista:'vx-resp-lista'},
+    {k:'quando',label:'Quando (prazo)',tipo:'data',obrig:true},
+    {k:'onde',label:'Onde'},
+    {k:'quanto',label:'Quanto custa (R$)',tipo:'num'},
+    {k:'como',label:'Como fazer',tipo:'area',inteira:true,linhas:2},
+    {k:'prioridade',label:'Prioridade',tipo:'sel',ops:PRIO,obrig:true,padrao:'Média'},
+    {k:'status',label:'Situação',tipo:'sel',ops:ST_ACAO,obrig:true,padrao:'Aberta'}
+  ],validar:(o,reg)=>{
+    o.quanto=o.quanto?dinheiro(moeda(o.quanto)):'';
+    if(o.status==='Concluída'){if(!o.data_conclusao)o.data_conclusao=isoDe(hoje0());}else o.data_conclusao='';
+    if(!reg&&origemPendente)o.origem=origemPendente;origemPendente='';
+    return '';
+  }};
+  function listaResponsaveis(){
+    let dl=document.getElementById('vx-resp-lista');if(!dl){dl=document.createElement('datalist');dl.id='vx-resp-lista';document.body.appendChild(dl);}
+    const nomes=new Set((D().acoes||[]).map(a=>a.quem).filter(Boolean));(D().contratos||[]).forEach(c=>{if(c.responsavel_tecnico)nomes.add(c.responsavel_tecnico);if(c.preposto)nomes.add(c.preposto);});if(Auth._session&&Auth._session.nome)nomes.add(Auth._session.nome);
+    dl.innerHTML=[...nomes].sort().map(n=>`<option value="${fe(n)}">`).join('');
+  }
+  function novaAcao(pre){
+    listaResponsaveis();origemPendente=(pre&&pre.origem)||'';
+    formulario(CFG_ACAO,null);
+    setTimeout(()=>{const j=document.getElementById('fin-jan');Object.entries(pre||{}).forEach(([k,v])=>{const el=j.querySelector(`[data-f="${k}"]`);if(el&&v!=null)el.value=v;});},40);
+  }
+  function editarAcao(a){listaResponsaveis();formulario(CFG_ACAO,{...a,quanto:a.quanto?n2(val(a.quanto)):''});}
+  const AC={obra:'',sit:'abertas',quem:''};
+  const aberta=a=>!/conclu|cancel/i.test(a.status||'');
+  function renderAcoes(){
+    const box=document.getElementById('eng-acoes');if(!box)return;
+    const h=hoje0(),todas=D().acoes||[];
+    const base=todas.filter(a=>(!AC.obra||(AC.obra==='__empresa'?!a.titulo_obra:a.titulo_obra===AC.obra))&&(!AC.quem||a.quem===AC.quem));
+    const abertas=base.filter(aberta),atras=abertas.filter(a=>dt(a.quando)&&dt(a.quando)<h);
+    const conc30=base.filter(a=>a.status==='Concluída'&&dt(a.data_conclusao)&&dias(dt(a.data_conclusao),h)<=30);
+    const noPrazo=conc30.filter(a=>!dt(a.quando)||dt(a.data_conclusao)<=dt(a.quando)).length;
+    const ordP={Alta:0,'Média':1,Baixa:2};
+    const ord=l=>l.slice().sort((a,b)=>(ordP[a.prioridade]??3)-(ordP[b.prioridade]??3)||String(a.quando||'9').localeCompare(String(b.quando||'9')));
+    const grupos=AC.sit==='concluidas'?[['Concluídas e canceladas',base.filter(a=>!aberta(a)).sort((a,b)=>String(b.data_conclusao||'').localeCompare(String(a.data_conclusao||'')))]]
+      :[['Atrasadas',ord(atras)],['Vencem nos próximos 7 dias',ord(abertas.filter(a=>dt(a.quando)&&dt(a.quando)>=h&&dt(a.quando)<=addD(h,7)))],['Demais em aberto',ord(abertas.filter(a=>dt(a.quando)&&dt(a.quando)>addD(h,7)))],['Sem prazo',ord(abertas.filter(a=>!dt(a.quando)))]];
+    const resp=[...new Set(todas.map(a=>a.quem).filter(Boolean))].sort();
+    App._acLista=[];
+    const linhaA=a=>{const i=App._acLista.push(a)-1,d=dt(a.quando),at=aberta(a)&&d&&d<h;return `<tr><td><span class="eng-pill ${a.prioridade==='Alta'?'vermelho':a.prioridade==='Média'?'laranja':''}">${fe(a.prioridade||'—')}</span></td>
+      <td><b>${fe(a.o_que)}</b><small>${fe([a.tipo,a.por_que].filter(Boolean).join(' · ').slice(0,160))}</small></td><td class="fin-esconder-cel">${fe(a.titulo_obra||'Empresa')}${a.origem?`<small>origem: ${fe(a.origem)}</small>`:''}</td><td>${fe(a.quem||'—')}</td>
+      <td style="white-space:nowrap" class="${at?'t-err':''}">${d?brDe(d):'—'}<small>${aberta(a)?(d?(at?`${dias(d,h)} dia${dias(d,h)>1?'s':''} de atraso`:dias(h,d)===0?'vence hoje':`faltam ${dias(h,d)} dias`):''):fe(a.status)+(a.data_conclusao?' em '+brDe(dt(a.data_conclusao)):'')}</small></td>
+      <td><div class="eng-acoes">${aberta(a)?`<button type="button" class="fin-bt mini verde" data-ac="concluir" data-i="${i}">Concluir</button>`:''}<button type="button" class="fin-bt mini" data-ac="editar" data-i="${i}">Editar</button><button type="button" class="fin-bt mini" data-ac="excluir" data-i="${i}">Excluir</button></div></td></tr>`;};
+    box.innerHTML=`<div class="fin-wrap">
+      ${cab('Plano de ação','Pendências, riscos, não conformidades e pedidos à fiscalização, cada um com o que fazer, por quê, quem, até quando, onde, como e quanto custa (5W2H). É a forma de tocar a obra sem deixar nada cair: toda ocorrência do diário pode virar uma ação com dono e prazo.',`<button type="button" class="fin-bt pri" data-ac="novo">+ Nova ação</button>`)}
+      <div class="fin-filtros"><select class="filter-select" data-acf="obra"><option value="">Todas as obras e a empresa</option><option value="__empresa" ${AC.obra==='__empresa'?'selected':''}>Só da empresa</option>${obrasNomes().map(o=>`<option ${AC.obra===o?'selected':''}>${fe(o)}</option>`).join('')}</select>
+        <select class="filter-select" data-acf="sit"><option value="abertas" ${AC.sit==='abertas'?'selected':''}>Em aberto</option><option value="concluidas" ${AC.sit==='concluidas'?'selected':''}>Concluídas e canceladas</option></select>
+        <select class="filter-select" data-acf="quem"><option value="">Todos os responsáveis</option>${resp.map(r=>`<option ${AC.quem===r?'selected':''}>${fe(r)}</option>`).join('')}</select></div>
+      <div class="fin-kpis">${kpi('','Em aberto',abertas.length,`${abertas.filter(a=>a.prioridade==='Alta').length} de prioridade alta`)}${kpi(atras.length?'vermelho':'verde','Atrasadas',atras.length,atras.length?'cobre os responsáveis':'nenhuma')}${kpi('verde','Concluídas em 30 dias',conc30.length,conc30.length?pct(noPrazo/conc30.length*100,0)+' dentro do prazo':'')}${kpi('','Custo das ações abertas',fmt(abertas.reduce((s,a)=>s+val(a.quanto),0)),'soma do "quanto custa"')}</div>
+      <div class="fin-card">${grupos.some(g=>g[1].length)?`<div class="fin-rolar"><table class="fin-tab"><thead><tr><th>Prioridade</th><th>O que fazer</th><th class="fin-esconder-cel">Obra</th><th>Quem</th><th>Quando</th><th></th></tr></thead><tbody>
+        ${grupos.filter(g=>g[1].length).map(g=>`<tr class="fin-grupo"><td colspan="6">${g[0]} · ${g[1].length}</td></tr>${g[1].map(linhaA).join('')}`).join('')}
+      </tbody></table></div>`:`<div class="fin-vazio">${todas.length?'Nenhuma ação neste filtro.':'Nenhuma ação cadastrada. Comece pelas pendências que travam as obras: liberações de trecho, interferências, materiais, pedidos à fiscalização.'}</div>`}</div>
+    </div>`;
+    box.onchange=ev=>{const s=ev.target.closest('select[data-acf]');if(s){AC[s.dataset.acf]=s.value;renderAcoes();}};
+    box.onclick=ev=>{const b=ev.target.closest('button[data-ac]');if(!b)return;const a=App._acLista[+b.dataset.i];
+      if(b.dataset.ac==='novo')novaAcao(AC.obra&&AC.obra!=='__empresa'?{titulo_obra:AC.obra}:{});
+      else if(b.dataset.ac==='editar'&&a)editarAcao(a);
+      else if(b.dataset.ac==='excluir'&&a)confirmar('Excluir a ação?',`<b>${fe(a.o_que)}</b> será excluída de vez.`,'Sim, excluir',async()=>{await executar(()=>excluir('Plano de ação',a.rowid));toast('Ação excluída.','success');});
+      else if(b.dataset.ac==='concluir'&&a)(async()=>{try{await executar(()=>salvar('Plano de ação',{...a,status:'Concluída',data_conclusao:isoDe(hoje0())},a.rowid));toast('Ação concluída.','success');}catch(e){toast(e.message||String(e),'error');}})();
+    };
+  }
+
+  /* ═══════════════════════════ PLANEJAMENTO DA EXECUÇÃO ═══════════════════════════
+     Fases típicas de obra de saneamento (rede, adutora, ligações, elevatória). Cada item do
+     orçamento cai numa fase pelas palavras da descrição; a ordem e as dependências seguem
+     a forma usual de tocar obra linear: frente de escavação abre caminho, o assentamento
+     vem atrás alguns dias depois (início-início), o reaterro atrás do assentamento, a
+     repavimentação atrás do reaterro — várias frentes andando juntas, por trechos.
+     dur/lag são frações do prazo; o conjunto é escalado para caber no prazo da obra. */
+  const FASES={
+    mob:{nome:'Mobilização e canteiro',kw:['mobiliza','canteiro','placa de obra','placa da obra','barracao','instalacao provisoria','instalacoes provisorias','administracao local','limpeza do terreno','limpeza manual do terreno','capina','rocado','rocada','desmatamento'],dur:.06,pre:[],vin:'FI',lag:0},
+    topo:{nome:'Topografia, locação e cadastro de interferências',kw:['topograf','locacao','levantamento planialt','nivelamento','sondagem','cadastro de interfer','gabarito'],dur:.12,pre:['mob'],vin:'II',lag:.02},
+    sin:{nome:'Sinalização e segurança da obra',kw:['sinaliza','tapume','cone','passadico','passarela','placa de sinal','barreira'],dur:.85,pre:['mob'],vin:'II',lag:.02,apoio:true},
+    dem:{nome:'Demolição e remoção de pavimento',kw:['demolic','remocao de pav','retirada de pav','levantamento de pav','corte de pav','corte de asfalto','corte com serra','arrancamento','fresagem'],dur:.45,pre:['topo'],vin:'II',lag:.04},
+    esc:{nome:'Escavação, carga e bota-fora',kw:['escava','carga','transporte de material','bota-fora','bota fora','espalhamento','movimento de terra','desmonte','momento de transporte'],dur:.55,pre:['topo','dem'],vin:'II',lag:.05},
+    escor:{nome:'Escoramento e esgotamento de vala',kw:['escoramento','esgotamento','rebaixamento','ponteira','bombeamento'],dur:.5,pre:['esc'],vin:'II',lag:.01},
+    tub:{nome:'Assentamento de tubulação',kw:['assentamento','tubo','tubos','tubulac','conexao','conexoes','registro','valvula','adutora','rede coletora','coletor','emissario','interceptor','junta'],dur:.55,pre:['esc'],vin:'II',lag:.05},
+    pv:{nome:'Poços de visita e caixas',kw:['poco de visita','pocos de visita','poco de inspecao','caixa','tampao','chamine','tubo de queda'],dur:.5,pre:['esc'],vin:'II',lag:.08},
+    rea:{nome:'Reaterro e compactação',kw:['reaterro','compactac','aterro','berco','lastro','envoltoria'],dur:.55,pre:['tub'],vin:'II',lag:.04},
+    lig:{nome:'Ligações domiciliares',kw:['ligacao','ligacoes','ramal predial','ramal domiciliar','hidrometro','cavalete'],dur:.45,pre:['tub'],vin:'II',lag:.15},
+    conc:{nome:'Estruturas de concreto e alvenaria',kw:['concreto','forma','formas','armacao','aco ca','alvenaria','reservatorio','fundacao','estaca','laje','viga','pilar','chapisco','reboco','emboco','impermeabiliza'],dur:.4,pre:['topo'],vin:'FI',lag:0},
+    elev:{nome:'Elevatória, elétrica e equipamentos',kw:['elevatoria','bomba','conjunto motor','motobomba','quadro de comando','eletric','painel eletrico','disjuntor','gerador','transformador','automacao'],dur:.3,pre:['conc'],vin:'II',lag:.1},
+    teste:{nome:'Testes, desinfecção e comissionamento',kw:['teste','estanqueidade','desinfeccao','comissionamento','pre-operacao','pre operacao','lavagem'],dur:.2,pre:['rea','lig','elev'],vin:'II',lag:.2},
+    pav:{nome:'Recomposição de pavimento e calçadas',kw:['paviment','recomposic','asfalt','cbuq','paralelep','calcada','meio-fio','meio fio','base de brita','sub-base','imprimac','pintura de ligacao','bloquete','intertravado','tratamento superficial'],dur:.45,pre:['rea'],vin:'II',lag:.1},
+    fim:{nome:'Limpeza final, as built e desmobilização',kw:['limpeza final','limpeza geral','desmobiliza','as built','as-built','cadastro tecnico','cadastro da rede'],dur:.06,pre:['pav','teste'],vin:'FI',lag:0},
+    out:{nome:'Outros serviços',kw:[],dur:.6,pre:['mob'],vin:'II',lag:.05}
+  };
+  // ordem de teste: o mais específico primeiro ("remoção de pavimento" é demolição, não pavimento;
+  // "mobilização e desmobilização" é mobilização; só "desmobilização" vai para o fim)
+  const ORDEM_CLASS=['mob','fim','lig','pv','teste','dem','pav','escor','rea','esc','tub','elev','conc','topo','sin'];
+  const ORDEM_EXEC=['mob','topo','sin','dem','esc','escor','tub','pv','rea','lig','conc','elev','teste','pav','fim','out'];
+  const temPalavra=(t,kw)=>new RegExp('(^|[^a-z0-9])'+kw.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')).test(t);
+  const faseDo=desc=>{const t=cn(desc);for(const f of ORDEM_CLASS)if(FASES[f].kw.some(k=>temPalavra(t,k)))return f;return 'out';};
+  function propostaPlano(ob){
+    const orc=Eng.baseDaObra(ob);if(!orc)return null;
+    const itens=Eng.itensBase(orc);if(!itens.length)return null;
+    const g={};itens.forEach(x=>{const f=faseDo(x.descricao);(g[f]=g[f]||{f,valor:0,chaves:[],n:0});g[f].valor+=r2(x.qtd_contrato*x.p_unit);g[f].chaves.push(x.chave);g[f].n++;});
+    const fases=ORDEM_EXEC.filter(f=>g[f]);
+    const resolve=(f,vist)=>{vist=vist||new Set();return FASES[f].pre.flatMap(p=>vist.has(p)?[]:(vist.add(p),g[p]?[p]:resolve(p,vist)));};
+    const pre={};fases.forEach(f=>{pre[f]=[...new Set(resolve(f))];});
+    // tira dependência redundante (já garantida por outra): se A depende de B e de C, e C já depende de B, fica só C
+    const anc=(f,v)=>{v=v||new Set();(pre[f]||[]).forEach(p=>{if(!v.has(p)){v.add(p);anc(p,v);}});return v;};
+    fases.forEach(f=>{pre[f]=pre[f].filter(p=>!pre[f].some(q=>q!==p&&anc(q).has(p)));});
+    // passada para frente em frações do prazo
+    const es={},ef={};fases.forEach(f=>{const F=FASES[f];let s=0;pre[f].forEach(p=>{const d=F.vin==='II'?es[p]+F.lag:ef[p]+F.lag;if(d>s)s=d;});es[f]=s;ef[f]=s+F.dur;});
+    const L=Math.max(...fases.map(f=>ef[f]))||1;
+    const o=obraDe(ob),dO=o?Eng.datasObra(o):{};
+    const ini=dO.ini||hoje0(),fim=dO.fim&&dO.fim>ini?dO.fim:addD(ini,179),P=dias(ini,fim)+1;
+    const tot=fases.reduce((s,f)=>s+g[f].valor,0)||1;
+    const acum=Eng.acumulado(ob,Infinity),preco={};itens.forEach(x=>preco[x.chave]=x);
+    const linhas=fases.map((f,i)=>{
+      const F=FASES[f],a=Math.round(es[f]/L*P),b=Math.max(a,Math.round(ef[f]/L*P)-1);
+      const cont=g[f].chaves.reduce((s,k)=>s+r2(preco[k].qtd_contrato*preco[k].p_unit),0),med=g[f].chaves.reduce((s,k)=>s+r2((acum[k]||0)*preco[k].p_unit),0);
+      return {f,cod:'E'+String(i+1).padStart(2,'0'),nome:F.nome,ini:addD(ini,a),fim:addD(ini,Math.min(b,P-1)),valor:g[f].valor,peso:g[f].valor/tot*100,itens:g[f].chaves,n:g[f].n,
+        av:cont?Math.min(100,med/cont*100):0,preds:pre[f],vin:F.vin,lag:Math.round(F.lag/L*P)};
+    });
+    const cod={};linhas.forEach(l=>cod[l.f]=l.cod);linhas.forEach(l=>l.predCods=l.preds.map(p=>cod[p]));
+    // pesos fecham 100
+    let sp=0;linhas.forEach(l=>{l.peso=Math.round(l.peso*100)/100;sp+=l.peso;});
+    if(linhas.length){const mx=linhas.reduce((m,l)=>l.peso>m.peso?l:m,linhas[0]);mx.peso=Math.round((mx.peso+100-sp)*100)/100;}
+    return {linhas,ini,fim,P};
+  }
+  const fmtNum=n=>String(Math.round(n*10)/10).replace('.',',');
+  function gerarPlano(ob){
+    const pr=propostaPlano(ob);
+    if(!pr)return toast('Esta obra não tem orçamento com itens — cadastre o orçamento (Obras › abrir a obra › Orçamento).','error');
+    const K=UI._etapasK(),exist=(D().etapas||[]).filter(e=>(e[K.obra]||getFuzzy(e,['titulo_obra']))===ob);
+    janela('Gerar planejamento a partir do orçamento',`<div class="fin-resumo"><b>${fe(ob)}</b> · ${brDe(pr.ini)} a ${brDe(pr.fim)} (${pr.P} dias)<br>O orçamento foi agrupado em <b>${pr.linhas.length} etapas</b> de execução. Peso = valor de cada etapa no orçamento; avanço já vem das medições lançadas.</div>
+      <div class="fin-rolar" style="max-height:330px;overflow-y:auto"><table class="fin-tab"><thead><tr><th>Etapa</th><th class="num">Itens</th><th class="num">Peso</th><th>Período</th><th>Depende de</th></tr></thead><tbody>
+        ${pr.linhas.map(l=>`<tr><td><b>${l.cod}</b> ${fe(l.nome)}</td><td class="num">${l.n}</td><td class="num">${fmtNum(l.peso)}%</td><td style="white-space:nowrap">${brDe(l.ini).slice(0,5)} a ${brDe(l.fim).slice(0,5)}</td><td>${l.predCods.length?l.predCods.join(', ')+(l.vin==='II'?` <small>começa ${l.lag} dia${l.lag!==1?'s':''} após o início</small>`:' <small>após terminar</small>'):'—'}</td></tr>`).join('')}
+      </tbody></table></div>
+      ${exist.length?`<div class="fin-aviso laranja"><div>Esta obra já tem <b>${exist.length} etapa${exist.length>1?'s':''}</b> no cronograma. Elas serão <b>substituídas</b> por estas.</div></div>`:''}
+      <div class="fin-aviso"><div>Depois de gerar, ajuste o que precisar: nomes, datas e pesos em Obras › Avanço & Gantt; dependências aqui no Planejamento.</div></div>`,
+      [{html:'Cancelar'},{html:exist.length?'Substituir e gerar':'Gerar etapas',cls:'pri',acao:async()=>{
+        await executar(async()=>{
+          for(const e of exist)await excluir('Etapas',e.rowid);
+          for(const l of pr.linhas){
+            const o={data_lancamento:todayDateTime()};
+            o[K.obra]=ob;o[K.nome]=l.nome;o[K.ini]=isoDe(l.ini);o[K.fim]=isoDe(l.fim);o[K.peso]=String(l.peso).replace('.',',');o[K.avanco]=fmtNum(l.av);o[K.valor]=dinheiro(l.valor);
+            Object.assign(o,{cod_etapa:l.cod,ordem:String(pr.linhas.indexOf(l)+1),fase:l.f,apoio:FASES[l.f].apoio?'sim':'',predecessoras:l.predCods.join(';'),vinculo:l.vin,defasagem:String(l.lag),itens_orc:l.itens,origem:'Gerado do orçamento',lb_comeco:isoDe(l.ini),lb_final:isoDe(l.fim)});
+            await salvar('Etapas',o,null);
+          }
+        });
+        toast(`${pr.linhas.length} etapas geradas.`,'success');
+      }}],820);
+  }
+  // CPM com a situação real: concluídas ficam como estão, em andamento projetam o fim pelo
+  // que falta, as não iniciadas não começam no passado e respeitam as dependências.
+  function cpm(ob){
+    const K=UI._etapasK(),h=hoje0();
+    const et=(D().etapas||[]).filter(e=>(e[K.obra]||getFuzzy(e,['titulo_obra']))===ob);
+    if(!et.length)return null;
+    const tok={};et.forEach(e=>{tok['#'+e.rowid]=e;if(e.cod_etapa)tok[e.cod_etapa]=e;});
+    const N=et.map(e=>{const ini=dt(e[K.ini]),fim=dt(e[K.fim]);return {e,id:e.cod_etapa||('#'+e.rowid),nome:e[K.nome]||getFuzzy(e,['nome_etapa','nome'])||'Etapa',ini,fim,dur:ini&&fim&&fim>=ini?dias(ini,fim)+1:7,
+      av:Math.min(100,Math.max(0,val(e[K.avanco])||0)),peso:val(e[K.peso])||0,valor:val(e[K.valor])||0,vin:e.vinculo==='II'?'II':'FI',apoio:e.apoio==='sim',lag:parseInt(e.defasagem,10)||0,ordem:parseInt(e.ordem,10)||0,
+      predIds:String(e.predecessoras||'').split(';').map(s=>s.trim()).filter(Boolean),itens:Array.isArray(e.itens_orc)?e.itens_orc:[]};});
+    const de=new Map(N.map(n=>[n.e,n]));
+    N.forEach(n=>{n.preds=[...new Set(n.predIds.map(t=>tok[t]).filter(x=>x&&x!==n.e).map(x=>de.get(x)))];n.succ=[];});
+    N.forEach(n=>n.preds.forEach(p=>p.succ.push(n)));
+    const grau=new Map(N.map(n=>[n,n.preds.length])),fila=N.filter(n=>!n.preds.length).sort((a,b)=>(a.ini||h)-(b.ini||h)),topo=[];
+    while(fila.length){const n=fila.shift();topo.push(n);n.succ.forEach(s=>{grau.set(s,grau.get(s)-1);if(!grau.get(s))fila.push(s);});}
+    const ciclo=topo.length<N.length;
+    if(ciclo){topo.length=0;N.forEach(n=>{n.preds=[];n.succ=[];topo.push(n);});}
+    const o=obraDe(ob),dO=o?Eng.datasObra(o):{},T0=dO.ini||N.reduce((m,n)=>n.ini&&(!m||n.ini<m)?n.ini:m,null)||h;
+    topo.forEach(n=>{
+      if(n.av>=100){n.es=n.ini||T0;n.ef=n.fim||addD(n.es,n.dur-1);return;}
+      if(n.av>0){n.es=n.ini||h;const rest=Math.max(1,Math.ceil(n.dur*(1-n.av/100)));n.ef=addD(h>n.es?h:n.es,rest-1);return;}
+      let c=n.preds.length?null:(n.ini||T0);
+      n.preds.forEach(p=>{const d=n.vin==='II'?addD(p.es,n.lag):addD(p.ef,1+n.lag);if(!c||d>c)c=d;});
+      if(c<h)c=h;n.es=c;n.ef=addD(c,n.dur-1);
+    });
+    // etapa de apoio (sinalização, administração) acompanha a obra: não define o término
+    const motoras=N.filter(n=>!n.apoio);
+    const fimProj=(motoras.length?motoras:N).reduce((m,n)=>!m||n.ef>m?n.ef:m,null);
+    N.forEach(n=>{if(n.apoio&&n.av<100&&n.ef>fimProj)n.ef=fimProj<n.es?n.es:fimProj;});
+    [...topo].reverse().forEach(n=>{
+      let lf=fimProj;
+      // sucessora início→início só depende do COMEÇO desta: se esta já começou, não a prende
+      n.succ.forEach(s=>{if(s.av>=100||s.apoio)return;if(s.vin==='II'&&n.av>0)return;const lim=s.vin==='II'?addD(s.ls,-s.lag+n.dur-1):addD(s.ls,-1-s.lag);if(lim<lf)lf=lim;});
+      if(lf<n.ef&&n.av>0&&!n.succ.some(s=>s.vin==='FI'&&s.av<100))lf=n.ef;
+      n.lf=lf;n.ls=addD(lf,-(n.dur-1));
+    });
+    N.forEach(n=>{
+      n.espera=n.preds.filter(p=>n.vin==='II'?p.av<=0:p.av<100);
+      n.sit=n.av>=100?'concluida':n.av>0?'andamento':n.espera.length?'aguardando':'liberada';
+      n.folga=n.av>=100||n.apoio?null:dias(n.ef,n.lf);
+      n.critica=n.av<100&&!n.apoio&&n.folga<=0;
+      n.atrasoIni=n.sit==='liberada'&&n.ini&&n.ini<h?dias(n.ini,h):0;
+    });
+    const pT=N.reduce((s,n)=>s+n.peso,0)||1;
+    return {N:N.slice().sort((a,b)=>(a.ordem||0)-(b.ordem||0)||(a.es-b.es)),topo,fimProj,ciclo,dO,T0,fisico:N.reduce((s,n)=>s+n.peso*n.av,0)/pT,temItens:N.some(n=>n.itens.length)};
+  }
+  const SIT={concluida:['Concluída','verde'],andamento:['Em andamento','azul'],liberada:['Pode iniciar','laranja'],aguardando:['Aguardando','']};
+  const PL={obra:''};
+  function renderPlanejamento(){
+    const box=document.getElementById('eng-planejamento');if(!box)return;
+    const ativas=obrasAtivas(),todas=obrasNomes();
+    if(PL.obra&&!todas.includes(PL.obra))PL.obra='';
+    // abre numa obra que já tem planejamento; senão, numa que tem orçamento para gerar
+    if(!PL.obra&&ativas.length){const K=UI._etapasK(),temEt=ob=>(D().etapas||[]).some(e=>(e[K.obra]||getFuzzy(e,['titulo_obra']))===ob);PL.obra=ativas.find(temEt)||ativas.find(ob=>Eng.baseDaObra(ob))||ativas[0];}
+    const ob=PL.obra;
+    const seletor=`<select class="filter-select" data-pl="obra">${(ativas.length?ativas:todas).concat(PL.obra&&!ativas.includes(PL.obra)?[PL.obra]:[]).map(o=>`<option ${o===ob?'selected':''}>${fe(o)}</option>`).join('')}</select>`;
+    const texto='Por onde começar e o que vem depois: as etapas da obra com suas dependências, o caminho crítico (as etapas que, se atrasarem, atrasam a obra inteira), as frentes liberadas para iniciar agora e o término projetado no ritmo real.';
+    if(!ob){box.innerHTML=`<div class="fin-wrap">${cab('Planejamento',texto,'')}<div class="fin-card"><div class="fin-vazio">Nenhuma obra cadastrada.</div></div></div>`;return;}
+    const r=cpm(ob),orc=Eng.baseDaObra(ob);
+    let corpo;
+    if(!r){
+      corpo=`<div class="fin-card"><h3>Esta obra ainda não tem planejamento</h3><p class="fin-sub">${orc?'O sistema monta o planejamento sozinho a partir do orçamento: agrupa os itens por fase de execução (mobilização, topografia, escavação, assentamento, poços de visita, reaterro, ligações, testes, pavimento…), calcula o peso de cada fase pelo valor e encadeia as fases na ordem em que uma obra de saneamento é tocada, com frentes andando juntas por trechos.':'Para gerar sozinho, cadastre antes o orçamento da obra (Obras › abrir a obra › Orçamento). Ou cadastre as etapas à mão em Obras › Avanço & Gantt.'}</p>
+        ${orc?'<button type="button" class="fin-bt pri" data-pl="gerar">Gerar planejamento a partir do orçamento</button>':''}</div>`;
+    } else {
+      const h=hoje0(),N=r.N,crit=N.filter(n=>n.critica),lib=N.filter(n=>n.sit==='liberada').sort((a,b)=>(b.critica-a.critica)||(a.folga-b.folga)),and=N.filter(n=>n.sit==='andamento');
+      const prox=N.filter(n=>n.sit==='aguardando').sort((a,b)=>a.es-b.es).slice(0,4);
+      const atraso=r.dO.fim&&r.fimProj?dias(r.dO.fim,r.fimProj):null;
+      const t0=Math.min(...N.map(n=>Math.min((n.es||h).getTime(),(n.ini||n.es||h).getTime())),h.getTime()),t1=Math.max(...N.map(n=>(n.ef||h).getTime()),(r.dO.fim||h).getTime(),h.getTime())+864e5,sp=t1-t0,p=t=>((t-t0)/sp*100).toFixed(2);
+      const regua=[];let m=new Date(t0);m.setDate(1);while(m.getTime()<=t1){if(m.getTime()>=t0)regua.push(`<span style="left:${p(m.getTime())}%">${mesRot(m)}</span>`);m=addM(m,1);}
+      App._plN=N;
+      corpo=`${r.ciclo?'<div class="fin-aviso laranja"><div>As dependências entre as etapas formam um círculo (uma depende da outra que depende dela). Revise as dependências — enquanto isso, o cálculo ignora as ligações.</div></div>':''}
+      <div class="fin-kpis">${kpi(atraso>0?'vermelho':'verde','Término projetado',brDe(r.fimProj),atraso==null?'':atraso>0?`${atraso} dias depois do término vigente (${brDe(r.dO.fim)})`:atraso<0?`${-atraso} dias antes do término vigente`:'no término vigente')}${kpi('','Avanço físico',pct(r.fisico,0),`${N.filter(n=>n.sit==='concluida').length} de ${N.length} etapas concluídas`)}${kpi(lib.some(n=>n.atrasoIni)?'laranja':'verde','Frentes liberadas agora',lib.length,lib.length?'podem começar hoje':'nenhuma esperando')}${kpi(crit.length?'vermelho':'verde','Etapas críticas',crit.length,'sem folga: atrasou, a obra atrasa')}</div>
+      <div class="op-grade">
+        <div class="op-card"><h4>O que fazer agora</h4>
+          ${and.length?`<div style="font-size:11px;font-weight:700;color:var(--text-3);text-transform:uppercase;margin:4px 0">Em andamento — manter o ritmo</div>${and.map(n=>linha(`${n.critica?'<span class="t-err">●</span> ':''}${fe(n.nome)}`,`${pct(n.av,0)} · fim projetado ${brDe(n.ef)}`)).join('')}`:''}
+          ${lib.length?`<div style="font-size:11px;font-weight:700;color:var(--text-3);text-transform:uppercase;margin:10px 0 4px">Liberadas — podem começar já</div>${lib.map(n=>linha(`${n.critica?'<span class="t-err">●</span> ':''}${fe(n.nome)}`,n.atrasoIni?`<span class="t-err">deveria ter começado em ${brDe(n.ini)}</span>`:n.critica?'<span class="t-err">crítica — comece primeiro</span>':`folga de ${n.folga} dia${n.folga!==1?'s':''}`)).join('')}`:''}
+          ${prox.length?`<div style="font-size:11px;font-weight:700;color:var(--text-3);text-transform:uppercase;margin:10px 0 4px">Próximas — dependem de outras</div>${prox.map(n=>linha(fe(n.nome),`<span style="font-weight:500;color:var(--text-2)">aguarda ${fe(n.espera.map(x=>x.nome).join(', '))}${n.vin==='II'?' começar':' terminar'}</span>`)).join('')}`:''}
+          ${!and.length&&!lib.length&&!prox.length?'<div class="fin-vazio" style="padding:10px">Todas as etapas concluídas.</div>':''}
+        </div>
+        <div class="op-card"><h4>Como ler o planejamento</h4><ul class="op-dicas">
+          <li><b>Caminho crítico</b> (em vermelho): a sequência de etapas sem folga. Recurso extra (equipe, equipamento) rende mais nelas: adiantar uma etapa crítica adianta a obra; adiantar uma com folga não muda o término.</li>
+          <li><b>Folga</b>: quantos dias a etapa pode atrasar sem empurrar o término.</li>
+          <li><b>Início-início</b>: obra linear anda por trechos — o assentamento começa alguns dias depois da escavação, sem esperar ela acabar. Mantenha as frentes próximas: vala aberta por muito tempo é risco de desmoronamento, acidente e reclamação.</li>
+          <li><b>Término projetado</b> usa o avanço real: etapa em andamento termina pelo que falta; nenhuma começa no passado.</li>
+        </ul></div>
+      </div>
+      <div class="fin-card"><div class="fin-card-cab"><h3>Cronograma projetado</h3><div class="eng-legenda" style="margin:0">${sem('vermelho','crítica')}${sem('amarelo','pode iniciar')}<span class="eng-sem"><i style="background:var(--blue)"></i>em andamento</span>${sem('verde','concluída')}${sem('cinza','aguardando')}<span>┆ término vigente</span></div></div>
+        <div class="pl-regua"><span></span><div>${regua.join('')}</div></div>
+        <div class="pl-gantt">${N.map(n=>`<div class="pl-linha"><span title="${fe(n.nome)}">${n.e.cod_etapa?`<b>${fe(n.e.cod_etapa)}</b> `:''}${fe(n.nome)}</span><div class="pl-trilho"><div class="pl-barra ${n.av>=100?'ok':n.critica?'crit':n.av>0?'and':n.sit==='liberada'?'lib':''}" style="left:${p(n.es.getTime())}%;width:${Math.max(.6,(n.ef-n.es+864e5)/sp*100).toFixed(2)}%" title="${fe(n.nome)}: ${brDe(n.es)} a ${brDe(n.ef)} · ${pct(n.av,0)}"><i style="width:${n.av}%"></i></div>
+          <div class="pl-marca hoje" style="left:${p(h.getTime())}%"></div>${r.dO.fim?`<div class="pl-marca term" style="left:${p(r.dO.fim.getTime()+864e5)}%"></div>`:''}</div></div>`).join('')}</div></div>
+      <div class="fin-card"><div class="fin-rolar"><table class="fin-tab"><thead><tr><th>Etapa</th><th class="num">Peso</th><th class="num">Dias</th><th>Depende de</th><th>Início projetado</th><th>Fim projetado</th><th class="num">Folga</th><th class="num">Avanço</th><th>Situação</th><th></th></tr></thead><tbody>
+        ${N.map((n,i)=>`<tr${n.critica?' style="background:rgba(255,59,48,.04)"':''}><td><b>${fe(n.nome)}</b>${n.itens.length?`<small>${n.itens.length} itens do orçamento</small>`:''}</td><td class="num">${pct(n.peso)}</td><td class="num">${n.dur}</td>
+          <td style="max-width:220px">${n.preds.length?fe(n.preds.map(x=>x.nome).join(', '))+`<small>${n.vin==='II'?`começa ${n.lag} dia${n.lag!==1?'s':''} após o início`:`após terminar${n.lag?' + '+n.lag+' dias':''}`}</small>`:'<small>—</small>'}</td>
+          <td style="white-space:nowrap">${brDe(n.es)}${n.ini&&n.av===0&&dias(n.ini,n.es)>0?`<small class="t-err">planejado ${brDe(n.ini)}</small>`:''}</td><td style="white-space:nowrap">${brDe(n.ef)}</td>
+          <td class="num">${n.folga==null?'—':n.critica?'<b class="t-err">0</b>':n.folga}</td><td class="num">${pct(n.av,0)}</td><td><span class="eng-pill ${SIT[n.sit][1]}">${SIT[n.sit][0]}</span>${n.critica?' <span class="eng-pill vermelho">crítica</span>':''}</td>
+          <td><button type="button" class="fin-bt mini" data-pl="dep" data-i="${i}">Dependências</button></td></tr>`).join('')}
+      </tbody></table></div></div>`;
+    }
+    const bts=r?`${r.temItens?'<button type="button" class="fin-bt" data-pl="avanco" title="Calcula o avanço de cada etapa pelo que já foi medido nos itens do orçamento dela">Avanço pelas medições</button>':''}<button type="button" class="fin-bt" data-pl="aplicar" title="Grava as datas projetadas no cronograma da obra">Aplicar datas projetadas</button>${orc?'<button type="button" class="fin-bt" data-pl="gerar">Gerar de novo</button>':''}${pode('obras')?'<button type="button" class="fin-bt" data-pl="gantt">Abrir cronograma</button>':''}`:'';
+    box.innerHTML=`<div class="fin-wrap">${cab('Planejamento — '+fe(ob),texto,seletor+bts)}${corpo}</div>`;
+    box.onchange=ev=>{const s=ev.target.closest('select[data-pl="obra"]');if(s){PL.obra=s.value;renderPlanejamento();}};
+    box.onclick=ev=>{const b=ev.target.closest('button[data-pl]');if(!b)return;const a=b.dataset.pl;
+      if(a==='gerar')gerarPlano(ob);
+      else if(a==='avanco')avancoPorMedicoes(ob);
+      else if(a==='aplicar')aplicarDatas(ob);
+      else if(a==='gantt'){const o=obraDe(ob);if(o){UI.openObraHub(o.rowid);setTimeout(()=>UI._obraHubTab('etapas'),60);}}
+      else if(a==='dep'){const n=(App._plN||[])[+b.dataset.i];if(n)editarDependencias(ob,n);}
+    };
+  }
+  function editarDependencias(ob,n){
+    const r=cpm(ob),outras=r.N.filter(x=>x.e!==n.e);
+    const marcados=new Set(n.preds.map(x=>x.e));
+    const tokDe=x=>x.e.cod_etapa||('#'+x.e.rowid);
+    janela('Dependências — '+n.nome,`<div class="fin-resumo">Marque as etapas que precisam acontecer antes de <b>${fe(n.nome)}</b> começar.</div>
+      <div class="fin-lote">${outras.map((x,i)=>`<label><input type="checkbox" data-dep="${i}" ${marcados.has(x.e)?'checked':''}>${fe(x.nome)}<span class="v">${brDe(x.es)} a ${brDe(x.ef)}</span></label>`).join('')||'<div class="fin-vazio">Não há outras etapas.</div>'}</div>
+      <div class="fin-linha"><div class="fin-fld"><label>Começa quando a anterior…</label><select data-k="vin"><option value="FI" ${n.vin==='FI'?'selected':''}>terminar (fim → início)</option><option value="II" ${n.vin==='II'?'selected':''}>começar — por trechos (início → início)</option></select></div>
+        <div class="fin-fld"><label>Dias de espera depois disso</label><input data-k="lag" inputmode="numeric" value="${n.lag}"></div></div>`,
+      [{html:'Cancelar'},{html:'Salvar',cls:'pri',acao:async j=>{
+        const sel=outras.filter((x,i)=>j.querySelector(`[data-dep="${i}"]`).checked);
+        const obj={...n.e,predecessoras:sel.map(tokDe).join(';'),vinculo:j.querySelector('[data-k="vin"]').value,defasagem:String(Math.max(0,parseInt(j.querySelector('[data-k="lag"]').value,10)||0))};
+        await executar(()=>salvar('Etapas',obj,n.e.rowid));
+        toast('Dependências salvas.','success');
+      }}],620);
+  }
+  function avancoPorMedicoes(ob){
+    const K=UI._etapasK(),r=cpm(ob),orc=Eng.baseDaObra(ob);if(!r||!orc)return;
+    const preco={};Eng.itensBase(orc).forEach(x=>preco[x.chave]=x);const ac=Eng.acumulado(ob,Infinity);
+    const mud=r.N.filter(n=>n.itens.length).map(n=>{const c=n.itens.reduce((s,k)=>s+(preco[k]?r2(preco[k].qtd_contrato*preco[k].p_unit):0),0),m=n.itens.reduce((s,k)=>s+(preco[k]?r2((ac[k]||0)*preco[k].p_unit):0),0);return {n,novo:c?Math.min(100,m/c*100):0};}).filter(x=>Math.abs(x.novo-x.n.av)>=0.05);
+    if(!mud.length)return toast('O avanço das etapas já está igual ao que foi medido.','success');
+    janela('Avanço pelas medições',`<div class="fin-resumo">O avanço de cada etapa passa a ser o valor já medido dos itens dela ÷ o valor contratado desses itens.</div><div class="fin-rolar"><table class="fin-tab"><thead><tr><th>Etapa</th><th class="num">Hoje</th><th class="num">Pelas medições</th></tr></thead><tbody>${mud.map(x=>`<tr><td>${fe(x.n.nome)}</td><td class="num">${pct(x.n.av,1)}</td><td class="num"><b>${pct(x.novo,1)}</b></td></tr>`).join('')}</tbody></table></div>`,
+      [{html:'Cancelar'},{html:'Atualizar avanço',cls:'pri',acao:async()=>{await executar(async()=>{for(const x of mud){const o={...x.n.e};o[K.avanco]=fmtNum(x.novo);await salvar('Etapas',o,x.n.e.rowid);}});toast('Avanço atualizado.','success');}}],560);
+  }
+  function aplicarDatas(ob){
+    const K=UI._etapasK(),r=cpm(ob);if(!r)return;
+    const mud=r.N.filter(n=>n.av<100).map(n=>({n,ini:n.av>0?n.ini:n.es,fim:n.ef})).filter(x=>!x.n.ini||!x.n.fim||isoDe(x.ini)!==isoDe(x.n.ini)||isoDe(x.fim)!==isoDe(x.n.fim));
+    if(!mud.length)return toast('As datas do cronograma já são as projetadas.','success');
+    janela('Aplicar datas projetadas',`<div class="fin-resumo">As etapas não concluídas recebem as datas do cálculo (dependências + avanço real). A primeira data planejada fica guardada como linha de base.</div><div class="fin-rolar"><table class="fin-tab"><thead><tr><th>Etapa</th><th>Hoje no cronograma</th><th>Projetado</th></tr></thead><tbody>${mud.map(x=>`<tr><td>${fe(x.n.nome)}</td><td>${brDe(x.n.ini)} a ${brDe(x.n.fim)}</td><td><b>${brDe(x.ini)} a ${brDe(x.fim)}</b></td></tr>`).join('')}</tbody></table></div>
+      ${r.dO.fim&&r.fimProj>r.dO.fim?`<div class="fin-aviso laranja"><div>O fim projetado (${brDe(r.fimProj)}) passa do término vigente (${brDe(r.dO.fim)}). Se não houver como recuperar, registre o aditivo de prazo antes do fim da vigência.</div></div>`:''}`,
+      [{html:'Cancelar'},{html:'Aplicar',cls:'pri',acao:async()=>{await executar(async()=>{for(const x of mud){const o={...x.n.e};if(!o.lb_comeco&&x.n.ini)o.lb_comeco=isoDe(x.n.ini);if(!o.lb_final&&x.n.fim)o.lb_final=isoDe(x.n.fim);o[K.ini]=isoDe(x.ini);o[K.fim]=isoDe(x.fim);await salvar('Etapas',o,x.n.e.rowid);}});toast('Datas aplicadas ao cronograma.','success');}}],680);
+  }
+
+  /* ═══════════════════════════ VIABILIDADE ═══════════════════════════ */
+  const VB={obra:'',p:null};
+  const CURVAS={linear:['Constante (mesmo ritmo todo mês)',t=>t],s:['Curva S (devagar, acelera, desacelera)',t=>t*t*(3-2*t)],inicio:['Concentrada no início',t=>1-(1-t)*(1-t)],fim:['Concentrada no fim',t=>t*t]};
+  function paramsDe(ob){
+    const p={valor:0,custo:0,imp:11.4,meses:6,receb:30,curva:'s',mob:5,pagto:0,taxa:1,inicio:0,caixa:0};
+    const s=Fin.lerSaldo();if(s)p.caixa=r2(s.valor);
+    if(!ob)return p;
+    const o=obraDe(ob);if(!o)return p;
+    const sd=Eng.saude(o),cap=Eng.capInfo(ob);
+    p.valor=r2(sd.receita||0);p.custo=r2(cap.custo||sd.receita*0.75||0);p.imp=Math.round((1-sd.fatorLiq)*1000)/10;
+    const dO=sd.dO;if(dO.ini&&dO.fim)p.meses=Math.max(1,Math.round((dias(dO.ini,dO.fim)+1)/30));
+    if(dO.ini){const h=hoje0();p.inicio=Math.max(0,(dO.ini.getFullYear()-h.getFullYear())*12+dO.ini.getMonth()-h.getMonth());}
+    return p;
+  }
+  function irr(f){const npv=r=>f.reduce((s,x,i)=>s+x/Math.pow(1+r,i+1),0);if(!f.some(x=>x<0)||!f.some(x=>x>0))return null;let lo=-0.95,hi=2;if(npv(lo)*npv(hi)>0)return null;for(let k=0;k<200;k++){const m=(lo+hi)/2;if(npv(lo)*npv(m)<=0)hi=m;else lo=m;}return (lo+hi)/2*100;}
+  function simular(p){
+    const n=Math.max(1,Math.round(p.meses)),S=(CURVAS[p.curva]||CURVAS.linear)[1];
+    const fr=[];for(let i=1;i<=n;i++)fr.push(S(i/n)-S((i-1)/n));
+    const lagR=Math.max(0,Math.ceil(p.receb/30)),lagC=p.pagto?1:0,liq=1-p.imp/100;
+    const M=Array.from({length:n+Math.max(lagR,lagC)},()=>({exec:0,med:0,rec:0,custo:0}));
+    fr.forEach((f,k)=>{M[k].exec=f*100;M[k].med=p.valor*f;M[k+lagR].rec+=p.valor*f*liq;M[k+lagC].custo+=p.custo*(1-p.mob/100)*f+(k===0?p.custo*p.mob/100:0);});
+    let ac=0,min=0,mMin=-1;M.forEach((m,i)=>{m.saldo=m.rec-m.custo;ac+=m.saldo;m.acum=ac;if(ac<min){min=ac;mMin=i;}});
+    let pay=null;for(let i=M.length-1;i>=0;i--){if(M[i].acum<-0.005){pay=i+1<M.length?i+1:null;break;}if(i===0)pay=0;}
+    const fl=M.map(m=>m.saldo),vpl=fl.reduce((s,f,i)=>s+f/Math.pow(1+p.taxa/100,i+1),0);
+    const lucro=p.valor*liq-p.custo;
+    return {M,lucro,margem:p.valor?lucro/(p.valor*liq)*100:0,min,mMin,pay,vpl,tir:irr(fl),liq};
+  }
+  // carteira atual: saldo a medir de cada obra em andamento até o término vigente (recebe no mês
+  // seguinte, já líquido), custo que falta (custo final estimado − custo real) no mesmo ritmo, e o
+  // custo fixo da empresa (média das despesas pagas nos últimos 90 dias)
+  function carteira(meses){
+    const h=hoje0(),M=Array.from({length:meses},()=>({rec:0,custo:0,fixo:0}));
+    const L=(D().obras||[]).filter(Eng.emAndamento).map(o=>Eng.saude(o));
+    // obra sem CAP: custo que falta estimado pela proporção custo ÷ venda das obras que têm CAP (ou 75%)
+    const comCap=L.filter(s=>s.bac>0&&s.receita>0),razao=comCap.length?comCap.reduce((a,s)=>a+s.bac,0)/comCap.reduce((a,s)=>a+s.receita,0):0.75;
+    L.forEach(s=>{
+      const saldo=Math.max(0,s.rm.contrato?s.rm.saldo:(s.receita-s.fr.b)),resto=s.eac!=null?Math.max(0,s.eac-s.ac):saldo*razao;
+      const fim=s.dO.fim&&s.dO.fim>h?s.dO.fim:addD(h,60);const n=Math.max(1,Math.min(meses-1,(fim.getFullYear()-h.getFullYear())*12+fim.getMonth()-h.getMonth()+1));
+      for(let k=0;k<n;k++){M[k].custo+=resto/n;if(k+1<meses)M[k+1].rec+=saldo/n*s.fatorLiq;}
+    });
+    const d90=addD(h,-90),fixo=Fin.movimentos().filter(m=>m.tipo==='despesa'&&m.pago&&m.dataBaixa&&m.dataBaixa>=d90).reduce((s,m)=>s+m.valor,0)/3;
+    M.forEach(m=>{m.fixo=fixo;});
+    return {M,fixo};
+  }
+  function renderViabilidade(){
+    const box=document.getElementById('eng-viabilidade');if(!box)return;
+    if(!VB.p)VB.p=paramsDe(VB.obra);
+    const p=VB.p,s=simular(p),h=hoje0();
+    const HZ=Math.max(12,p.inicio+s.M.length+1),cart=carteira(HZ);
+    // soma carteira + novo contrato (se não for uma obra que já está na carteira)
+    const jaNaCarteira=VB.obra&&Eng.emAndamento(obraDe(VB.obra)||{});
+    let acC=p.caixa,acS=p.caixa,minC=Infinity,mC=0,minS=Infinity,mS=0;
+    const linhas=Array.from({length:HZ},(_,k)=>{const c=cart.M[k];const novo=jaNaCarteira?null:s.M[k-p.inicio];const fc=c.rec-c.custo-c.fixo,fs=fc+(novo?novo.saldo:0);acC+=fc;acS+=fs;if(acC<minC){minC=acC;mC=k;}if(acS<minS){minS=acS;mS=k;}return {k,mes:addM(new Date(h.getFullYear(),h.getMonth(),1),k),fc,fs,acC,acS,novo};});
+    const tomV=!p.valor?'amarelo':s.lucro<0?'vermelho':s.margem<8?'amarelo':'verde';
+    const veredito=[];
+    if(!p.valor)veredito.push('Informe o valor do contrato e o custo direto previsto (ou escolha uma obra acima) para ver o lucro, o capital de giro e se o contrato cabe no caixa.');
+    else if(s.lucro<0)veredito.push(`<b>Dá prejuízo:</b> o custo previsto (${fmt(p.custo)}) passa do que sobra do contrato depois dos impostos (${fmt(p.valor*s.liq)}).`);
+    else veredito.push(`<b>Lucro previsto de ${fmt(s.lucro)}</b> (margem de ${pct(s.margem)} sobre a receita líquida)${s.margem<8?' — margem apertada: qualquer imprevisto come o lucro. Reveja custos e o BDI':''}.`);
+    if(p.valor)veredito.push(s.min<0?`O contrato exige até <b>${fmt(-s.min)} de capital de giro</b> no ${s.mMin+1}º mês, porque se paga antes de receber (medição recebida ${p.receb} dias depois).`:'O contrato se paga sozinho: recebe antes de precisar de capital.');
+    if(p.valor&&!jaNaCarteira){
+      if(minS<0)veredito.push(`<b>Somado às obras atuais e ao custo fixo</b>, o caixa da empresa chega a <b>${fmt(minS)}</b> em ${mesRot(linhas[mS].mes)} — sem financiamento ou antecipação de recebíveis, <b>não cabe no caixa</b>.`);
+      else veredito.push(`Somado às obras atuais e ao custo fixo, o caixa mais baixo fica em <b>${fmt(minS)}</b> (${mesRot(linhas[mS].mes)}) — <b>cabe no caixa</b>${minS<p.caixa*0.2?', mas com folga pequena':''}.`);
+    }
+    if(p.valor&&jaNaCarteira)veredito.push(minC<0?`Com a carteira atual e o custo fixo, o caixa da empresa chega a <b>${fmt(minC)}</b> em ${mesRot(linhas[mC].mes)}: planeje financiamento ou antecipação de recebíveis.`:`Com a carteira atual e o custo fixo, o caixa mais baixo da empresa fica em <b>${fmt(minC)}</b> (${mesRot(linhas[mC].mes)}).`);
+    const max=Math.max(1,...linhas.map(l=>Math.abs(jaNaCarteira?l.acC:l.acS)));
+    const graf=`<div class="vb-graf">${linhas.map(l=>{const v=jaNaCarteira?l.acC:l.acS;return `<div class="vb-col ${l.novo?'sim':''}" title="${mesRot(l.mes)}: ${fmt(v)}"><div class="pos" style="height:50%"><i style="height:${v>0?v/max*100:0}%"></i></div><div class="neg" style="height:50%"><i style="height:${v<0?-v/max*100:0}%"></i></div></div>`;}).join('')}</div><div class="vb-eixo">${linhas.map(l=>`<span>${l.k%2===0||HZ<=14?mesRot(l.mes):''}</span>`).join('')}</div>`;
+    const f=(k,l,extra)=>`<div class="fin-fld"><label>${l}</label><input data-vb="${k}" value="${fe(String(p[k]).replace('.',','))}" inputmode="decimal"${extra||''}></div>`;
+    box.innerHTML=`<div class="fin-wrap">
+      ${cab('Viabilidade do contrato','Antes de assinar (ou de dar o preço), veja se o contrato vale a pena e se cabe no caixa: lucro, quanto de capital de giro ele exige e quando, retorno (VPL e TIR) e o efeito somado às obras que já estão em andamento. Escolha uma obra para puxar os números dela, ou digite os valores de uma proposta.',`<select class="filter-select" data-vbo="1"><option value="">Proposta nova (digitar valores)</option>${obrasNomes().map(o=>`<option ${VB.obra===o?'selected':''}>${fe(o)}</option>`).join('')}</select>`)}
+      <div class="vb-grade">
+        <div class="fin-card">
+          ${f('valor','Valor do contrato (R$)')}${f('custo','Custo direto previsto (R$)')}${f('imp','Impostos e retenções sobre a nota (%)')}
+          <div class="fin-linha">${f('meses','Prazo (meses)')}${f('receb','Recebe a medição após (dias)')}</div>
+          <div class="fin-fld"><label>Ritmo de execução</label><select data-vb="curva">${Object.entries(CURVAS).map(([k,v])=>`<option value="${k}" ${p.curva===k?'selected':''}>${v[0]}</option>`).join('')}</select></div>
+          <div class="fin-linha">${f('mob','Mobilização no 1º mês (% do custo)')}<div class="fin-fld"><label>Pagamento aos fornecedores</label><select data-vb="pagto"><option value="0" ${!+p.pagto?'selected':''}>no mês do serviço</option><option value="1" ${+p.pagto?'selected':''}>30 dias depois</option></select></div></div>
+          <div class="fin-linha">${f('inicio','Começa daqui a (meses)')}${f('taxa','Custo do dinheiro (% ao mês)')}</div>
+          ${f('caixa','Caixa disponível hoje (R$)')}
+          <small style="color:var(--text-3);font-size:11px;line-height:1.4;display:block">Caixa: saldo do último extrato importado na Conciliação. Impostos: pelo histórico de notas da obra (ou o padrão do sistema).</small>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:14px;min-width:0">
+          <div class="vb-veredito ${tomV==='verde'&&minS<0&&!jaNaCarteira?'amarelo':tomV}">${veredito.map(v=>`<div>• ${v}</div>`).join('')}</div>
+          <div class="fin-kpis">${kpi(s.lucro<0?'vermelho':'verde','Lucro previsto',fmt(s.lucro),'margem '+pct(s.margem))}${kpi(s.min<0?'laranja':'verde','Capital de giro máximo',fmt(-Math.min(0,s.min)),s.min<0?'no '+(s.mMin+1)+'º mês':'não exige')}${kpi(s.vpl<0?'vermelho':'','VPL',fmt(s.vpl),`descontado a ${String(p.taxa).replace('.',',')}% ao mês`)}${kpi('','TIR',s.tir==null?'—':pct(s.tir,2)+' a.m.',s.tir==null?'não exige capital':'retorno do capital empatado')}${kpi('','Retorno do investimento',s.pay==null?'—':s.pay===0?'imediato':s.pay+'º mês','quando o acumulado fica positivo')}</div>
+          <div class="fin-card"><h3>${jaNaCarteira?'Caixa da empresa — carteira atual':'Caixa da empresa — carteira atual + este contrato'}</h3><p class="fin-sub">Saldo acumulado mês a mês partindo do caixa de hoje.${jaNaCarteira?' Esta obra já está na carteira.':' Em azul, os meses com o contrato novo.'} Custo fixo da empresa: ${fmt(cart.fixo)}/mês (média dos últimos 90 dias).</p>${graf}</div>
+          <div class="fin-card"><h3>Fluxo do contrato mês a mês</h3><div class="fin-rolar"><table class="fin-tab"><thead><tr><th>Mês</th><th class="num">Execução</th><th class="num">Medição</th><th class="num">Recebimento líquido</th><th class="num">Custo pago</th><th class="num">Saldo do mês</th><th class="num">Acumulado</th></tr></thead><tbody>
+            ${s.M.map((m,i)=>`<tr><td>${i+1}º${p.inicio>=0?` <small style="display:inline">(${mesRot(addM(new Date(h.getFullYear(),h.getMonth(),1),p.inicio+i))})</small>`:''}</td><td class="num">${m.exec?pct(m.exec,0):'—'}</td><td class="num">${m.med?fmt(m.med):'—'}</td><td class="num">${m.rec?fmt(m.rec):'—'}</td><td class="num">${m.custo?fmt(m.custo):'—'}</td><td class="num ${m.saldo<0?'t-err':''}">${fmt(m.saldo)}</td><td class="num ${m.acum<0?'t-err':''}"><b>${fmt(m.acum)}</b></td></tr>`).join('')}
+          </tbody></table></div></div>
+        </div>
+      </div>
+    </div>`;
+    box.onchange=ev=>{
+      const t=ev.target;
+      if(t.dataset.vbo){VB.obra=t.value;VB.p=paramsDe(VB.obra);renderViabilidade();return;}
+      if(t.dataset.vb){const k=t.dataset.vb;VB.p[k]=(k==='curva')?t.value:Math.max(0,moeda(t.value));if(k==='meses')VB.p.meses=Math.max(1,Math.min(60,Math.round(VB.p.meses)));if(k==='inicio')VB.p.inicio=Math.min(24,Math.round(VB.p.inicio));renderViabilidade();}
+    };
+    box.oninput=null;
+  }
+
+  /* ═══════════════════════════ ALERTAS, PAINEL DA OBRA, DIÁRIO ═══════════════════════════ */
+  function alertas4(pode){
+    const out=[],h=hoje0();const ir=v=>pode(v)?{rot:'Abrir',go:()=>UI.nav(v)}:null;
+    const at=(D().obras||[]).filter(o=>ganha(o)&&!finalizada(o)).map(info);
+    const vig=at.filter(x=>x.vig&&x.diasVig<=60);
+    if(vig.length)out.push({nivel:vig.some(x=>x.diasVig<=30)?'alto':'medio',ico:'⌛',titulo:'Vigência de contrato acabando',valor:String(vig.length),detalhe:'Aditivo de prazo só pode ser assinado ANTES do fim da vigência.',itens:vig.slice(0,3).map(x=>`${x.ob} · ${brDe(x.vig)} · ${quando(x.diasVig)}`),acao:ir('contratos')});
+    const gar=at.filter(x=>x.sGar==='vermelho'||(x.sGar==='amarelo'&&x.garVal));
+    if(gar.length)out.push({nivel:gar.some(x=>x.sGar==='vermelho')?'alto':'medio',ico:'⛨',titulo:'Garantia contratual a regularizar',valor:String(gar.length),detalhe:'Garantia vencida, vencendo em 30 dias ou valendo menos que a vigência do contrato.',itens:gar.slice(0,3).map(x=>`${x.ob} · garantia até ${brDe(x.garVal)}`),acao:ir('contratos')});
+    const rj=at.filter(x=>x.reajDisp);
+    if(rj.length)out.push({nivel:'medio',ico:'↗',titulo:'Reajuste de contrato disponível',valor:String(rj.length),detalhe:'Já se passaram 12 meses da data-base. O reajuste não é automático: peça por ofício antes de qualquer aditivo ou do encerramento, ou o direito pode se perder.',itens:rj.slice(0,3).map(x=>`${x.ob} · desde ${brDe(x.reaj)}`),acao:ir('contratos')});
+    const acs=(D().acoes||[]).filter(a=>aberta(a)&&dt(a.quando)&&dt(a.quando)<h);
+    if(acs.length)out.push({nivel:acs.some(a=>a.prioridade==='Alta')?'alto':'medio',ico:'☑',titulo:'Ações do plano atrasadas',valor:String(acs.length),detalhe:'Ações com o prazo vencido e ainda abertas — cobre os responsáveis.',itens:acs.slice(0,3).map(a=>`${a.o_que} · ${a.quem||'sem responsável'} · ${brDe(dt(a.quando))}`),acao:ir('acoes')});
+    const paradas=[];at.forEach(x=>{const r=cpm(x.ob);if(!r)return;r.N.filter(n=>n.sit==='liberada'&&n.atrasoIni>7).forEach(n=>paradas.push(`${x.ob} · ${n.nome} · deveria ter começado em ${brDe(n.ini)}`));});
+    if(paradas.length)out.push({nivel:'medio',ico:'▶',titulo:'Frentes liberadas e não iniciadas',valor:String(paradas.length),detalhe:'Etapas com tudo pronto para começar e mais de 7 dias depois do início planejado.',itens:paradas.slice(0,3),acao:ir('planejamento')});
+    const sem=at.filter(x=>!x.tem);
+    if(sem.length)out.push({nivel:'info',ico:'§',titulo:'Contratos sem ficha cadastrada',valor:String(sem.length),detalhe:'Sem a ficha (vigência, garantia, data-base) o sistema não consegue vigiar esses prazos.',itens:sem.slice(0,3).map(x=>x.ob),acao:ir('contratos')});
+    return out;
+  }
+  const a0=Eng.alertas;Eng.alertas=function(p){let r=[];try{r=a0(p);}catch(e){console.error(e);}try{r=r.concat(alertas4(p));}catch(e){console.error(e);}return r;};
+  // painel da obra (aba Resumo): cartão "Contrato e execução"
+  const ph=Eng.painelHtml;
+  Eng.painelHtml=function(ob){
+    let html=ph(ob);
+    try{
+      const o=obraDe(ob);if(!o||!ganha(o))return html;
+      const x=info(o),r=cpm(ob),h=hoje0();
+      const acs=(D().acoes||[]).filter(a=>a.titulo_obra===ob&&aberta(a)),atr=acs.filter(a=>dt(a.quando)&&dt(a.quando)<h);
+      const lib=r?r.N.filter(n=>n.sit==='liberada'):[],crit=r?r.N.filter(n=>n.critica):[];
+      const card=`<div class="op-card"><h4>Contrato e execução <span class="op-acoes">${pode('contratos')?'<button type="button" class="fin-bt mini" data-op="contrato">Contrato</button>':''}${pode('planejamento')?'<button type="button" class="fin-bt mini" data-op="planejamento">Planejamento</button>':''}${pode('acoes')?'<button type="button" class="fin-bt mini" data-op="acoes">Ações</button>':''}</span></h4>
+        ${linha('Vigência do contrato',x.vig?sem(x.sVig,brDe(x.vig)+' · '+quando(x.diasVig)):'<span class="t-warn">cadastre a ficha do contrato</span>')}
+        ${x.exigeGar?linha('Garantia',sem(x.sGar,x.garVal?'até '+brDe(x.garVal):'não informada')):''}
+        ${x.reaj?linha('Reajuste',sem(x.reajDisp?'amarelo':'verde',x.reajDisp?'disponível desde '+brDe(x.reaj):'a partir de '+brDe(x.reaj))):''}
+        ${linha('Ciclo do contrato',`${x.feitos}/${x.total}${x.prox?' · próximo: '+fe(x.prox.rot):''}`)}
+        ${r?linha('Término pelo planejamento',`<span class="${r.dO.fim&&r.fimProj>r.dO.fim?'t-err':'t-ok'}">${brDe(r.fimProj)}</span>`)+linha('Frentes liberadas agora',lib.length?fe(lib.slice(0,3).map(n=>n.nome).join(', ')):'nenhuma')+linha('Etapas críticas',crit.length?fe(crit.slice(0,3).map(n=>n.nome).join(', ')):'nenhuma'):linha('Planejamento','<span class="t-warn">sem etapas — gere pelo orçamento</span>')}
+        ${linha('Plano de ação',acs.length?`${acs.length} aberta${acs.length>1?'s':''}${atr.length?` · <span class="t-err">${atr.length} atrasada${atr.length>1?'s':''}</span>`:''}`:'nenhuma ação aberta')}</div>`;
+      const marca='<div class="op-grade">',k=html.indexOf(marca);if(k>=0)html=html.slice(0,k+marca.length)+card+html.slice(k+marca.length);
+    }catch(e){console.error(e);}
+    return html;
+  };
+  Eng.irPara=function(a,ob){
+    if(a==='contrato'){CT.obra=ob;UI.nav('contratos');}
+    else if(a==='planejamento'){PL.obra=ob;UI.nav('planejamento');}
+    else if(a==='acoes'){AC.obra=ob;AC.sit='abertas';UI.nav('acoes');}
+  };
+
+  /* ═══════════════════════════ ligação com o resto do sistema ═══════════════════════════ */
+  const re=App._renderEng;
+  App._renderEng=function(v){
+    try{
+      if(v==='contratos')return renderContratos();
+      if(v==='planejamento')return renderPlanejamento();
+      if(v==='acoes')return renderAcoes();
+      if(v==='viabilidade'){VB.p=null;return renderViabilidade();}
+    }catch(e){console.error(e);}
+    return re.apply(this,arguments);
+  };
+  const ra=App.renderAll;
+  App.renderAll=function(){
+    ra.apply(this,arguments);
+    try{
+      const v=['contratos','planejamento','acoes'].find(x=>document.getElementById('view-'+x)?.classList.contains('active'));
+      if(v)App._renderEng(v);
+      if(document.getElementById('view-viabilidade')?.classList.contains('active'))renderViabilidade();
+    }catch(e){console.error(e);}
+  };
+  Object.assign(Eng,{renderContratos,renderPlanejamento,renderAcoes,renderViabilidade,infoContrato:info,cpm,propostaPlano,faseDo,simular,carteira,novaAcao,contratoDe,_CT:CT,_PL:PL,_AC:AC,_VB:VB});
 })();
 </script>
 </body>

@@ -17,19 +17,21 @@ const _NOME_PARA_CHAVE = {
   'Faturamentos':'faturamentos','Aportes financeiros':'aportes','CAP':'cap',
   'Orçamentos':'orcamentos','Despesas':'despesas','Etapas':'etapas',
   'Imagens da Obra':'obra_imagens',
-  'Medições':'medicoes','Diário de obra':'diario_obra','Documentos':'documentos','Fornecedores':'fornecedores'
+  'Medições':'medicoes','Diário de obra':'diario_obra','Documentos':'documentos','Fornecedores':'fornecedores',
+  'Contratos':'contratos','Plano de ação':'acoes'
 };
 const _ABA_NOME = {
   obras:'Obras', custos:'Custos',
   faturamentos:'Faturamentos', aportes:'Aportes financeiros', cap:'CAP',
   orcamentos:'Orçamentos', despesas:'Despesas', etapas:'Etapas',
   obra_imagens:'Imagens da Obra',
-  medicoes:'Medições', diario_obra:'Diário de obra', documentos:'Documentos', fornecedores:'Fornecedores'
+  medicoes:'Medições', diario_obra:'Diário de obra', documentos:'Documentos', fornecedores:'Fornecedores',
+  contratos:'Contratos', acoes:'Plano de ação'
 };
 // Tabelas de engenharia (2026-10): ficam numa lista à parte porque dependem do SQL de
 // instalação (schema.sql) — enquanto ele não roda, a leitura delas volta vazia sem afetar
 // as outras, e o tempo real delas fica num canal separado (ver subscribeRealtime).
-const _CHAVES_ENG = ['medicoes','diario_obra','documentos','fornecedores'];
+const _CHAVES_ENG = ['medicoes','diario_obra','documentos','fornecedores','contratos','acoes'];
 const _CHAVES = ['obras','custos','faturamentos','aportes','cap','orcamentos','despesas','etapas','obra_imagens'].concat(_CHAVES_ENG);
 
 // ─── Funções que espelham o Código.gs ─────────────────────────────────────────
