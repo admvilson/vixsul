@@ -12606,94 +12606,220 @@ const Eng=(function(){
       else if(b.dataset.ac==='concluir'&&a)(async()=>{try{await executar(()=>salvar('Plano de ação',{...a,status:'Concluída',data_conclusao:isoDe(hoje0())},a.rowid));toast('Ação concluída.','success');}catch(e){toast(e.message||String(e),'error');}})();
     };
   }
-
-  /* ═══════════════════════════ PLANEJAMENTO DA EXECUÇÃO ═══════════════════════════
-     Fases típicas de obra de saneamento (rede, adutora, ligações, elevatória). Cada item do
-     orçamento cai numa fase pelas palavras da descrição; a ordem e as dependências seguem
-     a forma usual de tocar obra linear: frente de escavação abre caminho, o assentamento
-     vem atrás alguns dias depois (início-início), o reaterro atrás do assentamento, a
-     repavimentação atrás do reaterro — várias frentes andando juntas, por trechos.
-     dur/lag são frações do prazo; o conjunto é escalado para caber no prazo da obra. */
+  /* ═══════════════════════════ PLANEJAMENTO DA EXECUÇÃO — MONTADO PELO ORÇAMENTO ═══════════════════════════
+     O cronograma sai do orçamento da obra, do jeito que ele foi montado:
+     • orçamento com a numeração própria dos itens (1.1, 4.2, 9.3… — planilha colada): cada ITEM DE
+       PRIMEIRO NÍVEL vira uma etapa (como no cronograma físico-financeiro), com o valor dele;
+     • orçamento sem numeração (montado pela busca na EMBASA): os itens são agrupados pelo serviço.
+     O serviço de cada item sai do CAPÍTULO da tabela EMBASA (o código diz o que é: 02.01 demolição,
+     15.03 esquadrias, 16 hidráulica, 60 elétrica, 12 tubos… — aceita o código sem pontos, como vem do
+     Excel: 150101 = 15.01.01) ou da descrição (SINAPI, ORSE, composição própria). O TIPO da obra sai de
+     onde está o dinheiro (reforma/edificação, rede ou serviço) e define a sequência de execução.
+     Mobilização, administração local e desmobilização ficam sempre à parte (começo, obra toda, fim). */
   const FASES={
-    mob:{nome:'Mobilização e canteiro',kw:['mobiliza','canteiro','placa de obra','placa da obra','barracao','instalacao provisoria','instalacoes provisorias','administracao local','limpeza do terreno','limpeza manual do terreno','capina','rocado','rocada','desmatamento'],dur:.06,pre:[],vin:'FI',lag:0},
-    topo:{nome:'Topografia, locação e cadastro de interferências',kw:['topograf','locacao','levantamento planialt','nivelamento','sondagem','cadastro de interfer','gabarito'],dur:.12,pre:['mob'],vin:'II',lag:.02},
-    sin:{nome:'Sinalização e segurança da obra',kw:['sinaliza','tapume','cone','passadico','passarela','placa de sinal','barreira'],dur:.85,pre:['mob'],vin:'II',lag:.02,apoio:true},
-    dem:{nome:'Demolição e remoção de pavimento',kw:['demolic','remocao de pav','retirada de pav','levantamento de pav','corte de pav','corte de asfalto','corte com serra','arrancamento','fresagem'],dur:.45,pre:['topo'],vin:'II',lag:.04},
-    esc:{nome:'Escavação, carga e bota-fora',kw:['escava','carga','transporte de material','bota-fora','bota fora','espalhamento','movimento de terra','desmonte','momento de transporte'],dur:.55,pre:['topo','dem'],vin:'II',lag:.05},
-    escor:{nome:'Escoramento e esgotamento de vala',kw:['escoramento','esgotamento','rebaixamento','ponteira','bombeamento'],dur:.5,pre:['esc'],vin:'II',lag:.01},
-    tub:{nome:'Assentamento de tubulação',kw:['assentamento','tubo','tubos','tubulac','conexao','conexoes','registro','valvula','adutora','rede coletora','coletor','emissario','interceptor','junta'],dur:.55,pre:['esc'],vin:'II',lag:.05},
-    pv:{nome:'Poços de visita e caixas',kw:['poco de visita','pocos de visita','poco de inspecao','caixa','tampao','chamine','tubo de queda'],dur:.5,pre:['esc'],vin:'II',lag:.08},
-    rea:{nome:'Reaterro e compactação',kw:['reaterro','compactac','aterro','berco','lastro','envoltoria'],dur:.55,pre:['tub'],vin:'II',lag:.04},
-    lig:{nome:'Ligações domiciliares',kw:['ligacao','ligacoes','ramal predial','ramal domiciliar','hidrometro','cavalete'],dur:.45,pre:['tub'],vin:'II',lag:.15},
-    conc:{nome:'Estruturas de concreto e alvenaria',kw:['concreto','forma','formas','armacao','aco ca','alvenaria','reservatorio','fundacao','estaca','laje','viga','pilar','chapisco','reboco','emboco','impermeabiliza'],dur:.4,pre:['topo'],vin:'FI',lag:0},
-    elev:{nome:'Elevatória, elétrica e equipamentos',kw:['elevatoria','bomba','conjunto motor','motobomba','quadro de comando','eletric','painel eletrico','disjuntor','gerador','transformador','automacao'],dur:.3,pre:['conc'],vin:'II',lag:.1},
-    teste:{nome:'Testes, desinfecção e comissionamento',kw:['teste','estanqueidade','desinfeccao','comissionamento','pre-operacao','pre operacao','lavagem'],dur:.2,pre:['rea','lig','elev'],vin:'II',lag:.2},
-    pav:{nome:'Recomposição de pavimento e calçadas',kw:['paviment','recomposic','asfalt','cbuq','paralelep','calcada','meio-fio','meio fio','base de brita','sub-base','imprimac','pintura de ligacao','bloquete','intertravado','tratamento superficial'],dur:.45,pre:['rea'],vin:'II',lag:.1},
-    fim:{nome:'Limpeza final, as built e desmobilização',kw:['limpeza final','limpeza geral','desmobiliza','as built','as-built','cadastro tecnico','cadastro da rede'],dur:.06,pre:['pav','teste'],vin:'FI',lag:0},
-    out:{nome:'Outros serviços',kw:[],dur:.6,pre:['mob'],vin:'II',lag:.05}
+    adm:{nome:'Administração local e equipe técnica',apoio:true,cods:['01','30'],kw:['engenheiro','tecnico','encarregado','administracao local','almoxarife','vigia','apontador','mestre de obras','locacao de veiculo','aluguel de veiculo']},
+    mob:{nome:'Mobilização e canteiro',cods:['55'],kw:['mobiliza','canteiro','placa de identificacao da obra','placa de obra','placa da obra','barracao','instalacao provisoria','instalacoes provisorias','andaime']},
+    sin:{nome:'Sinalização e segurança da obra',apoio:true,cods:['03'],kw:['sinaliza','tapume','cone','passadico','passarela','barreira','epi','epc']},
+    topo:{nome:'Topografia, locação e sondagens',cods:['04.02','31','32'],kw:['topograf','locacao de obra','levantamento planialt','nivelamento','sondagem','gabarito']},
+    limp:{nome:'Limpeza do terreno, roçagem e capina',cods:['02.03','02.04','02.94','02.95','02.97'],kw:['capina','rocagem','rocada','rocado','rocar','limpeza do terreno','limpeza manual do terreno','limpeza mecanica do terreno','limpeza de area','desmatamento','destocamento','poda','corte de arvore','raspagem']},
+    dem:{nome:'Demolições e retiradas',cods:['02.01','02.02','02.90','02.91','02.99'],kw:['demolic','retirada','remocao','arrancamento','fresagem','corte de pav','corte de asfalto','levantamento de pav','delimitacao de area']},
+    bota:{nome:'Bota-fora',cods:['50.52'],kw:['bota fora','bota-fora','entulho']},
+    esc:{nome:'Escavação, carga e transporte',cods:['05','06'],kw:['escava','carga e descarga','momento de transporte','transporte de material','espalhamento','movimento de terra','desmonte','jazida','emprestimo']},
+    escor:{nome:'Escoramento e esgotamento de vala',cods:['07','08','03.03'],kw:['escoramento','esgotamento','rebaixamento','ponteira','bombeamento']},
+    conc:{nome:'Fundações e estruturas de concreto',cods:['09','50.1','50.2','54'],kw:['concreto','forma ','formas','armacao','aco ca','estaca','sapata','fundacao','baldrame','viga','pilar','laje','argamassa','leito de secagem','grout','ponte de aderencia','ferragem com primer','tratamento de ferragem','lixamento de ferragem']},
+    metal:{nome:'Serralheria e estruturas metálicas',cods:['09.30'],kw:['guarda corpo','guarda-corpo','corrimao','gradil','grade metalica','grade de protecao','grades','escada metalica','escada marinheiro','escada de marinheiro','estrutura metalica','modulo metalico','serralheria','chumbador','perfil metalico','chapa de aco','portao metalico','plataforma']},
+    ved:{nome:'Alvenaria e vedações',cods:['15.01','50.61'],kw:['alvenaria','bloco ceramico','bloco de concreto','divisoria','drywall','gesso acartonado','verga','contraverga','rasgo','atacamento','encunhamento','cobogo','elemento vazado','elementos vazados','mureta','muro']},
+    cob:{nome:'Cobertura',cods:['15.02'],kw:['telha','telhado','cobertura','cumeeira','rufo','calha','madeiramento','tesoura','ripa','caibro']},
+    imp:{nome:'Impermeabilização',cods:['15.06'],kw:['impermeabiliza','manta asfaltica','manta liquida','protecao mecanica']},
+    hid:{nome:'Instalações hidrossanitárias',cods:['16','09.21','21.95'],kw:['soldavel','agua fria','agua quente','esgoto predial','vaso sanitario','bacia sanitaria','lavatorio','torneira','chuveiro','sifao','ralo','caixa sifonada','pia','cuba','mictorio','caixa d','registro de gaveta','registro de pressao','loucas','metais sanitarios','ponto de agua','ponto de esgoto','hidrossanit','encanador','engate flexivel']},
+    ele:{nome:'Instalações elétricas, lógica e SPDA',cods:['60','62','65','17.24','17.95'],kw:['eletroduto','eletrocalha','cabo de cobre','cabo flexivel','fio','tomada','interruptor','disjuntor','quadro de distribuicao','luminaria','lampada','refletor','spda','aterramento','para-raio','cabo de rede','rj45','padrao de entrada','instalacao eletrica','instalacoes eletricas','ponto eletrico','pontos eletricos','eletricista','isolador','poste']},
+    rev:{nome:'Revestimentos e forros',cods:['15.04','15.90','15.91','15.92','15.94'],kw:['chapisco','reboco','emboco','massa unica','revestimento','azulejo','forro','gesso','textura','fachada','jato de areia','hidrojateamento','jato de alta pressao','estucamento','reparo superficial']},
+    esq:{nome:'Esquadrias, portas e vidros',cods:['15.03'],kw:['porta','janela','esquadria','vidro','basculante','veneziana']},
+    acab:{nome:'Acabamentos, ferragens e complementos',cods:['15.08'],kw:['bancada','persiana','puxador','fechadura','dobradica','mola hidraulica','ferragem','ferragens','armario','espelho','prateleira','barra de apoio','tampo','cortina','pelicula']},
+    piso:{nome:'Pisos, rodapés, soleiras e peitoris',cods:['15.05'],kw:['piso','porcelanato','contrapiso','rodape','soleira','peitoril','regularizacao de superficie','regularizacao de piso','granilite','polimento','lastro de concreto nao estrutural']},
+    pint:{nome:'Pintura e comunicação visual',cods:['15.07','15.97'],kw:['pintura','tinta','latex','acrilica','esmalte','verniz','selador','massa corrida','caiacao','comunicacao visual','demarcacao']},
+    tub:{nome:'Assentamento de tubulação',cods:['11.02','11.03','11.04','12','13'],kw:['assentamento de tubo','assent. de tubo','tubo','tubos','tubulac','conexao','conexoes','valvula','adutora','rede coletora','coletor','emissario','interceptor']},
+    pv:{nome:'Poços de visita e caixas',cods:['10'],kw:['poco de visita','pocos de visita','poco de inspecao','caixa de passagem','caixa de inspecao','tampao','chamine','tubo de queda']},
+    rea:{nome:'Reaterro e compactação',cods:['05.04','05.05','05.08','05.94','05.99'],kw:['reaterro','compactac','aterro','berco','envoltoria']},
+    dren:{nome:'Drenagem, bueiros e contenções',cods:['11'],kw:['drenagem','bueiro','canaleta','gabiao','gabioes','dreno','descida d','sarjeta','enrocamento','geotextil','talude']},
+    lig:{nome:'Ligações, ramais e interligações',cods:['20','21','51'],kw:['ligacao','ligacoes','ramal predial','ramal domiciliar','hidrometro','cavalete','interligacao','entroncamento']},
+    equip:{nome:'Equipamentos, elevatória e automação',cods:['19','22','23','17.99'],kw:['elevatoria','bomba','conjunto motor','motobomba','quadro de comando','painel eletrico','gerador','transformador','automacao','inversor','soft-starter','medidor','floculador','comporta','talha']},
+    pav:{nome:'Pavimentação, calçadas e meio-fio',cods:['14','18.01','18.02','18.03','18.92','18.94','18.95'],kw:['paviment','repaviment','recomposic','asfalt','cbuq','paralelep','calcada','passeio','meio-fio','meio fio','guia','base de brita','sub-base','imprimac','bloquete','intertravado','bloco articulado']},
+    urb:{nome:'Muros, cercas e paisagismo',cods:['17.01','17.02','17.03','17.04','17.05','17.06','17.90','17.93','17.94','18.04','18.05','18.06','18.90','18.91','18.93','18.96'],kw:['plantio','grama','muda','paisagis','jardinagem','jardim','cerca','alambrado','concertina','irrigacao','adubacao']},
+    servc:{nome:'Serviços de operação e manutenção',apoio:true,cods:['24','25','26','57','59','70','71','72','73','74','76','80','81','82','83','84','87','93','94','95','97','98'],kw:['manutencao preventiva','manutencao corretiva','equipe de','diaria','plantao','hora extra']},
+    teste:{nome:'Testes, ensaios e comissionamento',cods:['33','34','41','42','43'],kw:['teste','ensaio','estanqueidade','desinfeccao','comissionamento','pre-operacao','pre operacao','operacao assistida','analise']},
+    fim:{nome:'Limpeza final, as built e desmobilização',cods:['04','15.09'],kw:['desmobiliza','limpeza final','limpeza geral','limpeza de revestimentos','as built','as-built','cadastro tecnico','cadastro completo','planta cadastral']},
+    out:{nome:'Outros serviços',cods:[],kw:[]}
   };
-  // ordem de teste: o mais específico primeiro ("remoção de pavimento" é demolição, não pavimento;
-  // "mobilização e desmobilização" é mobilização; só "desmobilização" vai para o fim)
-  const ORDEM_CLASS=['mob','fim','lig','pv','teste','dem','pav','escor','rea','esc','tub','elev','conc','topo','sin'];
-  const ORDEM_EXEC=['mob','topo','sin','dem','esc','escor','tub','pv','rea','lig','conc','elev','teste','pav','fim','out'];
+  const TIPOS={ed:'Reforma / edificação',rede:'Rede de água, esgoto ou drenagem',serv:'Serviço (roçagem, capina, manutenção)'};
+  const FAMILIA={ed:['ved','cob','imp','hid','ele','rev','esq','acab','piso','pint','metal','dem'],rede:['esc','escor','tub','pv','rea','dren','lig','pav'],serv:['limp','urb','servc']};
+  // descrições que dizem o serviço melhor que o capítulo
+  const FORTES=[['limp',['capina','rocagem','rocada','rocado']],['fim',['desmobiliza']],['mob',['mobiliza','placa de identificacao da obra']],['dem',['demolic']],
+    ['ved',['drywall','gesso acartonado','divisoria']],['esq',['vidro temperado','vidro liso','vidro aramado','vidro incolor','vidro comum','janela']],
+    ['metal',['guarda corpo','guarda-corpo','corrimao','escada marinheiro','escada de marinheiro','estrutura metalica','modulo metalico','grade de protecao']]];
+  // capítulos EMBASA que juntam serviços diferentes: neles a descrição decide (o capítulo só se nada bater)
+  const KW_PRIMEIRO=['15.08','15.10','15.90','15.92','15.95','02.90','09.90','24','25','26','50','55','57'];
+  const ORDEM_CLASS=['fim','mob','bota','lig','pv','teste','limp','dem','imp','metal','hid','equip','ele','acab','esq','piso','pint','rev','ved','cob','pav','escor','rea','dren','esc','tub','conc','urb','topo','sin','adm','servc'];
   const temPalavra=(t,kw)=>new RegExp('(^|[^a-z0-9])'+kw.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')).test(t);
-  const faseDo=desc=>{const t=cn(desc);for(const f of ORDEM_CLASS)if(FASES[f].kw.some(k=>temPalavra(t,k)))return f;return 'out';};
-  function propostaPlano(ob){
+  const CODS=Object.entries(FASES).flatMap(([f,F])=>F.cods.map(c=>[c,f])).sort((a,b)=>b[0].length-a[0].length);
+  const casa=(c,p)=>c===p||c.startsWith(p+'.')||(p.length===4&&c.startsWith(p));
+  // código EMBASA com ou sem pontos ("150101" = "15.01.01"; "50101" = "05.01.01")
+  const normCod=cod=>{let c=String(cod||'').trim().replace(/\s+/g,'');if(/^\d{2}\.\d{2}/.test(c))return c;if(/^\d{5,6}$/.test(c)){c=c.padStart(6,'0');return c.slice(0,2)+'.'+c.slice(2,4)+'.'+c.slice(4);}return '';};
+  const faseDo=(desc,cod)=>{
+    const t=cn(desc);
+    for(const [f,kws] of FORTES)if(kws.some(k=>temPalavra(t,k)))return f;
+    const porPalavra=()=>{for(const f of ORDEM_CLASS)if(FASES[f].kw.some(k=>temPalavra(t,k)))return f;return null;};
+    const c=normCod(cod),m=c?CODS.find(([p])=>casa(c,p)):null;
+    if(m)return KW_PRIMEIRO.some(p=>casa(c,p))?(porPalavra()||m[1]):m[1];
+    return porPalavra()||'out';
+  };
+  // sequência de execução de cada tipo: [antecessora, 'II' (começa depois de x da duração dela) | 'FI' (depois que ela termina), x]
+  const SEQ={
+    ed:{limp:[['mob','II',.5]],topo:[['mob','II',.5]],dem:[['mob','FI',0]],esc:[['topo','FI',0],['dem','II',.5],['limp','FI',0]],escor:[['esc','II',.1]],
+      conc:[['esc','II',.4],['dem','FI',0],['topo','FI',0]],metal:[['conc','II',.6],['dem','FI',0]],ved:[['conc','II',.5],['dem','FI',0]],
+      hid:[['ved','II',.4],['dem','FI',0]],ele:[['ved','II',.4],['dem','FI',0]],cob:[['ved','II',.6],['conc','FI',0]],imp:[['conc','FI',0],['ved','II',.6]],
+      rev:[['ved','II',.6],['hid','II',.5],['ele','II',.5],['dem','FI',0]],esq:[['rev','II',.5],['ved','FI',0]],piso:[['rev','II',.4],['imp','FI',0],['hid','II',.7],['dem','FI',0]],
+      pint:[['rev','II',.6],['piso','II',.5],['esq','II',.5]],acab:[['pint','II',.4],['piso','II',.7],['esq','II',.5]],equip:[['ele','II',.5],['conc','FI',0]],tub:[['esc','II',.3]],pv:[['esc','II',.4]],rea:[['tub','II',.4],['esc','II',.5]],
+      lig:[['tub','II',.5]],dren:[['esc','II',.3]],pav:[['rea','II',.4],['rev','II',.5],['dem','FI',0]],urb:[['rev','II',.5],['pav','II',.3],['mob','FI',0]],
+      teste:[['hid','FI',0],['ele','FI',0],['equip','FI',0],['tub','FI',0]]},
+    rede:{limp:[['mob','II',.5]],topo:[['mob','II',.5]],dem:[['topo','II',.3],['mob','FI',0]],esc:[['topo','II',.3],['dem','II',.15],['limp','II',.3]],escor:[['esc','II',.05]],
+      tub:[['esc','II',.1]],pv:[['esc','II',.2]],rea:[['tub','II',.1]],lig:[['tub','II',.3]],dren:[['esc','II',.2]],conc:[['topo','FI',0],['mob','FI',0]],metal:[['conc','II',.5]],
+      ved:[['conc','II',.5]],cob:[['ved','II',.6]],imp:[['conc','FI',0]],hid:[['ved','II',.4]],ele:[['ved','II',.4],['conc','II',.6]],rev:[['ved','II',.6]],esq:[['rev','II',.5]],
+      piso:[['rev','II',.4]],pint:[['rev','II',.6]],acab:[['pint','II',.4]],equip:[['conc','II',.6],['ele','II',.3]],pav:[['rea','II',.2]],urb:[['pav','II',.3],['rea','II',.5]],
+      teste:[['rea','II',.6],['lig','II',.5],['equip','FI',0]]},
+    serv:{}
+  };
+  const AVULSAS=['mob','adm','sin','fim'];   // ficam fora dos itens do orçamento: começo, obra toda, fim
+  const ORDEM=['mob','adm','sin','topo','limp','dem','esc','escor','conc','metal','ved','tub','pv','rea','dren','lig','hid','ele','cob','imp','rev','esq','piso','pint','acab','equip','pav','urb','servc','teste','out','fim'];
+  // numeração própria do item (1.1, 4.2.3…) — a do catálogo EMBASA (01.01.01.4651) não conta
+  const numItem=mc=>{const s=String(mc||'').trim();return /^\d{1,3}(\.\d{1,3}){0,4}$/.test(s)&&!/^\d{2}\.\d{2}\.\d{2}\.\d{3,}$/.test(s)?s:'';};
+  function propostaPlano(ob,modo,inicioHoje){
     const orc=Eng.baseDaObra(ob);if(!orc)return null;
     const itens=Eng.itensBase(orc);if(!itens.length)return null;
-    const g={};itens.forEach(x=>{const f=faseDo(x.descricao);(g[f]=g[f]||{f,valor:0,chaves:[],n:0});g[f].valor+=r2(x.qtd_contrato*x.p_unit);g[f].chaves.push(x.chave);g[f].n++;});
-    const fases=ORDEM_EXEC.filter(f=>g[f]);
-    const resolve=(f,vist)=>{vist=vist||new Set();return FASES[f].pre.flatMap(p=>vist.has(p)?[]:(vist.add(p),g[p]?[p]:resolve(p,vist)));};
-    const pre={};fases.forEach(f=>{pre[f]=[...new Set(resolve(f))];});
-    // tira dependência redundante (já garantida por outra): se A depende de B e de C, e C já depende de B, fica só C
-    const anc=(f,v)=>{v=v||new Set();(pre[f]||[]).forEach(p=>{if(!v.has(p)){v.add(p);anc(p,v);}});return v;};
-    fases.forEach(f=>{pre[f]=pre[f].filter(p=>!pre[f].some(q=>q!==p&&anc(q).has(p)));});
-    // passada para frente em frações do prazo
-    const es={},ef={};fases.forEach(f=>{const F=FASES[f];let s=0;pre[f].forEach(p=>{const d=F.vin==='II'?es[p]+F.lag:ef[p]+F.lag;if(d>s)s=d;});es[f]=s;ef[f]=s+F.dur;});
-    const L=Math.max(...fases.map(f=>ef[f]))||1;
+    const brutos=Array.isArray(orc.itens)?orc.itens:[];
+    const L0=itens.map(x=>{const raw=brutos[x.item-1]||{};return {x,f:faseDo(x.descricao,x.codigo),v:r2(x.qtd_contrato*x.p_unit),num:numItem(raw.mc)};});
+    const tot=L0.reduce((s,y)=>s+y.v,0)||1;
+    // tipo da obra = onde está o dinheiro
+    const porF={};L0.forEach(y=>porF[y.f]=(porF[y.f]||0)+y.v);
+    const somaFam=Object.fromEntries(Object.entries(FAMILIA).map(([k,l])=>[k,l.reduce((s,f)=>s+(porF[f]||0),0)]));
+    const tipo=Object.keys(somaFam).reduce((a,b)=>somaFam[b]>somaFam[a]?b:a,'ed');
+    L0.forEach(y=>{if(y.f==='bota')y.f=tipo==='rede'?'esc':'dem';});
+    // o orçamento tem numeração própria? (planilha colada com Item 1.1, 1.2, 2.1…) — item sem número
+    // fica junto do item numerado de antes dele (ou do de depois, se for o primeiro)
+    let ult='';L0.forEach(y=>{if(y.num)ult=y.num;y.ef=y.num||ult;});
+    for(let i=L0.length-1,prox='';i>=0;i--){if(L0[i].num)prox=L0[i].num;else if(!L0[i].ef)L0[i].ef=prox;}
+    L0.forEach(y=>{const p=(y.ef||'').split('.');y.cap=p[0]||'';y.sub=p.length>1?p[0]+'.'+p[1]:'';});
+    const cobNum=L0.filter(y=>y.num).reduce((s,y)=>s+y.v,0)/tot,caps=new Set(L0.filter(y=>!AVULSAS.includes(y.f)).map(y=>y.cap).filter(Boolean));
+    const temItens=cobNum>=.6&&caps.size>=2;
+    modo=modo==='orc'&&temItens?'orc':modo==='serv'?'serv':(temItens?'orc':'serv');
+    // item de 1º nível grande, com subitens que são grupos de verdade (3.1, 3.2… com vários itens cada), abre nos subitens
+    const abre={};[...caps].forEach(c=>{const ys=L0.filter(y=>y.cap===c&&y.num&&y.num.split('.').length>2&&!AVULSAS.includes(y.f)),subs=new Set(ys.map(y=>y.sub));if(subs.size>=3&&ys.length/subs.size>=1.8)abre[c]=true;});
+    const numVal=s=>String(s).split('.').reduce((a,p,i)=>a+(parseInt(p,10)||0)*Math.pow(1000,2-i),0);
+    // grupos = etapas
+    const g={};
+    L0.forEach(y=>{
+      const ref=modo==='orc'&&!AVULSAS.includes(y.f)?(abre[y.cap]&&y.sub?y.sub:(y.cap||'?')):'';
+      const k=ref?'item'+ref:y.f;
+      (g[k]=g[k]||{k,valor:0,chaves:[],n:0,its:[],porF:{},cap:ref});
+      const G=g[k];G.valor+=y.v;G.chaves.push(y.x.chave);G.n++;G.its.push({num:y.num,cod:y.x.codigo,desc:y.x.descricao,v:y.v});G.porF[y.f]=(G.porF[y.f]||0)+y.v;
+    });
+    Object.values(g).forEach(G=>{
+      const fs=Object.entries(G.porF).sort((a,b)=>b[1]-a[1]),semOut=fs.filter(([f])=>f!=='out');
+      // nome pelo serviço de maior valor; a posição na sequência pelo serviço que começa primeiro (≥15% do item)
+      G.fNome=G.k.startsWith('item')?((semOut[0]||fs[0]||['out'])[0]):G.k;
+      const cedo=semOut.filter(([,v])=>v>=.15*G.valor).sort((a,b)=>ORDEM.indexOf(a[0])-ORDEM.indexOf(b[0]))[0];
+      G.f=G.k.startsWith('item')?(cedo?cedo[0]:G.fNome):G.k;
+      const seg=semOut.find(([f,v])=>f!==G.fNome&&v>=.3*G.valor);
+      G.nome=G.k.startsWith('item')?`Item ${G.cap} — ${FASES[G.fNome].nome}${seg?' · '+FASES[seg[0]].nome:''}`:FASES[G.f].nome;
+    });
+    const ordemDe=G=>G.k.startsWith('item')?ORDEM.indexOf('topo')+.5+numVal(G.cap)/1e10:ORDEM.indexOf(G.k)+(G.k==='fim'?1000:0);
+    const grupos=Object.values(g).sort((a,b)=>ordemDe(a)-ordemDe(b));
+    const apoio=G=>!!FASES[G.f].apoio&&!(modo==='orc'&&G.k.startsWith('item')&&G.f!=='adm');
+    const share=G=>G.valor/tot,principal=G=>tipo==='serv'&&!['mob','fim','topo','adm','sin'].includes(G.f);
+    const dur={};grupos.forEach(G=>{let d=.05+.65*Math.sqrt(share(G));if(G.f==='mob')d=Math.min(d,.05);if(G.k==='fim')d=.04;if(G.f==='topo')d=Math.min(d,.15);if(principal(G))d=Math.max(d,.85);dur[G.k]=Math.min(.95,d);});
+    // antecessoras pela sequência do tipo de obra (fase da etapa → etapas das fases antecessoras)
+    const porFase={};grupos.forEach(G=>{(porFase[G.f]=porFase[G.f]||[]).push(G.k);});
+    const seqDe=f=>(SEQ[tipo][f]||(['mob','adm','sin','fim'].includes(f)?[]:[['mob','FI',0]]));
+    const resolve=(f,vist)=>{vist=vist||new Set([f]);return seqDe(f).flatMap(([p,v,x])=>{if(vist.has(p))return [];vist.add(p);return porFase[p]?porFase[p].map(k=>[k,v,x]):resolve(p,vist);});};
+    const es={},ef={},pre={};
+    const visit=(G,pilha)=>{const k=G.k;if(es[k]!==undefined||pilha.has(k))return;pilha.add(k);
+      pre[k]=apoio(G)||k==='fim'?[]:resolve(G.f).filter(([p])=>p!==k);pre[k].forEach(([p])=>visit(g[p],pilha));
+      let s=0;pre[k].forEach(([p,v,x])=>{if(es[p]===undefined)return;const d=v==='II'?es[p]+x*dur[p]:ef[p]+x*dur[p];if(d>s)s=d;});es[k]=s;ef[k]=s+dur[k];pilha.delete(k);};
+    grupos.filter(G=>G.k!=='fim').forEach(G=>visit(G,new Set()));
+    const motoras=grupos.filter(G=>G.k!=='fim'&&!apoio(G)).map(G=>G.k);
+    let L=Math.max(...(motoras.length?motoras:grupos.filter(G=>G.k!=='fim').map(G=>G.k)).map(k=>ef[k]),0)||1;
+    if(g.fim){const term=motoras.filter(k=>!motoras.some(o=>o!==k&&(pre[o]||[]).some(([p])=>p===k)));pre.fim=term.map(p=>[p,'FI',0]);es.fim=L;ef.fim=L+dur.fim;L=ef.fim;}
+    grupos.filter(apoio).forEach(G=>{es[G.k]=0;ef[G.k]=g.fim?es.fim:L;});
     const o=obraDe(ob),dO=o?Eng.datasObra(o):{};
-    const ini=dO.ini||hoje0();let fim=dO.fim&&dO.fim>ini?dO.fim:addD(ini,179);
+    // OS já passou e nada foi medido: o cronograma começa hoje (dá para manter a data da OS na janela)
+    const acum=Eng.acumulado(ob,Infinity),h0=hoje0(),semMed=!Object.values(acum).some(q=>+q>0),podeHoje=!!(dO.ini&&dO.ini<h0&&semMed);
+    if(inicioHoje===undefined)inicioHoje=podeHoje;
+    const ini=inicioHoje&&podeHoje?h0:(dO.ini||h0);let fim=dO.fim&&dO.fim>ini?dO.fim:addD(ini,179);
     // o plano nunca passa do fim da vigência do contrato
     let vig=null;try{vig=o?info(o).vig:null;}catch(e){}
     const limitado=!!(vig&&vig>ini&&vig<fim);if(limitado)fim=vig;
-    const P=dias(ini,fim)+1;
-    const tot=fases.reduce((s,f)=>s+g[f].valor,0)||1;
-    const acum=Eng.acumulado(ob,Infinity),preco={};itens.forEach(x=>preco[x.chave]=x);
-    const linhas=fases.map((f,i)=>{
-      const F=FASES[f],a=Math.round(es[f]/L*P),b=Math.max(a,Math.round(ef[f]/L*P)-1);
-      const cont=g[f].chaves.reduce((s,k)=>s+r2(preco[k].qtd_contrato*preco[k].p_unit),0),med=g[f].chaves.reduce((s,k)=>s+r2((acum[k]||0)*preco[k].p_unit),0);
-      return {f,cod:'E'+String(i+1).padStart(2,'0'),nome:F.nome,ini:addD(ini,a),fim:addD(ini,Math.min(b,P-1)),valor:g[f].valor,peso:g[f].valor/tot*100,itens:g[f].chaves,n:g[f].n,
-        av:cont?Math.min(100,med/cont*100):0,preds:pre[f],vin:F.vin,lag:Math.round(F.lag/L*P)};
+    const P=dias(ini,fim)+1,dia=x=>Math.round(x/L*P);
+    const preco={};itens.forEach(x=>preco[x.chave]=x);
+    const linhas=grupos.map((G,i)=>{
+      const a=Math.min(P-1,dia(es[G.k])),b=Math.min(P-1,Math.max(a,dia(ef[G.k])-1));
+      const cont=G.chaves.reduce((s,k)=>s+r2(preco[k].qtd_contrato*preco[k].p_unit),0),med=G.chaves.reduce((s,k)=>s+r2((acum[k]||0)*preco[k].p_unit),0);
+      return {f:G.k,fase:G.f,cod:'E'+String(i+1).padStart(2,'0'),nome:G.nome,a,b,ini:addD(ini,a),fim:addD(ini,b),valor:G.valor,peso:G.valor/tot*100,itens:G.chaves,its:G.its.slice().sort((x,y)=>y.v-x.v),n:G.n,
+        av:cont?Math.min(100,med/cont*100):0,apoio:apoio(G)};
     });
-    const cod={};linhas.forEach(l=>cod[l.f]=l.cod);linhas.forEach(l=>l.predCods=l.preds.map(p=>cod[p]));
+    // uma ligação por etapa (é como o cálculo do planejamento trabalha): fica a antecessora que manda no
+    // início; as outras só continuam se a mesma regra não empurrar a etapa (assim o projetado = o gerado)
+    const L2=Object.fromEntries(linhas.map(l=>[l.f,l]));
+    linhas.forEach(l=>{
+      const ps=(pre[l.f]||[]).filter(([p])=>L2[p]);l.vin='FI';l.lag=0;l.predCods=[];if(!ps.length)return;
+      // a que manda é a de maior restrição pela regra dela (II: início + x da duração; FI: fim + x)
+      const cand=ps.map(([p,v,x])=>{const q=L2[p],d=q.b-q.a+1,ref=v==='II'?q.a:q.b+1;return {q,v,ref,lim:ref+Math.round((x||0)*d)};}).sort((x,y)=>y.lim-x.lim||y.ref-x.ref);
+      const b=cand[0];l.vin=b.v;l.lag=Math.max(0,l.a-b.ref);
+      l.predCods=[...new Set(cand.filter(c=>(l.vin==='II'?c.q.a+l.lag:c.q.b+1+l.lag)<=l.a).map(c=>c.q.cod))];
+    });
+    // tira a dependência que já vem por outra (se A depende de B e de C, e C já depende de B, fica só C)
+    const porCod=Object.fromEntries(linhas.map(l=>[l.cod,l])),memo={};
+    const ancestrais=c=>memo[c]||(memo[c]=new Set(),(porCod[c]?porCod[c].predCods:[]).forEach(p=>{memo[c].add(p);ancestrais(p).forEach(x=>memo[c].add(x));}),memo[c]);
+    linhas.forEach(l=>{const prim=l.predCods[0];l.predCods=l.predCods.filter(p=>p===prim||!l.predCods.some(q=>q!==p&&ancestrais(q).has(p)));});
     // pesos fecham 100
     let sp=0;linhas.forEach(l=>{l.peso=Math.round(l.peso*100)/100;sp+=l.peso;});
     if(linhas.length){const mx=linhas.reduce((m,l)=>l.peso>m.peso?l:m,linhas[0]);mx.peso=Math.round((mx.peso+100-sp)*100)/100;}
-    return {linhas,ini,fim,P,limitado,vig};
+    return {linhas,ini,fim,P,limitado,vig,tipo,tot,nItens:itens.length,orc,modo,temItens,nCaps:caps.size,os:dO.ini,podeHoje,inicioHoje:!!(inicioHoje&&podeHoje)};
   }
   const fmtNum=n=>String(Math.round(n*10)/10).replace('.',',');
-  function gerarPlano(ob){
-    const pr=propostaPlano(ob);
-    if(!pr)return toast('Esta obra não tem orçamento com itens — cadastre o orçamento (Obras › abrir a obra › Orçamento).','error');
+  function gerarPlano(ob,modo,inicioHoje){
+    const pr=propostaPlano(ob,modo,inicioHoje);
+    if(!pr)return toast('Esta obra não tem orçamento com itens — monte o orçamento (Contratos › abrir a obra › Orçamento).','error');
     const K=UI._etapasK(),exist=(D().etapas||[]).filter(e=>(e[K.obra]||getFuzzy(e,['titulo_obra']))===ob);
-    janela('Gerar planejamento a partir do orçamento',`<div class="fin-resumo"><b>${fe(ob)}</b> · ${brDe(pr.ini)} a ${brDe(pr.fim)} (${pr.P} dias)${pr.limitado?` — <b>até o fim da vigência do contrato</b> (o término previsto, ${brDe(Eng.datasObra(obraDe(ob)).fim)}, passa dela)`:""}<br>O orçamento foi agrupado em <b>${pr.linhas.length} etapas</b> de execução. Peso = valor de cada etapa no orçamento; avanço já vem das medições lançadas.</div>
-      <div class="fin-rolar" style="max-height:330px;overflow-y:auto"><table class="fin-tab"><thead><tr><th>Etapa</th><th class="num">Itens</th><th class="num">Peso</th><th>Período</th><th>Depende de</th></tr></thead><tbody>
-        ${pr.linhas.map(l=>`<tr><td><b>${l.cod}</b> ${fe(l.nome)}</td><td class="num">${l.n}</td><td class="num">${fmtNum(l.peso)}%</td><td style="white-space:nowrap">${brDe(l.ini).slice(0,5)} a ${brDe(l.fim).slice(0,5)}</td><td>${l.predCods.length?l.predCods.join(', ')+(l.vin==='II'?` <small>começa ${l.lag} dia${l.lag!==1?'s':''} após o início</small>`:' <small>após terminar</small>'):'—'}</td></tr>`).join('')}
+    // a etapa que já existe com a mesma chave é atualizada (mesmo registro); as que sobrarem vão para a Lixeira
+    const usadas=new Set(),par=new Map();pr.linhas.forEach(l=>{const e=exist.find(x=>x.fase===l.f&&!usadas.has(x));if(e){usadas.add(e);par.set(l,e);}});
+    const sobra=exist.filter(e=>!usadas.has(e)),somaEt=pr.linhas.reduce((s,l)=>s+l.valor,0);
+    const opc=pr.temItens?`<div class="plg-modo"><label><input type="radio" name="plg-modo" value="orc" ${pr.modo==='orc'?'checked':''}> <b>Pelos itens do orçamento</b> <small>(${pr.nCaps} itens de 1º nível: 1, 2, 3… — como no cronograma físico-financeiro)</small></label><label><input type="radio" name="plg-modo" value="serv" ${pr.modo==='serv'?'checked':''}> <b>Pelo tipo de serviço</b> <small>(demolição, alvenaria, instalações, pisos, pintura…)</small></label></div>`:'';
+    const j=janela('Montar o cronograma pelo orçamento',`<div class="fin-resumo"><b>${fe(ob)}</b> · ${brDe(pr.ini)} a ${brDe(pr.fim)} (${pr.P} dias)${pr.limitado?` — <b>até o fim da vigência do contrato</b> (o término previsto, ${brDe(Eng.datasObra(obraDe(ob)).fim)}, passa dela)`:''}<br>
+        Orçamento: <b>${fmt(pr.tot)}</b> em <b>${pr.nItens} itens</b> → <b>${pr.linhas.length} etapas</b> · tipo identificado pelo orçamento: <b>${TIPOS[pr.tipo]}</b>.<br>
+        <span style="font-size:12px;color:var(--text-2)">${pr.modo==='orc'?'Cada item de 1º nível do orçamento vira uma etapa, com o valor dele; mobilização, administração local e desmobilização ficam à parte (começo, obra toda e fim).':'Cada item vai para a etapa pelo capítulo da tabela EMBASA (ou pela descrição, se for de outra base).'} Peso = valor no orçamento; a duração acompanha o peso; a ordem segue a sequência de execução deste tipo de obra; o avanço já vem das medições lançadas.</span></div>${opc}${pr.podeHoje?`<div class="plg-modo"><label><input type="checkbox" data-plg-hoje ${pr.inicioHoje?"checked":""}> <b>Começar hoje (${brDe(hoje0())})</b> <small>— a ordem de serviço foi em ${brDe(pr.os)} e ainda não há medição. Desmarque para manter a data da OS.</small></label></div>`:""}
+      <div class="fin-rolar" style="max-height:360px;overflow-y:auto"><table class="fin-tab plg-tab"><thead><tr><th>Etapa</th><th class="num">Valor</th><th class="num">Peso</th><th>Período</th><th>Depende de</th></tr></thead><tbody>
+        ${pr.linhas.map(l=>`<tr><td><b>${l.cod}</b> ${fe(l.nome)}${l.apoio?' <small>(acompanha a obra)</small>':''}<details style="margin-top:3px"><summary style="cursor:pointer;font-size:11.5px;color:var(--blue)">${l.n} ite${l.n>1?'ns':'m'} do orçamento</summary><div style="font-size:11px;color:var(--text-2);max-height:160px;overflow:auto;margin-top:4px">${l.its.map(x=>`<div style="display:flex;gap:6px;justify-content:space-between;border-bottom:1px solid #f2f2f5;padding:2px 0"><span>${x.num?`<b>${fe(x.num)}</b> `:''}${x.cod?`<span style="color:var(--text-3)">${fe(x.cod)}</span> `:''}${fe(x.desc)}</span><span style="white-space:nowrap">${fmt(x.v)}</span></div>`).join('')}</div></details></td>
+          <td class="num" style="white-space:nowrap">${fmt(l.valor)}</td><td class="num">${fmtNum(l.peso)}%</td><td style="white-space:nowrap">${brDe(l.ini).slice(0,5)} a ${brDe(l.fim).slice(0,5)}</td>
+          <td>${l.predCods.length?l.predCods.join(', ')+(l.vin==='II'?` <small>começa ${l.lag} dia${l.lag!==1?'s':''} após o início</small>`:` <small>após terminar${l.lag?' + '+l.lag+' dias':''}</small>`):'—'}</td></tr>`).join('')}
+        <tr style="background:#f5f5f7"><td><b>Total das etapas</b></td><td class="num"><b>${fmt(somaEt)}</b></td><td class="num"><b>100%</b></td><td colspan="2"><small>${Math.abs(somaEt-pr.tot)<0.05?'= total do orçamento — todos os itens estão no cronograma':''}</small></td></tr>
       </tbody></table></div>
-      ${exist.length?`<div class="fin-aviso laranja"><div>Esta obra já tem <b>${exist.length} etapa${exist.length>1?'s':''}</b> no cronograma. Elas serão <b>substituídas</b> por estas.</div></div>`:''}
-      <div class="fin-aviso"><div>Depois de gerar, ajuste o que precisar: nomes, datas e pesos em Obras › Avanço & Gantt; dependências aqui no Planejamento.</div></div>`,
-      [{html:'Cancelar'},{html:exist.length?'Substituir e gerar':'Gerar etapas',cls:'pri',acao:async()=>{
+      ${exist.length?`<div class="fin-aviso laranja"><div>Esta obra já tem <b>${exist.length} etapa${exist.length>1?'s':''}</b> no cronograma: ${par.size?`<b>${par.size}</b> ${par.size>1?'são atualizadas':'é atualizada'} (mesma etapa)`:''}${par.size&&sobra.length?' e ':''}${sobra.length?`<b>${sobra.length}</b> ${sobra.length>1?'vão':'vai'} para a <b>Lixeira</b> (dá para restaurar por 15 dias)`:''}.</div></div>`:''}
+      <div class="fin-aviso"><div>Depois de montar, ajuste o que precisar direto no cronograma: nomes, datas, pesos e dependências.</div></div>`,
+      [{html:'Cancelar'},{html:exist.length?'Atualizar o cronograma':'Montar o cronograma',cls:'pri',acao:async()=>{
         await executar(async()=>{
-          for(const e of exist)await excluir('Etapas',e.rowid);
+          const agora=new Date().toISOString();
+          for(const e of sobra)await salvar('Etapas',{...e,_lixeira_em:agora,_lixeira_obra_id:'avulso',_lixeira_motivo:'Substituída ao montar o cronograma pelo orçamento'},e.rowid);
           for(const l of pr.linhas){
-            const o={data_lancamento:todayDateTime()};
+            const e=par.get(l),o=e?{...e}:{data_lancamento:todayDateTime()};
             o[K.obra]=ob;o[K.nome]=l.nome;o[K.ini]=isoDe(l.ini);o[K.fim]=isoDe(l.fim);o[K.peso]=String(l.peso).replace('.',',');o[K.avanco]=fmtNum(l.av);o[K.valor]=dinheiro(l.valor);
-            Object.assign(o,{cod_etapa:l.cod,ordem:String(pr.linhas.indexOf(l)+1),fase:l.f,apoio:FASES[l.f].apoio?'sim':'',predecessoras:l.predCods.join(';'),vinculo:l.vin,defasagem:String(l.lag),itens_orc:l.itens,origem:'Gerado do orçamento',lb_comeco:isoDe(l.ini),lb_final:isoDe(l.fim)});
-            await salvar('Etapas',o,null);
+            Object.assign(o,{cod_etapa:l.cod,ordem:String(pr.linhas.indexOf(l)+1),fase:l.f,apoio:l.apoio?'sim':'',predecessoras:l.predCods.join(';'),vinculo:l.vin,defasagem:String(l.lag),itens_orc:l.itens,origem:'Gerado do orçamento',lb_comeco:isoDe(l.ini),lb_final:isoDe(l.fim)});
+            await salvar('Etapas',o,e?e.rowid:null);
           }
         });
-        toast(`${pr.linhas.length} etapas geradas.`,'success');
-      }}],820);
+        toast(`Cronograma montado pelo orçamento: ${pr.linhas.length} etapas.`,'success');
+      }}],900);
+    j.querySelectorAll('input[name="plg-modo"]').forEach(r=>r.onchange=()=>gerarPlano(ob,r.value,pr.inicioHoje));
+    const ch=j.querySelector('[data-plg-hoje]');if(ch)ch.onchange=()=>gerarPlano(ob,pr.modo,ch.checked);
   }
   // CPM com a situação real: concluídas ficam como estão, em andamento projetam o fim pelo
   // que falta, as não iniciadas não começam no passado e respeitam as dependências.
@@ -12749,15 +12875,18 @@ const Eng=(function(){
     if(PL.obra&&!todas.includes(PL.obra))PL.obra='';
     // abre numa obra que já tem planejamento; senão, numa que tem orçamento para gerar
     if(!PL.obra&&ativas.length){const K=UI._etapasK(),temEt=ob=>(D().etapas||[]).some(e=>(e[K.obra]||getFuzzy(e,['titulo_obra']))===ob);PL.obra=ativas.find(temEt)||ativas.find(ob=>Eng.baseDaObra(ob))||ativas[0];}
+    if(!PL.obra&&todas.length)PL.obra=todas[0];
     const ob=PL.obra;
-    const seletor=`<select class="filter-select" data-pl="obra">${(ativas.length?ativas:todas).concat(PL.obra&&!ativas.includes(PL.obra)?[PL.obra]:[]).map(o=>`<option ${o===ob?'selected':''}>${fe(o)}</option>`).join('')}</select>`;
+    // em execução primeiro; propostas e as demais obras também (proposta para a EMBASA pede cronograma físico-financeiro)
+    const outrasObras=todas.filter(o=>!ativas.includes(o)),opO=o=>`<option ${o===ob?'selected':''}>${fe(o)}</option>`;
+    const seletor=`<select class="filter-select" data-pl="obra">${ativas.length?`<optgroup label="Em execução">${ativas.map(opO).join('')}</optgroup>`:''}${outrasObras.length?`<optgroup label="Propostas e demais obras">${outrasObras.map(opO).join('')}</optgroup>`:''}</select>`;
     const texto='Por onde começar e o que vem depois: as etapas da obra com suas dependências, o caminho crítico (as etapas que, se atrasarem, atrasam a obra inteira), as frentes liberadas para iniciar agora e o término projetado no ritmo real.';
     if(!ob){box.innerHTML=`<div class="fin-wrap">${cab('Planejamento',texto,'')}<div class="fin-card"><div class="fin-vazio">Nenhuma obra cadastrada.</div></div></div>`;return;}
     const r=cpm(ob),orc=Eng.baseDaObra(ob);
     let corpo;
     if(!r){
-      corpo=`<div class="fin-card"><h3>Esta obra ainda não tem planejamento</h3><p class="fin-sub">${orc?'O sistema monta o planejamento sozinho a partir do orçamento: agrupa os itens por fase de execução (mobilização, topografia, escavação, assentamento, poços de visita, reaterro, ligações, testes, pavimento…), calcula o peso de cada fase pelo valor e encadeia as fases na ordem em que uma obra de saneamento é tocada, com frentes andando juntas por trechos.':'Para gerar sozinho, cadastre antes o orçamento da obra (Obras › abrir a obra › Orçamento). Ou cadastre as etapas à mão em Obras › Avanço & Gantt.'}</p>
-        ${orc?'<button type="button" class="fin-bt pri" data-pl="gerar">Gerar planejamento a partir do orçamento</button>':''}</div>`;
+      corpo=`<div class="fin-card"><h3>Esta obra ainda não tem planejamento</h3><p class="fin-sub">${orc?'O sistema monta o cronograma a partir do orçamento desta obra: cada item vai para a etapa de execução pelo capítulo da tabela EMBASA (demolição, alvenaria, instalações, revestimentos, pisos, pintura, escavação, tubulação, poços de visita…), o tipo da obra sai do próprio orçamento (reforma, rede ou serviço) e as etapas são encadeadas na ordem em que esse tipo de obra é tocado. Peso e duração acompanham o valor de cada etapa.':'Para o cronograma sair do orçamento, monte antes o orçamento da obra (Contratos › abrir a obra › Orçamento). Ou lance as etapas à mão no cronograma abaixo.'}</p>
+        ${orc?'<button type="button" class="fin-bt pri" data-pl="gerar">Montar o cronograma pelo orçamento</button>':''}</div>`;
     } else {
       const h=hoje0(),N=r.N,crit=N.filter(n=>n.critica),lib=N.filter(n=>n.sit==='liberada').sort((a,b)=>(b.critica-a.critica)||(a.folga-b.folga)),and=N.filter(n=>n.sit==='andamento');
       const prox=N.filter(n=>n.sit==='aguardando').sort((a,b)=>a.es-b.es).slice(0,4);
@@ -12793,7 +12922,7 @@ const Eng=(function(){
           <td><button type="button" class="fin-bt mini" data-pl="dep" data-i="${i}">Dependências</button></td></tr>`).join('')}
       </tbody></table></div></div>`;
     }
-    const bts=r?`${r.temItens?'<button type="button" class="fin-bt" data-pl="avanco" title="Calcula o avanço de cada etapa pelo que já foi medido nos itens do orçamento dela">Avanço pelas medições</button>':''}<button type="button" class="fin-bt" data-pl="aplicar" title="Grava as datas projetadas no cronograma da obra">Aplicar datas projetadas</button>${orc?'<button type="button" class="fin-bt" data-pl="gerar">Gerar de novo</button>':''}${pode('obras')?'<button type="button" class="fin-bt" data-pl="gantt">Abrir cronograma</button>':''}`:'';
+    const bts=r?`${r.temItens?'<button type="button" class="fin-bt" data-pl="avanco" title="Calcula o avanço de cada etapa pelo que já foi medido nos itens do orçamento dela">Avanço pelas medições</button>':''}<button type="button" class="fin-bt" data-pl="aplicar" title="Grava as datas projetadas no cronograma da obra">Aplicar datas projetadas</button>${orc?'<button type="button" class="fin-bt" data-pl="gerar" title="Monta de novo as etapas a partir do orçamento atual da obra">Atualizar pelo orçamento</button>':''}${pode('obras')?'<button type="button" class="fin-bt" data-pl="gantt">Abrir cronograma</button>':''}`:'';
     box.innerHTML=`<div class="fin-wrap">${cab('Planejamento — '+fe(ob),texto,seletor+bts)}${corpo}</div>`;
     box.onchange=ev=>{const s=ev.target.closest('select[data-pl="obra"]');if(s){PL.obra=s.value;renderPlanejamento();}};
     box.onclick=ev=>{const b=ev.target.closest('button[data-pl]');if(!b)return;const a=b.dataset.pl;
@@ -15475,7 +15604,16 @@ const Mascara=(function(){
     const btAj='<button type="button" class="fin-bt mini pri" data-pl="aplicar" style="margin-left:6px">Ajustar as datas à vigência</button>';
     const limite=vig?`<div class="pl-vig ${foraVig||projFora?'err':''}"><i class="fas fa-calendar-check"></i> As datas das etapas vão até o <b>fim da vigência do contrato: ${brDe(vig)}</b>${foraVig?` — <b>${foraVig} etapa${foraVig>1?'s passam':' passa'} desse limite.</b> ${btAj}`:projFora?` — <b>no ritmo projetado a obra termina em ${brDe(r.fimProj)}, depois dele.</b> ${btAj}`:'.'}</div>`
       :`<div class="pl-vig aviso"><i class="fas fa-circle-info"></i> Este contrato ainda não tem o <b>fim da vigência</b> — sem ele as datas das etapas ficam sem limite. Cadastre em <b>Contratos › obra › Editar dados</b>.</div>`;
-    const secEt=`<div class="fin-card" id="pl-cronograma"><div class="fin-card-cab"><h3>Cronograma — etapas da obra</h3><span style="font-size:12px;color:var(--text-3)">Edite datas, peso e avanço direto na linha e salve. O caminho crítico e o término projetado se recalculam.</span></div>${limite}<div id="pl2-etapas"></div></div>`;
+    // o cronograma × o orçamento: quanto do orçamento está dentro das etapas
+    let cobre='';const orcB=Eng.baseDaObra(ob),btOrc='<button type="button" class="fin-bt mini pri" data-pl="gerar" style="margin-left:6px">Atualizar pelo orçamento</button>';
+    if(!orcB)cobre=`<div class="pl-vig aviso"><i class="fas fa-file-invoice-dollar"></i> Esta obra ainda não tem <b>orçamento</b>: sem ele as etapas não saem dos itens e o avanço não vem das medições. Monte em <b>Contratos › obra › Orçamento</b>.</div>`;
+    else if(r){const its=Eng.itensBase(orcB),vl=x=>Math.round(x.qtd_contrato*x.p_unit*100)/100,tot=its.reduce((s,x)=>s+vl(x),0),K=KE(),ch=new Set();
+      (D().etapas||[]).filter(e=>(e[K.obra]||getFuzzy(e,['titulo_obra']))===ob).forEach(e=>(Array.isArray(e.itens_orc)?e.itens_orc:[]).forEach(k=>ch.add(k)));
+      const den=its.filter(x=>ch.has(x.chave)),vd=den.reduce((s,x)=>s+vl(x),0),fora=its.length-den.length;
+      cobre=!ch.size?`<div class="pl-vig aviso"><i class="fas fa-file-invoice-dollar"></i> As etapas deste cronograma <b>não estão ligadas ao orçamento</b> (${fmt(tot)} em ${its.length} itens). ${btOrc}</div>`
+        :fora>0?`<div class="pl-vig aviso"><i class="fas fa-file-invoice-dollar"></i> <b>${fora} ite${fora>1?'ns':'m'} do orçamento (${fmt(tot-vd)})</b> ${fora>1?'estão':'está'} fora do cronograma — o orçamento mudou depois que o cronograma foi montado. ${btOrc}</div>`
+        :`<div class="pl-vig"><i class="fas fa-file-invoice-dollar"></i> Cronograma montado pelo orçamento: <b>${fmt(tot)}</b> em <b>${its.length} itens</b>, todos dentro das etapas.</div>`;}
+    const secEt=`<div class="fin-card" id="pl-cronograma"><div class="fin-card-cab"><h3>Cronograma — etapas da obra</h3><span style="font-size:12px;color:var(--text-3)">Edite datas, peso e avanço direto na linha e salve. O caminho crítico e o término projetado se recalculam.</span></div>${limite}${cobre}<div id="pl2-etapas"></div></div>`;
     if(velha)velha.outerHTML=secEt;else box.querySelector('.fin-wrap')?.insertAdjacentHTML('beforeend',secEt);
     box.querySelector('.fin-wrap')?.insertAdjacentHTML('beforeend',`<div class="fin-card" id="pl-projeto-card"><div class="fin-card-cab"><h3>Projeto da obra — mapa de ataque</h3><span style="font-size:12px;color:var(--text-3)">Por onde começar, o que vem depois</span></div><div id="pl-projeto"></div></div>`);
     // o botão "Gantt" (abria a aba da obra) agora leva ao cronograma aqui mesmo
@@ -16103,6 +16241,14 @@ const Mascara=(function(){
 .plx-op button b{font-size:13.5px;}
 .plx-op button small{font-size:11.5px;color:#6e6e73;line-height:1.4;}
 @media (max-width:560px){.plx-op{grid-template-columns:1fr;}}
+.plg-modo{display:flex;flex-direction:column;gap:6px;margin:8px 0 10px;padding:10px 12px;border:1px solid #e8e8ed;border-radius:12px;background:#FAFBFF;}
+.plg-modo label{cursor:pointer;font-size:13px;display:flex;gap:6px;align-items:baseline;flex-wrap:wrap;}
+.plg-modo small{color:var(--text-3);}
+#fin-jan table.plg-tab{min-width:0!important;width:100%;table-layout:fixed;}
+#fin-jan table.plg-tab th:nth-child(1){width:auto;}#fin-jan table.plg-tab th:nth-child(2){width:112px;}#fin-jan table.plg-tab th:nth-child(3){width:66px;}#fin-jan table.plg-tab th:nth-child(4){width:104px;}#fin-jan table.plg-tab th:nth-child(5){width:150px;}
+#fin-jan table.plg-tab td{white-space:normal!important;overflow-wrap:anywhere;vertical-align:top;}
+#fin-jan table.plg-tab td small{display:block;}
+#fin-jan table.plg-tab td.num{white-space:nowrap!important;overflow-wrap:normal;}
 </style>
 <script>
 (function(){
