@@ -12827,9 +12827,12 @@ const Eng=(function(){
     const K=UI._etapasK(),r=cpm(ob);if(!r)return;
     const mud=r.N.filter(n=>n.av<100).map(n=>({n,ini:n.av>0?n.ini:n.es,fim:n.ef})).filter(x=>!x.n.ini||!x.n.fim||isoDe(x.ini)!==isoDe(x.n.ini)||isoDe(x.fim)!==isoDe(x.n.fim));
     if(!mud.length)return toast('As datas do cronograma já são as projetadas.','success');
+    let vigAp=null;try{const o=obraDe(ob);vigAp=o?info(o).vig:null;}catch(e){}
+    const foraAp=vigAp?mud.filter(x=>x.fim&&x.fim>vigAp):[];
     janela('Aplicar datas projetadas',`<div class="fin-resumo">As etapas não concluídas recebem as datas do cálculo (dependências + avanço real). A primeira data planejada fica guardada como linha de base.</div><div class="fin-rolar"><table class="fin-tab"><thead><tr><th>Etapa</th><th>Hoje no cronograma</th><th>Projetado</th></tr></thead><tbody>${mud.map(x=>`<tr><td>${fe(x.n.nome)}</td><td>${brDe(x.n.ini)} a ${brDe(x.n.fim)}</td><td><b>${brDe(x.ini)} a ${brDe(x.fim)}</b></td></tr>`).join('')}</tbody></table></div>
-      ${r.dO.fim&&r.fimProj>r.dO.fim?`<div class="fin-aviso laranja"><div>O fim projetado (${brDe(r.fimProj)}) passa do término vigente (${brDe(r.dO.fim)}). Se não houver como recuperar, registre o aditivo de prazo antes do fim da vigência.</div></div>`:''}`,
-      [{html:'Cancelar'},{html:'Aplicar',cls:'pri',acao:async()=>{await executar(async()=>{for(const x of mud){const o={...x.n.e};if(!o.lb_comeco&&x.n.ini)o.lb_comeco=isoDe(x.n.ini);if(!o.lb_final&&x.n.fim)o.lb_final=isoDe(x.n.fim);o[K.ini]=isoDe(x.ini);o[K.fim]=isoDe(x.fim);await salvar('Etapas',o,x.n.e.rowid);}});toast('Datas aplicadas ao cronograma.','success');}}],680);
+      ${r.dO.fim&&r.fimProj>r.dO.fim?`<div class="fin-aviso laranja"><div>O fim projetado (${brDe(r.fimProj)}) passa do término vigente (${brDe(r.dO.fim)}). Se não houver como recuperar, registre o aditivo de prazo antes do fim da vigência.</div></div>`:''}
+      ${vigAp&&foraAp.length?`<div class="fin-aviso"><div><b>${foraAp.length} etapa${foraAp.length>1?'s':''} passaria${foraAp.length>1?'m':''} do fim da vigência do contrato (${brDe(vigAp)})</b>: ${fe(foraAp.map(x=>x.n.nome).join(', '))}. A vigência é o limite das datas do cronograma — registre antes o aditivo de vigência.</div></div>`:''}`,
+      [{html:'Cancelar'},{html:'Aplicar',cls:'pri',acao:async()=>{if(vigAp&&foraAp.length)throw new Error('Há etapas depois do fim da vigência do contrato. Registre o aditivo de vigência primeiro.');await executar(async()=>{for(const x of mud){const o={...x.n.e};if(!o.lb_comeco&&x.n.ini)o.lb_comeco=isoDe(x.n.ini);if(!o.lb_final&&x.n.fim)o.lb_final=isoDe(x.n.fim);o[K.ini]=isoDe(x.ini);o[K.fim]=isoDe(x.fim);await salvar('Etapas',o,x.n.e.rowid);}});toast('Datas aplicadas ao cronograma.','success');}}],680);
   }
 
   /* ═══════════════════════════ VIABILIDADE ═══════════════════════════ */
@@ -13890,7 +13893,8 @@ const PL2=(function(){
     const att=`data-col="${c.id}"${c.ph?` placeholder="${fe(c.ph)}"`:''}${cls?` class="${cls}"`:''}${falta?' title="Falta preencher"':''}${c.desab&&c.desab(o)?' disabled':''}${c.trava&&c.trava(o)?' readonly':''}`;
     if(c.t==='sel'||c.t==='obra'){const ops=c.t==='obra'?obrasOpc():(typeof c.ops==='function'?c.ops(o):c.ops);const vv=v==null?'':String(v);
       return `<td><select ${att}><option value="">${c.t==='obra'?'Obra…':(c.vazio||'—')}</option>${ops.map(x=>`<option ${x===vv?'selected':''}>${fe(x)}</option>`).join('')}${vv&&!ops.includes(vv)?`<option selected>${fe(vv)}</option>`:''}</select></td>`;}
-    if(c.t==='data'){const d=dt(v);return `<td><input type="date" ${att} value="${d?isoDe(d):''}"></td>`;}
+    // data com limite (ex.: etapa até o fim da vigência do contrato): o calendário nem oferece o que passa dele
+    if(c.t==='data'){const d=dt(v),mx=c.max&&c.max(o),mn=c.min&&c.min(o);return `<td><input type="date" ${att}${mx?` max="${mx}"`:''}${mn?` min="${mn}"`:''} value="${d?isoDe(d):''}"></td>`;}
     // dinheiro: máscara R$ (como na VTC) — o valor é guardado sem formatação ("1234.56")
     if(c.t==='moeda'){const n=val(v);return `<td><input ${att} data-mask="moeda" inputmode="numeric" value="${v===''||v==null?'':fmt(n)}"></td>`;}
     if(num){const n=val(v);return `<td><input ${att} inputmode="decimal" value="${v===''||v==null||!n?'':n2(n)}"></td>`;}
@@ -15231,6 +15235,8 @@ const Mascara=(function(){
 
   /* ═══════════════ PLANEJAMENTO: etapas editáveis (o cronograma) ═══════════════ */
   const KE=()=>UI._etapasK();
+  // fim da vigência do contrato (com os aditivos de vigência): as etapas não podem passar dele
+  const vigDe=ob=>{const o=(D().obras||[]).find(x=>Eng.nomeObra(x)===ob);if(!o)return null;try{return Eng.infoContrato(o).vig||null;}catch(e){return null;}};
   let CPM=null;   // caminho crítico da obra aberta: rowid da etapa → nó
   const noDe=e=>CPM&&CPM.get(String(e.rowid));
   const SITC={concluida:['Concluída','ok'],andamento:['Em andamento','azul'],liberada:['Pode iniciar','warn'],aguardando:['Aguardando','cinza']};
@@ -15247,8 +15253,8 @@ const Mascara=(function(){
     cols:()=>{const K=KE();return [
       {id:'cod',k:'cod_etapa',l:'Cód.',t:'texto',w:64},
       {id:'nome',k:K.nome,l:'Etapa',t:'texto',w:230,obrig:true},
-      {id:'ini',k:K.ini,l:'Início planejado',t:'data',w:134,obrig:true},
-      {id:'fim',k:K.fim,l:'Fim planejado',t:'data',w:134,obrig:true},
+      {id:'ini',k:K.ini,l:'Início planejado',t:'data',w:134,obrig:true,max:()=>{const v=vigDe(Eng._PL.obra);return v?isoDe(v):'';}},
+      {id:'fim',k:K.fim,l:'Fim planejado',t:'data',w:134,obrig:true,max:()=>{const v=vigDe(Eng._PL.obra);return v?isoDe(v):'';}},
       {id:'peso',k:K.peso,l:'Peso %',t:'num',w:80},
       {id:'av',k:K.avanco,l:'Avanço %',t:'num',w:86},
       {id:'valor',k:K.valor,l:'Valor',t:'moeda',w:122},
@@ -15257,7 +15263,10 @@ const Mascara=(function(){
       {id:'folga',k:'_folga',l:'Folga',t:'ro',num:true,w:70,calc:o=>{const n=noDe(o);return !n||n.folga==null?'—':n.critica?'<b style="color:#B42318">0</b>':String(n.folga);}},
       {id:'sit',k:'_sit',l:'Situação',t:'ro',w:150,calc:o=>{const n=noDe(o);if(!n)return '—';const s=SITC[n.sit]||['—','cinza'];return `<span class="pl2-situ ${s[1]}">${s[0]}</span>${n.critica?' <span class="pl2-situ err">crítica</span>':''}`;},semPdf:true}];},
     finalizar:o=>{const K=KE();if(!o[K.obra])o[K.obra]=Eng._PL.obra;if(o[K.avanco]==='')o[K.avanco]='0';},
-    validar:o=>{const K=KE(),a=dt(o[K.ini]),b=dt(o[K.fim]),av=val(o[K.avanco]);if(a&&b&&b<a)return 'O fim planejado não pode ser antes do início.';if(av<0||av>100)return 'O avanço vai de 0 a 100%.';return '';},
+    validar:o=>{const K=KE(),a=dt(o[K.ini]),b=dt(o[K.fim]),av=val(o[K.avanco]),vig=vigDe(o[K.obra]||Eng._PL.obra);if(a&&b&&b<a)return 'O fim planejado não pode ser antes do início.';
+      if(vig&&b&&b>vig)return `O fim planejado não pode passar do fim da vigência do contrato (${brDe(vig)}). Se a etapa precisa de mais prazo, registre antes o aditivo de vigência.`;
+      if(vig&&a&&a>vig)return `O início planejado não pode passar do fim da vigência do contrato (${brDe(vig)}).`;
+      if(av<0||av>100)return 'O avanço vai de 0 a 100%.';return '';},
     kpis:()=>'',rerender:()=>App._renderEng('planejamento'),vazio:'Nenhuma etapa ainda — gere o planejamento a partir do orçamento ou lance as etapas aqui.'});
 
   /* ═══════════════ PROJETO DA OBRA (desenho + frentes numeradas) ═══════════════
@@ -15423,7 +15432,10 @@ const Mascara=(function(){
     const r=Eng.cpm(ob);CPM=new Map(r?r.N.map(n=>[String(n.e.rowid),n]):[]);
     // a tabela de etapas só de leitura vira a planilha editável (mesmas colunas + datas, peso, avanço e valor)
     const velha=[...box.querySelectorAll('.fin-card')].find(c=>c.querySelector('[data-pl="dep"]'));
-    const secEt=`<div class="fin-card" id="pl-cronograma"><div class="fin-card-cab"><h3>Cronograma — etapas da obra</h3><span style="font-size:12px;color:var(--text-3)">Edite datas, peso e avanço direto na linha e salve. O caminho crítico e o término projetado se recalculam.</span></div><div id="pl2-etapas"></div></div>`;
+    const vig=vigDe(ob),foraVig=vig&&r?r.N.filter(n=>n.fim&&n.fim>vig).length:0;
+    const limite=vig?`<div class="pl-vig ${foraVig?'err':''}"><i class="fas fa-calendar-check"></i> As datas das etapas vão até o <b>fim da vigência do contrato: ${brDe(vig)}</b>${foraVig?` — <b>${foraVig} etapa${foraVig>1?'s passam':' passa'} desse limite</b>: ajuste as datas ou registre o aditivo de vigência.`:'.'}</div>`
+      :`<div class="pl-vig aviso"><i class="fas fa-circle-info"></i> Este contrato ainda não tem o <b>fim da vigência</b> — sem ele as datas das etapas ficam sem limite. Cadastre em <b>Contratos › obra › Editar dados</b>.</div>`;
+    const secEt=`<div class="fin-card" id="pl-cronograma"><div class="fin-card-cab"><h3>Cronograma — etapas da obra</h3><span style="font-size:12px;color:var(--text-3)">Edite datas, peso e avanço direto na linha e salve. O caminho crítico e o término projetado se recalculam.</span></div>${limite}<div id="pl2-etapas"></div></div>`;
     if(velha)velha.outerHTML=secEt;else box.querySelector('.fin-wrap')?.insertAdjacentHTML('beforeend',secEt);
     box.querySelector('.fin-wrap')?.insertAdjacentHTML('beforeend',`<div class="fin-card" id="pl-projeto-card"><div class="fin-card-cab"><h3>Projeto da obra — mapa de ataque</h3><span style="font-size:12px;color:var(--text-3)">Por onde começar, o que vem depois</span></div><div id="pl-projeto"></div></div>`);
     // o botão "Gantt" (abria a aba da obra) agora leva ao cronograma aqui mesmo
@@ -16035,6 +16047,125 @@ const Mascara=(function(){
   };
 
   GS.arrumar={analisar,abrir,aplicar,renomearObra,trocar,faixa,avulsos};
+})();
+</script>
+<!-- ═══════════════════ PLANEJAMENTO: LIMITE DA VIGÊNCIA · EXPORTAR O PLANEJAMENTO INTEIRO ═══════════════════ -->
+<style>
+.pl-vig{margin:0 0 10px;padding:8px 12px;border-radius:10px;font-size:12.5px;line-height:1.45;background:#EEF4FF;color:#1652D8;}
+.pl-vig i{margin-right:4px;}
+.pl-vig.err{background:#FEF3F2;color:#B42318;}
+.pl-vig.aviso{background:#FFFAEB;color:#B54708;}
+#pl2-etapas input[type=date]:invalid{border-color:#F04438!important;background:#FEF3F2!important;color:#B42318;}
+.plx-op{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:4px;}
+.plx-op button{display:flex;flex-direction:column;align-items:flex-start;gap:4px;text-align:left;padding:14px;border:1px solid #e8e8ed;border-radius:14px;background:#fff;cursor:pointer;font:inherit;color:var(--text-1);}
+.plx-op button:hover{border-color:#0071E3;background:#F5F9FF;}
+.plx-op button i{font-size:20px;color:#0071E3;margin-bottom:2px;}
+.plx-op button b{font-size:13.5px;}
+.plx-op button small{font-size:11.5px;color:#6e6e73;line-height:1.4;}
+@media (max-width:560px){.plx-op{grid-template-columns:1fr;}}
+</style>
+<script>
+(function(){
+  const {D,U,pct}=GS;
+  const {janela,fe,dt,brDe,isoDe,hoje0,addD,dias,val}=U;
+  const obraDe=ob=>(D().obras||[]).find(x=>Eng.nomeObra(x)===ob)||null;
+  const SITX={concluida:['Concluída','#1DAA6C'],andamento:['Em andamento','#0071E3'],liberada:['Pode iniciar','#F79009'],aguardando:['Aguardando','#8E8E93']};
+  const corDe=n=>n.av<100&&n.critica?'#E5372B':SITX[n.sit][1];
+  const mesRot=d=>d.toLocaleDateString('pt-BR',{month:'short'}).replace('.','')+'/'+String(d.getFullYear()).slice(2);
+  const pedacos=(l,n)=>{const out=[];for(let i=0;i<l.length;i+=n)out.push(l.slice(i,i+n));return out;};
+  const sec=t=>`<div style="font:800 10px Arial;text-transform:uppercase;letter-spacing:.6px;color:#6e6e73;margin:2px 0 6px;border-bottom:1px solid #e5e5ea;padding-bottom:4px">${t}</div>`;
+
+  function dados(ob){
+    const o=obraDe(ob),r=Eng.cpm(ob);let x=null;try{x=o?Eng.infoContrato(o):null;}catch(e){}
+    const dO=o?Eng.datasObra(o):{},vig=x&&x.vig||null;
+    const num=o?getFuzzy(o,['numero_contrato','num_contrato','n_contrato']):'',pz=o?String(getFuzzy(o,['prazo_contratual','duracao_prevista'])||'').replace(/\D/g,''):'';
+    return {o,r,x,dO,vig,num,pz,N:r?r.N:[]};
+  }
+
+  /* ───── PDF: resumo + o que fazer agora + cronograma em barras + etapas + projeto ───── */
+  function pdf(ob){
+    const P=dados(ob),{r,N,dO,vig,x}=P,h=hoje0();
+    const fatos=[x&&x.c&&x.c.contratante?['Contratante',x.c.contratante]:null,P.num?['Contrato',P.num]:null,dO.ini?['Ordem de serviço',brDe(dO.ini)+(P.pz?` · ${P.pz} dias`:'')]:null,
+      dO.fim?['Término vigente',brDe(dO.fim)+(dO.prorrogado?' (com aditivo)':'')]:null,vig?['Fim da vigência',brDe(vig)]:['Fim da vigência','não cadastrado'],x&&x.vigente?['Valor vigente',fmt(x.vigente)]:null].filter(Boolean);
+    const pre=`<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px">${fatos.map(([k,v])=>`<span style="font-size:10px;padding:4px 10px;border-radius:99px;background:#f5f5f7;border:1px solid #e5e5ea"><span style="color:#6e6e73">${k}:</span> <b>${fe(v)}</b></span>`).join('')}</div>`;
+    const blocos=[];
+    if(!r){blocos.push(`<div style="padding:16px;border:1px dashed #ccc;border-radius:10px;font-size:12px;color:#6e6e73">Esta obra ainda não tem etapas no planejamento.</div>`);}
+    else{
+      const crit=N.filter(n=>n.critica),lib=N.filter(n=>n.sit==='liberada').sort((a,b)=>(b.critica-a.critica)||(a.folga-b.folga)),and=N.filter(n=>n.sit==='andamento'),prox=N.filter(n=>n.sit==='aguardando').sort((a,b)=>a.es-b.es).slice(0,6);
+      const atraso=dO.fim&&r.fimProj?dias(dO.fim,r.fimProj):null,foraVig=vig?N.filter(n=>(n.fim&&n.fim>vig)||(n.ef&&n.ef>vig)).length:0;
+      const k=(rot,v,sub,cor)=>`<div style="flex:1;min-width:0;border:1px solid #e5e5ea;border-radius:10px;padding:8px 10px"><div style="font:800 8px Arial;text-transform:uppercase;letter-spacing:.5px;color:#6e6e73">${rot}</div><div style="font:800 15px Arial;margin-top:3px;color:${cor||'#1d1d1f'}">${v}</div><div style="font-size:9px;color:#6e6e73;margin-top:2px">${sub||''}</div></div>`;
+      blocos.push(`<div style="display:flex;gap:8px">${k('Término projetado',brDe(r.fimProj),atraso==null?'':atraso>0?`${atraso} dias depois do término vigente`:atraso<0?`${-atraso} dias antes do término vigente`:'no término vigente',atraso>0?'#B42318':'#067647')}
+        ${k('Avanço físico',pct(r.fisico,0),`${N.filter(n=>n.sit==='concluida').length} de ${N.length} etapas concluídas`)}
+        ${k('Caminho crítico',String(crit.length),crit.length?'etapas sem folga':'nenhuma etapa crítica',crit.length?'#B42318':'')}
+        ${k('Podem começar já',String(lib.length),lib.some(n=>n.atrasoIni)?'há etapas atrasadas para começar':'frentes liberadas',lib.some(n=>n.atrasoIni)?'#B54708':'')}
+        ${k('Fim da vigência',vig?brDe(vig):'—',vig?(foraVig?`${foraVig} etapa${foraVig>1?'s passam':' passa'} desse limite`:'todas as etapas dentro do limite'):'cadastre no contrato',foraVig?'#B42318':'')}</div>`);
+      const col=(t,l,f)=>`<div style="flex:1;min-width:0">${sec(t)}${l.length?l.map(f).join(''):'<div style="font-size:10px;color:#aeaeb2">—</div>'}</div>`;
+      const li=(a,b)=>`<div style="font-size:10px;padding:3px 0;border-bottom:1px solid #f2f2f5"><b>${a}</b><div style="color:#6e6e73">${b}</div></div>`;
+      blocos.push(`<div style="display:flex;gap:14px;margin-top:4px">
+        ${col('Em andamento — manter o ritmo',and,n=>li(`${n.critica?'<span style="color:#E5372B">● </span>':''}${fe(n.nome)}`,`${pct(n.av,0)} · fim projetado ${brDe(n.ef)}`))}
+        ${col('Liberadas — podem começar já',lib,n=>li(`${n.critica?'<span style="color:#E5372B">● </span>':''}${fe(n.nome)}`,n.atrasoIni?`deveria ter começado em ${brDe(n.ini)}`:n.critica?'crítica — comece primeiro':`folga de ${n.folga} dia${n.folga!==1?'s':''}`))}
+        ${col('Próximas — dependem de outras',prox,n=>li(fe(n.nome),`aguarda ${fe(n.espera.map(e=>e.nome).join(', '))} ${n.vin==='II'?'começar':'terminar'} · prevista ${brDe(n.es)}`))}</div>`);
+      // cronograma em barras (linha fina cinza = datas planejadas; barra colorida = projetado)
+      const ts=[h,dO.fim,vig].filter(Boolean).map(d=>d.getTime());N.forEach(n=>[n.ini,n.fim,n.es,n.ef].forEach(d=>d&&ts.push(d.getTime())));
+      const t0=Math.min(...ts),t1=Math.max(...ts)+864e5,sp=t1-t0||1,p=t=>Math.max(0,Math.min(100,(t-t0)/sp*100)).toFixed(2);
+      const meses=[];let m=new Date(t0);m.setDate(1);while(m.getTime()<=t1){if(m.getTime()>=t0)meses.push(new Date(m));m=new Date(m.getFullYear(),m.getMonth()+1,1);}
+      const passo=Math.max(1,Math.ceil(meses.length/18));
+      const regua=`<div style="display:flex;font-size:8px;color:#6e6e73"><div style="width:62mm;flex-shrink:0"></div><div style="position:relative;flex:1;height:12px;border-bottom:1px solid #d1d1d6">${meses.filter((d,i)=>i%passo===0).map(d=>`<span style="position:absolute;left:${p(d.getTime())}%;border-left:1px solid #d1d1d6;padding-left:2px;height:12px">${mesRot(d)}</span>`).join('')}</div></div>`;
+      const marcas=`<div style="position:absolute;top:0;bottom:0;left:${p(h.getTime())}%;border-left:1.5px solid #0071E3"></div>${dO.fim?`<div style="position:absolute;top:0;bottom:0;left:${p(dO.fim.getTime()+864e5)}%;border-left:1.5px dashed #1d1d1f"></div>`:''}${vig?`<div style="position:absolute;top:0;bottom:0;left:${p(vig.getTime()+864e5)}%;border-left:2px solid #E5372B"></div>`:''}`;
+      const linhaG=n=>`<div style="display:flex;align-items:center;height:6.2mm;border-bottom:1px solid #f2f2f5"><div style="width:62mm;flex-shrink:0;font-size:9px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-right:6px">${n.e.cod_etapa?`<b>${fe(n.e.cod_etapa)}</b> `:''}${fe(n.nome)}</div>
+        <div style="position:relative;flex:1;height:100%">${marcas}
+          ${n.ini&&n.fim?`<div style="position:absolute;top:63%;height:2px;background:#AEAEB2;left:${p(n.ini.getTime())}%;width:${Math.max(.4,(n.fim-n.ini+864e5)/sp*100).toFixed(2)}%"></div>`:''}
+          <div style="position:absolute;top:22%;height:36%;border-radius:3px;background:${corDe(n)};left:${p(n.es.getTime())}%;width:${Math.max(.6,(n.ef-n.es+864e5)/sp*100).toFixed(2)}%"></div>
+          <span style="position:absolute;top:12%;left:calc(${p(n.ef.getTime()+864e5)}% + 3px);font-size:8px;color:#6e6e73;white-space:nowrap">${pct(n.av,0)}</span></div></div>`;
+      const legenda=`<div style="display:flex;flex-wrap:wrap;gap:4px 12px;font-size:8.5px;color:#6e6e73;margin-top:5px">${[['#E5372B','crítica'],['#F79009','pode iniciar'],['#0071E3','em andamento'],['#1DAA6C','concluída'],['#8E8E93','aguardando']].map(([c,t])=>`<span><i style="display:inline-block;width:10px;height:6px;border-radius:2px;background:${c};margin-right:3px"></i>${t}</span>`).join('')}<span><i style="display:inline-block;width:12px;height:2px;background:#AEAEB2;margin-right:3px;vertical-align:middle"></i>datas planejadas</span><span style="color:#0071E3">│ hoje</span><span>┆ término vigente</span><span style="color:#E5372B">│ fim da vigência</span></div>`;
+      pedacos(N,20).forEach((g,i,a)=>blocos.push(`${sec('Cronograma projetado'+(a.length>1?` (${i+1}/${a.length})`:''))}${regua}${g.map(linhaG).join('')}${legenda}`));
+      // etapas: o planejado, o projetado e a situação
+      const th=(t,w,al)=>`<th style="width:${w};text-align:${al||'left'};font-size:8.5px;padding:4px">${t}</th>`,td=(t,al,st)=>`<td style="text-align:${al||'left'};font-size:9px;padding:3.5px 4px;${st||''}">${t}</td>`;
+      const cabT=`<thead><tr>${th('Cód.','7%')}${th('Etapa','17%')}${th('Início planejado','8%')}${th('Fim planejado','8%')}${th('Peso','5%','right')}${th('Avanço','6%','right')}${th('Valor','9%','right')}${th('Depende de','14%')}${th('Início projetado','8%')}${th('Fim projetado','8%')}${th('Folga','5%','right')}${th('Situação','9%')}</tr></thead>`;
+      const linT=n=>`<tr${n.critica?' style="background:#FEF3F2"':''}>${td(fe(n.e.cod_etapa||''))}${td(`<b>${fe(n.nome)}</b>`)}${td(n.ini?brDe(n.ini):'—')}${td(n.fim?brDe(n.fim):'—','left',vig&&n.fim&&n.fim>vig?'color:#B42318;font-weight:700':'')}${td(pct(n.peso),'right')}${td(pct(n.av,0),'right')}${td(n.valor?fmt(n.valor):'—','right')}
+        ${td(n.preds.length?fe(n.preds.map(q=>q.nome).join(', '))+`<div style="color:#6e6e73;font-size:8px">${n.vin==='II'?`começa ${n.lag} dia${n.lag!==1?'s':''} após o início`:`após terminar${n.lag?' + '+n.lag+' dias':''}`}</div>`:'—')}${td(brDe(n.es))}${td(brDe(n.ef),'left',vig&&n.ef>vig?'color:#B42318;font-weight:700':'')}${td(n.folga==null?'—':n.critica?'<b style="color:#B42318">0</b>':String(n.folga),'right')}${td(SITX[n.sit][0]+(n.critica?' · <b style="color:#B42318">crítica</b>':''))}</tr>`;
+      const totP=N.reduce((s,n)=>s+n.peso,0),totV=N.reduce((s,n)=>s+n.valor,0);
+      pedacos(N,15).forEach((g,i,a)=>blocos.push(`${sec('Etapas da obra'+(a.length>1?` (${i+1}/${a.length})`:''))}<table>${cabT}<tbody>${g.map(linT).join('')}${i===a.length-1?`<tr style="background:#f5f5f7">${td('')}${td('<b>Total</b>')}${td('')}${td('')}${td(`<b>${pct(totP)}</b>`,'right')}${td(`<b>${pct(r.fisico,0)}</b>`,'right')}${td(`<b>${fmt(totV)}</b>`,'right')}${td('')}${td('')}${td(`<b>${brDe(r.fimProj)}</b>`)}${td('')}${td('')}</tr>`:''}</tbody></table>`));
+    }
+    // projeto da obra: cada desenho com as frentes numeradas e a ordem de execução
+    const c=GS.projeto&&GS.projeto.PJ.cache[ob],porId=new Map(N.map(n=>[String(n.e.rowid),n]));
+    ((c&&c.desenhos)||[]).forEach(d=>{
+      const l=(((c.marcas||[]).find(m=>String(m.arquivo)===String(d.rowid))||{}).lista||[]).slice().sort((a,b)=>(a.ordem||999)-(b.ordem||999));
+      const pinos=l.map(m=>{const n=porId.get(String(m.etapa||''));return `<div style="position:absolute;left:${m.x}%;top:${m.y}%;transform:translate(-50%,-100%);background:${n?corDe(n):'#8E8E93'};color:#fff;font:800 10px Arial;min-width:18px;height:18px;line-height:18px;text-align:center;border-radius:9px 9px 9px 2px;border:2px solid #fff">${m.ordem||'?'}</div>`;}).join('');
+      blocos.push(`${sec('Projeto da obra — '+fe(d.nome||'desenho'))}<div style="text-align:center"><div style="position:relative;display:inline-block"><img src="${d.conteudo}" style="display:block;max-width:100%;max-height:${l.length?118:150}mm">${pinos}</div></div>`);
+      if(l.length)blocos.push(`${sec('Ordem de execução — '+fe(d.nome||'desenho'))}<table><thead><tr><th style="width:8%;font-size:8.5px">Ordem</th><th style="width:34%;font-size:8.5px">Etapa</th><th style="width:30%;font-size:8.5px">Trecho / local</th><th style="width:13%;font-size:8.5px">Início projetado</th><th style="width:15%;font-size:8.5px">Situação</th></tr></thead><tbody>${l.map(m=>{const n=porId.get(String(m.etapa||''));return `<tr><td style="font-size:9px"><b>${m.ordem||'?'}ª</b></td><td style="font-size:9px">${fe(n?n.nome:'—')}${n&&n.critica?' <b style="color:#B42318">(crítica)</b>':''}</td><td style="font-size:9px">${fe(m.rotulo||'')}</td><td style="font-size:9px">${n&&n.es?brDe(n.es):'—'}</td><td style="font-size:9px">${n?SITX[n.sit][0]:'—'}</td></tr>`;}).join('')}</tbody></table>`);
+    });
+    App._relExportPaginado({titulo:'Planejamento da obra',subLinhas:[fe(ob)],preHtml:pre,paisagem:true,blocosArr:blocos});
+  }
+
+  /* ───── planilha (Excel): todas as etapas com o planejado, o projetado e as ligações ───── */
+  function planilha(ob){
+    const {N,vig}=dados(ob);if(!N.length)return toast('Esta obra ainda não tem etapas para exportar.','error');
+    GS.baixarCSV('planejamento '+ob,['Obra','Cód.','Etapa','Início planejado','Fim planejado','Peso %','Avanço %','Valor','Depende de','Ligação','Espera (dias)','Início projetado','Fim projetado','Folga (dias)','Crítica','Situação','Passa da vigência'],
+      N.map(n=>[ob,n.e.cod_etapa||'',n.nome,n.ini?brDe(n.ini):'',n.fim?brDe(n.fim):'',String(n.peso).replace('.',','),String(Math.round(n.av*10)/10).replace('.',','),n.valor?String(n.valor.toFixed(2)).replace('.',','):'',
+        n.preds.map(q=>q.nome).join(', '),n.preds.length?(n.vin==='II'?'início → início':'fim → início'):'',n.preds.length?n.lag:'',brDe(n.es),brDe(n.ef),n.folga==null?'':n.folga,n.critica?'Sim':'Não',SITX[n.sit][0],vig&&((n.fim&&n.fim>vig)||n.ef>vig)?'Sim':'Não']));
+  }
+
+  function abrir(){
+    const ob=Eng._PL.obra;if(!ob)return toast('Escolha a obra primeiro.','error');
+    if(window.PL2&&PL2.sujo&&PL2.sujo())toast('Há etapas alteradas e não salvas: a exportação usa o que já está salvo.','error');
+    const j=janela('Exportar planejamento',`<div class="fin-resumo"><b>${fe(ob)}</b></div>
+      <div class="plx-op"><button type="button" data-plx="pdf"><i class="fas fa-file-pdf"></i><b>PDF completo</b><small>Resumo da obra, o que fazer agora, cronograma em barras, todas as etapas com dependências e folgas, e o projeto com a ordem de execução. Para imprimir ou enviar.</small></button>
+      <button type="button" data-plx="xls"><i class="fas fa-file-excel"></i><b>Planilha (Excel)</b><small>Todas as etapas numa planilha: datas planejadas e projetadas, peso, avanço, valor, dependências, folga e situação.</small></button></div>`,[{html:'Fechar'}],560);
+    j.querySelectorAll('[data-plx]').forEach(b=>b.onclick=()=>{document.getElementById('fin-ov')?.classList.remove('open');try{b.dataset.plx==='pdf'?pdf(ob):planilha(ob);}catch(e){console.error(e);toast('Não foi possível exportar: '+((e&&e.message)||e),'error');}});
+  }
+  function botao(){
+    const box=document.getElementById('eng-planejamento');if(!box||box.querySelector('[data-plx-abrir]'))return;
+    const f=box.querySelector('.fin-cab .fin-filtros');if(!f||!Eng._PL.obra)return;
+    f.insertAdjacentHTML('beforeend','<button type="button" class="fin-bt pri" data-plx-abrir><i class="fas fa-file-export"></i> Exportar planejamento</button>');
+    f.querySelector('[data-plx-abrir]').onclick=abrir;
+  }
+  const re=App._renderEng;
+  App._renderEng=function(v){const r=re.apply(this,arguments);if(v==='planejamento')try{botao();}catch(e){console.error(e);}return r;};
+  const ra=App.renderAll;
+  App.renderAll=function(){ra.apply(this,arguments);try{if(document.getElementById('view-planejamento')?.classList.contains('active'))botao();}catch(e){console.error(e);}};
+  document.getElementById('eng-planejamento')?.addEventListener('change',ev=>{if(ev.target.matches('select[data-pl="obra"]'))setTimeout(()=>{try{botao();}catch(e){}},0);});
+  GS.exportarPlanejamento={abrir,pdf,planilha};
 })();
 </script>
 </body>
