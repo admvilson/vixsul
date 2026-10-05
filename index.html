@@ -709,11 +709,11 @@ tbody tr:hover td{background:rgba(0,113,227,.02);}
           </div>
         </li>
         <li class="vx-cat">
-          <button type="button" class="vx-cat-bt" aria-haspopup="true"><i class="fas fa-helmet-safety"></i>Obras<span class="vx-seta"></span></button>
+          <button type="button" class="vx-cat-bt" aria-haspopup="true"><i class="fas fa-helmet-safety"></i>Contratos<span class="vx-seta"></span></button>
           <div class="vx-painel largo">
-            <div class="vx-painel-cab"><b>Obras e contratos</b><span>Do contrato assinado à obra entregue: execução, medição, diário e os documentos que a obra pública exige.</span></div>
+            <div class="vx-painel-cab"><b>Contratos e execução</b><span>Da proposta à obra entregue: planejamento, medição, diário e os documentos que a obra pública exige.</span></div>
             <div class="vx-painel-itens">
-              <button type="button" class="vx-item vx-alvo" id="nav-obras" onclick="UI.nav('obras')"><span class="vx-item-ico"><i class="fas fa-building"></i></span><span class="vx-item-txt"><b>Obras e contratos</b><small>As obras por situação, a central de cada uma e a carteira de contratos</small></span></button>
+              <button type="button" class="vx-item vx-alvo" id="nav-obras" onclick="UI.nav('obras')"><span class="vx-item-ico"><i class="fas fa-building"></i></span><span class="vx-item-txt"><b>Contratos</b><small>Quadro da proposta à obra entregue · a central de cada obra</small></span></button>
               <button type="button" class="vx-item vx-alvo" id="nav-planejamento" onclick="UI.nav('planejamento')"><span class="vx-item-ico"><i class="fas fa-diagram-project"></i></span><span class="vx-item-txt"><b>Planejamento e cronograma</b><small>Etapas, caminho crítico, avanço e o desenho do projeto</small></span></button>
               <button type="button" class="vx-item vx-alvo" id="nav-medicoes" onclick="UI.nav('medicoes')"><span class="vx-item-ico"><i class="fas fa-ruler-combined"></i></span><span class="vx-item-txt"><b>Medições</b><small>Boletim de medição por item do orçamento, saldo do contrato</small></span></button>
               <button type="button" class="vx-item vx-alvo" id="nav-diario" onclick="UI.nav('diario')"><span class="vx-item-ico"><i class="fas fa-book-open"></i></span><span class="vx-item-txt"><b>Diário de obra</b><small>Clima, equipe, serviços, ocorrências e fotos de cada dia</small></span></button>
@@ -1003,16 +1003,16 @@ tbody tr:hover td{background:rgba(0,113,227,.02);}
     </div>
     <!-- OBRAS -->
     <div class="view" id="view-obras">
-      <div class="ob-modos" id="ob-modos"><div class="gf-abas"><button type="button" class="gf-aba on" data-obmodo="obras"><i class="fas fa-helmet-safety"></i> Obras</button><button type="button" class="gf-aba" data-obmodo="contratos"><i class="fas fa-file-contract"></i> Contratos</button></div><small>Obras: pastas por situação e a central de cada obra · Contratos: vigência, garantia, reajuste e aditivos da carteira</small></div>
-      <div class="view-toolbar">
+      <!-- a lista antiga de obras (pastas e cartões) foi substituída pelo quadro de Contratos; fica escondida -->
+      <div class="view-toolbar" style="display:none">
         <div class="toolbar-left">
           <div class="search-box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg><input type="text" id="find-obras" placeholder="Buscar obra..." oninput="App.render('obras')"></div>
           <select class="filter-select" id="filter-obras-status" onchange="App._obrasIrPasta(this.value||null)"><option value="">Todos os status</option><option>Ganha - Em Andamento</option><option>Ganha - Finalizada</option><option>Ganha - Aguardando Liberação</option><option>Perdida - Cancelada</option><option>Perdida - Por Preço</option><option>Enviada - Aguardando Resultado</option><option>Não Enviada</option></select>
         </div>
         <button id="btn-nova-obra" class="btn-primary" onclick="UI.openObraHub(null)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Nova Obra</button>
       </div>
-      <div class="cards-scroll"><div class="obras-grid" id="grid-obras"></div></div>
-      <div class="cards-scroll" id="ob-contratos-wrap" style="display:none"><div id="eng-contratos"></div></div>
+      <div class="cards-scroll" style="display:none"><div class="obras-grid" id="grid-obras"></div></div>
+      <div class="cards-scroll" id="ct-quadro-wrap"><div id="ct-quadro"></div><div id="eng-contratos" hidden></div></div>
     </div>
     <!-- LIXEIRA -->
     <div class="view" id="view-lixeira">
@@ -3961,7 +3961,7 @@ const UI={
      "contas" e "conciliacao" mostram dinheiro de TODAS as obras e da empresa: quem já
      tinha acessos restritos antes delas existirem NÃO as ganha sozinho — o Admin marca
      em Usuários (quem não tem restrição, ou é Admin, vê tudo como sempre). */
-  _MODULOS:[['inicio','Início'],['reunioes','Reuniões'],['acoes','Tarefas e plano de ação'],['obras','Obras'],['contratos','Contratos'],['planejamento','Planejamento da obra'],['medicoes','Medições'],['diario','Diário de obra'],['documentos','Documentos e certidões'],['contas','Contas a pagar (obras e empresa)'],['despesas','Despesas da empresa (ver em Contas a pagar)'],['faturamento','Faturamento e recebimentos'],['conciliacao','Conciliação bancária'],['socios','Sócios e investimentos'],['metas','Metas'],['orcamento','Orçamento da empresa'],['projecao','Fluxo de caixa projetado'],['viabilidade','Viabilidade de contrato'],['relatorios','Relatórios'],['fornecedores','Fornecedores']],
+  _MODULOS:[['inicio','Início'],['reunioes','Reuniões'],['acoes','Tarefas e plano de ação'],['obras','Contratos (quadro das obras)'],['contratos','Ficha do contrato (vigência, garantia, aditivos)'],['planejamento','Planejamento da obra'],['medicoes','Medições'],['diario','Diário de obra'],['documentos','Documentos e certidões'],['contas','Contas a pagar (obras e empresa)'],['despesas','Despesas da empresa (ver em Contas a pagar)'],['faturamento','Faturamento e recebimentos'],['conciliacao','Conciliação bancária'],['socios','Sócios e investimentos'],['metas','Metas'],['orcamento','Orçamento da empresa'],['projecao','Fluxo de caixa projetado'],['viabilidade','Viabilidade de contrato'],['relatorios','Relatórios'],['fornecedores','Fornecedores']],
   // telas novas herdam a permissão da tela parecida até o Administrador escolher (como na VTC):
   // ninguém perde nem ganha acesso de repente quando uma tela nova aparece
   _HERDA:{inicio:'dashboard',faturamento:'obras',contas:['custosobra','obras','despesas'],despesas:'contas',reunioes:'acoes',socios:'contas',metas:['dashboard','orcamento'],orcamento:'despesas',projecao:'contas',relatorios:'dashboard'},
@@ -3986,7 +3986,7 @@ const UI={
     const nEl=document.getElementById('nav-'+v);if(nEl)nEl.classList.add('active');
     this._navMarcar();
     this._navFecharPaineis();
-    const titles={inicio:'Início',faturamento:'Faturamento e recebimentos',reunioes:'Reuniões',socios:'Sócios e investimentos',orcamento:'Orçamento da empresa',projecao:'Fluxo de caixa projetado',dashboard:'Painel de indicadores',obras:'Obras e contratos',custos:'Custos',faturamentos:'Faturamentos',aportes:'Aportes',cap:'CAP',orcamentos:'Orçamentos',usuarios:'Usuários',despesas:'Despesas da empresa',relatorios:'Relatórios',lixeira:'Lixeira',contas:'Contas a pagar',metas:'Metas e orçamento',conciliacao:'Conciliação bancária',medicoes:'Medições',diario:'Diário de obra',documentos:'Documentos e certidões',fornecedores:'Fornecedores',contratos:'Contratos',planejamento:'Planejamento e cronograma',acoes:'Tarefas e plano de ação',viabilidade:'Viabilidade do contrato'};
+    const titles={inicio:'Início',faturamento:'Faturamento e recebimentos',reunioes:'Reuniões',socios:'Sócios e investimentos',orcamento:'Orçamento da empresa',projecao:'Fluxo de caixa projetado',dashboard:'Painel de indicadores',obras:'Contratos',custos:'Custos',faturamentos:'Faturamentos',aportes:'Aportes',cap:'CAP',orcamentos:'Orçamentos',usuarios:'Usuários',despesas:'Despesas da empresa',relatorios:'Relatórios',lixeira:'Lixeira',contas:'Contas a pagar',metas:'Metas e orçamento',conciliacao:'Conciliação bancária',medicoes:'Medições',diario:'Diário de obra',documentos:'Documentos e certidões',fornecedores:'Fornecedores',contratos:'Contratos',planejamento:'Planejamento e cronograma',acoes:'Tarefas e plano de ação',viabilidade:'Viabilidade do contrato'};
     const ttl=document.getElementById('view-title');if(ttl)ttl.textContent=titles[v]||v;
     document.title=titles[v]||v; // título da aba do navegador acompanha a seção clicada
     if(v==='dashboard'&&App.state.data)App.renderDashboard();
@@ -11826,7 +11826,7 @@ const Eng=(function(){
     if(breve.length)out.push({nivel:'medio',ico:'§',titulo:'Documentos vencendo',valor:String(breve.length),detalhe:'Vencem nos próximos 15 dias — já dá para emitir a nova via.',itens:breve.slice(0,3).map(rotDoc),acao:ir('documentos')});
     const meds=D().medicoes||[];
     const aprov=meds.filter(m=>m.status==='Aprovada');
-    if(aprov.length)out.push({nivel:'medio',ico:'▦',titulo:'Medições aprovadas sem faturamento',valor:fmt(aprov.reduce((s,m)=>s+valorMed(m),0)),detalhe:`${aprov.length} ${aprov.length>1?'medições aprovadas':'medição aprovada'} pela fiscalização e ainda sem nota — dinheiro parado.`,itens:aprov.slice(0,3).map(m=>`${m.titulo_obra} · nº ${m.numero} · ${fmt(valorMed(m))}`),acao:ir('medicoes')});
+    if(aprov.length)out.push({nivel:'medio',ico:'▦',titulo:'Medições aprovadas sem faturamento',valor:fmt(aprov.reduce((s,m)=>s+valorMed(m),0)),detalhe:`${aprov.length} ${aprov.length>1?'medições aprovadas':'medição aprovada'} pela fiscalização e ainda sem nota — dinheiro parado.`,itens:aprov.slice(0,3).map(m=>`${m.titulo_obra} · nº ${m.numero} · ${fmt(valorMed(m))}`),acao:pode('faturamento')?{rot:'Emitir as notas',go:()=>GS.abrirPlanilha('faturamento',{})}:ir('medicoes')});
     const paradas=meds.filter(m=>m.status==='Enviada à fiscalização'&&dt(m.data_medicao)&&dias(dt(m.data_medicao),h)>15);
     if(paradas.length)out.push({nivel:'info',ico:'▦',titulo:'Medição aguardando aprovação',valor:String(paradas.length),detalhe:'Enviada à fiscalização há mais de 15 dias — vale cobrar a aprovação.',itens:paradas.slice(0,3).map(m=>`${m.titulo_obra} · nº ${m.numero} · enviada ${brDe(dt(m.data_medicao))}`),acao:ir('medicoes')});
     const and=(D().obras||[]).filter(emAndamento).map(nomeObra);
@@ -13719,7 +13719,17 @@ const GS=(function(){
     const recAtr=ms.filter(m=>m.sent>0&&m.venc&&m.venc<h),pagVenc=ms.filter(m=>m.sent<0&&m.venc&&m.venc<h);
     ms.filter(m=>m.venc&&m.venc>=h&&dias(h,m.venc)<=N).forEach(m=>{const i=dias(h,m.venc);if(m.sent>0)dia[i].ent+=m.valor;else dia[i].sai+=m.valor;dia[i].itens.push(m);});
     pagVenc.forEach(m=>{dia[0].sai+=m.valor;});   // conta vencida tem de ser paga já
-    let obrasEnt=0,obrasSai=0,fixo=0;
+    let obrasEnt=0,obrasSai=0,fixo=0,medEnt=0;
+    // medições já feitas que ainda não viraram nota: o dinheiro delas não está em nenhum lançamento
+    // (nem no saldo a medir da carteira). Entra = bruto × o que sobra das retenções da obra, na data
+    // provável: aprovação (se ainda falta) + emissão da nota + o prazo médio que a obra costuma pagar.
+    if(PJ.obras){const fats=D().faturamentos||[],lig=new Set(fats.map(f=>String(f.medicao_rowid||'')).filter(Boolean));
+      (D().medicoes||[]).filter(m=>!/faturad/i.test(m.status||'')&&!lig.has(String(m.rowid))).forEach(m=>{
+        const bruto=Eng.valorMed(m);if(!(bruto>0))return;
+        const o=(D().obras||[]).find(x=>Eng.nomeObra(x)===m.titulo_obra);let fl=.88;try{if(o){const sv=Eng.saude(o);if(sv&&sv.fatorLiq)fl=sv.fatorLiq;}}catch(e){}
+        const st=String(m.status||''),base=dt(m.data_aprovacao)||dt(m.data_medicao)||h,ate=/aprovad/i.test(st)?5:/enviada/i.test(st)?20:30;
+        let d=addD(base,ate);if(d<h)d=h;d=addD(d,Fin.prazoReceb?Fin.prazoReceb(m.titulo_obra):30);
+        const i=dias(h,d);if(i<0||i>N)return;const v=bruto*fl;dia[i].ent+=v;dia[i].itens.push({tipo:'med',sent:1,valor:v,venc:d,desc:'Medição nº '+(m.numero||''),origem:m.titulo_obra,pago:false});medEnt+=v;});}
     if(PJ.obras||PJ.fixas){
       const meses=Math.ceil(N/30)+2,cart=Eng.carteira(meses);
       for(let mi=0;mi<meses;mi++){
@@ -13734,7 +13744,7 @@ const GS=(function(){
     }
     const sc=saldoCaixa();let s=sc?sc.valor:0,min=Infinity,dMin=null,neg=null;
     dia.forEach(x=>{s+=x.ent-x.sai;x.saldo=s;if(s<min){min=s;dMin=x.d;}if(s<0&&!neg)neg=x.d;});
-    return {dia,sc,min,dMin,neg,recAtr,pagVenc,obrasEnt,obrasSai,fixo,fim:s,ent:dia.reduce((a,x)=>a+x.ent,0),sai:dia.reduce((a,x)=>a+x.sai,0)};
+    return {dia,sc,min,dMin,neg,recAtr,pagVenc,obrasEnt,obrasSai,medEnt,fixo,fim:s,ent:dia.reduce((a,x)=>a+x.ent,0),sai:dia.reduce((a,x)=>a+x.sai,0)};
   }
   function renderProjecao(){
     const box=document.getElementById('gs-projecao');if(!box)return;
@@ -13753,7 +13763,7 @@ const GS=(function(){
         <small style="color:#6e6e73">${p.sc?`${p.sc.fonte==='extrato'?'do último extrato importado na Conciliação':'informado'} em ${brDe(p.sc.data)}`:'Some o saldo de todas as contas da empresa (banco e caixa) e informe aqui.'}</small>
         <span class="gf-flex" style="flex:1"></span><label class="gf-chk" style="display:inline-flex;gap:6px;align-items:center;font-size:13px;font-weight:600;color:#6e6e73"><input type="checkbox" data-pj-op="obras" ${PJ.obras?'checked':''} style="width:16px;height:16px"> Produção e custos das obras</label><label style="display:inline-flex;gap:6px;align-items:center;font-size:13px;font-weight:600;color:#6e6e73"><input type="checkbox" data-pj-op="fixas" ${PJ.fixas?'checked':''} style="width:16px;height:16px"> Custo fixo da empresa</label></div></div>
       ${p.neg?`<div class="gf-aviso err"><i class="fas fa-triangle-exclamation"></i><div>O caixa fica negativo em <b>${brDe(p.neg)}</b> e chega a <b>${fmt(p.min)}</b> em ${brDe(p.dMin)}. O que dá para fazer antes disso:<ul>${fazer.map(f=>`<li>${f}</li>`).join('')}</ul></div></div>`:`<div class="gf-aviso ok"><i class="fas fa-circle-check"></i><div>O caixa fica positivo nos próximos ${PJ.dias} dias. O ponto mais baixo é <b>${fmt(p.min)}</b> em ${brDe(p.dMin)}.${!p.sc?' (Sem o saldo de hoje a projeção parte de R$ 0,00 e mostra só o efeito do que entra e sai.)':''}</div></div>`}
-      <div class="gf-kpis">${kpiG('','fa-wallet','Saldo hoje',p.sc?Rk(p.sc.valor):'—',p.sc?'contas da empresa':'informe acima')}${kpiG('verde','fa-arrow-down','Entradas previstas',Rk(p.ent),PJ.obras?`${Rk(p.obrasEnt)} das obras (medições futuras)`:'contas lançadas')}${kpiG('vermelho','fa-arrow-up','Saídas previstas',Rk(p.sai),`${PJ.obras?Rk(p.obrasSai)+' das obras · ':''}${PJ.fixas?Rk(p.fixo)+' de custo fixo':''}`)}${kpiG(p.min<0?'vermelho':'roxo','fa-chart-line','Menor saldo',Rk(p.min),brDe(p.dMin))}${kpiG(p.fim<0?'vermelho':'verde','fa-flag-checkered',`Saldo em ${PJ.dias} dias`,Rk(p.fim),brDe(addD(h,PJ.dias)))}</div>
+      <div class="gf-kpis">${kpiG('','fa-wallet','Saldo hoje',p.sc?Rk(p.sc.valor):'—',p.sc?'contas da empresa':'informe acima')}${kpiG('verde','fa-arrow-down','Entradas previstas',Rk(p.ent),PJ.obras?`${Rk(p.obrasEnt)} de medições futuras${p.medEnt?' + '+Rk(p.medEnt)+' de medições já feitas sem nota':''}`:'contas lançadas')}${kpiG('vermelho','fa-arrow-up','Saídas previstas',Rk(p.sai),`${PJ.obras?Rk(p.obrasSai)+' das obras · ':''}${PJ.fixas?Rk(p.fixo)+' de custo fixo':''}`)}${kpiG(p.min<0?'vermelho':'roxo','fa-chart-line','Menor saldo',Rk(p.min),brDe(p.dMin))}${kpiG(p.fim<0?'vermelho':'verde','fa-flag-checkered',`Saldo em ${PJ.dias} dias`,Rk(p.fim),brDe(addD(h,PJ.dias)))}</div>
       <div class="gf-sec"><div class="gf-sec-cab"><div><h3>Saldo dia a dia</h3><p>Linha abaixo de zero = falta dinheiro naquele dia.</p></div></div><div class="gf-chart"><canvas id="gs-graf-pj"></canvas></div></div>
       ${p.recAtr.length||p.pagVenc.length?`<div class="gf-aviso warn"><i class="fas fa-circle-info"></i><div>${p.recAtr.length?`<b>${p.recAtr.length} recebimento(s) atrasado(s)</b> fora da conta (${fmt(S(p.recAtr))}) — já passaram da data; entram quando forem cobrados. `:''}${p.pagVenc.length?`<b>${p.pagVenc.length} conta(s) vencida(s)</b> (${fmt(S(p.pagVenc))}) entram como pagas hoje.`:''}</div></div>`:''}
       <div class="gf-sec"><div class="gf-sec-cab"><div><h3>Semana a semana</h3></div></div><div class="gf-rolar"><table class="gf-tab"><thead><tr><th>Semana</th><th class="num">Entradas</th><th class="num">Saídas</th><th class="num">Saldo no fim</th></tr></thead><tbody>${semanas.map(w=>`<tr><td>${brDe(w.ini).slice(0,5)} a ${brDe(w.fim).slice(0,5)}</td><td class="num ok">${fmt(w.ent)}</td><td class="num err">${fmt(w.sai)}</td><td class="num ${w.saldo<0?'err':''}"><b>${fmt(w.saldo)}</b></td></tr>`).join('')}</tbody></table></div></div>
@@ -14144,7 +14154,7 @@ const PL2=(function(){
       Object.assign(base,aprovCampos(o,orig));
       ops.push({aba:'Custos',dados:base,rowid:mesmo?orig.rowid:null});}
     else{const K=KD();
-      Object.assign(base,{[K.tipo]:o.tipo==='Real'?'Real':'Prevista',[K.venc]:o.venc||o.pago||isoDe(h0()),[K.cat]:o.cat,[K.desc]:o.desc,[K.forn]:o.forn,[K.st]:o.pago?'Pago':'Pendente',[K.pg]:o.pago,[K.valor]:o.total,[K.obs]:o.obs});
+      Object.assign(base,{[K.tipo]:o.tipo==='Real'?'Real':'Prevista',[K.venc]:o.venc||o.pago||(o.tipo==='Real'?isoDe(h0()):''),[K.cat]:o.cat,[K.desc]:o.desc,[K.forn]:o.forn,[K.st]:o.pago?'Pago':'Pendente',[K.pg]:o.pago,[K.valor]:o.total,[K.obs]:o.obs});
       if(o.forma!=null)base[K.fpg]=o.forma;
       if(!base[K.lanc])base[K.lanc]=o.lanc||todayDateTime();
       Object.assign(base,aprovCampos(o,orig));
@@ -14399,8 +14409,6 @@ const PL2=(function(){
 .vk-barra em i{display:block;height:100%;background:var(--cor,#0071E3);border-radius:6px;}
 .vk-barra b{font-variant-numeric:tabular-nums;white-space:nowrap;}
 /* obras e contratos */
-.ob-modos{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:14px 28px 0;flex-wrap:wrap;}
-.ob-modos small{color:#6e6e73;font-size:12px;}
 /* planejamento: projeto da obra (mapa de ataque) */
 .pj-grade{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:14px;align-items:start;}
 .pj-barra{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px;}
@@ -14421,8 +14429,10 @@ const PL2=(function(){
 .pj-vazio{padding:30px 16px;text-align:center;color:#6e6e73;font-size:13px;line-height:1.5;}
 .pj-vazio i{font-size:30px;color:#c7c7cc;display:block;margin-bottom:8px;}
 .pl2-compacto .pl2-wrap{max-height:none;}
+.vk-quadro-ct .vk-card .vk-top b{font-size:13px;}
+.vk-quadro-ct .ob-prog span{font-size:11px;}
 @media (max-width:980px){.pj-grade{grid-template-columns:1fr;}}
-@media (max-width:820px){.vk-quadro{grid-template-columns:repeat(3,82vw);scroll-snap-type:x mandatory;}.vk-col{scroll-snap-align:start;}.ob-modos{padding:12px 16px 0;}}
+@media (max-width:820px){.vk-quadro{grid-template-columns:repeat(var(--n,3),82vw)!important;scroll-snap-type:x mandatory;}.vk-col{scroll-snap-align:start;}.ob-modos{padding:12px 16px 0;}}
 </style>
 <script>
 /* ═══════════════════════════ MÁSCARAS ═══════════════════════════
@@ -14483,33 +14493,38 @@ const Mascara=(function(){
 })();
 </script>
 <script>
+/* Desempenho: Fin.movimentos (todos os lançamentos de dinheiro) é usado por várias telas a cada
+   redesenho; o resultado fica guardado até os dados do sistema mudarem (ou virar o dia). */
+(function(){const mv=Fin.movimentos;let ref=null,dia='',res=null;
+  Fin.movimentos=function(){const d=App.state&&App.state.data,k=new Date().toDateString();if(!d)return mv.apply(this,arguments);
+    if(d!==ref||k!==dia||!res){ref=d;dia=k;res=mv.apply(this,arguments);}return res.slice();};})();
+</script>
+<script>
 /* ═══════════════════════════ QUADROS (como o Contas a pagar da VTC) ═══════════════════════════
-   Contas a pagar: Aguardando aprovação → Aprovada · a pagar → Paga. O cartão abre a ficha
-   (editar, aprovar, pagar, parcelar, excluir); arrastar para "Paga" registra o pagamento.
-   Quem não é Administrador lança a conta para aprovação (quem compra não paga sozinho);
-   conta lançada por Administrador já nasce aprovada.
-   Faturamento e recebimentos: A faturar (medição sem nota) → Nota emitida · a receber →
-   Recebida. Arrastar emite a nota (pede nº e emissão) ou registra o recebimento.
-   Cada tela continua tendo a Planilha (aba ao lado) para lançar e corrigir em lote. */
+   Contas a pagar: Previstas (estimativas) → Aguardando aprovação → Aprovada · a pagar → Paga.
+   Faturamento e recebimentos, ligado às medições: Medição em andamento → Aprovada · a faturar
+   → Nota emitida · a receber → Recebida.
+   Não há mais planilha: o cartão abre a ficha completa (todos os campos que a planilha tinha),
+   arrastar entre colunas faz o passo seguinte (aprovar, emitir a nota, pagar, receber) e
+   "Exportar"/"Imprimir" levam a lista filtrada para o Excel ou para o PDF. */
 (function(){
   const {D,U,mesHoje,mesNome,cap,pode,fmtN,pct,Rk,moeda,n2,kpiG,cabG}=GS;
   const {janela,confirmar,executar,salvar,excluir,fe,cn,dt,brDe,isoDe,hoje0,addD,dias,dinheiro,val}=U;
   const C=GS.contas,Fa=GS.fat,EMP=C.EMP;
   const FORMAS=typeof FORMAS_PAGAMENTO_DESPESA!=='undefined'?FORMAS_PAGAMENTO_DESPESA:['PIX','Boleto','Transferência/TED','Dinheiro'];
-  const lerModo=v=>{try{return localStorage.getItem('vx_modo_'+v)||'quadro';}catch(e){return 'quadro';}};
-  const MODO={contas:lerModo('contas'),faturamento:lerModo('faturamento')};
-  const QC={busca:'',obra:'',mes:'',antigas:false,aprovar:false},QF={busca:'',obra:'',mes:'',antigas:false};
-  const modosHtml=v=>`<div class="gf-abas vk-modos"><button type="button" class="gf-aba ${MODO[v]==='quadro'?'on':''}" data-modo="quadro"><i class="fas fa-table-columns"></i> Quadro</button><button type="button" class="gf-aba ${MODO[v]==='planilha'?'on':''}" data-modo="planilha"><i class="fas fa-table"></i> Planilha</button></div>`;
+  const QC={busca:'',obra:'',mes:'',antigas:false,aprovar:false,semForn:false},QF={busca:'',obra:'',mes:'',antigas:false,semNF:false};
   const pill=(t,c,ico)=>`<span class="vk-pill ${c||''}">${ico?`<i class="fas ${ico}"></i>`:''}${t}</span>`;
-  const barra=(rot,v,max,cor,txt)=>`<div class="vk-barra" style="--cor:${cor||'#0071E3'}"><span title="${fe(rot)}">${fe(rot)}</span><em><i style="width:${max?Math.max(2,v/max*100):0}%"></i></em><b>${txt||Rk(v)}</b></div>`;
+  const barra=(rot,v,max,cor,txt)=>`<div class="vk-barra" style="--cor:${cor||'#0071E3'}"><span title="${fe(rot)}">${fe(rot)}</span><em><i style="width:${max?Math.max(2,Math.min(100,v/max*100)):0}%"></i></em><b>${txt||Rk(v)}</b></div>`;
   const parcDe=s=>{const m=String(s||'').match(/\((\d+\/\d+)\)\s*$/);return m?m[1]:'';};
   const opsObra=()=>[...new Set(PL2.obrasOpc())].sort((a,b)=>a.localeCompare(b,'pt-BR'));
+  const num=s=>Mascara.numero(s)||0;
+  const jan=()=>document.getElementById('fin-jan');
   function vencePill(d,pago,rotPago){
     if(pago)return pill((rotPago||'paga')+' '+brDe(dt(pago)).slice(0,5),'ok','fa-check');
     const v=dt(d),h=hoje0();if(!v)return pill('sem vencimento','warn');const n=dias(h,v);
     return n<0?pill(`vencida há ${-n}d`,'err'):n===0?pill('vence hoje','warn'):pill('vence '+brDe(v).slice(0,5),n<=7?'warn':'info');
   }
-  // arrastar e soltar entre colunas (mesmo jeito do funil e do Contas a pagar da VTC)
+  // arrastar e soltar entre colunas (mesmo jeito do Contas a pagar da VTC)
   function ligarArraste(w,aoSoltar){
     let arr=null;
     w.addEventListener('dragstart',ev=>{const c=ev.target.closest('[data-card]');if(!c)return;arr=c.dataset.card;c.classList.add('arrastando');try{ev.dataTransfer.setData('text/plain',arr);}catch(e){}});
@@ -14517,22 +14532,29 @@ const Mascara=(function(){
     w.addEventListener('dragover',ev=>{const col=ev.target.closest('.vk-col');if(!col||!arr)return;ev.preventDefault();w.querySelectorAll('.vk-col.alvo').forEach(x=>x!==col&&x.classList.remove('alvo'));col.classList.add('alvo');});
     w.addEventListener('drop',ev=>{const col=ev.target.closest('.vk-col');if(!col||!arr)return;ev.preventDefault();col.classList.remove('alvo');const id=arr;arr=null;aoSoltar(id,col.dataset.coluna);});
   }
-  const colunasHtml=(cols,cartao,vazio)=>`<div class="vk-quadro">${cols.map(({c,itens,total})=>`
+  GS.ligarArraste=ligarArraste;
+  const colunasHtml=(cols,cartao,vazio)=>`<div class="vk-quadro" style="--n:${cols.length};grid-template-columns:repeat(var(--n),minmax(240px,1fr))">${cols.map(({c,itens,total,sub})=>`
     <section class="vk-col" data-coluna="${c.k}" style="--cor:${c.cor}">
-      <header><span class="vk-col-ico"><i class="fas ${c.ico}"></i></span><div><b>${c.rot}</b><small>${itens.length} · ${fmt(total)}</small></div></header>
-      <div class="vk-corpo">${itens.map(cartao).join('')||`<p class="vk-vazia">${vazio[c.k]}</p>`}</div>
+      <header><span class="vk-col-ico"><i class="fas ${c.ico}"></i></span><div><b>${c.rot}</b><small>${sub!=null?sub:`${itens.length} · ${fmt(total)}`}</small></div></header>
+      <div class="vk-corpo">${itens.map(cartao).join('')||`<p class="vk-vazia">${vazio[c.k]||'—'}</p>`}</div>
     </section>`).join('')}</div>`;
+  GS.colunasHtml=colunasHtml;
+  // impressão da lista filtrada (o que a planilha imprimia)
+  function imprimirLista(titulo,sub,cab,linhas,total){
+    if(!linhas.length)return toast('Nada para imprimir neste filtro.','error');
+    App._relExportPaginado({titulo,subLinhas:sub,paisagem:true,theadHtml:`<tr>${cab.map(c=>`<th style="${c.d?'text-align:right':''}">${fe(c.l)}</th>`).join('')}</tr>`,
+      rowsArr:linhas.map(l=>`<tr>${l.map((v,i)=>`<td style="${cab[i].d?'text-align:right':''}">${v}</td>`).join('')}</tr>`),posHtml:total||''});
+  }
 
-  /* ═══════════════ CONTAS A PAGAR — quadro ═══════════════ */
-  const COLS_CP=[{k:'aprovar',rot:'Aguardando aprovação',cor:'#B54708',ico:'fa-signature'},{k:'pagar',rot:'Aprovada · a pagar',cor:'#1652D8',ico:'fa-file-invoice-dollar'},{k:'paga',rot:'Paga',cor:'#067647',ico:'fa-circle-check'}];
+  /* ═══════════════ CONTAS A PAGAR ═══════════════ */
+  const COLS_CP=[{k:'previstas',rot:'Previstas (estimativas)',cor:'#7F56D9',ico:'fa-clock'},{k:'aprovar',rot:'Aguardando aprovação',cor:'#B54708',ico:'fa-signature'},{k:'pagar',rot:'Aprovada · a pagar',cor:'#1652D8',ico:'fa-file-invoice-dollar'},{k:'paga',rot:'Paga',cor:'#067647',ico:'fa-circle-check'}];
   const pagoC=o=>{const p=dt(o.pago);return !!(p&&p<=hoje0());};
-  const colConta=o=>pagoC(o)?'paga':o.aprov==='pendente'?'aprovar':'pagar';
+  const colConta=o=>pagoC(o)?'paga':o.tipo!=='Real'?'previstas':o.aprov==='pendente'?'aprovar':'pagar';
   const idC=o=>o._t+o.rowid;
   const todasContas=()=>(D().custos||[]).map(C.deCusto).concat(C.podeEmpresa()?(D().despesas||[]).map(C.deDesp):[]);
   const acharConta=id=>todasContas().find(o=>idC(o)===id);
   const souAdmin=C.souAdmin;
-  // só quem lançou (ou Administrador) mexe numa conta que ainda não foi paga
-  const podeEditarConta=o=>pode('contas')&&!pagoC(o)&&(souAdmin()||o.aprov==='pendente'&&(!o.lancPor||o.lancPor===C.quem()));
+  const podeEditarConta=o=>pode('contas')&&!pagoC(o)&&(souAdmin()||o.tipo!=='Real'||o.aprov==='pendente'&&(!o.lancPor||o.lancPor===C.quem()));
   function cartaoConta(o){
     const col=colConta(o),pc=parcDe(o.desc);
     return `<article class="vk-card" style="--cor:${COLS_CP.find(c=>c.k===col).cor}" draggable="${pode('contas')?'true':'false'}" data-card="${idC(o)}" tabindex="0">
@@ -14540,27 +14562,28 @@ const Mascara=(function(){
       ${o.forn&&o.desc?`<div class="vk-sub">${fe(C.limparParc(o.desc))}${pc?' '+pill(pc,''):''}</div>`:pc?`<div class="vk-sub">${pill(pc,'')}</div>`:''}
       ${o.centro!==EMP?`<div class="vk-obra" title="${fe(o.centro)}"><i class="fas fa-helmet-safety"></i>${fe(o.centro)}</div>`:''}
       <div class="vk-val"><span>${fe(o.cat||'')}</span><b>${fmt(val(o.total))}</b></div>
-      <div class="vk-pe">${o.aprov==='pendente'&&!pagoC(o)?pill('aguarda aprovação','roxo','fa-signature'):o.aprovPor&&!pagoC(o)?pill('aprovada','ok','fa-check'):''}${vencePill(o.venc,pagoC(o)?o.pago:'')}</div>
+      <div class="vk-pe">${col==='aprovar'?pill('aguarda aprovação','roxo','fa-signature'):col==='previstas'?pill('estimativa','',''):''}${col==='previstas'&&!o.venc?'':vencePill(o.venc,pagoC(o)?o.pago:'')}</div>
     </article>`;
   }
+  function filtrarContas(lista){const f=QC;return lista.filter(o=>{
+    if(f.busca){const q=cn(f.busca);if(!cn([o.forn,o.desc,o.cat,o.centro,o.obs,n2(val(o.total))].join(' ')).includes(q))return false;}
+    if(f.obra&&o.centro!==f.obra)return false;
+    if(f.mes&&String(pagoC(o)?o.pago:o.venc).slice(0,7)!==f.mes)return false;
+    if(f.aprovar&&colConta(o)!=='aprovar')return false;
+    if(f.semForn&&String(o.forn||'').trim())return false;
+    return true;});}
   function renderQuadroContas(){
     const box=document.getElementById('gs-contas-q');if(!box)return;
-    const h=hoje0(),f=QC,todas=todasContas(),reais=todas.filter(o=>o.tipo==='Real'||pagoC(o)),prev=todas.filter(o=>o.tipo!=='Real'&&!pagoC(o));
-    const abertas=reais.filter(o=>!pagoC(o)),vencidas=abertas.filter(o=>{const d=dt(o.venc);return d&&d<h;}),em7=abertas.filter(o=>{const d=dt(o.venc);return d&&d>=h&&d<=addD(h,7);});
-    const semAprov=abertas.filter(o=>o.aprov==='pendente'),pagoMes=reais.filter(o=>pagoC(o)&&o.pago.slice(0,7)===mesHoje());
-    const S=a=>a.reduce((s,o)=>s+val(o.total),0);
-    const filtradas=reais.filter(o=>{
-      if(f.busca){const q=cn(f.busca);if(!cn([o.forn,o.desc,o.cat,o.centro,o.obs].join(' ')).includes(q))return false;}
-      if(f.obra&&o.centro!==f.obra)return false;
-      if(f.mes&&String(pagoC(o)?o.pago:o.venc).slice(0,7)!==f.mes)return false;
-      if(f.aprovar&&!(o.aprov==='pendente'&&!pagoC(o)))return false;
-      return true;});
-    const lim=addD(h,-30),visiveis=filtradas.filter(o=>!pagoC(o)||f.antigas||f.mes||dt(o.pago)>=lim);
+    const h=hoje0(),f=QC,todas=todasContas(),S=a=>a.reduce((s,o)=>s+val(o.total),0);
+    const abertas=todas.filter(o=>!pagoC(o)&&o.tipo==='Real'),vencidas=abertas.filter(o=>{const d=dt(o.venc);return d&&d<h;}),em7=abertas.filter(o=>{const d=dt(o.venc);return d&&d>=h&&d<=addD(h,7);});
+    const semAprov=abertas.filter(o=>o.aprov==='pendente'),pagoMes=todas.filter(o=>pagoC(o)&&o.pago.slice(0,7)===mesHoje());
+    const filtradas=filtrarContas(todas),lim=addD(h,-30),visiveis=filtradas.filter(o=>!pagoC(o)||f.antigas||f.mes||f.semForn||dt(o.pago)>=lim);
     const ordV=(a,b)=>String(a.venc||'9999').localeCompare(String(b.venc||'9999'));
     const cols=COLS_CP.map(c=>{const itens=visiveis.filter(o=>colConta(o)===c.k).sort(c.k==='paga'?(a,b)=>String(b.pago).localeCompare(String(a.pago)):ordV);return {c,itens,total:S(itens)};});
     App._vkContas=filtradas;
+    const filtroAtivo=f.busca||f.obra||f.mes||f.aprovar||f.semForn;
     box.innerHTML=`<div class="gf">
-      ${cabG('Contas a pagar','Tudo o que a empresa paga: compras e serviços de cada obra e as despesas da Empresa. Lance a conta, um Administrador aprova (conta lançada por Administrador já nasce aprovada) e, quando pagar, arraste o cartão para <b>Paga</b> — ou abra o cartão.',modosHtml('contas')+'<button type="button" class="gf-bt" data-vk="exportar"><i class="fas fa-file-excel"></i> Exportar</button>'+(pode('contas')?'<button type="button" class="gf-bt pri" data-vk="nova"><i class="fas fa-plus"></i> Nova conta</button>':''))}
+      ${cabG('Contas a pagar','Tudo o que a empresa paga: compras e serviços de cada obra e as despesas da Empresa. <b>Previstas</b> são estimativas (ainda sem conta); arraste para <b>A pagar</b> quando a conta chegar. Um Administrador aprova (conta lançada por Administrador já nasce aprovada) e, quando pagar, arraste o cartão para <b>Paga</b>. Clique no cartão para ver e corrigir todos os dados.','<button type="button" class="gf-bt" data-vk="imprimir"><i class="fas fa-print"></i> Imprimir</button><button type="button" class="gf-bt" data-vk="exportar"><i class="fas fa-file-excel"></i> Exportar</button>'+(pode('contas')?'<button type="button" class="gf-bt pri" data-vk="nova"><i class="fas fa-plus"></i> Nova conta</button>':''))}
       ${semAprov.length&&souAdmin()?`<div class="vk-aviso"><i class="fas fa-signature"></i><div><b>${semAprov.length} conta(s) esperando a sua aprovação</b> — ${fmt(S(semAprov))}. Abra o cartão (ou arraste para "Aprovada") para aprovar.</div><button type="button" class="gf-bt mini" data-vk="so-aprovar">${f.aprovar?'Ver todas':'Ver só elas'}</button></div>`:''}
       <div class="gf-kpis">
         ${kpiG(vencidas.length?'vermelho':'verde','fa-triangle-exclamation','Vencidas',Rk(S(vencidas)),vencidas.length?`${vencidas.length} conta(s) em atraso — juros e multa correndo`:'nenhuma conta atrasada')}
@@ -14568,12 +14591,13 @@ const Mascara=(function(){
         ${kpiG('roxo','fa-signature','Aguardando aprovação',Rk(S(semAprov)),`${semAprov.length} conta(s)`)}
         ${kpiG('verde','fa-circle-check','Pago no mês',Rk(S(pagoMes)),`${pagoMes.length} pagamento(s) em ${mesNome(mesHoje()).split(' ')[0]}`)}
       </div>
-      <div class="vk-filtros"><div class="pl2-busca"><i class="fas fa-magnifying-glass"></i><input data-vkf="busca" placeholder="Fornecedor, descrição, categoria…" value="${fe(f.busca)}"></div>
+      <div class="vk-filtros"><div class="pl2-busca"><i class="fas fa-magnifying-glass"></i><input data-vkf="busca" placeholder="Fornecedor, descrição, categoria, valor…" value="${fe(f.busca)}"></div>
         <select data-vkf="obra"><option value="">Obras e empresa</option>${(C.podeEmpresa()?[EMP]:[]).concat(opsObra()).map(o=>`<option ${f.obra===o?'selected':''}>${fe(o)}</option>`).join('')}</select>
         <label class="vk-chk">Vencimento em <input type="month" data-vkf="mes" value="${fe(f.mes)}"></label>
         <label class="vk-chk"><input type="checkbox" data-vkf="antigas" ${f.antigas?'checked':''}> Pagas há mais de 30 dias</label>
-        ${prev.length?`<a href="#" class="vk-chk" data-vk="previstas" title="Estimativas de custo ainda sem conta — ficam na Planilha, aba Previstas">${prev.length} estimativa(s) (Previsto) · ${Rk(S(prev))}</a>`:''}</div>
-      ${colunasHtml(cols,cartaoConta,{aprovar:'Nenhuma conta esperando aprovação',pagar:'Contas aprovadas aparecem aqui até serem pagas',paga:'Arraste para cá a conta que foi paga'})}
+        <label class="vk-chk"><input type="checkbox" data-vkf="semForn" ${f.semForn?'checked':''}> Sem fornecedor</label>
+        ${filtroAtivo?'<a href="#" class="vk-chk" data-vk="limpar"><i class="fas fa-xmark"></i> Limpar filtros</a>':''}</div>
+      ${colunasHtml(cols,cartaoConta,{previstas:'Estimativas de custo (ainda sem conta) ficam aqui',aprovar:'Nenhuma conta esperando aprovação',pagar:'Contas aprovadas aparecem aqui até serem pagas',paga:'Arraste para cá a conta que foi paga'})}
       ${analiseContas(todas)}
     </div>`;
     ligarQuadroContas(box);
@@ -14584,12 +14608,15 @@ const Mascara=(function(){
     const porCat=agrupa(pagas,o=>o.cat).slice(0,6),porCentro=agrupa(pagas,o=>o.centro).slice(0,6),porForn=agrupa(pagas.filter(o=>o.forn),o=>o.forn).slice(0,5);
     const atr=todas.filter(o=>!pagoC(o)&&o.tipo==='Real'&&dt(o.venc)&&dt(o.venc)<h),faixa=[['1 a 15 dias',1,15],['16 a 30 dias',16,30],['31 a 60 dias',31,60],['mais de 60 dias',61,99999]].map(([r,a,b])=>{const l=atr.filter(o=>{const d=dias(dt(o.venc),h);return d>=a&&d<=b;});return [r,S(l),l.length];});
     const semForn=pagas.filter(o=>!String(o.forn||'').trim()),maxA=Math.max(...faixa.map(x=>x[1]),1);
-    if(!pagas.length&&!atr.length)return '';
-    return `<div class="gf-sec"><div class="gf-sec-cab"><div><h3>Análise das contas</h3><p>Para onde foi o dinheiro nos últimos 90 dias (contas pagas) e a idade das contas em atraso.</p></div></div>
+    // próximas 4 semanas: o que sai (contas) × o que entra (notas e medições já aprovadas)
+    const ms=Fin.movimentos().filter(m=>!m.pago&&m.venc&&m.tipo!=='aporte'),sem=[0,1,2,3].map(i=>{const a=addD(h,i*7),b=addD(h,i*7+6),l=ms.filter(m=>m.venc>=(i?a:addD(h,-9999))&&m.venc<=b);return {rot:i?`${brDe(a).slice(0,5)} a ${brDe(b).slice(0,5)}`:'Esta semana (e atrasadas)',sai:l.filter(m=>m.sent<0).reduce((s,m)=>s+m.valor,0),ent:l.filter(m=>m.sent>0).reduce((s,m)=>s+m.valor,0)};});
+    const maxS=Math.max(...sem.map(x=>Math.max(x.sai,x.ent)),1);
+    return `<div class="gf-sec"><div class="gf-sec-cab"><div><h3>Análise das contas</h3><p>O caixa das próximas semanas, para onde foi o dinheiro nos últimos 90 dias e a idade das contas em atraso.</p></div></div>
       <div class="vk-analise">
-        ${porCat.length?`<div class="vk-bloco"><h4>Por categoria</h4>${porCat.map(([k,v])=>barra(k,v,porCat[0][1],'#0071E3',Rk(v)+' · '+pct(v/tot*100))).join('')}</div>`:''}
-        ${porCentro.length?`<div class="vk-bloco"><h4>Por obra e empresa</h4>${porCentro.map(([k,v])=>barra(k,v,porCentro[0][1],k===EMP?'#7F56D9':'#1DAA6C',Rk(v)+' · '+pct(v/tot*100))).join('')}<p>${(()=>{const e=porCentro.find(x=>x[0]===EMP);return e&&tot?`A estrutura da empresa levou ${pct(e[1]/tot*100)} do que foi pago — é o custo fixo que as obras precisam cobrir.`:'';})()}</p></div>`:''}
-        ${porForn.length?`<div class="vk-bloco"><h4>Maiores fornecedores</h4>${porForn.map(([k,v])=>barra(k,v,porForn[0][1],'#F79009',Rk(v))).join('')}<p>${semForn.length?`${semForn.length} pagamento(s) sem fornecedor (${Rk(S(semForn))}) — preencha para a curva ABC de compras ficar certa.`:'Concentre a negociação nos primeiros da lista: é onde um desconto rende mais.'}</p></div>`:''}
+        <div class="vk-bloco"><h4>Próximas 4 semanas — sai × entra</h4>${sem.map(x=>`<div style="margin:6px 0 2px;font-size:11.5px;color:#6e6e73;font-weight:700">${x.rot}${x.ent-x.sai<0?` · <span style="color:#B42318">falta ${Rk(x.sai-x.ent)}</span>`:''}</div>${barra('Sai',x.sai,maxS,'#F04438')}${barra('Entra',x.ent,maxS,'#1DAA6C')}`).join('')}<p>Contas a pagar pelo vencimento × notas a receber pela data esperada. Semana em vermelho: antecipe recebimento ou negocie prazo antes, não depois.</p></div>
+        ${porCat.length?`<div class="vk-bloco"><h4>Por categoria · 90 dias</h4>${porCat.map(([k,v])=>barra(k,v,porCat[0][1],'#0071E3',Rk(v)+' · '+pct(v/tot*100))).join('')}</div>`:''}
+        ${porCentro.length?`<div class="vk-bloco"><h4>Por obra e empresa · 90 dias</h4>${porCentro.map(([k,v])=>barra(k,v,porCentro[0][1],k===EMP?'#7F56D9':'#1DAA6C',Rk(v)+' · '+pct(v/tot*100))).join('')}<p>${(()=>{const e=porCentro.find(x=>x[0]===EMP);return e&&tot?`A estrutura da empresa levou ${pct(e[1]/tot*100)} do que foi pago — é o custo fixo que as obras precisam cobrir.`:'';})()}</p></div>`:''}
+        ${porForn.length?`<div class="vk-bloco"><h4>Maiores fornecedores · 90 dias</h4>${porForn.map(([k,v])=>barra(k,v,porForn[0][1],'#F79009',Rk(v))).join('')}<p>${semForn.length?`${semForn.length} pagamento(s) sem fornecedor (${Rk(S(semForn))}) — marque "Sem fornecedor" no filtro e preencha.`:'Concentre a negociação nos primeiros da lista: é onde um desconto rende mais.'}</p></div>`:''}
         <div class="vk-bloco"><h4>Contas em atraso por idade</h4>${atr.length?faixa.map(([r,v,n])=>barra(r+(n?` (${n})`:''),v,maxA,'#F04438')).join(''):'<p style="margin:0">Nenhuma conta em atraso.</p>'}<p>${atr.length?'Atraso acima de 30 dias costuma gerar juros, protesto e corte de fornecimento — priorize as mais antigas e as dos fornecedores críticos da obra.':''}</p></div>
       </div></div>`;
   }
@@ -14601,23 +14628,34 @@ const Mascara=(function(){
       const b=ev.target.closest('[data-vk]');if(b){ev.preventDefault();const a=b.dataset.vk;
         if(a==='nova')return fichaNovaConta();
         if(a==='so-aprovar'){QC.aprovar=!QC.aprovar;return re();}
+        if(a==='limpar'){Object.assign(QC,{busca:'',obra:'',mes:'',aprovar:false,semForn:false});return re();}
         if(a==='exportar')return exportarContas();
-        if(a==='previstas'){trocarModo('contas','planilha');GS.abrirPlanilha('contas',{aba:'previstas'});return;}
+        if(a==='imprimir')return imprimirContas();
         return;}
       const c=ev.target.closest('[data-card]');if(c){const o=acharConta(c.dataset.card);if(o)fichaConta(o);}
     };
     box.onkeydown=ev=>{if(ev.key!=='Enter')return;const c=ev.target.closest('[data-card]');if(c){const o=acharConta(c.dataset.card);if(o)fichaConta(o);}};
     if(!box._arraste){box._arraste=1;ligarArraste(box,(id,col)=>{const o=acharConta(id);if(!o)return;const de=colConta(o);if(de===col)return;
+      if(!pode('contas'))return toast('Seu perfil não mexe em contas a pagar.','error');
       if(col==='paga')return pagarConta(o);
       if(de==='paga')return desfazerPagamento(o);
+      if(de==='previstas')return virarConta(o);
+      if(col==='previstas')return voltarEstimativa(o);
       if(col==='pagar'&&de==='aprovar')return aprovarConta(o,true);
       if(col==='aprovar'&&de==='pagar')return aprovarConta(o,false);});}
   }
+  const linhaCSV=o=>[o.centro,o.forn,o.desc,o.cat,o.tipo,n2(val(o.total)),o.venc?brDe(dt(o.venc)):'',C.sitP(o)[0],o.pago?brDe(dt(o.pago)):'',o.forma,o.aprov==='pendente'?'aguardando':'aprovada'+(o.aprovPor?' por '+o.aprovPor:''),o.lancPor,o.obs];
   function exportarContas(){
     const l=App._vkContas||[];if(!l.length)return toast('Nada para exportar neste filtro.','error');
-    GS.baixarCSV('contas-a-pagar',['Obra / empresa','Fornecedor','Descrição','Categoria','Valor','Vencimento','Situação','Pago em','Forma','Aprovação','Lançada por'],
-      l.map(o=>[o.centro,o.forn,o.desc,o.cat,n2(val(o.total)),o.venc?brDe(dt(o.venc)):'',C.sitP(o)[0],o.pago?brDe(dt(o.pago)):'',o.forma,o.aprov==='pendente'?'aguardando':'aprovada'+(o.aprovPor?' por '+o.aprovPor:''),o.lancPor]));
-    toast(`${l.length} conta(s) exportada(s).`,'success');
+    GS.baixarCSV('contas-a-pagar',['Obra / empresa','Fornecedor','Descrição','Categoria','Tipo','Valor','Vencimento','Situação','Pago em','Forma','Aprovação','Lançada por','Observação'],l.map(linhaCSV));
+    toast(`${l.length} conta(s) exportada(s) — abra o arquivo no Excel.`,'success');
+  }
+  function imprimirContas(){
+    const l=(App._vkContas||[]).slice().sort((a,b)=>String(a.venc||'9').localeCompare(String(b.venc||'9')));
+    imprimirLista('Contas a pagar',[QC.obra||'Obras e empresa',QC.mes?cap(mesNome(QC.mes)):'Todos os meses'],
+      [{l:'Obra / empresa'},{l:'Fornecedor'},{l:'Descrição'},{l:'Categoria'},{l:'Valor',d:1},{l:'Vencimento'},{l:'Situação'},{l:'Pago em'}],
+      l.map(o=>[fe(o.centro),fe(o.forn||'—'),fe(o.desc||''),fe(o.cat||''),fmt(val(o.total)),o.venc?brDe(dt(o.venc)):'—',C.sitP(o)[0],o.pago?brDe(dt(o.pago)):'—']),
+      `<div style="margin-top:12px;font-size:12px">Total: <b>${fmt(l.reduce((s,o)=>s+val(o.total),0))}</b> · em aberto: <b>${fmt(l.filter(o=>!pagoC(o)).reduce((s,o)=>s+val(o.total),0))}</b></div>`);
   }
   async function gravarConta(o,orig){const ops=C.montarConta(o,orig);await executar(()=>Promise.all(ops.map(x=>x.excluir?excluir(x.aba,x.rowid):salvar(x.aba,x.dados,x.rowid||null))));}
   function aprovarConta(o,aprovar){
@@ -14626,70 +14664,97 @@ const Mascara=(function(){
     const txt=aprovar?`Aprovar a conta de <b>${fe(o.forn||o.desc)}</b>: ${fmt(val(o.total))}, vence ${brDe(dt(o.venc))}? Com a aprovação ela fica liberada para pagamento.`:`Tirar a aprovação da conta de <b>${fe(o.forn||o.desc)}</b> (${fmt(val(o.total))})? Ela volta para "Aguardando aprovação".`;
     confirmar(aprovar?'Aprovar conta':'Desaprovar conta',txt,aprovar?'Sim, aprovar':'Sim, desaprovar',async()=>{await gravarConta({...o,aprov:aprovar?'aprovada':'pendente',aprovPor:C.quem(),aprovMudou:true},o);toast(aprovar?'Conta aprovada.':'Aprovação retirada.','success');});
   }
+  // estimativa → conta de verdade (chegou o boleto / a nota do fornecedor)
+  function virarConta(o){
+    janela('A conta chegou',`<div class="fin-resumo"><b>${fe(o.forn||o.desc)}</b> · ${fe(o.centro)}<br>Estimativa: ${fmt(val(o.total))}</div>
+      <div class="fin-linha"><div class="fin-fld"><label>Valor da conta (R$)</label><input data-k="total" data-mask="moeda" inputmode="numeric" value="${fmt(val(o.total))}"></div>
+      <div class="fin-fld"><label>Vencimento <span class="obg">*</span></label><input type="date" data-k="venc" value="${fe(o.venc||isoDe(addD(hoje0(),7)))}"></div></div>
+      ${souAdmin()?'':'<div class="fin-aviso"><div>A conta vai para "Aguardando aprovação" de um Administrador.</div></div>'}`,
+      [{html:'Cancelar'},{html:'<i class="fas fa-file-invoice-dollar"></i> Virar conta a pagar',cls:'pri',acao:async j=>{
+        const v=j.querySelector('[data-k="venc"]').value,t=num(j.querySelector('[data-k="total"]').value);if(!v)throw new Error('Informe o vencimento.');if(!(t>0))throw new Error('Informe o valor.');
+        const u={...o,tipo:'Real',venc:v,total:dinheiro(t),aprov:souAdmin()?'aprovada':'pendente',aprovPor:C.quem(),aprovMudou:true};if(o.centro!==EMP&&val(o.qtd)>0)u.pUnit=dinheiro(t/val(o.qtd));
+        await gravarConta(u,o);toast(souAdmin()?'Agora é uma conta a pagar.':'Conta lançada — aguardando aprovação.','success');}}],520);
+  }
+  function voltarEstimativa(o){
+    if(!podeEditarConta(o))return toast('Só um Administrador mexe numa conta já aprovada.','error');
+    confirmar('Voltar para estimativa',`<b>${fe(o.forn||o.desc)}</b> (${fmt(val(o.total))}) volta a ser só uma estimativa (Previsto) — sai das contas a pagar.`,'Sim, voltar',async()=>{await gravarConta({...o,tipo:'Previsto'},o);toast('Voltou para Previstas.','success');});
+  }
   function pagarConta(o){
     if(!pode('contas'))return toast('Seu perfil não registra pagamentos.','error');
     if(pagoC(o))return toast('Esta conta já está paga.','error');
-    if(o.aprov==='pendente'&&!souAdmin())return toast('Esta conta ainda aguarda aprovação de um Administrador.','error');
-    janela('Registrar pagamento',`<div class="fin-resumo"><b>${fe(o.forn||o.desc)}</b> · ${fe(C.limparParc(o.desc)||o.cat)}<br>${fe(o.centro)} · <b>${fmt(val(o.total))}</b> · vence ${brDe(dt(o.venc))}</div>
-      <div class="fin-linha"><div class="fin-fld"><label>Data do pagamento</label><input type="date" data-k="data" max="${isoDe(hoje0())}" value="${isoDe(hoje0())}"></div>
+    if(o.aprov==='pendente'&&o.tipo==='Real'&&!souAdmin())return toast('Esta conta ainda aguarda aprovação de um Administrador.','error');
+    janela('Registrar pagamento',`<div class="fin-resumo"><b>${fe(o.forn||o.desc)}</b> · ${fe(C.limparParc(o.desc)||o.cat)}<br>${fe(o.centro)} · vence ${brDe(dt(o.venc))}</div>
+      <div class="fin-linha"><div class="fin-fld"><label>Valor pago (R$)</label><input data-k="total" data-mask="moeda" inputmode="numeric" value="${fmt(val(o.total))}"></div>
+      <div class="fin-fld"><label>Data do pagamento</label><input type="date" data-k="data" max="${isoDe(hoje0())}" value="${isoDe(hoje0())}"></div>
       <div class="fin-fld"><label>Forma</label><select data-k="forma">${FORMAS.map(x=>`<option ${x===(o.forma||'PIX')?'selected':''}>${fe(x)}</option>`).join('')}</select></div></div>
-      ${o.aprov==='pendente'?'<div class="fin-aviso"><div>A conta ainda não estava aprovada: ao confirmar o pagamento, ela fica aprovada por você.</div></div>':''}`,
+      ${o.aprov==='pendente'||o.tipo!=='Real'?'<div class="fin-aviso"><div>A conta ainda não estava aprovada: ao confirmar o pagamento, ela fica aprovada por você.</div></div>':''}`,
       [{html:'Cancelar'},{html:'<i class="fas fa-circle-check"></i> Confirmar pagamento',cls:'pri',acao:async j=>{
-        const d=j.querySelector('[data-k="data"]').value;if(!d)throw new Error('Informe a data do pagamento.');if(d>isoDe(hoje0()))throw new Error('A data do pagamento não pode ser depois de hoje.');
-        await gravarConta({...o,pago:d,tipo:'Real',forma:j.querySelector('[data-k="forma"]').value},o);toast('Pagamento registrado.','success');}}],520);
+        const d=j.querySelector('[data-k="data"]').value,t=num(j.querySelector('[data-k="total"]').value);if(!d)throw new Error('Informe a data do pagamento.');if(d>isoDe(hoje0()))throw new Error('A data do pagamento não pode ser depois de hoje.');if(!(t>0))throw new Error('Informe o valor pago.');
+        const u={...o,pago:d,tipo:'Real',venc:o.venc||d,total:dinheiro(t),forma:j.querySelector('[data-k="forma"]').value};
+        if(o.centro!==EMP&&Math.abs(t-val(o.total))>.005&&val(o.qtd)>0)u.pUnit=dinheiro(t/val(o.qtd));
+        if(o.aprov==='pendente'&&souAdmin()){u.aprov='aprovada';u.aprovPor=C.quem();u.aprovMudou=true;}
+        await gravarConta(u,o);toast('Pagamento registrado.','success');}}],560);
   }
   function desfazerPagamento(o){
     confirmar('Desfazer pagamento',`A conta de <b>${fe(o.forn||o.desc)}</b> (${fmt(val(o.total))}, paga em ${brDe(dt(o.pago))}) volta para "a pagar".`,'Sim, desfazer',async()=>{await gravarConta({...o,pago:'',venc:o.venc||o.pago},o);toast('Voltou para "a pagar".','success');});
   }
-  // campos da conta (nova ou em edição)
+  // todos os campos da conta (o que a planilha tinha)
   function camposConta(o,nova){
-    o=o||{};const centros=(C.podeEmpresa()?[EMP]:[]).concat(opsObra()),cats=o.centro===EMP?C.CATD():C.CATC();
+    o=o||{};const centros=(C.podeEmpresa()?[EMP]:[]).concat(opsObra()),cats=o.centro===EMP?C.CATD():C.CATC(),emp=o.centro===EMP;
+    const fatores=typeof FATORES!=='undefined'?FATORES:['UN'];
     return `<div class="fin-linha">
       <div class="fin-fld" style="grid-column:1/-1"><label>Obra ou Empresa <span class="obg">*</span></label><select data-k="centro"><option value="">Escolha…</option>${centros.map(c=>`<option ${c===o.centro?'selected':''}>${fe(c)}</option>`).join('')}${o.centro&&!centros.includes(o.centro)?`<option selected>${fe(o.centro)}</option>`:''}</select></div>
-      <div class="fin-fld"><label>Vencimento <span class="obg">*</span></label><input type="date" data-k="venc" value="${fe(o.venc||'')}"></div>
-      <div class="fin-fld"><label>Valor (R$) <span class="obg">*</span></label><input data-k="total" data-mask="moeda" inputmode="numeric" value="${val(o.total)?fmt(val(o.total)):''}" placeholder="R$ 0,00"></div>
+      <div class="fin-fld"><label>Tipo</label><select data-k="tipo"><option value="Real" ${o.tipo!=='Previsto'?'selected':''}>Conta (já existe)</option><option value="Previsto" ${o.tipo==='Previsto'?'selected':''}>Estimativa (Previsto)</option></select></div>
+      <div class="fin-fld"><label>Vencimento <span class="obg" data-obg-venc>*</span></label><input type="date" data-k="venc" value="${fe(o.venc||'')}"></div>
       <div class="fin-fld" style="grid-column:1/-1"><label>Fornecedor / quem recebe</label><input data-k="forn" list="vx-forn-lista" autocomplete="off" value="${fe(o.forn||'')}" placeholder="Nome (os cadastrados aparecem na lista; um nome novo entra no cadastro)"></div>
       <div class="fin-fld"><label>Categoria <span class="obg">*</span></label><select data-k="cat"><option value="">Escolha…</option>${cats.map(c=>`<option ${c===o.cat?'selected':''}>${fe(c)}</option>`).join('')}${o.cat&&!cats.includes(o.cat)?`<option selected>${fe(o.cat)}</option>`:''}</select></div>
+      <div class="fin-fld"><label>Descrição</label><input data-k="desc" value="${fe(o.desc||'')}" placeholder="Ex.: 200 sacos de cimento · aluguel de outubro"></div>
+      <div class="fin-fld" data-so-obra ${emp?'hidden':''}><label>Quantidade</label><input data-k="qtd" inputmode="decimal" value="${val(o.qtd)?n2(val(o.qtd)):''}" placeholder="opcional"></div>
+      <div class="fin-fld" data-so-obra ${emp?'hidden':''}><label>Unidade</label><select data-k="fator"><option value="">—</option>${fatores.map(x=>`<option ${x===o.fator?'selected':''}>${fe(x)}</option>`).join('')}</select></div>
+      <div class="fin-fld" data-so-obra ${emp?'hidden':''}><label>Preço unitário (R$)</label><input data-k="pUnit" data-mask="moeda" inputmode="numeric" value="${val(o.pUnit)&&val(o.qtd)>0?fmt(val(o.pUnit)):''}" placeholder="opcional"></div>
+      <div class="fin-fld"><label>Valor (R$) <span class="obg">*</span></label><input data-k="total" data-mask="moeda" inputmode="numeric" value="${val(o.total)?fmt(val(o.total)):''}" placeholder="R$ 0,00"></div>
       <div class="fin-fld"><label>Forma de pagamento</label><select data-k="forma"><option value="">—</option>${FORMAS.map(x=>`<option ${x===o.forma?'selected':''}>${fe(x)}</option>`).join('')}</select></div>
-      <div class="fin-fld" style="grid-column:1/-1"><label>Descrição</label><input data-k="desc" value="${fe(o.desc||'')}" placeholder="Ex.: 200 sacos de cimento · aluguel de outubro"></div>
       ${nova?`<div class="fin-fld"><label>Repete?</label><select data-k="rep"><option value="">Não — conta única</option><option value="parc">Compra parcelada (divide o valor)</option><option value="mes">Todo mês (conta fixa)</option></select></div>
-      <div class="fin-fld" data-vezes hidden><label>Quantas vezes</label><input type="number" data-k="vezes" min="2" max="60" value="3"></div>
-      <div class="fin-fld" style="grid-column:1/-1"><label class="vk-chk" style="color:var(--text-1)"><input type="checkbox" data-k="estimativa"> É só uma estimativa (Previsto) — ainda não existe a conta</label></div>`:''}
+      <div class="fin-fld" data-vezes hidden><label>Quantas vezes</label><input type="number" data-k="vezes" min="2" max="60" value="3"></div>`:''}
+      <div class="fin-fld" style="grid-column:1/-1"><label>Observação</label><input data-k="obs" value="${fe(o.obs||'')}" placeholder="opcional"></div>
     </div>`;
   }
   function ligarCamposConta(j){
     try{Eng.datalistFornecedores();}catch(e){}
-    const ce=j.querySelector('[data-k="centro"]'),ca=j.querySelector('[data-k="cat"]');
-    if(ce&&ca)ce.addEventListener('change',()=>{const l=ce.value===EMP?C.CATD():C.CATC(),at=ca.value;ca.innerHTML='<option value="">Escolha…</option>'+l.map(c=>`<option ${c===at?'selected':''}>${fe(c)}</option>`).join('');});
-    const rp=j.querySelector('[data-k="rep"]'),vz=j.querySelector('[data-vezes]');
-    if(rp&&vz)rp.addEventListener('change',()=>{vz.hidden=!rp.value;j.querySelector('[data-k="vezes"]').value=rp.value==='mes'?12:3;});
+    const g=k=>j.querySelector(`[data-k="${k}"]`),ce=g('centro'),ca=g('cat');
+    if(ce&&ca)ce.addEventListener('change',()=>{const emp=ce.value===EMP,l=emp?C.CATD():C.CATC(),at=ca.value;ca.innerHTML='<option value="">Escolha…</option>'+l.map(c=>`<option ${c===at?'selected':''}>${fe(c)}</option>`).join('');j.querySelectorAll('[data-so-obra]').forEach(x=>x.hidden=emp);});
+    // quantidade × preço unitário → valor
+    const calc=()=>{const q=Mascara.numero(g('qtd')&&g('qtd').value),p=Mascara.numero(g('pUnit')&&g('pUnit').value);if(q>0&&p>0&&g('total')){g('total').value=Mascara.brl(Math.round(q*p*100)/100);}};
+    ['qtd','pUnit'].forEach(k=>g(k)&&g(k).addEventListener('input',calc));
+    const tp=g('tipo'),ob=j.querySelector('[data-obg-venc]');if(tp&&ob){const f=()=>{ob.hidden=tp.value!=='Real';};tp.addEventListener('change',f);f();}
+    const rp=g('rep'),vz=j.querySelector('[data-vezes]');
+    if(rp&&vz)rp.addEventListener('change',()=>{vz.hidden=!rp.value;g('vezes').value=rp.value==='mes'?12:3;});
   }
   async function lerCamposConta(j,o){
     const v=k=>String((j.querySelector(`[data-k="${k}"]`)||{}).value||'').trim();
-    const u={...(o||{}),centro:v('centro'),venc:v('venc'),total:dinheiro(Mascara.numero(v('total'))||0),forn:v('forn'),cat:v('cat'),forma:v('forma'),desc:v('desc')};
-    if(!u.centro)throw new Error('Escolha a obra (ou Empresa).');if(!u.venc)throw new Error('Informe o vencimento.');
+    const u={...(o||{}),centro:v('centro'),tipo:v('tipo')||'Real',venc:v('venc'),total:dinheiro(num(v('total'))),forn:v('forn'),cat:v('cat'),forma:v('forma'),desc:v('desc'),obs:v('obs')};
+    if(u.centro!==EMP){const q=Mascara.numero(v('qtd')),p=num(v('pUnit'));u.qtd=q>0?dinheiro(q):'';u.fator=v('fator');u.pUnit=p>0?dinheiro(p):'';if(q>0&&p>0)u.total=dinheiro(q*p);}
+    if(!u.centro)throw new Error('Escolha a obra (ou Empresa).');if(u.tipo==='Real'&&!u.venc)throw new Error('Informe o vencimento.');
     if(!(val(u.total)>0))throw new Error('Informe o valor.');if(!u.cat)throw new Error('Escolha a categoria.');
     if(!u.desc&&!u.forn)throw new Error('Informe o fornecedor ou uma descrição.');
     if(!u.desc)u.desc=u.cat;
-    // fornecedor novo entra no cadastro (se a tabela de fornecedores já existir)
     if(u.forn&&!(D().fornecedores||[]).some(f=>cn(f.nome)===cn(u.forn))&&pode('fornecedores')){try{await salvar('Fornecedores',{nome:u.forn,tipo:u.centro===EMP?'Escritório / administrativo':'Outros',situacao:'Ativo',data_lancamento:todayDateTime()},null);}catch(e){}}
     return u;
   }
   function fichaNovaConta(pre){
     const o={centro:QC.obra||'',tipo:'Real',...(pre||{})};
     janela('Nova conta a pagar',camposConta(o,true),[{html:'Cancelar'},{html:'<i class="fas fa-floppy-disk"></i> Lançar',cls:'pri',acao:async j=>{
-      const u=await lerCamposConta(j,{_t:'',centro:'',tipo:'Real',qtd:'',fator:'',pUnit:'',pago:'',obs:'',lanc:''});
-      u.tipo=j.querySelector('[data-k="estimativa"]').checked?'Previsto':'Real';C.finalizarConta(u);
+      const u=await lerCamposConta(j,{_t:'',centro:'',tipo:'Real',qtd:'',fator:'',pUnit:'',pago:'',obs:'',lanc:''});C.finalizarConta(u);
       const rep=j.querySelector('[data-k="rep"]').value,n=rep?Math.round(+j.querySelector('[data-k="vezes"]').value||0):1;
-      if(rep&&!(n>=2&&n<=60))throw new Error('Informe de 2 a 60 vezes.');
+      if(rep&&!(n>=2&&n<=60))throw new Error('Informe de 2 a 60 vezes.');if(rep&&!u.venc)throw new Error('Informe o vencimento da 1ª.');
       const ops=[],ini=dt(u.venc),tot=Math.round(val(u.total)*100),parte=Math.floor(tot/n);
       for(let i=0;i<n;i++){const vv=rep==='parc'?(i<n-1?parte:tot-parte*(n-1))/100:tot/100;
-        const x={...u,total:dinheiro(vv),venc:isoDe(C.somaMes(ini,i)),desc:n>1?`${u.desc} (${i+1}/${n})`:u.desc};
-        if(x.centro!==EMP){x.qtd='1.00';x.fator=rep==='parc'?'VB':(x.fator||'UN');x.pUnit=x.total;}
+        const x={...u,total:dinheiro(vv),venc:ini?isoDe(C.somaMes(ini,i)):'',desc:n>1?`${u.desc} (${i+1}/${n})`:u.desc};
+        if(x.centro!==EMP&&n>1&&rep==='parc'){x.qtd='1.00';x.fator='VB';x.pUnit=x.total;}
         ops.push(...C.montarConta(x,null));}
       await executar(()=>Promise.all(ops.map(x=>salvar(x.aba,x.dados,null))));
-      toast(n>1?`${n} contas lançadas.`:(souAdmin()?'Conta lançada.':'Conta lançada — aguardando a aprovação de um Administrador.'),'success');}}],680);
-    ligarCamposConta(document.getElementById('fin-jan'));
+      toast(n>1?`${n} contas lançadas.`:u.tipo!=='Real'?'Estimativa lançada em Previstas.':(souAdmin()?'Conta lançada.':'Conta lançada — aguardando a aprovação de um Administrador.'),'success');}}],720);
+    ligarCamposConta(jan());
   }
   function fichaConta(o){
     const col=colConta(o),cc=COLS_CP.find(c=>c.k===col),ed=podeEditarConta(o),s=C.sitP(o);
@@ -14697,197 +14762,303 @@ const Mascara=(function(){
         <div class="vk-num"><span>Valor</span><b>${fmt(val(o.total))}</b></div><div class="vk-num"><span>Situação</span><b>${pill(s[0],s[1]==='azul'?'info':s[1]==='cinza'?'':s[1])}</b></div></div>
       <ul class="vk-lista">
         <li><i class="fas fa-truck"></i> <b>${fe(o.forn||'Sem fornecedor')}</b></li>
-        <li><i class="fas ${o.centro===EMP?'fa-building':'fa-helmet-safety'}"></i> ${fe(o.centro)} · ${fe(o.cat||'—')}${o.desc?' · '+fe(o.desc):''}</li>
+        <li><i class="fas ${o.centro===EMP?'fa-building':'fa-helmet-safety'}"></i> ${fe(o.centro)} · ${fe(o.cat||'—')}${o.desc?' · '+fe(o.desc):''}${val(o.qtd)>0&&o.centro!==EMP?` · ${n2(val(o.qtd))} ${fe(o.fator||'')} × ${fmt(val(o.pUnit))}`:''}</li>
         <li><i class="fas fa-calendar-day"></i> Vencimento ${brDe(dt(o.venc))}${o.forma?' · '+fe(o.forma):''}${o.lancPor?` · lançada por ${fe(o.lancPor)}`:''}</li>
         ${pagoC(o)?`<li><i class="fas fa-circle-check"></i> Paga em ${brDe(dt(o.pago))}</li>`:''}
-        <li><i class="fas fa-signature"></i> ${o.aprov==='pendente'?'Aguardando aprovação de um Administrador':o.aprovPor?`Aprovada por ${fe(o.aprovPor)}${o.aprovEm?' em '+brDe(dt(o.aprovEm)):''}`:'Aprovada'}</li>
+        ${o.tipo==='Real'?`<li><i class="fas fa-signature"></i> ${o.aprov==='pendente'?'Aguardando aprovação de um Administrador':o.aprovPor?`Aprovada por ${fe(o.aprovPor)}${o.aprovEm?' em '+brDe(dt(o.aprovEm)):''}`:'Aprovada'}</li>`:''}
+        ${o.obs?`<li><i class="fas fa-note-sticky"></i> ${fe(o.obs)}</li>`:''}
       </ul>
-      ${ed?camposConta(o,false):!pagoC(o)&&o.aprov!=='pendente'&&!souAdmin()?'<p class="vk-dica"><i class="fas fa-lock"></i> Conta aprovada fica travada. Para corrigir, peça a um Administrador.</p>':''}`;
+      ${ed?camposConta(o,false):!pagoC(o)?'<p class="vk-dica"><i class="fas fa-lock"></i> Conta aprovada fica travada. Para corrigir, peça a um Administrador.</p>':''}`;
     const bts=[];
     if(!pagoC(o)&&(souAdmin()||ed))bts.push({html:'<i class="fas fa-trash"></i> Excluir',acao:()=>{setTimeout(()=>excluirConta(o),10);}});
     if(!pagoC(o)&&pode('contas'))bts.push({html:'<i class="fas fa-clone"></i> Parcelar / repetir',acao:()=>{setTimeout(()=>C.parcelar(o),10);}});
-    if(souAdmin()&&!pagoC(o))bts.push({html:o.aprov==='pendente'?'<i class="fas fa-signature"></i> Aprovar':'<i class="fas fa-rotate-left"></i> Desaprovar',acao:()=>{setTimeout(()=>aprovarConta(o,o.aprov==='pendente'),10);}});
+    if(o.tipo!=='Real'&&pode('contas'))bts.push({html:'<i class="fas fa-file-invoice-dollar"></i> A conta chegou',acao:()=>{setTimeout(()=>virarConta(o),10);}});
+    if(souAdmin()&&!pagoC(o)&&o.tipo==='Real')bts.push({html:o.aprov==='pendente'?'<i class="fas fa-signature"></i> Aprovar':'<i class="fas fa-rotate-left"></i> Desaprovar',acao:()=>{setTimeout(()=>aprovarConta(o,o.aprov==='pendente'),10);}});
     if(pagoC(o)&&pode('contas'))bts.push({html:'<i class="fas fa-rotate-left"></i> Desfazer pagamento',acao:()=>{setTimeout(()=>desfazerPagamento(o),10);}});
-    if(!pagoC(o)&&pode('contas')&&(o.aprov!=='pendente'||souAdmin()))bts.push({html:'<i class="fas fa-circle-check"></i> Registrar pagamento',acao:()=>{setTimeout(()=>pagarConta(o),10);}});
+    if(!pagoC(o)&&pode('contas')&&(o.aprov!=='pendente'||souAdmin())&&o.tipo==='Real')bts.push({html:'<i class="fas fa-circle-check"></i> Registrar pagamento',acao:()=>{setTimeout(()=>pagarConta(o),10);}});
     if(ed)bts.push({html:'<i class="fas fa-floppy-disk"></i> Salvar',cls:'pri',acao:async j=>{const u=await lerCamposConta(j,o);C.finalizarConta(u);await gravarConta(u,o);toast('Conta atualizada.','success');}});
     else bts.push({html:'Fechar'});
-    janela(o.forn||'Conta a pagar',corpo,bts,700);
-    if(ed)ligarCamposConta(document.getElementById('fin-jan'));
+    janela(o.forn||'Conta a pagar',corpo,bts,740);
+    if(ed)ligarCamposConta(jan());
   }
   function excluirConta(o){confirmar('Excluir conta',`<b>${fe(o.forn||o.desc)}</b> · ${fmt(val(o.total))} será excluída de vez.`,'Sim, excluir',async()=>{await executar(()=>excluir(o._t==='c'?'Custos':'Despesas',o.rowid));toast('Conta excluída.','success');});}
 
-  /* ═══════════════ FATURAMENTO E RECEBIMENTOS — quadro ═══════════════ */
-  const COLS_F=[{k:'faturar',rot:'A faturar (sem nota)',cor:'#B54708',ico:'fa-file-pen'},{k:'receber',rot:'Nota emitida · a receber',cor:'#1652D8',ico:'fa-file-invoice-dollar'},{k:'recebida',rot:'Recebida',cor:'#067647',ico:'fa-circle-check'}];
+  /* ═══════════════ FATURAMENTO E RECEBIMENTOS (ligado às medições) ═══════════════ */
+  const COLS_F=[{k:'medicao',rot:'Medição em andamento',cor:'#7F56D9',ico:'fa-ruler-combined'},{k:'faturar',rot:'Aprovada · a faturar',cor:'#B54708',ico:'fa-file-pen'},{k:'receber',rot:'Nota emitida · a receber',cor:'#1652D8',ico:'fa-file-invoice-dollar'},{k:'recebida',rot:'Recebida',cor:'#067647',ico:'fa-circle-check'}];
   const KF=()=>Fa.KF();
   const recebidaF=(r,K)=>{const d=dt(r[K.rec]);return !!(Fa.ehReal(r,K)&&d&&d<=hoje0());};
-  const colFat=r=>{const K=KF();return !Fa.ehReal(r,K)?'faturar':recebidaF(r,K)?'recebida':'receber';};
   const liqF=r=>{const K=KF();return val(r[K.liq])||Fa.liqDe(r,K);};
-  function cartaoFat(r){
-    const K=KF(),col=colFat(r),venc=Fa.vencF(r,K);
-    return `<article class="vk-card" style="--cor:${COLS_F.find(c=>c.k===col).cor}" draggable="${pode('faturamento')?'true':'false'}" data-card="${r.rowid}" tabindex="0">
+  const valorMed=m=>Eng.valorMed(m);
+  const ehAprov=m=>/aprovad/i.test(m.status||''),ehFatMed=m=>/faturad/i.test(m.status||'');
+  // um item do quadro: medição ainda sem nota ('m') ou faturamento ('f')
+  function itensFat(){
+    const K=KF(),fats=D().faturamentos||[],ligadas=new Set(fats.map(f=>String(f.medicao_rowid||'')).filter(Boolean));
+    const meds=(D().medicoes||[]).filter(m=>!ehFatMed(m)&&!ligadas.has(String(m.rowid))).map(m=>({k:'m',id:'m'+m.rowid,r:m,obra:m.titulo_obra||'',col:ehAprov(m)?'faturar':'medicao',bruto:valorMed(m),liq:valorMed(m)*fatorLiq(m.titulo_obra),data:dt(m.data_aprovacao)||dt(m.data_medicao)}));
+    const fs=fats.map(r=>({k:'f',id:'f'+r.rowid,r,obra:r[K.obra]||'',col:!Fa.ehReal(r,K)?'faturar':recebidaF(r,K)?'recebida':'receber',bruto:val(r[K.bruto]),liq:liqF(r),data:recebidaF(r,K)?dt(r[K.rec]):Fa.vencF(r,K)||dt(r[K.lanc])}));
+    return meds.concat(fs);
+  }
+  // quanto sobra da nota depois das retenções, pelos percentuais da obra
+  function fatorLiq(ob){const K=KF(),p=Fa.pctObra(ob,K);return 1-(p.inss+p.irpf+p.simples+p.antec)/100;}
+  const STM={'Em elaboração':['em elaboração',''],'Enviada à fiscalização':['na fiscalização','info']};
+  function cartaoFat(x){
+    const K=KF(),cc=COLS_F.find(c=>c.k===x.col),r=x.r;
+    if(x.k==='m'){const d=dt(r.data_aprovacao)||dt(r.data_medicao),parado=x.col==='faturar'&&d?dias(d,hoje0()):0;
+      return `<article class="vk-card" style="--cor:${cc.cor}" draggable="${pode('faturamento')?'true':'false'}" data-card="${x.id}" tabindex="0">
+        <div class="vk-top"><b>Medição nº ${fe(r.numero||'?')}</b>${pill(x.col==='faturar'?'aprovada':(STM[r.status]||[r.status||'medição'])[0],x.col==='faturar'?'ok':(STM[r.status]||['',''])[1],'fa-ruler-combined')}</div>
+        <div class="vk-obra" title="${fe(x.obra)}"><i class="fas fa-helmet-safety"></i>${fe(x.obra)}</div>
+        ${r.periodo_ini||r.periodo_fim?`<div class="vk-sub">período ${r.periodo_ini?brDe(dt(r.periodo_ini)).slice(0,5):'—'} a ${r.periodo_fim?brDe(dt(r.periodo_fim)).slice(0,5):'—'}</div>`:''}
+        <div class="vk-val"><span>bruto</span><b>${fmt(x.bruto)}</b></div>
+        <div class="vk-pe">${x.col==='faturar'?(parado>5?pill(`aprovada há ${parado} dias sem nota`,'err'):pill('emitir a nota','warn','fa-file-pen')):pill(d?'medida em '+brDe(d).slice(0,5):'medição','')}</div>
+      </article>`;}
+    const venc=Fa.vencF(r,K);
+    return `<article class="vk-card" style="--cor:${cc.cor}" draggable="${pode('faturamento')?'true':'false'}" data-card="${x.id}" tabindex="0">
       <div class="vk-top"><b>${r[K.nf]?'NF '+fe(r[K.nf]):r.medicao_numero?'Medição nº '+fe(r.medicao_numero):'Faturamento previsto'}</b>${r.medicao_numero&&r[K.nf]?pill('med. '+fe(r.medicao_numero),''):''}</div>
-      <div class="vk-obra" title="${fe(r[K.obra]||'')}"><i class="fas fa-helmet-safety"></i>${fe(r[K.obra]||'—')}</div>
-      <div class="vk-val"><span>bruto ${fmt(val(r[K.bruto]))}</span><b>${fmt(liqF(r))}</b></div>
-      <div class="vk-pe">${col==='faturar'?pill('emitir a nota','warn','fa-file-pen'):vencePill(venc?isoDe(venc):'',col==='recebida'?r[K.rec]:'','recebida')}</div>
+      <div class="vk-obra" title="${fe(x.obra)}"><i class="fas fa-helmet-safety"></i>${fe(x.obra||'—')}</div>
+      <div class="vk-val"><span>bruto ${fmt(x.bruto)}</span><b>${fmt(x.liq)}</b></div>
+      <div class="vk-pe">${x.col==='faturar'?pill('emitir a nota','warn','fa-file-pen'):vencePill(venc?isoDe(venc):'',x.col==='recebida'?r[K.rec]:'','recebida')}</div>
     </article>`;
   }
+  function filtrarFat(l){const f=QF,K=KF();return l.filter(x=>{
+    if(f.busca){const q=cn(f.busca);if(!cn([x.obra,x.k==='m'?'medição '+x.r.numero:x.r[K.nf],x.r.medicao_numero,n2(x.bruto),n2(x.liq)].join(' ')).includes(q))return false;}
+    if(f.obra&&x.obra!==f.obra)return false;
+    if(f.mes&&(!x.data||isoDe(x.data).slice(0,7)!==f.mes))return false;
+    if(f.semNF&&!(x.k==='f'&&Fa.ehReal(x.r,K)&&!String(x.r[K.nf]||'').trim()))return false;
+    return true;});}
   function renderQuadroFat(){
     const box=document.getElementById('gs-faturamento-q');if(!box)return;
-    const K=KF(),h=hoje0(),f=QF,todos=D().faturamentos||[];
-    const aRec=todos.filter(r=>colFat(r)==='receber'),atr=aRec.filter(r=>{const v=Fa.vencF(r,K);return v&&v<h;}),em30=aRec.filter(r=>{const v=Fa.vencF(r,K);return v&&v>=h&&v<=addD(h,30);});
-    const fat=todos.filter(r=>colFat(r)==='faturar'),recMes=todos.filter(r=>recebidaF(r,K)&&isoDe(dt(r[K.rec])).slice(0,7)===mesHoje());
-    const S=a=>a.reduce((s,r)=>s+liqF(r),0),SB=a=>a.reduce((s,r)=>s+val(r[K.bruto]),0);
-    const filtrados=todos.filter(r=>{
-      if(f.busca){const q=cn(f.busca);if(!cn([r[K.nf],r[K.obra],r.medicao_numero].join(' ')).includes(q))return false;}
-      if(f.obra&&r[K.obra]!==f.obra)return false;
-      if(f.mes){const d=recebidaF(r,K)?dt(r[K.rec]):Fa.vencF(r,K)||dt(r[K.lanc]);if(!d||isoDe(d).slice(0,7)!==f.mes)return false;}
-      return true;});
-    const lim=addD(h,-30),vis=filtrados.filter(r=>colFat(r)!=='recebida'||f.antigas||f.mes||dt(r[K.rec])>=lim);
-    const cols=COLS_F.map(c=>{const itens=vis.filter(r=>colFat(r)===c.k).sort(c.k==='recebida'?(a,b)=>(dt(b[K.rec])||0)-(dt(a[K.rec])||0):(a,b)=>(Fa.vencF(a,K)||dt(a[K.lanc])||0)-(Fa.vencF(b,K)||dt(b[K.lanc])||0));return {c,itens,total:S(itens)};});
+    const K=KF(),h=hoje0(),f=QF,todos=itensFat(),S=a=>a.reduce((s,x)=>s+x.liq,0),SB=a=>a.reduce((s,x)=>s+x.bruto,0);
+    const aRec=todos.filter(x=>x.col==='receber'),atr=aRec.filter(x=>{const v=Fa.vencF(x.r,K);return v&&v<h;}),em30=aRec.filter(x=>{const v=Fa.vencF(x.r,K);return v&&v>=h&&v<=addD(h,30);});
+    const aFat=todos.filter(x=>x.col==='faturar'),parados=aFat.filter(x=>x.k==='m'&&x.data&&dias(x.data,h)>5),recMes=todos.filter(x=>x.col==='recebida'&&isoDe(dt(x.r[K.rec])).slice(0,7)===mesHoje());
+    const filtrados=filtrarFat(todos),lim=addD(h,-30),vis=filtrados.filter(x=>x.col!=='recebida'||f.antigas||f.mes||dt(x.r[K.rec])>=lim);
+    const cols=COLS_F.map(c=>{const itens=vis.filter(x=>x.col===c.k).sort(c.k==='recebida'?(a,b)=>(b.data||0)-(a.data||0):(a,b)=>(a.data||0)-(b.data||0));const tb=c.k==='medicao'||c.k==='faturar';return {c,itens,total:tb?SB(itens):S(itens),sub:`${itens.length} · ${fmt(tb?SB(itens):S(itens))}${tb?' bruto':''}`};});
     App._vkFat=filtrados;
+    const filtroAtivo=f.busca||f.obra||f.mes||f.semNF;
     box.innerHTML=`<div class="gf">
-      ${cabG('Faturamento e recebimentos','O "contas a receber" das obras. A medição aprovada vira faturamento <b>a faturar</b>; ao emitir a nota, arraste para <b>Nota emitida</b> (pede o nº e a data); quando o dinheiro entrar, arraste para <b>Recebida</b>. Sem data combinada, o sistema espera o dinheiro no prazo médio que aquela obra costuma pagar (30 dias, enquanto não há histórico).',modosHtml('faturamento')+'<button type="button" class="gf-bt" data-vk="exportar"><i class="fas fa-file-excel"></i> Exportar</button>'+(pode('faturamento')?'<button type="button" class="gf-bt pri" data-vk="nova"><i class="fas fa-plus"></i> Nova nota</button>':''))}
+      ${cabG('Faturamento e recebimentos','O caminho do dinheiro das obras, ligado às medições: a medição lançada aparece em <b>Medição em andamento</b>; aprovada pela fiscalização, vai para <b>A faturar</b>; ao emitir a nota (arraste ou abra o cartão) ela vira <b>Nota emitida</b>; quando o dinheiro entra, arraste para <b>Recebida</b>. Sem data combinada, o sistema espera o dinheiro no prazo médio que aquela obra costuma pagar (30 dias, enquanto não há histórico).','<button type="button" class="gf-bt" data-vk="imprimir"><i class="fas fa-print"></i> Imprimir</button><button type="button" class="gf-bt" data-vk="exportar"><i class="fas fa-file-excel"></i> Exportar</button>'+(pode('medicoes')?'<button type="button" class="gf-bt" data-vk="medicao"><i class="fas fa-ruler-combined"></i> Nova medição</button>':'')+(pode('faturamento')?'<button type="button" class="gf-bt pri" data-vk="nova"><i class="fas fa-plus"></i> Nota avulsa</button>':''))}
+      ${parados.length?`<div class="vk-aviso" style="background:#FEF3F2;color:#912018"><i class="fas fa-triangle-exclamation"></i><div><b>${parados.length} medição(ões) aprovada(s) há mais de 5 dias sem nota</b> — ${fmt(SB(parados))} parado. Cada dia sem nota atrasa o recebimento um dia.</div></div>`:''}
       <div class="gf-kpis">
         ${kpiG(atr.length?'vermelho':'verde','fa-triangle-exclamation','Recebimento atrasado',Rk(S(atr)),atr.length?`${atr.length} nota(s) — cobrar a contratante`:'nenhuma nota atrasada')}
         ${kpiG('laranja','fa-hourglass-half','A receber em 30 dias',Rk(S(em30)),`${em30.length} nota(s) · total a receber ${Rk(S(aRec))}`)}
-        ${kpiG('roxo','fa-file-pen','A faturar',Rk(SB(fat)),`${fat.length} medição(ões) sem nota`)}
+        ${kpiG('roxo','fa-file-pen','A faturar',Rk(SB(aFat)),`${aFat.length} medição(ões) aprovada(s) esperando nota`)}
         ${kpiG('verde','fa-circle-check','Recebido no mês',Rk(S(recMes)),`${recMes.length} nota(s) em ${mesNome(mesHoje()).split(' ')[0]}`)}
       </div>
-      <div class="vk-filtros"><div class="pl2-busca"><i class="fas fa-magnifying-glass"></i><input data-vkf="busca" placeholder="Nº da nota, obra, medição…" value="${fe(f.busca)}"></div>
+      <div class="vk-filtros"><div class="pl2-busca"><i class="fas fa-magnifying-glass"></i><input data-vkf="busca" placeholder="Nº da nota, obra, medição, valor…" value="${fe(f.busca)}"></div>
         <select data-vkf="obra"><option value="">Todas as obras</option>${opsObra().map(o=>`<option ${f.obra===o?'selected':''}>${fe(o)}</option>`).join('')}</select>
         <label class="vk-chk">Mês <input type="month" data-vkf="mes" value="${fe(f.mes)}"></label>
-        <label class="vk-chk"><input type="checkbox" data-vkf="antigas" ${f.antigas?'checked':''}> Recebidas há mais de 30 dias</label></div>
-      ${colunasHtml(cols,cartaoFat,{faturar:'Nenhuma medição esperando nota',receber:'Notas emitidas aparecem aqui até o dinheiro entrar',recebida:'Arraste para cá a nota que foi paga'})}
+        <label class="vk-chk"><input type="checkbox" data-vkf="antigas" ${f.antigas?'checked':''}> Recebidas há mais de 30 dias</label>
+        <label class="vk-chk"><input type="checkbox" data-vkf="semNF" ${f.semNF?'checked':''}> Nota sem número</label>
+        ${filtroAtivo?'<a href="#" class="vk-chk" data-vk="limpar"><i class="fas fa-xmark"></i> Limpar filtros</a>':''}</div>
+      ${colunasHtml(cols,cartaoFat,{medicao:'Medições lançadas e ainda não aprovadas aparecem aqui',faturar:'Medição aprovada esperando a nota fiscal',receber:'Notas emitidas aparecem aqui até o dinheiro entrar',recebida:'Arraste para cá a nota que foi paga'})}
       ${analiseFat(todos)}
     </div>`;
     ligarQuadroFat(box);
   }
   function analiseFat(todos){
-    const K=KF(),h=hoje0(),ano=String(h.getFullYear()),um=addD(h,-365);
-    const rec=todos.filter(r=>recebidaF(r,K)&&dt(r[K.em])&&dt(r[K.rec])>=um);
+    const K=KF(),h=hoje0(),ano=String(h.getFullYear()),um=addD(h,-365),fats=D().faturamentos||[];
+    // do medido ao recebido, por obra (obras com medição ou nota nos últimos 12 meses)
+    const obras=[...new Set((D().medicoes||[]).map(m=>m.titulo_obra).concat(fats.map(r=>r[K.obra])).filter(Boolean))];
+    const fluxo=obras.map(ob=>{const ms=(D().medicoes||[]).filter(m=>m.titulo_obra===ob),fs=fats.filter(r=>r[K.obra]===ob);
+      const medido=ms.reduce((s,m)=>s+valorMed(m),0),faturado=fs.filter(r=>Fa.ehReal(r,K)).reduce((s,r)=>s+val(r[K.bruto]),0),recebido=fs.filter(r=>recebidaF(r,K)).reduce((s,r)=>s+val(r[K.bruto]),0);
+      return {ob,medido,faturado,recebido};}).filter(x=>x.medido||x.faturado).sort((a,b)=>(b.medido-b.recebido)-(a.medido-a.recebido)).slice(0,5);
+    const rec=fats.filter(r=>recebidaF(r,K)&&dt(r[K.em])&&dt(r[K.rec])>=um);
     const prazo={};rec.forEach(r=>{const ob=r[K.obra]||'—',d=dias(dt(r[K.em]),dt(r[K.rec]));(prazo[ob]=prazo[ob]||[]).push(d);});
     const med=a=>a.reduce((s,x)=>s+x,0)/a.length,prazos=Object.entries(prazo).map(([ob,a])=>[ob,med(a),a.length]).sort((a,b)=>b[1]-a[1]),geral=rec.length?med(rec.map(r=>dias(dt(r[K.em]),dt(r[K.rec])))):null;
-    const doAno=todos.filter(r=>Fa.ehReal(r,K)&&String(isoDe(dt(r[K.em])||dt(r[K.lanc])||h)).slice(0,4)===ano),T=k=>doAno.reduce((s,r)=>s+val(r[K[k]]),0);
+    // tempo da medição aprovada até a nota (gargalo interno)
+    const ligadas=fats.filter(r=>r.medicao_rowid&&dt(r[K.em])).map(r=>{const m=(D().medicoes||[]).find(x=>String(x.rowid)===String(r.medicao_rowid));const a=m&&(dt(m.data_aprovacao)||dt(m.data_medicao));return a?dias(a,dt(r[K.em])):null;}).filter(x=>x!=null&&x>=0);
+    const doAno=fats.filter(r=>Fa.ehReal(r,K)&&String(isoDe(dt(r[K.em])||dt(r[K.lanc])||h)).slice(0,4)===ano),T=k=>doAno.reduce((s,r)=>s+val(r[K[k]]),0);
     const bruto=T('bruto'),ret=[['INSS retido',T('inss'),'#0071E3'],['IRPF retido',T('irpf'),'#1DAA6C'],['Simples Nacional',T('simples'),'#F79009'],['Antecipação de notas',T('antec'),'#F04438'],['Seguro',T('seguro'),'#7F56D9']].filter(x=>x[1]>0),maxR=Math.max(...ret.map(x=>x[1]),1);
-    const aRec=todos.filter(r=>colFat(r)==='receber'),porOb={};aRec.forEach(r=>{const ob=r[K.obra]||'—';porOb[ob]=(porOb[ob]||0)+liqF(r);});const porObL=Object.entries(porOb).sort((a,b)=>b[1]-a[1]).slice(0,6);
-    if(!rec.length&&!ret.length&&!porObL.length)return '';
-    return `<div class="gf-sec"><div class="gf-sec-cab"><div><h3>Análise do faturamento</h3><p>Quanto tempo a contratante leva para pagar, o que fica retido nas notas no ano e onde está o dinheiro a receber.</p></div></div>
+    if(!fluxo.length&&!rec.length&&!ret.length)return '';
+    const maxF=Math.max(...fluxo.map(x=>x.medido),1);
+    return `<div class="gf-sec"><div class="gf-sec-cab"><div><h3>Análise do faturamento</h3><p>Onde o dinheiro das obras está parado: entre medir e faturar, entre faturar e receber — e o que fica retido nas notas.</p></div></div>
       <div class="vk-analise">
-        ${prazos.length?`<div class="vk-bloco"><h4>Prazo médio de recebimento${geral!=null?` · ${Math.round(geral)} dias`:''}</h4>${prazos.slice(0,6).map(([ob,d,n])=>barra(ob,d,prazos[0][1],d>45?'#F04438':d>30?'#F79009':'#1DAA6C',`${Math.round(d)} dias · ${n} nota${n>1?'s':''}`)).join('')}<p>Da emissão da nota ao dinheiro na conta (últimos 12 meses). Cada dia a mais é capital de giro que a empresa financia — use esse prazo na Viabilidade e no Fluxo projetado.</p></div>`:''}
+        ${fluxo.length?`<div class="vk-bloco"><h4>Do medido ao recebido</h4>${fluxo.map(x=>`<div style="margin:6px 0 2px;font-size:11.5px;color:#6e6e73;font-weight:700" title="${fe(x.ob)}">${fe(x.ob.length>34?x.ob.slice(0,34)+'…':x.ob)}${x.medido-x.faturado>1?` · <span style="color:#B54708">${Rk(x.medido-x.faturado)} medido sem nota</span>`:''}</div>${barra('Medido',x.medido,maxF,'#7F56D9')}${barra('Faturado',x.faturado,maxF,'#1652D8')}${barra('Recebido',x.recebido,maxF,'#1DAA6C')}`).join('')}<p>A diferença entre as barras é capital de giro que a Vixsul está financiando para a contratante.</p></div>`:''}
+        ${prazos.length||ligadas.length?`<div class="vk-bloco"><h4>Tempo do dinheiro</h4>${ligadas.length?barra('Medição aprovada → nota',med(ligadas),Math.max(med(ligadas),geral||0,1),med(ligadas)>5?'#F04438':'#1DAA6C',`${Math.round(med(ligadas))} dias`):''}${prazos.slice(0,5).map(([ob,d,n])=>barra(ob,d,prazos[0][1],d>45?'#F04438':d>30?'#F79009':'#1DAA6C',`${Math.round(d)} dias · ${n} nota${n>1?'s':''}`)).join('')}<p>${geral!=null?`Da nota ao dinheiro na conta: <b>${Math.round(geral)} dias</b> em média (últimos 12 meses). `:''}O tempo entre a aprovação e a nota depende só da Vixsul — mire em até 2 dias.</p></div>`:''}
         ${ret.length?`<div class="vk-bloco"><h4>Retenções e custos das notas em ${ano}</h4>${ret.map(([r,v,c])=>barra(r,v,maxR,c,Rk(v)+(bruto?' · '+pct(v/bruto*100,1):''))).join('')}<p>${T('inss')>0?`<b>INSS retido (${Rk(T('inss'))}) é crédito da empresa</b>: confira com o contador se está sendo compensado na folha (DCTFWeb) — senão é dinheiro parado. `:''}${T('antec')>0?`Antecipar notas custou ${Rk(T('antec'))} no ano — compare com o custo de um capital de giro bancário.`:''}</p></div>`:''}
-        ${porObL.length?`<div class="vk-bloco"><h4>A receber por obra</h4>${porObL.map(([k,v])=>barra(k,v,porObL[0][1],'#1652D8')).join('')}</div>`:''}
       </div></div>`;
   }
+  const acharF=id=>itensFat().find(x=>x.id===id);
   function ligarQuadroFat(box){
     const re=()=>renderQuadroFat();
     box.oninput=ev=>{const t=ev.target.closest('[data-vkf="busca"]');if(t){QF.busca=t.value;clearTimeout(QF._t);QF._t=setTimeout(()=>{re();const i=document.querySelector('#gs-faturamento-q [data-vkf="busca"]');if(i){i.focus();i.setSelectionRange(i.value.length,i.value.length);}},280);}};
     box.onchange=ev=>{const t=ev.target.closest('[data-vkf]');if(!t||t.dataset.vkf==='busca')return;QF[t.dataset.vkf]=t.type==='checkbox'?t.checked:t.value;re();};
     box.onclick=ev=>{
       const b=ev.target.closest('[data-vk]');if(b){ev.preventDefault();const a=b.dataset.vk;
-        if(a==='nova'){trocarModo('faturamento','planilha');setTimeout(()=>document.querySelector('#gs-faturamento [data-pl2="add"]')?.click(),60);return;}
-        if(a==='exportar')return exportarFat();return;}
-      const c=ev.target.closest('[data-card]');if(c){const r=(D().faturamentos||[]).find(x=>String(x.rowid)===c.dataset.card);if(r)fichaFat(r);}
+        if(a==='nova')return fichaNota(null);
+        if(a==='medicao'){Eng._ME.edit=null;if(QF.obra)Eng._ME.obra=QF.obra;return UI.nav('medicoes');}
+        if(a==='limpar'){Object.assign(QF,{busca:'',obra:'',mes:'',semNF:false});return re();}
+        if(a==='exportar')return exportarFat();
+        if(a==='imprimir')return imprimirFat();
+        return;}
+      const c=ev.target.closest('[data-card]');if(c){const x=acharF(c.dataset.card);if(x)(x.k==='m'?fichaMedicao(x):fichaNota(x.r));}
     };
-    box.onkeydown=ev=>{if(ev.key!=='Enter')return;const c=ev.target.closest('[data-card]');if(c){const r=(D().faturamentos||[]).find(x=>String(x.rowid)===c.dataset.card);if(r)fichaFat(r);}};
-    if(!box._arraste){box._arraste=1;ligarArraste(box,(id,col)=>{const r=(D().faturamentos||[]).find(x=>String(x.rowid)===id);if(!r)return;const de=colFat(r);if(de===col)return;
+    box.onkeydown=ev=>{if(ev.key!=='Enter')return;const c=ev.target.closest('[data-card]');if(c){const x=acharF(c.dataset.card);if(x)(x.k==='m'?fichaMedicao(x):fichaNota(x.r));}};
+    if(!box._arraste){box._arraste=1;ligarArraste(box,(id,col)=>{const x=acharF(id);if(!x)return;const de=x.col;if(de===col)return;
       if(!pode('faturamento'))return toast('Seu perfil não mexe no faturamento.','error');
-      if(col==='receber'&&de==='faturar')return emitirNota(r);
-      if(col==='recebida')return de==='faturar'?toast('Emita a nota antes (arraste para "Nota emitida").','error'):receberNota(r);
-      if(de==='recebida'&&col==='receber')return desfazerRecebimento(r);
-      if(col==='faturar')return toast('Para voltar a nota para "a faturar", use a Planilha.','error');});}
+      if(x.k==='m'){
+        if(col==='faturar')return aprovarMedicao(x.r);
+        if(col==='medicao')return voltarMedicao(x.r);
+        if(col==='receber')return de==='faturar'?emitirNota(x):toast('A medição precisa ser aprovada antes (arraste para "A faturar").','error');
+        return toast('Emita a nota antes (arraste para "Nota emitida").','error');}
+      if(col==='receber'&&de==='faturar')return emitirNota(x);
+      if(col==='recebida')return de==='faturar'?toast('Emita a nota antes (arraste para "Nota emitida").','error'):receberNota(x.r);
+      if(de==='recebida'&&col==='receber')return desfazerRecebimento(x.r);
+      if(col==='medicao')return toast('A nota já existe — para mexer na medição, abra a tela de Medições.','error');
+      if(col==='faturar')return toast('Para cancelar a nota, abra o cartão e use "Excluir" ou corrija os dados.','error');});}
   }
+  const linhasFat=l=>{const K=KF();return l.map(x=>{const r=x.r,v=x.k==='f'?Fa.vencF(r,K):null;return x.k==='m'?[x.obra,'',r.numero,'',n2(x.bruto),'','','','','','',n2(x.liq)+' (estimado)','','',COLS_F.find(c=>c.k===x.col).rot]:[x.obra,r[K.nf]||'',r.medicao_numero||'',dt(r[K.em])?brDe(dt(r[K.em])):'',n2(val(r[K.bruto])),n2(val(r[K.inss])),n2(val(r[K.irpf])),n2(val(r[K.simples])),n2(val(r[K.antec])),n2(val(r[K.seguro])),'',n2(x.liq),v?brDe(v):'',recebidaF(r,K)?brDe(dt(r[K.rec])):'',Fa.sitF(r,K)[0]];});};
   function exportarFat(){
-    const K=KF(),l=App._vkFat||[];if(!l.length)return toast('Nada para exportar neste filtro.','error');
-    GS.baixarCSV('faturamento',['Obra','Nº NF','Medição','Emissão','Bruto','INSS','IRPF','Simples','Antecipação','Seguro','Líquido','Vencimento','Recebida em','Situação'],
-      l.map(r=>{const v=Fa.vencF(r,K);return [r[K.obra],r[K.nf],r.medicao_numero||'',dt(r[K.em])?brDe(dt(r[K.em])):'',n2(val(r[K.bruto])),n2(val(r[K.inss])),n2(val(r[K.irpf])),n2(val(r[K.simples])),n2(val(r[K.antec])),n2(val(r[K.seguro])),n2(liqF(r)),v?brDe(v):'',recebidaF(r,K)?brDe(dt(r[K.rec])):'',Fa.sitF(r,K)[0]];}));
-    toast(`${l.length} nota(s) exportada(s).`,'success');
+    const l=App._vkFat||[];if(!l.length)return toast('Nada para exportar neste filtro.','error');
+    GS.baixarCSV('faturamento',['Obra','Nº NF','Medição','Emissão','Bruto','INSS','IRPF','Simples','Antecipação','Seguro','','Líquido','Vencimento','Recebida em','Situação'],linhasFat(l));
+    toast(`${l.length} item(ns) exportado(s) — abra o arquivo no Excel.`,'success');
+  }
+  function imprimirFat(){
+    const K=KF(),l=(App._vkFat||[]).slice().sort((a,b)=>COLS_F.findIndex(c=>c.k===a.col)-COLS_F.findIndex(c=>c.k===b.col)||(a.data||0)-(b.data||0));
+    imprimirLista('Faturamento e recebimentos',[QF.obra||'Todas as obras',QF.mes?cap(mesNome(QF.mes)):'Todos os meses'],
+      [{l:'Situação'},{l:'Obra'},{l:'NF / medição'},{l:'Emissão'},{l:'Bruto',d:1},{l:'Líquido',d:1},{l:'Vencimento / recebida'}],
+      l.map(x=>{const r=x.r,v=x.k==='f'?Fa.vencF(r,K):null;return [COLS_F.find(c=>c.k===x.col).rot,fe(x.obra),x.k==='m'?'Medição nº '+fe(r.numero):(r[K.nf]?'NF '+fe(r[K.nf]):'—')+(r.medicao_numero?' · med. '+fe(r.medicao_numero):''),x.k==='f'&&dt(r[K.em])?brDe(dt(r[K.em])):'—',fmt(x.bruto),fmt(x.liq),x.col==='recebida'?'recebida '+brDe(dt(r[K.rec])):v?brDe(v):'—'];}),
+      `<div style="margin-top:12px;font-size:12px">Bruto: <b>${fmt(l.reduce((s,x)=>s+x.bruto,0))}</b> · líquido: <b>${fmt(l.reduce((s,x)=>s+x.liq,0))}</b></div>`);
   }
   const copiaF=r=>{const o={...r};delete o.rowid;delete o.visualId;delete o._aba;return o;};
-  async function gravarFat(o,r){await executar(()=>salvar('Faturamentos',o,r.rowid));}
-  function emitirNota(r){
-    const K=KF(),b=val(r[K.bruto]),p=Fa.temRet(r,K)?null:Fa.pctObra(r[K.obra],K);
-    const ret=k=>p?b*p[k]/100:val(r[K[k]]);
-    janela('Emitir a nota',`<div class="fin-resumo"><b>${fe(r[K.obra]||'')}</b>${r.medicao_numero?' · medição nº '+fe(r.medicao_numero):''}<br>Valor bruto: <b>${fmt(b)}</b></div>
+  // medição: aprovar / voltar para a fiscalização (o mesmo registro que a tela de Medições usa)
+  function aprovarMedicao(m){
+    if(!pode('medicoes')&&!pode('faturamento'))return toast('Seu perfil não mexe em medições.','error');
+    janela('Medição aprovada',`<div class="fin-resumo"><b>Medição nº ${fe(m.numero)}</b> · ${fe(m.titulo_obra)}<br>Valor: <b>${fmt(valorMed(m))}</b></div>
+      <div class="fin-fld"><label>Data da aprovação pela fiscalização</label><input type="date" data-k="d" max="${isoDe(hoje0())}" value="${isoDe(hoje0())}"></div>`,
+      [{html:'Cancelar'},{html:'<i class="fas fa-check"></i> Aprovada',cls:'pri',acao:async j=>{const d=j.querySelector('[data-k="d"]').value;if(!d)throw new Error('Informe a data.');
+        await executar(()=>salvar('Medições',{...copiaF(m),status:'Aprovada',data_aprovacao:d},m.rowid));toast('Medição aprovada — agora está em "A faturar".','success');}}],480);
+  }
+  function voltarMedicao(m){confirmar('Voltar para a fiscalização',`A medição nº ${fe(m.numero)} volta para "Enviada à fiscalização".`,'Sim, voltar',async()=>{await executar(()=>salvar('Medições',{...copiaF(m),status:'Enviada à fiscalização'},m.rowid));toast('Medição voltou para a fiscalização.','success');});}
+  // emitir a nota: de uma medição aprovada (cria o faturamento ligado a ela) ou de um faturamento previsto
+  function emitirNota(x){
+    const K=KF(),r=x.r,ehM=x.k==='m',ob=x.obra,b=ehM?valorMed(r):val(r[K.bruto]);
+    const pcts=(!ehM&&Fa.temRet(r,K)&&b>0)?{inss:val(r[K.inss])/b*100,irpf:val(r[K.irpf])/b*100,simples:val(r[K.simples])/b*100,antec:val(r[K.antec])/b*100}:Fa.pctObra(ob,K);
+    const pf=v=>(Math.round(v*100)/100).toLocaleString('pt-BR',{maximumFractionDigits:2});
+    const j=janela('Emitir a nota',`<div class="fin-resumo"><b>${fe(ob)}</b>${ehM?' · medição nº '+fe(r.numero):r.medicao_numero?' · medição nº '+fe(r.medicao_numero):''}</div>
       <div class="fin-linha"><div class="fin-fld"><label>Nº da nota fiscal <span class="obg">*</span></label><input data-k="nf" inputmode="numeric" placeholder="Ex.: 1234"></div>
       <div class="fin-fld"><label>Data de emissão <span class="obg">*</span></label><input type="date" data-k="em" value="${isoDe(hoje0())}"></div>
       <div class="fin-fld"><label>Valor bruto (R$)</label><input data-k="bruto" data-mask="moeda" inputmode="numeric" value="${fmt(b)}"></div>
-      <div class="fin-fld"><label>Recebimento combinado</label><input type="date" data-k="rec" title="Vazio = 30 dias depois da emissão"></div></div>
-      <div class="fin-aviso"><div>Retenções ${p?'pelos percentuais da última nota da obra (ou o padrão: INSS 3,5% · IRPF 1% · Simples 4,5% · Antecipação 2,37%)':'já lançadas'}: INSS ${fmt(ret('inss'))} · IRPF ${fmt(ret('irpf'))} · Simples ${fmt(ret('simples'))} · Antecipação ${fmt(ret('antec'))}. Ajuste os valores na Planilha, se precisar.</div></div>`,
-      [{html:'Cancelar'},{html:'<i class="fas fa-file-invoice"></i> Emitir',cls:'pri',acao:async j=>{
-        const nf=j.querySelector('[data-k="nf"]').value.trim(),em=j.querySelector('[data-k="em"]').value,nb=Mascara.numero(j.querySelector('[data-k="bruto"]').value)||b,rec=j.querySelector('[data-k="rec"]').value;
-        if(!nf)throw new Error('Informe o nº da nota.');if(!em)throw new Error('Informe a data de emissão.');
-        const o=copiaF(r),fat=nb/(b||nb);o[K.tipo]='Real';o[K.nf]=nf;o[K.em]=em;o[K.bruto]=dinheiro(nb);if(rec)o[K.rec]=rec;
-        ['inss','irpf','simples','antec'].forEach(k=>{o[K[k]]=dinheiro(p?nb*p[k]/100:val(r[K[k]])*fat);});if(!o[K.seguro])o[K.seguro]='0.00';
-        o[K.liq]=dinheiro(Fa.liqDe(o,K));
-        await gravarFat(o,r);toast('Nota emitida — agora está em "a receber".','success');}}],560);
+      <div class="fin-fld"><label>Recebimento combinado</label><input type="date" data-k="rec" title="Vazio = prazo médio da obra"></div>
+      <div class="fin-fld"><label>% INSS</label><input data-k="inss" inputmode="decimal" value="${pf(pcts.inss)}"></div>
+      <div class="fin-fld"><label>% IRPF</label><input data-k="irpf" inputmode="decimal" value="${pf(pcts.irpf)}"></div>
+      <div class="fin-fld"><label>% Simples</label><input data-k="simples" inputmode="decimal" value="${pf(pcts.simples)}"></div>
+      <div class="fin-fld"><label>% Antecipação da nota</label><input data-k="antec" inputmode="decimal" value="${pf(pcts.antec)}" title="Zere se a nota não for antecipada"></div>
+      <div class="fin-fld"><label>Seguro do contrato (R$)</label><input data-k="seguro" data-mask="moeda" inputmode="numeric" value="${!ehM&&val(r[K.seguro])?fmt(val(r[K.seguro])):''}" placeholder="R$ 0,00"></div></div>
+      <div class="fin-resumo" data-liq></div>`,
+      [{html:'Cancelar'},{html:'<i class="fas fa-file-invoice"></i> Emitir',cls:'pri',acao:async jj=>{
+        const c=calc(jj),nf=jj.querySelector('[data-k="nf"]').value.trim(),em=jj.querySelector('[data-k="em"]').value,rec=jj.querySelector('[data-k="rec"]').value;
+        if(!nf)throw new Error('Informe o nº da nota.');if(!em)throw new Error('Informe a data de emissão.');if(!(c.bruto>0))throw new Error('Informe o valor bruto.');if(c.liq<0)throw new Error('As retenções passam do valor bruto.');
+        const o=ehM?{}:copiaF(r),kf=(k,fb)=>U.col('faturamentos',[k],fb);
+        Object.assign(o,{[K.obra]:ob,[K.tipo]:'Real',[K.nf]:nf,[K.em]:em,[K.bruto]:dinheiro(c.bruto),[K.inss]:dinheiro(c.inss),[K.irpf]:dinheiro(c.irpf),[K.simples]:dinheiro(c.simples),[K.antec]:dinheiro(c.antec),[K.seguro]:dinheiro(c.seguro),[K.liq]:dinheiro(c.liq)});
+        if(rec)o[K.rec]=rec;else if(ehM)o[K.rec]='';
+        if(ehM){o[K.lanc]=todayDateTime();o.medicao_rowid=String(r.rowid);o.medicao_numero=String(r.numero||'');if(!o[K.antecData])o[K.antecData]='';}
+        await executar(async()=>{await salvar('Faturamentos',o,ehM?null:r.rowid);if(ehM)await salvar('Medições',{...copiaF(r),status:'Faturada',faturado_em:todayDateTime()},r.rowid);});
+        toast('Nota emitida — agora está em "a receber".','success');}}],640);
+    function calc(jj){const g=k=>Mascara.numero(jj.querySelector(`[data-k="${k}"]`).value)||0,bb=g('bruto');
+      const c={bruto:bb,inss:Math.round(bb*g('inss'))/100,irpf:Math.round(bb*g('irpf'))/100,simples:Math.round(bb*g('simples'))/100,antec:Math.round(bb*g('antec'))/100,seguro:g('seguro')};c.liq=Math.round((bb-c.inss-c.irpf-c.simples-c.antec-c.seguro)*100)/100;
+      jj.querySelector('[data-liq]').innerHTML=`Retenções: INSS ${fmt(c.inss)} · IRPF ${fmt(c.irpf)} · Simples ${fmt(c.simples)} · Antecipação ${fmt(c.antec)}${c.seguro?' · Seguro '+fmt(c.seguro):''}<br>Líquido a receber: <b style="color:var(--blue);font-size:15px">${fmt(c.liq)}</b>`;return c;}
+    calc(j);j.oninput=()=>calc(j);
   }
   function receberNota(r){
     const K=KF();
-    janela('Registrar recebimento',`<div class="fin-resumo"><b>${r[K.nf]?'NF '+fe(r[K.nf]):'Nota'}</b> · ${fe(r[K.obra]||'')}<br>Líquido: <b>${fmt(liqF(r))}</b></div>
+    janela('Registrar recebimento',`<div class="fin-resumo"><b>${r[K.nf]?'NF '+fe(r[K.nf]):'Nota'}</b> · ${fe(r[K.obra]||'')}<br>Líquido esperado: <b>${fmt(liqF(r))}</b></div>
       <div class="fin-fld"><label>Data em que entrou na conta</label><input type="date" data-k="data" max="${isoDe(hoje0())}" value="${isoDe(hoje0())}"></div>`,
       [{html:'Cancelar'},{html:'<i class="fas fa-circle-check"></i> Confirmar recebimento',cls:'pri',acao:async j=>{
         const d=j.querySelector('[data-k="data"]').value;if(!d)throw new Error('Informe a data.');if(d>isoDe(hoje0()))throw new Error('A data não pode ser depois de hoje.');
-        const o=copiaF(r);o[K.rec]=d;await gravarFat(o,r);toast('Recebimento registrado.','success');}}],480);
+        const o=copiaF(r);o[K.rec]=d;await executar(()=>salvar('Faturamentos',o,r.rowid));toast('Recebimento registrado.','success');}}],480);
   }
-  function desfazerRecebimento(r){const K=KF();confirmar('Desfazer recebimento',`${r[K.nf]?'A NF '+fe(r[K.nf]):'A nota'} volta para "a receber".`,'Sim, desfazer',async()=>{const o=copiaF(r);o[K.rec]='';await gravarFat(o,r);toast('Voltou para "a receber".','success');});}
-  function fichaFat(r){
-    const K=KF(),col=colFat(r),cc=COLS_F.find(c=>c.k===col),s=Fa.sitF(r,K),v=Fa.vencF(r,K);
+  function desfazerRecebimento(r){const K=KF();confirmar('Desfazer recebimento',`${r[K.nf]?'A NF '+fe(r[K.nf]):'A nota'} volta para "a receber".`,'Sim, desfazer',async()=>{const o=copiaF(r);o[K.rec]='';await executar(()=>salvar('Faturamentos',o,r.rowid));toast('Voltou para "a receber".','success');});}
+  function fichaMedicao(x){
+    const m=x.r,rm=Eng.resumoMedicoes(m.titulo_obra),cc=COLS_F.find(c=>c.k===x.col);
     const corpo=`<div class="vk-ficha-cab"><span class="vk-etq" style="--cor:${cc.cor}"><i class="fas ${cc.ico}"></i> ${cc.rot}</span>
-        <div class="vk-num"><span>Bruto</span><b>${fmt(val(r[K.bruto]))}</b></div><div class="vk-num"><span>Líquido</span><b>${fmt(liqF(r))}</b></div><div class="vk-num"><span>Situação</span><b>${pill(s[0],s[1]==='cinza'?'':s[1])}</b></div></div>
+        <div class="vk-num"><span>Valor medido</span><b>${fmt(x.bruto)}</b></div><div class="vk-num"><span>Líquido estimado</span><b>${fmt(x.liq)}</b></div></div>
       <ul class="vk-lista">
-        <li><i class="fas fa-helmet-safety"></i> <b>${fe(r[K.obra]||'—')}</b>${r.medicao_numero?' · medição nº '+fe(r.medicao_numero):''}</li>
-        <li><i class="fas fa-file-invoice"></i> ${r[K.nf]?'NF '+fe(r[K.nf])+' · emitida em '+brDe(dt(r[K.em])):'Nota ainda não emitida'}</li>
-        <li><i class="fas fa-scale-balanced"></i> INSS ${fmt(val(r[K.inss]))} · IRPF ${fmt(val(r[K.irpf]))} · Simples ${fmt(val(r[K.simples]))} · Antecipação ${fmt(val(r[K.antec]))}${val(r[K.seguro])?' · Seguro '+fmt(val(r[K.seguro])):''}</li>
-        ${col!=='faturar'?`<li><i class="fas fa-calendar-day"></i> ${recebidaF(r,K)?'Recebida em '+brDe(dt(r[K.rec])):'Vence '+(v?brDe(v):'—')}</li>`:''}
+        <li><i class="fas fa-helmet-safety"></i> <b>${fe(m.titulo_obra)}</b> · medição nº ${fe(m.numero)}</li>
+        <li><i class="fas fa-calendar-day"></i> Período ${m.periodo_ini?brDe(dt(m.periodo_ini)):'—'} a ${m.periodo_fim?brDe(dt(m.periodo_fim)):'—'} · medida em ${brDe(dt(m.data_medicao))}${m.data_aprovacao?' · aprovada em '+brDe(dt(m.data_aprovacao)):''}</li>
+        <li><i class="fas fa-scale-balanced"></i> Situação: ${fe(m.status||'—')}${rm.contrato?` · acumulado da obra ${pct(rm.pct)} do contrato · saldo ${fmt(rm.saldo)}`:''}</li>
       </ul>`;
-    const bts=[];
+    const bts=[{html:'<i class="fas fa-ruler-combined"></i> Abrir a medição',acao:()=>{setTimeout(()=>{Eng._ME.obra=m.titulo_obra;Eng._ME.edit=null;UI.nav('medicoes');},10);}}];
     if(pode('faturamento')){
-      bts.push({html:'<i class="fas fa-table"></i> Editar na planilha',acao:()=>{setTimeout(()=>{trocarModo('faturamento','planilha');GS.abrirPlanilha('faturamento',{obra:r[K.obra]||'',aba:'todas',busca:r[K.nf]||''});},10);}});
-      if(col==='faturar')bts.push({html:'<i class="fas fa-file-invoice"></i> Emitir a nota',cls:'pri',acao:()=>{setTimeout(()=>emitirNota(r),10);}});
-      if(col==='receber')bts.push({html:'<i class="fas fa-circle-check"></i> Registrar recebimento',cls:'pri',acao:()=>{setTimeout(()=>receberNota(r),10);}});
-      if(col==='recebida')bts.push({html:'<i class="fas fa-rotate-left"></i> Desfazer recebimento',acao:()=>{setTimeout(()=>desfazerRecebimento(r),10);}});
+      if(x.col==='medicao')bts.push({html:'<i class="fas fa-check"></i> Aprovada pela fiscalização',cls:'pri',acao:()=>{setTimeout(()=>aprovarMedicao(m),10);}});
+      if(x.col==='faturar'){bts.push({html:'<i class="fas fa-rotate-left"></i> Voltar para a fiscalização',acao:()=>{setTimeout(()=>voltarMedicao(m),10);}});bts.push({html:'<i class="fas fa-file-invoice"></i> Emitir a nota',cls:'pri',acao:()=>{setTimeout(()=>emitirNota(x),10);}});}
     }
     bts.push({html:'Fechar'});
-    janela(r[K.nf]?'NF '+r[K.nf]:'Faturamento',corpo,bts,680);
+    janela('Medição nº '+(m.numero||''),corpo,bts,660);
+  }
+  // nota: todos os campos (o que a planilha tinha), com o líquido calculado na hora
+  function fichaNota(r){
+    const K=KF(),nova=!r;r=r||{[K.tipo]:'Real'};
+    const col=nova?'receber':(!Fa.ehReal(r,K)?'faturar':recebidaF(r,K)?'recebida':'receber'),cc=COLS_F.find(c=>c.k===col),s=nova?['nova','']:Fa.sitF(r,K),v=nova?null:Fa.vencF(r,K);
+    const ed=pode('faturamento'),mo=k=>val(r[K[k]])?fmt(val(r[K[k]])):'';
+    const campos=`<div class="fin-linha">
+      <div class="fin-fld" style="grid-column:1/-1"><label>Obra <span class="obg">*</span></label><select data-k="obra"><option value="">Escolha…</option>${opsObra().map(o=>`<option ${o===r[K.obra]?'selected':''}>${fe(o)}</option>`).join('')}${r[K.obra]&&!opsObra().includes(r[K.obra])?`<option selected>${fe(r[K.obra])}</option>`:''}</select></div>
+      <div class="fin-fld"><label>Tipo</label><select data-k="tipo"><option value="Real" ${Fa.ehReal(r,K)?'selected':''}>Nota emitida (Real)</option><option value="Previsto" ${!Fa.ehReal(r,K)?'selected':''}>A faturar (Previsto)</option></select></div>
+      <div class="fin-fld"><label>Nº da nota</label><input data-k="nf" inputmode="numeric" value="${fe(r[K.nf]||'')}"></div>
+      <div class="fin-fld"><label>Emissão</label><input type="date" data-k="em" value="${dt(r[K.em])?isoDe(dt(r[K.em])):''}"></div>
+      <div class="fin-fld"><label>Valor bruto (R$) <span class="obg">*</span></label><input data-k="bruto" data-mask="moeda" inputmode="numeric" value="${mo('bruto')}"></div>
+      <div class="fin-fld"><label>INSS (R$)</label><input data-k="inss" data-mask="moeda" inputmode="numeric" value="${mo('inss')}"></div>
+      <div class="fin-fld"><label>IRPF (R$)</label><input data-k="irpf" data-mask="moeda" inputmode="numeric" value="${mo('irpf')}"></div>
+      <div class="fin-fld"><label>Simples (R$)</label><input data-k="simples" data-mask="moeda" inputmode="numeric" value="${mo('simples')}"></div>
+      <div class="fin-fld"><label>Antecipação da nota (R$)</label><input data-k="antec" data-mask="moeda" inputmode="numeric" value="${mo('antec')}"></div>
+      <div class="fin-fld"><label>Seguro do contrato (R$)</label><input data-k="seguro" data-mask="moeda" inputmode="numeric" value="${mo('seguro')}"></div>
+      <div class="fin-fld"><label>Antecipada em</label><input type="date" data-k="antecData" value="${dt(r[K.antecData])?isoDe(dt(r[K.antecData])):''}"></div>
+      <div class="fin-fld"><label>Recebimento (combinado ou recebida em)</label><input type="date" data-k="rec" value="${dt(r[K.rec])?isoDe(dt(r[K.rec])):''}"></div>
+    </div><div class="fin-resumo" data-liq></div>`;
+    const corpo=(nova?'':`<div class="vk-ficha-cab"><span class="vk-etq" style="--cor:${cc.cor}"><i class="fas ${cc.ico}"></i> ${cc.rot}</span>
+        <div class="vk-num"><span>Líquido</span><b>${fmt(liqF(r))}</b></div><div class="vk-num"><span>Situação</span><b>${pill(s[0],s[1]==='cinza'?'':s[1])}</b></div></div>
+      <ul class="vk-lista">${r.medicao_numero?`<li><i class="fas fa-ruler-combined"></i> Medição nº ${fe(r.medicao_numero)}</li>`:''}${col!=='faturar'?`<li><i class="fas fa-calendar-day"></i> ${recebidaF(r,K)?'Recebida em '+brDe(dt(r[K.rec])):'Vence '+(v?brDe(v):'—')}</li>`:''}</ul>`)+(ed?campos:'');
+    const bts=[];
+    if(ed&&!nova){
+      bts.push({html:'<i class="fas fa-trash"></i> Excluir',acao:()=>{setTimeout(()=>confirmar('Excluir nota',`${r[K.nf]?'A NF '+fe(r[K.nf]):'O faturamento'} de ${fe(r[K.obra]||'')} (${fmt(val(r[K.bruto]))}) será excluído.${r.medicao_rowid?' A medição volta para "A faturar".':''}`,'Sim, excluir',async()=>{
+        await executar(async()=>{await excluir('Faturamentos',r.rowid);const m=r.medicao_rowid&&(D().medicoes||[]).find(x=>String(x.rowid)===String(r.medicao_rowid));if(m)await salvar('Medições',{...copiaF(m),status:'Aprovada'},m.rowid);});toast('Nota excluída.','success');}),10);}});
+      if(col==='faturar')bts.push({html:'<i class="fas fa-file-invoice"></i> Emitir a nota',acao:()=>{setTimeout(()=>emitirNota({k:'f',r,obra:r[K.obra]||''}),10);}});
+      if(col==='receber')bts.push({html:'<i class="fas fa-circle-check"></i> Registrar recebimento',acao:()=>{setTimeout(()=>receberNota(r),10);}});
+      if(col==='recebida')bts.push({html:'<i class="fas fa-rotate-left"></i> Desfazer recebimento',acao:()=>{setTimeout(()=>desfazerRecebimento(r),10);}});
+    }
+    if(ed)bts.push({html:'<i class="fas fa-floppy-disk"></i> Salvar',cls:'pri',acao:async j=>{
+      const g=k=>(j.querySelector(`[data-k="${k}"]`)||{}).value||'',m=k=>dinheiro(num(g(k)));
+      const o=nova?{[K.lanc]:todayDateTime()}:copiaF(r);
+      Object.assign(o,{[K.obra]:g('obra'),[K.tipo]:g('tipo'),[K.nf]:g('nf').trim(),[K.em]:g('em'),[K.bruto]:m('bruto'),[K.inss]:m('inss'),[K.irpf]:m('irpf'),[K.simples]:m('simples'),[K.antec]:m('antec'),[K.seguro]:m('seguro'),[K.antecData]:g('antecData'),[K.rec]:g('rec')});
+      if(!o[K.obra])throw new Error('Escolha a obra.');if(!(val(o[K.bruto])>0))throw new Error('Informe o valor bruto.');
+      if(o[K.tipo]==='Real'&&(!o[K.nf]||!o[K.em]))throw new Error('Nota emitida precisa do nº e da data de emissão.');
+      if(dt(o[K.rec])&&dt(o[K.rec])<=hoje0()&&o[K.tipo]!=='Real')throw new Error('Para registrar o recebimento, a nota precisa estar emitida (Real).');
+      o[K.liq]=dinheiro(val(o[K.bruto])-['inss','irpf','simples','antec','seguro'].reduce((s,k)=>s+val(o[K[k]]),0));if(val(o[K.liq])<0)throw new Error('As retenções passam do valor bruto.');
+      await executar(()=>salvar('Faturamentos',o,nova?null:r.rowid));toast(nova?'Nota lançada.':'Nota atualizada.','success');}});
+    else bts.push({html:'Fechar'});
+    janela(nova?'Nota avulsa (sem medição)':r[K.nf]?'NF '+r[K.nf]:'Faturamento',corpo,bts,760);
+    const j=jan();
+    if(ed){const liq=()=>{const g=k=>Mascara.numero((j.querySelector(`[data-k="${k}"]`)||{}).value)||0;const l=g('bruto')-g('inss')-g('irpf')-g('simples')-g('antec')-g('seguro');const e=j.querySelector('[data-liq]');if(e)e.innerHTML=`Líquido a receber: <b style="color:var(--blue);font-size:15px">${fmt(l)}</b>${l<0?' <span style="color:#B42318">— retenções maiores que o bruto</span>':''}`;};
+      // nota nova: retenções pelos percentuais da obra quando digita o bruto
+      j.oninput=ev=>{const k=ev.target.dataset.k;if(nova&&(k==='bruto'||k==='obra')){const ob=j.querySelector('[data-k="obra"]').value,b=Mascara.numero(j.querySelector('[data-k="bruto"]').value)||0;if(ob&&b){const p=Fa.pctObra(ob,K);['inss','irpf','simples','antec'].forEach(x=>{const el=j.querySelector(`[data-k="${x}"]`);if(el&&!el.dataset.mexeu)el.value=Mascara.brl(Math.round(b*p[x])/100);});}}else if(k&&['inss','irpf','simples','antec'].includes(k))ev.target.dataset.mexeu='1';liq();};
+      j.onchange=()=>liq();liq();}
   }
 
-  /* ═══════════════ quadro ↔ planilha ═══════════════ */
-  function trocarModo(v,m){
-    if(MODO[v]===m)return;
-    if(m==='quadro'&&PL2.sujo()&&!window.confirm('Há linhas alteradas e não salvas na planilha. Trocar e perder as alterações?'))return;
-    MODO[v]=m;try{localStorage.setItem('vx_modo_'+v,m);}catch(e){}
-    App._renderEng(v);
-  }
-  const BOX={contas:['gs-contas-q','gs-contas'],faturamento:['gs-faturamento-q','gs-faturamento']};
-  PL2.telas.contas.cabExtra=()=>modosHtml('contas');
-  PL2.telas.faturamento.cabExtra=()=>modosHtml('faturamento');
+  /* ═══════════════ ligação com o resto do sistema ═══════════════ */
+  const BOX={contas:'gs-contas-q',faturamento:'gs-faturamento-q'};
   const re=App._renderEng;
   App._renderEng=function(v){
     if(!BOX[v])return re.apply(this,arguments);
-    const [q,p]=BOX[v].map(id=>document.getElementById(id));
-    if(q)q.style.display=MODO[v]==='quadro'?'':'none';if(p)p.style.display=MODO[v]==='quadro'?'none':'';
-    if(MODO[v]==='quadro'){try{v==='contas'?renderQuadroContas():renderQuadroFat();}catch(e){console.error(e);}}
-    else return re.apply(this,arguments);
+    // a planilha antiga fica escondida: tudo acontece no quadro
+    const p=document.getElementById(v==='contas'?'gs-contas':'gs-faturamento');if(p){p.style.display='none';p.innerHTML='';}
+    try{v==='contas'?renderQuadroContas():renderQuadroFat();}catch(e){console.error(e);}
   };
-  // as abas Quadro/Planilha (no cabeçalho das duas)
-  ['view-contas','view-faturamento'].forEach(id=>{const el=document.getElementById(id);if(el)el.addEventListener('click',ev=>{const b=ev.target.closest('[data-modo]');if(b){ev.preventDefault();trocarModo(id.slice(5),b.dataset.modo);}});});
-  // atalhos que abrem a planilha filtrada (Início, avisos, painel da obra) mostram a planilha
-  const ab=GS.abrirPlanilha;
-  GS.abrirPlanilha=(v,filtros)=>{if(v==='contas'||v==='faturamento'||v==='custosobra'||v==='despesas'){const k=v==='faturamento'?'faturamento':'contas';
-      // pedidos "do dia a dia" (a pagar / a receber) abrem o quadro; filtros específicos abrem a planilha
-      const quadro=!filtros||(filtros.aba==='abertas'&&!filtros.obra&&!filtros.busca);
-      MODO[k]=quadro?'quadro':'planilha';
-      if(quadro){if(k==='contas')Object.assign(QC,{obra:'',mes:'',busca:'',aprovar:false});else Object.assign(QF,{obra:'',mes:'',busca:''});}}
-    return ab(v,filtros);};
-  // a tela antiga "Contas a pagar e receber" não desenha mais nada (o quadro e a planilha fazem tudo)
   App._renderContas=()=>{};
-  GS.quadros={renderQuadroContas,renderQuadroFat,fichaNovaConta,trocarModo,MODO,QC,QF};
+  // medições: a tela de Medições e o quadro de faturamento se atualizam juntos
+  const ra=App.renderAll;
+  App.renderAll=function(){ra.apply(this,arguments);try{const v=Object.keys(BOX).find(x=>document.getElementById('view-'+x)?.classList.contains('active'));if(v)App._renderEng(v);}catch(e){console.error(e);}};
+  // atalhos que antes abriam a planilha filtrada agora abrem o quadro com o filtro equivalente
+  const ab=GS.abrirPlanilha;
+  GS.abrirPlanilha=(v,filtros)=>{
+    filtros=filtros||{};
+    if(v==='contas'||v==='custosobra'||v==='despesas'){Object.assign(QC,{busca:filtros.busca||'',obra:filtros.obra||'',mes:filtros.mes||'',aprovar:false,semForn:!!filtros.semForn,antigas:filtros.aba==='pagas'||!!filtros.semForn});UI.nav('contas');return;}
+    if(v==='faturamento'){Object.assign(QF,{busca:filtros.busca||'',obra:filtros.obra||'',mes:filtros.mes||'',semNF:!!filtros.semNF,antigas:filtros.aba==='todas'&&!!filtros.obra});UI.nav('faturamento');return;}
+    return ab(v,filtros);};
+  GS.quadros={renderQuadroContas,renderQuadroFat,fichaNovaConta,fichaNota,emitirNota,QC,QF,itensFat};
 })();
 </script>
 <script>
 /* ═══════════════════════════ OBRAS E CONTRATOS · PLANEJAMENTO E CRONOGRAMA ═══════════════════════════
-   • Obras e Contratos viraram uma tela só (abas Obras | Contratos) e a central da obra ganhou
-     a aba Contrato (a mesma ficha, linha do tempo e avisos da tela de contratos).
+   • A antiga tela "Obras" virou o quadro de CONTRATOS (proposta → aguardando resultado → ganha
+     → em execução → entregue) e a central da obra ganhou a aba Contrato.
    • O cronograma (etapas: datas, peso, avanço) passou a ser editado dentro do Planejamento
      da obra, junto do caminho crítico — a aba "Avanço & Gantt" da obra ficou só para o
      usuário externo (fiscal), que só consulta.
@@ -14898,19 +15069,158 @@ const Mascara=(function(){
   const {janela,confirmar,executar,salvar,excluir,fe,cn,dt,brDe,isoDe,hoje0,addD,dias,dinheiro,val}=U;
   const ehExt=()=>!!(Auth._session&&Auth._session.tipoUsuario==='externo');
 
-  /* ═══════════════ OBRAS | CONTRATOS ═══════════════ */
-  const OBM={modo:'obras'};
-  function aplicarModoObras(){
-    const vw=document.getElementById('view-obras');if(!vw)return;
-    const podeCt=pode('contratos')&&!ehExt(),barra=document.getElementById('ob-modos');
-    if(!podeCt)OBM.modo='obras';
-    if(barra){barra.style.display=podeCt?'':'none';barra.querySelectorAll('[data-obmodo]').forEach(b=>b.classList.toggle('on',b.dataset.obmodo===OBM.modo));}
-    const ct=OBM.modo==='contratos';
-    vw.querySelectorAll(':scope > .view-toolbar, :scope > .cards-scroll:not(#ob-contratos-wrap)').forEach(el=>el.style.display=ct?'none':'');
-    const w=document.getElementById('ob-contratos-wrap');if(w)w.style.display=ct?'':'none';
-    if(ct){try{Eng.renderContratos();}catch(e){console.error(e);}}
+  /* ═══════════════ CONTRATOS — quadro da proposta à obra entregue ═══════════════
+     A antiga tela "Obras" virou este quadro: cada obra é um cartão que anda pelas fases
+     (proposta → aguardando resultado → ganha → em execução → entregue). Arrastar o cartão
+     muda a situação (pede a data que interessa: envio, ordem de serviço, entrega). O cartão
+     abre a central da obra (Resumo, Obra, Contrato, CAP, Orçamento). */
+  const COLS_OB=[
+    {k:'proposta',rot:'Proposta em preparação',cor:'#6B7280',ico:'fa-pen-ruler',st:'Não Enviada'},
+    {k:'aguardando',rot:'Aguardando resultado',cor:'#B54708',ico:'fa-hourglass-half',st:'Enviada - Aguardando Resultado'},
+    {k:'ganha',rot:'Ganha · aguardando início',cor:'#7F56D9',ico:'fa-flag',st:'Ganha - Aguardando Liberação'},
+    {k:'execucao',rot:'Em execução',cor:'#1652D8',ico:'fa-helmet-safety',st:'Ganha - Em Andamento'},
+    {k:'entregue',rot:'Entregue',cor:'#067647',ico:'fa-circle-check',st:'Ganha - Finalizada'},
+    {k:'perdida',rot:'Perdida',cor:'#B42318',ico:'fa-circle-xmark',st:'Perdida - Por Preço'}];
+  const QO={busca:'',perdidas:false,antigas:false};
+  const colObra=o=>{const s=cn(Eng.statusObra(o));if(s.includes('perdida'))return 'perdida';if(s.includes('finalizada'))return 'entregue';if(s.includes('andamento'))return 'execucao';if(s.includes('ganha'))return 'ganha';if(s.includes('nao enviada'))return 'proposta';if(s.includes('aguardando')||s.includes('enviada'))return 'aguardando';return 'proposta';};
+  const pillO=(t,c,ico)=>`<span class="vk-pill ${c||''}">${ico?`<i class="fas ${ico}"></i>`:''}${t}</span>`;
+  const kR=(o,kws,fb)=>U.kRow(o,kws,fb);
+  const quando=n=>n<0?`há ${-n} dia${n<-1?'s':''}`:n===0?'hoje':`em ${n} dia${n>1?'s':''}`;
+  function obrasVisiveis(){
+    let l=D().obras||[];
+    if(ehExt()){const p=((Auth._session||{}).obrasPermitidas||[]).map(String);l=l.filter(o=>p.includes(String(o.rowid)));}
+    return l;
   }
-  document.getElementById('ob-modos')?.addEventListener('click',ev=>{const b=ev.target.closest('[data-obmodo]');if(!b)return;OBM.modo=b.dataset.obmodo;if(OBM.modo==='obras')Eng._CT.obra='';aplicarModoObras();document.querySelector('#view-obras .cards-scroll')?.scrollTo(0,0);});
+  function dadosObra(o){
+    const ob=Eng.nomeObra(o),col=colObra(o),x={o,ob,col,alertas:[]},h=hoje0();
+    if(col==='proposta'||col==='aguardando'||col==='perdida'){
+      const orc=(D().orcamentos||[]).filter(r=>cn(getFuzzy(r,['titulo','nome_obra','titulo_obra']))===cn(ob)).sort((a,b)=>(dt(getFuzzy(b,['data_lancamento']))||0)-(dt(getFuzzy(a,['data_lancamento']))||0))[0];
+      x.valor=orc?val(orc.total_obra):0;x.lim=dt(getFuzzy(o,['limite_proposta']));x.envio=dt(getFuzzy(o,['envio_proposta']));
+    }else{
+      try{x.i=Eng.infoContrato(o);}catch(e){}
+      try{x.rm=Eng.resumoMedicoes(ob);}catch(e){}
+      try{if(col==='execucao')x.s=Eng.saude(o);}catch(e){}
+      x.valor=(x.i&&x.i.vigente)||(x.rm&&x.rm.contrato)||(x.s&&x.s.receita)||0;
+      x.saldo=x.rm&&x.rm.contrato?Math.max(0,x.rm.saldo):0;
+      x.dO=Eng.datasObra(o);
+      const i=x.i;
+      if(col!=='entregue'&&i){
+        if(i.vig&&i.diasVig<0)x.alertas.push(['err','vigência acabou','A vigência do contrato acabou em '+brDe(i.vig)+' — sem vigência não há aditivo nem pagamento de serviço novo.']);
+        else if(i.vig&&i.diasVig<=60)x.alertas.push(['warn','vigência '+quando(i.diasVig),'A vigência acaba em '+brDe(i.vig)+': aditivo de prazo precisa ser assinado antes.']);
+        if(i.sGar==='vermelho')x.alertas.push(['err','garantia vencida','A garantia contratual venceu'+(i.garVal?' em '+brDe(i.garVal):'')+' — peça o endosso à seguradora.']);
+        else if(i.sGar==='amarelo')x.alertas.push(['warn','garantia','A garantia vence antes do fim da vigência ou não foi informada.']);
+        if(i.reajDisp)x.alertas.push(['info','reajuste disponível','Reajuste disponível desde '+brDe(i.reaj)+' — peça por ofício (não é automático).']);
+        if(Math.abs(i.adPct)>20)x.alertas.push([Math.abs(i.adPct)>25?'err':'warn','aditivos '+pct(i.adPct),'Aditivos de valor somam '+pct(i.adPct)+' (limite legal 25%).']);
+      }
+      if(col==='execucao'&&x.dO&&x.dO.fim&&x.dO.fim<h)x.alertas.push(['err','prazo vencido','O prazo de execução terminou em '+brDe(x.dO.fim)+' — registre o aditivo de prazo ou finalize a obra.']);
+    }
+    return x;
+  }
+  function cartaoObra(x){
+    const c=COLS_OB.find(k=>k.k===x.col),h=hoje0(),pode1=pode('obras')&&!ehExt();
+    let meio='',pe='';
+    if(x.col==='proposta'){const n=x.lim?dias(h,x.lim):null;pe=x.lim?pillO('entrega '+(n<0?'passou':quando(n)),n!=null&&n<=3?'err':n<=7?'warn':'info','fa-flag-checkered'):pillO('sem limite de entrega','');}
+    else if(x.col==='aguardando'){pe=x.envio?pillO('enviada '+quando(dias(h,x.envio)),dias(x.envio,h)>60?'warn':'','fa-paper-plane'):pillO('aguardando resultado','');}
+    else if(x.col==='ganha'){pe=pillO('aguardando a ordem de serviço','roxo','fa-flag');}
+    else if(x.col==='execucao'&&x.s){const fis=x.s.fi.tem?x.s.fi.real:null,med=x.s.rm.contrato?x.s.rm.pct:null;
+      meio=`<div class="ob-prog" style="margin-top:6px"><div class="gf-barra ${x.s.sinal.prazo==='vermelho'?'err':x.s.sinal.prazo==='amarelo'?'warn':'ok'}"><i style="width:${Math.min(100,fis!=null?fis:med||0)}%"></i></div><span>${fis!=null?'físico '+pct(fis):'sem etapas'} · medido ${med!=null?pct(med):'—'}</span></div>`;
+      const f=x.dO&&x.dO.fim;pe=f?pillO(f<h?'prazo vencido há '+dias(f,h)+'d':'termina '+brDe(f).slice(0,5),f<h?'err':dias(h,f)<=30?'warn':'info','fa-calendar-day'):'';}
+    else if(x.col==='entregue'){const t=x.dO&&(x.dO.fimReal||x.dO.fim);pe=t?pillO('entregue '+brDe(t),'ok','fa-check'):pillO('entregue','ok','fa-check');}
+    else if(x.col==='perdida'){pe=pillO(String(Eng.statusObra(x.o)).split('-').slice(1).join('-').trim()||'perdida','err');}
+    const nCt=getFuzzy(x.o,['numero_contrato','num_contrato','n_contrato']);
+    const al=x.alertas.filter(a=>a[1]!=='prazo vencido').slice(0,2).map(a=>pillO(a[1],a[0],'fa-triangle-exclamation')).join('');
+    return `<article class="vk-card" style="--cor:${c.cor}" draggable="${pode1?'true':'false'}" data-card="${x.o.rowid}" tabindex="0">
+      <div class="vk-top"><b>${fe(x.ob)}</b></div>
+      ${nCt||getFuzzy(x.o,['descricao'])?`<div class="vk-sub">${fe([nCt?'contrato '+nCt:'',getFuzzy(x.o,['descricao'])].filter(Boolean).join(' · ').slice(0,90))}</div>`:''}
+      <div class="vk-val"><span>${x.col==='proposta'||x.col==='aguardando'||x.col==='perdida'?'proposta':x.saldo&&x.col!=='entregue'?'saldo a medir '+Rk(x.saldo):'contrato'}</span><b>${x.valor?Rk(x.valor):'—'}</b></div>
+      ${meio}
+      <div class="vk-pe">${pe}${al}</div>
+    </article>`;
+  }
+  function renderQuadroObras(){
+    const box=document.getElementById('ct-quadro');if(!box)return;
+    const h=hoje0(),f=QO,todos=obrasVisiveis().map(dadosObra),ext=ehExt();
+    const q=cn(f.busca),filtrados=todos.filter(x=>!q||cn([x.ob,getFuzzy(x.o,['numero_contrato','descricao'])].join(' ')).includes(q));
+    const lim=addD(h,-180),vis=filtrados.filter(x=>x.col!=='perdida'||f.perdidas).filter(x=>x.col!=='entregue'||f.antigas||!(x.dO&&(x.dO.fimReal||x.dO.fim))||(x.dO.fimReal||x.dO.fim)>=lim);
+    const cols=COLS_OB.filter(c=>c.k!=='perdida'||f.perdidas).map(c=>{const itens=vis.filter(x=>x.col===c.k).sort((a,b)=>c.k==='proposta'?((a.lim||9e15)-(b.lim||9e15)):c.k==='execucao'?((a.dO&&a.dO.fim||9e15)-(b.dO&&b.dO.fim||9e15)):a.ob.localeCompare(b.ob,'pt-BR'));return {c,itens,total:itens.reduce((s,x)=>s+(x.valor||0),0)};});
+    const S=a=>a.reduce((s,x)=>s+(x.valor||0),0),exec=todos.filter(x=>x.col==='execucao'),ganhas=todos.filter(x=>x.col==='ganha'),abertas=todos.filter(x=>x.col==='proposta'||x.col==='aguardando');
+    const saldoCart=exec.concat(ganhas).reduce((s,x)=>s+(x.saldo||(x.col==='ganha'?x.valor:0)),0);
+    const d90=addD(h,-90),medido3=(D().medicoes||[]).filter(m=>{const d=dt(m.data_medicao);return d&&d>=d90&&d<=h;}).reduce((s,m)=>s+Eng.valorMed(m),0)/3;
+    const nG=todos.filter(x=>['ganha','execucao','entregue'].includes(x.col)).length,nP=todos.filter(x=>x.col==='perdida').length;
+    App._ctTodos=todos;
+    box.innerHTML=`<div class="gf">
+      ${cabG('Contratos','Da proposta à obra entregue: cada obra é um cartão. Arraste o cartão para mudar a fase (o sistema pede a data de envio, da ordem de serviço ou da entrega); clique para abrir a obra — Resumo, dados, <b>Contrato</b> (vigência, garantia, reajuste, aditivos), CAP e orçamento.',(ext?'':'<button type="button" class="gf-bt" data-ct2="imprimir"><i class="fas fa-print"></i> Imprimir</button><button type="button" class="gf-bt" data-ct2="exportar"><i class="fas fa-file-excel"></i> Exportar</button>')+(pode('obras')&&!ext?'<button type="button" class="gf-bt pri" data-ct2="nova"><i class="fas fa-plus"></i> Nova proposta / obra</button>':''))}
+      ${ext?'':`<div class="gf-kpis">
+        ${kpiG('','fa-briefcase','Carteira a executar',Rk(saldoCart),medido3>0?`≈ ${fmtN(saldoCart/medido3,1)} mês(es) no ritmo atual de medição`:`${exec.length+ganhas.length} contrato(s)`)}
+        ${kpiG('','fa-helmet-safety','Em execução',String(exec.length),`contratos que somam ${Rk(S(exec))}`)}
+        ${kpiG('laranja','fa-file-signature','Propostas abertas',String(abertas.length),abertas.length?`${Rk(S(abertas))} em disputa`:'nenhuma proposta em aberto')}
+        ${kpiG(nG+nP&&nG/(nG+nP)<.25?'vermelho':'verde','fa-trophy','Taxa de sucesso',nG+nP?pct(nG/(nG+nP)*100):'—',`${nG} ganha(s) · ${nP} perdida(s)`)}
+      </div>`}
+      <div class="vk-filtros"><div class="pl2-busca"><i class="fas fa-magnifying-glass"></i><input data-ct2f="busca" placeholder="Obra, nº do contrato…" value="${fe(f.busca)}"></div>
+        <label class="vk-chk"><input type="checkbox" data-ct2f="perdidas" ${f.perdidas?'checked':''}> Mostrar perdidas</label>
+        <label class="vk-chk"><input type="checkbox" data-ct2f="antigas" ${f.antigas?'checked':''}> Entregues há mais de 6 meses</label></div>
+      ${GS.colunasHtml(cols,cartaoObra,{proposta:'Proposta nova entra aqui (botão "Nova proposta / obra")',aguardando:'Proposta enviada, esperando o resultado da licitação',ganha:'Contrato ganho, esperando a ordem de serviço',execucao:'Obras em andamento',entregue:'Obras concluídas',perdida:'Propostas perdidas'}).replace('class="vk-quadro"','class="vk-quadro vk-quadro-ct"')}
+      ${ext?'':analiseObras(todos,saldoCart,medido3)}
+    </div>`;
+    ligarQuadroObras(box);
+  }
+  function analiseObras(todos,saldoCart,medido3){
+    const h=hoje0(),barra=(rot,v,max,cor,txt)=>`<div class="vk-barra" style="--cor:${cor}"><span title="${fe(rot)}">${fe(rot)}</span><em><i style="width:${max?Math.max(2,Math.min(100,v/max*100)):0}%"></i></em><b>${txt}</b></div>`;
+    const acao=todos.filter(x=>x.alertas.length).flatMap(x=>x.alertas.map(a=>({x,a}))).sort((p,q)=>(p.a[0]==='err'?0:p.a[0]==='warn'?1:2)-(q.a[0]==='err'?0:q.a[0]==='warn'?1:2));
+    const cart=todos.filter(x=>x.col==='execucao'||x.col==='ganha').map(x=>[x.ob,x.saldo||(x.col==='ganha'?x.valor:0),x]).filter(y=>y[1]>0).sort((a,b)=>b[1]-a[1]);
+    // ritmo necessário: o que falta medir em cada obra ÷ meses até o término vigente
+    const nec=todos.filter(x=>x.col==='execucao'&&x.saldo>0).reduce((s,x)=>{const f=x.dO&&x.dO.fim;const m=f&&f>h?Math.max(1,(f.getFullYear()-h.getFullYear())*12+f.getMonth()-h.getMonth()+(f.getDate()>=h.getDate()?0:-1)+1):1;return s+x.saldo/m;},0);
+    const per=todos.filter(x=>x.col==='perdida'),porPreco=per.filter(x=>/pre[cç]o/i.test(Eng.statusObra(x.o))).length,canc=per.length-porPreco;
+    const lim7=todos.filter(x=>x.col==='proposta'&&x.lim&&dias(h,x.lim)>=0&&dias(h,x.lim)<=7);
+    const abertas=todos.filter(x=>x.col==='proposta'||x.col==='aguardando');
+    if(!acao.length&&!cart.length&&!per.length&&!abertas.length)return '';
+    const maxC=cart.length?cart[0][1]:1;
+    return `<div class="gf-sec"><div class="gf-sec-cab"><div><h3>Carteira e contratos</h3><p>O que pede ação nos contratos, o tamanho da carteira e se o ritmo de medição dá conta dos prazos.</p></div></div>
+      <div class="vk-analise">
+        <div class="vk-bloco"><h4>Contratos pedindo ação${acao.length?` · ${acao.length}`:''}</h4>${acao.length?acao.slice(0,8).map(({x,a})=>`<a href="#" data-ct2-al="${x.o.rowid}" style="display:block;text-decoration:none;color:inherit;margin:6px 0;font-size:12.5px;line-height:1.4">${pillO(a[1],a[0])} <b>${fe(x.ob.length>40?x.ob.slice(0,40)+'…':x.ob)}</b><br><span style="color:#6e6e73">${fe(a[2])}</span></a>`).join(''):'<p style="margin:0">Nenhum contrato com vigência, garantia, reajuste ou aditivo pedindo atenção.</p>'}</div>
+        ${cart.length?`<div class="vk-bloco"><h4>Saldo a medir por obra</h4>${cart.slice(0,6).map(([ob,v])=>barra(ob,v,maxC,'#1652D8',Rk(v))).join('')}<p>${saldoCart&&cart[0][1]/saldoCart>.5?`<b>${pct(cart[0][1]/saldoCart*100)} da carteira está numa obra só</b> — se ela parar, o caixa da empresa para junto. Busque novos contratos para diluir o risco.`:'Carteira bem distribuída entre as obras.'}</p></div>`:''}
+        ${nec>0?`<div class="vk-bloco"><h4>Ritmo de medição</h4>${barra('Necessário por mês',nec,Math.max(nec,medido3),nec>medido3*1.1?'#F04438':'#1DAA6C',Rk(nec))}${barra('Medido por mês (últimos 3 meses)',medido3,Math.max(nec,medido3),'#7F56D9',Rk(medido3))}<p>${medido3<nec*.9?`Para entregar as obras no prazo vigente, a produção precisa subir ${pct((nec/Math.max(medido3,1)-1)*100)} — reforce equipe/equipamento nas etapas críticas (Planejamento e cronograma) ou peça aditivo de prazo a tempo.`:'O ritmo atual de medição dá conta dos prazos vigentes.'}</p></div>`:''}
+        ${per.length||abertas.length?`<div class="vk-bloco"><h4>Comercial</h4>${barra('Propostas em disputa',abertas.reduce((s,x)=>s+(x.valor||0),0),Math.max(abertas.reduce((s,x)=>s+(x.valor||0),0),1),'#F79009',Rk(abertas.reduce((s,x)=>s+(x.valor||0),0)))}${per.length?barra('Perdidas por preço',porPreco,per.length,'#F04438',String(porPreco))+barra('Canceladas / outras',canc,per.length,'#8E8E93',String(canc)):''}<p>${lim7.length?`<b>${lim7.length} proposta(s) com entrega em até 7 dias.</b> `:''}${porPreco>canc&&porPreco>=2?'A maior parte das perdas é por preço: revise o BDI e a composição de custos (CAP) com base nos custos reais das obras já executadas.':'Use a Viabilidade de contrato antes de fechar o preço de cada proposta.'}</p></div>`:''}
+      </div></div>`;
+  }
+  // mudar a fase da obra arrastando o cartão (com a data que importa em cada passo)
+  function mudarFase(x,col){
+    const o=x.o,c=COLS_OB.find(k=>k.k===col),kSt=kR(o,['status_proposta','status_obra','status_da_obra','status'],'status_proposta');
+    const base=()=>{const r={...o};delete r.rowid;delete r.visualId;delete r._aba;return r;};
+    const gravar=async extra=>{await executar(()=>salvar('Obras',{...base(),[kSt]:extra.status||c.st,...extra.campos},o.rowid));toast(`${x.ob} → ${c.rot}.`,'success');};
+    const campoData=(rot,val0)=>`<div class="fin-fld"><label>${rot}</label><input type="date" data-k="d" value="${val0||isoDe(hoje0())}"></div>`;
+    if(col==='aguardando')return janela('Proposta enviada',`<div class="fin-resumo"><b>${fe(x.ob)}</b></div>${campoData('Data de envio da proposta',dt(getFuzzy(o,['envio_proposta']))?isoDe(dt(getFuzzy(o,['envio_proposta']))):'')}`,[{html:'Cancelar'},{html:'Confirmar',cls:'pri',acao:async j=>{const d=j.querySelector('[data-k="d"]').value;await gravar({campos:{[kR(o,['envio_proposta'],'envio_proposta')]:d}});}}],460);
+    if(col==='execucao'){const kI=kR(o,['inicio_obra','data_inicio'],'inicio_obra'),ini=dt(o[kI]);
+      return janela('Ordem de serviço',`<div class="fin-resumo"><b>${fe(x.ob)}</b><br>A obra começa a contar o prazo a partir da ordem de serviço.</div>${campoData('Data da ordem de serviço (início)',ini?isoDe(ini):'')}`,[{html:'Cancelar'},{html:'Obra em execução',cls:'pri',acao:async j=>{
+        const d=j.querySelector('[data-k="d"]').value;if(!d)throw new Error('Informe a data.');const campos={[kI]:d};
+        const pz=Number(String(getFuzzy(o,['duracao_prevista','prazo_contratual'])||'').replace(/\D/g,''))||0,kT=kR(o,['termino_previsto','data_termino_previsto'],'termino_previsto');
+        if(pz&&(!dt(o[kT])||!ini||isoDe(ini)!==d))campos[kT]=isoDe(addD(dt(d),pz));
+        await gravar({campos});}}],480);}
+    if(col==='entregue'){const kF=kR(o,['termino_ocorrido','data_termino_ocorrido'],'termino_ocorrido');
+      return janela('Obra entregue',`<div class="fin-resumo"><b>${fe(x.ob)}</b><br>Confira se há medição final a lançar e se a garantia/caução pode ser liberada.</div>${campoData('Data de término (entrega)',dt(o[kF])?isoDe(dt(o[kF])):'')}`,[{html:'Cancelar'},{html:'Obra entregue',cls:'pri',acao:async j=>{const d=j.querySelector('[data-k="d"]').value;if(!d)throw new Error('Informe a data.');await gravar({campos:{[kF]:d}});}}],480);}
+    if(col==='perdida')return janela('Proposta perdida',`<div class="fin-resumo"><b>${fe(x.ob)}</b></div><div class="fin-fld"><label>Motivo</label><select data-k="m"><option>Perdida - Por Preço</option><option>Perdida - Cancelada</option></select></div>`,[{html:'Cancelar'},{html:'Confirmar',cls:'pri',acao:async j=>{await gravar({status:j.querySelector('[data-k="m"]').value,campos:{}});}}],440);
+    confirmar('Mudar a fase',`<b>${fe(x.ob)}</b> vai para <b>${c.rot}</b>.`,'Sim, mudar',async()=>{await gravar({campos:{}});});
+  }
+  function abrirContrato(rowid){UI.openObraHub(+rowid);setTimeout(()=>{try{UI._obraHubTab('contrato');}catch(e){}},120);}
+  function ligarQuadroObras(box){
+    const re=()=>renderQuadroObras();
+    box.oninput=ev=>{const t=ev.target.closest('[data-ct2f="busca"]');if(t){QO.busca=t.value;clearTimeout(QO._t);QO._t=setTimeout(()=>{re();const i=document.querySelector('#ct-quadro [data-ct2f="busca"]');if(i){i.focus();i.setSelectionRange(i.value.length,i.value.length);}},280);}};
+    box.onchange=ev=>{const t=ev.target.closest('[data-ct2f]');if(!t||t.dataset.ct2f==='busca')return;QO[t.dataset.ct2f]=t.checked;re();};
+    box.onclick=ev=>{
+      const al=ev.target.closest('[data-ct2-al]');if(al){ev.preventDefault();return abrirContrato(al.dataset.ct2Al);}
+      const b=ev.target.closest('[data-ct2]');if(b){ev.preventDefault();const a=b.dataset.ct2;
+        if(a==='nova')return UI.openObraHub(null);
+        if(a==='exportar'){const l=App._ctTodos||[];GS.baixarCSV('contratos',['Obra','Fase','Situação','Nº contrato','Valor','Saldo a medir','Início','Término vigente','Alertas'],l.map(x=>[x.ob,COLS_OB.find(c=>c.k===x.col).rot,Eng.statusObra(x.o),getFuzzy(x.o,['numero_contrato'])||'',n2(x.valor||0),x.saldo?n2(x.saldo):'',x.dO&&x.dO.ini?brDe(x.dO.ini):'',x.dO&&x.dO.fim?brDe(x.dO.fim):'',x.alertas.map(a=>a[1]).join(' · ')]));return toast(`${l.length} obra(s) exportada(s).`,'success');}
+        if(a==='imprimir'){const l=(App._ctTodos||[]).filter(x=>x.col!=='perdida'||QO.perdidas).sort((p,q)=>COLS_OB.findIndex(c=>c.k===p.col)-COLS_OB.findIndex(c=>c.k===q.col));
+          return App._relExportPaginado({titulo:'Contratos',subLinhas:['Da proposta à obra entregue'],paisagem:true,theadHtml:'<tr><th>Fase</th><th>Obra</th><th>Nº contrato</th><th style="text-align:right">Valor</th><th style="text-align:right">Saldo a medir</th><th>Término vigente</th><th>Alertas</th></tr>',
+            rowsArr:l.map(x=>`<tr><td>${COLS_OB.find(c=>c.k===x.col).rot}</td><td>${fe(x.ob)}</td><td>${fe(getFuzzy(x.o,['numero_contrato'])||'—')}</td><td style="text-align:right">${x.valor?fmt(x.valor):'—'}</td><td style="text-align:right">${x.saldo?fmt(x.saldo):'—'}</td><td>${x.dO&&x.dO.fim?brDe(x.dO.fim):'—'}</td><td>${fe(x.alertas.map(a=>a[1]).join(' · ')||'—')}</td></tr>`)});}
+        return;}
+      const c=ev.target.closest('[data-card]');if(c)UI.openObraHub(+c.dataset.card);
+    };
+    box.onkeydown=ev=>{if(ev.key!=='Enter')return;const c=ev.target.closest('[data-card]');if(c)UI.openObraHub(+c.dataset.card);};
+    if(!box._arraste){box._arraste=1;GS.ligarArraste(box,(id,col)=>{const x=(App._ctTodos||[]).find(y=>String(y.o.rowid)===String(id));if(!x||x.col===col)return;if(!pode('obras')||ehExt())return toast('Seu perfil não muda a fase das obras.','error');mudarFase(x,col);});}
+  }
+
 
   /* ═══════════════ aba Contrato na central da obra ═══════════════ */
   Eng.hubContrato=function(ob){
@@ -15129,30 +15439,27 @@ const Mascara=(function(){
   }
   const re=App._renderEng;
   App._renderEng=function(v){
+    if(v==='obras'||v==='contratos'){try{renderQuadroObras();}catch(e){console.error(e);}return;}
     const r=re.apply(this,arguments);
     if(v==='planejamento')try{completarPlanejamento();}catch(e){console.error(e);}
-    if(v==='obras'||v==='contratos')try{aplicarModoObras();}catch(e){console.error(e);}
     return r;
   };
   // trocar de obra no Planejamento com etapas sem salvar pergunta antes
   document.getElementById('eng-planejamento')?.addEventListener('change',ev=>{if(ev.target.matches('select[data-pl="obra"]')&&PL2.sujo()&&!window.confirm('Há etapas alteradas e não salvas. Trocar de obra e perder as alterações?')){ev.stopImmediatePropagation();ev.target.value=Eng._PL.obra;}},true);
   document.getElementById('eng-planejamento')?.addEventListener('change',ev=>{if(ev.target.matches('select[data-pl="obra"]'))setTimeout(()=>{try{completarPlanejamento();}catch(e){console.error(e);}},0);});
-  // dados recarregados: a aba Contratos (dentro de Obras) e a aba Contrato da obra se atualizam
+  // dados recarregados: o quadro de contratos e a aba Contrato da obra se atualizam
   const ra=App.renderAll;
   App.renderAll=function(){
     ra.apply(this,arguments);
-    try{if(document.getElementById('view-obras')?.classList.contains('active')&&OBM.modo==='contratos')Eng.renderContratos();}catch(e){console.error(e);}
+    try{if(document.getElementById('view-obras')?.classList.contains('active'))renderQuadroObras();}catch(e){console.error(e);}
     try{const hub=App.state.obraHub;if(hub&&hub.tab==='contrato'&&document.getElementById('modal-editor')?.classList.contains('open'))Eng.hubContrato(hub.obraName);}catch(e){console.error(e);}
   };
-  // endereço antigo "Contratos" abre Obras na aba Contratos
+  // endereço antigo "Contratos" abre o quadro de contratos; "ver o contrato" abre a aba Contrato da obra
   const nav=UI.nav;
-  UI.nav=function(v){
-    if(v==='contratos'){OBM.modo='contratos';v='obras';}
-    const r=nav.call(this,v);
-    if(v==='obras')try{aplicarModoObras();}catch(e){}
-    return r;
-  };
-  GS.obrasModo=m=>{OBM.modo=m;aplicarModoObras();};
+  UI.nav=function(v){if(v==='contratos')v='obras';return nav.call(this,v);};
+  const ir=Eng.irPara;
+  Eng.irPara=function(a,ob){if(a==='contrato'){const o=(D().obras||[]).find(x=>Eng.nomeObra(x)===ob);if(o)return abrirContrato(o.rowid);}return ir&&ir(a,ob);};
+  GS.contratos={renderQuadroObras,QO,abrirContrato};
   GS.projeto={renderProjeto,carregar,PJ};
 })();
 </script>
