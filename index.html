@@ -12652,7 +12652,11 @@ const Eng=(function(){
     const es={},ef={};fases.forEach(f=>{const F=FASES[f];let s=0;pre[f].forEach(p=>{const d=F.vin==='II'?es[p]+F.lag:ef[p]+F.lag;if(d>s)s=d;});es[f]=s;ef[f]=s+F.dur;});
     const L=Math.max(...fases.map(f=>ef[f]))||1;
     const o=obraDe(ob),dO=o?Eng.datasObra(o):{};
-    const ini=dO.ini||hoje0(),fim=dO.fim&&dO.fim>ini?dO.fim:addD(ini,179),P=dias(ini,fim)+1;
+    const ini=dO.ini||hoje0();let fim=dO.fim&&dO.fim>ini?dO.fim:addD(ini,179);
+    // o plano nunca passa do fim da vigência do contrato
+    let vig=null;try{vig=o?info(o).vig:null;}catch(e){}
+    const limitado=!!(vig&&vig>ini&&vig<fim);if(limitado)fim=vig;
+    const P=dias(ini,fim)+1;
     const tot=fases.reduce((s,f)=>s+g[f].valor,0)||1;
     const acum=Eng.acumulado(ob,Infinity),preco={};itens.forEach(x=>preco[x.chave]=x);
     const linhas=fases.map((f,i)=>{
@@ -12665,14 +12669,14 @@ const Eng=(function(){
     // pesos fecham 100
     let sp=0;linhas.forEach(l=>{l.peso=Math.round(l.peso*100)/100;sp+=l.peso;});
     if(linhas.length){const mx=linhas.reduce((m,l)=>l.peso>m.peso?l:m,linhas[0]);mx.peso=Math.round((mx.peso+100-sp)*100)/100;}
-    return {linhas,ini,fim,P};
+    return {linhas,ini,fim,P,limitado,vig};
   }
   const fmtNum=n=>String(Math.round(n*10)/10).replace('.',',');
   function gerarPlano(ob){
     const pr=propostaPlano(ob);
     if(!pr)return toast('Esta obra não tem orçamento com itens — cadastre o orçamento (Obras › abrir a obra › Orçamento).','error');
     const K=UI._etapasK(),exist=(D().etapas||[]).filter(e=>(e[K.obra]||getFuzzy(e,['titulo_obra']))===ob);
-    janela('Gerar planejamento a partir do orçamento',`<div class="fin-resumo"><b>${fe(ob)}</b> · ${brDe(pr.ini)} a ${brDe(pr.fim)} (${pr.P} dias)<br>O orçamento foi agrupado em <b>${pr.linhas.length} etapas</b> de execução. Peso = valor de cada etapa no orçamento; avanço já vem das medições lançadas.</div>
+    janela('Gerar planejamento a partir do orçamento',`<div class="fin-resumo"><b>${fe(ob)}</b> · ${brDe(pr.ini)} a ${brDe(pr.fim)} (${pr.P} dias)${pr.limitado?` — <b>até o fim da vigência do contrato</b> (o término previsto, ${brDe(Eng.datasObra(obraDe(ob)).fim)}, passa dela)`:""}<br>O orçamento foi agrupado em <b>${pr.linhas.length} etapas</b> de execução. Peso = valor de cada etapa no orçamento; avanço já vem das medições lançadas.</div>
       <div class="fin-rolar" style="max-height:330px;overflow-y:auto"><table class="fin-tab"><thead><tr><th>Etapa</th><th class="num">Itens</th><th class="num">Peso</th><th>Período</th><th>Depende de</th></tr></thead><tbody>
         ${pr.linhas.map(l=>`<tr><td><b>${l.cod}</b> ${fe(l.nome)}</td><td class="num">${l.n}</td><td class="num">${fmtNum(l.peso)}%</td><td style="white-space:nowrap">${brDe(l.ini).slice(0,5)} a ${brDe(l.fim).slice(0,5)}</td><td>${l.predCods.length?l.predCods.join(', ')+(l.vin==='II'?` <small>começa ${l.lag} dia${l.lag!==1?'s':''} após o início</small>`:' <small>após terminar</small>'):'—'}</td></tr>`).join('')}
       </tbody></table></div>
@@ -12823,16 +12827,48 @@ const Eng=(function(){
     janela('Avanço pelas medições',`<div class="fin-resumo">O avanço de cada etapa passa a ser o valor já medido dos itens dela ÷ o valor contratado desses itens.</div><div class="fin-rolar"><table class="fin-tab"><thead><tr><th>Etapa</th><th class="num">Hoje</th><th class="num">Pelas medições</th></tr></thead><tbody>${mud.map(x=>`<tr><td>${fe(x.n.nome)}</td><td class="num">${pct(x.n.av,1)}</td><td class="num"><b>${pct(x.novo,1)}</b></td></tr>`).join('')}</tbody></table></div>`,
       [{html:'Cancelar'},{html:'Atualizar avanço',cls:'pri',acao:async()=>{await executar(async()=>{for(const x of mud){const o={...x.n.e};o[K.avanco]=fmtNum(x.novo);await salvar('Etapas',o,x.n.e.rowid);}});toast('Avanço atualizado.','success');}}],560);
   }
+  /* Datas projetadas que passam do fim da vigência do contrato: o que falta da obra é ENCAIXADO
+     até a vigência — datas e esperas entre etapas encolhem na mesma proporção (a ordem e as
+     dependências continuam as mesmas) e o resultado é conferido no próprio cálculo do
+     planejamento (se ainda passar, aperta um pouco mais). Concluídas não mudam; em andamento
+     mantêm o início e terminam no novo prazo. */
+  function simularPlano(ob,plano,K){
+    const d=App.state.data,orig=d.etapas,por=new Map(plano.map(x=>[x.n.e,x]));
+    d.etapas=(orig||[]).map(e=>{const x=por.get(e);if(!x)return e;return {...e,[K.ini]:isoDe(x.ini),[K.fim]:isoDe(x.fim),defasagem:String(x.lag)};});
+    try{return cpm(ob);}finally{d.etapas=orig;}
+  }
+  function encaixar(ob,r,lim,K){
+    const h=hoje0(),R=dias(h,r.fimProj)+1,T=dias(h,lim)+1;
+    if(T<1)return {erro:`A vigência do contrato terminou em ${brDe(lim)}: não há como encaixar o que falta da obra. Registre o aditivo de vigência e aplique de novo.`};
+    const pend=r.N.filter(n=>n.av<100),f0=T/R;let ult=null;
+    for(let k=0;k<16;k++){
+      const f=f0*(1-0.02*k),m=dt=>addD(h,Math.round(dias(h,dt)*f));
+      const plano=pend.map(n=>{
+        const fimN=addD(h,Math.max(0,Math.round((dias(h,n.ef)+1)*f)-1));
+        const ini=n.av>0?(n.ini||n.es):(n.es>h?m(n.es):h);
+        return {n,ini,fim:fimN<ini?ini:fimN,lag:n.lag>0?Math.max(0,Math.round(n.lag*f)):0};
+      });
+      const s=simularPlano(ob,plano,K);ult={plano,f,fimProj:s?s.fimProj:null};
+      if(s&&s.fimProj<=lim)return ult;
+    }
+    // não fechou só pela proporção (arredondamentos): o que ainda passar termina no limite
+    ult.plano.forEach(x=>{if(x.fim>lim)x.fim=lim;if(x.ini>x.fim)x.ini=x.fim;});ult.fimProj=lim;
+    return ult;
+  }
   function aplicarDatas(ob){
     const K=UI._etapasK(),r=cpm(ob);if(!r)return;
-    const mud=r.N.filter(n=>n.av<100).map(n=>({n,ini:n.av>0?n.ini:n.es,fim:n.ef})).filter(x=>!x.n.ini||!x.n.fim||isoDe(x.ini)!==isoDe(x.n.ini)||isoDe(x.fim)!==isoDe(x.n.fim));
+    const o=obraDe(ob);let vig=null;try{vig=o?info(o).vig:null;}catch(e){}
+    let plano=r.N.filter(n=>n.av<100).map(n=>({n,ini:n.av>0?(n.ini||n.es):n.es,fim:n.ef,lag:n.lag})),enc=null;
+    if(vig&&r.fimProj>vig){enc=encaixar(ob,r,vig,K);if(enc.erro)return janela('Aplicar datas projetadas',`<div class="fin-aviso"><div>${enc.erro}</div></div>`,[{html:'Fechar'}],560);plano=enc.plano;}
+    const mud=plano.filter(x=>!x.n.ini||!x.n.fim||isoDe(x.ini)!==isoDe(x.n.ini)||isoDe(x.fim)!==isoDe(x.n.fim)||x.lag!==x.n.lag);
     if(!mud.length)return toast('As datas do cronograma já são as projetadas.','success');
-    let vigAp=null;try{const o=obraDe(ob);vigAp=o?info(o).vig:null;}catch(e){}
-    const foraAp=vigAp?mud.filter(x=>x.fim&&x.fim>vigAp):[];
-    janela('Aplicar datas projetadas',`<div class="fin-resumo">As etapas não concluídas recebem as datas do cálculo (dependências + avanço real). A primeira data planejada fica guardada como linha de base.</div><div class="fin-rolar"><table class="fin-tab"><thead><tr><th>Etapa</th><th>Hoje no cronograma</th><th>Projetado</th></tr></thead><tbody>${mud.map(x=>`<tr><td>${fe(x.n.nome)}</td><td>${brDe(x.n.ini)} a ${brDe(x.n.fim)}</td><td><b>${brDe(x.ini)} a ${brDe(x.fim)}</b></td></tr>`).join('')}</tbody></table></div>
-      ${r.dO.fim&&r.fimProj>r.dO.fim?`<div class="fin-aviso laranja"><div>O fim projetado (${brDe(r.fimProj)}) passa do término vigente (${brDe(r.dO.fim)}). Se não houver como recuperar, registre o aditivo de prazo antes do fim da vigência.</div></div>`:''}
-      ${vigAp&&foraAp.length?`<div class="fin-aviso"><div><b>${foraAp.length} etapa${foraAp.length>1?'s':''} passaria${foraAp.length>1?'m':''} do fim da vigência do contrato (${brDe(vigAp)})</b>: ${fe(foraAp.map(x=>x.n.nome).join(', '))}. A vigência é o limite das datas do cronograma — registre antes o aditivo de vigência.</div></div>`:''}`,
-      [{html:'Cancelar'},{html:'Aplicar',cls:'pri',acao:async()=>{if(vigAp&&foraAp.length)throw new Error('Há etapas depois do fim da vigência do contrato. Registre o aditivo de vigência primeiro.');await executar(async()=>{for(const x of mud){const o={...x.n.e};if(!o.lb_comeco&&x.n.ini)o.lb_comeco=isoDe(x.n.ini);if(!o.lb_final&&x.n.fim)o.lb_final=isoDe(x.n.fim);o[K.ini]=isoDe(x.ini);o[K.fim]=isoDe(x.fim);await salvar('Etapas',o,x.n.e.rowid);}});toast('Datas aplicadas ao cronograma.','success');}}],680);
+    const h=hoje0(),fimNovo=enc?enc.fimProj:r.fimProj,dd=(a,b)=>dias(a,b)+1;
+    const avEnc=enc?`<div class="fin-aviso laranja"><div><b>Encaixado até o fim da vigência do contrato (${brDe(vig)}).</b> No ritmo projetado a obra terminaria em ${brDe(r.fimProj)}; o que falta foi comprimido de <b>${dd(h,r.fimProj)}</b> para <b>${dd(h,fimNovo)} dias</b> (−${Math.round((1-dd(h,fimNovo)/dd(h,r.fimProj))*100)}%). As etapas e as esperas entre elas ficam mais curtas, na mesma ordem — isso pede <b>reforço de equipe e equipamento</b>, começando pelas etapas críticas.</div></div>`:'';
+    const avVig=vig&&r.dO.fim&&vig<r.dO.fim?`<div class="fin-aviso"><div>A vigência do contrato (${brDe(vig)}) termina <b>antes</b> do término previsto da obra (${brDe(r.dO.fim)}). Confira as datas em <b>Contratos › obra › Editar dados</b> — se a vigência estiver certa, peça o aditivo de vigência.</div></div>`:'';
+    const avTerm=!enc&&r.dO.fim&&r.fimProj>r.dO.fim?`<div class="fin-aviso laranja"><div>O fim projetado (${brDe(r.fimProj)}) passa do término vigente (${brDe(r.dO.fim)}). Se não houver como recuperar, registre o aditivo de prazo antes do fim da vigência.</div></div>`:'';
+    janela('Aplicar datas projetadas',`<div class="fin-resumo">As etapas não concluídas recebem as datas do cálculo (dependências + avanço real)${vig?`, sempre até o fim da vigência do contrato (${brDe(vig)})`:''}. A primeira data planejada fica guardada como linha de base.</div>${avEnc}${avVig}
+      <div class="fin-rolar"><table class="fin-tab"><thead><tr><th>Etapa</th><th>Hoje no cronograma</th><th>Novas datas</th><th class="num">Dias</th>${enc?'<th class="num">Espera</th>':''}</tr></thead><tbody>${mud.map(x=>`<tr><td>${fe(x.n.nome)}${x.n.critica?' <span class="eng-pill vermelho">crítica</span>':''}</td><td>${x.n.ini?brDe(x.n.ini):'—'} a ${x.n.fim?brDe(x.n.fim):'—'}</td><td><b>${brDe(x.ini)} a ${brDe(x.fim)}</b></td><td class="num">${x.n.ini&&x.n.fim?dd(x.n.ini,x.n.fim)+' → ':''}${dd(x.ini,x.fim)}</td>${enc?`<td class="num">${x.n.preds.length?(x.lag!==x.n.lag?`${x.n.lag} → ${x.lag}`:x.lag):'—'}</td>`:''}</tr>`).join('')}</tbody></table></div>${avTerm}`,
+      [{html:'Cancelar'},{html:enc?'Aplicar encaixado na vigência':'Aplicar',cls:'pri',acao:async()=>{await executar(async()=>{for(const x of mud){const e={...x.n.e};if(!e.lb_comeco&&x.n.ini)e.lb_comeco=isoDe(x.n.ini);if(!e.lb_final&&x.n.fim)e.lb_final=isoDe(x.n.fim);e[K.ini]=isoDe(x.ini);e[K.fim]=isoDe(x.fim);if(x.lag!==x.n.lag)e.defasagem=String(x.lag);await salvar('Etapas',e,x.n.e.rowid);}});toast(enc?`Datas aplicadas — tudo termina até ${brDe(fimNovo)}, dentro da vigência.`:'Datas aplicadas ao cronograma.','success');}}],760);
   }
 
   /* ═══════════════════════════ VIABILIDADE ═══════════════════════════ */
@@ -13989,7 +14025,7 @@ const PL2=(function(){
       if(T.finalizar)T.finalizar(o,orig);
       const falta=T.cols().filter(c=>c.t!=='ro'&&(typeof c.obrig==='function'?c.obrig(o):c.obrig)&&!String(o[c.k]||'').trim());
       falta.forEach(c=>{const el=tr.querySelector(`[data-col="${c.id}"]`);if(el)el.classList.add('invalido');});
-      const msg=falta.length?`Preencha: ${falta.map(c=>c.l).join(', ')}.`:(T.validar?T.validar(o):'');
+      const msg=falta.length?`Preencha: ${falta.map(c=>c.l).join(', ')}.`:(T.validar?T.validar(o,orig):'');
       if(msg&&!erro)erro={tr,msg};
       if(T.montar)lote.push(...T.montar(o,orig));else lote.push({aba:T.aba,dados:o,rowid:orig?orig.rowid:null});
     });
@@ -15263,9 +15299,12 @@ const Mascara=(function(){
       {id:'folga',k:'_folga',l:'Folga',t:'ro',num:true,w:70,calc:o=>{const n=noDe(o);return !n||n.folga==null?'—':n.critica?'<b style="color:#B42318">0</b>':String(n.folga);}},
       {id:'sit',k:'_sit',l:'Situação',t:'ro',w:150,calc:o=>{const n=noDe(o);if(!n)return '—';const s=SITC[n.sit]||['—','cinza'];return `<span class="pl2-situ ${s[1]}">${s[0]}</span>${n.critica?' <span class="pl2-situ err">crítica</span>':''}`;},semPdf:true}];},
     finalizar:o=>{const K=KE();if(!o[K.obra])o[K.obra]=Eng._PL.obra;if(o[K.avanco]==='')o[K.avanco]='0';},
-    validar:o=>{const K=KE(),a=dt(o[K.ini]),b=dt(o[K.fim]),av=val(o[K.avanco]),vig=vigDe(o[K.obra]||Eng._PL.obra);if(a&&b&&b<a)return 'O fim planejado não pode ser antes do início.';
-      if(vig&&b&&b>vig)return `O fim planejado não pode passar do fim da vigência do contrato (${brDe(vig)}). Se a etapa precisa de mais prazo, registre antes o aditivo de vigência.`;
-      if(vig&&a&&a>vig)return `O início planejado não pode passar do fim da vigência do contrato (${brDe(vig)}).`;
+    // o limite da vigência vale para a data que se digita; etapa antiga que já passava dele continua
+    // salvando o resto (peso, avanço…) — o botão "Ajustar as datas à vigência" encaixa as datas
+    validar:(o,orig)=>{const K=KE(),a=dt(o[K.ini]),b=dt(o[K.fim]),av=val(o[K.avanco]),vig=vigDe(o[K.obra]||Eng._PL.obra);if(a&&b&&b<a)return 'O fim planejado não pode ser antes do início.';
+      const iso=v=>{const d=dt(v);return d?isoDe(d):'';},mudou=k=>!orig||iso(orig[k])!==iso(o[k]);
+      if(vig&&b&&b>vig&&mudou(K.fim))return `O fim planejado não pode passar do fim da vigência do contrato (${brDe(vig)}). Use "Aplicar datas projetadas" — ele encaixa as etapas até a vigência — ou registre antes o aditivo de vigência.`;
+      if(vig&&a&&a>vig&&mudou(K.ini))return `O início planejado não pode passar do fim da vigência do contrato (${brDe(vig)}).`;
       if(av<0||av>100)return 'O avanço vai de 0 a 100%.';return '';},
     kpis:()=>'',rerender:()=>App._renderEng('planejamento'),vazio:'Nenhuma etapa ainda — gere o planejamento a partir do orçamento ou lance as etapas aqui.'});
 
@@ -15432,8 +15471,9 @@ const Mascara=(function(){
     const r=Eng.cpm(ob);CPM=new Map(r?r.N.map(n=>[String(n.e.rowid),n]):[]);
     // a tabela de etapas só de leitura vira a planilha editável (mesmas colunas + datas, peso, avanço e valor)
     const velha=[...box.querySelectorAll('.fin-card')].find(c=>c.querySelector('[data-pl="dep"]'));
-    const vig=vigDe(ob),foraVig=vig&&r?r.N.filter(n=>n.fim&&n.fim>vig).length:0;
-    const limite=vig?`<div class="pl-vig ${foraVig?'err':''}"><i class="fas fa-calendar-check"></i> As datas das etapas vão até o <b>fim da vigência do contrato: ${brDe(vig)}</b>${foraVig?` — <b>${foraVig} etapa${foraVig>1?'s passam':' passa'} desse limite</b>: ajuste as datas ou registre o aditivo de vigência.`:'.'}</div>`
+    const vig=vigDe(ob),foraVig=vig&&r?r.N.filter(n=>n.fim&&n.fim>vig).length:0,projFora=!!(vig&&r&&r.fimProj&&r.fimProj>vig);
+    const btAj='<button type="button" class="fin-bt mini pri" data-pl="aplicar" style="margin-left:6px">Ajustar as datas à vigência</button>';
+    const limite=vig?`<div class="pl-vig ${foraVig||projFora?'err':''}"><i class="fas fa-calendar-check"></i> As datas das etapas vão até o <b>fim da vigência do contrato: ${brDe(vig)}</b>${foraVig?` — <b>${foraVig} etapa${foraVig>1?'s passam':' passa'} desse limite.</b> ${btAj}`:projFora?` — <b>no ritmo projetado a obra termina em ${brDe(r.fimProj)}, depois dele.</b> ${btAj}`:'.'}</div>`
       :`<div class="pl-vig aviso"><i class="fas fa-circle-info"></i> Este contrato ainda não tem o <b>fim da vigência</b> — sem ele as datas das etapas ficam sem limite. Cadastre em <b>Contratos › obra › Editar dados</b>.</div>`;
     const secEt=`<div class="fin-card" id="pl-cronograma"><div class="fin-card-cab"><h3>Cronograma — etapas da obra</h3><span style="font-size:12px;color:var(--text-3)">Edite datas, peso e avanço direto na linha e salve. O caminho crítico e o término projetado se recalculam.</span></div>${limite}<div id="pl2-etapas"></div></div>`;
     if(velha)velha.outerHTML=secEt;else box.querySelector('.fin-wrap')?.insertAdjacentHTML('beforeend',secEt);
