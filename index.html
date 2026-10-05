@@ -3268,7 +3268,7 @@ const App={
         .pdf-page{position:relative;width:${pageWmm}mm;height:${pageHmm}mm;background:#fff;margin:0 auto 6mm;overflow:hidden;page-break-after:always;}
         .pdf-page-inner{position:absolute;top:14mm;left:14mm;right:14mm;bottom:18mm;overflow:hidden;}
         .pdf-page-footer{position:absolute;left:14mm;right:14mm;bottom:6mm;display:flex;justify-content:space-between;align-items:center;font-size:9px;color:#6e6e73;border-top:1px solid #e5e5ea;padding-top:5px;}
-        @media print{html,body{background:#fff;}.pdf-page{margin:0;box-shadow:none;}}
+        @media print{html,body{background:#fff;}.pdf-page{margin:0;box-shadow:none;height:${pageHmm-1}mm;page-break-after:auto;break-after:auto;}.pdf-page+.pdf-page{page-break-before:always;break-before:page;}}
         @media screen{.pdf-page{box-shadow:0 2px 12px rgba(0,0,0,.15);margin-top:6mm;}}
       </style></head><body>
       <div id="rel-pdf-source">
@@ -3451,7 +3451,7 @@ const App={
     } else if(c.tipo==='curva-abc'){
       cfg.paisagem=true;
       const d=c.dados;
-      let chartImg='';try{if(this._relChartABC)chartImg=`<img src="${this._chartImgHD(this._relChartABC)}" style="width:100%;max-height:92mm;object-fit:contain;margin-bottom:12px;border:1px solid #e5e5ea;border-radius:8px">`;}catch(e){}
+      let chartImg='';try{if(this._relChartABC)chartImg=`<img src="${this._chartImgHD(this._relChartABC)}" style="width:100%;max-height:56mm;object-fit:contain;margin-bottom:12px;border:1px solid #e5e5ea;border-radius:8px">`;}catch(e){}
       // Cards de Classe A/B/C (mesmo visual da tela) ACIMA do gráfico, não só a listinha de texto.
       const cardsAbc=(d.classes||[]).map(r=>`<div style="flex:1;border:1px solid #e5e5ea;border-radius:12px;padding:12px 14px"><div style="display:flex;align-items:center;gap:6px;margin-bottom:4px"><span style="width:10px;height:10px;border-radius:3px;background:${r.cor}"></span><span style="font-size:12px;font-weight:800">Classe ${r.c}</span></div><div style="font-size:16px;font-weight:800;color:${r.cor}">${fmt(r.v)}</div><div style="font-size:11px;color:#6e6e73">${r.n} item(ns) · ${d.total>0?fmtPct(r.v/d.total*100):'0%'}</div></div>`).join('');
       cfg.preHtml=`<div style="display:flex;gap:12px;margin-bottom:14px">${cardsAbc}</div>`+chartImg;
@@ -3461,7 +3461,7 @@ const App={
     } else if(c.tipo==='curva-s'){
       cfg.paisagem=true;
       const d=c.dados;
-      let chartImg='';try{if(this._relChartS)chartImg=`<img src="${this._chartImgHD(this._relChartS)}" style="width:100%;max-height:92mm;object-fit:contain;margin-bottom:12px;border:1px solid #e5e5ea;border-radius:8px">`;}catch(e){}
+      let chartImg='';try{if(this._relChartS)chartImg=`<img src="${this._chartImgHD(this._relChartS)}" style="width:100%;max-height:68mm;object-fit:contain;margin-bottom:12px;border:1px solid #e5e5ea;border-radius:8px">`;}catch(e){}
       cfg.preHtml=chartImg||'<p style="font-size:12px">Sem dados para a Curva S no período.</p>';
       cfg.theadHtml='<tr><th>Mês</th><th>Previsto (mês)</th><th>Previsto (acum.)</th><th>Realizado (mês)</th><th>Realizado (acum.)</th></tr>';
       cfg.rowsArr=(d.linhasTabela||[]).map(l=>`<tr><td>${l.mes}</td><td>${fmt(l.prevMes)}</td><td>${fmt(l.prevAcum)}</td><td>${fmt(l.realMes)}</td><td>${fmt(l.realAcum)}</td></tr>`);
@@ -3490,39 +3490,32 @@ const App={
       const dreBody=document.getElementById('dre-body');
       const finList=document.getElementById('fin-ind-list');
       const margemVal=(document.getElementById('dre-margem')||{}).textContent||'—';
-      const blocos=[];
-      blocos.push('<div style="font-size:13px;font-weight:800;color:#1d1d1f;margin:2px 0 2px">Demonstração do Resultado do Exercício</div><div style="font-size:11px;color:#6e6e73;margin-bottom:8px">Visão consolidada da empresa · margem líquida '+margemVal+'</div>');
-      if(dreBody){
-        [...dreBody.children].forEach(row=>{if(row.outerHTML&&row.textContent.trim())blocos.push(row.outerHTML);});
-      }
-      // Indicadores: a lista na tela é uma única grade CSS (label|valor|% em colunas)
-      // que não quebra de página sozinha — reconstrói cada linha como um bloco flex
-      // independente e paginável, lendo cor/peso reais da tela via getComputedStyle
-      // (evita depender de var(--...) dentro da janela do PDF).
+      // PDF enxuto: DRE e Indicadores lado a lado (a página é deitada — antes ficavam um
+      // embaixo do outro e metade da folha sobrava, dando 3 páginas) e o gráfico embaixo.
+      const css='<style>.cp .dre-row{padding:3px 10px}.cp .dre-sep{padding:4px 10px;margin:2px 0}.cp .dre-big{padding:6px 12px;margin:3px 0}.cp .dre-label,.cp .dre-val{font-size:11px}</style>';
+      const tit=(t,s)=>`<div style="font-size:12.5px;font-weight:800;color:#1d1d1f;margin:0 0 1px">${t}</div><div style="font-size:10px;color:#6e6e73;margin-bottom:6px">${s}</div>`;
+      let dreHtml='',indHtml='';
+      if(dreBody)[...dreBody.children].forEach(row=>{if(row.outerHTML&&row.textContent.trim())dreHtml+=row.outerHTML;});
       if(finList&&finList.firstElementChild){
         const cells=[...finList.firstElementChild.children];
-        blocos.push('<div style="font-size:13px;font-weight:800;color:#1d1d1f;margin:16px 0 2px">Indicadores Consolidados</div><div style="font-size:11px;color:#6e6e73;margin-bottom:8px">Resumo executivo · valor e % sobre faturamento bruto</div>');
-        for(let i=0;i+2<cells.length+1&&i<cells.length;i+=3){
+        for(let i=0;i<cells.length;i+=3){
           const lab=cells[i],val=cells[i+1],pct=cells[i+2];
           if(!lab||!val||!pct)continue;
           const csLab=getComputedStyle(lab),csVal=getComputedStyle(val),csPct=getComputedStyle(pct);
           const temSep=/border-top/.test(lab.getAttribute('style')||'');
-          blocos.push(`<div style="display:flex;align-items:center;gap:10px;padding:5px 12px;border-bottom:1px solid #e5e5ea${temSep?';border-top:2px solid #d5d5da;padding-top:9px;margin-top:4px':''}">`
-            +`<div style="flex:1;font-size:11px;padding-left:${lab.style.paddingLeft||'0'};color:${csLab.color};font-weight:${csLab.fontWeight}">${lab.textContent}</div>`
-            +`<div style="width:110px;text-align:right;font-size:11px;color:${csVal.color};font-weight:${csVal.fontWeight};white-space:nowrap">${val.textContent}</div>`
-            +`<div style="width:60px;text-align:right;font-size:11px;color:${csPct.color}">${pct.textContent}</div>`
-            +`</div>`);
+          indHtml+=`<div style="display:flex;align-items:center;gap:8px;padding:3px 10px;border-bottom:1px solid #e5e5ea${temSep?';border-top:2px solid #d5d5da;padding-top:6px;margin-top:3px':''}">`
+            +`<div style="flex:1;font-size:10.5px;padding-left:${lab.style.paddingLeft||'0'};color:${csLab.color};font-weight:${csLab.fontWeight}">${lab.textContent}</div>`
+            +`<div style="width:104px;text-align:right;font-size:10.5px;color:${csVal.color};font-weight:${csVal.fontWeight};white-space:nowrap">${val.textContent}</div>`
+            +`<div style="width:52px;text-align:right;font-size:10.5px;color:${csPct.color}">${pct.textContent}</div></div>`;
         }
       }
-      // Fluxo de Caixa Acumulado (gráfico) — mesmo padrão de imagem embutida usado no
-      // Comparativo/Curva ABC/Curva S.
-      try{
-        if(this._relChartFluxo){
-          blocos.push('<div style="font-size:13px;font-weight:800;color:#1d1d1f;margin:16px 0 2px">Fluxo de Caixa Acumulado (Fat. Real)</div><div style="font-size:11px;color:#6e6e73;margin-bottom:8px">Saldo efetivo acumulado — Fat. Real − Custos pagos</div>');
-          blocos.push(`<img src="${this._chartImgHD(this._relChartFluxo)}" style="width:100%;max-height:90mm;object-fit:contain;border:1px solid #e5e5ea;border-radius:8px">`);
-        }
-      }catch(e){}
-      if(blocos.length<=1)blocos.push('<p style="font-size:12px;color:#6e6e73">Sem dados disponíveis.</p>');
+      // gráfico do caixa acumulado embaixo dos indicadores (coluna da direita): tudo cabe numa folha
+      let graf='';try{if(this._relChartFluxo)graf=`<div style="margin-top:10px">${tit('Fluxo de caixa acumulado (faturamento real)','Faturamento real − custos pagos, acumulado')}<img src="${this._chartImgHD(this._relChartFluxo)}" style="width:100%;max-height:38mm;object-fit:contain;border:1px solid #e5e5ea;border-radius:8px"></div>`;}catch(e){}
+      const blocos=[];
+      if(dreHtml||indHtml||graf)blocos.push(css+`<div class="cp" style="display:flex;gap:16px;align-items:flex-start">`
+        +(dreHtml?`<div style="flex:1;min-width:0">${tit('Demonstração do Resultado do Exercício','Visão consolidada da empresa · margem líquida '+margemVal)}${dreHtml}</div>`:'')
+        +`<div style="flex:1;min-width:0">${indHtml?tit('Indicadores consolidados','Resumo executivo · valor e % sobre o faturamento bruto')+indHtml:''}${graf}</div></div>`);
+      if(!blocos.length)blocos.push('<p style="font-size:12px;color:#6e6e73">Sem dados disponíveis.</p>');
       cfg.blocosArr=blocos;
     }
     this._relExportPaginado(cfg);
@@ -3585,7 +3578,7 @@ const App={
         .pdf-page{position:relative;width:297mm;height:210mm;background:#fff;margin:0 auto 6mm;overflow:hidden;page-break-after:always;}
         .pdf-page-inner{position:absolute;top:14mm;left:14mm;right:14mm;bottom:18mm;overflow:hidden;}
         .pdf-page-footer{position:absolute;left:14mm;right:14mm;bottom:6mm;display:flex;justify-content:space-between;align-items:center;font-size:9px;color:#6e6e73;border-top:1px solid #e5e5ea;padding-top:5px;}
-        @media print{html,body{background:#fff;}.pdf-page{margin:0;box-shadow:none;}}
+        @media print{html,body{background:#fff;}.pdf-page{margin:0;box-shadow:none;height:209mm;page-break-after:auto;break-after:auto;}.pdf-page+.pdf-page{page-break-before:always;break-before:page;}}
         @media screen{.pdf-page{box-shadow:0 2px 12px rgba(0,0,0,.15);margin-top:6mm;}}
       </style></head><body>
       <div id="desp-pdf-source">
@@ -5197,7 +5190,7 @@ const UI={
         .sub{font-size:12px;color:#6e6e73;margin-bottom:18px;}
         @media print{
           html,body{background:#fff;}
-          .pdf-page{margin:0;box-shadow:none;}
+          .pdf-page{margin:0;box-shadow:none;height:296mm;page-break-after:auto;break-after:auto;}.pdf-page+.pdf-page{page-break-before:always;break-before:page;}
         }
         @media screen{
           .pdf-page{box-shadow:0 2px 12px rgba(0,0,0,.15);margin-top:6mm;}
@@ -6602,7 +6595,7 @@ const UI={
         .pdf-page{position:relative;width:${pageWmm}mm;height:${pageHmm}mm;background:#fff;margin:0 auto 6mm;overflow:hidden;page-break-after:always;}
         .pdf-page-inner{position:absolute;top:14mm;left:14mm;right:14mm;bottom:18mm;overflow:hidden;}
         .pdf-page-footer{position:absolute;left:14mm;right:14mm;bottom:6mm;display:flex;justify-content:space-between;align-items:center;font-size:9px;color:#6e6e73;border-top:1px solid #e5e5ea;padding-top:5px;}
-        @media print{html,body{background:#fff;}.pdf-page{margin:0;box-shadow:none;}}
+        @media print{html,body{background:#fff;}.pdf-page{margin:0;box-shadow:none;height:${pageHmm-1}mm;page-break-after:auto;break-after:auto;}.pdf-page+.pdf-page{page-break-before:always;break-before:page;}}
         @media screen{.pdf-page{box-shadow:0 2px 12px rgba(0,0,0,.15);margin-top:6mm;}}
       </style></head><body>
       <div id="orc-pdf-source">
@@ -7388,7 +7381,7 @@ const UI={
         .pdf-page{position:relative;width:${pageWmm}mm;height:${pageHmm}mm;background:#fff;margin:0 auto 6mm;overflow:hidden;page-break-after:always;}
         .pdf-page-inner{position:absolute;top:14mm;left:14mm;right:14mm;bottom:18mm;overflow:hidden;}
         .pdf-page-footer{position:absolute;left:14mm;right:14mm;bottom:6mm;display:flex;justify-content:space-between;align-items:center;font-size:9px;color:#6e6e73;border-top:1px solid #e5e5ea;padding-top:5px;}
-        @media print{html,body{background:#fff;}.pdf-page{margin:0;box-shadow:none;}}
+        @media print{html,body{background:#fff;}.pdf-page{margin:0;box-shadow:none;height:${pageHmm-1}mm;page-break-after:auto;break-after:auto;}.pdf-page+.pdf-page{page-break-before:always;break-before:page;}}
         @media screen{.pdf-page{box-shadow:0 2px 12px rgba(0,0,0,.15);margin-top:6mm;}}
       </style></head><body>
       <div id="gr-pdf-source">
@@ -7538,7 +7531,7 @@ const UI={
         .pdf-page{position:relative;width:${pageWmm}mm;height:${pageHmm}mm;background:#fff;margin:0 auto 6mm;overflow:hidden;page-break-after:always;}
         .pdf-page-inner{position:absolute;top:14mm;left:14mm;right:14mm;bottom:18mm;overflow:hidden;}
         .pdf-page-footer{position:absolute;left:14mm;right:14mm;bottom:6mm;display:flex;justify-content:space-between;align-items:center;font-size:9px;color:#6e6e73;border-top:1px solid #e5e5ea;padding-top:5px;}
-        @media print{html,body{background:#fff;}.pdf-page{margin:0;box-shadow:none;}}
+        @media print{html,body{background:#fff;}.pdf-page{margin:0;box-shadow:none;height:${pageHmm-1}mm;page-break-after:auto;break-after:auto;}.pdf-page+.pdf-page{page-break-before:always;break-before:page;}}
         @media screen{.pdf-page{box-shadow:0 2px 12px rgba(0,0,0,.15);margin-top:6mm;}}
       </style></head><body>
       <div id="obra-pdf-source">
@@ -8495,7 +8488,7 @@ const UI={
      Faturamentos | Aportes | CAP | Orçamentos). Cada aba reaproveita o editor já existente,
      porém filtrado/vinculado a ESTA obra. O botão Salvar salva a aba ativa e permanece na
      obra (re-renderiza a aba com os dados atualizados). */
-  _OBRA_HUB_TABS:[['resumo','Resumo'],['dados','Obra'],['contrato','Contrato'],['cap','CAP'],['orcamentos','Orçamento'],['etapas','Cronograma']],
+  _OBRA_HUB_TABS:[['contrato','Contrato'],['cap','CAP'],['orcamentos','Orçamento'],['etapas','Cronograma'],['dados','Obra'],['resumo','Resumo']],
   openObraHub(rowid){
     if(App.state._busy)return;
     const sessExt=Auth._session&&Auth._session.tipoUsuario==='externo';
@@ -8509,7 +8502,7 @@ const UI={
     }
     // Usuário Externo só enxerga a aba Avanço & Gantt — abre direto nela em vez de "Dados".
     // Obra existente abre no Resumo (painel de decisão da obra); obra nova, nos Dados.
-    const tabInicial=(Auth._session&&Auth._session.tipoUsuario==='externo'&&rowid)?'etapas':(rowid&&UI._obraHubBuildResumo?'resumo':'dados');
+    const tabInicial=(Auth._session&&Auth._session.tipoUsuario==='externo'&&rowid)?'etapas':(rowid?'contrato':'dados');
     App.state.obraHub={rowid:rowid||null,obraName,tab:tabInicial,isNew:!rowid,nomeConfirmado:!!rowid,_dirtyTabs:new Set()};
     // Detecta alterações não salvas (uma vez): qualquer digitação/mudança no formulário marca
     // a ABA ATIVA no momento como "suja" — cada aba tem seu próprio estado (a troca de aba
@@ -8545,7 +8538,8 @@ const UI={
     bar.style.display='flex';bar.style.alignItems='center';bar.style.justifyContent='space-between';bar.style.gap='8px';
     const isExt=Auth._session&&Auth._session.tipoUsuario==='externo';
     // o cronograma da obra é editado no Planejamento e cronograma; aqui a aba fica só para o usuário externo (consulta)
-    const tabsList=isExt?this._OBRA_HUB_TABS.filter(([k])=>k==='etapas'):this._OBRA_HUB_TABS.filter(([k])=>k!=='etapas'&&(k!=='contrato'||!this._allowedViews||this._allowedViews.includes('contratos')));
+    // Contrato reúne o antigo Resumo e a antiga aba Obra; obra nova só tem o formulário inicial; externo só vê o cronograma
+    const tabsList=isExt?this._OBRA_HUB_TABS.filter(([k])=>k==='etapas'):hub.isNew?this._OBRA_HUB_TABS.filter(([k])=>k==='dados'):this._OBRA_HUB_TABS.filter(([k])=>!['etapas','resumo','dados'].includes(k));
     const tabs=tabsList.map(([k,l])=>{
       const on=hub.tab===k;
       return `<button type="button" onclick="UI._obraHubTab('${k}')" style="flex-shrink:0;border:none;background:none;padding:12px 11px;font-size:13px;font-weight:${on?'700':'500'};color:${on?'var(--blue)':'var(--text-2)'};border-bottom:2px solid ${on?'var(--blue)':'transparent'};cursor:pointer">${l}</button>`;
@@ -15461,6 +15455,296 @@ const Mascara=(function(){
   Eng.irPara=function(a,ob){if(a==='contrato'){const o=(D().obras||[]).find(x=>Eng.nomeObra(x)===ob);if(o)return abrirContrato(o.rowid);}return ir&&ir(a,ob);};
   GS.contratos={renderQuadroObras,QO,abrirContrato};
   GS.projeto={renderProjeto,carregar,PJ};
+})();
+</script>
+<!-- ═══════════════════ CENTRAL DA OBRA = CONTRATO · CAP ORGANIZADO · UM CAMINHO PARA FATURAR ═══════════════════ -->
+<style>
+/* cabeçalho da aba Contrato */
+.hc-cab{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;margin:0 0 12px;padding:14px 16px;border:1px solid #e8e8ed;border-radius:16px;background:linear-gradient(135deg,#F8FAFF,#FFFFFF);}
+.hc-cab .hc-fase{display:inline-flex;align-items:center;gap:7px;font-weight:800;font-size:12.5px;color:#fff;background:var(--cor);padding:5px 12px;border-radius:99px;}
+.hc-fatos{display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:8px;font-size:12.5px;color:#6e6e73;}
+.hc-fatos b{color:var(--text-1);font-weight:700;}
+.hc-fatos i{color:#a1a1a6;margin-right:4px;}
+.hc-sec{font:800 11px Inter,sans-serif;text-transform:uppercase;letter-spacing:.06em;color:#6e6e73;margin:14px 0 6px;grid-column:1/-1;display:flex;align-items:center;gap:8px;}
+.hc-sec:after{content:'';flex:1;height:1px;background:#e8e8ed;}
+.hc-calc{grid-column:1/-1;font-size:12.5px;color:#1652D8;background:#EEF4FF;border-radius:10px;padding:8px 12px;}
+/* CAP: painel de cima, blocos em cartão, formação do preço e orçado × realizado */
+.capx-dash{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:6px;}
+.capx-k{background:#fff;border:1px solid #e8e8ed;border-radius:14px;padding:12px 14px;box-shadow:0 1px 3px rgba(0,0,0,.04);min-width:0;}
+.capx-k small{display:block;font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:#6e6e73;}
+.capx-k b{display:block;font:800 clamp(14px,1.6vw,18px) Inter,sans-serif;color:var(--text-1);margin-top:4px;overflow-wrap:anywhere;}
+.capx-k span{display:block;font-size:11.5px;color:#6e6e73;margin-top:2px;}
+.capx-k.ok b{color:#067647;} .capx-k.err b{color:#B42318;} .capx-k.warn b{color:#B54708;}
+.capx-comp{grid-column:1/-1;background:#fff;border:1px solid #e8e8ed;border-radius:14px;padding:10px 14px;}
+.capx-comp-barra{display:flex;height:12px;border-radius:8px;overflow:hidden;background:#EEF0F5;margin:6px 0;}
+.capx-comp-barra i{display:block;height:100%;}
+.capx-leg{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:11.5px;color:#6e6e73;}
+.capx-leg em{display:inline-block;width:9px;height:9px;border-radius:3px;margin-right:5px;font-style:normal;}
+#cap-scroll-body .capx-bloco{background:#fff;border:1px solid #e8e8ed;border-radius:16px;padding:10px 12px 12px;margin-top:14px!important;box-shadow:0 1px 3px rgba(0,0,0,.04);}
+#cap-scroll-body .capx-bloco .cap-bloco-head{margin:0 0 8px!important;border-radius:12px;padding:10px 14px;flex-wrap:wrap;gap:6px;}
+#cap-scroll-body .cap-bloco-label{font-size:12px;display:inline-flex;align-items:center;gap:8px;}
+#cap-scroll-body .cap-bloco-label i{font-size:13px;}
+#cap-scroll-body .capx-n{font-size:11px;font-weight:700;opacity:.7;text-transform:none;letter-spacing:0;}
+#cap-scroll-body .cap-bloco-total{font-size:15px;}
+#cap-scroll-body .capx-pctb{font-size:11px;font-weight:700;opacity:.75;margin-right:8px;}
+#cap-scroll-body .cap-tbl{width:100%!important;min-width:640px;}
+#cap-scroll-body .cap-tbl th:nth-child(2){width:150px!important;} #cap-scroll-body .cap-tbl th:nth-child(3){width:auto!important;} #cap-scroll-body .cap-tbl th:nth-child(4){width:58px!important;} #cap-scroll-body .cap-tbl th:nth-child(5){width:58px!important;} #cap-scroll-body .cap-tbl th:nth-child(6){width:98px!important;} #cap-scroll-body .cap-tbl th:nth-child(7){width:70px!important;} #cap-scroll-body .cap-tbl th:nth-child(8){width:106px!important;} #cap-scroll-body .cap-tbl th:nth-child(9){width:34px!important;}
+#cap-scroll-body .cap-tbl th:first-child,#cap-scroll-body .cap-tbl td:first-child{display:none;}
+#cap-scroll-body .capx-bloco>div[style*="max-height"]{max-height:340px!important;border-radius:10px!important;}
+.capx-grade{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:14px;align-items:start;margin-top:16px;}
+.capx-grade .cap-resumo{margin-top:0;background:#fff;border:1px solid #e8e8ed;border-radius:16px;padding:14px 18px;box-shadow:0 1px 3px rgba(0,0,0,.04);}
+.capx-real{background:#fff;border:1px solid #e8e8ed;border-radius:16px;padding:14px 18px;box-shadow:0 1px 3px rgba(0,0,0,.04);}
+.capx-real h4,.capx-tit{margin:0 0 10px;font:800 11px Inter,sans-serif;text-transform:uppercase;letter-spacing:.06em;color:#6e6e73;}
+.capx-linha{margin:9px 0;}
+.capx-linha div{display:flex;justify-content:space-between;font-size:12.5px;color:var(--text-1);gap:8px;}
+.capx-linha div span{color:#6e6e73;}
+.capx-linha em{display:block;height:8px;border-radius:6px;background:#EEF0F5;overflow:hidden;margin-top:4px;font-style:normal;position:relative;}
+.capx-linha em i{display:block;height:100%;border-radius:6px;}
+.capx-linha em b{position:absolute;top:-2px;width:2px;height:12px;background:#1d1d1f;}
+.capx-nota{font-size:12px;color:#6e6e73;line-height:1.45;margin:10px 0 0;}
+.capx-dica{font-size:11.5px;color:#1652D8;margin-top:4px;}
+@media (max-width:900px){.capx-dash{grid-template-columns:repeat(2,minmax(0,1fr));}.capx-grade{grid-template-columns:1fr;}}
+</style>
+<script>
+(function(){
+  const {D,U,pode,pct,Rk,n2}=GS;
+  const {janela,confirmar,executar,salvar,excluir,fe,cn,dt,brDe,isoDe,hoje0,addD,dias,dinheiro,val}=U;
+  const obraDe=ob=>(D().obras||[]).find(x=>Eng.nomeObra(x)===ob)||null;
+  const kR=(o,kws,fb)=>U.kRow(o||{},kws,U.col('obras',kws,fb));
+  const ehExt=()=>!!(Auth._session&&Auth._session.tipoUsuario==='externo');
+  const FASES=[['Não Enviada','Proposta em preparação','#6B7280'],['Enviada - Aguardando Resultado','Aguardando resultado','#B54708'],['Ganha - Aguardando Liberação','Ganha · aguardando início','#7F56D9'],['Ganha - Em Andamento','Em execução','#1652D8'],['Ganha - Finalizada','Entregue','#067647'],['Perdida - Por Preço','Perdida — por preço','#B42318'],['Perdida - Cancelada','Perdida — cancelada','#B42318']];
+  const faseDe=st=>FASES.find(f=>cn(f[0])===cn(st))||FASES[0];
+
+  /* ═══════════════ CENTRAL DA OBRA: a aba Contrato reúne tudo ═══════════════
+     Antes eram três abas (Resumo, Obra e Contrato) mostrando e pedindo as mesmas coisas.
+     Agora: Contrato = cabeçalho com a fase e os dados principais + o painel da obra (sinais,
+     medição, custo, caixa, o que decidir) + a ficha do contrato (linha do tempo, garantia,
+     reajuste, aditivos, ciclo). Tudo é editado num formulário só ("Editar dados"). */
+  function cabecalho(ob){
+    const o=obraDe(ob);if(!o)return '';
+    const st=Eng.statusObra(o),f=faseDe(st),c=Eng.contratoDe?Eng.contratoDe(ob):null,dO=Eng.datasObra(o);
+    let vig=null;try{vig=Eng.infoContrato(o);}catch(e){}
+    const num=getFuzzy(o,['numero_contrato','num_contrato','n_contrato']),pz=String(getFuzzy(o,['prazo_contratual','duracao_prevista'])||'').replace(/\D/g,'');
+    const fatos=[c&&c.contratante?`<span><i class="fas fa-landmark"></i><b>${fe(c.contratante)}</b></span>`:'',num?`<span><i class="fas fa-file-contract"></i>Contrato <b>${fe(num)}</b></span>`:'',
+      vig&&vig.vigente?`<span><i class="fas fa-sack-dollar"></i>Valor vigente <b>${fmt(vig.vigente)}</b></span>`:'',
+      dO.ini?`<span><i class="fas fa-play"></i>OS <b>${brDe(dO.ini)}</b>${pz?` · ${pz} dias`:''}</span>`:'',
+      dO.fim?`<span><i class="fas fa-flag-checkered"></i>Término vigente <b>${brDe(dO.fim)}</b>${dO.prorrogado?' (com aditivo)':''}</span>`:'',
+      vig&&vig.vig?`<span><i class="fas fa-hourglass-half"></i>Vigência até <b>${brDe(vig.vig)}</b></span>`:'',
+      dO.fimReal?`<span><i class="fas fa-circle-check"></i>Entregue em <b>${brDe(dO.fimReal)}</b></span>`:''].filter(Boolean).join('');
+    const descr=getFuzzy(o,['descricao'])||(c&&c.objeto)||'';
+    return `<div class="hc-cab"><div style="min-width:0;flex:1"><span class="hc-fase" style="--cor:${f[2]}">${fe(f[1])}</span>
+        ${descr?`<div style="font-size:13px;color:var(--text-1);margin-top:8px;line-height:1.4">${fe(descr)}</div>`:''}
+        <div class="hc-fatos">${fatos||'<span>Ainda sem os dados do contrato — clique em <b>Editar dados</b>.</span>'}</div></div>
+      ${pode('obras')&&!ehExt()?'<button type="button" class="fin-bt pri" data-hc="editar"><i class="fas fa-pen-to-square"></i> Editar dados</button>':''}</div>`;
+  }
+  Eng.hubContrato=function(ob){
+    if(!UI._obraHubBuildResumo)return;
+    UI._obraHubBuildResumo(ob);   // painel da obra (o antigo Resumo), com os atalhos e os sinais
+    const form=document.getElementById('form-upsert'),sc=form&&form.querySelector('.op-scroll');if(!sc)return;
+    // tira o que repetia a ficha do contrato logo abaixo
+    sc.querySelectorAll('.op-card').forEach(c=>{const h=c.querySelector('h4');if(h&&/^\s*Contrato e execução/.test(h.textContent))c.remove();});
+    sc.querySelectorAll('[data-op="contrato"]').forEach(b=>b.remove());
+    // os atalhos que ficavam no cartão removido (Planejamento e Ações) vão para a barra de atalhos
+    const ac=sc.querySelector('.op-topo .op-acoes');
+    if(ac&&!ehExt()){if(pode('planejamento')&&!ac.querySelector('[data-op="planejamento"]'))ac.insertAdjacentHTML('beforeend','<button type="button" class="fin-bt" data-op="planejamento">Planejamento</button>');
+      if(pode('acoes')&&!ac.querySelector('[data-op="acoes"]'))ac.insertAdjacentHTML('beforeend','<button type="button" class="fin-bt" data-op="acoes">Tarefas</button>');}
+    sc.insertAdjacentHTML('afterbegin',cabecalho(ob));
+    if(pode('contratos')){
+      sc.insertAdjacentHTML('beforeend','<div id="hub-contrato" style="margin-top:16px"></div>');
+      const box=sc.querySelector('#hub-contrato');
+      try{Eng.renderContrato(box,ob);}catch(e){console.error(e);}
+      // o cabeçalho e os indicadores da ficha repetiam o que já está acima
+      const fw=box.querySelector('.fin-wrap');
+      if(fw){fw.querySelector(':scope > div:first-child [data-ct="voltar"]')?.closest('div')?.remove();fw.querySelector(':scope > .fin-cab')?.remove();fw.querySelector(':scope > .fin-kpis')?.remove();}
+      box.querySelectorAll('[data-ct="painel"]').forEach(b=>b.remove());
+      // os avisos do contrato entram na mesma lista "O que pede decisão agora" (um lugar só para agir)
+      const cards=[...sc.querySelectorAll('.op-card')],dec=cards.find(c=>/O que pede decisão/.test((c.querySelector('h4')||{}).textContent||'')),av=[...box.querySelectorAll('.op-card')].find(c=>/O que pede ação neste contrato/.test((c.querySelector('h4')||{}).textContent||''));
+      if(dec&&av){const ul=dec.querySelector('ul');if(ul){av.querySelectorAll('li').forEach(li=>ul.appendChild(li));av.remove();}}
+      box.addEventListener('click',ev=>{const b=ev.target.closest('[data-ct="editar"]');if(b){ev.stopPropagation();ev.preventDefault();editarDadosObra(ob);}},true);
+    }
+    sc.addEventListener('click',ev=>{const b=ev.target.closest('[data-hc="editar"]');if(b){ev.stopPropagation();editarDadosObra(ob);}},true);
+  };
+  UI._obraHubBuildResumoNovo=Eng.hubContrato;
+
+  /* Formulário único: o que era da aba Obra (fase, nº do contrato, datas, prazo, proposta)
+     + a ficha do contrato. Campos que diziam a mesma coisa viraram um só:
+     • Prazo de execução = "prazo contratual" e "duração prevista" (os dois recebem o mesmo valor);
+     • Ordem de serviço = "início da obra" e "liberação da obra";
+     • Objeto do contrato = "descrição da obra";
+     • "Obra com contrato" sai da tela: é Sim quando há nº de contrato;
+     • Término previsto não se digita: é OS + prazo (e aditivos de prazo prorrogam). */
+  const CT_CAMPOS=['contratante','cnpj_contratante','modalidade','numero_licitacao','data_assinatura','valor_contrato','vigencia_fim','data_base','indice_reajuste','garantia_tipo','garantia_pct','garantia_validade','fiscal','fiscal_contato','responsavel_tecnico','preposto','observacoes'];
+  const MODAL=['Licitação (Lei 13.303 — estatais)','Concorrência (Lei 14.133)','Pregão','Dispensa / contratação direta','Contrato privado'];
+  const INDICES=['INCC-DI (FGV)','IPCA (IBGE)','Índice da contratante','Sem reajuste previsto'];
+  const GARANTIAS=['Seguro-garantia','Caução em dinheiro','Fiança bancária','Não exigida'];
+  function editarDadosObra(ob){
+    const o=obraDe(ob);if(!o)return toast('Obra não encontrada.','error');
+    const c=(Eng.contratoDe&&Eng.contratoDe(ob))||{},rm=(()=>{try{return Eng.resumoMedicoes(ob);}catch(e){return {};}})(),orc=Eng.baseDaObra?Eng.baseDaObra(ob):null;
+    const iso=v=>{const d=dt(v);return d?isoDe(d):'';},g=(kws)=>getFuzzy(o,kws)||'';
+    const st=Eng.statusObra(o)||'Não Enviada',pz=String(g(['prazo_contratual','duracao_prevista'])).replace(/\D/g,'');
+    const sel=(k,ops,v,vazio)=>`<select data-k="${k}"><option value="">${vazio||'—'}</option>${ops.map(x=>`<option ${x===v?'selected':''}>${fe(x)}</option>`).join('')}${v&&!ops.includes(v)?`<option selected>${fe(v)}</option>`:''}</select>`;
+    const fld=(rot,html,cl)=>`<div class="fin-fld"${cl?` style="grid-column:1/-1"`:''}><label>${rot}</label>${html}</div>`;
+    const inp=(k,v,extra)=>`<input data-k="${k}" value="${fe(v||'')}"${extra||''}>`;
+    const dat=(k,v)=>`<input type="date" data-k="${k}" value="${fe(iso(v))}">`;
+    const valorAss=val(c.valor_contrato)||rm.base||0;
+    const corpo=`<div class="fin-linha">
+      <div class="hc-sec">Situação e identificação</div>
+      ${fld('Fase da obra <span class="obg">*</span>',sel('fase',FASES.map(f=>f[0]),st))}
+      ${fld('Nº do contrato',inp('numero',g(['numero_contrato','num_contrato','n_contrato'])))}
+      ${fld('Contratante',inp('contratante',c.contratante||'EMBASA'))}
+      ${fld('CNPJ do contratante',inp('cnpj_contratante',c.cnpj_contratante,' data-mask="cnpj" inputmode="numeric" placeholder="00.000.000/0000-00"'))}
+      ${fld('Modalidade da licitação',sel('modalidade',MODAL,c.modalidade))}
+      ${fld('Nº da licitação / processo',inp('numero_licitacao',c.numero_licitacao))}
+      ${fld('Objeto do contrato (descrição da obra)',`<textarea data-k="objeto" rows="2">${fe(g(['descricao'])||c.objeto||'')}</textarea>`,1)}
+      <div class="hc-sec" data-sec-prop>Proposta</div>
+      ${fld('Limite de entrega da proposta',dat('limite',g(['limite_proposta'])))}
+      ${fld('Proposta enviada em',dat('envio',g(['envio_proposta'])))}
+      <div class="hc-sec">Prazos</div>
+      ${fld('Assinatura do contrato',dat('data_assinatura',c.data_assinatura))}
+      ${fld('Ordem de serviço (início)',dat('os',g(['inicio_obra','data_inicio'])||g(['liberacao_obra'])))}
+      ${fld('Prazo de execução (dias)',inp('prazo',pz,' inputmode="numeric" placeholder="Ex.: 240"'))}
+      ${fld('Fim da vigência do contrato',dat('vigencia_fim',c.vigencia_fim))}
+      ${fld('Entrega da obra (término real)',dat('entrega',g(['termino_ocorrido','data_termino_ocorrido'])))}
+      <div class="hc-calc" data-calc></div>
+      <div class="hc-sec">Valor, reajuste e garantia</div>
+      ${fld('Valor assinado (R$)',`<input data-k="valor_contrato" data-mask="moeda" inputmode="numeric" value="${valorAss?fmt(valorAss):''}" placeholder="R$ 0,00">`+(rm.base&&!val(c.valor_contrato)?'<div class="capx-dica">Preenchido com o total do orçamento da obra.</div>':''))}
+      ${fld('Data-base do orçamento (reajuste)',dat('data_base',c.data_base||(orc?getFuzzy(orc,['data_lancamento']):'')))}
+      ${fld('Índice de reajuste',sel('indice_reajuste',INDICES,c.indice_reajuste))}
+      ${fld('Garantia contratual',sel('garantia_tipo',GARANTIAS,c.garantia_tipo))}
+      ${fld('Garantia (% do contrato)',inp('garantia_pct',c.garantia_pct,' inputmode="decimal" placeholder="Ex.: 5"'))}
+      ${fld('Validade da garantia',dat('garantia_validade',c.garantia_validade)+'<div class="capx-dica">Ou cadastre a apólice em Documentos › Seguro-garantia.</div>')}
+      <div class="hc-sec">Equipe</div>
+      ${fld('Fiscal do contrato',inp('fiscal',c.fiscal))}
+      ${fld('Telefone do fiscal',inp('fiscal_contato',c.fiscal_contato,' data-mask="tel" inputmode="tel" placeholder="(77) 99999-9999"'))}
+      ${fld('Responsável técnico (Vixsul)',inp('responsavel_tecnico',c.responsavel_tecnico))}
+      ${fld('Preposto / encarregado na obra',inp('preposto',c.preposto))}
+      ${fld('Observações',`<textarea data-k="observacoes" rows="2">${fe(c.observacoes||'')}</textarea>`,1)}
+    </div>`;
+    const j=janela('Dados da obra e do contrato — '+ob,corpo,[{html:'Cancelar'},{html:'<i class="fas fa-floppy-disk"></i> Salvar',cls:'pri',acao:async jj=>{
+      const v=k=>String((jj.querySelector(`[data-k="${k}"]`)||{}).value||'').trim();
+      const fase=v('fase'),os=v('os'),pzN=v('prazo').replace(/\D/g,''),entrega=v('entrega'),num=v('numero');
+      if(!fase)throw new Error('Escolha a fase da obra.');
+      if(/andamento|finalizada/i.test(fase)&&!os)throw new Error('Obra em execução ou entregue precisa da data da ordem de serviço.');
+      if(/finalizada/i.test(fase)&&!entrega)throw new Error('Informe a data de entrega da obra.');
+      if(entrega&&os&&entrega<os)throw new Error('A entrega não pode ser antes da ordem de serviço.');
+      if(v('vigencia_fim')&&v('data_assinatura')&&v('vigencia_fim')<v('data_assinatura'))throw new Error('O fim da vigência não pode ser antes da assinatura.');
+      // obra
+      const o2={...o};delete o2.rowid;delete o2.visualId;delete o2._aba;
+      const K=(kws,fb)=>kR(o,kws,fb);
+      o2[K(['status_proposta','status_obra','status_da_obra','status'],'status_proposta')]=fase;
+      o2[K(['descricao'],'descricao')]=v('objeto');
+      o2[K(['numero_contrato','num_contrato','n_contrato'],'numero_contrato')]=num;
+      if(num)o2[K(['obra_com_ct','com_ct','possui_contrato'],'obra_com_ct')]='Sim';
+      o2[K(['limite_proposta'],'limite_proposta')]=v('limite');o2[K(['envio_proposta'],'envio_proposta')]=v('envio');
+      o2[K(['inicio_obra','data_inicio'],'inicio_obra')]=os;if(Object.keys(o).some(k=>k.includes('liberacao'))||os)o2[K(['liberacao_obra','liberacao'],'liberacao_obra')]=os;
+      o2[K(['prazo_contratual'],'prazo_contratual')]=pzN;o2[K(['duracao_prevista'],'duracao_prevista')]=pzN;
+      if(os&&pzN)o2[K(['termino_previsto','data_termino_previsto'],'termino_previsto')]=isoDe(addD(dt(os),+pzN));
+      o2[K(['termino_ocorrido','data_termino_ocorrido'],'termino_ocorrido')]=entrega;
+      // contrato
+      const temCt=!!c.rowid,ct={...c};delete ct.rowid;delete ct.visualId;delete ct._aba;
+      CT_CAMPOS.forEach(k=>ct[k]=v(k));ct.titulo_obra=ob;ct.objeto=v('objeto');
+      ct.valor_contrato=ct.valor_contrato?dinheiro(Mascara.numero(ct.valor_contrato)||0):'';
+      ct.garantia_pct=ct.garantia_pct?String(Mascara.numero(ct.garantia_pct)||'').replace('.',','):'';
+      if(!temCt)ct.data_lancamento=todayDateTime();
+      const algoDoContrato=CT_CAMPOS.some(k=>k!=='contratante'&&ct[k]);
+      await executar(async()=>{await salvar('Obras',o2,o.rowid);if(temCt||algoDoContrato)await salvar('Contratos',ct,temCt?c.rowid:null);});
+      toast('Dados da obra e do contrato salvos.','success');}}],820);
+    // proposta só interessa antes de ganhar; término previsto calculado na hora
+    const atualiza=()=>{const f=(j.querySelector('[data-k="fase"]')||{}).value||'',prop=!/ganha|perdida/i.test(f);
+      j.querySelectorAll('[data-sec-prop]').forEach(x=>x.hidden=!prop);['limite','envio'].forEach(k=>{const e=j.querySelector(`[data-k="${k}"]`);if(e)e.closest('.fin-fld').hidden=!prop;});
+      const os=j.querySelector('[data-k="os"]').value,p=+j.querySelector('[data-k="prazo"]').value.replace(/\D/g,'')||0,cc=j.querySelector('[data-calc]');
+      cc.innerHTML=os&&p?`Término previsto = OS + prazo = <b>${brDe(addD(dt(os),p))}</b>${Eng.aditivosDaObra&&Eng.aditivosDaObra(ob).some(a=>a.novo_termino)?' · os aditivos de prazo prorrogam essa data':''}`:'O término previsto é calculado: ordem de serviço + prazo de execução.';};
+    j.oninput=atualiza;j.onchange=atualiza;atualiza();
+  }
+  Eng.editarDadosObra=editarDadosObra;
+
+  /* obra nova: confirmado o nome, a obra já é criada (fase "Proposta em preparação") e abre na
+     aba Contrato com o formulário único — não existe mais a aba "Obra" separada */
+  UI._obraHubConfirmarNome=function(){
+    const el=document.getElementById('obra-nome-novo');
+    const prefix=el?(el.getAttribute('data-prefix')||''):'';
+    let suf=(el?el.value:'').trim();if(suf.length)suf=suf.charAt(0).toUpperCase()+suf.slice(1);
+    if(!this._obraSufixoValido(suf)){if(el){el.classList.add('err');el.value=suf;el.focus();}toast('Escreva pelo menos 5 caracteres após o " - ".','error');return;}
+    const nome=prefix+suf;
+    if((D().obras||[]).some(o=>cn(Eng.nomeObra(o))===cn(nome)))return toast('Já existe uma obra com esse nome.','error');
+    (async()=>{
+      try{await executar(()=>salvar('Obras',{[U.col('obras',['titulo_obra'],'titulo_obra')]:nome,[U.col('obras',['status_proposta','status_obra','status'],'status_proposta')]:'Não Enviada',data_lancamento:todayDateTime()},null));}
+      catch(e){return toast(e.message||String(e),'error');}
+      const o=(D().obras||[]).find(x=>Eng.nomeObra(x)===nome);
+      UI.closeModal('modal-editor');
+      if(o){UI.openObraHub(o.rowid);setTimeout(()=>editarDadosObra(nome),250);}
+      toast('Obra criada — preencha os dados do contrato.','success');
+    })();
+  };
+
+  /* ═══════════════ CAP: painel, blocos em cartão, formação do preço, orçado × realizado ═══════════════ */
+  const BL={A:{ico:'fa-people-group',cor:'#0071E3'},C:{ico:'fa-truck-pickup',cor:'#FF9500'},D:{ico:'fa-cubes',cor:'#34C759'},E:{ico:'fa-file-invoice',cor:'#FF3B30'}};
+  const numTxt=id=>{const e=document.getElementById(id);return e?currencyToNumber(e.tagName==='INPUT'?e.value:e.textContent):0;};
+  const pctTxt=id=>{const e=document.getElementById(id);if(!e)return 0;const m=String(e.tagName==='INPUT'?e.value:e.textContent).match(/-?[\d.,]+/);return m?parseFloat(m[0].replace(/\./g,'').replace(',','.'))||0:0;};
+  const obraCAP=()=>{const e=document.getElementById('cap-f-obra');return e?e.value:'';};
+  // quanto já se gastou (custos Real da obra) em cada bloco do CAP
+  function realPorBloco(ob){
+    const r={A:0,C:0,D:0,E:0};
+    (D().custos||[]).map(GS.contas.deCusto).filter(o=>o.centro===ob&&o.tipo==='Real').forEach(o=>{const b=o.cat==='Mão de Obra'?'A':o.cat==='Equipamentos e Locações'?'C':o.cat==='Despesas Administrativas'?'E':'D';r[b]+=val(o.total);});
+    return r;
+  }
+  function atualizarPainelCAP(){
+    const dash=document.getElementById('capx-dash');if(!dash)return;
+    const ob=obraCAP(),tot={A:numTxt('cap-tot-A'),C:numTxt('cap-tot-C'),D:numTxt('cap-tot-D'),E:numTxt('cap-tot-E')},custo=numTxt('cap-r-op')||Object.values(tot).reduce((s,x)=>s+x,0);
+    const bruto=numTxt('cap-orc-bruto'),lucro=numTxt('cap-val-lucratividade'),pl=pctTxt('cap-pct-lucratividade'),ded=bruto?bruto-custo-lucro:0,bdi=custo?(bruto/custo-1)*100:null;
+    const nItens=[...document.querySelectorAll('#cap-scroll-body .cap-tbody tr')].filter(tr=>(tr.querySelector('.cap-desc')||{}).value).length;
+    // contagem e % em cada bloco
+    Object.keys(BL).forEach(k=>{const h=document.querySelector(`#cap-scroll-body .cap-tbody[data-bloco="${k}"]`);const card=h&&h.closest('.capx-bloco');if(!card)return;
+      const n=[...h.querySelectorAll('tr')].filter(tr=>(tr.querySelector('.cap-desc')||{}).value).length,ne=card.querySelector('.capx-n');if(ne)ne.textContent=n?`${n} ${n>1?'itens':'item'}`:'';
+      const pe=card.querySelector('.capx-pctb');if(pe)pe.textContent=custo&&tot[k]?pct(tot[k]/custo*100)+' do custo':'';});
+    dash.innerHTML=`<div class="capx-k"><small>Custo direto orçado</small><b>${fmt(custo)}</b><span>${nItens} ${nItens===1?'item':'itens'} na composição</span></div>
+      <div class="capx-k"><small>Preço de venda (orçamento bruto)</small><b>${bruto?fmt(bruto):'—'}</b><span>${bdi!=null&&bruto?'BDI implícito '+pct(bdi,1):'informe o orçamento bruto no resumo'}</span></div>
+      <div class="capx-k"><small>Impostos e deduções</small><b>${bruto?fmt(ded):'—'}</b><span>${bruto?pct(ded/bruto*100,1)+' do preço':''}</span></div>
+      <div class="capx-k ${!bruto?'':lucro<0?'err':pl<5?'warn':'ok'}"><small>Lucratividade prevista</small><b>${bruto?fmt(lucro):'—'}</b><span>${bruto?pct(pl,1)+' do preço'+(pl<5&&lucro>=0?' — margem apertada':lucro<0?' — a obra dá prejuízo':''):''}</span></div>
+      <div class="capx-comp"><div class="capx-tit" style="margin:0">Composição do custo</div><div class="capx-comp-barra">${Object.keys(BL).map(k=>custo&&tot[k]?`<i style="width:${tot[k]/custo*100}%;background:${BL[k].cor}" title="${fmt(tot[k])}"></i>`:'').join('')}</div>
+        <div class="capx-leg">${[['A','Mão de obra'],['C','Equipamentos'],['D','Serviços, insumos e materiais'],['E','Outros']].map(([k,r])=>`<span><em style="background:${BL[k].cor}"></em>${r} · ${custo?pct(tot[k]/custo*100):'—'}</span>`).join('')}</div></div>`;
+    // orçado × realizado
+    const real=document.getElementById('capx-real');if(!real||!ob)return;
+    const rr=realPorBloco(ob),gastoT=Object.values(rr).reduce((s,x)=>s+x,0);let fis=null;try{const f=Eng.fisico(ob,hoje0());if(f&&f.tem)fis=f.real;}catch(e){}
+    const linha=(rot,orc,gas,cor)=>{const p=orc?gas/orc*100:null;const c2=p==null?'#8E8E93':p>100?'#F04438':fis!=null&&p>fis+10?'#F79009':cor;
+      return `<div class="capx-linha"><div><b>${rot}</b><span>${fmt(gas)} de ${fmt(orc)}${p!=null?' · '+pct(p):''}</span></div><em><i style="width:${Math.min(100,p||0)}%;background:${c2}"></i>${fis!=null?`<b style="left:${Math.min(100,fis)}%" title="avanço físico ${pct(fis)}"></b>`:''}</em></div>`;};
+    const pT=custo?gastoT/custo*100:null;
+    real.innerHTML=`<h4>Orçado × realizado</h4>
+      ${linha('Total da obra',custo,gastoT,'#1652D8')}
+      ${[['A','Mão de obra'],['C','Equipamentos'],['D','Serviços, insumos e materiais'],['E','Outros']].map(([k,r])=>tot[k]||rr[k]?linha(r,tot[k],rr[k],BL[k].cor):'').join('')}
+      <p class="capx-nota">${fis!=null?`A marca preta é o avanço físico (${pct(fis)}). `:''}${pT==null?'Lance a composição para comparar com os custos reais.':pT>100?`<b style="color:#B42318">Os custos reais já passaram do orçado.</b> Revise a composição ou negocie aditivo.`:fis!=null&&pT>fis+10?`<b style="color:#B54708">O gasto (${pct(pT)}) está à frente do avanço físico (${pct(fis)})</b> — pode ser compra antecipada de material ou custo estourando: confira os blocos em laranja.`:'O gasto acompanha o orçado.'} Custos reais = contas a pagar "Real" da obra (pagas ou a pagar).</p>`;
+  }
+  function melhorarCAP(){
+    const body=document.getElementById('cap-scroll-body');if(!body||body.dataset.capx)return;body.dataset.capx='1';
+    body.insertAdjacentHTML('afterbegin','<div class="capx-dash" id="capx-dash"></div>');
+    body.querySelectorAll('.cap-bloco-head').forEach(h=>{const card=h.parentElement;card.classList.add('capx-bloco');const k=(card.querySelector('.cap-tbody')||{}).dataset?card.querySelector('.cap-tbody').dataset.bloco:'';
+      const lab=h.querySelector('.cap-bloco-label');if(lab&&BL[k])lab.innerHTML=`<i class="fas ${BL[k].ico}"></i>${lab.textContent}<span class="capx-n"></span>`;
+      const tt=h.querySelector('.cap-bloco-total');if(tt)tt.insertAdjacentHTML('beforebegin','<span class="capx-pctb"></span>');
+      const wrap=document.createElement('span');wrap.style.cssText='display:flex;align-items:center';const pb=h.querySelector('.capx-pctb');if(pb&&tt){h.insertBefore(wrap,pb);wrap.appendChild(pb);wrap.appendChild(tt);}});
+    const res=body.querySelector('.cap-resumo');
+    if(res){const g=document.createElement('div');g.className='capx-grade';res.parentNode.insertBefore(g,res);g.appendChild(res);g.insertAdjacentHTML('beforeend','<div class="capx-real" id="capx-real"></div>');
+      const t=res.querySelector('div');if(t&&/Resumo/.test(t.textContent))t.outerHTML='<h4 class="capx-tit">Formação do preço</h4>';}
+    // o preço e as retenções não precisam ser digitados de novo: vêm do contrato e das notas da obra
+    const ob=obraCAP(),bruto=document.getElementById('cap-orc-bruto');
+    if(ob&&bruto&&!currencyToNumber(bruto.value)){let v=0;try{v=Eng.resumoMedicoes(ob).contrato;}catch(e){}if(v>0){bruto.value=fmt(v);bruto.insertAdjacentHTML('afterend','<div class="capx-dica" style="text-align:right">valor do contrato (orçamento + aditivos)</div>');}}
+    if(ob){const K=GS.fat.KF(),p=GS.fat.pctObra(ob,K);[['cap-pct-inss',p.inss],['cap-pct-irpf',p.irpf],['cap-pct-simples',p.simples],['cap-pct-antnf',p.antec]].forEach(([id,v])=>{const e=document.getElementById(id);if(e&&!e.value.trim()&&v)e.value=v.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})+'%';});}
+    try{UI._calcResumoFinanceiroCAP();}catch(e){}
+    atualizarPainelCAP();
+  }
+  const bc=UI._buildCAP;UI._buildCAP=function(){const r=bc.apply(this,arguments);try{melhorarCAP();}catch(e){console.error(e);}return r;};
+  ['_calcResumoFinanceiroCAP','_calcCAPAll'].forEach(fn=>{const f=UI[fn];if(typeof f!=='function')return;UI[fn]=function(){const r=f.apply(this,arguments);try{atualizarPainelCAP();}catch(e){}return r;};});
+
+  /* ═══════════════ um caminho só para faturar a medição ═══════════════
+     O botão "Faturar" da tela de Medições criava um faturamento "previsto" que depois
+     precisava ser completado. Agora ele abre a mesma "Emitir a nota" do quadro de Faturamento:
+     nº da nota, emissão, retenções — e a medição fica Faturada e ligada à nota. */
+  document.getElementById('eng-medicoes')?.addEventListener('click',ev=>{
+    const b=ev.target.closest('[data-me="faturar"]');if(!b)return;
+    const m=(App._medLista||[])[+b.dataset.i];if(!m||!GS.quadros||!GS.quadros.emitirNota)return;
+    ev.stopPropagation();ev.preventDefault();
+    if(!/aprovad/i.test(m.status||''))return toast('A medição precisa estar aprovada pela fiscalização para emitir a nota.','error');
+    GS.quadros.emitirNota({k:'m',r:m,obra:m.titulo_obra});
+  },true);
 })();
 </script>
 </body>
