@@ -189,11 +189,14 @@ ALTER PUBLICATION supabase_realtime ADD TABLE obra_imagens;
 --  diario_obra  → um dia de obra por linha (clima, efetivo, atividades…).
 --  documentos   → certidões, seguros, ART, licenças, com data de validade.
 --  fornecedores → cadastro de fornecedores.
+--  arquivos     → desenhos do projeto de cada obra (imagem leve) e as frentes
+--                 marcadas neles (Planejamento e cronograma). Lida só quando
+--                 a tela abre — não pesa no carregamento do sistema.
 -- ══════════════════════════════════════════════════════════
 DO $$
 DECLARE t TEXT;
 BEGIN
-  FOREACH t IN ARRAY ARRAY['medicoes','diario_obra','documentos','fornecedores','contratos','acoes','reunioes','planejamento'] LOOP
+  FOREACH t IN ARRAY ARRAY['medicoes','diario_obra','documentos','fornecedores','contratos','acoes','reunioes','planejamento','arquivos'] LOOP
     EXECUTE format('CREATE TABLE IF NOT EXISTS %I (id BIGSERIAL PRIMARY KEY, row_data JSONB NOT NULL DEFAULT ''{}'', created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())', t);
     EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', t);
     IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename=t AND policyname='acesso_total') THEN

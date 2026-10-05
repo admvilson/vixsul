@@ -18,7 +18,8 @@ const _NOME_PARA_CHAVE = {
   'Orçamentos':'orcamentos','Despesas':'despesas','Etapas':'etapas',
   'Imagens da Obra':'obra_imagens',
   'Medições':'medicoes','Diário de obra':'diario_obra','Documentos':'documentos','Fornecedores':'fornecedores',
-  'Contratos':'contratos','Plano de ação':'acoes','Reuniões':'reunioes','Planejamento':'planejamento'
+  'Contratos':'contratos','Plano de ação':'acoes','Reuniões':'reunioes','Planejamento':'planejamento',
+  'Arquivos':'arquivos'
 };
 const _ABA_NOME = {
   obras:'Obras', custos:'Custos',
@@ -26,7 +27,8 @@ const _ABA_NOME = {
   orcamentos:'Orçamentos', despesas:'Despesas', etapas:'Etapas',
   obra_imagens:'Imagens da Obra',
   medicoes:'Medições', diario_obra:'Diário de obra', documentos:'Documentos', fornecedores:'Fornecedores',
-  contratos:'Contratos', acoes:'Plano de ação', reunioes:'Reuniões', planejamento:'Planejamento'
+  contratos:'Contratos', acoes:'Plano de ação', reunioes:'Reuniões', planejamento:'Planejamento',
+  arquivos:'Arquivos'
 };
 // Tabelas de engenharia (2026-10): ficam numa lista à parte porque dependem do SQL de
 // instalação (schema.sql) — enquanto ele não roda, a leitura delas volta vazia sem afetar
@@ -115,6 +117,14 @@ async function _excluirRegistroLote(abaNome, rowId) {
   const { error } = await _sb.from(chave).delete().eq('id', Number(rowId));
   if (error) return { ok: false, msg: error.message };
   return { ok: true };
+}
+
+// Arquivos (desenhos do projeto e as frentes marcadas neles): ficam fora do carregamento
+// geral do sistema — só são lidos, por obra, quando a tela de Planejamento abre.
+async function _listarArquivos(obra) {
+  const { data, error } = await _sb.from('arquivos').select('id,row_data').eq('row_data->>titulo_obra', String(obra || '')).order('id', { ascending: true });
+  if (error) return { ok: false, msg: error.message };
+  return { ok: true, itens: (data || []).map(r => ({ rowid: r.id, ...r.row_data })) };
 }
 
 async function _salvarComposicaoCAP(dataLancamento, tituloObra, itens, isEdicao) {
@@ -454,6 +464,7 @@ window.subscribeRealtime = subscribeRealtime;
 
 const _FNS = {
   getSistemaData:       ()        => _getSistemaData(),
+  listarArquivos:       (a)       => _listarArquivos(a),
   upsertRegistro:       (a,b,c)   => _upsertRegistro(a,b,c),
   excluirRegistro:      (a,b)     => _excluirRegistro(a,b),
   upsertRegistroLote:   (a,b,c)   => _upsertRegistroLote(a,b,c),
