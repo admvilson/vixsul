@@ -8203,7 +8203,8 @@ const UI={
               this._accessToken=resp.access_token;
               this._tokenExpiraEm=Date.now()+(Number(resp.expires_in||3600)*1000);
               this._salvarTokenCache();
-              onOk();
+              // chama quem pediu POR ÚLTIMO (o cliente do Google é criado uma vez só e guardava o 1º pedido)
+              const f=this._onAuthOk||onOk;this._onAuthOk=null;f();
             } else {
               this._status('Não foi possível autenticar.');
             }
@@ -8213,6 +8214,7 @@ const UI={
       // prompt vazio: só mostra a tela de autorização do Google quando for REALMENTE
       // necessário (primeira vez, ou se o acesso foi revogado) — nas próximas vezes,
       // dentro da mesma sessão do navegador, o token é reaproveitado sem abrir nada.
+      this._onAuthOk=onOk;
       this._tokenClient.requestAccessToken({prompt:''});
     },
 
@@ -10944,7 +10946,7 @@ const Atencao=(function(){
       let pesoT=0,real=0,prev=0;
       et.forEach(e=>{
         const p=num(e[K.peso])||0;if(p<=0)return;
-        const av=Math.min(100,Math.max(0,num(e[K.avanco])||0));
+        const aI=Eng.avancoEtapa?Eng.avancoEtapa(e,ob):null,av=Math.min(100,Math.max(0,aI!=null?aI:(num(e[K.avanco])||0)));
         const ini=dt(e[K.ini]),fim=dt(e[K.fim]);
         let fr=0;if(ini&&fim){fr=fim<=ini?(h>=fim?1:0):Math.min(1,Math.max(0,(h-ini)/(fim-ini)));}
         pesoT+=p;real+=p*av/100;prev+=p*fr;
@@ -11105,9 +11107,13 @@ const Eng=(function(){
     else inp=`<input data-f="${c.k}" value="${fe(c.tipo==='moeda'&&val0!==''?fmt(parseStoredNumber(val0)):val0)}" placeholder="${fe(c.ph||'')}"${c.tipo==='num'?' inputmode="decimal"':''}${c.tipo==='moeda'?` data-mask="moeda"${c.neg?' data-neg="1"':' inputmode="numeric"'}`:''}${c.mask?` data-mask="${c.mask}" inputmode="numeric"`:''}${c.tipo==='url'?' type="url"':''}${c.lista?` list="${c.lista}"`:''}>`;
     return `<div class="fin-fld"${c.inteira?' style="grid-column:1/-1"':''}>${lab}${inp}</div>`;
   }
+  // cfg.extra(reg): HTML a mais no formulário · cfg.aoAbrir(j,reg): liga os eventos dele ·
+  // cfg.preparar(j,reg): roda AINDA DENTRO DO CLIQUE (ex.: pedir acesso ao Google para enviar fotos) ·
+  // cfg.depois(o,reg,j,prep): roda depois de gravar (ex.: enviar as fotos do dia)
   function formulario(cfg,reg,extraHtml){
-    const linhas=`<div class="fin-linha">${cfg.campos.map(c=>campoHtml(c,reg?reg[c.k]:'')).join('')}</div>${extraHtml||''}`;
-    return janela((reg?'Editar ':'Novo ')+cfg.nomeItem,linhas,[{html:'Cancelar'},{html:reg?'Salvar':'Cadastrar',cls:'pri',acao:async j=>{
+    const linhas=`<div class="fin-linha">${cfg.campos.map(c=>campoHtml(c,reg?reg[c.k]:'')).join('')}</div>${cfg.extra?cfg.extra(reg):''}${extraHtml||''}`;
+    const jan=janela((reg?'Editar ':'Novo ')+cfg.nomeItem,linhas,[{html:'Cancelar'},{html:reg?'Salvar':'Cadastrar',cls:'pri',acao:async j=>{
+      const prep=cfg.preparar?cfg.preparar(j,reg):null;
       const o=reg?{...reg}:{data_lancamento:todayDateTime()};
       for(const c of cfg.campos){
         const el=j.querySelector(`[data-f="${c.k}"]`);let v=(el.value||'').trim();
@@ -11119,7 +11125,10 @@ const Eng=(function(){
       if(cfg.validar){const msg=cfg.validar(o,reg);if(msg)throw new Error(msg);}
       await executar(()=>salvar(cfg.aba,o,reg?reg.rowid:null));
       toast(reg?'Alterações salvas.':cfg.nomeItem.charAt(0).toUpperCase()+cfg.nomeItem.slice(1)+' cadastrado.','success');
+      if(cfg.depois)await cfg.depois(o,reg,j,prep);
     }}],cfg.larg||640);
+    if(cfg.aoAbrir)cfg.aoAbrir(jan,reg);
+    return jan;
   }
   function apagar(cfg,reg,rotulo){
     confirmar(`Excluir ${cfg.nomeItem}?`,`<b>${fe(rotulo)}</b> será excluído${cfg.feminino?'a':''} de vez. Não tem como desfazer.`,'Sim, excluir',async()=>{
@@ -11257,7 +11266,24 @@ const Eng=(function(){
     {k:'atividades',label:'Serviços executados',tipo:'area',obrig:true,inteira:true,linhas:4,ph:'O que foi feito hoje, com local e quantidade quando possível'},
     {k:'ocorrencias',label:'Ocorrências e problemas',tipo:'area',inteira:true,linhas:2,ph:'Paralisações, acidentes, falta de material, interferências…'},
     {k:'visitas',label:'Visitas e fiscalização',tipo:'area',inteira:true,linhas:2,ph:'Visita do fiscal da EMBASA, orientações recebidas…'}
-  ],validar:(o,reg)=>{
+  ],
+  // FOTOS DO DIA já no registro: escolhidas aqui, vão para a galeria da obra com a data do diário
+  extra:reg=>Eng.podeFotos&&Eng.podeFotos()?`<div class="rdo-fotos"><div class="rdo-fotos-cab"><b><i class="fas fa-camera"></i> Fotos do dia</b><label class="fin-bt mini" style="cursor:pointer">+ Escolher fotos<input type="file" accept="image/*" multiple data-rdo-fotos hidden></label></div>
+    <div class="eng-fotos-fila" data-rdo-prev></div><small>${reg?'As fotos que já estão neste dia continuam; as escolhidas aqui são somadas.':'As fotos vão para a galeria da obra com a data deste registro e aparecem neste dia do diário.'}</small></div>`:'',
+  aoAbrir:j=>{
+    const inp=j.querySelector('[data-rdo-fotos]'),prev=j.querySelector('[data-rdo-prev]');if(!inp||!prev)return;j._fotos=[];
+    const desenha=()=>{prev.innerHTML=j._fotos.map((f,k)=>`<div class="eng-foto-item"><img src="${f.url}" alt=""><input data-rdo-desc="${k}" maxlength="50" placeholder="Descrição (opcional)" value="${fe(f.desc)}"><button type="button" class="rdo-foto-x" data-rdo-x="${k}" title="Tirar esta foto">×</button></div>`).join('');};
+    inp.addEventListener('change',()=>{[...(inp.files||[])].filter(f=>/^image\//.test(f.type)).forEach(file=>j._fotos.push({file,url:URL.createObjectURL(file),desc:''}));inp.value='';desenha();});
+    prev.addEventListener('input',ev=>{const k=ev.target.dataset.rdoDesc;if(k!=null&&j._fotos[+k])j._fotos[+k].desc=ev.target.value;});
+    prev.addEventListener('click',ev=>{const b=ev.target.closest('[data-rdo-x]');if(!b)return;const f=j._fotos.splice(+b.dataset.rdoX,1)[0];if(f)URL.revokeObjectURL(f.url);desenha();});
+  },
+  // o acesso ao Google Drive é pedido ainda no clique de Cadastrar (senão o navegador bloqueia a janela do Google)
+  preparar:j=>{if(!(j._fotos&&j._fotos.length))return null;const io=UI.ImagensObra;
+    const p=new Promise((ok,er)=>{const t=setTimeout(()=>er(new Error('o acesso ao Google Drive não foi confirmado.')),180000);io._autenticar(()=>{clearTimeout(t);ok();});});p.catch(()=>{});return p;},
+  depois:async(o,reg,j,prep)=>{if(!prep)return;
+    try{await prep;}catch(e){toast('Diário salvo, mas as fotos não foram enviadas: '+e.message+' Use o botão de fotos deste dia.','error');return;}
+    await Eng.subirFotosDia(o.titulo_obra,o.data,j._fotos.map(f=>({file:f.file,descricao:(f.desc||'').trim(),previewUrl:f.url})));},
+  validar:(o,reg)=>{
     if(o.data>isoDe(hoje0()))return 'A data do diário não pode ser no futuro.';
     const dup=(D().diario_obra||[]).find(r=>r.titulo_obra===o.titulo_obra&&r.data===o.data&&(!reg||String(r.rowid)!==String(reg.rowid)));
     return dup?`Já existe um registro desta obra em ${brDe(dt(o.data))} — edite o existente.`:'';
@@ -11374,6 +11400,38 @@ const Eng=(function(){
   function acumulado(ob,antesDe){
     const a={};medsDaObra(ob).forEach(m=>{if((+m.numero||0)>=antesDe)return;(m.itens||[]).forEach(it=>{a[it.chave]=(a[it.chave]||0)+(+it.qtd||0);});});return a;
   }
+  /* CONTRATO VIGENTE de cada item = quantidade do orçamento + aditivos em QUANTIDADE (acréscimo,
+     supressão — inclusive zerar o saldo — e itens novos). O preço unitário é sempre o do contrato.
+     É a base da medição (coluna Contrato) e do avanço do cronograma (acumulado ÷ contrato). */
+  const r4=n=>Math.round((+n||0)*10000)/10000;
+  function itensVigentes(ob,orc,excetoAdt){
+    orc=orc===undefined?baseDaObra(ob):orc;
+    const lista=(orc?itensDaObra(ob,orc):[]).map(x=>({...x,qtd_orc:x.qtd_contrato,qtd_adt:0})),por={};lista.forEach(x=>por[x.chave]=x);
+    aditivosDaObra(ob).forEach(a=>{if(excetoAdt&&String(a.rowid)===String(excetoAdt))return;(Array.isArray(a.itens_aditivo)?a.itens_aditivo:[]).forEach(it=>{
+      let x=por[it.chave];
+      if(!x){x={chave:it.chave,item:it.item||'Ad.',codigo:it.codigo||'',descricao:it.descricao||'',unidade:it.unidade||'',qtd_contrato:0,qtd_orc:0,qtd_adt:0,p_unit:+it.p_unit||0,novo:true};por[it.chave]=x;lista.push(x);}
+      else if(x.fora&&String(it.chave).startsWith('adt:')){x.fora=false;x.novo=true;x.qtd_orc=0;x.qtd_adt=0;x.item=it.item||'Ad.';}   // item novo de aditivo que já foi medido
+      x.qtd_adt=r4(x.qtd_adt+(+it.qtd||0));x.qtd_contrato=r4(x.qtd_orc+x.qtd_adt);
+    });});
+    return lista;
+  }
+  // avanço de cada item (acumulado medido ÷ contrato vigente) — guardado por obra até os dados mudarem
+  const _avC={ref:null,por:{}};
+  function avancoItens(ob){
+    const d=D();if(_avC.ref!==d){_avC.ref=d;_avC.por={};}
+    if(_avC.por[ob])return _avC.por[ob];
+    const its=itensVigentes(ob),ac=acumulado(ob,Infinity),m={};
+    its.forEach(x=>{const a=+ac[x.chave]||0;m[x.chave]={x,acum:a,pct:x.qtd_contrato>0?a/x.qtd_contrato*100:(a>0?100:0),valor:r2(x.qtd_contrato*x.p_unit)};});
+    return _avC.por[ob]={m,its};
+  }
+  // avanço da etapa = soma dos itens do orçamento dela, pelo valor (cada item conta até 100%);
+  // etapa sem itens ligados: null (vale o avanço informado nela)
+  function avancoEtapa(e,ob){
+    const ch=Array.isArray(e&&e.itens_orc)?e.itens_orc:[];if(!ch.length)return null;
+    const {m}=avancoItens(ob||getFuzzy(e,['titulo_obra'])||'');let tot=0,feito=0;
+    ch.forEach(k=>{const y=m[k];if(!y)return;const q=y.x.qtd_contrato,p=y.x.p_unit;if(q<=0)return;tot+=q*p;feito+=Math.min(y.acum,q)*p;});
+    return tot>0?feito/tot*100:0;
+  }
   const valorMed=m=>{const v=val(m.valor_total);return v||(m.itens||[]).reduce((s,it)=>s+r2((+it.qtd||0)*(+it.p_unit||0)),0);};
   function resumoMedicoes(ob){
     const orc=baseDaObra(ob),ms=medsDaObra(ob);
@@ -11479,7 +11537,7 @@ const Eng=(function(){
     return vis.map(({x,i})=>{
       const ant=E._ant[x.chave]||0,q=E.qtd[x.chave]||0,ac=ant+q,p=x.qtd_contrato?ac/x.qtd_contrato*100:0;
       return `<tr data-ix="${i}" class="${q?'medido':''} ${p>100.05?'estouro':''}"><td>${fe(x.item)}</td><td class="fin-esconder-cel" style="white-space:nowrap">${fe(x.codigo)}</td><td style="min-width:220px">${fe(x.descricao)}${x.fora?'<small>fora do orçamento atual</small>':''}</td><td>${fe(x.unidade)}</td>
-        <td class="num">${fq(x.qtd_contrato)||'0'}</td><td class="num fin-esconder-cel">${fq(ant)||'—'}</td>
+        <td class="num">${fq(x.qtd_contrato)||'0'}${x.novo?'<small>item novo (aditivo)</small>':x.qtd_adt?`<small>${x.qtd_adt>0?'+':''}${fq(x.qtd_adt)} em aditivo</small>`:''}</td><td class="num fin-esconder-cel">${fq(ant)||'—'}</td>
         <td class="num" style="white-space:nowrap"><input data-q="${i}" value="${fq(q)}" inputmode="decimal" placeholder="0" title="Quantidade executada no período — ou um percentual do item, ex.: 30%"> <button type="button" class="fin-bt mini" data-saldo="${i}" title="Medir todo o saldo que falta deste item">Saldo</button></td>
         <td class="num" data-c="ac">${fq(ac)||'—'}</td><td style="min-width:90px" data-c="p"><div style="display:flex;gap:6px;align-items:center">${barra(p)}<small style="margin:0">${pct(p,0)}</small></div></td>
         <td class="num">${fmt(x.p_unit)}</td><td class="num" data-c="v"><b>${q?fmt(r2(q*x.p_unit)):'—'}</b></td></tr>`;
@@ -11494,7 +11552,7 @@ const Eng=(function(){
   }
   function renderEditor(box){
     const E=ME.edit,orc=orcDe(E.orcRowid);
-    E._itens=itensDaObra(E.obra,orc);E._ant=acumulado(E.obra,E.numero);
+    E._itens=itensVigentes(E.obra,orc);E._ant=acumulado(E.obra,E.numero);   // contrato = orçamento + aditivos em quantidade
     const depois=medsDaObra(E.obra).filter(x=>(+x.numero||0)>E.numero).length;
     const c=E.campos;
     box.innerHTML=`<div class="fin-wrap">
@@ -11641,7 +11699,7 @@ const Eng=(function(){
     const k=UI._etapasK(),et=(D().etapas||[]).filter(e=>(e[k.obra]||getFuzzy(e,['titulo_obra']))===ob);
     let pT=0,re=0,pr=0,ini=null,fim=null,vT=0;
     et.forEach(e=>{const a=dt(e[k.ini]),b=dt(e[k.fim]);if(a&&(!ini||a<ini))ini=a;if(b&&(!fim||b>fim))fim=b;vT+=val(e[k.valor])||0;
-      const p=val(e[k.peso])||0;if(p<=0)return;const av=Math.min(100,Math.max(0,val(e[k.avanco])||0));
+      const p=val(e[k.peso])||0;if(p<=0)return;const aI=avancoEtapa(e,ob),av=Math.min(100,Math.max(0,aI!=null?aI:(val(e[k.avanco])||0)));
       let fr=0;if(a&&b)fr=b<=a?(h>=b?1:0):Math.min(1,Math.max(0,(h-a)/(b-a)));pT+=p;re+=p*av/100;pr+=p*fr;});
     return {tem:pT>0,real:pT?re/pT*100:0,prev:pT?pr/pT*100:0,ini,fim,valor:vT};
   }
@@ -11859,7 +11917,7 @@ const Eng=(function(){
       if(v&&!(v==='medicoes'&&ME.edit))App._renderEng(v);
     }catch(e){console.error(e);}
   };
-  Object.assign(Eng,{renderMedicoes,alertas,resumoMedicoes,fisico,capOrcado,custoReal,fatReal,REL,_ME:ME,aditivosDaObra,datasObra,valorMed,medsDaObra,emAndamento,barra,cor,pct,itensBase,itensDaObra,baseDaObra,acumulado,orcDe});
+  Object.assign(Eng,{renderMedicoes,alertas,resumoMedicoes,fisico,capOrcado,custoReal,fatReal,REL,_ME:ME,aditivosDaObra,datasObra,valorMed,medsDaObra,emAndamento,barra,cor,pct,itensBase,itensDaObra,itensVigentes,avancoItens,avancoEtapa,baseDaObra,acumulado,orcDe});
 })();
 </script>
 <!-- ═══════════════════ ENGENHARIA (parte 3): fotos do diário, aditivos, painel da obra, saúde das obras ═══════════════════ -->
@@ -11958,6 +12016,11 @@ const Eng=(function(){
         }}],620);
     };
     inp.click();
+  }
+  // fotos escolhidas no próprio registro do diário (já com o acesso ao Google pedido no clique)
+  async function subirFotosDia(ob,dataISO,lista){
+    const fila=(lista||[]).map(f=>({file:f.file,descricao:f.descricao?'Diário de obra · '+f.descricao:'Diário de obra',etapa:'durante',data:dataISO,previewUrl:f.previewUrl||URL.createObjectURL(f.file)}));
+    if(fila.length)await subir(ob,fila);
   }
   async function subir(ob,fila){
     const io=IO();let ok=0,falhas=0,ultimo='';
@@ -12143,7 +12206,7 @@ const Eng=(function(){
     form.querySelector('.op-scroll').onclick=ev=>{
       const b=ev.target.closest('[data-op]');if(!b)return;const a=b.dataset.op;
       if(a==='foto')return verFoto(App._opFotos,+b.dataset.f);
-      if(a==='aditivo')return editarAditivo(null,ob);
+      if(a==='aditivo')return Eng.editarAditivo(null,ob);
       const hub=App.state.obraHub;
       if(hub&&hub._dirtyTabs&&hub._dirtyTabs.size)return toast('Há alterações não salvas em outra aba da obra — salve ou feche a obra antes.','error');
       UI.closeModal('modal-editor');
@@ -12258,7 +12321,7 @@ const Eng=(function(){
   (function(){const rd=App.renderDashboard;App.renderDashboard=function(){const r=rd.apply(this,arguments);try{renderSaude();}catch(e){console.error(e);}return r;};})();
   (function(){const ra=App.renderAll;App.renderAll=function(){ra.apply(this,arguments);try{const hub=App.state.obraHub;if(hub&&hub.tab==='resumo'&&document.getElementById('modal-editor')?.classList.contains('open'))abrirPainel(hub.obraName);}catch(e){console.error(e);}};})();
 
-  Object.assign(Eng,{fotosDoDia,fotosHtml,fotosPdf,verFoto,enviarFotos,podeFotos:ehAdmin,editarAditivo,excluirAditivo,aditivosCard,saude,capInfo,realPorCat,painelHtml,pdfPainel,renderSaude});
+  Object.assign(Eng,{fotosDoDia,fotosHtml,fotosPdf,verFoto,enviarFotos,subirFotosDia,podeFotos:ehAdmin,editarAditivo,excluirAditivo,aditivosCard,saude,capInfo,realPorCat,painelHtml,pdfPainel,renderSaude});
 })();
 </script>
 <!-- ═══════════════════ GESTÃO DE CONTRATOS: Contratos, Planejamento, Plano de ação, Viabilidade ═══════════════════ -->
@@ -12667,6 +12730,8 @@ const Eng=(function(){
   const normCod=cod=>{let c=String(cod||'').trim().replace(/\s+/g,'');if(/^\d{2}\.\d{2}/.test(c))return c;if(/^\d{5,6}$/.test(c)){c=c.padStart(6,'0');return c.slice(0,2)+'.'+c.slice(2,4)+'.'+c.slice(4);}return '';};
   const faseDo=(desc,cod)=>{
     const t=cn(desc);
+    // serviço que COMEÇA com demolição/retirada/remoção é demolição (mesmo que seja de forro, vidro, divisória…)
+    if(/^(demolic|retirada|remocao|arrancamento|desmontagem|levantamento de (pav|paralelep|guia|meio))/.test(t)&&!/^(remocao e recomposic|retirada e recolocac)/.test(t))return 'dem';
     for(const [f,kws] of FORTES)if(kws.some(k=>temPalavra(t,k)))return f;
     const porPalavra=()=>{for(const f of ORDEM_CLASS)if(FASES[f].kw.some(k=>temPalavra(t,k)))return f;return null;};
     const c=normCod(cod),m=c?CODS.find(([p])=>casa(c,p)):null;
@@ -12693,11 +12758,28 @@ const Eng=(function(){
   const ORDEM=['mob','adm','sin','topo','limp','dem','esc','escor','conc','metal','ved','tub','pv','rea','dren','lig','hid','ele','cob','imp','rev','esq','piso','pint','acab','equip','pav','urb','servc','teste','out','fim'];
   // numeração própria do item (1.1, 4.2.3…) — a do catálogo EMBASA (01.01.01.4651) não conta
   const numItem=mc=>{const s=String(mc||'').trim();return /^\d{1,3}(\.\d{1,3}){0,4}$/.test(s)&&!/^\d{2}\.\d{2}\.\d{2}\.\d{3,}$/.test(s)?s:'';};
+  // itens repetidos do orçamento (mesmo código, descrição, unidade e preço — ex.: o mesmo serviço em
+  // dois ambientes) aparecem unidos: quantidades e valores somados
+  const fqI=n=>(+n||0).toLocaleString('pt-BR',{maximumFractionDigits:4});
+  function unirItens(its){
+    const por=new Map();
+    (its||[]).forEach(x=>{const pu=x.qtd?Math.round(x.v/x.qtd*100):Math.round(x.v*100);const k=[cn(x.cod),cn(x.desc),cn(x.un),pu].join('|');
+      const y=por.get(k);if(y){y.qtd+=+x.qtd||0;y.v+=+x.v||0;y.n++;if(x.acum!=null)y.acum=(y.acum||0)+(+x.acum||0);if(!y.num&&x.num)y.num=x.num;}else por.set(k,{...x,qtd:+x.qtd||0,v:+x.v||0,n:1});});
+    return [...por.values()];
+  }
+  Eng.unirItens=unirItens;
+  // lista dos itens do orçamento de uma etapa: código, descrição, unidade, quantidade e valor
+  // (no cronograma também o acumulado medido e o avanço de cada item = acumulado ÷ contrato)
+  function itensHtml(its,comAvanco){
+    const barra=p=>`<i class="plg-bar"><b style="width:${Math.min(100,Math.max(0,p))}%"></b></i>${(Math.round(p*10)/10).toLocaleString('pt-BR')}%`;
+    return `<div class="plg-its${comAvanco?' av':''}"><div class="plg-it cab"><span>Item</span><span>Un.</span><span>${comAvanco?'Contrato':'Quant.'}</span>${comAvanco?'<span>Acum. medido</span><span>Avanço</span>':''}<span>Valor</span></div>${its.map(x=>`<div class="plg-it"><span class="d">${x.num?`<b>${fe(x.num)}</b> `:''}${x.cod?`<em>${fe(x.cod)}</em> `:''}${fe(x.desc)}${x.n>1?` <small>(${x.n} iguais, unidos)</small>`:''}${x.adt?' <small class="adt">aditivo</small>':''}</span><span>${fe(x.un||'')}</span><span class="n">${fqI(x.qtd)}</span>${comAvanco?`<span class="n">${fqI(x.acum)}</span><span class="n">${barra(x.qtd>0?(x.acum||0)/x.qtd*100:0)}</span>`:''}<span class="n">${fmt(x.v)}</span></div>`).join('')}</div>`;
+  }
+  Eng.itensHtml=itensHtml;
   function propostaPlano(ob,modo,inicioHoje){
     const orc=Eng.baseDaObra(ob);if(!orc)return null;
-    const itens=Eng.itensBase(orc);if(!itens.length)return null;
+    const itens=Eng.itensVigentes(ob,orc);if(!itens.length)return null;   // contrato vigente: orçamento + aditivos em quantidade
     const brutos=Array.isArray(orc.itens)?orc.itens:[];
-    const L0=itens.map(x=>{const raw=brutos[x.item-1]||{};return {x,f:faseDo(x.descricao,x.codigo),v:r2(x.qtd_contrato*x.p_unit),num:numItem(raw.mc)};});
+    const L0=itens.map(x=>{const raw=x.novo?{}:(brutos[x.item-1]||{});return {x,f:faseDo(x.descricao,x.codigo),v:r2(x.qtd_contrato*x.p_unit),num:numItem(raw.mc),adt:!!x.novo};});
     const tot=L0.reduce((s,y)=>s+y.v,0)||1;
     // tipo da obra = onde está o dinheiro
     const porF={};L0.forEach(y=>porF[y.f]=(porF[y.f]||0)+y.v);
@@ -12717,22 +12799,27 @@ const Eng=(function(){
     const numVal=s=>String(s).split('.').reduce((a,p,i)=>a+(parseInt(p,10)||0)*Math.pow(1000,2-i),0);
     // grupos = etapas
     const g={};
-    L0.forEach(y=>{
+    const add=(k,y,cap)=>{(g[k]=g[k]||{k,valor:0,chaves:[],n:0,its:[],porF:{},cap});const G=g[k];G.valor+=y.v;G.chaves.push(y.x.chave);G.n++;G.its.push({num:y.num,cod:y.x.codigo,desc:y.x.descricao,un:y.x.unidade,qtd:y.x.qtd_contrato,v:y.v,adt:y.adt});G.porF[y.f]=(G.porF[y.f]||0)+y.v;};
+    L0.filter(y=>!y.adt).forEach(y=>{
       const ref=modo==='orc'&&!AVULSAS.includes(y.f)?(abre[y.cap]&&y.sub?y.sub:(y.cap||'?')):'';
-      const k=ref?'item'+ref:y.f;
-      (g[k]=g[k]||{k,valor:0,chaves:[],n:0,its:[],porF:{},cap:ref});
-      const G=g[k];G.valor+=y.v;G.chaves.push(y.x.chave);G.n++;G.its.push({num:y.num,cod:y.x.codigo,desc:y.x.descricao,v:y.v});G.porF[y.f]=(G.porF[y.f]||0)+y.v;
+      add(ref?'item'+ref:y.f,y,ref);
+    });
+    // item novo de aditivo: pelos itens, entra no item do orçamento do mesmo serviço (ou numa etapa "Aditivo — serviço")
+    L0.filter(y=>y.adt).forEach(y=>{
+      if(modo!=='orc'||AVULSAS.includes(y.f))return add(y.f,y,'');
+      const alvo=Object.values(g).filter(G=>G.k.startsWith('item')&&G.porF[y.f]).sort((a,b)=>b.porF[y.f]-a.porF[y.f])[0];
+      if(alvo)add(alvo.k,y,alvo.cap);else add('adt'+y.f,y,'');
     });
     Object.values(g).forEach(G=>{
-      const fs=Object.entries(G.porF).sort((a,b)=>b[1]-a[1]),semOut=fs.filter(([f])=>f!=='out');
+      const fs=Object.entries(G.porF).sort((a,b)=>b[1]-a[1]),semOut=fs.filter(([f])=>f!=='out'),base=G.k.startsWith('adt')?G.k.slice(3):G.k;
       // nome pelo serviço de maior valor; a posição na sequência pelo serviço que começa primeiro (≥15% do item)
-      G.fNome=G.k.startsWith('item')?((semOut[0]||fs[0]||['out'])[0]):G.k;
+      G.fNome=G.k.startsWith('item')?((semOut[0]||fs[0]||['out'])[0]):base;
       const cedo=semOut.filter(([,v])=>v>=.15*G.valor).sort((a,b)=>ORDEM.indexOf(a[0])-ORDEM.indexOf(b[0]))[0];
-      G.f=G.k.startsWith('item')?(cedo?cedo[0]:G.fNome):G.k;
+      G.f=G.k.startsWith('item')?(cedo?cedo[0]:G.fNome):base;
       const seg=semOut.find(([f,v])=>f!==G.fNome&&v>=.3*G.valor);
-      G.nome=G.k.startsWith('item')?`Item ${G.cap} — ${FASES[G.fNome].nome}${seg?' · '+FASES[seg[0]].nome:''}`:FASES[G.f].nome;
+      G.nome=G.k.startsWith('item')?`Item ${G.cap} — ${FASES[G.fNome].nome}${seg?' · '+FASES[seg[0]].nome:''}`:(G.k.startsWith('adt')?'Aditivo — ':'')+FASES[G.f].nome;
     });
-    const ordemDe=G=>G.k.startsWith('item')?ORDEM.indexOf('topo')+.5+numVal(G.cap)/1e10:ORDEM.indexOf(G.k)+(G.k==='fim'?1000:0);
+    const ordemDe=G=>G.k.startsWith('item')?ORDEM.indexOf('topo')+.5+numVal(G.cap)/1e10:G.k.startsWith('adt')?ORDEM.indexOf(G.k.slice(3))+.5:ORDEM.indexOf(G.k)+(G.k==='fim'?1000:0);
     const grupos=Object.values(g).sort((a,b)=>ordemDe(a)-ordemDe(b));
     const apoio=G=>!!FASES[G.f].apoio&&!(modo==='orc'&&G.k.startsWith('item')&&G.f!=='adm');
     const share=G=>G.valor/tot,principal=G=>tipo==='serv'&&!['mob','fim','topo','adm','sin'].includes(G.f);
@@ -12762,8 +12849,9 @@ const Eng=(function(){
     const preco={};itens.forEach(x=>preco[x.chave]=x);
     const linhas=grupos.map((G,i)=>{
       const a=Math.min(P-1,dia(es[G.k])),b=Math.min(P-1,Math.max(a,dia(ef[G.k])-1));
-      const cont=G.chaves.reduce((s,k)=>s+r2(preco[k].qtd_contrato*preco[k].p_unit),0),med=G.chaves.reduce((s,k)=>s+r2((acum[k]||0)*preco[k].p_unit),0);
-      return {f:G.k,fase:G.f,cod:'E'+String(i+1).padStart(2,'0'),nome:G.nome,a,b,ini:addD(ini,a),fim:addD(ini,b),valor:G.valor,peso:G.valor/tot*100,itens:G.chaves,its:G.its.slice().sort((x,y)=>y.v-x.v),n:G.n,
+      // avanço = soma dos itens (acumulado medido ÷ contrato vigente, cada item até 100%), pelo valor
+      const cont=G.chaves.reduce((s,k)=>s+preco[k].qtd_contrato*preco[k].p_unit,0),med=G.chaves.reduce((s,k)=>s+Math.min(+acum[k]||0,Math.max(0,preco[k].qtd_contrato))*preco[k].p_unit,0);
+      return {f:G.k,fase:G.f,cod:'E'+String(i+1).padStart(2,'0'),nome:G.nome,a,b,ini:addD(ini,a),fim:addD(ini,b),valor:G.valor,peso:G.valor/tot*100,itens:G.chaves,its:unirItens(G.its).sort((x,y)=>y.v-x.v),n:G.n,
         av:cont?Math.min(100,med/cont*100):0,apoio:apoio(G)};
     });
     // uma ligação por etapa (é como o cálculo do planejamento trabalha): fica a antecessora que manda no
@@ -12798,7 +12886,7 @@ const Eng=(function(){
         Orçamento: <b>${fmt(pr.tot)}</b> em <b>${pr.nItens} itens</b> → <b>${pr.linhas.length} etapas</b> · tipo identificado pelo orçamento: <b>${TIPOS[pr.tipo]}</b>.<br>
         <span style="font-size:12px;color:var(--text-2)">${pr.modo==='orc'?'Cada item de 1º nível do orçamento vira uma etapa, com o valor dele; mobilização, administração local e desmobilização ficam à parte (começo, obra toda e fim).':'Cada item vai para a etapa pelo capítulo da tabela EMBASA (ou pela descrição, se for de outra base).'} Peso = valor no orçamento; a duração acompanha o peso; a ordem segue a sequência de execução deste tipo de obra; o avanço já vem das medições lançadas.</span></div>${opc}${pr.podeHoje?`<div class="plg-modo"><label><input type="checkbox" data-plg-hoje ${pr.inicioHoje?"checked":""}> <b>Começar hoje (${brDe(hoje0())})</b> <small>— a ordem de serviço foi em ${brDe(pr.os)} e ainda não há medição. Desmarque para manter a data da OS.</small></label></div>`:""}
       <div class="fin-rolar" style="max-height:360px;overflow-y:auto"><table class="fin-tab plg-tab"><thead><tr><th>Etapa</th><th class="num">Valor</th><th class="num">Peso</th><th>Período</th><th>Depende de</th></tr></thead><tbody>
-        ${pr.linhas.map(l=>`<tr><td><b>${l.cod}</b> ${fe(l.nome)}${l.apoio?' <small>(acompanha a obra)</small>':''}<details style="margin-top:3px"><summary style="cursor:pointer;font-size:11.5px;color:var(--blue)">${l.n} ite${l.n>1?'ns':'m'} do orçamento</summary><div style="font-size:11px;color:var(--text-2);max-height:160px;overflow:auto;margin-top:4px">${l.its.map(x=>`<div style="display:flex;gap:6px;justify-content:space-between;border-bottom:1px solid #f2f2f5;padding:2px 0"><span>${x.num?`<b>${fe(x.num)}</b> `:''}${x.cod?`<span style="color:var(--text-3)">${fe(x.cod)}</span> `:''}${fe(x.desc)}</span><span style="white-space:nowrap">${fmt(x.v)}</span></div>`).join('')}</div></details></td>
+        ${pr.linhas.map(l=>`<tr><td><b>${l.cod}</b> ${fe(l.nome)}${l.apoio?' <small>(acompanha a obra)</small>':''}<details style="margin-top:3px"><summary style="cursor:pointer;font-size:11.5px;color:var(--blue)">${l.its.length} ite${l.its.length>1?'ns':'m'} do orçamento${l.n>l.its.length?` · ${l.n-l.its.length} repetido${l.n-l.its.length>1?'s':''} unido${l.n-l.its.length>1?'s':''}`:''}</summary>${itensHtml(l.its)}</details></td>
           <td class="num" style="white-space:nowrap">${fmt(l.valor)}</td><td class="num">${fmtNum(l.peso)}%</td><td style="white-space:nowrap">${brDe(l.ini).slice(0,5)} a ${brDe(l.fim).slice(0,5)}</td>
           <td>${l.predCods.length?l.predCods.join(', ')+(l.vin==='II'?` <small>começa ${l.lag} dia${l.lag!==1?'s':''} após o início</small>`:` <small>após terminar${l.lag?' + '+l.lag+' dias':''}</small>`):'—'}</td></tr>`).join('')}
         <tr style="background:#f5f5f7"><td><b>Total das etapas</b></td><td class="num"><b>${fmt(somaEt)}</b></td><td class="num"><b>100%</b></td><td colspan="2"><small>${Math.abs(somaEt-pr.tot)<0.05?'= total do orçamento — todos os itens estão no cronograma':''}</small></td></tr>
@@ -12829,7 +12917,7 @@ const Eng=(function(){
     if(!et.length)return null;
     const tok={};et.forEach(e=>{tok['#'+e.rowid]=e;if(e.cod_etapa)tok[e.cod_etapa]=e;});
     const N=et.map(e=>{const ini=dt(e[K.ini]),fim=dt(e[K.fim]);return {e,id:e.cod_etapa||('#'+e.rowid),nome:e[K.nome]||getFuzzy(e,['nome_etapa','nome'])||'Etapa',ini,fim,dur:ini&&fim&&fim>=ini?dias(ini,fim)+1:7,
-      av:Math.min(100,Math.max(0,val(e[K.avanco])||0)),peso:val(e[K.peso])||0,valor:val(e[K.valor])||0,vin:e.vinculo==='II'?'II':'FI',apoio:e.apoio==='sim',lag:parseInt(e.defasagem,10)||0,ordem:parseInt(e.ordem,10)||0,
+      av:(()=>{const aI=Eng.avancoEtapa(e,ob);return Math.min(100,Math.max(0,aI!=null?aI:(val(e[K.avanco])||0)));})(),peso:val(e[K.peso])||0,valor:val(e[K.valor])||0,vin:e.vinculo==='II'?'II':'FI',apoio:e.apoio==='sim',lag:parseInt(e.defasagem,10)||0,ordem:parseInt(e.ordem,10)||0,
       predIds:String(e.predecessoras||'').split(';').map(s=>s.trim()).filter(Boolean),itens:Array.isArray(e.itens_orc)?e.itens_orc:[]};});
     const de=new Map(N.map(n=>[n.e,n]));
     N.forEach(n=>{n.preds=[...new Set(n.predIds.map(t=>tok[t]).filter(x=>x&&x!==n.e).map(x=>de.get(x)))];n.succ=[];});
@@ -12922,7 +13010,7 @@ const Eng=(function(){
           <td><button type="button" class="fin-bt mini" data-pl="dep" data-i="${i}">Dependências</button></td></tr>`).join('')}
       </tbody></table></div></div>`;
     }
-    const bts=r?`${r.temItens?'<button type="button" class="fin-bt" data-pl="avanco" title="Calcula o avanço de cada etapa pelo que já foi medido nos itens do orçamento dela">Avanço pelas medições</button>':''}<button type="button" class="fin-bt" data-pl="aplicar" title="Grava as datas projetadas no cronograma da obra">Aplicar datas projetadas</button>${orc?'<button type="button" class="fin-bt" data-pl="gerar" title="Monta de novo as etapas a partir do orçamento atual da obra">Atualizar pelo orçamento</button>':''}${pode('obras')?'<button type="button" class="fin-bt" data-pl="gantt">Abrir cronograma</button>':''}`:'';
+    const bts=r?`<button type="button" class="fin-bt" data-pl="aplicar" title="Grava as datas projetadas no cronograma da obra">Aplicar datas projetadas</button>${orc?'<button type="button" class="fin-bt" data-pl="gerar" title="Monta de novo as etapas a partir do orçamento atual da obra">Atualizar pelo orçamento</button>':''}${pode('obras')?'<button type="button" class="fin-bt" data-pl="gantt">Abrir cronograma</button>':''}`:'';
     box.innerHTML=`<div class="fin-wrap">${cab('Planejamento — '+fe(ob),texto,seletor+bts)}${corpo}</div>`;
     box.onchange=ev=>{const s=ev.target.closest('select[data-pl="obra"]');if(s){PL.obra=s.value;renderPlanejamento();}};
     box.onclick=ev=>{const b=ev.target.closest('button[data-pl]');if(!b)return;const a=b.dataset.pl;
@@ -14062,7 +14150,7 @@ const PL2=(function(){
     if(c.t==='data'){const d=dt(v),mx=c.max&&c.max(o),mn=c.min&&c.min(o);return `<td><input type="date" ${att}${mx?` max="${mx}"`:''}${mn?` min="${mn}"`:''} value="${d?isoDe(d):''}"></td>`;}
     // dinheiro: máscara R$ (como na VTC) — o valor é guardado sem formatação ("1234.56")
     if(c.t==='moeda'){const n=val(v);return `<td><input ${att} data-mask="moeda" inputmode="numeric" value="${v===''||v==null?'':fmt(n)}"></td>`;}
-    if(num){const n=val(v);return `<td><input ${att} inputmode="decimal" value="${v===''||v==null||!n?'':n2(n)}"></td>`;}
+    if(num){const n=val(v);return `<td><input ${att} inputmode="decimal" value="${v===''||v==null||(!n&&!c.zero)?'':n2(n)}"></td>`;}
     return `<td><input ${att} value="${fe(v==null?'':v)}"${c.lista?` list="${c.lista}" autocomplete="off"`:''}></td>`;
   }
   const linhaHtml=(T,o,novo,cls)=>`<tr data-rowid="${novo?'':idDe(T,o)}" class="${novo?'novo':(cls||'')}">${T.cols().map(c=>celula(c,o,novo)).join('')}<td class="acts">${T.botoes?T.botoes(o,novo):''}<button type="button" class="pl2-ico desf" data-pl2="desf" title="Desfazer"><i class="fas fa-rotate-left"></i></button><button type="button" class="pl2-ico del" data-pl2="del" title="Excluir"><i class="fas fa-trash"></i></button></td></tr>`;
@@ -15402,6 +15490,21 @@ const Mascara=(function(){
   const KE=()=>UI._etapasK();
   // fim da vigência do contrato (com os aditivos de vigência): as etapas não podem passar dele
   const vigDe=ob=>{const o=(D().obras||[]).find(x=>Eng.nomeObra(x)===ob);if(!o)return null;try{return Eng.infoContrato(o).vig||null;}catch(e){return null;}};
+  // itens do orçamento de uma etapa (repetidos unidos), com o contrato vigente e o acumulado medido de cada um
+  function itensDaEtapa(o){
+    const ch=Array.isArray(o&&o.itens_orc)?o.itens_orc:[];if(!ch.length)return [];
+    const {m}=Eng.avancoItens(Eng._PL.obra);
+    return Eng.unirItens(ch.map(k=>m[k]).filter(Boolean).map(y=>({cod:y.x.codigo,desc:y.x.descricao,un:y.x.unidade,qtd:y.x.qtd_contrato,acum:y.acum,v:y.valor,adt:!!y.x.novo}))).sort((a,b)=>b.v-a.v);
+  }
+  // abre/fecha, logo abaixo da etapa, a lista dos itens do orçamento dela
+  function itensDaLinha(tr,o){
+    const bt=tr.querySelector('.pl2-its-bt'),prox=tr.nextElementSibling;
+    if(prox&&prox.classList.contains('pl2-its-row')){prox.remove();if(bt){bt.classList.remove('on');bt.textContent=bt.textContent.replace('▾','▸');}return;}
+    const its=itensDaEtapa(o),a=Eng.avancoEtapa(o,Eng._PL.obra),tot=its.reduce((s,x)=>s+x.v,0);
+    const fora=(o.itens_orc||[]).length-its.reduce((s,x)=>s+x.n,0);
+    tr.insertAdjacentHTML('afterend',`<tr class="pl2-its-row"><td colspan="${tr.children.length}"><div class="pl2-its-box"><div class="pl2-its-cab"><b>Itens do orçamento — ${fe(o[KE().nome]||'etapa')}</b><span>Avanço de cada item = acumulado medido ÷ contrato (com os aditivos). Avanço da etapa = soma dos itens pelo valor: <b>${a==null?'—':(Math.round(a*10)/10).toLocaleString('pt-BR')+'%'}</b> · total ${fmt(tot)}${fora>0?` · ${fora} item${fora>1?'s':''} não ${fora>1?'estão':'está'} mais no contrato`:''}</span></div>${Eng.itensHtml(its,true)}</div></td></tr>`);
+    if(bt){bt.classList.add('on');bt.textContent=bt.textContent.replace('▸','▾');}
+  }
   let CPM=null;   // caminho crítico da obra aberta: rowid da etapa → nó
   const noDe=e=>CPM&&CPM.get(String(e.rowid));
   const SITC={concluida:['Concluída','ok'],andamento:['Em andamento','azul'],liberada:['Pode iniciar','warn'],aguardando:['Aguardando','cinza']};
@@ -15414,14 +15517,16 @@ const Mascara=(function(){
     novo:()=>{const K=KE();return {[K.obra]:Eng._PL.obra,[K.avanco]:'0'};},
     largAcoes:116,
     botoes:(o,novo)=>novo?'':`<button type="button" class="pl2-ico" data-pl2="x-dep" title="Dependências: o que precisa acontecer antes"><i class="fas fa-diagram-project"></i></button>`,
-    aoClicar:(a,tr,o)=>{if(a!=='dep'||!o)return;if(tr.classList.contains('dirty'))return toast('Salve a etapa antes de mexer nas dependências.','error');const n=noDe(o);if(n)Eng.editarDependencias(Eng._PL.obra,n);else toast('Gere ou salve o planejamento primeiro.','error');},
+    aoClicar:(a,tr,o)=>{if(a==='itens'&&o)return itensDaLinha(tr,o);if(a!=='dep'||!o)return;if(tr.classList.contains('dirty'))return toast('Salve a etapa antes de mexer nas dependências.','error');const n=noDe(o);if(n)Eng.editarDependencias(Eng._PL.obra,n);else toast('Gere ou salve o planejamento primeiro.','error');},
     cols:()=>{const K=KE();return [
       {id:'cod',k:'cod_etapa',l:'Cód.',t:'texto',w:64},
       {id:'nome',k:K.nome,l:'Etapa',t:'texto',w:230,obrig:true},
+      {id:'its',k:'_its',l:'Itens do orçamento',t:'ro',w:132,semPdf:true,calc:o=>{const n=itensDaEtapa(o).length;return n?`<button type="button" class="pl2-its-bt" data-pl2="x-itens" title="Ver os itens do orçamento desta etapa e o avanço de cada um">▸ ${n} ite${n>1?'ns':'m'}</button>`:'<span title="Etapa sem itens do orçamento ligados: o avanço é o informado nela">—</span>';}},
       {id:'ini',k:K.ini,l:'Início planejado',t:'data',w:134,obrig:true,max:()=>{const v=vigDe(Eng._PL.obra);return v?isoDe(v):'';}},
       {id:'fim',k:K.fim,l:'Fim planejado',t:'data',w:134,obrig:true,max:()=>{const v=vigDe(Eng._PL.obra);return v?isoDe(v):'';}},
       {id:'peso',k:K.peso,l:'Peso %',t:'num',w:80},
-      {id:'av',k:K.avanco,l:'Avanço %',t:'num',w:86},
+      // avanço = soma dos itens do orçamento da etapa (acumulado medido ÷ contrato com aditivos) — não se digita
+      {id:'av',k:K.avanco,l:'Avanço %',t:'num',w:86,val:o=>{const a=Eng.avancoEtapa(o,Eng._PL.obra);return a!=null?(Math.round(a*10)/10).toFixed(1).replace('.',','):o[KE().avanco];},trava:o=>Eng.avancoEtapa(o,Eng._PL.obra)!=null,zero:true},
       {id:'valor',k:K.valor,l:'Valor',t:'moeda',w:122},
       {id:'dep',k:'_dep',l:'Depende de',t:'ro',w:180,calc:o=>{const n=noDe(o);return n&&n.preds.length?fe(n.preds.map(x=>x.nome).join(', ')):'—';}},
       {id:'proj',k:'_proj',l:'Projetado',t:'ro',w:150,calc:o=>{const n=noDe(o);return n&&n.es?`${brDe(n.es).slice(0,5)} → ${brDe(n.ef).slice(0,5)}`:'—';}},
@@ -15607,12 +15712,15 @@ const Mascara=(function(){
     // o cronograma × o orçamento: quanto do orçamento está dentro das etapas
     let cobre='';const orcB=Eng.baseDaObra(ob),btOrc='<button type="button" class="fin-bt mini pri" data-pl="gerar" style="margin-left:6px">Atualizar pelo orçamento</button>';
     if(!orcB)cobre=`<div class="pl-vig aviso"><i class="fas fa-file-invoice-dollar"></i> Esta obra ainda não tem <b>orçamento</b>: sem ele as etapas não saem dos itens e o avanço não vem das medições. Monte em <b>Contratos › obra › Orçamento</b>.</div>`;
-    else if(r){const its=Eng.itensBase(orcB),vl=x=>Math.round(x.qtd_contrato*x.p_unit*100)/100,tot=its.reduce((s,x)=>s+vl(x),0),K=KE(),ch=new Set();
-      (D().etapas||[]).filter(e=>(e[K.obra]||getFuzzy(e,['titulo_obra']))===ob).forEach(e=>(Array.isArray(e.itens_orc)?e.itens_orc:[]).forEach(k=>ch.add(k)));
-      const den=its.filter(x=>ch.has(x.chave)),vd=den.reduce((s,x)=>s+vl(x),0),fora=its.length-den.length;
+    else if(r){const its=Eng.itensVigentes(ob,orcB).filter(x=>!x.fora),vl=x=>Math.round(x.qtd_contrato*x.p_unit*100)/100,tot=its.reduce((s,x)=>s+vl(x),0),K=KE(),ch=new Set();
+      const ets=(D().etapas||[]).filter(e=>(e[K.obra]||getFuzzy(e,['titulo_obra']))===ob);ets.forEach(e=>(Array.isArray(e.itens_orc)?e.itens_orc:[]).forEach(k=>ch.add(k)));
+      const den=its.filter(x=>ch.has(x.chave)),vd=den.reduce((s,x)=>s+vl(x),0),fora=its.filter(x=>!ch.has(x.chave)&&(x.qtd_contrato>0||x.novo)).length,nAdt=Eng.aditivosDaObra(ob).filter(a=>(a.itens_aditivo||[]).length).length;
+      // valor gravado nas etapas × contrato vigente (um aditivo em quantidade muda o valor e o peso das etapas)
+      const somaEt=ets.filter(e=>(e.itens_orc||[]).length).reduce((s,e)=>s+(val(e[K.valor])||0),0),desat=ch.size&&Math.abs(somaEt-vd)>1;
       cobre=!ch.size?`<div class="pl-vig aviso"><i class="fas fa-file-invoice-dollar"></i> As etapas deste cronograma <b>não estão ligadas ao orçamento</b> (${fmt(tot)} em ${its.length} itens). ${btOrc}</div>`
-        :fora>0?`<div class="pl-vig aviso"><i class="fas fa-file-invoice-dollar"></i> <b>${fora} ite${fora>1?'ns':'m'} do orçamento (${fmt(tot-vd)})</b> ${fora>1?'estão':'está'} fora do cronograma — o orçamento mudou depois que o cronograma foi montado. ${btOrc}</div>`
-        :`<div class="pl-vig"><i class="fas fa-file-invoice-dollar"></i> Cronograma montado pelo orçamento: <b>${fmt(tot)}</b> em <b>${its.length} itens</b>, todos dentro das etapas.</div>`;}
+        :fora>0?`<div class="pl-vig aviso"><i class="fas fa-file-invoice-dollar"></i> <b>${fora} ite${fora>1?'ns':'m'} do contrato (${fmt(tot-vd)})</b> ${fora>1?'estão':'está'} fora do cronograma — o orçamento ou um aditivo mudou depois que o cronograma foi montado. ${btOrc}</div>`
+        :desat?`<div class="pl-vig aviso"><i class="fas fa-file-invoice-dollar"></i> O contrato vigente (${fmt(vd)}${nAdt?`, com ${nAdt} aditivo${nAdt>1?'s':''}`:''}) não bate com o valor gravado nas etapas (${fmt(somaEt)}): valores e pesos das etapas estão desatualizados. ${btOrc}</div>`
+        :`<div class="pl-vig"><i class="fas fa-file-invoice-dollar"></i> Cronograma montado pelo contrato: <b>${fmt(tot)}</b> em <b>${its.length} itens</b>${nAdt?` (orçamento + ${nAdt} aditivo${nAdt>1?'s':''})`:''}, todos dentro das etapas. O avanço de cada etapa vem das medições.</div>`;}
     const secEt=`<div class="fin-card" id="pl-cronograma"><div class="fin-card-cab"><h3>Cronograma — etapas da obra</h3><span style="font-size:12px;color:var(--text-3)">Edite datas, peso e avanço direto na linha e salve. O caminho crítico e o término projetado se recalculam.</span></div>${limite}${cobre}<div id="pl2-etapas"></div></div>`;
     if(velha)velha.outerHTML=secEt;else box.querySelector('.fin-wrap')?.insertAdjacentHTML('beforeend',secEt);
     box.querySelector('.fin-wrap')?.insertAdjacentHTML('beforeend',`<div class="fin-card" id="pl-projeto-card"><div class="fin-card-cab"><h3>Projeto da obra — mapa de ataque</h3><span style="font-size:12px;color:var(--text-3)">Por onde começar, o que vem depois</span></div><div id="pl-projeto"></div></div>`);
@@ -16352,6 +16460,187 @@ const Mascara=(function(){
   App.renderAll=function(){ra.apply(this,arguments);try{if(document.getElementById('view-planejamento')?.classList.contains('active'))botao();}catch(e){console.error(e);}};
   document.getElementById('eng-planejamento')?.addEventListener('change',ev=>{if(ev.target.matches('select[data-pl="obra"]'))setTimeout(()=>{try{botao();}catch(e){}},0);});
   GS.exportarPlanejamento={abrir,pdf,planilha};
+})();
+</script>
+<!-- ═══════════════════ ADITIVO EM QUANTIDADE · ITENS DO ORÇAMENTO NO CRONOGRAMA · FOTOS NO REGISTRO DO DIÁRIO ═══════════════════ -->
+<style>
+/* itens do orçamento (janela de montar o cronograma e lista aberta debaixo de cada etapa) */
+.plg-its{font-size:11.5px;color:var(--text-1);margin-top:4px;max-height:280px;overflow:auto;}
+.plg-it{display:grid;grid-template-columns:minmax(0,1fr) 40px 78px 96px;gap:8px;align-items:baseline;padding:3px 0;border-bottom:1px solid #f2f2f5;}
+.plg-its.av .plg-it{grid-template-columns:minmax(0,1fr) 40px 86px 96px 128px 104px;}
+.plg-it.cab{font:800 10px Inter,sans-serif;text-transform:uppercase;letter-spacing:.04em;color:#6e6e73;position:sticky;top:0;background:inherit;z-index:1;}
+.plg-it.cab span:nth-child(n+3){text-align:right;}
+.plg-it span{white-space:normal;overflow-wrap:anywhere;min-width:0;}
+.plg-it .n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap!important;overflow-wrap:normal;}
+.plg-it .d em{font-style:normal;color:#8e8e93;}
+.plg-it small{color:#6e6e73;} .plg-it small.adt{color:#7F56D9;font-weight:700;}
+.plg-bar{display:inline-block;width:50px;height:6px;border-radius:4px;background:#E4E7EE;overflow:hidden;vertical-align:middle;margin-right:6px;}
+.plg-bar b{display:block;height:100%;background:#1DAA6C;}
+.pl2-its-bt{border:0;background:#EEF4FF;color:#1652D8;border-radius:8px;padding:5px 10px;font:700 12px Inter,sans-serif;cursor:pointer;white-space:nowrap;}
+.pl2-its-bt:hover{background:#DDE8FF;} .pl2-its-bt.on{background:#1652D8;color:#fff;}
+.pl2 tr.pl2-its-row td{background:#FAFBFF;padding:0;border-top:0;}
+.pl2-its-box{position:sticky;left:0;width:min(1100px,calc(100vw - 110px));padding:10px 14px 12px;background:#FAFBFF;white-space:normal;}
+.pl2-its-cab{display:flex;flex-wrap:wrap;gap:4px 12px;align-items:baseline;font-size:12px;color:#6e6e73;margin-bottom:4px;}
+.pl2-its-cab b{color:var(--text-1);}
+.pl2 input[readonly].num{background:#F3F5F9;color:var(--text-1);cursor:default;}
+/* fotos já no registro do diário */
+.rdo-fotos{grid-column:1/-1;margin-top:12px;padding:12px;border:1px dashed #c7d7fe;border-radius:12px;background:#F8FAFF;}
+.rdo-fotos-cab{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:8px;}
+.rdo-fotos small{display:block;color:#6e6e73;margin-top:6px;font-size:11.5px;}
+.eng-foto-item{position:relative;}
+.rdo-foto-x{position:absolute;top:4px;right:4px;width:24px;height:24px;border-radius:50%;border:0;background:rgba(0,0,0,.6);color:#fff;font-size:16px;line-height:22px;cursor:pointer;}
+/* aditivo em quantidade */
+.adq-filtro{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;margin:10px 0 6px;}
+.adq-filtro input[type=search]{flex:1;min-width:200px;padding:7px 10px;border:1px solid var(--border);border-radius:9px;font:13px Inter,sans-serif;}
+.adq-tab td,.adq-tab th{font-size:12px;vertical-align:middle;}
+#fin-jan .fin-jan-corpo>*{flex-shrink:0;}
+.adq-tab td input{width:96px;text-align:right;padding:5px 7px;border:1px solid var(--border);border-radius:7px;font:inherit;}
+.adq-tab tr.mud td{background:#FFFAEB;}
+.adq-tab td small{display:block;color:#6e6e73;}
+.adq-tot{display:flex;flex-wrap:wrap;gap:6px 18px;align-items:baseline;padding:10px 12px;border-radius:12px;background:#EEF4FF;color:#1652D8;font-size:13px;margin-top:10px;}
+.adq-tot b{font-size:15px;} .adq-tot .err{color:#B42318;}
+.adq-sec{font:800 11px Inter,sans-serif;text-transform:uppercase;letter-spacing:.06em;color:#6e6e73;margin:14px 0 6px;display:flex;align-items:center;gap:8px;}
+.adq-sec:after{content:'';flex:1;height:1px;background:#e8e8ed;}
+.adq-novo{display:grid;grid-template-columns:110px minmax(0,1fr) 64px 90px 112px auto;gap:6px;align-items:end;}
+.adq-novo input{width:100%;padding:7px 8px;border:1px solid var(--border);border-radius:8px;font:12.5px Inter,sans-serif;}
+.adq-novo label{font-size:11px;font-weight:700;color:#6e6e73;display:block;margin-bottom:3px;}
+.adq-res{max-height:190px;overflow:auto;border:1px solid #e8e8ed;border-radius:10px;margin-top:6px;}
+.adq-res button{display:flex;justify-content:space-between;gap:10px;width:100%;text-align:left;border:0;border-bottom:1px solid #f2f2f5;background:#fff;padding:6px 10px;font:12px Inter,sans-serif;cursor:pointer;}
+.adq-res button:hover{background:#F5F9FF;}
+@media (max-width:760px){.adq-novo{grid-template-columns:1fr 1fr;}}
+</style>
+<script>
+(function(){
+  const {D,U}=GS;
+  const {janela,executar,salvar,fe,cn,dt,brDe,dinheiro,val}=U;
+  const r2=n=>Math.round((+n||0)*100)/100,r4=n=>Math.round((+n||0)*10000)/10000;
+  const fq=n=>(+n||0).toLocaleString('pt-BR',{maximumFractionDigits:4});
+  const pc=v=>(Math.round((+v||0)*10)/10).toLocaleString('pt-BR')+'%';
+  const numBR=s=>{const t=String(s==null?'':s).trim();if(!t)return 0;return Eng.numBR?Eng.numBR(t):(parseFloat(t.replace(/\./g,'').replace(',','.'))||0);};
+  const TIPO_ADT='Aditivo contratual';
+
+  /* tabela EMBASA do orçamento (para itens novos do aditivo, com o mesmo fator de BDI/desconto do contrato) */
+  async function tabelaDoOrc(orc){
+    const id=orc&&orc.tabela_id;if(!id)return null;
+    if(window.EMBASA_TABELAS&&window.EMBASA_TABELAS[id])return window.EMBASA_TABELAS[id];
+    if(!window.EMBASA_MANIFEST)await UI._orcInject('embasa-manifest.js');
+    const man=(window.EMBASA_MANIFEST||[]).find(m=>m.id===id);if(!man||!man.arquivo)return null;
+    await UI._orcInject(man.arquivo);return (window.EMBASA_TABELAS||{})[id]||null;
+  }
+  // fator do contrato sobre a tabela (BDI, desconto): a mediana de preço do contrato ÷ preço da tabela
+  function fatorDoOrc(orc){
+    const fs=(orc&&orc.itens||[]).filter(it=>+it.p_unit_base>0&&+it.p_unit>0).map(it=>+it.p_unit/ +it.p_unit_base).sort((a,b)=>a-b);
+    return fs.length?fs[Math.floor(fs.length/2)]:1;
+  }
+
+  /* ═══════════════ ADITIVO DE CONTRATO EM QUANTIDADE ═══════════════
+     O aditivo muda QUANTIDADES dos itens do contrato (acréscimo, supressão ou zerar o saldo que falta)
+     e pode incluir itens novos. O preço unitário de cada item é o do contrato e não muda; o valor do
+     aditivo é a soma (quantidade × preço). A medição passa a medir contra o contrato + aditivos e o
+     cronograma calcula o avanço com eles. */
+  function editarAditivoQtd(a,ob){
+    ob=ob||(a&&a.titulo_obra)||'';
+    if(!ob){
+      const obras=Eng.obrasNomes();
+      return janela('Novo aditivo',`<div class="fin-fld"><label>Obra</label><select data-adq-obra>${obras.map(o=>`<option>${fe(o)}</option>`).join('')}</select></div>`,
+        [{html:'Cancelar'},{html:'Continuar',cls:'pri',acao:async j=>{const v=j.querySelector('[data-adq-obra]').value;setTimeout(()=>editarAditivoQtd(null,v),0);}}],520);
+    }
+    const orc=Eng.baseDaObra(ob);
+    const itens=orc?Eng.itensVigentes(ob,orc,a&&a.rowid).filter(x=>!x.fora):[];   // contrato antes DESTE aditivo
+    const ac=Eng.acumulado(ob,Infinity),rm=Eng.resumoMedicoes(ob),base=rm.base||0;
+    const S={delta:{},novos:[],busca:'',so:!!a,tab:null};
+    (a&&Array.isArray(a.itens_aditivo)?a.itens_aditivo:[]).forEach(it=>{if(itens.some(x=>x.chave===it.chave))S.delta[it.chave]=r4((S.delta[it.chave]||0)+(+it.qtd||0));else S.novos.push({chave:it.chave,codigo:it.codigo||'',descricao:it.descricao||'',unidade:it.unidade||'',qtd:+it.qtd||0,p_unit:+it.p_unit||0});});
+    const legado=!!(a&&!(a.itens_aditivo||[]).length&&val(a.aditivo_valor));
+    const med=x=>+ac[x.chave]||0,saldo=x=>r4(x.qtd_contrato-med(x));
+    const linha=(x,i)=>{const d=S.delta[x.chave]||0,nv=r4(x.qtd_contrato+d);
+      return `<tr data-i="${i}" class="${d?'mud':''}"><td>${fe(x.item)}</td><td style="white-space:nowrap">${fe(x.codigo)}</td><td style="min-width:220px">${fe(x.descricao)}${x.novo?'<small>item novo de aditivo anterior</small>':x.qtd_adt?`<small>${x.qtd_adt>0?'+':''}${fq(x.qtd_adt)} em aditivos anteriores</small>`:''}</td><td>${fe(x.unidade)}</td>
+        <td class="num">${fq(x.qtd_contrato)}</td><td class="num">${fq(med(x))||'—'}</td><td class="num">${fq(saldo(x))}</td>
+        <td class="num" style="white-space:nowrap"><input data-adq-q="${i}" value="${d?fq(d):''}" inputmode="decimal" placeholder="0" title="Acréscimo (+) ou supressão (−) da quantidade"> <button type="button" class="fin-bt mini" data-adq-zera="${i}" title="Tira do contrato tudo o que ainda não foi executado deste item"${saldo(x)>0?'':' disabled'}>Zerar saldo</button></td>
+        <td class="num" data-c="nv">${fq(nv)}</td><td class="num">${fmt(x.p_unit)}</td><td class="num" data-c="v">${d?fmt(r2(d*x.p_unit)):'—'}</td></tr>`;};
+    const visiveis=()=>{const q=cn(S.busca);return itens.map((x,i)=>({x,i})).filter(({x})=>(!q||cn([x.item,x.codigo,x.descricao].join(' ')).includes(q))&&(!S.so||S.delta[x.chave]));};
+    const corpo=()=>{const v=visiveis();return v.length?v.map(({x,i})=>linha(x,i)).join(''):`<tr><td colspan="11" class="fin-vazio">${S.so?'Nenhum item com aditivo ainda — desmarque "Só os itens com aditivo" para ver todos.':'Nenhum item encontrado.'}</td></tr>`;};
+    const novosHtml=()=>S.novos.length?`<div class="fin-rolar"><table class="fin-tab adq-tab"><thead><tr><th>Código</th><th>Descrição</th><th>Un.</th><th class="num">Quantidade</th><th class="num">P. unit.</th><th class="num">Valor</th><th></th></tr></thead><tbody>${S.novos.map((n,k)=>`<tr><td>${fe(n.codigo)}</td><td>${fe(n.descricao)}</td><td>${fe(n.unidade)}</td><td class="num"><input data-adq-nq="${k}" value="${fq(n.qtd)}" inputmode="decimal"></td><td class="num">${fmt(n.p_unit)}</td><td class="num" data-c="nv${k}">${fmt(r2(n.qtd*n.p_unit))}</td><td><button type="button" class="fin-bt mini" data-adq-tira="${k}">Tirar</button></td></tr>`).join('')}</tbody></table></div>`:'<div class="fin-vazio" style="padding:8px">Nenhum item novo.</div>';
+    const totais=()=>{let acr=0,sup=0;itens.forEach(x=>{const v=r2((S.delta[x.chave]||0)*x.p_unit);if(v>0)acr+=v;else sup+=v;});const nov=S.novos.reduce((s,n)=>s+r2(n.qtd*n.p_unit),0);acr+=nov;
+      const pA=base?acr/base*100:0,pS=base?-sup/base*100:0;
+      return `<span>Acréscimos: <b>${fmt(acr)}</b> <small class="${pA>25?'err':''}">(${pc(pA)} do contrato inicial${pA>25?' — acima do limite de 25%':''})</small></span><span>Supressões: <b>${fmt(sup)}</b> <small class="${pS>25?'err':''}">(${pc(pS)}${pS>25?' — acima do limite de 25%':''})</small></span><span>Valor do aditivo: <b>${fmt(acr+sup)}</b></span>`;};
+    const g0=k=>a?fe(a[k]||''):'';
+    const corpoJan=`<div class="fin-resumo"><b>${fe(ob)}</b> · contrato inicial ${fmt(base)}${rm.adtValor?` · aditivos anteriores ${fmt(rm.adtValor-(a?val(a.aditivo_valor):0))}`:''}<br>O aditivo é feito em <b>quantidade</b>: o preço unitário de cada item é o do contrato e não muda; o valor aditado é a soma (quantidade × preço). Pode aumentar ou diminuir itens, <b>zerar o saldo</b> que falta de um item e <b>incluir itens novos</b>.</div>
+      ${legado?`<div class="fin-aviso laranja"><div>Este aditivo foi lançado só em valor (${fmt(val(a.aditivo_valor))}). Lance as quantidades abaixo: ao salvar com itens, o valor passa a ser o total deles.</div></div>`:''}
+      ${!orc?'<div class="fin-aviso laranja"><div>Esta obra não tem orçamento (o contrato por itens). Dá para lançar só o prazo e a vigência; para aditivar quantidades, monte antes o orçamento em <b>Contratos › obra › Orçamento</b>.</div></div>':''}
+      <div class="fin-linha" style="grid-template-columns:repeat(auto-fit,minmax(170px,1fr))">
+        <div class="fin-fld"><label>Identificação</label><input data-adq="numero" value="${g0('numero')}" placeholder="Ex.: 1º Termo Aditivo"></div>
+        <div class="fin-fld"><label>Data de assinatura <span class="obg">*</span></label><input type="date" data-adq="data_emissao" value="${g0('data_emissao')}"></div>
+        <div class="fin-fld"><label>Novo término da execução</label><input type="date" data-adq="novo_termino" value="${g0('novo_termino')}"></div>
+        <div class="fin-fld"><label>Novo fim da vigência</label><input type="date" data-adq="nova_vigencia" value="${g0('nova_vigencia')}"></div>
+        <div class="fin-fld" style="grid-column:1/-1"><label>Motivo / objeto <span class="obg">*</span></label><textarea data-adq="descricao" rows="2" placeholder="Ex.: acréscimo de 300 m de rede na Rua B; supressão do saldo de pavimento">${g0('descricao')}</textarea></div>
+        <div class="fin-fld" style="grid-column:1/-1"><label>Link do arquivo assinado</label><input data-adq="link" value="${g0('link')}" placeholder="https://…"></div>
+      </div>
+      ${orc?`<div class="adq-sec">Itens do contrato · ${itens.length}</div>
+      <div class="adq-filtro"><input type="search" data-adq-busca placeholder="Buscar item, código ou descrição…"><label style="display:flex;gap:7px;align-items:center;font-size:12.5px;font-weight:600;color:var(--text-2);cursor:pointer"><input type="checkbox" data-adq-so ${S.so?'checked':''}> Só os itens com aditivo</label></div>
+      <div class="fin-rolar" style="max-height:330px;overflow:auto;flex:none"><table class="fin-tab adq-tab"><thead><tr><th>Item</th><th>Código</th><th>Descrição</th><th>Un.</th><th class="num">Contrato atual</th><th class="num">Medido</th><th class="num">Saldo</th><th class="num">Aditivo (+/−)</th><th class="num">Novo contrato</th><th class="num">P. unit.</th><th class="num">Valor</th></tr></thead><tbody data-adq-corpo>${corpo()}</tbody></table></div>
+      <div class="adq-sec">Itens novos</div>
+      <div data-adq-novos>${novosHtml()}</div>
+      <div class="adq-novo" style="margin-top:8px">
+        <div><label>Código</label><input data-adn="codigo" placeholder="Ex.: 15.05.75"></div>
+        <div><label>Descrição</label><input data-adn="descricao" placeholder="Serviço novo"></div>
+        <div><label>Un.</label><input data-adn="unidade" placeholder="M2"></div>
+        <div><label>Quantidade</label><input data-adn="qtd" inputmode="decimal" placeholder="0"></div>
+        <div><label>Preço unitário</label><input data-adn="p_unit" inputmode="decimal" placeholder="R$ 0,00"></div>
+        <div><button type="button" class="fin-bt" data-adq-inclui>+ Incluir</button></div>
+      </div>
+      ${orc.tabela_id?`<div style="margin-top:8px"><input type="search" data-adq-emb placeholder="Buscar na tabela EMBASA do orçamento (${fe(orc.tabela_embasa||orc.tabela_id)}) — o preço entra com o mesmo fator do contrato" style="width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:9px;font:13px Inter,sans-serif"><div class="adq-res" data-adq-res hidden></div></div>`:''}
+      <div class="adq-tot" data-adq-tot>${totais()}</div>`:''}`;
+    const j=janela((a?'Editar ':'Novo ')+'aditivo — em quantidade',corpoJan,[{html:'Cancelar'},{html:a?'Salvar aditivo':'Cadastrar aditivo',cls:'pri',acao:async j=>{
+      const g=k=>((j.querySelector(`[data-adq="${k}"]`)||{}).value||'').trim();
+      if(!g('data_emissao'))throw new Error('Informe a data de assinatura do aditivo.');
+      if(!g('descricao'))throw new Error('Informe o motivo / objeto do aditivo.');
+      if(g('link')&&!/^https?:\/\//i.test(g('link')))throw new Error('O link precisa começar com http:// ou https://');
+      const its=[];
+      for(const x of itens){const d=r4(S.delta[x.chave]||0);if(!d)continue;const nv=r4(x.qtd_contrato+d),m=r4(med(x)),nome=String(x.descricao).slice(0,70);
+        if(nv<0)throw new Error(`${nome}: a supressão é maior que o contrato do item (${fq(x.qtd_contrato)}).`);
+        if(nv<m-0.00005)throw new Error(`${nome}: o novo contrato (${fq(nv)}) fica abaixo do que já foi medido (${fq(m)}). Para tirar só o que falta, use "Zerar saldo".`);
+        its.push({chave:x.chave,item:x.item,codigo:x.codigo,descricao:x.descricao,unidade:x.unidade,p_unit:x.p_unit,qtd:d});}
+      S.novos.forEach((n,k)=>{if(!(n.qtd>0))throw new Error(`Item novo "${n.descricao}": informe a quantidade.`);
+        its.push({chave:n.chave||('adt:'+cn(n.codigo)+'|'+cn(n.descricao)+'#'+Date.now().toString(36)+k),item:'Ad.',codigo:n.codigo,descricao:n.descricao,unidade:n.unidade,p_unit:n.p_unit,qtd:r4(n.qtd)});});
+      if(!its.length&&!g('novo_termino')&&!g('nova_vigencia')&&!legado)throw new Error('Lance as quantidades do aditivo, o novo término ou a nova vigência.');
+      const tot=r2(its.reduce((s,it)=>s+it.qtd*it.p_unit,0));
+      const o={...(a||{data_lancamento:todayDateTime()}),tipo:TIPO_ADT,titulo_obra:ob,numero:g('numero'),data_emissao:g('data_emissao'),novo_termino:g('novo_termino'),nova_vigencia:g('nova_vigencia'),descricao:g('descricao'),link:g('link'),itens_aditivo:its,aditivo_valor:its.length?dinheiro(tot):(legado?a.aditivo_valor:'')};
+      await executar(()=>salvar('Documentos',o,a?a.rowid:null));
+      toast(`${a?'Aditivo salvo':'Aditivo cadastrado'}${its.length?` — ${its.length} ite${its.length>1?'ns':'m'}, ${fmt(tot)}`:''}. A medição e o cronograma já contam com ele.`,'success');
+    }}],1060);
+    if(!orc)return j;
+    const tb=j.querySelector('[data-adq-corpo]'),tot=j.querySelector('[data-adq-tot]'),novosBox=j.querySelector('[data-adq-novos]');
+    const atualizaLinha=(tr,x)=>{const d=S.delta[x.chave]||0;tr.classList.toggle('mud',!!d);tr.querySelector('[data-c="nv"]').textContent=fq(r4(x.qtd_contrato+d));tr.querySelector('[data-c="v"]').textContent=d?fmt(r2(d*x.p_unit)):'—';tot.innerHTML=totais();};
+    j.querySelector('[data-adq-busca]').addEventListener('input',ev=>{S.busca=ev.target.value;tb.innerHTML=corpo();});
+    j.querySelector('[data-adq-so]').addEventListener('change',ev=>{S.so=ev.target.checked;tb.innerHTML=corpo();});
+    tb.addEventListener('input',ev=>{const t=ev.target;if(t.dataset.adqQ==null)return;const x=itens[+t.dataset.adqQ];S.delta[x.chave]=r4(numBR(t.value));if(!S.delta[x.chave])delete S.delta[x.chave];atualizaLinha(t.closest('tr'),x);});
+    tb.addEventListener('click',ev=>{const b=ev.target.closest('[data-adq-zera]');if(!b)return;const x=itens[+b.dataset.adqZera],s=saldo(x);if(!(s>0))return;S.delta[x.chave]=r4(-s);const tr=b.closest('tr');tr.querySelector('input').value=fq(-s);atualizaLinha(tr,x);});
+    novosBox.addEventListener('input',ev=>{const k=ev.target.dataset.adqNq;if(k==null)return;const n=S.novos[+k];n.qtd=r4(numBR(ev.target.value));const c=novosBox.querySelector(`[data-c="nv${k}"]`);if(c)c.textContent=fmt(r2(n.qtd*n.p_unit));tot.innerHTML=totais();});
+    novosBox.addEventListener('click',ev=>{const b=ev.target.closest('[data-adq-tira]');if(!b)return;S.novos.splice(+b.dataset.adqTira,1);novosBox.innerHTML=novosHtml();tot.innerHTML=totais();});
+    const campoN=k=>j.querySelector(`[data-adn="${k}"]`);
+    j.querySelector('[data-adq-inclui]').addEventListener('click',()=>{
+      const n={codigo:campoN('codigo').value.trim(),descricao:campoN('descricao').value.trim(),unidade:campoN('unidade').value.trim(),qtd:r4(numBR(campoN('qtd').value)),p_unit:r2(numBR(String(campoN('p_unit').value).replace(/[R$\s]/g,'')))};
+      if(!n.descricao)return toast('Escreva a descrição do item novo.','error');
+      if(!(n.qtd>0))return toast('Informe a quantidade do item novo.','error');
+      if(!(n.p_unit>0))return toast('Informe o preço unitário do item novo.','error');
+      S.novos.push(n);['codigo','descricao','unidade','qtd','p_unit'].forEach(k=>campoN(k).value='');novosBox.innerHTML=novosHtml();tot.innerHTML=totais();
+    });
+    const emb=j.querySelector('[data-adq-emb]'),res=j.querySelector('[data-adq-res]');
+    if(emb){let tab=null,fator=fatorDoOrc(orc),tmr=null;
+      emb.addEventListener('input',()=>{clearTimeout(tmr);tmr=setTimeout(async()=>{
+        const q=cn(emb.value);if(q.length<3){res.hidden=true;return;}
+        try{tab=tab||await tabelaDoOrc(orc);}catch(e){tab=null;}
+        if(!tab){res.hidden=false;res.innerHTML='<div class="fin-vazio" style="padding:8px">Não foi possível abrir a tabela EMBASA deste orçamento — lance o item novo à mão.</div>';return;}
+        const ps=q.split(' ').filter(Boolean),ach=tab.itens.filter(it=>{const t=cn(it.codigo+' '+it.descricao);return ps.every(p=>t.includes(p));}).slice(0,12);
+        res.hidden=false;res.innerHTML=ach.length?ach.map((it,k)=>`<button type="button" data-adq-pega="${k}"><span><b>${fe(it.codigo)}</b> ${fe(it.descricao)}</span><span style="white-space:nowrap">${fe(it.unidade)} · ${fmt(r2(it.preco*fator))}</span></button>`).join(''):'<div class="fin-vazio" style="padding:8px">Nada encontrado.</div>';
+        res._ach=ach;},250);});
+      res.addEventListener('click',ev=>{const b=ev.target.closest('[data-adq-pega]');if(!b)return;const it=res._ach[+b.dataset.adqPega];
+        campoN('codigo').value=it.codigo;campoN('descricao').value=it.descricao;campoN('unidade').value=it.unidade;campoN('p_unit').value=fmt(r2(it.preco*fator));
+        res.hidden=true;emb.value='';campoN('qtd').focus();});
+    }
+    return j;
+  }
+  Eng.editarAditivo=editarAditivoQtd;
 })();
 </script>
 </body>
