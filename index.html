@@ -15866,6 +15866,7 @@ const Mascara=(function(){
 .capx-linha em b{position:absolute;top:-2px;width:2px;height:12px;background:#1d1d1f;}
 .capx-nota{font-size:12px;color:#6e6e73;line-height:1.45;margin:10px 0 0;}
 .capx-dica{font-size:11.5px;color:#1652D8;margin-top:4px;}
+#cap-scroll-body input.capx-trava{background:#F3F5F9!important;color:var(--text-1)!important;cursor:not-allowed;border-color:#E4E9F2!important;}
 @media (max-width:900px){.capx-dash{grid-template-columns:repeat(2,minmax(0,1fr));}.capx-grade{grid-template-columns:1fr;}}
 </style>
 <script>
@@ -16101,14 +16102,15 @@ const Mascara=(function(){
   function atualizarPainelCAP(){
     const dash=document.getElementById('capx-dash');if(!dash)return;
     const ob=obraCAP(),tot={A:numTxt('cap-tot-A'),C:numTxt('cap-tot-C'),D:numTxt('cap-tot-D'),E:numTxt('cap-tot-E')},custo=numTxt('cap-r-op')||Object.values(tot).reduce((s,x)=>s+x,0);
-    const bruto=numTxt('cap-orc-bruto'),lucro=numTxt('cap-val-lucratividade'),pl=pctTxt('cap-pct-lucratividade'),ded=bruto?bruto-custo-lucro:0,bdi=custo?(bruto/custo-1)*100:null;
+    // preço de venda = orçamento líquido (bruto − Fator K) = Total da Obra do orçamento
+    const bruto=numTxt('cap-val-orcliquido')||numTxt('cap-orc-bruto'),lucro=numTxt('cap-val-lucratividade'),pl=pctTxt('cap-pct-lucratividade'),ded=bruto?bruto-custo-lucro:0,bdi=custo?(bruto/custo-1)*100:null;
     const nItens=[...document.querySelectorAll('#cap-scroll-body .cap-tbody tr')].filter(tr=>(tr.querySelector('.cap-desc')||{}).value).length;
     // contagem e % em cada bloco
     Object.keys(BL).forEach(k=>{const h=document.querySelector(`#cap-scroll-body .cap-tbody[data-bloco="${k}"]`);const card=h&&h.closest('.capx-bloco');if(!card)return;
       const n=[...h.querySelectorAll('tr')].filter(tr=>(tr.querySelector('.cap-desc')||{}).value).length,ne=card.querySelector('.capx-n');if(ne)ne.textContent=n?`${n} ${n>1?'itens':'item'}`:'';
       const pe=card.querySelector('.capx-pctb');if(pe)pe.textContent=custo&&tot[k]?pct(tot[k]/custo*100)+' do custo':'';});
     dash.innerHTML=`<div class="capx-k"><small>Custo direto orçado</small><b>${fmt(custo)}</b><span>${nItens} ${nItens===1?'item':'itens'} na composição</span></div>
-      <div class="capx-k"><small>Preço de venda (orçamento bruto)</small><b>${bruto?fmt(bruto):'—'}</b><span>${bdi!=null&&bruto?'BDI implícito '+pct(bdi,1):'informe o orçamento bruto no resumo'}</span></div>
+      <div class="capx-k"><small>Preço de venda (total do orçamento)</small><b>${bruto?fmt(bruto):'—'}</b><span>${bdi!=null&&bruto?'BDI implícito '+pct(bdi,1):'monte o orçamento da obra'}</span></div>
       <div class="capx-k"><small>Impostos e deduções</small><b>${bruto?fmt(ded):'—'}</b><span>${bruto?pct(ded/bruto*100,1)+' do preço':''}</span></div>
       <div class="capx-k ${!bruto?'':lucro<0?'err':pl<5?'warn':'ok'}"><small>Lucratividade prevista</small><b>${bruto?fmt(lucro):'—'}</b><span>${bruto?pct(pl,1)+' do preço'+(pl<5&&lucro>=0?' — margem apertada':lucro<0?' — a obra dá prejuízo':''):''}</span></div>
       <div class="capx-comp"><div class="capx-tit" style="margin:0">Composição do custo</div><div class="capx-comp-barra">${Object.keys(BL).map(k=>custo&&tot[k]?`<i style="width:${tot[k]/custo*100}%;background:${BL[k].cor}" title="${fmt(tot[k])}"></i>`:'').join('')}</div>
@@ -16124,6 +16126,22 @@ const Mascara=(function(){
       ${[['A','Mão de obra'],['C','Equipamentos'],['D','Serviços, insumos e materiais'],['E','Outros']].map(([k,r])=>tot[k]||rr[k]?linha(r,tot[k],rr[k],BL[k].cor):'').join('')}
       <p class="capx-nota">${fis!=null?`A marca preta é o avanço físico (${pct(fis)}). `:''}${pT==null?'Lance a composição para comparar com os custos reais.':pT>100?`<b style="color:#B42318">Os custos reais já passaram do orçado.</b> Revise a composição ou negocie aditivo.`:fis!=null&&pT>fis+10?`<b style="color:#B54708">O gasto (${pct(pT)}) está à frente do avanço físico (${pct(fis)})</b> — pode ser compra antecipada de material ou custo estourando: confira os blocos em laranja.`:'O gasto acompanha o orçado.'} Custos reais = contas a pagar "Real" da obra (pagas ou a pagar).</p>`;
   }
+  // Orçamento Bruto e Fator K saem do orçamento da obra e ficam travados (para mudar, muda-se o orçamento).
+  // O "Total da Obra" do orçamento já tem o BDI e o desconto; por isso o Bruto é o total ANTES do desconto e
+  // o Fator K é o "% Desc." — assim o Orçamento Líquido fica igual ao total do orçamento, sem descontar duas vezes.
+  function travarPrecoCAP(ob){
+    const bruto=document.getElementById('cap-orc-bruto'),fk=document.getElementById('cap-pct-fatork');if(!ob||!bruto||!fk)return;
+    bruto.closest('.cap-resumo-row')?.querySelector('.cap-resumo-pct')?.remove();   // o "100%" do bruto deixa de existir
+    const orc=Eng.baseDaObra&&Eng.baseDaObra(ob);
+    if(!orc){bruto.insertAdjacentHTML('afterend','<div class="capx-dica" style="text-align:right">monte o orçamento da obra: o preço vem dele</div>');return;}
+    const total=val(orc.total_obra)||Eng.itensBase(orc).reduce((s,x)=>s+x.qtd_contrato*x.p_unit,0);
+    const desc=Math.max(0,Math.min(99.99,parseStoredNumber(orc.desconto)||0));
+    const brutoV=desc?Math.round(total/(1-desc/100)*100)/100:total;
+    bruto.value=fmt(brutoV);fk.value=desc.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+    [bruto,fk].forEach(el=>{el.readOnly=true;el.oninput=null;el.classList.add('capx-trava');el.title='Vem do orçamento da obra (aba Orçamento) — para mudar, altere o orçamento.';});
+    bruto.closest('span')?.insertAdjacentHTML('afterend',`<div class="capx-dica" style="text-align:right;width:100%">total do orçamento antes do desconto de ${desc.toLocaleString('pt-BR',{maximumFractionDigits:2})}%</div>`);
+    const liq=document.getElementById('cap-val-orcliquido');liq?.closest('.cap-resumo-row')?.insertAdjacentHTML('afterend',`<div class="capx-dica" style="text-align:right;margin:-4px 0 4px">= Total da Obra do orçamento (${fmt(total)})</div>`);
+  }
   function melhorarCAP(){
     const body=document.getElementById('cap-scroll-body');if(!body||body.dataset.capx)return;body.dataset.capx='1';
     body.insertAdjacentHTML('afterbegin','<div class="capx-dash" id="capx-dash"></div>');
@@ -16136,8 +16154,10 @@ const Mascara=(function(){
     if(res){const g=document.createElement('div');g.className='capx-grade';res.parentNode.insertBefore(g,res);g.appendChild(res);body.insertAdjacentHTML('beforeend','<div class="capx-real capx-fim" id="capx-real"></div>');
       const t=res.querySelector('div');if(t&&/Resumo/.test(t.textContent))t.outerHTML='<h4 class="capx-tit">Formação do preço</h4>';}
     // o preço e as retenções não precisam ser digitados de novo: vêm do contrato e das notas da obra
+    // o preço vem do ORÇAMENTO da obra e fica travado: Fator K = "% Desc." do orçamento; Orçamento Bruto =
+    // total do orçamento ANTES do desconto; Orçamento Líquido (Bruto − Fator K) = Total da Obra do orçamento
     const ob=obraCAP(),bruto=document.getElementById('cap-orc-bruto');
-    if(ob&&bruto&&!currencyToNumber(bruto.value)){let v=0;try{v=Eng.resumoMedicoes(ob).contrato;}catch(e){}if(v>0){bruto.value=fmt(v);bruto.insertAdjacentHTML('afterend','<div class="capx-dica" style="text-align:right">valor do contrato (orçamento + aditivos)</div>');}}
+    try{travarPrecoCAP(ob);}catch(e){console.error(e);}
     if(ob){const K=GS.fat.KF(),p=GS.fat.pctObra(ob,K);[['cap-pct-inss',p.inss],['cap-pct-irpf',p.irpf],['cap-pct-simples',p.simples],['cap-pct-antnf',p.antec]].forEach(([id,v])=>{const e=document.getElementById(id);if(e&&!e.value.trim()&&v)e.value=v.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})+'%';});}
     try{UI._calcResumoFinanceiroCAP();}catch(e){}
     atualizarPainelCAP();
