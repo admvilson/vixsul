@@ -12477,7 +12477,8 @@ const Eng=(function(){
     let vig=dt(c.vigencia_fim);const vigOrig=vig;ads.forEach(a=>{const n=dt(a.nova_vigencia);if(n&&(!vig||n>vig))vig=n;});
     let garVal=dt(c.garantia_validade);docsObra(ob,/garantia/i).forEach(d=>{const v=dt(d.data_validade);if(v&&(!garVal||v>garVal))garVal=v;});
     const exigeGar=c.garantia_tipo?c.garantia_tipo!=='Não exigida':!!garVal;
-    const dataBase=dt(c.data_base),reaj=dataBase?addM(dataBase,12):null,ck=c.checklist||{};
+    // data-base do reajuste = data de apresentação (envio) da proposta
+    const dataBase=dt(getFuzzy(o,['envio_proposta']))||dt(c.data_base),reaj=dataBase?addM(dataBase,12):null,ck=c.checklist||{};
     const diasVig=vig?dias(h,vig):null;
     const sVig=!vig?'cinza':diasVig<=30?'vermelho':diasVig<=60?'amarelo':(dO.fim&&!finalizada(o)&&dias(dO.fim,vig)<30)?'amarelo':'verde';
     const sGar=!exigeGar?'cinza':!garVal?'amarelo':garVal<h?'vermelho':(vig&&garVal<vig)||dias(h,garVal)<=30?'amarelo':'verde';
@@ -12550,6 +12551,7 @@ const Eng=(function(){
       ${tl?`<div class="fin-card"><h3>Linha do tempo</h3>${tl}</div>`:''}
       <div class="op-grade">
         <div class="op-card"><h4>Dados do contrato</h4>
+          ${linha('Limite de entrega da proposta',brDe(dt(getFuzzy(o,['limite_proposta']))))}${linha('Proposta enviada em',brDe(dt(getFuzzy(o,['envio_proposta']))))}
           ${linha('Contratante',fe(c.contratante||'—'))}${linha('Nº do contrato',fe(numCt||'—'))}${linha('Licitação',fe([c.modalidade,c.numero_licitacao].filter(Boolean).join(' · ')||'—'))}
           ${linha('Assinatura',brDe(dt(c.data_assinatura)))}${linha('Ordem de serviço',brDe(x.dO.ini))}${linha('Prazo de execução',getFuzzy(o,['prazo_contratual'])?fe(getFuzzy(o,['prazo_contratual']))+' dias':'—')}
           ${linha('Término da execução',brDe(x.dO.fim)+(x.dO.prorrogado?` <small style="color:var(--text-3)">(era ${brDe(x.dO.fimOriginal)})</small>`:''))}${linha('Fim da vigência',brDe(x.vig)+(x.vigOrig&&x.vig>x.vigOrig?` <small style="color:var(--text-3)">(era ${brDe(x.vigOrig)})</small>`:''))}
@@ -12558,7 +12560,7 @@ const Eng=(function(){
         <div class="op-card"><h4>Garantia e reajuste</h4>
           ${linha('Garantia',fe(c.garantia_tipo||'—')+(c.garantia_pct?` · ${fe(c.garantia_pct)}%${x.vigente?' ('+fmt(x.vigente*moeda(c.garantia_pct)/100)+')':''}`:''))}
           ${linha('Validade da garantia',x.garVal?sem(x.sGar,brDe(x.garVal)):'—')}
-          ${linha('Data-base do orçamento',brDe(x.dataBase))}${linha('Índice de reajuste',fe(c.indice_reajuste||'—'))}
+          ${linha('Data-base do reajuste <small style="color:var(--text-3)">(envio da proposta)</small>',brDe(x.dataBase))}${linha('Índice de reajuste',fe(c.indice_reajuste||'—'))}
           ${linha('Reajuste disponível a partir de',x.reaj?sem(x.reajDisp?'amarelo':'verde',brDe(x.reaj)):'—')}
           ${linha('Aditivos de valor',x.ads.length?`${fmt(x.adV)} · ${pct(x.adPct)} <small style="color:var(--text-3)">(limite 25%)</small>`:'nenhum')}
           <div class="op-acoes" style="margin-top:8px"><button type="button" class="fin-bt mini" data-ct="aditivo">+ Aditivo</button>${pode('acoes')?'<button type="button" class="fin-bt mini" data-ct="acao">+ Ação</button>':''}</div>
@@ -15195,8 +15197,8 @@ const Mascara=(function(){
       if(col==='receber'&&de==='faturar')return emitirNota(x);
       if(col==='recebida')return de==='faturar'?toast('Emita a nota antes (arraste para "Nota emitida").','error'):receberNota(x.r);
       if(de==='recebida'&&col==='receber')return desfazerRecebimento(x.r);
-      if(col==='medicao')return toast('A nota já existe — para mexer na medição, abra a tela de Medições.','error');
-      if(col==='faturar')return de==='receber'?desfazerFaturamento(x.r):toast('Desfaça o recebimento antes (arraste para "Nota emitida").','error');});}
+      if(col==='medicao')return voltarParaMedicao(x.r);
+      if(col==='faturar')return desfazerFaturamento(x.r);});}
   }
   const linhasFat=l=>{const K=KF();return l.map(x=>{const r=x.r,v=x.k==='f'?Fa.vencF(r,K):null;return x.k==='m'?[x.obra,'',r.numero,'',n2(x.bruto),'','','','','','',n2(x.liq)+' (estimado)','','',COLS_F.find(c=>c.k===x.col).rot]:[x.obra,r[K.nf]||'',r.medicao_numero||'',dt(r[K.em])?brDe(dt(r[K.em])):'',n2(val(r[K.bruto])),n2(val(r[K.inss])),n2(val(r[K.irpf])),n2(val(r[K.simples])),n2(val(r[K.antec])),n2(val(r[K.seguro])),'',n2(x.liq),v?brDe(v):'',recebidaF(r,K)?brDe(dt(r[K.rec])):'',Fa.sitF(r,K)[0]];});};
   function exportarFat(){
@@ -15266,6 +15268,14 @@ const Mascara=(function(){
     const o=copiaF(r);o[K.tipo]='Previsto';o[K.nf]='';o[K.em]='';o[K.rec]='';
     await executar(async()=>{await salvar('Faturamentos',o,r.rowid);const m=r.medicao_rowid&&(D().medicoes||[]).find(x=>String(x.rowid)===String(r.medicao_rowid));if(m)await salvar('Medições',{...copiaF(m),status:'Aprovada',faturado_em:''},m.rowid);});
     toast('Faturamento desfeito — voltou para "A faturar".','success');});}
+  // volta tudo até a medição em andamento: a nota (e o recebimento) é desfeita e sai do quadro (vai para
+  // a Lixeira, dá para restaurar por 15 dias) e a medição volta para "Enviada à fiscalização"
+  function voltarParaMedicao(r){const K=KF(),m=r.medicao_rowid&&(D().medicoes||[]).find(x=>String(x.rowid)===String(r.medicao_rowid));
+    if(!m)return toast('Esta nota não veio de uma medição — use "Desfazer faturamento" para voltar a "A faturar".','error');
+    confirmar('Voltar para a medição',`${r[K.nf]?'A NF '+fe(r[K.nf]):'O faturamento'} de ${fe(r[K.obra]||'')} (${fmt(val(r[K.bruto]))}) é desfeit${r[K.nf]?'a':'o'}${recebidaF(r,K)?' (com o recebimento)':''} e a <b>medição nº ${fe(m.numero)}</b> volta para <b>"Medição em andamento"</b> (enviada à fiscalização). O faturamento vai para a Lixeira — dá para restaurar por 15 dias.`,'Sim, voltar',async()=>{
+      await executar(async()=>{await salvar('Faturamentos',{...copiaF(r),_lixeira_em:new Date().toISOString(),_lixeira_obra_id:'avulso',_lixeira_motivo:'Faturamento desfeito (medição nº '+(m.numero||'')+' voltou para a fiscalização)'},r.rowid);
+        await salvar('Medições',{...copiaF(m),status:'Enviada à fiscalização',faturado_em:''},m.rowid);});
+      toast('Voltou para "Medição em andamento".','success');});}
   function desfazerRecebimento(r){const K=KF();confirmar('Desfazer recebimento',`${r[K.nf]?'A NF '+fe(r[K.nf]):'A nota'} volta para "a receber".`,'Sim, desfazer',async()=>{const o=copiaF(r);o[K.rec]='';await executar(()=>salvar('Faturamentos',o,r.rowid));toast('Voltou para "a receber".','success');});}
   function fichaMedicao(x){
     const m=x.r,rm=Eng.resumoMedicoes(m.titulo_obra),cc=COLS_F.find(c=>c.k===x.col);
@@ -15315,6 +15325,9 @@ const Mascara=(function(){
       if(col==='faturar')bts.push({html:'<i class="fas fa-file-invoice"></i> Emitir a nota',acao:()=>{setTimeout(()=>emitirNota({k:'f',r,obra:r[K.obra]||''}),10);}});
       if(col==='receber')bts.push({html:'<i class="fas fa-circle-check"></i> Registrar recebimento',acao:()=>{setTimeout(()=>receberNota(r),10);}});
       if(col==='recebida')bts.push({html:'<i class="fas fa-rotate-left"></i> Desfazer recebimento',acao:()=>{setTimeout(()=>desfazerRecebimento(r),10);}});
+      if(col==='recebida')bts.push({html:'<i class="fas fa-file-pen"></i> Desfazer faturamento',acao:()=>{setTimeout(()=>desfazerFaturamento(r),10);}});
+      // nota que veio de uma medição: volta tudo até a medição em andamento, sem excluir
+      if(r.medicao_rowid)bts.push({html:'<i class="fas fa-ruler-combined"></i> Voltar para a medição',acao:()=>{setTimeout(()=>voltarParaMedicao(r),10);}});
     }
     if(ed)bts.push({html:'<i class="fas fa-floppy-disk"></i> Salvar',cls:'pri',acao:async j=>{
       const g=k=>(j.querySelector(`[data-k="${k}"]`)||{}).value||'',m=k=>dinheiro(num(g(k)));
@@ -15875,7 +15888,8 @@ const Mascara=(function(){
     const st=Eng.statusObra(o),f=faseDe(st),c=Eng.contratoDe?Eng.contratoDe(ob):null,dO=Eng.datasObra(o);
     let vig=null;try{vig=Eng.infoContrato(o);}catch(e){}
     const num=getFuzzy(o,['numero_contrato','num_contrato','n_contrato']),pz=String(getFuzzy(o,['prazo_contratual','duracao_prevista'])||'').replace(/\D/g,'');
-    const fatos=[c&&c.contratante?`<span><i class="fas fa-landmark"></i><b>${fe(c.contratante)}</b></span>`:'',num?`<span><i class="fas fa-file-contract"></i>Contrato <b>${fe(num)}</b></span>`:'',
+    const lim=dt(getFuzzy(o,['limite_proposta'])),env=dt(getFuzzy(o,['envio_proposta']));
+    const fatos=[lim?`<span><i class="fas fa-flag-checkered"></i>Limite de entrega <b>${brDe(lim)}</b></span>`:'',env?`<span><i class="fas fa-paper-plane"></i>Proposta enviada em <b>${brDe(env)}</b></span>`:'',c&&c.contratante?`<span><i class="fas fa-landmark"></i><b>${fe(c.contratante)}</b></span>`:'',num?`<span><i class="fas fa-file-contract"></i>Contrato <b>${fe(num)}</b></span>`:'',
       vig&&vig.vigente?`<span><i class="fas fa-sack-dollar"></i>Valor vigente <b>${fmt(vig.vigente)}</b></span>`:'',
       dO.ini?`<span><i class="fas fa-play"></i>OS <b>${brDe(dO.ini)}</b>${pz?` · ${pz} dias`:''}</span>`:'',
       dO.fim?`<span><i class="fas fa-flag-checkered"></i>Término vigente <b>${brDe(dO.fim)}</b>${dO.prorrogado?' (com aditivo)':''}</span>`:'',
@@ -15988,6 +16002,9 @@ const Mascara=(function(){
       ${fld('Modalidade da licitação',sel('modalidade',MODAL,c.modalidade))}
       ${fld('Nº da licitação / processo',inp('numero_licitacao',c.numero_licitacao))}
       ${fld('Objeto do contrato (descrição da obra)',`<textarea data-k="objeto" rows="2">${fe(g(['descricao'])||c.objeto||'')}</textarea>`,1)}
+      <div class="hc-sec">Proposta</div>
+      ${fld('Limite de entrega da proposta',dat('limite',g(['limite_proposta'])))}
+      ${fld('Proposta enviada em <small style="font-weight:600;color:var(--text-3)">(data-base do reajuste)</small>',dat('envio',g(['envio_proposta'])||c.data_base)+'<div class="capx-dica">É a data de apresentação da proposta: o reajuste conta 12 meses a partir dela.</div>')}
       <div class="hc-sec">Prazos</div>
       ${fld('Assinatura do contrato',dat('data_assinatura',c.data_assinatura))}
       ${fld('Ordem de serviço (início)',dat('os',g(['inicio_obra','data_inicio'])||g(['liberacao_obra'])))}
@@ -15997,7 +16014,6 @@ const Mascara=(function(){
       <div class="hc-calc" data-calc></div>
       <div class="hc-sec">Valor, reajuste e garantia</div>
       ${fld('Valor assinado (R$)',`<input data-k="valor_contrato" data-mask="moeda" inputmode="numeric" value="${valorAss?fmt(valorAss):''}" placeholder="R$ 0,00">`+(rm.base&&!val(c.valor_contrato)?'<div class="capx-dica">Preenchido com o total do orçamento da obra.</div>':''))}
-      ${fld('Data-base do orçamento (reajuste)',dat('data_base',c.data_base||(orc?getFuzzy(orc,['data_lancamento']):'')))}
       ${fld('Índice de reajuste',sel('indice_reajuste',INDICES,c.indice_reajuste))}
       ${fld('Garantia contratual',sel('garantia_tipo',GARANTIAS,c.garantia_tipo))}
       ${fld('Garantia (% do contrato)',inp('garantia_pct',c.garantia_pct,' inputmode="decimal" placeholder="Ex.: 5"'))}
@@ -16017,6 +16033,8 @@ const Mascara=(function(){
       if(/finalizada/i.test(fase)&&!entrega)throw new Error('Informe a data de entrega da obra.');
       if(entrega&&os&&entrega<os)throw new Error('A entrega não pode ser antes da ordem de serviço.');
       if(v('vigencia_fim')&&v('data_assinatura')&&v('vigencia_fim')<v('data_assinatura'))throw new Error('O fim da vigência não pode ser antes da assinatura.');
+      if(v('envio')&&v('envio')>isoDe(hoje0()))throw new Error('A data de envio da proposta não pode ser no futuro.');
+      if(v('envio')&&v('data_assinatura')&&v('data_assinatura')<v('envio'))throw new Error('A assinatura do contrato não pode ser antes do envio da proposta.');
       // obra
       const o2={...o};delete o2.rowid;delete o2.visualId;delete o2._aba;
       const K=(kws,fb)=>kR(o,kws,fb);
@@ -16028,9 +16046,11 @@ const Mascara=(function(){
       o2[K(['prazo_contratual'],'prazo_contratual')]=pzN;o2[K(['duracao_prevista'],'duracao_prevista')]=pzN;
       if(os&&pzN)o2[K(['termino_previsto','data_termino_previsto'],'termino_previsto')]=isoDe(addD(dt(os),+pzN));
       o2[K(['termino_ocorrido','data_termino_ocorrido'],'termino_ocorrido')]=entrega;
+      // proposta: limite e envio ficam na obra (aparecem no cartão); o envio é a data-base do reajuste
+      o2[K(['limite_proposta'],'limite_proposta')]=v('limite');o2[K(['envio_proposta'],'envio_proposta')]=v('envio');
       // contrato
       const temCt=!!c.rowid,ct={...c};delete ct.rowid;delete ct.visualId;delete ct._aba;
-      CT_CAMPOS.forEach(k=>ct[k]=v(k));ct.titulo_obra=ob;ct.objeto=v('objeto');
+      CT_CAMPOS.forEach(k=>ct[k]=v(k));ct.titulo_obra=ob;ct.objeto=v('objeto');ct.data_base=v('envio');
       ct.valor_contrato=ct.valor_contrato?dinheiro(Mascara.numero(ct.valor_contrato)||0):'';
       ct.garantia_pct=ct.garantia_pct?String(Mascara.numero(ct.garantia_pct)||'').replace('.',','):'';
       if(!temCt)ct.data_lancamento=todayDateTime();
@@ -16112,7 +16132,8 @@ const Mascara=(function(){
       const tt=h.querySelector('.cap-bloco-total');if(tt)tt.insertAdjacentHTML('beforebegin','<span class="capx-pctb"></span>');
       const wrap=document.createElement('span');wrap.style.cssText='display:flex;align-items:center';const pb=h.querySelector('.capx-pctb');if(pb&&tt){h.insertBefore(wrap,pb);wrap.appendChild(pb);wrap.appendChild(tt);}});
     const res=body.querySelector('.cap-resumo');
-    if(res){const g=document.createElement('div');g.className='capx-grade';res.parentNode.insertBefore(g,res);g.appendChild(res);g.insertAdjacentHTML('beforeend','<div class="capx-real" id="capx-real"></div>');
+    // "Orçado × realizado" fica no fim do CAP, depois da formação do preço
+    if(res){const g=document.createElement('div');g.className='capx-grade';res.parentNode.insertBefore(g,res);g.appendChild(res);body.insertAdjacentHTML('beforeend','<div class="capx-real capx-fim" id="capx-real"></div>');
       const t=res.querySelector('div');if(t&&/Resumo/.test(t.textContent))t.outerHTML='<h4 class="capx-tit">Formação do preço</h4>';}
     // o preço e as retenções não precisam ser digitados de novo: vêm do contrato e das notas da obra
     const ob=obraCAP(),bruto=document.getElementById('cap-orc-bruto');
@@ -16750,6 +16771,54 @@ const Mascara=(function(){
 .eng-fotos button{position:relative;}
 .eng-fotos button .por{position:absolute;left:3px;bottom:3px;max-width:calc(100% - 6px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;background:rgba(0,0,0,.6);color:#fff;font:700 9.5px Inter,sans-serif;padding:1px 5px;border-radius:5px;}
 #nav-medicoes{display:none!important;}
+/* ═══ faixa da obra: abas em barra segmentada com ícones + ações com nome ═══ */
+#obra-hub-tabs.ohub-bar{display:flex!important;align-items:center;justify-content:space-between;gap:12px;padding:10px 18px;background:linear-gradient(180deg,#FBFCFF 0%,#F4F7FD 100%);border-bottom:1px solid #E4E9F2;}
+.ohub-tabs{display:flex;gap:4px;padding:4px;background:#E8EDF6;border-radius:14px;overflow-x:auto;min-width:0;scrollbar-width:none;}
+.ohub-tabs::-webkit-scrollbar{display:none;}
+.ohub-tab{position:relative;display:flex;align-items:center;gap:7px;border:0;background:transparent;padding:8px 13px;border-radius:10px;font:600 13px Inter,sans-serif;color:#5B6475;cursor:pointer;white-space:nowrap;transition:background .15s,color .15s,box-shadow .15s;}
+.ohub-tab i{font-size:13px;width:14px;text-align:center;opacity:.75;}
+.ohub-tab .n{display:inline-grid;place-items:center;width:18px;height:18px;border-radius:50%;background:#D5DCE9;color:#5B6475;font:800 10px Inter,sans-serif;}
+.ohub-tab:hover{color:#1D1D1F;background:rgba(255,255,255,.65);}
+.ohub-tab.on{background:#fff;color:#1652D8;box-shadow:0 1px 3px rgba(16,24,40,.12),0 1px 2px rgba(16,24,40,.06);}
+.ohub-tab.on i{opacity:1;} .ohub-tab.on .n{background:#1652D8;color:#fff;}
+.ohub-acoes{display:flex;gap:8px;flex-shrink:0;}
+.ohub-bt{display:flex;align-items:center;gap:7px;height:36px;padding:0 13px;border-radius:10px;border:1px solid #D7DEEA;background:#fff;color:#344054;font:600 12.5px Inter,sans-serif;cursor:pointer;transition:background .15s,border-color .15s;}
+.ohub-bt:hover{background:#F5F8FF;border-color:#B9C6DD;}
+.ohub-bt.ok{border-color:#A6E3BD;background:#ECFDF3;color:#067647;} .ohub-bt.ok:hover{background:#D9F7E6;}
+.ohub-bt.err{border-color:#FECDCA;background:#FEF3F2;color:#B42318;padding:0 11px;} .ohub-bt.err:hover{background:#FDE4E2;}
+@media (max-width:760px){.ohub-tab span:not(.n),.ohub-bt span{display:none;}.ohub-tab{padding:8px 11px;}#obra-hub-tabs.ohub-bar{padding:8px 10px;}}
+/* ═══ CAP mais moderno ═══ */
+#cap-scroll-body{background:#F6F8FC;}
+.capx-dash{grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:4px;}
+.capx-k{position:relative;border:1px solid #E4E9F2;border-radius:16px;padding:14px 16px 13px;box-shadow:0 1px 2px rgba(16,24,40,.04);overflow:hidden;}
+.capx-k:before{content:'';position:absolute;left:0;top:0;bottom:0;width:4px;background:#1652D8;}
+.capx-k.ok:before{background:#1DAA6C;} .capx-k.err:before{background:#F04438;} .capx-k.warn:before{background:#F79009;}
+.capx-k b{font-size:clamp(15px,1.7vw,20px);letter-spacing:-.01em;}
+.capx-comp{border:1px solid #E4E9F2;border-radius:16px;padding:12px 16px;}
+.capx-comp-barra{height:14px;border-radius:999px;gap:2px;background:transparent;}
+.capx-comp-barra i{border-radius:999px;}
+#cap-scroll-body .capx-bloco{border:1px solid #E4E9F2;border-radius:18px;padding:12px 14px 14px;box-shadow:0 1px 2px rgba(16,24,40,.04);}
+#cap-scroll-body .capx-bloco .cap-bloco-head{background:transparent!important;padding:4px 2px 10px!important;border-bottom:1px solid #EEF1F6;border-radius:0!important;}
+#cap-scroll-body .cap-bloco-label{font:800 12.5px Inter,sans-serif!important;letter-spacing:.02em!important;text-transform:none!important;}
+#cap-scroll-body .cap-bloco-label i{display:inline-grid;place-items:center;width:30px;height:30px;border-radius:10px;background:currentColor;}
+#cap-scroll-body .cap-bloco-label i:before{color:#fff;font-size:13px;}
+#cap-scroll-body .capx-n,#cap-scroll-body .capx-pctb{display:inline-block;padding:2px 9px;border-radius:999px;background:#F1F4F9;color:#5B6475!important;opacity:1!important;font-size:11px!important;}
+#cap-scroll-body .cap-bloco-total{font-size:16px!important;}
+#cap-scroll-body .capx-bloco>div[style*="max-height"]{border:1px solid #EEF1F6!important;border-radius:12px!important;margin-top:10px;}
+#cap-scroll-body .cap-tbl th{background:#F8FAFD!important;color:#6E7687!important;font-size:10.5px!important;padding:8px!important;}
+#cap-scroll-body .cap-tbl tbody tr:nth-child(even) td{background:#FBFCFE;}
+#cap-scroll-body .cap-tbl tbody tr:hover td{background:#F2F6FF;}
+#cap-scroll-body .cap-tbl input,#cap-scroll-body .cap-tbl select{border-color:transparent!important;background:transparent!important;border-radius:7px!important;}
+#cap-scroll-body .cap-tbl input:hover,#cap-scroll-body .cap-tbl select:hover{border-color:#D7DEEA!important;background:#fff!important;}
+#cap-scroll-body .cap-tbl input:focus,#cap-scroll-body .cap-tbl select:focus{border-color:#1652D8!important;background:#fff!important;box-shadow:0 0 0 3px #EEF4FF;}
+.capx-grade{display:block!important;margin-top:16px;}
+.capx-grade .cap-resumo{border:1px solid #E4E9F2!important;border-radius:18px!important;padding:16px 20px!important;box-shadow:0 1px 2px rgba(16,24,40,.04);}
+.capx-grade .cap-resumo .cap-resumo-row{padding:8px 0;}
+.capx-grade .cap-resumo-big{font-size:18px;}
+.capx-real.capx-fim{margin-top:16px;border:1px solid #E4E9F2;border-radius:18px;padding:16px 20px;box-shadow:0 1px 2px rgba(16,24,40,.04);}
+.capx-real.capx-fim .capx-linha em{height:10px;border-radius:999px;}
+.capx-real.capx-fim .capx-linha em i{border-radius:999px;}
+@media (max-width:900px){.capx-dash{grid-template-columns:repeat(2,minmax(0,1fr));}}
 </style>
 <script>
 (function(){
@@ -16773,7 +16842,7 @@ const Mascara=(function(){
     return cache.apply(this,arguments);
   };
   const fechar=UI.closeModal;
-  UI.closeModal=function(id){if(id==='modal-editor')devolver();return fechar.apply(this,arguments);};
+  UI.closeModal=function(id){if(id==='modal-editor'){devolver();const sh=document.getElementById('modal-editor-sheet');if(sh)sh.style.maxWidth='';}return fechar.apply(this,arguments);};
   const abrir=UI.openObraHub;
   UI.openObraHub=function(){devolver();return abrir.apply(this,arguments);};
   // dados recarregados (medição salva, nota emitida): a aba Medição se redesenha
@@ -16795,6 +16864,246 @@ const Mascara=(function(){
     return nav.call(this,v);
   };
   Eng.irParaMedicao=irParaMedicao;
+
+  /* faixa da obra: as mesmas abas e ações, em barra segmentada com ícone, ordem numerada
+     (o caminho da proposta ao contrato) e botões com nome */
+  const ICO={orcamentos:'fa-file-invoice-dollar',cap:'fa-calculator',contrato:'fa-file-signature',medicao:'fa-ruler-combined',etapas:'fa-bars-progress',dados:'fa-pen-to-square',resumo:'fa-gauge'};
+  UI._obraHubRenderTabs=function(){
+    const bar=document.getElementById('obra-hub-tabs'),hub=App.state.obraHub;if(!bar||!hub)return;
+    const isExt=!!(Auth._session&&Auth._session.tipoUsuario==='externo');
+    const lista=isExt?this._OBRA_HUB_TABS.filter(([k])=>k==='etapas'):hub.isNew?this._OBRA_HUB_TABS.filter(([k])=>k==='dados'):this._OBRA_HUB_TABS.filter(([k])=>!['etapas','resumo','dados'].includes(k)&&(k!=='medicao'||(Eng.temContrato&&Eng.temContrato(hub.obraName))));
+    bar.removeAttribute('style');bar.className='ohub-bar';
+    bar.innerHTML=`<nav class="ohub-tabs" role="tablist">${lista.map(([k,l],i)=>`<button type="button" role="tab" aria-selected="${hub.tab===k}" class="ohub-tab ${hub.tab===k?'on':''}" onclick="UI._obraHubTab('${k}')"><i class="fas ${ICO[k]||'fa-circle'}"></i><span>${l}</span></button>`).join('')}</nav>
+      <div class="ohub-acoes">${isExt?'':'<button type="button" class="ohub-bt ok" title="Salvar o que foi alterado nesta obra" onclick="UI._obraHubSalvar()"><i class="fas fa-floppy-disk"></i><span>Salvar</span></button>'}<button type="button" class="ohub-bt" title="Imprimir / exportar o PDF da aba aberta" onclick="UI._obraHubPDF()"><i class="fas fa-print"></i><span>PDF</span></button>${isExt?'':'<button type="button" class="ohub-bt err" title="Excluir a obra e tudo dentro dela (vai para a Lixeira)" onclick="UI._obraHubExcluirTudo()"><i class="fas fa-trash"></i></button>'}</div>`;
+    const ft=document.querySelector('#modal-editor-sheet .editor-footer');if(ft)ft.style.display='none';
+    // a obra (orçamento, CAP, contrato, medição) é tabela larga: a janela usa quase a tela toda
+    const sh=document.getElementById('modal-editor-sheet');if(sh&&!hub.isNew)sh.style.maxWidth='min(1180px,96vw)';
+  };
+})();
+</script>
+<!-- ═══════════════════ VIABILIDADE DO CONTRATO — AUTOMÁTICA (dados da obra, gráficos, sensibilidade, preço mínimo) ═══════════════════ -->
+<style>
+.vv{display:flex;flex-direction:column;gap:16px;}
+.vv-topo{display:flex;flex-wrap:wrap;gap:10px;align-items:center;}
+.vv-topo select{min-width:280px;max-width:100%;}
+.vv-hero{display:flex;gap:16px;align-items:flex-start;padding:18px 20px;border-radius:20px;border:1px solid;}
+.vv-hero.verde{background:linear-gradient(135deg,#ECFDF3,#F6FEF9);border-color:#ABEFC6;}
+.vv-hero.amarelo{background:linear-gradient(135deg,#FFFAEB,#FFFCF5);border-color:#FEDF89;}
+.vv-hero.vermelho{background:linear-gradient(135deg,#FEF3F2,#FFFBFA);border-color:#FECDCA;}
+.vv-hero .ic{flex-shrink:0;width:48px;height:48px;border-radius:14px;display:grid;place-items:center;font-size:22px;color:#fff;}
+.vv-hero.verde .ic{background:#12B76A;} .vv-hero.amarelo .ic{background:#F79009;} .vv-hero.vermelho .ic{background:#F04438;}
+.vv-hero h3{margin:0 0 4px;font:800 18px Inter,sans-serif;color:var(--text-1);}
+.vv-hero ul{margin:0;padding-left:18px;font-size:13px;line-height:1.55;color:#344054;}
+.vv-kpis{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;}
+.vv-k{background:#fff;border:1px solid #E4E9F2;border-radius:16px;padding:13px 15px;box-shadow:0 1px 2px rgba(16,24,40,.04);min-width:0;}
+.vv-k small{display:block;font:800 10.5px Inter,sans-serif;text-transform:uppercase;letter-spacing:.05em;color:#667085;}
+.vv-k b{display:block;font:800 clamp(16px,1.8vw,21px) Inter,sans-serif;color:var(--text-1);margin-top:4px;overflow-wrap:anywhere;}
+.vv-k span{display:block;font-size:11.5px;color:#667085;margin-top:2px;}
+.vv-k.bom b{color:#067647;} .vv-k.ruim b{color:#B42318;} .vv-k.at b{color:#B54708;}
+.vv-grade{display:grid;grid-template-columns:minmax(0,360px) minmax(0,1fr);gap:16px;align-items:start;}
+.vv-card{background:#fff;border:1px solid #E4E9F2;border-radius:18px;padding:16px 18px;box-shadow:0 1px 2px rgba(16,24,40,.04);min-width:0;}
+.vv-card h4{margin:0 0 2px;font:800 14px Inter,sans-serif;color:var(--text-1);}
+.vv-card .sub{margin:0 0 10px;font-size:12px;color:#667085;line-height:1.45;}
+.vv-sec{font:800 10.5px Inter,sans-serif;text-transform:uppercase;letter-spacing:.06em;color:#667085;margin:14px 0 6px;display:flex;align-items:center;gap:8px;}
+.vv-sec:first-of-type{margin-top:4px;} .vv-sec:after{content:'';flex:1;height:1px;background:#EEF1F6;}
+.vv-f{margin-bottom:9px;}
+.vv-f{min-width:0;}
+.vv-f label{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:baseline;gap:3px 6px;font-size:12px;font-weight:700;color:#344054;margin-bottom:4px;}
+.vv-f input,.vv-f select{width:100%;padding:8px 10px;border:1px solid #D7DEEA;border-radius:10px;font:600 13px Inter,sans-serif;background:#fff;}
+.vv-f input:focus,.vv-f select:focus{outline:none;border-color:#1652D8;box-shadow:0 0 0 3px #EEF4FF;}
+.vv-chip{font-size:10.5px;font-weight:700;color:#1652D8;background:#EEF4FF;border-radius:999px;padding:1px 8px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.vv-chip.man{color:#B54708;background:#FFFAEB;cursor:pointer;border:0;}
+.vv-chip.fal{color:#B42318;background:#FEF3F2;}
+.vv-2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;}
+.vv-graf{position:relative;}
+.vv-graf svg{display:block;width:100%;height:auto;overflow:visible;}
+.vv-leg{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12px;color:#475467;margin:2px 0 6px;}
+.vv-leg i{display:inline-block;width:18px;height:0;border-top:2px solid;vertical-align:middle;margin-right:6px;}
+.vv-tip{position:absolute;pointer-events:none;background:#101828;color:#fff;font:600 11.5px Inter,sans-serif;padding:7px 9px;border-radius:8px;white-space:nowrap;transform:translate(-50%,-110%);opacity:0;transition:opacity .08s;z-index:3;line-height:1.45;}
+.vv-tip b{font-weight:800;}
+.vv-sens td,.vv-sens th{font-size:12px;}
+.vv-preco{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;}
+.vv-preco div{border:1px solid #EEF1F6;border-radius:12px;padding:10px 12px;background:#FAFBFE;}
+.vv-preco small{display:block;font-size:11px;color:#667085;} .vv-preco b{font:800 15px Inter,sans-serif;}
+.vv details summary{cursor:pointer;font:700 13px Inter,sans-serif;color:#1652D8;}
+@media (max-width:1100px){.vv-kpis{grid-template-columns:repeat(3,minmax(0,1fr));}}
+@media (max-width:900px){.vv-grade{grid-template-columns:1fr;}.vv-kpis{grid-template-columns:repeat(2,minmax(0,1fr));}.vv-preco{grid-template-columns:1fr;}}
+</style>
+<script>
+(function(){
+  const {D,U}=GS;
+  const {fe,cn,dt,brDe,isoDe,hoje0,addD,dias,val}=U;
+  const r2=n=>Math.round((+n||0)*100)/100;
+  const pc=(v,c)=>v==null||!isFinite(v)?'—':(Math.round(v*10)/10).toLocaleString('pt-BR',{maximumFractionDigits:c==null?1:c})+'%';
+  const num=s=>{let t=String(s==null?'':s).trim().replace(/[^\d,.\-]/g,'');if(!t)return 0;if(t.includes(','))t=t.replace(/\./g,'').replace(',','.');else if(/^-?\d{1,3}(\.\d{3})+$/.test(t))t=t.replace(/\./g,'');const n=parseFloat(t);return isNaN(n)?0:n;};
+  const addM=(d,n)=>new Date(d.getFullYear(),d.getMonth()+n,1);
+  const mesRot=d=>['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'][d.getMonth()]+'/'+String(d.getFullYear()).slice(2);
+  const Rk=v=>{const a=Math.abs(v),s=v<0?'-':'';return a>=1e6?s+'R$ '+(a/1e6).toFixed(1).replace('.',',')+' mi':a>=1e3?s+'R$ '+Math.round(a/1e3)+' mil':s+'R$ '+Math.round(a);};
+  const obraDe=ob=>(D().obras||[]).find(o=>Eng.nomeObra(o)===ob)||null;
+  const colDe=o=>{const s=cn(Eng.statusObra(o));if(s.includes('perdida'))return 'perdida';if(s.includes('finalizada'))return 'entregue';if(s.includes('andamento'))return 'execucao';if(s.includes('ganha'))return 'ganha';if(s.includes('nao enviada'))return 'proposta';return 'aguardando';};
+  const CURVAS={linear:['Constante (mesmo ritmo todo mês)',t=>t],s:['Curva S (devagar, acelera, desacelera)',t=>t*t*(3-2*t)],inicio:['Concentrada no início',t=>1-(1-t)*(1-t)],fim:['Concentrada no fim',t=>t*t]};
+  const VV={obra:null,p:null,src:{},man:{},auto:null};
+
+  // execução mês a mês pelo CRONOGRAMA da obra (valor das etapas espalhado pelos dias planejados)
+  function fracoesDoCronograma(ob){
+    const K=UI._etapasK(),et=(D().etapas||[]).filter(e=>(e[K.obra]||getFuzzy(e,['titulo_obra']))===ob);
+    const ok=et.map(e=>({a:dt(e[K.ini]),b:dt(e[K.fim]),v:val(e[K.valor])||val(e[K.peso])||0})).filter(x=>x.a&&x.b&&x.b>=x.a&&x.v>0);
+    if(!ok.length)return null;
+    const t0=ok.reduce((m,x)=>x.a<m?x.a:m,ok[0].a),m0=new Date(t0.getFullYear(),t0.getMonth(),1),por={};
+    ok.forEach(x=>{const n=dias(x.a,x.b)+1;for(let d=new Date(x.a);d<=x.b;d=addD(d,1)){const k=(d.getFullYear()-m0.getFullYear())*12+d.getMonth()-m0.getMonth();por[k]=(por[k]||0)+x.v/n;}});
+    const n=Math.max(...Object.keys(por).map(Number))+1,tot=Object.values(por).reduce((s,v)=>s+v,0)||1;
+    return {fr:Array.from({length:n},(_,k)=>(por[k]||0)/tot),m0};
+  }
+  // tudo o que dá para saber sozinho, com a origem de cada número
+  function automatico(ob){
+    const p={valor:0,custo:0,imp:11.4,meses:6,receb:30,curva:'s',mob:5,pagto:0,taxa:1,inicio:0,caixa:0},src={valor:'informe',custo:'informe',imp:'padrão do sistema',meses:'padrão',receb:'padrão (30 dias)',curva:'padrão',mob:'padrão',pagto:'padrão',taxa:'padrão',inicio:'padrão',caixa:'informe'};
+    const sl=Fin.lerSaldo&&Fin.lerSaldo();if(sl){p.caixa=r2(sl.valor);src.caixa='último extrato'+(sl.data?' ('+sl.data+')':'');}
+    const o=ob&&obraDe(ob);if(!o)return {p,src,fr:null};
+    const col=colDe(o),h=hoje0();
+    let rm={};try{rm=Eng.resumoMedicoes(ob);}catch(e){}
+    if(rm.contrato){p.valor=r2(rm.contrato);src.valor=rm.adtValor?'contrato + aditivos':(col==='proposta'||col==='aguardando'?'orçamento da proposta':'orçamento (contrato)');}
+    let cap={};try{cap=Eng.capInfo(ob);}catch(e){}
+    if(cap.custo){p.custo=r2(cap.custo);src.custo='CAP da obra';}else if(p.valor){p.custo=r2(p.valor*.75);src.custo='estimado (75%) — monte o CAP';}
+    try{const s=Eng.saude(o);if(s&&s.fatorLiq){p.imp=Math.round((1-s.fatorLiq)*1000)/10;src.imp='retenções das notas da obra';}}catch(e){}
+    try{const d=Fin.prazoReceb(ob);if(d){p.receb=Math.round(d);src.receb='média das notas da obra';}}catch(e){}
+    const dO=Eng.datasObra(o),pz=+String(getFuzzy(o,['prazo_contratual','duracao_prevista'])||'').replace(/\D/g,'')||0;
+    if(dO.ini&&dO.fim){p.meses=Math.max(1,Math.round((dias(dO.ini,dO.fim)+1)/30));src.meses='ordem de serviço → término';}else if(pz){p.meses=Math.max(1,Math.round(pz/30));src.meses='prazo do contrato ('+pz+' dias)';}
+    if(dO.ini){p.inicio=Math.max(0,(dO.ini.getFullYear()-h.getFullYear())*12+dO.ini.getMonth()-h.getMonth());src.inicio='ordem de serviço';}
+    else{const lim=dt(getFuzzy(o,['limite_proposta']))||dt(getFuzzy(o,['envio_proposta']));if(lim){const c=addD(lim,30);p.inicio=Math.max(0,(c.getFullYear()-h.getFullYear())*12+c.getMonth()-h.getMonth());src.inicio='estimado: 1 mês após a proposta';}}
+    const cr=fracoesDoCronograma(ob);let fr=null;
+    if(cr){fr=cr.fr;p.curva='crono';p.meses=fr.length;src.curva='cronograma da obra';src.meses='cronograma da obra';p.inicio=Math.max(0,(cr.m0.getFullYear()-h.getFullYear())*12+cr.m0.getMonth()-h.getMonth());src.inicio='cronograma da obra';}
+    return {p,src,fr};
+  }
+  function irr(f){const npv=r=>f.reduce((s,x,i)=>s+x/Math.pow(1+r,i+1),0);if(!f.some(x=>x<0)||!f.some(x=>x>0))return null;let lo=-.95,hi=2;if(npv(lo)*npv(hi)>0)return null;for(let k=0;k<200;k++){const m=(lo+hi)/2;if(npv(lo)*npv(m)<=0)hi=m;else lo=m;}return (lo+hi)/2*100;}
+  function simular(p,fr){
+    let f;if(p.curva==='crono'&&fr&&fr.length)f=fr.slice();else{const n=Math.max(1,Math.round(p.meses)),S=(CURVAS[p.curva]||CURVAS.s)[1];f=[];for(let i=1;i<=n;i++)f.push(S(i/n)-S((i-1)/n));}
+    const lagR=Math.max(0,Math.ceil(p.receb/30)),lagC=p.pagto?1:0,liq=1-p.imp/100;
+    const M=Array.from({length:f.length+Math.max(lagR,lagC)},()=>({exec:0,med:0,rec:0,custo:0}));
+    f.forEach((x,k)=>{M[k].exec=x*100;M[k].med=p.valor*x;M[k+lagR].rec+=p.valor*x*liq;M[k+lagC].custo+=p.custo*(1-p.mob/100)*x+(k===0?p.custo*p.mob/100:0);});
+    let ac=0,min=0,mMin=-1;M.forEach((m,i)=>{m.saldo=m.rec-m.custo;ac+=m.saldo;m.acum=ac;if(ac<min){min=ac;mMin=i;}});
+    let pay=null;for(let i=0;i<M.length;i++){if(M[i].acum>=0&&M.slice(i).every(m=>m.acum>=-0.005)){pay=i;break;}}
+    const fl=M.map(m=>m.saldo),vpl=fl.reduce((s,x,i)=>s+x/Math.pow(1+p.taxa/100,i+1),0),lucro=p.valor*liq-p.custo;
+    return {M,lucro,margem:p.valor?lucro/(p.valor*liq)*100:0,min,mMin,pay,vpl,tir:irr(fl),liq};
+  }
+
+  /* gráficos (SVG): linha com cruz e balão ao passar o mouse; barras do saldo do mês */
+  function grafLinhas(series,meses){
+    const W=720,H=230,L=58,R=12,T=12,B=28,n=meses.length,vs=series.flatMap(s=>s.v),mx=Math.max(0,...vs),mn=Math.min(0,...vs),sp=(mx-mn)||1;
+    const x=i=>L+(n>1?i/(n-1):.5)*(W-L-R),y=v=>T+(mx-v)/sp*(H-T-B);
+    const ticks=[0,1,2,3].map(i=>mn+sp*i/3);
+    const passo=Math.max(1,Math.ceil(n/12));
+    const grade=ticks.map(t=>`<line x1="${L}" x2="${W-R}" y1="${y(t).toFixed(1)}" y2="${y(t).toFixed(1)}" stroke="#EEF1F6"/><text x="${L-8}" y="${(y(t)+4).toFixed(1)}" text-anchor="end" font-size="10.5" fill="#667085">${Rk(t)}</text>`).join('');
+    const zero=`<line x1="${L}" x2="${W-R}" y1="${y(0).toFixed(1)}" y2="${y(0).toFixed(1)}" stroke="#98A2B3" stroke-width="1.2"/>`;
+    const xl=meses.map((m,i)=>i%passo===0?`<text x="${x(i).toFixed(1)}" y="${H-8}" text-anchor="middle" font-size="10.5" fill="#667085">${mesRot(m)}</text>`:'').join('');
+    const lin=series.map(s=>`<path d="${s.v.map((v,i)=>(i?'L':'M')+x(i).toFixed(1)+','+y(v).toFixed(1)).join('')}" fill="none" stroke="${s.cor}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"${s.tr?' stroke-dasharray="5 4"':''}/>`).join('');
+    const fim=series.map(s=>`<circle cx="${x(n-1).toFixed(1)}" cy="${y(s.v[n-1]).toFixed(1)}" r="4" fill="${s.cor}" stroke="#fff" stroke-width="2"/>`).join('');
+    return {html:`<div class="vv-graf" data-vvg><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Caixa da empresa mês a mês">${grade}${zero}${xl}${lin}${fim}<line data-cruz x1="0" x2="0" y1="${T}" y2="${H-B}" stroke="#344054" stroke-width="1" stroke-dasharray="3 3" opacity="0"/>${series.map((s,k)=>`<circle data-pt="${k}" r="5" fill="${s.cor}" stroke="#fff" stroke-width="2" opacity="0"/>`).join('')}<rect data-hit x="${L}" y="${T}" width="${W-L-R}" height="${H-T-B}" fill="transparent"/></svg><div class="vv-tip" data-tip></div></div>`,
+      ligar:box=>{const g=box.querySelector('[data-vvg]');if(!g)return;const svg=g.querySelector('svg'),tip=g.querySelector('[data-tip]'),cruz=svg.querySelector('[data-cruz]'),pts=[...svg.querySelectorAll('[data-pt]')];
+        const mover=ev=>{const r=svg.getBoundingClientRect(),sx=(ev.clientX-r.left)/r.width*W,i=Math.max(0,Math.min(n-1,Math.round((sx-L)/((W-L-R)/Math.max(1,n-1)))));
+          cruz.setAttribute('x1',x(i));cruz.setAttribute('x2',x(i));cruz.setAttribute('opacity','1');pts.forEach((p,k)=>{p.setAttribute('cx',x(i));p.setAttribute('cy',y(series[k].v[i]));p.setAttribute('opacity','1');});
+          tip.innerHTML=`<b>${mesRot(meses[i])}</b><br>${series.map(s=>`${s.nome}: <b>${fmt(s.v[i])}</b>`).join('<br>')}`;tip.style.left=(x(i)/W*100)+'%';tip.style.top=(Math.min(...series.map(s=>y(s.v[i])))/H*100)+'%';tip.style.opacity='1';};
+        const sair=()=>{cruz.setAttribute('opacity','0');pts.forEach(p=>p.setAttribute('opacity','0'));tip.style.opacity='0';};
+        svg.addEventListener('mousemove',mover);svg.addEventListener('mouseleave',sair);}};
+  }
+  function grafBarras(M,inicioMes){
+    const W=720,H=190,L=58,R=12,T=10,B=26,n=M.length,vs=M.map(m=>m.saldo),mx=Math.max(0,...vs),mn=Math.min(0,...vs),sp=(mx-mn)||1;
+    const bw=(W-L-R)/n,y=v=>T+(mx-v)/sp*(H-T-B),y0=y(0),passo=Math.max(1,Math.ceil(n/12));
+    const ticks=[0,1,2,3].map(i=>mn+sp*i/3);
+    const grade=ticks.map(t=>`<line x1="${L}" x2="${W-R}" y1="${y(t).toFixed(1)}" y2="${y(t).toFixed(1)}" stroke="#EEF1F6"/><text x="${L-8}" y="${(y(t)+4).toFixed(1)}" text-anchor="end" font-size="10.5" fill="#667085">${Rk(t)}</text>`).join('');
+    const barras=M.map((m,i)=>{const v=m.saldo,h=Math.abs(y(v)-y0),x0=L+i*bw+1,w=Math.max(2,bw-2),top=v>=0?y(v):y0,cor=v>=0?'#12B76A':'#F04438',rr=Math.min(4,w/2,h/2);
+      const d=v>=0?`M${x0},${y0}V${top+rr}Q${x0},${top} ${x0+rr},${top}H${x0+w-rr}Q${x0+w},${top} ${x0+w},${top+rr}V${y0}Z`:`M${x0},${y0}V${y0+h-rr}Q${x0},${y0+h} ${x0+rr},${y0+h}H${x0+w-rr}Q${x0+w},${y0+h} ${x0+w},${y0+h-rr}V${y0}Z`;
+      const mes=addM(inicioMes,i);
+      return `<path d="${h<0.5?`M${x0},${y0}h${w}`:d}" fill="${cor}"${h<0.5?` stroke="${cor}"`:''}><title>${mesRot(mes)} · ${i+1}º mês: ${fmt(v)} (recebe ${fmt(m.rec)} · paga ${fmt(m.custo)})</title></path>${i%passo===0?`<text x="${(x0+w/2).toFixed(1)}" y="${H-8}" text-anchor="middle" font-size="10.5" fill="#667085">${mesRot(mes)}</text>`:''}`;}).join('');
+    return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Saldo do contrato mês a mês" style="display:block;width:100%;height:auto">${grade}<line x1="${L}" x2="${W-R}" y1="${y0.toFixed(1)}" y2="${y0.toFixed(1)}" stroke="#98A2B3" stroke-width="1.2"/>${barras}</svg>`;
+  }
+
+  function render(){
+    const box=document.getElementById('eng-viabilidade');if(!box)return;
+    const VB=Eng._VB||{};
+    if(VV.obra===null){VV.obra=VB.obra||'';}
+    if(!VV.auto||VV.auto._ob!==VV.obra){VV.auto=automatico(VV.obra);VV.auto._ob=VV.obra;VV.p={...VV.auto.p};VV.man={};}
+    const A=VV.auto,p=VV.p,src=A.src,fr=A.fr,s=simular(p,fr),h=hoje0();
+    const o=VV.obra&&obraDe(VV.obra),jaNaCarteira=!!(o&&Eng.emAndamento(o));
+    const HZ=Math.max(12,p.inicio+s.M.length+1),cart=Eng.carteira(HZ);
+    let acC=p.caixa,acS=p.caixa,minC=Infinity,mC=0,minS=Infinity,mS=0;
+    const linhas=Array.from({length:HZ},(_,k)=>{const c=cart.M[k],nv=jaNaCarteira?null:s.M[k-p.inicio],fc=c.rec-c.custo-c.fixo,fs=fc+(nv?nv.saldo:0);acC+=fc;acS+=fs;if(acC<minC){minC=acC;mC=k;}if(acS<minS){minS=acS;mS=k;}return {mes:addM(h,k),acC,acS};});
+    // veredito
+    const semDados=!p.valor||!p.custo;
+    const naoCabe=!semDados&&!jaNaCarteira&&minS<0;
+    const tom=semDados?'amarelo':s.lucro<0?'vermelho':naoCabe||s.margem<8?'amarelo':'verde';
+    const titulo=semDados?'Faltam números para avaliar':s.lucro<0?'Dá prejuízo':naoCabe?'Dá lucro, mas não cabe no caixa':s.margem<8?'Margem apertada':'Vale a pena';
+    const ic=tom==='verde'?'fa-circle-check':tom==='vermelho'?'fa-circle-xmark':'fa-triangle-exclamation';
+    const ver=[];
+    if(semDados)ver.push('Escolha uma obra com orçamento e CAP (os números vêm sozinhos) ou digite o valor do contrato e o custo direto.');
+    else{
+      ver.push(s.lucro<0?`O custo (${fmt(p.custo)}) passa do que sobra do contrato depois dos impostos (${fmt(p.valor*s.liq)}): prejuízo de <b>${fmt(-s.lucro)}</b>.`:`Lucro previsto de <b>${fmt(s.lucro)}</b> — margem de <b>${pc(s.margem)}</b> sobre a receita líquida${s.margem<8?' (apertada: um imprevisto come o lucro)':''}.`);
+      ver.push(s.min<0?`Exige até <b>${fmt(-s.min)}</b> de capital de giro (no ${s.mMin+1}º mês): paga antes de receber — a medição entra ${p.receb} dias depois.`:'Se paga sozinho: recebe antes de precisar de capital.');
+      if(!jaNaCarteira)ver.push(minS<0?`Somado às obras atuais e ao custo fixo, o caixa da empresa chega a <b>${fmt(minS)}</b> em ${mesRot(linhas[mS].mes)}: sem financiamento ou antecipação de recebíveis, <b>não cabe</b>.`:`Somado às obras atuais e ao custo fixo, o caixa mais baixo fica em <b>${fmt(minS)}</b> (${mesRot(linhas[mS].mes)}) — <b>cabe no caixa</b>${minS<p.caixa*.2?', com folga pequena':''}.`);
+      else ver.push(minC<0?`Com a carteira atual e o custo fixo, o caixa da empresa chega a <b>${fmt(minC)}</b> em ${mesRot(linhas[mC].mes)}: planeje financiamento ou antecipação.`:`Com a carteira atual e o custo fixo, o caixa mais baixo fica em <b>${fmt(minC)}</b> (${mesRot(linhas[mC].mes)}).`);
+    }
+    // sensibilidade: o que acontece se der errado
+    const cen=[['Como está',{}],['Custo 10% maior',{custo:p.custo*1.1}],['Prazo 25% maior',{meses:Math.round(p.meses*1.25),curva:p.curva==='crono'?'s':p.curva}],['Recebe 30 dias depois',{receb:p.receb+30}],['Preço 5% menor',{valor:p.valor*.95}]]
+      .map(([n,d])=>{const q={...p,...d},r=simular(q,d.meses?null:fr);return {n,r};});
+    const liq=1-p.imp/100,pMin=m=>liq>0?p.custo/(liq*(1-m)):0;
+    const obs=(D().obras||[]).slice().sort((a,b)=>Eng.nomeObra(a).localeCompare(Eng.nomeObra(b),'pt-BR'));
+    const grupo=(rot,f)=>{const l=obs.filter(f);return l.length?`<optgroup label="${rot}">${l.map(x=>{const n=Eng.nomeObra(x);return `<option ${n===VV.obra?'selected':''}>${fe(n)}</option>`;}).join('')}</optgroup>`:'';};
+    const chip=k=>VV.man[k]?`<button type="button" class="vv-chip man" data-vvr="${k}" title="Voltar ao valor automático">manual · ↺</button>`:`<span class="vv-chip ${/informe|estimado/.test(src[k]||'')?'fal':''}">${fe(src[k]||'')}</span>`;
+    const F=(k,l,tipo)=>`<div class="vv-f"><label><span>${l}</span>${chip(k)}</label><input data-vv="${k}" value="${tipo==='moeda'?fmt(p[k]):String(p[k]).replace('.',',')}"${tipo==='moeda'?' data-mask="moeda" inputmode="numeric"':' inputmode="decimal"'}></div>`;
+    const curvaOps=Object.entries(CURVAS).map(([k,v])=>`<option value="${k}" ${p.curva===k?'selected':''}>${v[0]}</option>`).join('')+(fr?`<option value="crono" ${p.curva==='crono'?'selected':''}>Pelo cronograma da obra</option>`:'');
+    const ser=jaNaCarteira?[{nome:'Caixa da empresa',v:linhas.map(l=>l.acC),cor:'#1652D8'}]:[{nome:'Carteira atual',v:linhas.map(l=>l.acC),cor:'#98A2B3',tr:true},{nome:'Com este contrato',v:linhas.map(l=>l.acS),cor:'#1652D8'}];
+    const g1=grafLinhas(ser,linhas.map(l=>l.mes));
+    const k=(cls,rot,v,sub)=>`<div class="vv-k ${cls}"><small>${rot}</small><b>${v}</b><span>${sub||''}</span></div>`;
+    box.innerHTML=`<div class="fin-wrap vv">
+      <div class="fin-cab"><div><h2>Viabilidade do contrato</h2><p>Antes de dar o preço ou assinar: lucro, capital de giro, retorno e o efeito no caixa da empresa somado às obras em andamento. Escolha a obra — valor, custo, impostos, prazo, ritmo e recebimento vêm sozinhos do orçamento, do CAP, das notas e do cronograma; mude qualquer número para simular.</p></div>
+        <div class="fin-filtros vv-topo"><select class="filter-select" data-vvo><option value="">Simulação livre (digitar os valores)</option>${grupo('Propostas',x=>['proposta','aguardando'].includes(colDe(x)))}${grupo('Ganhas e em execução',x=>['ganha','execucao'].includes(colDe(x)))}${grupo('Entregues e perdidas',x=>['entregue','perdida'].includes(colDe(x)))}</select>
+          ${Object.keys(VV.man).length?'<button type="button" class="fin-bt" data-vvr="*"><i class="fas fa-rotate-left"></i> Voltar aos valores automáticos</button>':''}</div></div>
+      <div class="vv-hero ${tom}"><div class="ic"><i class="fas ${ic}"></i></div><div><h3>${titulo}</h3><ul>${ver.map(v=>`<li>${v}</li>`).join('')}</ul></div></div>
+      <div class="vv-kpis">
+        ${k(s.lucro<0?'ruim':'bom','Lucro previsto',fmt(s.lucro),'margem '+pc(s.margem))}
+        ${k(s.min<0?'at':'bom','Capital de giro máximo',fmt(-Math.min(0,s.min)),s.min<0?'no '+(s.mMin+1)+'º mês':'não exige')}
+        ${k(s.vpl<0?'ruim':'','VPL',fmt(s.vpl),'descontado a '+String(p.taxa).replace('.',',')+'% ao mês')}
+        ${k(s.tir!=null&&s.tir<p.taxa?'ruim':'','TIR mensal',s.tir==null?'—':pc(s.tir),s.tir==null?'sem troca de sinal no fluxo':'retorno do dinheiro investido')}
+        ${k('','Se paga em',s.pay==null?'—':s.pay===0?'1º mês':(s.pay+1)+'º mês',s.pay==null?'não volta ao positivo no período':'acumulado fica positivo')}
+      </div>
+      <div class="vv-grade">
+        <div class="vv-card"><h4>Números da simulação</h4><p class="sub">Em azul, de onde cada número veio. Mudou à mão, aparece <b>manual</b> — clique para voltar ao automático.</p>
+          <div class="vv-sec">Contrato</div>${F('valor','Valor do contrato (R$)','moeda')}${F('custo','Custo direto previsto (R$)','moeda')}${F('imp','Impostos e retenções sobre a nota (%)')}
+          <div class="vv-sec">Execução</div><div class="vv-2">${F('meses','Prazo (meses)')}${F('inicio','Começa daqui a (meses)')}</div>
+          <div class="vv-f"><label><span>Ritmo de execução</span>${chip('curva')}</label><select data-vv="curva">${curvaOps}</select></div>${F('mob','Mobilização no 1º mês (% do custo)')}
+          <div class="vv-sec">Dinheiro</div><div class="vv-2">${F('receb','Recebe a medição após (dias)')}<div class="vv-f"><label><span>Paga os fornecedores</span>${chip('pagto')}</label><select data-vv="pagto"><option value="0" ${!+p.pagto?'selected':''}>no mês do serviço</option><option value="1" ${+p.pagto?'selected':''}>30 dias depois</option></select></div></div>
+          <div class="vv-2">${F('taxa','Custo do dinheiro (% ao mês)')}${F('caixa','Caixa hoje (R$)','moeda')}</div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:16px;min-width:0">
+          <div class="vv-card"><h4>${jaNaCarteira?'Caixa da empresa — carteira atual':'Caixa da empresa — carteira atual × com este contrato'}</h4><p class="sub">Saldo acumulado mês a mês, partindo do caixa de hoje e descontando o custo fixo da empresa (média de ${fmt(cart.fixo)}/mês nos últimos 3 meses). Passe o mouse para ver cada mês.</p>
+            <div class="vv-leg">${ser.map(x=>`<span><i style="border-color:${x.cor};${x.tr?'border-top-style:dashed':''}"></i>${x.nome}</span>`).join('')}<span><i style="border-color:#98A2B3;width:12px"></i>zero</span></div>${g1.html}</div>
+          <div class="vv-card"><h4>Saldo do contrato mês a mês</h4><p class="sub">Recebimento líquido menos o custo pago em cada mês do contrato. <span style="color:#067647;font-weight:700">■ entra mais do que sai</span> · <span style="color:#B42318;font-weight:700">■ sai mais do que entra</span></p>${grafBarras(s.M,addM(h,p.inicio))}</div>
+          <div class="vv-card"><h4>E se der errado?</h4><p class="sub">O mesmo contrato com um imprevisto de cada vez — mostra onde o risco mora.</p>
+            <div class="fin-rolar"><table class="fin-tab vv-sens"><thead><tr><th>Cenário</th><th class="num">Lucro</th><th class="num">Margem</th><th class="num">Capital de giro</th></tr></thead><tbody>${cen.map((c,i)=>`<tr${i===0?' style="font-weight:700"':''}><td>${c.n}</td><td class="num" style="color:${c.r.lucro<0?'#B42318':'inherit'}">${fmt(c.r.lucro)}</td><td class="num">${pc(c.r.margem)}</td><td class="num">${c.r.min<0?fmt(-c.r.min):'não exige'}</td></tr>`).join('')}</tbody></table></div></div>
+          <div class="vv-card"><h4>Preço mínimo</h4><p class="sub">Com o custo de ${fmt(p.custo)} e ${pc(p.imp)} de impostos e retenções.</p>
+            <div class="vv-preco"><div><small>Empata (lucro zero)</small><b>${fmt(pMin(0))}</b></div><div><small>Para 10% de margem</small><b>${fmt(pMin(.10))}</b></div><div><small>Para 15% de margem</small><b>${fmt(pMin(.15))}</b></div></div>
+            ${p.valor?`<p class="sub" style="margin:10px 0 0">O valor simulado (${fmt(p.valor)}) está <b>${p.valor>=pMin(.10)?'acima':'abaixo'}</b> do preço para 10% de margem${p.valor<pMin(0)?' — e abaixo do ponto de empate':''}.</p>`:''}</div>
+          <div class="vv-card"><details><summary>Ver o fluxo do contrato mês a mês</summary><div class="fin-rolar" style="margin-top:10px"><table class="fin-tab"><thead><tr><th>Mês</th><th class="num">Execução</th><th class="num">Medição</th><th class="num">Recebimento líquido</th><th class="num">Custo pago</th><th class="num">Saldo do mês</th><th class="num">Acumulado</th></tr></thead><tbody>
+            ${s.M.map((m,i)=>`<tr><td>${i+1}º <small style="display:inline">(${mesRot(addM(h,p.inicio+i))})</small></td><td class="num">${m.exec?pc(m.exec,0):'—'}</td><td class="num">${m.med?fmt(m.med):'—'}</td><td class="num">${m.rec?fmt(m.rec):'—'}</td><td class="num">${m.custo?fmt(m.custo):'—'}</td><td class="num" style="color:${m.saldo<0?'#B42318':'#067647'}">${fmt(m.saldo)}</td><td class="num">${fmt(m.acum)}</td></tr>`).join('')}</tbody></table></div></details></div>
+        </div>
+      </div></div>`;
+    g1.ligar(box);
+    box.onchange=ev=>{const t=ev.target;
+      if(t.dataset.vvo!=null){VV.obra=t.value;if(Eng._VB)Eng._VB.obra=t.value;VV.auto=null;return render();}
+      if(t.dataset.vv){const k=t.dataset.vv;VV.p[k]=k==='curva'?t.value:Math.max(0,num(t.value));if(k==='meses'){VV.p.meses=Math.max(1,Math.min(60,Math.round(VV.p.meses)));if(VV.p.curva==='crono'){VV.p.curva='s';VV.man.curva=1;}}if(k==='inicio')VV.p.inicio=Math.min(36,Math.round(VV.p.inicio));
+        if(k==='curva'&&t.value==='crono'&&fr)VV.p.meses=fr.length;VV.man[k]=1;render();}};
+    box.oninput=null;
+    box.onclick=ev=>{const b=ev.target.closest('[data-vvr]');if(!b)return;const k=b.dataset.vvr;
+      if(k==='*'){VV.p={...VV.auto.p};VV.man={};}else{VV.p[k]=VV.auto.p[k];if(k==='curva'||k==='meses'){VV.p.curva=VV.auto.p.curva;VV.p.meses=VV.auto.p.meses;delete VV.man.curva;delete VV.man.meses;}delete VV.man[k];}
+      render();};
+  }
+  // a tela "Viabilidade" passa a ser esta (os dados recarregados refazem os números automáticos)
+  const re=App._renderEng;
+  App._renderEng=function(v){const r=re.apply(this,arguments);if(v==='viabilidade'){VV.auto=null;try{render();}catch(e){console.error(e);}}return r;};
+  const ra=App.renderAll;
+  // dados recarregados: os números automáticos se atualizam; os que foram mudados à mão continuam
+  App.renderAll=function(){ra.apply(this,arguments);try{if(document.getElementById('view-viabilidade')?.classList.contains('active')){
+    const man=VV.man||{},p=VV.p,ob=VV.obra==null?'':VV.obra;VV.auto=automatico(ob);VV.auto._ob=ob;VV.p={...VV.auto.p};if(p)Object.keys(man).forEach(k=>{VV.p[k]=p[k];});VV.man=man;render();}}catch(e){console.error(e);}};
+  Eng.renderViabilidade2=render;
 })();
 </script>
 </body>
