@@ -8062,7 +8062,7 @@ const UI={
           <button type="button" onclick="UI.ImagensObra.abrirVisualizador('${i.rowid}')" title="${esc(i.descricao||i.nome_arquivo)}" style="display:block;width:100%;aspect-ratio:1/1;border:none;padding:0;background:none;cursor:pointer">
             <img src="${esc(thumb)}" data-driveid="${esc(driveId)}" referrerpolicy="no-referrer" loading="lazy" style="width:100%;height:100%;object-fit:cover;display:block;pointer-events:none" onerror="UI.ImagensObra._imgErro(this)">
           </button>
-          ${i.descricao?`<div style="font-size:10px;color:var(--text-2);padding:5px 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${esc(i.descricao)}">${esc(i.descricao)}</div>`:''}
+          ${i.descricao||i.enviado_por?`<div style="font-size:10px;color:var(--text-2);padding:5px 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${esc([i.descricao,i.enviado_por?"anexada por "+i.enviado_por:""].filter(Boolean).join(" · "))}">${esc(i.descricao||"")}${i.enviado_por?`<span style="display:block;color:var(--text-3)">por ${esc(i.enviado_por)}</span>`:""}</div>`:''}
         </div>`;
       }).join('');
     },
@@ -8306,6 +8306,8 @@ const UI={
       if(item.descricao.trim())partesDescricao.push(item.descricao.trim());
       const dados={
         titulo_obra:this._obraAtual,
+        // quem anexou (só essa pessoa pode excluir a foto depois)
+        enviado_por:(Auth._session&&Auth._session.nome)||'',enviado_por_id:String((Auth._session&&(Auth._session.cpf||Auth._session.nome))||''),
         drive_file_id:arquivo.id,
         nome_arquivo:arquivo.name,
         etapa_obra:item.etapa,
@@ -8325,9 +8327,18 @@ const UI={
       return arquivo.id;
     },
 
+    // cada um exclui só as fotos que anexou; foto antiga (sem quem anexou), só o Administrador
+    _podeExcluirFoto(rowid){
+      const f=(App.state.data.obra_imagens||[]).find(i=>String(i.rowid)===String(rowid));if(!f)return false;
+      const eu=String((Auth._session&&(Auth._session.cpf||Auth._session.nome))||'');
+      return f.enviado_por_id?String(f.enviado_por_id)===eu:this._isAdmin;
+    },
     excluirSelecionadas(){
-      if(!this._isAdmin||!this._selecionadas.size)return;
-      this._pendenteExcluir=[...this._selecionadas];
+      if(!this._selecionadas.size)return;
+      const meus=[...this._selecionadas].filter(id=>this._podeExcluirFoto(id));
+      if(!meus.length)return toast('Só dá para excluir as fotos que você anexou.','error');
+      if(meus.length<this._selecionadas.size)toast(`${this._selecionadas.size-meus.length} foto(s) de outras pessoas ficam — só saem as que você anexou.`,'error');
+      this._pendenteExcluir=meus;
       const n=this._pendenteExcluir.length;
       const titulo=document.getElementById('confirm-imagem-del-titulo');
       const msg=document.getElementById('confirm-imagem-del-msg');
@@ -8446,7 +8457,7 @@ const UI={
       }
       const btnExcluir=document.getElementById('imagens-delete-selected-btn');
       if(btnExcluir){
-        btnExcluir.style.display=(n&&this._isAdmin)?'flex':'none';
+        btnExcluir.style.display=(n&&[...this._selecionadas].some(id=>this._podeExcluirFoto(id)))?'flex':'none';
         btnExcluir.lastChild.textContent=' '+(n>1?`Excluir (${n})`:'Excluir');
       }
     },
@@ -8490,7 +8501,8 @@ const UI={
      Faturamentos | Aportes | CAP | Orçamentos). Cada aba reaproveita o editor já existente,
      porém filtrado/vinculado a ESTA obra. O botão Salvar salva a aba ativa e permanece na
      obra (re-renderiza a aba com os dados atualizados). */
-  _OBRA_HUB_TABS:[['contrato','Contrato'],['cap','CAP'],['orcamentos','Orçamento'],['etapas','Cronograma'],['dados','Obra'],['resumo','Resumo']],
+  // ordem da proposta ao contrato: Orçamento → CAP → Contrato → Medição (a Medição só existe depois do contrato criado)
+  _OBRA_HUB_TABS:[['orcamentos','Orçamento'],['cap','CAP'],['contrato','Contrato'],['medicao','Medição'],['etapas','Cronograma'],['dados','Obra'],['resumo','Resumo']],
   openObraHub(rowid){
     if(App.state._busy)return;
     const sessExt=Auth._session&&Auth._session.tipoUsuario==='externo';
@@ -8504,7 +8516,8 @@ const UI={
     }
     // Usuário Externo só enxerga a aba Avanço & Gantt — abre direto nela em vez de "Dados".
     // Obra existente abre no Resumo (painel de decisão da obra); obra nova, nos Dados.
-    const tabInicial=(Auth._session&&Auth._session.tipoUsuario==='externo'&&rowid)?'etapas':(rowid?'contrato':'dados');
+    // proposta abre no Orçamento; obra ganha (aguardando início, em execução, entregue) abre no Contrato
+    const tabInicial=(Auth._session&&Auth._session.tipoUsuario==='externo'&&rowid)?'etapas':(rowid?(Eng.faseContratada&&Eng.faseContratada(obraName)?'contrato':'orcamentos'):'dados');
     App.state.obraHub={rowid:rowid||null,obraName,tab:tabInicial,isNew:!rowid,nomeConfirmado:!!rowid,_dirtyTabs:new Set()};
     // Detecta alterações não salvas (uma vez): qualquer digitação/mudança no formulário marca
     // a ABA ATIVA no momento como "suja" — cada aba tem seu próprio estado (a troca de aba
@@ -8541,7 +8554,7 @@ const UI={
     const isExt=Auth._session&&Auth._session.tipoUsuario==='externo';
     // o cronograma da obra é editado no Planejamento e cronograma; aqui a aba fica só para o usuário externo (consulta)
     // Contrato reúne o antigo Resumo e a antiga aba Obra; obra nova só tem o formulário inicial; externo só vê o cronograma
-    const tabsList=isExt?this._OBRA_HUB_TABS.filter(([k])=>k==='etapas'):hub.isNew?this._OBRA_HUB_TABS.filter(([k])=>k==='dados'):this._OBRA_HUB_TABS.filter(([k])=>!['etapas','resumo','dados'].includes(k));
+    const tabsList=isExt?this._OBRA_HUB_TABS.filter(([k])=>k==='etapas'):hub.isNew?this._OBRA_HUB_TABS.filter(([k])=>k==='dados'):this._OBRA_HUB_TABS.filter(([k])=>!['etapas','resumo','dados'].includes(k)&&(k!=='medicao'||(Eng.temContrato&&Eng.temContrato(hub.obraName))));
     const tabs=tabsList.map(([k,l])=>{
       const on=hub.tab===k;
       return `<button type="button" onclick="UI._obraHubTab('${k}')" style="flex-shrink:0;border:none;background:none;padding:12px 11px;font-size:13px;font-weight:${on?'700':'500'};color:${on?'var(--blue)':'var(--text-2)'};border-bottom:2px solid ${on?'var(--blue)':'transparent'};cursor:pointer">${l}</button>`;
@@ -8592,10 +8605,11 @@ const UI={
     this._obraHubRenderTabs();
     const obraName=hub.obraName;
     // O Resumo só mostra números — sempre redesenha com os dados atuais (nunca do cache).
-    if((tab==='resumo'||tab==='contrato')&&this._obraHubCache)delete this._obraHubCache[tab];
+    if((tab==='resumo'||tab==='contrato'||tab==='medicao')&&this._obraHubCache)delete this._obraHubCache[tab];
     if(!this._obraHubRestoreTab(tab)){
       if(tab==='resumo'){ this._obraHubBuildResumo(obraName); }
       else if(tab==='contrato'){ Eng.hubContrato(obraName); }
+      else if(tab==='medicao'){ Eng.hubMedicao(obraName); }
       else if(tab==='dados'){ this._obraHubBuildDados(hub.rowid); }
       else if(tab==='custos'||tab==='faturamentos'||tab==='aportes'){ this.openGroupEditor(tab,obraName); }
       else if(tab==='cap'){ this._obraHubBuildCAP(obraName); }
@@ -8721,7 +8735,11 @@ const UI={
           <button type="button" title="OK" onclick="UI._obraHubConfirmarNome()" style="flex-shrink:0;display:flex;align-items:center;justify-content:center;width:42px;height:42px;border:1px solid rgba(52,199,89,.4);background:rgba(52,199,89,.12);color:var(--green);border-radius:10px;cursor:pointer"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><polyline points="20 6 9 17 4 12"/></svg></button>
           <button type="button" title="Cancelar" onclick="UI.closeModal('modal-editor')" style="flex-shrink:0;display:flex;align-items:center;justify-content:center;width:42px;height:42px;border:1px solid rgba(255,59,48,.35);background:rgba(255,59,48,.08);color:var(--red);border-radius:10px;cursor:pointer"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
         </div>
-        <div style="font-size:11px;color:var(--text-3);margin-top:8px">Confirme o nome para liberar o preenchimento da obra.</div>
+        <div style="display:flex;gap:10px;align-items:center;max-width:640px;margin-top:12px;flex-wrap:wrap">
+          <label for="obra-limite-novo" style="font-size:12px;font-weight:800;color:var(--text-2);text-transform:uppercase;letter-spacing:.5px">Limite de entrega da proposta <span style="color:var(--red)">*</span></label>
+          <input type="date" id="obra-limite-novo" style="border:1px solid var(--border);border-radius:10px;padding:9px 12px;font:600 14px Inter,sans-serif;background:#fff" onchange="this.classList.remove('err')" onkeydown="if(event.key==='Enter'){event.preventDefault();UI._obraHubConfirmarNome();}">
+        </div>
+        <div style="font-size:11px;color:var(--text-3);margin-top:8px">Confirme o nome e o limite de entrega para criar a proposta — o limite fica no cartão do quadro de Contratos.</div>
       </div>`;
       setTimeout(()=>{const el=document.getElementById('obra-nome-novo');if(el){el.focus();el.setSelectionRange(el.value.length,el.value.length);}},30);
       return;
@@ -10228,6 +10246,8 @@ const Fin=(function(){
 
   /* ───── janela (diálogo) ───── */
   function janela(titulo,corpo,botoes,larg){
+    // o X do cabeçalho já fecha a janela: botão que só cancela/fecha (sem ação) não aparece
+    botoes=(botoes||[]).filter(b=>b.acao||!/^(cancelar|fechar|agora não|não|voltar)$/i.test(String(b.html||"").replace(/<[^>]+>/g,"").trim()));
     const ov=document.getElementById('fin-ov'),j=document.getElementById('fin-jan');
     j.style.maxWidth=(larg||520)+'px';
     j.onchange=null;j.oninput=null;
@@ -11099,12 +11119,13 @@ const Eng=(function(){
     const val0=v==null||v===''?(c.padrao!=null?(typeof c.padrao==='function'?c.padrao():c.padrao):''):v;
     const lab=`<label>${fe(c.label)}${c.obrig?' <span class="obg">*</span>':''}</label>`;
     let inp;
-    if(c.tipo==='data')inp=`<input type="date" data-f="${c.k}" value="${fe(val0?(dt(val0)?isoDe(dt(val0)):''):'')}">`;
+    const mx=c.max?(typeof c.max==='function'?c.max():c.max):'',trava=c.travado?' readonly tabindex="-1" style="background:#F3F5F9;cursor:default"':'';
+    if(c.tipo==='data')inp=`<input type="date" data-f="${c.k}" value="${fe(val0?(dt(val0)?isoDe(dt(val0)):''):'')}"${mx?` max="${mx}"`:''}${trava}>`;
     else if(c.tipo==='sel')inp=`<select data-f="${c.k}"><option value="">Selecione…</option>${c.ops.map(o=>`<option ${String(o)===String(val0)?'selected':''}>${fe(o)}</option>`).join('')}${val0&&!c.ops.includes(val0)?`<option selected>${fe(val0)}</option>`:''}</select>`;
     else if(c.tipo==='obra')inp=`<select data-f="${c.k}"><option value="">${fe(c.vazio||'Selecione a obra…')}</option>${obrasNomes().map(o=>`<option ${o===val0?'selected':''}>${fe(o)}</option>`).join('')}${val0&&!obrasNomes().includes(val0)?`<option selected>${fe(val0)}</option>`:''}</select>`;
     else if(c.tipo==='area')inp=`<textarea data-f="${c.k}" rows="${c.linhas||3}" placeholder="${fe(c.ph||'')}">${fe(val0)}</textarea>`;
     // dinheiro, CPF, CNPJ, telefone: com máscara (o global de máscaras formata enquanto digita)
-    else inp=`<input data-f="${c.k}" value="${fe(c.tipo==='moeda'&&val0!==''?fmt(parseStoredNumber(val0)):val0)}" placeholder="${fe(c.ph||'')}"${c.tipo==='num'?' inputmode="decimal"':''}${c.tipo==='moeda'?` data-mask="moeda"${c.neg?' data-neg="1"':' inputmode="numeric"'}`:''}${c.mask?` data-mask="${c.mask}" inputmode="numeric"`:''}${c.tipo==='url'?' type="url"':''}${c.lista?` list="${c.lista}"`:''}>`;
+    else inp=`<input data-f="${c.k}" value="${fe(c.tipo==='moeda'&&val0!==''?fmt(parseStoredNumber(val0)):val0)}" placeholder="${fe(c.ph||'')}"${c.tipo==='num'?' inputmode="decimal"':''}${c.tipo==='moeda'?` data-mask="moeda"${c.neg?' data-neg="1"':' inputmode="numeric"'}`:''}${c.mask?` data-mask="${c.mask}" inputmode="numeric"`:''}${c.tipo==='url'?' type="url"':''}${c.lista?` list="${c.lista}"`:''}${trava}>`;
     return `<div class="fin-fld"${c.inteira?' style="grid-column:1/-1"':''}>${lab}${inp}</div>`;
   }
   // cfg.extra(reg): HTML a mais no formulário · cfg.aoAbrir(j,reg): liga os eventos dele ·
@@ -11253,10 +11274,16 @@ const Eng=(function(){
   /* ═══════════════ DIÁRIO DE OBRA (RDO) ═══════════════ */
   const CLIMAS=['Bom','Nublado','Chuva fraca','Chuva forte'];
   const CONDICOES=['Praticável','Parcialmente praticável','Impraticável'];
+  /* cada registro é de quem registrou (o usuário do sistema): só ele edita, exclui e põe fotos;
+     registro antigo, sem autor, só o Administrador mexe */
+  const eu=()=>{const s=Auth._session||{};return {id:String(s.cpf||s.nome||''),nome:s.nome||''};};
+  const ehAdmRdo=()=>!!UI._ehAdmin((Auth._session||{}).perfil);
+  const meuRdo=r=>r&&r.criado_por_id?String(r.criado_por_id)===eu().id:ehAdmRdo();
+  const podeFotoRdo=()=>!(Auth._session&&Auth._session.tipoUsuario==='externo');
   const CFG_RDO={aba:'Diário de obra',nomeItem:'registro do diário',larg:720,campos:[
     {k:'titulo_obra',label:'Obra',tipo:'obra',obrig:true,inteira:true},
-    {k:'data',label:'Data',tipo:'data',obrig:true,padrao:()=>isoDe(hoje0())},
-    {k:'responsavel',label:'Responsável pelo registro',padrao:()=>(Auth._session&&Auth._session.nome)||''},
+    {k:'data',label:'Data',tipo:'data',obrig:true,padrao:()=>isoDe(hoje0()),max:()=>isoDe(hoje0())},
+    {k:'responsavel',label:'Responsável pelo registro',travado:true,padrao:()=>eu().nome},
     {k:'clima_manha',label:'Tempo pela manhã',tipo:'sel',ops:CLIMAS,obrig:true},
     {k:'clima_tarde',label:'Tempo à tarde',tipo:'sel',ops:CLIMAS,obrig:true},
     {k:'condicao',label:'Condição do trabalho',tipo:'sel',ops:CONDICOES,obrig:true},
@@ -11268,7 +11295,7 @@ const Eng=(function(){
     {k:'visitas',label:'Visitas e fiscalização',tipo:'area',inteira:true,linhas:2,ph:'Visita do fiscal da EMBASA, orientações recebidas…'}
   ],
   // FOTOS DO DIA já no registro: escolhidas aqui, vão para a galeria da obra com a data do diário
-  extra:reg=>Eng.podeFotos&&Eng.podeFotos()?`<div class="rdo-fotos"><div class="rdo-fotos-cab"><b><i class="fas fa-camera"></i> Fotos do dia</b><label class="fin-bt mini" style="cursor:pointer">+ Escolher fotos<input type="file" accept="image/*" multiple data-rdo-fotos hidden></label></div>
+  extra:reg=>podeFotoRdo()&&(!reg||meuRdo(reg))?`<div class="rdo-fotos"><div class="rdo-fotos-cab"><b><i class="fas fa-camera"></i> Fotos do dia</b><label class="fin-bt mini" style="cursor:pointer">+ Escolher fotos<input type="file" accept="image/*" multiple data-rdo-fotos hidden></label></div>
     <div class="eng-fotos-fila" data-rdo-prev></div><small>${reg?'As fotos que já estão neste dia continuam; as escolhidas aqui são somadas.':'As fotos vão para a galeria da obra com a data deste registro e aparecem neste dia do diário.'}</small></div>`:'',
   aoAbrir:j=>{
     const inp=j.querySelector('[data-rdo-fotos]'),prev=j.querySelector('[data-rdo-prev]');if(!inp||!prev)return;j._fotos=[];
@@ -11285,42 +11312,56 @@ const Eng=(function(){
     await Eng.subirFotosDia(o.titulo_obra,o.data,j._fotos.map(f=>({file:f.file,descricao:(f.desc||'').trim(),previewUrl:f.url})));},
   validar:(o,reg)=>{
     if(o.data>isoDe(hoje0()))return 'A data do diário não pode ser no futuro.';
-    const dup=(D().diario_obra||[]).find(r=>r.titulo_obra===o.titulo_obra&&r.data===o.data&&(!reg||String(r.rowid)!==String(reg.rowid)));
-    return dup?`Já existe um registro desta obra em ${brDe(dt(o.data))} — edite o existente.`:'';
+    if(reg&&!meuRdo(reg))return 'Só quem registrou pode alterar este registro do diário.';
+    // o autor vem do usuário do sistema (não se digita); na edição, continua o de quem registrou
+    if(!reg){o.criado_por=eu().nome;o.criado_por_id=eu().id;o.responsavel=eu().nome;}
+    else o.responsavel=reg.responsavel||reg.criado_por||o.responsavel;
+    const autor=o.criado_por_id||'';
+    const dup=(D().diario_obra||[]).find(r=>r.titulo_obra===o.titulo_obra&&r.data===o.data&&(r.criado_por_id||'')===autor&&(!reg||String(r.rowid)!==String(reg.rowid)));
+    return dup?`Você já tem um registro desta obra em ${brDe(dt(o.data))} — edite o seu registro.`:'';
   }};
+  // fotos de um registro: com um registro só no dia, todas as fotos do dia; com vários (usuários
+  // diferentes), cada registro mostra as fotos de quem o fez (as sem dono ficam no primeiro)
+  function fotosDoRegistro(r){
+    const todas=Eng.fotosDoDia(r.titulo_obra,r.data),regs=(D().diario_obra||[]).filter(x=>x.titulo_obra===r.titulo_obra&&x.data===r.data);
+    if(regs.length<=1)return todas;
+    return todas.filter(f=>{const dono=regs.find(x=>(x.criado_por_id||'')===(f.enviado_por_id||''));return dono?dono===r:r===regs[0];});
+  }
   const choveu=r=>/chuva/i.test(r.clima_manha||'')||/chuva/i.test(r.clima_tarde||'');
   const tomCond=c=>c==='Impraticável'?'vermelho':c==='Parcialmente praticável'?'laranja':'verde';
-  const RD={obra:'',mes:''};
+  const RD={obra:'',mes:'',autor:''};
   function renderDiario(){
     const box=document.getElementById('eng-diario');if(!box)return;
     const todos=D().diario_obra||[];
     const meses=[...new Set(todos.map(r=>String(r.data||'').slice(0,7)).filter(Boolean))].sort().reverse();
     if(RD.mes===''&&meses.length)RD.mes=meses[0];
-    const lista=todos.filter(r=>(!RD.obra||r.titulo_obra===RD.obra)&&(!RD.mes||RD.mes==='__todos'||String(r.data||'').startsWith(RD.mes))).sort((a,b)=>String(b.data).localeCompare(String(a.data))||String(a.titulo_obra).localeCompare(String(b.titulo_obra)));
+    const autorDe=r=>r.responsavel||r.criado_por||'',autores=[...new Set(todos.map(autorDe).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'pt-BR'));
+    const lista=todos.filter(r=>(!RD.obra||r.titulo_obra===RD.obra)&&(!RD.mes||RD.mes==='__todos'||String(r.data||'').startsWith(RD.mes))&&(!RD.autor||autorDe(r)===RD.autor)).sort((a,b)=>String(b.data).localeCompare(String(a.data))||String(a.titulo_obra).localeCompare(String(b.titulo_obra)));
     const nomeMes=m=>{const [a,b]=m.split('-');return ['','Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'][+b]+' de '+a;};
     const imp=lista.filter(r=>r.condicao==='Impraticável').length,chuva=lista.filter(choveu).length;
     const efs=lista.map(r=>numBR(r.efetivo_total)).filter(n=>n>0),efMed=efs.length?efs.reduce((a,b)=>a+b,0)/efs.length:0;
-    App._rdoLista=lista;
+    App._rdoLista=lista;App._rdoFotos=[];
     box.innerHTML=`<div class="fin-wrap">
       ${cab('Diário de obra','O registro de cada dia de obra: tempo, condição de trabalho, equipe, equipamentos, serviços e ocorrências. É a prova que sustenta pedido de aditivo de prazo (dias de chuva e impraticáveis) e a defesa em qualquer questionamento da fiscalização.',`<button type="button" class="fin-bt" data-rd="pdf">Exportar PDF</button><button type="button" class="fin-bt pri" data-rd="novo">+ Registrar dia</button>`)}
       <div class="fin-filtros"><select class="filter-select" data-rd="obra"><option value="">Todas as obras</option>${obrasNomes().map(o=>`<option ${RD.obra===o?'selected':''}>${fe(o)}</option>`).join('')}</select>
+        ${autores.length>1?`<select class="filter-select" data-rd="autor"><option value="">Todos os usuários</option>${autores.map(a=>`<option ${RD.autor===a?"selected":""}>${fe(a)}</option>`).join("")}</select>`:""}
         <select class="filter-select" data-rd="mes"><option value="__todos" ${RD.mes==='__todos'?'selected':''}>Todos os meses</option>${meses.map(m=>`<option value="${m}" ${RD.mes===m?'selected':''}>${nomeMes(m)}</option>`).join('')}</select></div>
       <div class="fin-kpis">${kpi('','Dias registrados',lista.length,RD.obra?'nesta obra':'somando as obras')}${kpi(imp?'vermelho':'verde','Dias impraticáveis',imp,'base para aditivo de prazo')}${kpi(chuva?'laranja':'verde','Dias com chuva',chuva,'manhã ou tarde')}${kpi('','Efetivo médio',efMed?n2(efMed).replace(',00',''):'—','pessoas por dia registrado')}${kpi('','Fotos dos dias',lista.reduce((s,r)=>s+Eng.fotosDoDia(r.titulo_obra,r.data).length,0),'ligadas pela obra e pela data')}</div>
       <div class="fin-card">${lista.length?lista.map((r,i)=>{const d=dt(r.data);return `<div class="eng-dia">
         <div class="eng-dia-data"><b>${d?String(d.getDate()).padStart(2,'0'):'—'}</b><span>${d?DIAS_SEM[d.getDay()].slice(0,3)+' · '+brDe(d).slice(3,5)+'/'+String(d.getFullYear()).slice(2):''}</span></div>
         <div class="eng-dia-txt"><div class="linha">${RD.obra?'':`<b>${fe(r.titulo_obra)}</b>`}<span class="eng-pill ${tomCond(r.condicao)}">${fe(r.condicao||'—')}</span><span class="eng-pill ${choveu(r)?'azul':''}">manhã: ${fe(r.clima_manha||'—')} · tarde: ${fe(r.clima_tarde||'—')}</span>${r.efetivo_total?`<span class="eng-pill">${fe(r.efetivo_total)} pessoas</span>`:''}</div>
-          <p>${fe(r.atividades||'')}</p>${r.ocorrencias?`<small><b>Ocorrências:</b> ${fe(r.ocorrencias)}</small>`:''}${r.visitas?`<small><b>Visitas:</b> ${fe(r.visitas)}</small>`:''}<small>${fe(r.responsavel?'Registrado por '+r.responsavel:'')}</small>${Eng.fotosHtml(r.titulo_obra,r.data,i)}</div>
-        <div class="eng-acoes">${r.ocorrencias&&Eng.novaAcao&&(!UI._allowedViews||UI._allowedViews.includes('acoes'))?`<button type="button" class="fin-bt mini" data-rd="acao" data-i="${i}" title="Transformar a ocorrência numa ação do plano, com responsável e prazo">→ Ação</button>`:''}${Eng.podeFotos()?`<button type="button" class="fin-bt mini" data-rd="fotos" data-i="${i}" title="Incluir fotos deste dia (vão também para a galeria da obra)">+ Fotos</button>`:''}<button type="button" class="fin-bt mini" data-rd="pdfdia" data-i="${i}">PDF</button><button type="button" class="fin-bt mini" data-rd="editar" data-i="${i}">Editar</button><button type="button" class="fin-bt mini" data-rd="excluir" data-i="${i}">Excluir</button></div></div>`;}).join('')
+          <p>${fe(r.atividades||'')}</p>${r.ocorrencias?`<small><b>Ocorrências:</b> ${fe(r.ocorrencias)}</small>`:''}${r.visitas?`<small><b>Visitas:</b> ${fe(r.visitas)}</small>`:''}<small>${fe(r.responsavel?'Registrado por '+r.responsavel:'')}</small>${Eng.fotosHtml(r.titulo_obra,r.data,i,(App._rdoFotos[i]=fotosDoRegistro(r)))}</div>
+        <div class="eng-acoes">${r.ocorrencias&&Eng.novaAcao&&(!UI._allowedViews||UI._allowedViews.includes('acoes'))?`<button type="button" class="fin-bt mini" data-rd="acao" data-i="${i}" title="Transformar a ocorrência numa ação do plano, com responsável e prazo">→ Ação</button>`:''}${podeFotoRdo()&&meuRdo(r)?`<button type="button" class="fin-bt mini" data-rd="fotos" data-i="${i}" title="Incluir fotos deste dia (vão também para a galeria da obra)">+ Fotos</button>`:''}<button type="button" class="fin-bt mini" data-rd="pdfdia" data-i="${i}">PDF</button>${meuRdo(r)?`<button type="button" class="fin-bt mini" data-rd="editar" data-i="${i}">Editar</button><button type="button" class="fin-bt mini" data-rd="excluir" data-i="${i}">Excluir</button>`:""}</div></div>`;}).join('')
         :`<div class="fin-vazio">${todos.length?'Nenhum registro neste filtro.':'Nenhum dia registrado ainda. O ideal é registrar no fim de cada dia de obra.'}</div>`}</div>
     </div>`;
     box.onchange=ev=>{const s=ev.target.closest('select[data-rd]');if(!s)return;RD[s.dataset.rd]=s.value;renderDiario();};
     box.onclick=ev=>{const b=ev.target.closest('button[data-rd]');if(!b)return;const r=App._rdoLista[+b.dataset.i];
-      if(b.dataset.rd==='foto'&&r)Eng.verFoto(Eng.fotosDoDia(r.titulo_obra,r.data),+b.dataset.f);
+      if(b.dataset.rd==='foto'&&r)Eng.verFoto(App._rdoFotos[+b.dataset.i]||Eng.fotosDoDia(r.titulo_obra,r.data),+b.dataset.f);
       else if(b.dataset.rd==='fotos'&&r)Eng.enviarFotos(r.titulo_obra,r.data);
       else if(b.dataset.rd==='acao'&&r)Eng.novaAcao({titulo_obra:r.titulo_obra,tipo:'Pendência',o_que:String(r.ocorrencias).slice(0,150),por_que:'Ocorrência registrada no diário de '+brDe(dt(r.data)),origem:'Diário de obra '+brDe(dt(r.data))});
       else if(b.dataset.rd==='novo'){formulario(CFG_RDO,null);if(RD.obra)setTimeout(()=>{const el=document.querySelector('#fin-jan [data-f="titulo_obra"]');if(el)el.value=RD.obra;},40);}
-      else if(b.dataset.rd==='editar'&&r)formulario(CFG_RDO,r);
-      else if(b.dataset.rd==='excluir'&&r)apagar(CFG_RDO,r,`${r.titulo_obra} — ${brDe(dt(r.data))}`);
+      else if(b.dataset.rd==='editar'&&r){if(!meuRdo(r))return toast('Só quem registrou pode alterar este registro.','error');formulario(CFG_RDO,r);}
+      else if(b.dataset.rd==='excluir'&&r&&meuRdo(r))apagar(CFG_RDO,r,`${r.titulo_obra} — ${brDe(dt(r.data))}`);
       else if(b.dataset.rd==='pdfdia'&&r)pdfDiario([r],`${r.titulo_obra} · ${brDe(dt(r.data))}`);
       else if(b.dataset.rd==='pdf'){if(!App._rdoLista.length)return toast('Nada para exportar neste filtro.','error');pdfDiario(App._rdoLista.slice().reverse(),[RD.obra||'Todas as obras',RD.mes&&RD.mes!=='__todos'?nomeMes(RD.mes):'Todos os meses'].join(' · '));}
     };
@@ -11336,8 +11377,8 @@ const Eng=(function(){
       <div style="font-size:10.5px;margin-bottom:4px"><b>Serviços executados:</b><br>${bl(r.atividades)}</div>
       ${r.ocorrencias?`<div style="font-size:10.5px;margin-bottom:4px"><b>Ocorrências:</b><br>${bl(r.ocorrencias)}</div>`:''}
       ${r.visitas?`<div style="font-size:10.5px;margin-bottom:4px"><b>Visitas e fiscalização:</b><br>${bl(r.visitas)}</div>`:''}
-      ${Eng.fotosPdf(r.titulo_obra,r.data)}
-      <div style="display:flex;gap:30px;margin-top:22px;font-size:9.5px;color:#6e6e73"><div style="flex:1;border-top:1px solid #1d1d1f;padding-top:3px">Responsável pela obra${r.responsavel?' — '+bl(r.responsavel):''}</div><div style="flex:1;border-top:1px solid #1d1d1f;padding-top:3px">Fiscalização</div></div></div>`;});
+      ${Eng.fotosPdf(r.titulo_obra,r.data,fotosDoRegistro(r))}
+      <div style="display:flex;gap:30px;margin-top:22px;font-size:9.5px;color:#6e6e73"><div style="flex:1;border-top:1px solid #1d1d1f;padding-top:3px">Responsável pela obra — Vilson Souza Oliveira</div><div style="flex:1;border-top:1px solid #1d1d1f;padding-top:3px">Fiscalização${(()=>{const c=Eng.contratoDe&&Eng.contratoDe(r.titulo_obra);return c&&c.fiscal?' — '+bl(c.fiscal):'';})()}</div></div></div>`;});
     App._relExportPaginado({titulo:'Diário de Obra (RDO)',subLinhas:[sub,`${regs.length} dia${regs.length!==1?'s':''} registrado${regs.length!==1?'s':''}`],blocosArr:blocos});
   }
 
@@ -11984,14 +12025,14 @@ const Eng=(function(){
   /* ═══════════════ FOTOS DO DIÁRIO ═══════════════ */
   const fotosDoDia=(ob,dataISO)=>(D().obra_imagens||[]).filter(i=>i.titulo_obra===ob&&dataISO&&String(i.data_foto||'')===String(dataISO));
   const miniatura=(i,w)=>i.drive_file_id?`https://drive.google.com/thumbnail?id=${encodeURIComponent(i.drive_file_id)}&sz=w${w||400}`:(i.url_thumb||i.url_visualizacao||'');
-  function fotosHtml(ob,dataISO,i){
-    const fs=fotosDoDia(ob,dataISO);if(!fs.length)return '';
+  function fotosHtml(ob,dataISO,i,lista){
+    const fs=lista||fotosDoDia(ob,dataISO);if(!fs.length)return '';
     const max=6,vis=fs.slice(0,max);
-    return `<div class="eng-fotos">${vis.map((f,k)=>`<button type="button" data-rd="foto" data-i="${i}" data-f="${k}" title="${fe(f.descricao||'Foto')}"><img src="${fe(miniatura(f,200))}" data-driveid="${fe(f.drive_file_id||'')}" referrerpolicy="no-referrer" loading="lazy" alt="" onerror="UI.ImagensObra._imgErro(this)">${k===max-1&&fs.length>max?`<span class="mais">+${fs.length-max+1}</span>`:''}</button>`).join('')}</div>`;
+    return `<div class="eng-fotos">${vis.map((f,k)=>`<button type="button" data-rd="foto" data-i="${i}" data-f="${k}" title="${fe((f.descricao||'Foto')+(f.enviado_por?' · anexada por '+f.enviado_por:''))}"><img src="${fe(miniatura(f,200))}" data-driveid="${fe(f.drive_file_id||'')}" referrerpolicy="no-referrer" loading="lazy" alt="" onerror="UI.ImagensObra._imgErro(this)">${f.enviado_por?`<span class="por">${fe(String(f.enviado_por).split(' ')[0])}</span>`:''}${k===max-1&&fs.length>max?`<span class="mais">+${fs.length-max+1}</span>`:''}</button>`).join('')}</div>`;
   }
-  function fotosPdf(ob,dataISO){
-    const fs=fotosDoDia(ob,dataISO).slice(0,6);if(!fs.length)return '';
-    return `<div style="margin:6px 0 4px"><div style="font-size:10.5px;font-weight:700;margin-bottom:4px">Fotos do dia</div><div style="display:flex;gap:6px;flex-wrap:wrap">${fs.map(f=>`<div style="width:58mm"><img src="${fe(miniatura(f,800))}" referrerpolicy="no-referrer" style="width:58mm;height:40mm;object-fit:cover;border-radius:4px;border:1px solid #e5e5ea;display:block"><div style="font-size:8.5px;color:#6e6e73;margin-top:2px;height:11px;overflow:hidden">${fe(String(f.descricao||'').split(' • ').slice(2).join(' • '))}</div></div>`).join('')}</div></div>`;
+  function fotosPdf(ob,dataISO,lista){
+    const fs=(lista||fotosDoDia(ob,dataISO)).slice(0,6);if(!fs.length)return '';
+    return `<div style="margin:6px 0 4px"><div style="font-size:10.5px;font-weight:700;margin-bottom:4px">Fotos do dia</div><div style="display:flex;gap:6px;flex-wrap:wrap">${fs.map(f=>`<div style="width:58mm"><img src="${fe(miniatura(f,800))}" referrerpolicy="no-referrer" style="width:58mm;height:40mm;object-fit:cover;border-radius:4px;border:1px solid #e5e5ea;display:block"><div style="font-size:8.5px;color:#6e6e73;margin-top:2px;height:11px;overflow:hidden">${fe([String(f.descricao||'').split(' • ').slice(2).join(' • '),f.enviado_por?'por '+f.enviado_por:''].filter(Boolean).join(' · '))}</div></div>`).join('')}</div></div>`;
   }
   function verFoto(lista,k){
     if(!lista||!lista[k])return;
@@ -12000,7 +12041,8 @@ const Eng=(function(){
     io._visualizarLista=lista;io._visualizarIdx=k;io._renderVisualizador();   // navegando só pelas fotos deste dia
   }
   function enviarFotos(ob,dataISO){
-    if(!ehAdmin())return toast('Só o Administrador inclui fotos (mesma regra da galeria da obra).','error');
+    // fotos do diário: quem registrou o dia anexa (cada foto fica marcada com quem anexou)
+    if(Auth._session&&Auth._session.tipoUsuario==='externo')return toast('Seu perfil só consulta as fotos.','error');
     if(App.state._busy)return toast('Aguarde: o sistema ainda está salvando outra coisa.','error');
     const inp=document.createElement('input');inp.type='file';inp.accept='image/*';inp.multiple=true;
     inp.onchange=()=>{
@@ -15154,7 +15196,7 @@ const Mascara=(function(){
       if(col==='recebida')return de==='faturar'?toast('Emita a nota antes (arraste para "Nota emitida").','error'):receberNota(x.r);
       if(de==='recebida'&&col==='receber')return desfazerRecebimento(x.r);
       if(col==='medicao')return toast('A nota já existe — para mexer na medição, abra a tela de Medições.','error');
-      if(col==='faturar')return toast('Para cancelar a nota, abra o cartão e use "Excluir" ou corrija os dados.','error');});}
+      if(col==='faturar')return de==='receber'?desfazerFaturamento(x.r):toast('Desfaça o recebimento antes (arraste para "Nota emitida").','error');});}
   }
   const linhasFat=l=>{const K=KF();return l.map(x=>{const r=x.r,v=x.k==='f'?Fa.vencF(r,K):null;return x.k==='m'?[x.obra,'',r.numero,'',n2(x.bruto),'','','','','','',n2(x.liq)+' (estimado)','','',COLS_F.find(c=>c.k===x.col).rot]:[x.obra,r[K.nf]||'',r.medicao_numero||'',dt(r[K.em])?brDe(dt(r[K.em])):'',n2(val(r[K.bruto])),n2(val(r[K.inss])),n2(val(r[K.irpf])),n2(val(r[K.simples])),n2(val(r[K.antec])),n2(val(r[K.seguro])),'',n2(x.liq),v?brDe(v):'',recebidaF(r,K)?brDe(dt(r[K.rec])):'',Fa.sitF(r,K)[0]];});};
   function exportarFat(){
@@ -15202,7 +15244,8 @@ const Mascara=(function(){
         Object.assign(o,{[K.obra]:ob,[K.tipo]:'Real',[K.nf]:nf,[K.em]:em,[K.bruto]:dinheiro(c.bruto),[K.inss]:dinheiro(c.inss),[K.irpf]:dinheiro(c.irpf),[K.simples]:dinheiro(c.simples),[K.antec]:dinheiro(c.antec),[K.seguro]:dinheiro(c.seguro),[K.liq]:dinheiro(c.liq)});
         if(rec)o[K.rec]=rec;else if(ehM)o[K.rec]='';
         if(ehM){o[K.lanc]=todayDateTime();o.medicao_rowid=String(r.rowid);o.medicao_numero=String(r.numero||'');if(!o[K.antecData])o[K.antecData]='';}
-        await executar(async()=>{await salvar('Faturamentos',o,ehM?null:r.rowid);if(ehM)await salvar('Medições',{...copiaF(r),status:'Faturada',faturado_em:todayDateTime()},r.rowid);});
+        await executar(async()=>{await salvar('Faturamentos',o,ehM?null:r.rowid);if(ehM)await salvar('Medições',{...copiaF(r),status:'Faturada',faturado_em:todayDateTime()},r.rowid);
+          else if(r.medicao_rowid){const md=(D().medicoes||[]).find(y=>String(y.rowid)===String(r.medicao_rowid));if(md)await salvar('Medições',{...copiaF(md),status:'Faturada',faturado_em:todayDateTime()},md.rowid);}});
         toast('Nota emitida — agora está em "a receber".','success');}}],640);
     function calc(jj){const g=k=>Mascara.numero(jj.querySelector(`[data-k="${k}"]`).value)||0,bb=g('bruto');
       const c={bruto:bb,inss:Math.round(bb*g('inss'))/100,irpf:Math.round(bb*g('irpf'))/100,simples:Math.round(bb*g('simples'))/100,antec:Math.round(bb*g('antec'))/100,seguro:g('seguro')};c.liq=Math.round((bb-c.inss-c.irpf-c.simples-c.antec-c.seguro)*100)/100;
@@ -15217,6 +15260,12 @@ const Mascara=(function(){
         const d=j.querySelector('[data-k="data"]').value;if(!d)throw new Error('Informe a data.');if(d>isoDe(hoje0()))throw new Error('A data não pode ser depois de hoje.');
         const o=copiaF(r);o[K.rec]=d;await executar(()=>salvar('Faturamentos',o,r.rowid));toast('Recebimento registrado.','success');}}],480);
   }
+  // desfaz a emissão da nota: o faturamento volta para "A faturar" (sem nº, emissão e recebimento) e,
+  // se veio de uma medição, a medição volta a "Aprovada" — nada é excluído
+  function desfazerFaturamento(r){const K=KF();confirmar('Desfazer faturamento',`${r[K.nf]?'A NF '+fe(r[K.nf]):'A nota'} de ${fe(r[K.obra]||'')} (${fmt(val(r[K.bruto]))}) volta para <b>"A faturar"</b>: o nº da nota, a emissão e o recebimento combinado são apagados${r.medicao_rowid?' e a medição volta a "Aprovada"':''}.`,'Sim, desfazer',async()=>{
+    const o=copiaF(r);o[K.tipo]='Previsto';o[K.nf]='';o[K.em]='';o[K.rec]='';
+    await executar(async()=>{await salvar('Faturamentos',o,r.rowid);const m=r.medicao_rowid&&(D().medicoes||[]).find(x=>String(x.rowid)===String(r.medicao_rowid));if(m)await salvar('Medições',{...copiaF(m),status:'Aprovada',faturado_em:''},m.rowid);});
+    toast('Faturamento desfeito — voltou para "A faturar".','success');});}
   function desfazerRecebimento(r){const K=KF();confirmar('Desfazer recebimento',`${r[K.nf]?'A NF '+fe(r[K.nf]):'A nota'} volta para "a receber".`,'Sim, desfazer',async()=>{const o=copiaF(r);o[K.rec]='';await executar(()=>salvar('Faturamentos',o,r.rowid));toast('Voltou para "a receber".','success');});}
   function fichaMedicao(x){
     const m=x.r,rm=Eng.resumoMedicoes(m.titulo_obra),cc=COLS_F.find(c=>c.k===x.col);
@@ -15227,7 +15276,7 @@ const Mascara=(function(){
         <li><i class="fas fa-calendar-day"></i> Período ${m.periodo_ini?brDe(dt(m.periodo_ini)):'—'} a ${m.periodo_fim?brDe(dt(m.periodo_fim)):'—'} · medida em ${brDe(dt(m.data_medicao))}${m.data_aprovacao?' · aprovada em '+brDe(dt(m.data_aprovacao)):''}</li>
         <li><i class="fas fa-scale-balanced"></i> Situação: ${fe(m.status||'—')}${rm.contrato?` · acumulado da obra ${pct(rm.pct)} do contrato · saldo ${fmt(rm.saldo)}`:''}</li>
       </ul>`;
-    const bts=[{html:'<i class="fas fa-ruler-combined"></i> Abrir a medição',acao:()=>{setTimeout(()=>{Eng._ME.obra=m.titulo_obra;Eng._ME.edit=null;UI.nav('medicoes');},10);}}];
+    const bts=[];
     if(pode('faturamento')){
       if(x.col==='medicao')bts.push({html:'<i class="fas fa-check"></i> Aprovada pela fiscalização',cls:'pri',acao:()=>{setTimeout(()=>aprovarMedicao(m),10);}});
       if(x.col==='faturar'){bts.push({html:'<i class="fas fa-rotate-left"></i> Voltar para a fiscalização',acao:()=>{setTimeout(()=>voltarMedicao(m),10);}});bts.push({html:'<i class="fas fa-file-invoice"></i> Emitir a nota',cls:'pri',acao:()=>{setTimeout(()=>emitirNota(x),10);}});}
@@ -15259,7 +15308,9 @@ const Mascara=(function(){
       <ul class="vk-lista">${r.medicao_numero?`<li><i class="fas fa-ruler-combined"></i> Medição nº ${fe(r.medicao_numero)}</li>`:''}${col!=='faturar'?`<li><i class="fas fa-calendar-day"></i> ${recebidaF(r,K)?'Recebida em '+brDe(dt(r[K.rec])):'Vence '+(v?brDe(v):'—')}</li>`:''}</ul>`)+(ed?campos:'');
     const bts=[];
     if(ed&&!nova){
-      bts.push({html:'<i class="fas fa-trash"></i> Excluir',acao:()=>{setTimeout(()=>confirmar('Excluir nota',`${r[K.nf]?'A NF '+fe(r[K.nf]):'O faturamento'} de ${fe(r[K.obra]||'')} (${fmt(val(r[K.bruto]))}) será excluído.${r.medicao_rowid?' A medição volta para "A faturar".':''}`,'Sim, excluir',async()=>{
+      // nota emitida não se exclui: desfaz o faturamento (volta para "A faturar"); só o previsto se exclui
+      if(col==='receber')bts.push({html:'<i class="fas fa-rotate-left"></i> Desfazer faturamento',acao:()=>{setTimeout(()=>desfazerFaturamento(r),10);}});
+      else if(col==='faturar')bts.push({html:'<i class="fas fa-trash"></i> Excluir',acao:()=>{setTimeout(()=>confirmar('Excluir nota',`${r[K.nf]?'A NF '+fe(r[K.nf]):'O faturamento'} de ${fe(r[K.obra]||'')} (${fmt(val(r[K.bruto]))}) será excluído.${r.medicao_rowid?' A medição volta para "A faturar".':''}`,'Sim, excluir',async()=>{
         await executar(async()=>{await excluir('Faturamentos',r.rowid);const m=r.medicao_rowid&&(D().medicoes||[]).find(x=>String(x.rowid)===String(r.medicao_rowid));if(m)await salvar('Medições',{...copiaF(m),status:'Aprovada'},m.rowid);});toast('Nota excluída.','success');}),10);}});
       if(col==='faturar')bts.push({html:'<i class="fas fa-file-invoice"></i> Emitir a nota',acao:()=>{setTimeout(()=>emitirNota({k:'f',r,obra:r[K.obra]||''}),10);}});
       if(col==='receber')bts.push({html:'<i class="fas fa-circle-check"></i> Registrar recebimento',acao:()=>{setTimeout(()=>receberNota(r),10);}});
@@ -15370,8 +15421,8 @@ const Mascara=(function(){
   function cartaoObra(x){
     const c=COLS_OB.find(k=>k.k===x.col),h=hoje0(),pode1=pode('obras')&&!ehExt();
     let meio='',pe='';
-    if(x.col==='proposta'){const n=x.lim?dias(h,x.lim):null;pe=x.lim?pillO('entrega '+(n<0?'passou':quando(n)),n!=null&&n<=3?'err':n<=7?'warn':'info','fa-flag-checkered'):pillO('sem limite de entrega','');}
-    else if(x.col==='aguardando'){pe=x.envio?pillO('enviada '+quando(dias(h,x.envio)),dias(x.envio,h)>60?'warn':'','fa-paper-plane'):pillO('aguardando resultado','');}
+    if(x.col==='proposta'){const n=x.lim?dias(h,x.lim):null;pe=x.lim?pillO('entrega até '+brDe(x.lim).slice(0,5)+' · '+(n<0?'passou':quando(n)),n!=null&&n<=3?'err':n<=7?'warn':'info','fa-flag-checkered'):pillO('sem limite de entrega','');}
+    else if(x.col==='aguardando'){pe=x.envio?pillO('enviada em '+brDe(x.envio).slice(0,5),dias(x.envio,h)>60?'warn':'','fa-paper-plane'):pillO('aguardando resultado','');}
     else if(x.col==='ganha'){pe=pillO('aguardando a ordem de serviço','roxo','fa-flag');}
     else if(x.col==='execucao'&&x.s){const fis=x.s.fi.tem?x.s.fi.real:null,med=x.s.rm.contrato?x.s.rm.pct:null;
       meio=`<div class="ob-prog" style="margin-top:6px"><div class="gf-barra ${x.s.sinal.prazo==='vermelho'?'err':x.s.sinal.prazo==='amarelo'?'warn':'ok'}"><i style="width:${Math.min(100,fis!=null?fis:med||0)}%"></i></div><span>${fis!=null?'físico '+pct(fis):'sem etapas'} · medido ${med!=null?pct(med):'—'}</span></div>`;
@@ -15400,7 +15451,7 @@ const Mascara=(function(){
     const nG=todos.filter(x=>['ganha','execucao','entregue'].includes(x.col)).length,nP=todos.filter(x=>x.col==='perdida').length;
     App._ctTodos=todos;
     box.innerHTML=`<div class="gf">
-      ${cabG('Contratos','Da proposta à obra entregue: cada obra é um cartão. Arraste o cartão para mudar a fase (o sistema pede a data de envio, da ordem de serviço ou da entrega); clique para abrir a obra — Resumo, dados, <b>Contrato</b> (vigência, garantia, reajuste, aditivos), CAP e orçamento.',(ext?'':'<button type="button" class="gf-bt" data-ct2="imprimir"><i class="fas fa-print"></i> Imprimir</button><button type="button" class="gf-bt" data-ct2="exportar"><i class="fas fa-file-excel"></i> Exportar</button>')+(pode('obras')&&!ext?'<button type="button" class="gf-bt pri" data-ct2="nova"><i class="fas fa-plus"></i> Nova proposta / obra</button>':''))}
+      ${cabG('Contratos','Da proposta à obra entregue: cada obra é um cartão. Arraste o cartão para mudar a fase (o sistema pede o limite de entrega, a data de envio, da ordem de serviço ou da entrega); clique para abrir a obra — <b>Orçamento</b>, <b>CAP</b>, <b>Contrato</b> (depois de ganha) e <b>Medição</b> (depois do contrato criado).',(ext?'':'<button type="button" class="gf-bt" data-ct2="imprimir"><i class="fas fa-print"></i> Imprimir</button><button type="button" class="gf-bt" data-ct2="exportar"><i class="fas fa-file-excel"></i> Exportar</button>')+(pode('obras')&&!ext?'<button type="button" class="gf-bt pri" data-ct2="nova"><i class="fas fa-plus"></i> Nova proposta / obra</button>':''))}
       ${ext?'':`<div class="gf-kpis">
         ${kpiG('','fa-briefcase','Carteira a executar',Rk(saldoCart),medido3>0?`≈ ${fmtN(saldoCart/medido3,1)} mês(es) no ritmo atual de medição`:`${exec.length+ganhas.length} contrato(s)`)}
         ${kpiG('','fa-helmet-safety','Em execução',String(exec.length),`contratos que somam ${Rk(S(exec))}`)}
@@ -15440,7 +15491,7 @@ const Mascara=(function(){
     const base=()=>{const r={...o};delete r.rowid;delete r.visualId;delete r._aba;return r;};
     const gravar=async extra=>{await executar(()=>salvar('Obras',{...base(),[kSt]:extra.status||c.st,...extra.campos},o.rowid));toast(`${x.ob} → ${c.rot}.`,'success');};
     const campoData=(rot,val0)=>`<div class="fin-fld"><label>${rot}</label><input type="date" data-k="d" value="${val0||isoDe(hoje0())}"></div>`;
-    if(col==='aguardando')return janela('Proposta enviada',`<div class="fin-resumo"><b>${fe(x.ob)}</b></div>${campoData('Data de envio da proposta',dt(getFuzzy(o,['envio_proposta']))?isoDe(dt(getFuzzy(o,['envio_proposta']))):'')}`,[{html:'Cancelar'},{html:'Confirmar',cls:'pri',acao:async j=>{const d=j.querySelector('[data-k="d"]').value;await gravar({campos:{[kR(o,['envio_proposta'],'envio_proposta')]:d}});}}],460);
+    if(col==='aguardando')return janela('Proposta enviada',`<div class="fin-resumo"><b>${fe(x.ob)}</b></div>${campoData('Proposta enviada em *',dt(getFuzzy(o,['envio_proposta']))?isoDe(dt(getFuzzy(o,['envio_proposta']))):'')}`,[{html:'Cancelar'},{html:'Confirmar',cls:'pri',acao:async j=>{const d=j.querySelector('[data-k="d"]').value;if(!d)throw new Error('Informe a data em que a proposta foi enviada.');if(d>isoDe(hoje0()))throw new Error('A data de envio não pode ser no futuro.');await gravar({campos:{[kR(o,['envio_proposta'],'envio_proposta')]:d}});}}],460);
     if(col==='execucao'){const kI=kR(o,['inicio_obra','data_inicio'],'inicio_obra'),ini=dt(o[kI]);
       return janela('Ordem de serviço',`<div class="fin-resumo"><b>${fe(x.ob)}</b><br>A obra começa a contar o prazo a partir da ordem de serviço.</div>${campoData('Data da ordem de serviço (início)',ini?isoDe(ini):'')}`,[{html:'Cancelar'},{html:'Obra em execução',cls:'pri',acao:async j=>{
         const d=j.querySelector('[data-k="d"]').value;if(!d)throw new Error('Informe a data.');const campos={[kI]:d};
@@ -15449,6 +15500,7 @@ const Mascara=(function(){
         await gravar({campos});}}],480);}
     if(col==='entregue'){const kF=kR(o,['termino_ocorrido','data_termino_ocorrido'],'termino_ocorrido');
       return janela('Obra entregue',`<div class="fin-resumo"><b>${fe(x.ob)}</b><br>Confira se há medição final a lançar e se a garantia/caução pode ser liberada.</div>${campoData('Data de término (entrega)',dt(o[kF])?isoDe(dt(o[kF])):'')}`,[{html:'Cancelar'},{html:'Obra entregue',cls:'pri',acao:async j=>{const d=j.querySelector('[data-k="d"]').value;if(!d)throw new Error('Informe a data.');await gravar({campos:{[kF]:d}});}}],480);}
+    if(col==='proposta')return janela('Proposta em preparação',`<div class="fin-resumo"><b>${fe(x.ob)}</b></div>${campoData('Limite de entrega da proposta *',dt(getFuzzy(o,['limite_proposta']))?isoDe(dt(getFuzzy(o,['limite_proposta']))):'')}`,[{html:'Confirmar',cls:'pri',acao:async j=>{const d=j.querySelector('[data-k="d"]').value;if(!d)throw new Error('Informe o limite de entrega da proposta.');await gravar({campos:{[kR(o,['limite_proposta'],'limite_proposta')]:d}});}}],460);
     if(col==='perdida')return janela('Proposta perdida',`<div class="fin-resumo"><b>${fe(x.ob)}</b></div><div class="fin-fld"><label>Motivo</label><select data-k="m"><option>Perdida - Por Preço</option><option>Perdida - Cancelada</option></select></div>`,[{html:'Cancelar'},{html:'Confirmar',cls:'pri',acao:async j=>{await gravar({status:j.querySelector('[data-k="m"]').value,campos:{}});}}],440);
     confirmar('Mudar a fase',`<b>${fe(x.ob)}</b> vai para <b>${c.rot}</b>.`,'Sim, mudar',async()=>{await gravar({campos:{}});});
   }
@@ -15502,7 +15554,7 @@ const Mascara=(function(){
     if(prox&&prox.classList.contains('pl2-its-row')){prox.remove();if(bt){bt.classList.remove('on');bt.textContent=bt.textContent.replace('▾','▸');}return;}
     const its=itensDaEtapa(o),a=Eng.avancoEtapa(o,Eng._PL.obra),tot=its.reduce((s,x)=>s+x.v,0);
     const fora=(o.itens_orc||[]).length-its.reduce((s,x)=>s+x.n,0);
-    tr.insertAdjacentHTML('afterend',`<tr class="pl2-its-row"><td colspan="${tr.children.length}"><div class="pl2-its-box"><div class="pl2-its-cab"><b>Itens do orçamento — ${fe(o[KE().nome]||'etapa')}</b><span>Avanço de cada item = acumulado medido ÷ contrato (com os aditivos). Avanço da etapa = soma dos itens pelo valor: <b>${a==null?'—':(Math.round(a*10)/10).toLocaleString('pt-BR')+'%'}</b> · total ${fmt(tot)}${fora>0?` · ${fora} item${fora>1?'s':''} não ${fora>1?'estão':'está'} mais no contrato`:''}</span></div>${Eng.itensHtml(its,true)}</div></td></tr>`);
+    tr.insertAdjacentHTML('afterend',`<tr class="pl2-its-row"><td colspan="${tr.children.length}"><div class="pl2-its-box">${Eng.itensHtml(its,true)}</div></td></tr>`);
     if(bt){bt.classList.add('on');bt.textContent=bt.textContent.replace('▸','▾');}
   }
   let CPM=null;   // caminho crítico da obra aberta: rowid da etapa → nó
@@ -15521,7 +15573,7 @@ const Mascara=(function(){
     cols:()=>{const K=KE();return [
       {id:'cod',k:'cod_etapa',l:'Cód.',t:'texto',w:64},
       {id:'nome',k:K.nome,l:'Etapa',t:'texto',w:230,obrig:true},
-      {id:'its',k:'_its',l:'Itens do orçamento',t:'ro',w:132,semPdf:true,calc:o=>{const n=itensDaEtapa(o).length;return n?`<button type="button" class="pl2-its-bt" data-pl2="x-itens" title="Ver os itens do orçamento desta etapa e o avanço de cada um">▸ ${n} ite${n>1?'ns':'m'}</button>`:'<span title="Etapa sem itens do orçamento ligados: o avanço é o informado nela">—</span>';}},
+      {id:'its',k:'_its',l:'Itens',t:'ro',w:110,semPdf:true,calc:o=>{const n=itensDaEtapa(o).length;return n?`<button type="button" class="pl2-its-bt" data-pl2="x-itens" title="Ver os itens do orçamento desta etapa e o avanço de cada um">▸ ${n} ite${n>1?'ns':'m'}</button>`:'<span title="Etapa sem itens do orçamento ligados: o avanço é o informado nela">—</span>';}},
       {id:'ini',k:K.ini,l:'Início planejado',t:'data',w:134,obrig:true,max:()=>{const v=vigDe(Eng._PL.obra);return v?isoDe(v):'';}},
       {id:'fim',k:K.fim,l:'Fim planejado',t:'data',w:134,obrig:true,max:()=>{const v=vigDe(Eng._PL.obra);return v?isoDe(v):'';}},
       {id:'peso',k:K.peso,l:'Peso %',t:'num',w:80},
@@ -15835,30 +15887,75 @@ const Mascara=(function(){
         <div class="hc-fatos">${fatos||'<span>Ainda sem os dados do contrato — clique em <b>Editar dados</b>.</span>'}</div></div>
       ${pode('obras')&&!ehExt()?'<button type="button" class="fin-bt pri" data-hc="editar"><i class="fas fa-pen-to-square"></i> Editar dados</button>':''}</div>`;
   }
+  /* ═══════════════ ABA CONTRATO: só o contrato (nada de resumo) ═══════════════
+     Proposta (em preparação / aguardando resultado / perdida): os dados da proposta — limite de
+     entrega e envio — e o aviso de que o contrato nasce quando a proposta é ganha.
+     Ganha · aguardando início, em execução e entregue: cria-se o contrato; depois dele, a ficha
+     (linha do tempo, dados, garantia e reajuste, aditivos) e o ciclo de vida do contrato.
+     A fase muda arrastando o cartão no quadro de Contratos — não há campo de fase aqui. */
+  const colDe=o=>{const s=cn(Eng.statusObra(o));if(s.includes('perdida'))return 'perdida';if(s.includes('finalizada'))return 'entregue';if(s.includes('andamento'))return 'execucao';if(s.includes('ganha'))return 'ganha';if(s.includes('nao enviada'))return 'proposta';if(s.includes('aguardando')||s.includes('enviada'))return 'aguardando';return 'proposta';};
+  const faseContratada=ob=>{const o=obraDe(ob);return !!o&&['ganha','execucao','entregue'].includes(colDe(o));};
+  // o contrato existe: ficha criada, nº de contrato na obra ou medições já lançadas
+  const temCt=ob=>{const o=obraDe(ob);if(!o)return false;return !!(Eng.contratoDe&&Eng.contratoDe(ob))||!!getFuzzy(o,['numero_contrato','num_contrato','n_contrato'])||((Eng.medsDaObra&&Eng.medsDaObra(ob))||[]).length>0;};
+  Eng.faseContratada=faseContratada;
+  Eng.temContrato=ob=>faseContratada(ob)&&temCt(ob)&&pode('medicoes')&&!ehExt();
+  function cabProposta(o,col){
+    const ob=Eng.nomeObra(o),f=faseDe(Eng.statusObra(o)),lim=dt(getFuzzy(o,['limite_proposta'])),env=dt(getFuzzy(o,['envio_proposta'])),orc=Eng.baseDaObra&&Eng.baseDaObra(ob);
+    const descr=getFuzzy(o,['descricao'])||'',tot=orc?val(orc.total_obra):0;
+    const fatos=[lim?`<span><i class="fas fa-flag-checkered"></i>Limite de entrega <b>${brDe(lim)}</b></span>`:'<span><i class="fas fa-flag-checkered"></i><b style="color:#B42318">sem limite de entrega</b></span>',
+      col!=='proposta'?(env?`<span><i class="fas fa-paper-plane"></i>Proposta enviada em <b>${brDe(env)}</b></span>`:'<span><i class="fas fa-paper-plane"></i><b style="color:#B42318">sem data de envio</b></span>'):'',
+      tot?`<span><i class="fas fa-file-invoice-dollar"></i>Orçamento <b>${fmt(tot)}</b></span>`:'<span><i class="fas fa-file-invoice-dollar"></i>orçamento ainda não montado</span>'].filter(Boolean).join('');
+    return `<div class="hc-cab"><div style="min-width:0;flex:1"><span class="hc-fase" style="--cor:${f[2]}">${fe(f[1])}</span>
+        ${descr?`<div style="font-size:13px;color:var(--text-1);margin-top:8px;line-height:1.4">${fe(descr)}</div>`:''}<div class="hc-fatos">${fatos}</div></div>
+      ${pode('obras')&&!ehExt()?'<button type="button" class="fin-bt pri" data-hc="proposta"><i class="fas fa-pen-to-square"></i> Editar dados da proposta</button>':''}</div>
+      <div class="fin-card"><h3 style="margin:0 0 6px">Contrato</h3><p class="fin-sub" style="margin:0">${col==='perdida'?'Proposta perdida — não há contrato.':'O contrato é criado quando a proposta for <b>ganha</b>: no quadro de <b>Contratos</b>, arraste o cartão para <b>"Ganha · aguardando início"</b>. Até lá, monte o <b>Orçamento</b> e o <b>CAP</b> da proposta.'}</p></div>`;
+  }
+  // dados da proposta: limite de entrega (obrigatório em preparação) e data de envio (obrigatória aguardando resultado)
+  function editarProposta(ob){
+    const o=obraDe(ob);if(!o)return;const col=colDe(o),iso=v=>{const d=dt(v);return d?isoDe(d):'';};
+    janela('Dados da proposta — '+ob,`<div class="fin-linha">
+        <div class="fin-fld"><label>Limite de entrega da proposta${col==='proposta'?' <span class="obg">*</span>':''}</label><input type="date" data-k="lim" value="${iso(getFuzzy(o,['limite_proposta']))}"></div>
+        ${col!=='proposta'?`<div class="fin-fld"><label>Proposta enviada em${col==='aguardando'?' <span class="obg">*</span>':''}</label><input type="date" data-k="env" value="${iso(getFuzzy(o,['envio_proposta']))}" max="${isoDe(hoje0())}"></div>`:''}
+        <div class="fin-fld" style="grid-column:1/-1"><label>Objeto (descrição da obra)</label><textarea data-k="obj" rows="2">${fe(getFuzzy(o,['descricao'])||'')}</textarea></div></div>`,
+      [{html:'<i class="fas fa-floppy-disk"></i> Salvar',cls:'pri',acao:async j=>{
+        const v=k=>((j.querySelector(`[data-k="${k}"]`)||{}).value||'').trim();
+        if(col==='proposta'&&!v('lim'))throw new Error('Informe o limite de entrega da proposta.');
+        if(col==='aguardando'&&!v('env'))throw new Error('Informe a data em que a proposta foi enviada.');
+        const o2={...o};delete o2.rowid;delete o2.visualId;delete o2._aba;
+        o2[kR(o,['limite_proposta'],'limite_proposta')]=v('lim');if(col!=='proposta')o2[kR(o,['envio_proposta'],'envio_proposta')]=v('env');o2[kR(o,['descricao'],'descricao')]=v('obj');
+        await executar(()=>salvar('Obras',o2,o.rowid));toast('Dados da proposta salvos.','success');}}],560);
+  }
   Eng.hubContrato=function(ob){
-    if(!UI._obraHubBuildResumo)return;
-    UI._obraHubBuildResumo(ob);   // painel da obra (o antigo Resumo), com os atalhos e os sinais
-    const form=document.getElementById('form-upsert'),sc=form&&form.querySelector('.op-scroll');if(!sc)return;
-    // tira o que repetia a ficha do contrato logo abaixo
-    sc.querySelectorAll('.op-card').forEach(c=>{const h=c.querySelector('h4');if(h&&/^\s*Contrato e execução/.test(h.textContent))c.remove();});
-    sc.querySelectorAll('[data-op="contrato"]').forEach(b=>b.remove());
-    // sem a barra de atalhos para outras telas (Medições, Diário, Faturamento…): cada uma já está no menu
-    sc.querySelectorAll('.op-topo .op-acoes').forEach(a=>a.remove());
-    sc.insertAdjacentHTML('afterbegin',cabecalho(ob));
-    if(pode('contratos')){
-      sc.insertAdjacentHTML('beforeend','<div id="hub-contrato" style="margin-top:16px"></div>');
+    const form=document.getElementById('form-upsert');if(!form)return;
+    form.removeAttribute('style');form.style.cssText='display:flex;flex-direction:column;padding:0;gap:0;overflow:hidden;grid-template-columns:unset;';
+    const o=obraDe(ob);
+    form.innerHTML='<div class="hc-scroll"></div>';const sc=form.firstChild;
+    if(!o){sc.innerHTML='<div class="fin-vazio">Obra não encontrada.</div>';return;}
+    const col=colDe(o);
+    if(!['ganha','execucao','entregue'].includes(col))sc.innerHTML=cabProposta(o,col);
+    else if(!temCt(ob))sc.innerHTML=cabecalho(ob).replace(/<button type="button" class="fin-bt pri" data-hc="editar">[\s\S]*?<\/button>/,'').replace('Ainda sem os dados do contrato — clique em <b>Editar dados</b>.','Contrato ainda não criado.')+`<div class="fin-card hc-criar"><i class="fas fa-file-signature"></i><div><h3>Crie o contrato desta obra</h3><p class="fin-sub" style="margin:0">A proposta foi ganha: lance os dados do contrato (nº, assinatura, ordem de serviço, prazo, vigência, valor, garantia, fiscal). Depois de criado, a aba <b>Medição</b> aparece.</p></div>${pode('obras')&&!ehExt()?'<button type="button" class="fin-bt pri" data-hc="criar">Criar o contrato</button>':''}</div>`;
+    else{
+      sc.innerHTML=cabecalho(ob)+'<div id="hub-contrato"></div><div id="hub-aditivos"></div>';
       const box=sc.querySelector('#hub-contrato');
       try{Eng.renderContrato(box,ob);}catch(e){console.error(e);}
-      // o cabeçalho e os indicadores da ficha repetiam o que já está acima
       const fw=box.querySelector('.fin-wrap');
-      if(fw){fw.querySelector(':scope > div:first-child [data-ct="voltar"]')?.closest('div')?.remove();fw.querySelector(':scope > .fin-cab')?.remove();fw.querySelector(':scope > .fin-kpis')?.remove();}
-      box.querySelectorAll('[data-ct="painel"]').forEach(b=>b.remove());
-      // os avisos do contrato entram na mesma lista "O que pede decisão agora" (um lugar só para agir)
-      const cards=[...sc.querySelectorAll('.op-card')],dec=cards.find(c=>/O que pede decisão/.test((c.querySelector('h4')||{}).textContent||'')),av=[...box.querySelectorAll('.op-card')].find(c=>/O que pede ação neste contrato/.test((c.querySelector('h4')||{}).textContent||''));
-      if(dec&&av){const ul=dec.querySelector('ul');if(ul){av.querySelectorAll('li').forEach(li=>ul.appendChild(li));av.remove();}}
+      if(fw){fw.querySelector('[data-ct="voltar"]')?.closest('div')?.remove();fw.querySelector(':scope > .fin-cab')?.remove();fw.querySelector(':scope > .fin-kpis')?.remove();
+        // ações do plano não são do contrato
+        [...fw.querySelectorAll(':scope > .fin-card')].forEach(c=>{const h=c.querySelector('h3');if(h&&/^Ações abertas/.test(h.textContent))c.remove();});}
+      box.querySelectorAll('[data-ct="painel"],[data-ct="acao"],[data-ct="planejamento"]').forEach(b=>b.remove());
       box.addEventListener('click',ev=>{const b=ev.target.closest('[data-ct="editar"]');if(b){ev.stopPropagation();ev.preventDefault();editarDadosObra(ob);}},true);
+      try{sc.querySelector('#hub-aditivos').innerHTML=Eng.aditivosCard(ob);}catch(e){}
     }
-    sc.addEventListener('click',ev=>{const b=ev.target.closest('[data-hc="editar"]');if(b){ev.stopPropagation();editarDadosObra(ob);}},true);
+    sc.addEventListener('click',ev=>{
+      const b=ev.target.closest('[data-hc],[data-me]');if(!b)return;
+      const a=b.dataset.hc||b.dataset.me;ev.stopPropagation();
+      if(a==='editar'||a==='criar')return editarDadosObra(ob);
+      if(a==='proposta')return editarProposta(ob);
+      if(a==='adt-novo')return Eng.editarAditivo(null,ob);
+      if(a==='adt-editar'||a==='adt-excluir'){const ad=(Eng.aditivosDaObra(ob)||[])[+b.dataset.a];if(ad)(a==='adt-editar'?Eng.editarAditivo(ad):Eng.excluirAditivo(ad));}
+    },true);
+    // a aba Medição aparece/some conforme o contrato existe
+    try{UI._obraHubRenderTabs();}catch(e){}
   };
   UI._obraHubBuildResumoNovo=Eng.hubContrato;
 
@@ -15884,23 +15981,19 @@ const Mascara=(function(){
     const dat=(k,v)=>`<input type="date" data-k="${k}" value="${fe(iso(v))}">`;
     const valorAss=val(c.valor_contrato)||rm.base||0;
     const corpo=`<div class="fin-linha">
-      <div class="hc-sec">Situação e identificação</div>
-      ${fld('Fase da obra <span class="obg">*</span>',sel('fase',FASES.map(f=>f[0]),st))}
+      <div class="hc-sec">Identificação</div>
       ${fld('Nº do contrato',inp('numero',g(['numero_contrato','num_contrato','n_contrato'])))}
       ${fld('Contratante',inp('contratante',c.contratante||'EMBASA'))}
       ${fld('CNPJ do contratante',inp('cnpj_contratante',c.cnpj_contratante,' data-mask="cnpj" inputmode="numeric" placeholder="00.000.000/0000-00"'))}
       ${fld('Modalidade da licitação',sel('modalidade',MODAL,c.modalidade))}
       ${fld('Nº da licitação / processo',inp('numero_licitacao',c.numero_licitacao))}
       ${fld('Objeto do contrato (descrição da obra)',`<textarea data-k="objeto" rows="2">${fe(g(['descricao'])||c.objeto||'')}</textarea>`,1)}
-      <div class="hc-sec" data-sec-prop>Proposta</div>
-      ${fld('Limite de entrega da proposta',dat('limite',g(['limite_proposta'])))}
-      ${fld('Proposta enviada em',dat('envio',g(['envio_proposta'])))}
       <div class="hc-sec">Prazos</div>
       ${fld('Assinatura do contrato',dat('data_assinatura',c.data_assinatura))}
       ${fld('Ordem de serviço (início)',dat('os',g(['inicio_obra','data_inicio'])||g(['liberacao_obra'])))}
       ${fld('Prazo de execução (dias)',inp('prazo',pz,' inputmode="numeric" placeholder="Ex.: 240"'))}
       ${fld('Fim da vigência do contrato',dat('vigencia_fim',c.vigencia_fim))}
-      ${fld('Entrega da obra (término real)',dat('entrega',g(['termino_ocorrido','data_termino_ocorrido'])))}
+      ${/finalizada/i.test(st)?fld('Entrega da obra (término real)',dat('entrega',g(['termino_ocorrido','data_termino_ocorrido']))):''}
       <div class="hc-calc" data-calc></div>
       <div class="hc-sec">Valor, reajuste e garantia</div>
       ${fld('Valor assinado (R$)',`<input data-k="valor_contrato" data-mask="moeda" inputmode="numeric" value="${valorAss?fmt(valorAss):''}" placeholder="R$ 0,00">`+(rm.base&&!val(c.valor_contrato)?'<div class="capx-dica">Preenchido com o total do orçamento da obra.</div>':''))}
@@ -15916,10 +16009,10 @@ const Mascara=(function(){
       ${fld('Preposto / encarregado na obra',inp('preposto',c.preposto))}
       ${fld('Observações',`<textarea data-k="observacoes" rows="2">${fe(c.observacoes||'')}</textarea>`,1)}
     </div>`;
-    const j=janela('Dados da obra e do contrato — '+ob,corpo,[{html:'Cancelar'},{html:'<i class="fas fa-floppy-disk"></i> Salvar',cls:'pri',acao:async jj=>{
+    // a fase não se escolhe aqui: ela muda arrastando o cartão no quadro de Contratos
+    const j=janela('Dados do contrato — '+ob,corpo,[{html:'Cancelar'},{html:'<i class="fas fa-floppy-disk"></i> Salvar',cls:'pri',acao:async jj=>{
       const v=k=>String((jj.querySelector(`[data-k="${k}"]`)||{}).value||'').trim();
-      const fase=v('fase'),os=v('os'),pzN=v('prazo').replace(/\D/g,''),entrega=v('entrega'),num=v('numero');
-      if(!fase)throw new Error('Escolha a fase da obra.');
+      const fase=st,os=v('os'),pzN=v('prazo').replace(/\D/g,''),entrega=jj.querySelector('[data-k="entrega"]')?v('entrega'):g(['termino_ocorrido','data_termino_ocorrido']),num=v('numero');
       if(/andamento|finalizada/i.test(fase)&&!os)throw new Error('Obra em execução ou entregue precisa da data da ordem de serviço.');
       if(/finalizada/i.test(fase)&&!entrega)throw new Error('Informe a data de entrega da obra.');
       if(entrega&&os&&entrega<os)throw new Error('A entrega não pode ser antes da ordem de serviço.');
@@ -15931,7 +16024,6 @@ const Mascara=(function(){
       o2[K(['descricao'],'descricao')]=v('objeto');
       o2[K(['numero_contrato','num_contrato','n_contrato'],'numero_contrato')]=num;
       if(num)o2[K(['obra_com_ct','com_ct','possui_contrato'],'obra_com_ct')]='Sim';
-      o2[K(['limite_proposta'],'limite_proposta')]=v('limite');o2[K(['envio_proposta'],'envio_proposta')]=v('envio');
       o2[K(['inicio_obra','data_inicio'],'inicio_obra')]=os;if(Object.keys(o).some(k=>k.includes('liberacao'))||os)o2[K(['liberacao_obra','liberacao'],'liberacao_obra')]=os;
       o2[K(['prazo_contratual'],'prazo_contratual')]=pzN;o2[K(['duracao_prevista'],'duracao_prevista')]=pzN;
       if(os&&pzN)o2[K(['termino_previsto','data_termino_previsto'],'termino_previsto')]=isoDe(addD(dt(os),+pzN));
@@ -15942,12 +16034,11 @@ const Mascara=(function(){
       ct.valor_contrato=ct.valor_contrato?dinheiro(Mascara.numero(ct.valor_contrato)||0):'';
       ct.garantia_pct=ct.garantia_pct?String(Mascara.numero(ct.garantia_pct)||'').replace('.',','):'';
       if(!temCt)ct.data_lancamento=todayDateTime();
-      const algoDoContrato=CT_CAMPOS.some(k=>k!=='contratante'&&ct[k]);
-      await executar(async()=>{await salvar('Obras',o2,o.rowid);if(temCt||algoDoContrato)await salvar('Contratos',ct,temCt?c.rowid:null);});
-      toast('Dados da obra e do contrato salvos.','success');}}],820);
-    // proposta só interessa antes de ganhar; término previsto calculado na hora
-    const atualiza=()=>{const f=(j.querySelector('[data-k="fase"]')||{}).value||'',prop=!/ganha|perdida/i.test(f);
-      j.querySelectorAll('[data-sec-prop]').forEach(x=>x.hidden=!prop);['limite','envio'].forEach(k=>{const e=j.querySelector(`[data-k="${k}"]`);if(e)e.closest('.fin-fld').hidden=!prop;});
+      // salvar aqui CRIA o contrato da obra (é a partir dele que a aba Medição aparece)
+      await executar(async()=>{await salvar('Obras',o2,o.rowid);await salvar('Contratos',ct,temCt?c.rowid:null);});
+      toast(temCt?'Dados do contrato salvos.':'Contrato criado — a aba Medição já está disponível.','success');}}],820);
+    // término previsto calculado na hora
+    const atualiza=()=>{
       const os=j.querySelector('[data-k="os"]').value,p=+j.querySelector('[data-k="prazo"]').value.replace(/\D/g,'')||0,cc=j.querySelector('[data-calc]');
       cc.innerHTML=os&&p?`Término previsto = OS + prazo = <b>${brDe(addD(dt(os),p))}</b>${Eng.aditivosDaObra&&Eng.aditivosDaObra(ob).some(a=>a.novo_termino)?' · os aditivos de prazo prorrogam essa data':''}`:'O término previsto é calculado: ordem de serviço + prazo de execução.';};
     j.oninput=atualiza;j.onchange=atualiza;atualiza();
@@ -15957,19 +16048,22 @@ const Mascara=(function(){
   /* obra nova: confirmado o nome, a obra já é criada (fase "Proposta em preparação") e abre na
      aba Contrato com o formulário único — não existe mais a aba "Obra" separada */
   UI._obraHubConfirmarNome=function(){
-    const el=document.getElementById('obra-nome-novo');
+    const el=document.getElementById('obra-nome-novo'),lim=document.getElementById('obra-limite-novo');
     const prefix=el?(el.getAttribute('data-prefix')||''):'';
     let suf=(el?el.value:'').trim();if(suf.length)suf=suf.charAt(0).toUpperCase()+suf.slice(1);
     if(!this._obraSufixoValido(suf)){if(el){el.classList.add('err');el.value=suf;el.focus();}toast('Escreva pelo menos 5 caracteres após o " - ".','error');return;}
+    // proposta nova: o limite de entrega é obrigatório e fica no cartão do quadro
+    const limite=lim?lim.value:'';
+    if(!limite){if(lim){lim.classList.add('err');lim.focus();}toast('Informe o limite de entrega da proposta.','error');return;}
     const nome=prefix+suf;
     if((D().obras||[]).some(o=>cn(Eng.nomeObra(o))===cn(nome)))return toast('Já existe uma obra com esse nome.','error');
     (async()=>{
-      try{await executar(()=>salvar('Obras',{[U.col('obras',['titulo_obra'],'titulo_obra')]:nome,[U.col('obras',['status_proposta','status_obra','status'],'status_proposta')]:'Não Enviada',data_lancamento:todayDateTime()},null));}
+      try{await executar(()=>salvar('Obras',{[U.col('obras',['titulo_obra'],'titulo_obra')]:nome,[U.col('obras',['status_proposta','status_obra','status'],'status_proposta')]:'Não Enviada',[U.col('obras',['limite_proposta'],'limite_proposta')]:limite,data_lancamento:todayDateTime()},null));}
       catch(e){return toast(e.message||String(e),'error');}
       const o=(D().obras||[]).find(x=>Eng.nomeObra(x)===nome);
       UI.closeModal('modal-editor');
-      if(o){UI.openObraHub(o.rowid);setTimeout(()=>editarDadosObra(nome),250);}
-      toast('Obra criada — preencha os dados do contrato.','success');
+      if(o)UI.openObraHub(o.rowid);   // abre no Orçamento: a proposta começa por ele
+      toast('Proposta criada — monte o orçamento.','success');
     })();
   };
 
@@ -16641,6 +16735,66 @@ const Mascara=(function(){
     return j;
   }
   Eng.editarAditivo=editarAditivoQtd;
+})();
+</script>
+<!-- ═══════════════════ MEDIÇÃO DENTRO DO CONTRATO (aba da obra) · ABA CONTRATO ENXUTA ═══════════════════ -->
+<style>
+.hc-scroll{flex:1;overflow-y:auto;padding:16px 22px 28px;display:flex;flex-direction:column;gap:12px;}
+.hc-scroll>.hc-cab{margin:0;}
+.hc-criar{display:flex;align-items:center;gap:14px;flex-wrap:wrap;border:1px dashed #b2ccff;background:#F5F9FF;}
+.hc-criar>i{font-size:26px;color:#1652D8;}
+.hc-criar>div{flex:1;min-width:220px;}
+.hc-criar h3{margin:0 0 4px;}
+.hub-med{flex:1;overflow-y:auto;padding:10px 16px 24px;}
+.hub-med select[data-me="obra"]{display:none!important;}
+.eng-fotos button{position:relative;}
+.eng-fotos button .por{position:absolute;left:3px;bottom:3px;max-width:calc(100% - 6px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;background:rgba(0,0,0,.6);color:#fff;font:700 9.5px Inter,sans-serif;padding:1px 5px;border-radius:5px;}
+#nav-medicoes{display:none!important;}
+</style>
+<script>
+(function(){
+  /* ═══════════════ MEDIÇÃO: aba da obra (depois do contrato criado) ═══════════════
+     A tela de medições continua a mesma; ela passa a viver dentro da obra, na aba Medição.
+     O elemento #eng-medicoes é levado para a aba e devolvido ao lugar dele quando a aba ou a
+     obra é fechada (assim todo o código da medição continua funcionando igual). */
+  const casa=()=>document.querySelector('#view-medicoes .cards-scroll');
+  function devolver(){const b=document.getElementById('eng-medicoes'),c=casa();if(b&&c&&b.parentElement!==c)c.appendChild(b);}
+  Eng.hubMedicao=function(ob){
+    const form=document.getElementById('form-upsert'),box=document.getElementById('eng-medicoes');if(!form||!box)return;
+    form.removeAttribute('style');form.style.cssText='display:flex;flex-direction:column;padding:0;gap:0;overflow:hidden;grid-template-columns:unset;';
+    form.innerHTML='<div class="hub-med"></div>';form.firstChild.appendChild(box);
+    if(Eng._ME.edit&&Eng._ME.edit.obra!==ob)Eng._ME.edit=null;
+    Eng._ME.obra=ob;
+    try{Eng.renderMedicoes();}catch(e){console.error(e);}
+  };
+  const cache=UI._obraHubCacheTab;
+  UI._obraHubCacheTab=function(tab){
+    if(tab==='medicao'){devolver();const f=document.getElementById('form-upsert');if(f)f.innerHTML='';return;}
+    return cache.apply(this,arguments);
+  };
+  const fechar=UI.closeModal;
+  UI.closeModal=function(id){if(id==='modal-editor')devolver();return fechar.apply(this,arguments);};
+  const abrir=UI.openObraHub;
+  UI.openObraHub=function(){devolver();return abrir.apply(this,arguments);};
+  // dados recarregados (medição salva, nota emitida): a aba Medição se redesenha
+  const ra=App.renderAll;
+  App.renderAll=function(){
+    ra.apply(this,arguments);
+    try{const hub=App.state.obraHub;if(hub&&hub.tab==='medicao'&&document.getElementById('modal-editor')?.classList.contains('open')&&document.querySelector('#form-upsert #eng-medicoes'))Eng.renderMedicoes();}catch(e){console.error(e);}
+  };
+  // "Medições" deixou de ser tela do menu: quem chama a medição vai para a aba Medição da obra
+  function irParaMedicao(ob){
+    const o=(GS.D().obras||[]).find(x=>Eng.nomeObra(x)===ob);
+    if(!o){toast('Abra a obra no quadro de Contratos — a medição fica dentro dela (aba Medição).','error');return false;}
+    if(!Eng.temContrato(ob)){UI.openObraHub(o.rowid);setTimeout(()=>{try{UI._obraHubTab('contrato');}catch(e){}},120);toast('A medição aparece depois que o contrato da obra é criado.','error');return true;}
+    UI.openObraHub(o.rowid);setTimeout(()=>{try{UI._obraHubTab('medicao');}catch(e){}},120);return true;
+  }
+  const nav=UI.nav;
+  UI.nav=function(v){
+    if(v==='medicoes'){const ob=Eng._ME&&Eng._ME.obra;if(ob&&irParaMedicao(ob))return;v='obras';}
+    return nav.call(this,v);
+  };
+  Eng.irParaMedicao=irParaMedicao;
 })();
 </script>
 </body>
