@@ -12592,7 +12592,7 @@ const Eng=(function(){
     {k:'vigencia_fim',label:'Fim da vigência',tipo:'data'},
     {k:'data_base',label:'Data-base do orçamento (reajuste)',tipo:'data'},
     {k:'indice_reajuste',label:'Índice de reajuste',tipo:'sel',ops:['INCC-DI (FGV)','IPCA (IBGE)','Índice da contratante','Sem reajuste previsto']},
-    {k:'garantia_tipo',label:'Garantia contratual',tipo:'sel',ops:['Seguro-garantia','Caução em dinheiro','Fiança bancária','Não exigida']},
+    {k:'garantia_tipo',label:'Garantia contratual',tipo:'sel',ops:['Seguro-garantia','Caução em dinheiro','Fiança bancária','Retenção em medição','Não exigida']},
     {k:'garantia_pct',label:'Garantia (% do contrato)',tipo:'num',ph:'Ex.: 5'},
     {k:'garantia_validade',label:'Validade da garantia',tipo:'data'},
     {k:'fiscal',label:'Fiscal do contrato'},
@@ -14757,11 +14757,15 @@ const Mascara=(function(){
     if(!dig||(dig.length<ant.length&&parseInt(dig,10)===0)){el.value=neg?'-':'';el.dataset.digAnt='';return;}
     const v=parseInt(dig,10)/100;el.value=brl(neg?-v:v);el.dataset.digAnt=so(el.value);
   }
-  function aplicar(el){const m=el.dataset.mask;if(m==='moeda')return digitarMoeda(el);if(F[m])el.value=F[m](el.value);}
+  // percentual: igual ao dinheiro, os números entram pela direita (2 casas): digitar 350 vira 3,50
+  const fmtPct=n=>n.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+  function digitarPct(el){const dig=so(el.value).replace(/^0+(?=\d)/,'').slice(0,5);if(!dig||parseInt(dig,10)===0){el.value='';return;}el.value=fmtPct(parseInt(dig,10)/100);}
+  function aplicar(el){const m=el.dataset.mask;if(m==='moeda')return digitarMoeda(el);if(m==='pct')return digitarPct(el);if(F[m])el.value=F[m](el.value);}
   // formata o valor que já veio preenchido (sem tratar como digitação)
   function formatarInicial(el){
     const m=el.dataset.mask,v=el.value;if(!v)return;
     if(m==='moeda'){if(/R\$/.test(v))return;const n=numero(v);if(n==null)return;el.value=brl(n);el.dataset.digAnt=so(el.value);}
+    else if(m==='pct'){const n=numero(v);if(n==null)return;el.value=fmtPct(n);}
     else if(F[m])el.value=F[m](v);
   }
   // reconhece pelo nome do campo e pelo rótulo
@@ -14780,8 +14784,10 @@ const Mascara=(function(){
     else if(/telefone|celular|whats|\bfone\b|tel_|\btel\b/i.test(k)||/^\(\d{2}\)\s?\d/.test(ph))m='tel';
     else if(/\bcep\b/i.test(k))m='cep';
     else if(/\(R\$\)/.test(lab)||/^R\$/.test(ph))m='moeda';
+    else if(/%/.test(lab)||/\bpct\b|_pct|pct_|percent|aliquota/i.test(k))m='pct';
     if(!m)return;
-    el.dataset.mask=m;if(!el.getAttribute('inputmode')&&!(m==='moeda'&&el.dataset.neg))el.setAttribute('inputmode',m==='moeda'?'numeric':m==='email'?'email':'tel');
+    el.dataset.mask=m;if(m==='pct'){el.setAttribute('inputmode','numeric');if(!el.getAttribute('placeholder')||/^Ex\.?:?\s*\d+$/i.test(el.getAttribute('placeholder')))el.setAttribute('placeholder','0,00');}
+    else if(!el.getAttribute('inputmode')&&!(m==='moeda'&&el.dataset.neg))el.setAttribute('inputmode',m==='moeda'?'numeric':m==='email'?'email':'tel');
     if(m==='email'){el.setAttribute('autocapitalize','off');el.setAttribute('spellcheck','false');}
   }
   function preparar(raiz){(raiz.querySelectorAll?raiz:document).querySelectorAll('input').forEach(el=>{detectar(el);if(el.dataset.mask&&!el.dataset.mascarado){el.dataset.mascarado='1';formatarInicial(el);}});}
@@ -15997,7 +16003,7 @@ const Mascara=(function(){
   const CT_CAMPOS=['contratante','cnpj_contratante','modalidade','numero_licitacao','data_assinatura','valor_contrato','vigencia_fim','data_base','indice_reajuste','garantia_tipo','garantia_pct','garantia_validade','fiscal','fiscal_contato','responsavel_tecnico','preposto','observacoes'];
   const MODAL=['Licitação (Lei 13.303 — estatais)','Concorrência (Lei 14.133)','Pregão','Dispensa / contratação direta','Contrato privado'];
   const INDICES=['INCC-DI (FGV)','IPCA (IBGE)','Índice da contratante','Sem reajuste previsto'];
-  const GARANTIAS=['Seguro-garantia','Caução em dinheiro','Fiança bancária','Não exigida'];
+  const GARANTIAS=['Seguro-garantia','Caução em dinheiro','Fiança bancária','Retenção em medição','Não exigida'];
   function editarDadosObra(ob){
     const o=obraDe(ob);if(!o)return toast('Obra não encontrada.','error');
     const c=(Eng.contratoDe&&Eng.contratoDe(ob))||{},rm=(()=>{try{return Eng.resumoMedicoes(ob);}catch(e){return {};}})(),orc=Eng.baseDaObra?Eng.baseDaObra(ob):null;
@@ -17254,6 +17260,18 @@ const Mascara=(function(){
 @media (max-width:900px){.cc-kpis{grid-template-columns:repeat(2,minmax(0,1fr));}.mcc-forn{grid-template-columns:1fr;}.mcc-res{grid-template-columns:repeat(2,minmax(0,1fr));}.cc-cid input{width:150px;}}
 /* CAP v2: quadros do topo, formação do preço, linhas antigas, fornecedor no mapa */
 .cc-oculto{display:none!important;}
+.cc-lserv{max-height:620px;overflow:auto;border:1px solid #EEF1F6;border-radius:14px;margin-top:8px;}
+.cc-lserv thead th{position:sticky;top:0;z-index:1;}
+.cc-lserv tfoot td{position:sticky;bottom:0;background:#F8FAFD;font-weight:800;border-top:1px solid #E4E9F2;}
+.cc-precisa{margin-top:12px;}
+.cc-pr{padding:6px 12px 12px;max-height:560px;overflow:auto;}
+.cc-pr-s{padding:8px 0;border-bottom:1px solid #EEF1F6;}
+.cc-pr-h{display:flex;flex-wrap:wrap;justify-content:space-between;gap:4px 12px;font-size:12.5px;color:var(--text-1);}
+.cc-pr-h span{color:#667085;font-size:12px;}
+.cc-pr table{width:100%;border-collapse:collapse;font-size:11.5px;margin-top:4px;table-layout:fixed;}
+.cc-pr td:nth-child(2){width:130px;}.cc-pr td:nth-child(3){width:100px;}.cc-pr td:nth-child(4){width:110px;}
+.cc-pr td{padding:3px 6px;border-top:1px dashed #EEF1F6;color:#344054;}
+.cc-pr td.n{text-align:right;white-space:nowrap;}
 #cap-scroll-body .capx-n:empty,#cap-scroll-body .capx-pctb:empty{display:none!important;}
 input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
 #cap-tbl-A th:nth-child(2),#cap-tbl-A td:nth-child(2),#cap-tbl-C th:nth-child(2),#cap-tbl-C td:nth-child(2){display:none;}
@@ -17306,6 +17324,7 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
 @media (max-width:1000px){.fp-grade{grid-template-columns:1fr;}.fp-res>i{display:none;}}
 .mcc-st{margin-top:8px;display:flex;flex-direction:column;gap:5px;font-size:11.5px;line-height:1.4;}
 .mcc-st span{border-radius:8px;padding:5px 8px;}
+.mcc-blq{background:#FEF3F2;color:#B42318;}
 .mcc-ok{background:#ECFDF3;color:#067647;} .mcc-novo{background:#EEF4FF;color:#1652D8;} .mcc-dup{background:#FFFAEB;color:#B54708;} .mcc-st .mcc-cinza{color:#98A2B3;padding:0;}
 .mcc-usar{border:0;background:#fff;color:#B54708;font:700 11px Inter,sans-serif;border-radius:6px;padding:1px 7px;cursor:pointer;text-decoration:underline;}
 </style>
@@ -17543,25 +17562,17 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
   /* ═══════════════ SERVIÇOS DO ORÇAMENTO, NA MESMA DIVISÃO DO CRONOGRAMA ═══════════════ */
   const chaveServ=(desc,un)=>nrm(desc).replace(/[^A-Z0-9]+/g,' ').trim().slice(0,160)+'|'+unid(un);
   const numItem=mc=>{const s=String(mc==null?'':mc).trim();return /^\d{1,3}(\.\d{1,3}){0,3}$/.test(s)&&!/^\d{2}\.\d{2}\.\d{2}\.\d{3,}$/.test(s)?s:'';};
+  // serviços do orçamento na ordem do próprio orçamento (sem agrupar em categorias); repetidos se unem
   function servicosDaObra(ob){
     const orc=Eng.baseDaObra&&Eng.baseDaObra(ob);if(!orc)return null;
-    const its=Eng.itensVigentes(ob,orc).filter(x=>!x.fora&&x.qtd_contrato>0);if(!its.length)return {grupos:[],servs:[]};
-    const brutos=Array.isArray(orc.itens)?orc.itens:[];
-    let grupos=[];
-    try{const K=UI._etapasK();
-      const ets=(D().etapas||[]).filter(e=>(e[K.obra]||getFuzzy(e,['titulo_obra']))===ob&&Array.isArray(e.itens_orc)&&e.itens_orc.length)
-        .sort((a,b)=>(+a.ordem||999)-(+b.ordem||999)||((dt(a[K.ini])||0)-(dt(b[K.ini])||0)));
-      if(ets.length)grupos=ets.map(e=>({nome:e[K.nome]||getFuzzy(e,['nome_etapa','nome'])||'Etapa',ch:new Set(e.itens_orc)}));}catch(e){}
-    if(!grupos.length){try{const pr=Eng.propostaPlano(ob);if(pr&&pr.linhas)grupos=pr.linhas.map(l=>({nome:l.nome,ch:new Set(l.itens||[])}));}catch(e){}}
-    const G=grupos.map(g=>({nome:g.nome,servs:[],m:new Map()})),fora={nome:'Outros itens do orçamento',servs:[],m:new Map()};
+    const its=Eng.itensVigentes(ob,orc).filter(x=>!x.fora&&x.qtd_contrato>0);
+    const brutos=Array.isArray(orc.itens)?orc.itens:[],m=new Map(),servs=[];
     its.forEach(x=>{
-      const gi=grupos.findIndex(g=>g.ch.has(x.chave)),g=gi>=0?G[gi]:fora;
       const raw=x.novo?{}:(brutos[x.item-1]||{}),k=chaveServ(x.descricao,x.unidade),kk=k+'#'+cn(x.codigo);
-      const y=g.m.get(kk);if(y){y.qtd+=+x.qtd_contrato||0;y.chaves.push(x.chave);return;}
+      const y=m.get(kk);if(y){y.qtd+=+x.qtd_contrato||0;y.chaves.push(x.chave);return;}
       const sv={k,num:numItem(raw.mc),cod:x.codigo||'',desc:x.descricao||'',un:x.unidade||'',qtd:+x.qtd_contrato||0,chaves:[x.chave],adt:!!x.novo};
-      g.m.set(kk,sv);g.servs.push(sv);});
-    const out=G.concat([fora]).filter(g=>g.servs.length);
-    return {grupos:out,servs:out.flatMap(g=>g.servs)};
+      m.set(kk,sv);servs.push(sv);});
+    return {grupos:[{nome:'',servs}],servs};
   }
 
   /* ═══════════════ ESTADO DA COMPOSIÇÃO (por obra; gravado no próprio CAP, linha "bloco X") ═══════════════
@@ -17650,7 +17661,7 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
       <div style="margin-top:6px"><button type="button" class="fin-bt mini" data-cc="trocar"><i class="fas fa-right-left"></i> Trocar a composição</button></div></td></tr>`;};
   function htmlComp(){
     const res=ST.res,S=SN.S,cid=ST.meta.cidade||'';
-    const cab=`<div class="cc-cab"><div><h4><i class="fas fa-layer-group"></i>Serviços do orçamento e seus materiais</h4><p>Montado sozinho pelo <b>orçamento</b>, na mesma divisão do cronograma. Clique num serviço para ver os <b>materiais</b> que ele consome: quantidade do orçamento × consumo da composição oficial (SINAPI). Mão de obra e equipamentos ficam nos quadros do topo, para a obra toda. O preço do orçamento não entra.</p></div>
+    const cab=`<div class="cc-cab"><div><h4><i class="fas fa-layer-group"></i>Serviços do orçamento e seus materiais</h4><p>Os serviços do <b>orçamento</b>, na ordem dele. Clique num serviço para ver os <b>materiais</b> que ele consome: quantidade do orçamento × consumo da composição oficial (SINAPI). Mão de obra e equipamentos ficam nos quadros do topo, para a obra toda. O preço do orçamento não entra.</p></div>
       <div class="cc-ferr"><label class="cc-cid" title="Cidade do preço médio de mercado"><i class="fas fa-location-dot"></i><input id="cc-cidade" placeholder="Cidade, UF — ex.: Itarantim, BA" value="${fe(cid)}"></label>
         <span class="cc-fonte">${S?`<i class="fas fa-tags"></i> SINAPI Bahia <b>${refTxt(S)}</b> · publicado ${fe(S.emissao||'')}`:'<i class="fas fa-tags"></i> tabela de preços'}</span>
         <button type="button" class="fin-bt mini" data-cc="atualizar" title="Busca a tabela de preços mais recente e as últimas cotações da cidade"><i class="fas fa-rotate"></i> Atualizar preços</button></div></div>`;
@@ -17664,11 +17675,11 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
       <div class="cc-k"><small>Itens a comprar</small><b>${res.lista.size}</b><span>na lista de compras</span></div>
       <div class="cc-k ${conf?'at':'ok'}"><small>Para conferir</small><b>${conf}</b><span>${conf?'selos amarelos e vermelhos':'tudo com composição'}</span></div></div>`;
     const av=conf?`<div class="cc-aviso"><span><b>${conf} serviço${conf>1?'s':''} para conferir:</b> ${n.sem?`${n.sem} sem composição (selo vermelho) e `:''}${n.conf} com composição achada pela busca automática com pouca certeza (selo amarelo). Clique no selo e escolha a composição certa — a escolha fica guardada e serve para as próximas obras.</span></div>`:'';
-    const grs=res.grupos.map((g,gi)=>{const ab=ST.grAbertos.has(g.nome)||(res.grupos.length<=2&&!ST.grAbertos.has('#fechou#'+g.nome));
-      return `<details class="cc-grupo" data-g="${gi}"${ab?' open':''}><summary><i class="fas fa-chevron-right seta"></i><span class="nm">${fe(g.nome)}</span><span class="vl">${g.servs.length} serviço${g.servs.length>1?'s':''} · materiais <b>${fmt(g.vM)}</b></span></summary>
-        <div class="cc-rolar"><table class="cc-tab s"><thead><tr><th>Serviço</th><th>Un.</th><th class="n">Quant.</th><th>Composição</th><th class="n">Materiais</th></tr></thead><tbody>
-        ${g.servs.map((sv,si)=>{const id=gi+'.'+si,on=ST.abertos.has(sv.k+'#'+gi);return `<tr class="cc-serv${on?' on':''}" data-s="${id}"><td class="d"><i class="fas fa-chevron-right seta"></i>${sv.num?`<b>${fe(sv.num)}</b>`:''}${fe(sv.desc)}${sv.adt?' <small style="color:#5925DC">(aditivo)</small>':''}</td><td>${fe(sv.un)}</td><td class="n">${fq(sv.qtd)}</td><td>${chip(sv)}</td><td class="n"><b>${sv.vM?fmt(sv.vM):'—'}</b></td></tr>${on?insHtml(sv,S):''}`;}).join('')}
-        </tbody></table></div></details>`;}).join('');
+    // só os serviços do orçamento (na ordem dele) e, ao abrir cada um, os materiais que o compõem
+    const lst=res.servs,totM=lst.reduce((s,x)=>s+x.vM,0);
+    const grs=`<div class="cc-rolar cc-lserv"><table class="cc-tab s"><thead><tr><th>Serviço do orçamento</th><th>Un.</th><th class="n">Quant.</th><th>Composição</th><th class="n">Materiais</th></tr></thead><tbody>
+        ${lst.map((sv,si)=>{const id='0.'+si,on=ST.abertos.has(sv.k+'#0');return `<tr class="cc-serv${on?' on':''}" data-s="${id}"><td class="d"><i class="fas fa-chevron-right seta"></i>${sv.num?`<b>${fe(sv.num)}</b>`:''}${fe(sv.desc)}${sv.adt?' <small style="color:#5925DC">(aditivo)</small>':''}</td><td>${fe(sv.un)}</td><td class="n">${fq(sv.qtd)}</td><td>${chip(sv)}</td><td class="n"><b>${sv.vM?fmt(sv.vM):'—'}</b></td></tr>${on?insHtml(sv,S):''}`;}).join('')}
+        </tbody><tfoot><tr><td colspan="4">Materiais dos ${lst.length} serviços</td><td class="n"><b>${fmt(totM)}</b></td></tr></tfoot></table></div>`;
     return cab+k+av+grs;
   }
   const FONTE_COR={cot:'#067647',cid:'#1652D8',sin:'#475467',nada:'#B42318'};
@@ -17690,12 +17701,19 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
     const m=calcMCC(L,mc,res.cid||mc.cidade);
     return `<div class="cc-mcc-st"><span><i class="fas fa-scale-balanced" style="color:#1652D8"></i> Mapa comparativo de <b>${brDe(dt(mc.data))||'—'}</b>${mc.cidade?` · ${fe(mc.cidade)}`:''}</span><span><b>${forn.length}</b> fornecedor${forn.length===1?'':'es'}</span><span><b>${cot.length}</b> de ${L.length} itens cotados</span><span>melhor compra <b>${fmt(m.melhor)}</b></span>${m.econ>0?`<span style="color:#067647">economia de <b>${fmt(m.econ)}</b> sobre o mercado</span>`:''}</div>`;
   }
+  // "O que cada serviço precisa": na própria lista de compras, para abrir e fechar (antes só no PDF)
+  function precisaHtml(res){
+    const com=res.servs.filter(sv=>sv.ins.length),sem=res.servs.length-com.length;if(!com.length)return '';
+    return `<details class="cc-grupo cc-precisa"${ST.precisaAberto?' open':''}><summary><i class="fas fa-chevron-right seta"></i><span class="nm">O que cada serviço precisa</span><span class="vl">${com.length} serviço${com.length>1?'s':''} com material${sem?` · ${sem} sem material`:''}</span></summary>
+      <div class="cc-pr">${com.map(sv=>`<div class="cc-pr-s"><div class="cc-pr-h"><b>${sv.num?fe(sv.num)+' ':''}${fe(sv.desc)}</b><span>${fq(sv.qtd)} ${fe(sv.un)} · materiais <b>${fmt(sv.vM)}</b></span></div>
+        <table><tbody>${sv.ins.slice().sort((a,b)=>b.v-a.v).map(x=>`<tr><td>${fe(x.d)}</td><td class="n">${fq(x.q,2)} ${fe(x.u)}</td><td class="n">${x.p?fmt(x.p):'—'}</td><td class="n"><b>${fmt(x.v)}</b></td></tr>`).join('')}</tbody></table></div>`).join('')}</div></details>`;
+  }
   function htmlLista(){
     const res=ST.res;if(!res||res.semOrc||!res.lista||!res.lista.size)return '';
     const L=[...res.lista.values()],cid=res.cid;
     return `<div class="cc-cab"><div><h4><i class="fas fa-cart-shopping" style="background:#12B76A"></i>Lista de compras — materiais</h4><p>Todos os materiais que a obra precisa comprar, somados de todos os serviços${cid?`, com o preço médio de mercado em <b>${fe(cid)}</b>`:' (informe a cidade para o preço médio da cidade)'}. Fonte do preço, nesta ordem: <span style="color:#067647">cotação desta obra</span> → <span style="color:#1652D8">média das cotações da cidade</span> → SINAPI Bahia do mês mais recente.</p></div>
       <div class="cc-ferr"><button type="button" class="fin-bt pri" data-cc="mcc"><i class="fas fa-scale-balanced"></i> Mapa comparativo (MCC)</button><button type="button" class="fin-bt" data-cc="csv"><i class="fas fa-file-csv"></i> Planilha</button><button type="button" class="fin-bt" data-cc="pdf"><i class="fas fa-file-pdf"></i> PDF</button></div></div>
-      ${resumoMCC()}${tabelaLista(L)}`;
+      ${resumoMCC()}${tabelaLista(L)}${precisaHtml(res)}`;
   }
   function pintar(){fecharDrop();
     const a=document.getElementById('cc-comp'),b=document.getElementById('cc-lista');if(!a)return;
@@ -17813,7 +17831,9 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
     const cad=fornPorNome(f.nome),dup=fornPorTel(f.tel,f.nome);let h='';
     if(cad)h+=`<span class="mcc-ok"><i class="fas fa-circle-check"></i> Já cadastrado${cad.cidade?' · '+fe(cad.cidade):''}</span>`;
     else h+=`<span class="mcc-novo"><i class="fas fa-user-plus"></i> Fornecedor novo: entra no cadastro ao salvar o mapa${telN(f.tel).length<10?' — informe o telefone':''}</span>`;
-    if(dup.length)h+=`<span class="mcc-dup"><i class="fas fa-triangle-exclamation"></i> Este telefone já é de <b>${dup.slice(0,2).map(x=>fe(x.nome)).join(', ')}</b>, no cadastro. Se for o mesmo fornecedor, <button type="button" class="mcc-usar" data-usar="${fe(dup[0].nome)}">usar ${fe(dup[0].nome)}</button>; se não for, pode cadastrar assim mesmo.</span>`;
+    if(dup.length){const nomes=dup.slice(0,2).map(x=>fe(x.nome)).join(', ');
+      h+=cad?`<span class="mcc-dup"><i class="fas fa-triangle-exclamation"></i> Este telefone está no cadastro de <b>${nomes}</b> — confira o número.</span>`
+        :`<span class="mcc-blq"><i class="fas fa-ban"></i> Este telefone já está cadastrado para <b>${nomes}</b>: não é possível cadastrar outro fornecedor com o mesmo número. <button type="button" class="mcc-usar" data-usar="${fe(dup[0].nome)}">usar ${fe(dup[0].nome)}</button> ou corrija o telefone.</span>`;}
     return h;
   }
   function calcMCC(L,mc,cid){
@@ -17836,7 +17856,7 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
     const forn=mc.forn.map((f,i)=>`<div><h5>Fornecedor ${i+1}</h5><input data-fo="${i}" data-c="nome" list="vx-forn-lista" autocomplete="off" placeholder="Nome do fornecedor" value="${fe(f.nome||'')}">
       <div class="g2"><div><label>Telefone / WhatsApp</label><input data-fo="${i}" data-c="tel" data-mask="tel" inputmode="tel" placeholder="(77) 99999-9999" value="${fe(fmtTel(f.tel||''))}"></div><div><label>Pessoa de contato</label><input data-fo="${i}" data-c="contato" value="${fe(f.contato||'')}"></div>
       <div><label>Prazo de entrega</label><input data-fo="${i}" data-c="prazo" placeholder="Ex.: 5 dias" value="${fe(f.prazo||'')}"></div><div><label>Pagamento</label><input data-fo="${i}" data-c="pagto" placeholder="Ex.: 30 dias" value="${fe(f.pagto||'')}"></div>
-      <div><label>Frete (R$)</label><input data-fo="${i}" data-c="frete" data-mask="moeda" inputmode="numeric" placeholder="R$ 0,00" value="${f.frete?fe(f.frete):''}"></div></div>
+      <div><label>Cidade</label><input data-fo="${i}" data-c="cidade" autocomplete="off" placeholder="Ex.: Itarantim, BA" value="${fe(f.cidade||'')}"></div><div><label>Frete (R$)</label><input data-fo="${i}" data-c="frete" data-mask="moeda" inputmode="numeric" placeholder="R$ 0,00" value="${f.frete?fe(f.frete):''}"></div></div>
       <div class="mcc-st" data-st="${i}"></div></div>`).join('');
     const pv=v=>v>0?v.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}):'';
     const linhas=L.map((x,i)=>{const q=compra(x),ps=mc.p[x.key]||[];return `<tr data-k="${fe(x.key)}" data-q="${q}" data-m="${(x.merc&&x.merc.p)||0}"><td class="l" style="color:#98A2B3">${i+1}</td><td class="l">${fe(x.d)}${x.cod?` <small style="color:#98A2B3">${fe(x.cod)}</small>`:''}</td><td class="l">${fe(x.u)}</td><td>${fq(q,2)}</td>
@@ -17854,7 +17874,11 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
     const j=janela('Mapa comparativo de preços (MCC) — '+(ST.ob||''),corpo,[{html:'<i class="fas fa-floppy-disk"></i> Salvar o mapa',cls:'pri',acao:async jj=>{
       const m=lerMCC(jj),vistos=new Set();
       const novos=m.forn.filter(f=>{const k=cn(f.nome);if(!k||vistos.has(k)||fornPorNome(f.nome))return false;vistos.add(k);return true;});
-      for(const f of novos)await Fin.util.salvar('Fornecedores',{nome:f.nome,tipo:'Material de construção',contato:f.contato||'',telefone:fmtTel(f.tel||''),cidade:m.cidade||'',situacao:'Ativo',observacao:'Cadastrado pelo mapa comparativo da obra '+(ST.ob||''),data_lancamento:todayDateTime()});
+      // fornecedor novo: telefone com DDD obrigatório e que não seja de outro fornecedor do cadastro (nem de outro novo deste mapa)
+      novos.forEach((f,a)=>{if(telN(f.tel).length<10)throw new Error(`Informe o telefone com DDD do fornecedor novo "${f.nome}".`);
+        const d=fornPorTel(f.tel,f.nome);if(d.length)throw new Error(`O telefone de "${f.nome}" já está cadastrado para "${d[0].nome}": não é possível cadastrar outro fornecedor com o mesmo número.`);
+        novos.forEach((g,b)=>{if(b>a&&mesmoTel(f.tel,g.tel))throw new Error(`"${f.nome}" e "${g.nome}" estão com o mesmo telefone: corrija um deles.`);});});
+      for(const f of novos)await Fin.util.salvar('Fornecedores',{nome:f.nome,tipo:'Material de construção',contato:f.contato||'',telefone:fmtTel(f.tel||''),cidade:f.cidade?normalizar(f.cidade):(m.cidade||''),situacao:'Ativo',observacao:'Cadastrado pelo mapa comparativo da obra '+(ST.ob||''),data_lancamento:todayDateTime()});
       if(novos.length)toast(`${novos.length===1?'Fornecedor novo cadastrado':novos.length+' fornecedores novos cadastrados'}: ${novos.map(f=>f.nome).join(', ')}.`,'success');
       ST.mcc=m;sujar();setTimeout(()=>{recalcular();try{if(App.state.obraHub)UI._obraHubSalvar();else App.saveCAP();}catch(e){console.error(e);}},60);}}],1340);
     const status=()=>{const m=lerMCC(j);[0,1,2].forEach(i=>{const el=j.querySelector(`[data-st="${i}"]`);if(el)el.innerHTML=statusForn(m.forn[i]);});};
@@ -17879,9 +17903,9 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
     j.oninput=e=>{if(e.target.matches('[data-p],[data-fo]'))recalc();if(e.target.matches('[data-fo]')){clearTimeout(tSt);tSt=setTimeout(status,250);}};
     // escolheu um fornecedor do cadastro: telefone e contato vêm de lá
     j.onchange=e=>{const el=e.target;if(!el.matches('[data-c="nome"]'))return;const i=el.dataset.fo,cad=fornPorNome(el.value),tel=j.querySelector(`[data-fo="${i}"][data-c="tel"]`),ct=j.querySelector(`[data-fo="${i}"][data-c="contato"]`);
-      if(cad){if(tel&&!tel.value.trim()&&(cad.telefone||''))tel.value=fmtTel(cad.telefone);if(ct&&!ct.value.trim()&&cad.contato)ct.value=cad.contato;}status();recalc();};
+      if(cad){if(tel&&!tel.value.trim()&&(cad.telefone||''))tel.value=fmtTel(cad.telefone);if(ct&&!ct.value.trim()&&cad.contato)ct.value=cad.contato;const cd=j.querySelector(`[data-fo="${i}"][data-c="cidade"]`);if(cd&&!cd.value.trim()&&cad.cidade)cd.value=cad.cidade;}status();recalc();};
     j.querySelector('.mcc-forn').addEventListener('click',e=>{const b=e.target.closest('[data-usar]');if(!b)return;const card=b.closest('.mcc-forn>div'),i=card.querySelector('[data-c="nome"]').dataset.fo,cad=fornPorNome(b.dataset.usar);
-      const nm=j.querySelector(`[data-fo="${i}"][data-c="nome"]`);nm.value=b.dataset.usar;if(cad){const tel=j.querySelector(`[data-fo="${i}"][data-c="tel"]`);if(tel&&cad.telefone)tel.value=fmtTel(cad.telefone);const ct=j.querySelector(`[data-fo="${i}"][data-c="contato"]`);if(ct&&!ct.value.trim()&&cad.contato)ct.value=cad.contato;}status();recalc();});
+      const nm=j.querySelector(`[data-fo="${i}"][data-c="nome"]`);nm.value=b.dataset.usar;if(cad){const tel=j.querySelector(`[data-fo="${i}"][data-c="tel"]`);if(tel&&cad.telefone)tel.value=fmtTel(cad.telefone);const ct=j.querySelector(`[data-fo="${i}"][data-c="contato"]`);if(ct&&!ct.value.trim()&&cad.contato)ct.value=cad.contato;const cd=j.querySelector(`[data-fo="${i}"][data-c="cidade"]`);if(cd&&cad.cidade)cd.value=cad.cidade;}status();recalc();});
     const wrap=j.querySelector('.mcc-wrap');
     wrap.addEventListener('focusout',e=>{if(e.target.matches('[data-p]')){const v=num(e.target.value);e.target.value=v>0?v.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}):'';}});
     wrap.addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target.matches('[data-p]')){e.preventDefault();const all=[...j.querySelectorAll(`[data-p="${e.target.dataset.p}"]`)],i=all.indexOf(e.target);if(all[i+1])all[i+1].focus();}});
@@ -17889,6 +17913,7 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
     const ci=j.querySelector('#mcc-cidade');ligar(ci,v=>{v=normalizar(v);const cot=cotacoesDaCidade(v,ST.ob);
       j.querySelectorAll('tbody tr[data-k]').forEach(tr=>{const x=res.lista.get(tr.dataset.k);if(!x)return;const c=cot[x.key]||[],md=c.length?c.reduce((s,y)=>s+y,0)/c.length:(x.ref||0);tr.dataset.m=md;const q=+tr.dataset.q||0;
         tr.querySelector('[data-mu]').textContent=md?fmt(md):'—';tr.querySelector('[data-mt]').textContent=md?fmt(q*md):'—';});recalc();});
+    j.querySelectorAll('[data-c="cidade"]').forEach(el=>ligar(el,()=>status()));
     status();recalc();
   }
   function lerMCC(j){
@@ -17938,7 +17963,7 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
   }
   function htmlListaPdf(res){const L=[...res.lista.values()].sort((a,b)=>b.v-a.v);if(!L.length)return '<p>Sem materiais.</p>';const tot=L.reduce((s,x)=>s+x.v,0);
     return `<table><thead><tr><th class="l">Código</th><th class="l">Material</th><th>Un.</th><th>Quantidade</th><th>Preço médio</th><th>Total</th><th class="l">Fonte</th></tr></thead><tbody>${L.map(x=>`<tr><td class="l">${fe(x.cod||'')}</td><td class="l">${fe(x.d)}</td><td>${fe(x.u)}</td><td>${fq(compra(x),2)}</td><td>${x.p?fmt(x.p):'—'}</td><td>${fmt(x.v)}</td><td class="l">${fe(x.f)}</td></tr>`).join('')}</tbody><tfoot><tr><td colspan="5" class="l">Total de materiais</td><td>${fmt(tot)}</td><td></td></tr></tfoot></table>`;}
-  function htmlServPdf(res,detalhe){return res.grupos.map(g=>`<h3>${fe(g.nome)} — ${fmt(g.vM)}</h3>${detalhe?g.servs.map(sv=>`<div class="sv"><b>${sv.num?fe(sv.num)+' ':''}${fe(sv.desc)}</b> — ${fq(sv.qtd)} ${fe(sv.un)} · materiais ${fmt(sv.vM)}${sv.ins.length?'<ul>'+sv.ins.slice().sort((a,b)=>b.v-a.v).map(x=>`<li>${fe(x.d)}: ${fq(x.q,2)} ${fe(x.u)} · ${fmt(x.v)}</li>`).join('')+'</ul>':`<div style="color:#777">${sv.r&&sv.r.t==='mo'?'sem material':'sem materiais'}</div>`}</div>`).join('')
+  function htmlServPdf(res,detalhe){return res.grupos.map(g=>`${g.nome?`<h3>${fe(g.nome)} — ${fmt(g.vM)}</h3>`:""}${detalhe?g.servs.map(sv=>`<div class="sv"><b>${sv.num?fe(sv.num)+' ':''}${fe(sv.desc)}</b> — ${fq(sv.qtd)} ${fe(sv.un)} · materiais ${fmt(sv.vM)}${sv.ins.length?'<ul>'+sv.ins.slice().sort((a,b)=>b.v-a.v).map(x=>`<li>${fe(x.d)}: ${fq(x.q,2)} ${fe(x.u)} · ${fmt(x.v)}</li>`).join('')+'</ul>':`<div style="color:#777">${sv.r&&sv.r.t==='mo'?'sem material':'sem materiais'}</div>`}</div>`).join('')
       :`<table><thead><tr><th class="l">Serviço</th><th>Un.</th><th>Quant.</th><th>Materiais</th></tr></thead><tbody>${g.servs.map(sv=>`<tr><td class="l">${sv.num?fe(sv.num)+' ':''}${fe(sv.desc)}</td><td>${fe(sv.un)}</td><td>${fq(sv.qtd)}</td><td>${sv.vM?fmt(sv.vM):'—'}</td></tr>`).join('')}</tbody></table>`}`).join('');}
 
   /* ═══════════════ PAINEL DO CAP: custo, orçado × realizado e formação do preço ═══════════════ */
@@ -17946,7 +17971,7 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
   const pctV=id=>{const e=document.getElementById(id);if(!e)return 0;const t=e.tagName==='INPUT'?e.value:e.textContent,m=String(t||'').match(/-?\d[\d.]*(,\d+)?/);return m?parseFloat(m[0].replace(/\./g,'').replace(',','.'))||0:0;};
   const pc=(v,c)=>v==null||!isFinite(v)?'—':(Math.round(v*10)/10).toLocaleString('pt-BR',{maximumFractionDigits:c==null?1:c})+'%';
   const COR={A:'#1652D8',C:'#F79009',D:'#12B76A',E:'#98A2B3',imp:'#7A5AF8',luc:'#067647',neg:'#F04438'};
-  const IMP=[['inss','INSS'],['irpf','IRPF'],['simples','Simples Nacional'],['antnf','Antecipação de NF'],['outros','Outros impostos']];
+  const IMP=[['inss','INSS'],['irpf','IRPF'],['simples','Simples Nacional'],['antnf','Antecipação de NF'],['outros','Despesas extraordinárias']];
   function painel(){
     const body=document.getElementById('cap-scroll-body');if(!body||!body.dataset.cc)return;
     const t={A:numTxt('cap-tot-A'),C:numTxt('cap-tot-C'),D:numTxt('cap-tot-D'),E:numTxt('cap-tot-E')},custo=t.A+t.C+t.D+t.E;
@@ -17954,11 +17979,8 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
     const blocos=[['A','Mão de obra'],['C','Equipamentos'],['D','Materiais (serviços)']].concat(t.E?[['E','Linhas antigas']]:[]);
     // painel do topo
     const dash=document.getElementById('capx-dash');
-    if(dash)dash.innerHTML=`<div class="capx-k"><small>Custo direto orçado</small><b>${fmt(custo)}</b><span>mão de obra + equipamentos + materiais</span></div>
-      <div class="capx-k"><small>Preço de venda</small><b>${preco?fmt(preco):'—'}</b><span>${preco?'total do orçamento':'monte o orçamento da obra'}${preco&&custo?' · BDI implícito '+pc((preco/custo-1)*100):''}</span></div>
-      <div class="capx-k"><small>Impostos e retenções</small><b>${preco?fmt(imp):'—'}</b><span>${preco?pc(imp/preco*100)+' do preço':''}</span></div>
-      <div class="capx-k ${!preco?'':lucro<0?'err':pl<5?'warn':'ok'}"><small>Lucratividade prevista</small><b>${preco?fmt(lucro):'—'}</b><span>${preco?pc(pl)+' do preço'+(lucro<0?' — a obra dá prejuízo':pl<5?' — margem apertada':''):''}</span></div>
-      <div class="capx-comp"><div class="capx-tit" style="margin:0">Composição do custo</div><div class="capx-comp-barra">${blocos.map(([k])=>custo&&t[k]?`<i style="width:${t[k]/custo*100}%;background:${COR[k]}" title="${fmt(t[k])}"></i>`:'').join('')}</div>
+    if(dash)dash.innerHTML=`
+      <div class="capx-comp"><div class="capx-tit" style="margin:0;display:flex;justify-content:space-between;gap:10px"><span>Composição do custo</span><b style="color:var(--text-1);text-transform:none;letter-spacing:0;font-size:13px">${fmt(custo)}</b></div><div class="capx-comp-barra">${blocos.map(([k])=>custo&&t[k]?`<i style="width:${t[k]/custo*100}%;background:${COR[k]}" title="${fmt(t[k])}"></i>`:'').join('')}</div>
         <div class="capx-leg">${blocos.map(([k,r])=>`<span><em style="background:${COR[k]}"></em>${r} · <b>${fmt(t[k])}</b> · ${custo?pc(t[k]/custo*100):'—'}</span>`).join('')}</div></div>`;
     // orçado × realizado (logo abaixo da composição do custo)
     const real=document.getElementById('capx-real'),ob=obraCAP();
@@ -17979,25 +18001,52 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
     fp.querySelector('#fp-barra').innerHTML=segs.map(([v,c,r])=>`<i style="width:${v/base*100}%;background:${c}" title="${fe(r)}: ${fmt(v)}"></i>`).join('')+(lucro<0&&preco?`<i class="neg" style="width:${Math.min(100,-lucro/base*100)}%" title="Prejuízo: ${fmt(lucro)}"></i>`:'');
     fp.querySelector('#fp-leg').innerHTML=segs.map(([v,c,r])=>`<span><em style="background:${c}"></em>${fe(r)} <b>${preco?pc(v/preco*100):'—'}</b></span>`).join('')+(lucro<0&&preco?`<span><em style="background:${COR.neg}"></em>Prejuízo <b>${pc(pl)}</b></span>`:'');
     const ip=document.getElementById('fp-imp-p'),iv=document.getElementById('fp-imp-v');if(ip)ip.textContent=preco?pc(imp/preco*100,2):'—';if(iv)iv.textContent=fmt(imp);
-    const st=!preco?['cinza','Sem preço de venda','monte o orçamento da obra']:lucro<0?['neg','Prejuízo','o custo + impostos passam do preço']:pl<5?['at','Margem apertada','abaixo de 5% do preço']:pl<10?['ok','Margem razoável','entre 5% e 10% do preço']:['ok','Margem boa','10% ou mais do preço'];
+    const st=!preco?['cinza','Sem preço de orçamento','monte o orçamento da obra']:lucro<0?['neg','Prejuízo','o custo + impostos passam do preço']:pl<5?['at','Margem apertada','abaixo de 5% do preço']:pl<10?['ok','Margem razoável','entre 5% e 10% do preço']:['ok','Margem boa','10% ou mais do preço'];
     fp.querySelector('#fp-luc').innerHTML=`<div class="fp-chip ${st[0]}"><small>Lucratividade prevista</small><b>${preco?fmt(lucro):'—'}</b><span>${preco?pc(pl,2)+' · ':''}${st[1]}</span></div>`;
-    fp.querySelector('#fp-res').innerHTML=`<div><small>Preço de venda</small><b>${preco?fmt(preco):'—'}</b></div><i>−</i><div><small>Impostos e retenções</small><b>${fmt(imp)}</b></div><i>−</i><div><small>Custo direto</small><b>${fmt(custo)}</b></div><i>=</i><div class="${lucro<0?'neg':'pos'}"><small>Lucratividade prevista</small><b>${preco?fmt(lucro):'—'}</b><span>${preco?pc(pl,2)+' do preço':''}</span></div>`;
+    fp.querySelector('#fp-res').innerHTML=`<div><small>Preço de orçamento</small><b>${preco?fmt(preco):'—'}</b></div><i>−</i><div><small>Impostos e retenções</small><b>${fmt(imp)}</b></div><i>−</i><div><small>Custo direto</small><b>${fmt(custo)}</b></div><i>=</i><div class="${lucro<0?'neg':'pos'}"><small>Lucratividade prevista</small><b>${preco?fmt(lucro):'—'}</b><span>${preco?pc(pl,2)+' do preço':''}</span></div>`;
     const le=fp.querySelector('[data-e]');if(le)le.style.display=t.E?'':'none';
+    const dk=document.getElementById('fp-dica-fk');
+    if(dk){const orc=ob&&Eng.baseDaObra&&Eng.baseDaObra(ob),dO=descOrc(orc),fk=pctV('cap-pct-fatork'),p2=v=>v.toLocaleString('pt-BR',{maximumFractionDigits:2})+'%';
+      dk.innerHTML=!orc?'Monte o orçamento da obra: o preço vem dele.':ob&&medida(ob)?'A obra já tem medição: o desconto do contrato não muda mais.':Math.abs(fk-dO)>.0001?`O desconto mudou de <b>${p2(dO)}</b> para <b>${p2(fk)}</b>: ao clicar em <b>Salvar</b>, o % Desc. do Orçamento e os preços dos serviços são atualizados.`:'O desconto é definido aqui: o "% Desc." do Orçamento acompanha este valor.';}
+  }
+  /* (−) Desconto / Fator K: agora é AQUI que o desconto da proposta se define (o "% Desc." do Orçamento fica
+     travado e acompanha). O Orçamento bruto continua vindo do orçamento (antes do desconto). Obra já medida:
+     o desconto do contrato não muda mais. */
+  const medida=ob=>(D().medicoes||[]).some(m=>(getFuzzy(m,['titulo_obra'])||'')===ob&&!m._lixeira_em);
+  const descOrc=orc=>Math.max(0,Math.min(99.99,parseStoredNumber(orc&&orc.desconto)||0));
+  function precoDoOrc(){
+    const ob=obraCAP(),bruto=document.getElementById('cap-orc-bruto'),fk=document.getElementById('cap-pct-fatork');if(!ob||!bruto||!fk)return;
+    const orc=Eng.baseDaObra&&Eng.baseDaObra(ob);if(!orc)return;
+    const desc=descOrc(orc),total=val(orc.total_obra)||0;
+    if(!currencyToNumber(bruto.value)&&total){bruto.value=fmt(desc?Math.round(total/(1-desc/100)*100)/100:total);bruto.readOnly=true;bruto.classList.add('capx-trava');}
+    if(!fk.value.trim())fk.value=desc.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+    if(medida(ob)){fk.readOnly=true;fk.classList.add('capx-trava');fk.oninput=null;fk.title='A obra já tem medição: o desconto do contrato não muda mais.';}
+    else{fk.readOnly=false;fk.classList.remove('capx-trava');fk.oninput=()=>UI._capMaskPct(fk);fk.title='Desconto da proposta. Ao salvar o CAP, o % Desc. do Orçamento e os preços dos serviços passam a usar este desconto.';}
+    try{UI._calcResumoFinanceiroCAP();}catch(e){}
+  }
+  // o orçamento com o desconto do CAP: P.Unit. = base × (1 + BDI) × (1 − desconto), como na tela do Orçamento
+  function orcComDesconto(orc,desc){
+    const o={...orc};delete o.rowid;delete o.visualId;delete o._aba;
+    const bdi=parseStoredNumber(o.bdi)||0,f=(1+bdi/100)*(1-desc/100),fAnt=(1+bdi/100)*(1-descOrc(orc)/100)||1;
+    o.itens=(Array.isArray(o.itens)?o.itens:[]).map(it=>{const base=+it.p_unit_base||((+it.p_unit||0)/(it.sem_fator?1:fAnt));const pu=Math.round(base*(it.sem_fator?1:f)*100)/100;return {...it,p_unit_base:base,p_unit:pu,p_total:Math.round(pu*(+it.quant||0)*100)/100};});
+    o.total_obra=o.itens.reduce((s,it)=>s+it.p_total,0).toFixed(2);
+    o.desconto=desc.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+    return o;
   }
   // monta a formação do preço nova com os MESMOS campos (os cálculos do CAP continuam iguais)
   function montarFP(body){
     const res=body.querySelector('.cap-resumo');if(!res||document.getElementById('fp'))return;
     const grade=res.closest('.capx-grade')||res;
     const fp=document.createElement('div');fp.className='fp';fp.id='fp';
-    fp.innerHTML=`<div class="fp-cab"><div><h4><i class="fas fa-calculator"></i>Formação do preço</h4><p>Do preço do orçamento até o lucro previsto: o que sai do preço de venda e o que sobra.</p></div><div id="fp-luc"></div></div>
+    fp.innerHTML=`<div class="fp-cab"><div><h4><i class="fas fa-calculator"></i>Formação do preço</h4><p>Do preço do orçamento até o lucro previsto: o que sai do preço de orçamento e o que sobra.</p></div><div id="fp-luc"></div></div>
       <div class="fp-barra" id="fp-barra"></div><div class="fp-leg" id="fp-leg"></div>
       <div class="fp-grade">
-        <section><h5><span>1</span>Preço de venda</h5>
+        <section><h5><span>1</span>Preço de orçamento</h5>
           <div class="fp-l"><span>Orçamento bruto<small>antes do desconto</small></span><b data-slot="bruto"></b></div>
           <div class="fp-l"><span>(−) Desconto / Fator K</span><em data-slot="fk"></em><b data-slot="fkv"></b></div>
-          <div class="fp-l tot"><span>= Preço de venda<small>orçamento líquido</small></span><b data-slot="liq"></b></div>
+          <div class="fp-l tot"><span>= Preço de orçamento<small>orçamento líquido</small></span><b data-slot="liq"></b></div>
           <div data-slot="dicas" class="fp-dicas"></div></section>
-        <section><h5><span>2</span>Impostos e retenções<small>sobre o preço de venda</small></h5>
+        <section><h5><span>2</span>Impostos e retenções<small>sobre o preço de orçamento</small></h5>
           ${IMP.map(([k,l])=>`<div class="fp-l"><span>${l}</span><em data-slot="p-${k}"></em><b data-slot="v-${k}"></b></div>`).join('')}
           <div class="fp-l tot"><span>= Total de impostos</span><em class="fp-pct" id="fp-imp-p"></em><b id="fp-imp-v"></b></div></section>
         <section><h5><span>3</span>Custo direto da obra</h5>
@@ -18013,7 +18062,8 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
     IMP.forEach(([k])=>{mv('cap-pct-'+k,'p-'+k);mv('cap-val-'+k,'v-'+k);});
     ['A','C','D','E'].forEach(k=>mv('cap-rsum-'+k,k));mv('cap-r-op','op');
     ['cap-pct-orcliquido','cap-pct-lucratividade','cap-val-lucratividade'].forEach(id=>mv(id,'ocultos'));
-    res.querySelectorAll('.capx-dica').forEach(d=>fp.querySelector('[data-slot="dicas"]').appendChild(d));
+    res.querySelectorAll('.capx-dica').forEach(d=>d.remove());
+    fp.querySelector('[data-slot="dicas"]').innerHTML='<div class="capx-dica" id="fp-dica-fk"></div>';
     grade.classList.add('cc-oculto');body.appendChild(fp);
   }
   // quadros Mão de obra e Equipamentos: sem a coluna "Especificação" — a categoria é a do quadro
@@ -18049,7 +18099,7 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
     const pIn=id=>{const e=document.getElementById(id);return e&&e.value?e.value.replace(/%?$/,'%'):'';};
     w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>&nbsp;</title><style>${PDF_CSS}</style></head><body>
       <h1>Composição Analítica de Preço (CAP)</h1><div class="sub">Obra: <b>${fe(ob)}</b> · Cidade: <b>${fe(ST.meta.cidade||'—')}</b> · ${brDe(hoje0())}${S?` · materiais pela SINAPI Bahia ${refTxt(S)} e cotações`:''}</div>
-      <div class="kp"><div><small>Custo direto</small><b>${fmt(custo)}</b></div><div><small>Preço de venda</small><b>${preco?fmt(preco):'—'}</b></div><div><small>Impostos e retenções</small><b>${fmt(imp)}</b></div><div><small>Lucratividade prevista</small><b style="color:${lucro<0?'#B42318':'#067647'}">${preco?fmt(lucro)+' ('+pc(lucro/preco*100,2)+')':'—'}</b></div></div>
+      <div class="kp"><div><small>Custo direto</small><b>${fmt(custo)}</b></div><div><small>Preço de orçamento</small><b>${preco?fmt(preco):'—'}</b></div><div><small>Impostos e retenções</small><b>${fmt(imp)}</b></div><div><small>Lucratividade prevista</small><b style="color:${lucro<0?'#B42318':'#067647'}">${preco?fmt(lucro)+' ('+pc(lucro/preco*100,2)+')':'—'}</b></div></div>
       ${quadro('A','Mão de obra')}${quadro('C','Equipamentos e locações')}
       <h2>Serviços do orçamento — materiais — ${fmt(t.D)}</h2>${res&&res.grupos?htmlServPdf(res,false):'<p style="color:#777">Sem orçamento.</p>'}
       ${t.E||legadas().length?quadro('E','Linhas antigas (Outros)'):''}
@@ -18057,7 +18107,7 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
       <h2>Formação do preço</h2><table><tbody>
         ${fpL('Orçamento bruto (antes do desconto)','',fmt(currencyToNumber((document.getElementById('cap-orc-bruto')||{}).value||'')))}
         ${fpL('(−) Desconto / Fator K',pIn('cap-pct-fatork'),fmt(-numTxt('cap-val-fatork')))}
-        ${fpL('= Preço de venda (orçamento líquido)','',fmt(preco),'tot')}
+        ${fpL('= Preço de orçamento (orçamento líquido)','',fmt(preco),'tot')}
         ${IMP.map(([k,l])=>fpL('(−) '+l,pIn('cap-pct-'+k),fmt(-numTxt('cap-val-'+k)))).join('')}
         ${fpL('(−) Mão de obra','',fmt(-t.A))}${fpL('(−) Equipamentos','',fmt(-t.C))}${fpL('(−) Materiais','',fmt(-t.D))}${t.E?fpL('(−) Linhas antigas','',fmt(-t.E)):''}
         ${fpL('= Lucratividade prevista',preco?pc(lucro/preco*100,2):'',fmt(lucro),'tot')}
@@ -18089,11 +18139,11 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
         if(ST.abertos.has(k)){ST.abertos.delete(k);const nx=tr.nextElementSibling;if(nx&&nx.classList.contains('cc-ins'))nx.remove();tr.classList.remove('on');}
         else{ST.abertos.add(k);tr.insertAdjacentHTML('afterend',insHtml(sv,SN.S));tr.classList.add('on');}}
     });
-    body.addEventListener('toggle',ev=>{const d=ev.target;if(!d.classList||!d.classList.contains('cc-grupo')||!ST.res)return;const g=ST.res.grupos[+d.dataset.g];if(!g)return;
+    body.addEventListener('toggle',ev=>{const d=ev.target;if(d.classList&&d.classList.contains('cc-precisa')){ST.precisaAberto=d.open;return;}if(!d.classList||!d.classList.contains('cc-grupo')||!ST.res)return;const g=ST.res.grupos[+d.dataset.g];if(!g)return;
       if(d.open){ST.grAbertos.add(g.nome);ST.grAbertos.delete('#fechou#'+g.nome);}else{ST.grAbertos.delete(g.nome);ST.grAbertos.add('#fechou#'+g.nome);}},true);
     ['input','change'].forEach(evn=>body.addEventListener(evn,ev=>{if(ev.target.closest&&ev.target.closest('.cap-tbody[data-bloco="A"],.cap-tbody[data-bloco="C"]'))preencherCats();}));
     const sel=document.getElementById('cap-f-obra');if(sel&&sel.tagName==='SELECT')sel.addEventListener('change',()=>{ST.meta={};ST.mcc={};ST.res=null;iniciar();});
-    pintarLegado();setTimeout(()=>{painel();iniciar();},0);   // depois que a central da obra trava a obra no campo
+    pintarLegado();setTimeout(()=>{precoDoOrc();painel();iniciar();},0);   // depois que a central da obra trava a obra no campo
   }
   const bcOrig=UI._buildCAP;
   UI._buildCAP=function(form,headers,data,isNew){
@@ -18127,6 +18177,36 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
     }catch(e){console.error(e);}
     return itens;
   };
+  // salvar o CAP com o desconto mudado: primeiro grava o "% Desc." e os preços no orçamento da obra
+  const saveCapOrig=App.saveCAP;
+  App.saveCAP=async function(){
+    if(App.state._busy)return;
+    try{
+      const ob=obraCAP(),orc=ob&&Eng.baseDaObra&&Eng.baseDaObra(ob),fkEl=document.getElementById('cap-pct-fatork');
+      if(orc&&fkEl&&!fkEl.readOnly&&UI._capValidarLinhas()){
+        const fk=Math.max(0,Math.min(99.99,pctV('cap-pct-fatork')));
+        if(Math.abs(fk-descOrc(orc))>.0001){
+          const hub=App.state.obraHub;
+          if(hub&&hub._dirtyTabs&&hub._dirtyTabs.has('orcamentos')){toast('O Orçamento tem alterações sem salvar: salve a aba Orçamento primeiro e depois o CAP (o desconto do CAP muda os preços do orçamento).','error');return;}
+          UI._showBusy('Atualizando o desconto no orçamento…');
+          try{await Fin.util.salvar('Orçamentos',orcComDesconto(orc,fk),orc.rowid);}finally{UI._hideBusy();}
+          if(UI._obraHubCache)delete UI._obraHubCache.orcamentos;   // a aba Orçamento volta a abrir com os preços novos
+          toast(`Orçamento atualizado: % Desc. = ${fk.toLocaleString('pt-BR',{maximumFractionDigits:2})}% e preços dos serviços recalculados.`,'success');
+        }
+      }
+    }catch(e){toast('Não consegui atualizar o desconto do orçamento: '+((e&&e.message)||e),'error');return;}
+    return saveCapOrig.apply(this,arguments);
+  };
+  // Orçamento: o "% Desc." fica travado — é o (−) Desconto / Fator K definido no CAP
+  function travarDescOrc(){
+    const el=document.getElementById('orc-desconto');if(!el||el.dataset.capTrava)return;el.dataset.capTrava='1';
+    el.readOnly=true;el.removeAttribute('oninput');el.oninput=null;el.tabIndex=-1;
+    el.style.background='#F3F5F9';el.style.cursor='not-allowed';el.title='Vem do CAP: (−) Desconto / Fator K. Para mudar o desconto, altere no CAP e salve.';
+    const grade=el.closest('div[style*="grid-template-columns:1fr 1fr 1fr 1fr 1fr"]');
+    if(grade&&!grade.nextElementSibling?.classList?.contains('cc-dica-desc'))grade.insertAdjacentHTML('afterend','<div class="capx-dica cc-dica-desc" style="margin:6px 0 0">O <b>% Desc.</b> é definido no <b>CAP</b>, em "(−) Desconto / Fator K": ao salvar o CAP, o desconto e os preços deste orçamento são atualizados.</div>');
+  }
+  const ooOrig=UI.openOrcamento;
+  if(typeof ooOrig==='function')UI.openOrcamento=function(){const r=ooOrig.apply(this,arguments);Promise.resolve(r).then(()=>setTimeout(travarDescOrc,0)).catch(()=>{});setTimeout(travarDescOrc,0);return r;};
   Eng.capComposicao={calcular,carregarSinapi,regraDe,candidatos,_ST:ST,_SN:SN};
 })();
 </script>
