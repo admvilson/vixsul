@@ -14742,8 +14742,11 @@ const Mascara=(function(){
     cpf:v=>{v=so(v).slice(0,11);return v.replace(/(\d{3})(\d)/,'$1.$2').replace(/(\d{3})\.(\d{3})(\d)/,'$1.$2.$3').replace(/(\d{3})\.(\d{3})\.(\d{3})(\d)/,'$1.$2.$3-$4');},
     cnpj:v=>{const d=so(v).slice(0,14);return d.replace(/^(\d{2})(\d)/,'$1.$2').replace(/^(\d{2})\.(\d{3})(\d)/,'$1.$2.$3').replace(/^(\d{2})\.(\d{3})\.(\d{3})(\d)/,'$1.$2.$3/$4').replace(/(\d{4})(\d)/,'$1-$2');},
     tel:v=>{v=so(v).slice(0,11);if(v.length<=10)return v.replace(/(\d{2})(\d)/,'($1) $2').replace(/(\d{4})(\d)/,'$1-$2');return v.replace(/(\d{2})(\d)/,'($1) $2').replace(/(\d{5})(\d)/,'$1-$2');},
-    cep:v=>so(v).slice(0,8).replace(/(\d{5})(\d)/,'$1-$2')
+    cep:v=>so(v).slice(0,8).replace(/(\d{5})(\d)/,'$1-$2'),
+    // e-mail: sem espaços e em minúsculas (a conferência do formato é ao sair do campo)
+    email:v=>String(v==null?'':v).replace(/\s+/g,'').toLowerCase()
   };
+  const emailOk=v=>!v||/^[^@\s]+@[^@\s]+\.[a-z]{2,}$/i.test(v);
   F.cpfcnpj=v=>so(v).length<=11?F.cpf(v):F.cnpj(v);
   // número guardado ("1234.56", "1.234,56", "R$ 1.234,56") → valor
   const numero=s=>{let t=String(s==null?'':s).trim().replace(/[^\d,.\-]/g,'');if(!t||t==='-')return null;if(t.includes(','))t=t.replace(/\./g,'').replace(',','.');else if(/^-?\d{1,3}(\.\d{3})+$/.test(t))t=t.replace(/\./g,'');const n=parseFloat(t);return isNaN(n)?null:n;};
@@ -14765,21 +14768,26 @@ const Mascara=(function(){
   function detectar(el){
     if(el.dataset.mask||el.dataset.semMascara)return;
     if(el.hasAttribute('oninput')||el.classList.contains('mask-currency')||el.classList.contains('cap-fi'))return;
-    const tp=(el.getAttribute('type')||'text').toLowerCase();if(!['text','tel',''].includes(tp))return;
-    const lab=(el.closest('.fin-fld,.fld,.field-wrap,label')?.querySelector('label')?.textContent)||(el.closest('label')?.textContent)||'';
-    const k=[el.dataset.f,el.dataset.k,el.dataset.field,el.name,el.id].filter(Boolean).join(' ')+' '+lab;
+    const tp=(el.getAttribute('type')||'text').toLowerCase();if(!['text','tel','','email'].includes(tp))return;
+    if(el.readOnly||el.id==='login-user')return;
+    const lab=(el.closest('.fin-fld,.fld,.field-wrap,label')?.querySelector('label')?.textContent)||(el.closest('label')?.textContent)||(el.previousElementSibling&&/^(LABEL|DIV|SPAN)$/.test(el.previousElementSibling.tagName)&&el.previousElementSibling.textContent.length<60?el.previousElementSibling.textContent:'')||'';
+    const k=[el.dataset.f,el.dataset.k,el.dataset.field,el.dataset.c,el.name,el.id].filter(Boolean).join(' ')+' '+lab;
     const ph=el.getAttribute('placeholder')||'';
-    if(/buscar|filtrar|pesquis/i.test(ph))return;
+    if(/buscar|filtrar|pesquis|procurar/i.test(ph))return;
     let m='';
-    if(/cnpj/i.test(k)&&/cpf/i.test(k))m='cpfcnpj';else if(/cnpj/i.test(k))m='cnpj';else if(/\bcpf\b|_cpf|cpf_/i.test(k))m='cpf';
-    else if(/telefone|celular|whats|\bfone\b|tel_/i.test(k))m='tel';
+    if(/cnpj/i.test(k)&&/cpf/i.test(k))m='cpfcnpj';else if(/cnpj/i.test(k)||/^\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}$/.test(ph))m='cnpj';else if(/\bcpf\b|_cpf|cpf_/i.test(k)||/^\d{3}\.\d{3}\.\d{3}-\d{2}$/.test(ph))m='cpf';
+    else if(tp==='email'||/e-?mail/i.test(k)||/@.+\./.test(ph))m='email';
+    else if(/telefone|celular|whats|\bfone\b|tel_|\btel\b/i.test(k)||/^\(\d{2}\)\s?\d/.test(ph))m='tel';
     else if(/\bcep\b/i.test(k))m='cep';
     else if(/\(R\$\)/.test(lab)||/^R\$/.test(ph))m='moeda';
     if(!m)return;
-    el.dataset.mask=m;if(!el.getAttribute('inputmode')&&!(m==='moeda'&&el.dataset.neg))el.setAttribute('inputmode',m==='moeda'?'numeric':'tel');
+    el.dataset.mask=m;if(!el.getAttribute('inputmode')&&!(m==='moeda'&&el.dataset.neg))el.setAttribute('inputmode',m==='moeda'?'numeric':m==='email'?'email':'tel');
+    if(m==='email'){el.setAttribute('autocapitalize','off');el.setAttribute('spellcheck','false');}
   }
   function preparar(raiz){(raiz.querySelectorAll?raiz:document).querySelectorAll('input').forEach(el=>{detectar(el);if(el.dataset.mask&&!el.dataset.mascarado){el.dataset.mascarado='1';formatarInicial(el);}});}
   document.addEventListener('input',ev=>{const el=ev.target;if(el&&el.matches&&el.matches('input[data-mask]'))aplicar(el);},true);
+  // e-mail: confere o formato ao sair do campo (borda vermelha + dica)
+  document.addEventListener('focusout',ev=>{const el=ev.target;if(!el||!el.matches||!el.matches('input[data-mask="email"]'))return;const ok=emailOk(el.value.trim());el.classList.toggle('mask-err',!ok);el.title=ok?'':'E-mail inválido — confira (ex.: nome@empresa.com.br)';},true);
   new MutationObserver(ms=>{for(const m of ms)for(const n of m.addedNodes){if(n.nodeType!==1)continue;if(n.tagName==='INPUT')preparar(n.parentElement||document);else if(n.querySelector&&n.querySelector('input'))preparar(n);}}).observe(document.body,{childList:true,subtree:true});
   // valor de um campo mudado por código (ex.: sugestão da meta) volta a ser formatado
   function reformatar(el){if(el&&el.dataset.mask){el.dataset.mascarado='';preparar(el.parentElement||document);}}
@@ -17171,9 +17179,9 @@ const Mascara=(function(){
 .cc-tab th{font:800 10px Inter,sans-serif;text-transform:uppercase;letter-spacing:.04em;color:#667085;text-align:left;padding:7px 8px;border-bottom:1px solid #EEF1F6;background:#fff;white-space:nowrap;}
 .cc-tab td{padding:7px 8px;border-bottom:1px solid #F2F4F7;vertical-align:top;white-space:normal;}
 .cc-tab{table-layout:fixed;}
-.cc-tab.s>thead>tr>th:nth-child(2){width:54px}.cc-tab.s>thead>tr>th:nth-child(3){width:86px}.cc-tab.s>thead>tr>th:nth-child(4){width:178px}.cc-tab.s>thead>tr>th:nth-child(5){width:112px}.cc-tab.s>thead>tr>th:nth-child(6){width:96px}.cc-tab.s>thead>tr>th:nth-child(7){width:116px}
+.cc-tab.s>thead>tr>th:nth-child(2){width:54px}.cc-tab.s>thead>tr>th:nth-child(3){width:86px}.cc-tab.s>thead>tr>th:nth-child(4){width:178px}.cc-tab.s>thead>tr>th:nth-child(5){width:112px}
 .cc-tab.l>thead>tr>th:nth-child(1){width:70px}.cc-tab.l>thead>tr>th:nth-child(3){width:54px}.cc-tab.l>thead>tr>th:nth-child(4){width:100px}.cc-tab.l>thead>tr>th:nth-child(5){width:110px}.cc-tab.l>thead>tr>th:nth-child(6){width:116px}.cc-tab.l>thead>tr>th:nth-child(7){width:200px}
-.cc-ins table{table-layout:fixed;}.cc-ins th:nth-child(1){width:72px}.cc-ins th:nth-child(2){width:62px}.cc-ins th:nth-child(4){width:46px}.cc-ins th:nth-child(5){width:108px}.cc-ins th:nth-child(6){width:96px}.cc-ins th:nth-child(7){width:160px}.cc-ins th:nth-child(8){width:100px}
+.cc-ins table{table-layout:fixed;}.cc-ins th:nth-child(1){width:62px}.cc-ins th:nth-child(3){width:46px}.cc-ins th:nth-child(4){width:108px}.cc-ins th:nth-child(5){width:96px}.cc-ins th:nth-child(6){width:160px}.cc-ins th:nth-child(7){width:100px}
 .cc-ins td .cc-fi,.cc-tab td .cc-fi{white-space:normal;}
 .cc-ins td{white-space:normal;}
 .cc-tab .n,.cc-tab th.n{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums;}
@@ -17244,6 +17252,62 @@ const Mascara=(function(){
 .mcc-tab tfoot td{font-weight:800;background:#F8FAFD;position:sticky;bottom:0;border-top:1px solid #E4E9F2;}
 .mcc-res{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:12px;}
 @media (max-width:900px){.cc-kpis{grid-template-columns:repeat(2,minmax(0,1fr));}.mcc-forn{grid-template-columns:1fr;}.mcc-res{grid-template-columns:repeat(2,minmax(0,1fr));}.cc-cid input{width:150px;}}
+/* CAP v2: quadros do topo, formação do preço, linhas antigas, fornecedor no mapa */
+.cc-oculto{display:none!important;}
+#cap-scroll-body .capx-n:empty,#cap-scroll-body .capx-pctb:empty{display:none!important;}
+input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
+#cap-tbl-A th:nth-child(2),#cap-tbl-A td:nth-child(2),#cap-tbl-C th:nth-child(2),#cap-tbl-C td:nth-child(2){display:none;}
+.cc-dica-bloco{margin:0 2px 8px;font-size:12px;color:#667085;line-height:1.4;}
+.capx-real.cc-real{background:#fff;border:1px solid #E4E9F2;border-radius:18px;padding:14px 18px;margin-top:12px;box-shadow:0 1px 2px rgba(16,24,40,.04);}
+.cc-legado{border-style:dashed;background:#FCFCFD;}
+.fp{background:#fff;border:1px solid #E4E9F2;border-radius:20px;padding:18px 20px;margin-top:16px;box-shadow:0 1px 2px rgba(16,24,40,.04);}
+.fp-cab{display:flex;flex-wrap:wrap;gap:12px;justify-content:space-between;align-items:flex-start;}
+.fp-cab h4{margin:0;font:800 15px Inter,sans-serif;color:var(--text-1);display:flex;align-items:center;gap:9px;}
+.fp-cab h4 i{width:32px;height:32px;border-radius:10px;display:inline-grid;place-items:center;background:#101828;color:#fff;font-size:13px;}
+.fp-cab p{margin:4px 0 0;font-size:12px;color:#667085;}
+.fp-chip{border-radius:14px;padding:10px 16px;min-width:230px;text-align:right;border:1px solid;}
+.fp-chip small{display:block;font:800 10px Inter,sans-serif;text-transform:uppercase;letter-spacing:.05em;opacity:.85;}
+.fp-chip b{display:block;font:800 22px Inter,sans-serif;letter-spacing:-.01em;margin:2px 0;}
+.fp-chip span{font-size:11.5px;font-weight:700;}
+.fp-chip.ok{background:#ECFDF3;border-color:#ABEFC6;color:#067647;} .fp-chip.at{background:#FFFAEB;border-color:#FEDF89;color:#B54708;}
+.fp-chip.neg{background:#FEF3F2;border-color:#FECDCA;color:#B42318;} .fp-chip.cinza{background:#F8FAFC;border-color:#E4E9F2;color:#475467;}
+.fp-barra{display:flex;gap:2px;height:16px;margin:16px 0 8px;border-radius:999px;overflow:hidden;background:#F2F4F7;}
+.fp-barra i{display:block;height:100%;min-width:2px;} .fp-barra i.neg{background:repeating-linear-gradient(45deg,#F04438 0 6px,#FDA29B 6px 12px);}
+.fp-leg{display:flex;flex-wrap:wrap;gap:4px 16px;font-size:12px;color:#475467;}
+.fp-leg em{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px;vertical-align:-1px;}
+.fp-leg b{color:var(--text-1);}
+.fp-grade{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:16px;}
+.fp-grade section{border:1px solid #EEF1F6;border-radius:16px;padding:12px 14px;background:#FAFBFE;min-width:0;}
+.fp-grade h5{margin:0 0 6px;font:800 12.5px Inter,sans-serif;color:var(--text-1);display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+.fp-grade h5>span{width:20px;height:20px;border-radius:999px;background:#1652D8;color:#fff;display:inline-grid;place-items:center;font-size:10.5px;}
+.fp-grade h5 small{font-weight:600;color:#667085;font-size:11px;}
+.fp-l{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:8px;align-items:center;padding:7px 0;border-bottom:1px dashed #E4E9F2;font-size:12.5px;}
+.fp-l>span{color:#344054;font-weight:600;min-width:0;}
+.fp-l>span small{display:block;font-size:10.5px;color:#98A2B3;font-weight:600;}
+.fp-l>span i{display:inline-block;width:9px;height:9px;border-radius:3px;margin-right:6px;}
+.fp-l>b{font-weight:800;color:var(--text-1);text-align:right;white-space:nowrap;}
+.fp-l>b>*{width:auto!important;display:inline!important;font-weight:800!important;color:inherit!important;}
+.fp-l>b input{width:120px!important;display:inline-block!important;text-align:right;}
+.fp-l em{font-style:normal;}
+.fp-l em input{width:78px!important;text-align:right;border:1px solid #D7DEEA!important;border-radius:8px!important;padding:5px 8px!important;background:#fff!important;font-weight:700;}
+.fp-l em input.capx-trava{background:#F3F5F9!important;}
+.fp-l.tot{border-bottom:0;border-top:1.5px solid #D0D5DD;margin-top:4px;padding-top:9px;}
+.fp-l.tot>span,.fp-l.tot>b{font-weight:800;color:#101828;}
+.fp-pct{font-size:12px;color:#667085;font-weight:700;}
+.fp-dicas .capx-dica{text-align:left!important;width:auto!important;margin:6px 0 0!important;}
+.fp-res{display:flex;flex-wrap:wrap;align-items:stretch;gap:8px;margin-top:14px;padding:12px;border-radius:16px;background:#F8FAFC;border:1px solid #EEF1F6;}
+.fp-res>div{flex:1;min-width:140px;background:#fff;border:1px solid #EEF1F6;border-radius:12px;padding:9px 12px;}
+.fp-res>div small{display:block;font:800 10px Inter,sans-serif;text-transform:uppercase;letter-spacing:.05em;color:#667085;}
+.fp-res>div b{display:block;font:800 16px Inter,sans-serif;color:var(--text-1);margin-top:2px;}
+.fp-res>div span{font-size:11.5px;color:#667085;}
+.fp-res>div.pos{background:#ECFDF3;border-color:#ABEFC6;} .fp-res>div.pos b{color:#067647;}
+.fp-res>div.neg{background:#FEF3F2;border-color:#FECDCA;} .fp-res>div.neg b{color:#B42318;}
+.fp-res>i{align-self:center;font:800 18px Inter,sans-serif;color:#98A2B3;font-style:normal;}
+@media (max-width:1000px){.fp-grade{grid-template-columns:1fr;}.fp-res>i{display:none;}}
+.mcc-st{margin-top:8px;display:flex;flex-direction:column;gap:5px;font-size:11.5px;line-height:1.4;}
+.mcc-st span{border-radius:8px;padding:5px 8px;}
+.mcc-ok{background:#ECFDF3;color:#067647;} .mcc-novo{background:#EEF4FF;color:#1652D8;} .mcc-dup{background:#FFFAEB;color:#B54708;} .mcc-st .mcc-cinza{color:#98A2B3;padding:0;}
+.mcc-usar{border:0;background:#fff;color:#B54708;font:700 11px Inter,sans-serif;border-radius:6px;padding:1px 7px;cursor:pointer;text-decoration:underline;}
 </style>
 <script>
 (function(){
@@ -17314,6 +17378,10 @@ const Mascara=(function(){
     inp.addEventListener('blur',()=>setTimeout(()=>{fecha();const n=normalizar(inp.value);if(n!==inp.value)inp.value=n;avisa();},150));
   }
   GS.cidade={carregar:carregarCidades,ligar,normalizar,sugerir};
+  // campos "Cidade" dos cadastros (ex.: Fornecedores) também ganham a lista de municípios
+  new MutationObserver(ms=>{for(const m of ms)for(const n of m.addedNodes){if(n.nodeType!==1)continue;(n.matches&&n.matches('input[data-k="cidade"],input[data-f="cidade"]')?[n]:[...(n.querySelectorAll?n.querySelectorAll('input[data-k="cidade"],input[data-f="cidade"]'):[])]).forEach(el=>ligar(el));}}).observe(document.body,{childList:true,subtree:true});
+  // login: CPF com máscara (usuário interno) ou e-mail sem espaços e em minúsculas (externo)
+  document.addEventListener('input',e=>{const el=e.target;if(!el||el.id!=='login-user')return;const ext=window.Auth&&Auth._loginTipo==='externo';const v=ext?el.value.replace(/\s+/g,'').toLowerCase():(window.Mascara?Mascara.F.cpf(el.value):el.value);if(v!==el.value)el.value=v;},true);
   carregarCidades();
 
   /* ═══════════════ TABELA SINAPI (Caixa/IBGE, Bahia) — sempre a mais recente publicada ═══════════════
@@ -17370,14 +17438,13 @@ const Mascara=(function(){
     let s=0;const it=c.it;for(let i=0;i<it.length;i+=3){const k=it[i+1],q=+it[i+2]||0;if(it[i]===0){const x=S.I.get(k);if(x&&x.k!=='O'&&x.k!=='C')s+=q*x.p;}else s+=q*custoSemMO(S,k,vis);}
     vis.delete(cod);return c._smo=s;
   }
-  // abre a composição até os insumos: material (M) e equipamento (E); mão de obra fica de fora
+  // abre a composição até os insumos e fica só com os MATERIAIS: mão de obra (O/C) e equipamentos
+  // (insumos Q/L e as composições de custo horário) ficam de fora — entram nos quadros do topo, para a obra toda
   function explodir(S,cod,fator,acc,prof){
     const c=S.C.get(cod);if(!c||prof>10)return;const it=c.it;
     for(let i=0;i<it.length;i+=3){const k=it[i+1],q=(+it[i+2]||0)*fator;if(!q)continue;
-      if(it[i]===0){const x=S.I.get(k);if(!x||x.k==='O'||x.k==='C')continue;soma(acc,'i'+k,{tipo:x.k==='Q'||x.k==='L'?'E':'M',cod:k,d:x.d,u:x.u,ref:x.p,med:x.med},q);}
-      else{const sc=S.C.get(k);if(!sc)continue;
-        if(S.gEq.has(sc.g)){const p=custoSemMO(S,k);if(p>0)soma(acc,'c'+k,{tipo:'E',cod:k,d:curta(sc.d)+' (custo horário sem operador)',u:sc.u,ref:p},q);}
-        else explodir(S,k,q,acc,(prof||0)+1);}}
+      if(it[i]===0){const x=S.I.get(k);if(!x||'OCQL'.includes(x.k))continue;soma(acc,'i'+k,{tipo:'M',cod:k,d:x.d,u:x.u,ref:x.p,med:x.med},q);}
+      else{const sc=S.C.get(k);if(!sc||S.gEq.has(sc.g))continue;explodir(S,k,q,acc,(prof||0)+1);}}
   }
   function soma(acc,key,base,q){const x=acc.get(key);if(x)x.q+=q;else acc.set(key,{key,...base,q});}
 
@@ -17388,13 +17455,13 @@ const Mascara=(function(){
   const C=(...a)=>({t:'comp',c:a});
   const esp=(d,pad)=>{const m=d.match(/E\s*=\s*(\d+(?:[.,]\d+)?)\s*CM/);return m?parseFloat(m[1].replace(',','.')):pad;};
   const MAD=/MADEIRAMENTO|ESTRUTURA DE MADEIRA|TRAMA/;
-  // piso de alta resistência (8 mm): cimento cinza + agregado de alta resistência + juntas + politriz; f = m² por unidade do serviço
-  const PAR=f=>({t:'comp',c:[['i',1379,10*f],['i',4824,20*f],['i',3671,1.67*f],['e',95276,.12*f]]});
+  // piso de alta resistência (8 mm): cimento cinza + agregado de alta resistência + juntas; f = m² por unidade do serviço
+  const PAR=f=>({t:'comp',c:[['i',1379,10*f],['i',4824,20*f],['i',3671,1.67*f]]});
   const BUSCA=(un,...q)=>({t:'comp',busca:q,un});
   const REGRAS=[
     {re:/^(ENGENHEIR|TECNICO|ENCARREGAD|MESTRE|ELETRICISTA|AJUDANTE|SERVENTE|PEDREIRO|ENCANADOR|BOMBEIRO|CARPINTEIRO|ARMADOR|PINTOR|TOPOGRAF|AUXILIAR|VIGIA|APONTADOR|ALMOXARIF|MOTORISTA|OPERADOR|ADMINISTRACAO)/,f:{t:'mo',nota:'hora ou mês de profissional: é mão de obra'}},
     {re:/^(DEMOLICAO|RETIRADA|REMOCAO|DESMONTAGEM|DELIMITACAO|RASGO|CAPINA|ROCAGEM|ROCADA|DESMATAMENTO|LIMPEZA|DESOBSTRU|MOBILIZACAO|DESMOBILIZACAO|ENCHIMENTO DE RASGO|REVISAO|MOMENTO DE TRANSPORTE)/,f:{t:'mo',nota:'serviço sem compra de material'}},
-    {re:/BOTA.?FORA|CARGA.*TRANSPORTE|TRANSPORTE.*(ENTULHO|SOLO)/,un:['M3'],f:(m,d)=>{const k=d.match(/(\d+(?:[.,]\d+)?)\s*KM/);return C([100978,1],[95875,k?parseFloat(k[1].replace(',','.')):10]);},nota:'carga + caminhão basculante pela distância do serviço'},
+    {re:/BOTA.?FORA|CARGA.*TRANSPORTE|TRANSPORTE.*(ENTULHO|SOLO)/,f:{t:'mo',nota:'carga e caminhão: é equipamento — informe no quadro Equipamentos'}},
     {re:/CONCRETO CICLOPICO/,un:['M3'],f:C([102487,1])},
     {re:/CONCRETO.*FCK\s*=?\s*(\d+)/,un:['M3'],f:m=>{const k=+m[1];return C([k<=15?94963:k<=20?94964:k<=25?94965:k<=30?94966:94967,1]);},nota:'concreto feito na obra pelo fck (cimento, areia e brita)'},
     {re:/CONCRETO MAGRO|CONCRETO NAO ESTRUTURAL/,un:['M3'],f:C([94962,1])},
@@ -17441,7 +17508,7 @@ const Mascara=(function(){
     {re:/(PORTA|PORTAO).*(FERRO|ACO|METALIC|GALVANIZADO)/,un:['M2'],f:C([100701,1])},
     {re:/^(FORNEC[A-Z.]* E INSTAL[A-Z.]* DE |INSTALACAO DE )?(BACIA SANITARIA|VASO SANITARIO)/,un:['UN'],f:C([86931,1])},
     {re:/^(FORNEC[A-Z.]* E INSTAL[A-Z.]* DE |INSTALACAO DE )?LAVATORIO/,un:['UN'],f:C([86904,1])},
-    {re:/ANDAIME/,un:['M2'],f:C(['i',20193,1]),nota:'locação de andaime fachadeiro por 1 mês: mude o fator para o nº de meses'},
+    {re:/ANDAIME/,f:{t:'mo',nota:'locação de andaime: é equipamento — informe no quadro Equipamentos'}},
     {re:/CABO DE COBRE.*?(\d+(?:,\d+)?)\s*MM/,un:['M'],f:m=>BUSCA('M','CABO DE COBRE FLEXIVEL ISOLADO, '+m[1]+' MM','450/750 V','CIRCUITOS TERMINAIS')},
     {re:/TUBO.*PVC.*SOLDAVEL.*?(?:DN|D=|DE)\s*(\d+)\s*MM/,un:['M'],f:m=>BUSCA('M','TUBO, PVC, SOLDAVEL, DE '+m[1]+'MM','RAMAL OU SUB-RAMAL')},
     {re:/^ASSENT[A-Z.]* DE TUBOS?/,f:(m,d)=>/FORNEC/.test(d)?null:{t:'mo',nota:'só o assentamento: o tubo entra no item de fornecimento do orçamento'}},
@@ -17453,7 +17520,7 @@ const Mascara=(function(){
     {re:/ATERRO.*MANUAL|ATERRO MANUAL/,un:['M3'],f:C([94319,1])},
     {re:/ATERRO.*MECANIZ/,un:['M3'],f:C([104738,1])},
     {re:/ESCAV.*MANUAL/,un:['M3'],f:{t:'mo',nota:'escavação manual: só mão de obra'}},
-    {re:/ESCAV.*MECANIZ/,un:['M3'],f:C([90082,1])},
+    {re:/ESCAV.*MECANIZ|ESCAVACAO MECANIZADA/,f:{t:'mo',nota:'escavação com máquina: é equipamento — informe no quadro Equipamentos'}},
     {re:/BLOCO ARTICULADO|BLOQUETE|INTERTRAVADO/,un:['M2'],f:C([92397,1])},
     {re:/PARALELEPIPEDO/,un:['M2'],f:C([101167,1])},
     {re:/MEIO.?FIO|GUIA PRE/,un:['M'],f:C([94273,1])},
@@ -17549,68 +17616,68 @@ const Mascara=(function(){
     base.servs.forEach(sv=>{
       const r=resolver(S,sv,apr);sv.r=r;const acc=new Map();
       if(r.t==='comp'&&!r.c&&r.busca){const c=acharComp(S,r.busca);if(c)r.c=[[c.c,1]];else{r.t='sem';r.orig='sem';}}
+      // só materiais: insumo de equipamento (Q/L) e custo horário ('e') ficam fora — equipamento é da obra toda
       if(r.t==='comp')(r.c||[]).forEach(x=>{
-        if(x[0]==='i'){const y=S.I.get(x[1]);if(y)soma(acc,'i'+y.c,{tipo:y.k==='Q'||y.k==='L'?'E':'M',cod:y.c,d:y.d,u:y.u,ref:y.p,med:y.med},sv.qtd*(+x[2]||0));}
-        else if(x[0]==='e'){const k=+x[1],sc=S.C.get(k);if(sc)soma(acc,'c'+k,{tipo:'E',cod:k,d:curta(sc.d)+' (custo horário sem operador)',u:sc.u,ref:custoSemMO(S,k)},sv.qtd*(+x[2]||0));}
-        else explodir(S,+x[0],sv.qtd*(+x[1]||0),acc,0);});
+        if(x[0]==='i'){const y=S.I.get(x[1]);if(y&&!'OCQL'.includes(y.k))soma(acc,'i'+y.c,{tipo:'M',cod:y.c,d:y.d,u:y.u,ref:y.p,med:y.med},sv.qtd*(+x[2]||0));}
+        else if(x[0]!=='e')explodir(S,+x[0],sv.qtd*(+x[1]||0),acc,0);});
       else if(r.t==='proprio'){const y=proprioRef(S,sv);soma(acc,'p:'+sv.k,{tipo:'M',cod:y?y.c:'',d:sv.desc,u:sv.un,ref:y?y.p:0,med:0,prop:1},sv.qtd);}
       sv.ins=[...acc.values()].filter(x=>x.q>1e-9);
       n[r.t==='mo'?'mo':r.t==='proprio'?'prop':r.t==='sem'?'sem':r.orig==='conf'?'conf':r.orig==='auto'?'auto':'ok']++;
       sv.ins.forEach(x=>{const y=lista.get(x.key);if(y){y.q+=x.q;y.usos.push(sv);}else lista.set(x.key,{...x,usos:[sv]});});
     });
-    // preço de cada insumo (cotação desta obra → média da cidade → SINAPI) e totais
-    let tM=0,tE=0;lista.forEach(it=>{const p=precoDe(it,cid,ob,cot);it.p=p.p;it.f=p.f;it.tp=p.tp;it.merc=p.merc;it.v=r2(compra(it)*it.p);if(it.tipo==='E')tE+=it.v;else tM+=it.v;});
-    base.servs.forEach(sv=>{sv.vM=0;sv.vE=0;sv.ins.forEach(x=>{const it=lista.get(x.key);x.p=it.p;x.f=it.f;x.v=x.q*it.p;if(x.tipo==='E')sv.vE+=x.v;else sv.vM+=x.v;});});
-    base.grupos.forEach(g=>{g.vM=g.servs.reduce((s,x)=>s+x.vM,0);g.vE=g.servs.reduce((s,x)=>s+x.vE,0);});
-    return {...base,lista,tM:r2(tM),tE:r2(tE),n,cid};
+    // preço de cada material (cotação desta obra → média da cidade → SINAPI) e totais
+    let tM=0;lista.forEach(it=>{const p=precoDe(it,cid,ob,cot);it.p=p.p;it.f=p.f;it.tp=p.tp;it.merc=p.merc;it.v=r2(compra(it)*it.p);tM+=it.v;});
+    base.servs.forEach(sv=>{sv.vM=0;sv.ins.forEach(x=>{const it=lista.get(x.key);x.p=it.p;x.f=it.f;x.v=x.q*it.p;sv.vM+=x.v;});});
+    base.grupos.forEach(g=>{g.vM=g.servs.reduce((s,x)=>s+x.vM,0);});
+    return {...base,lista,tM:r2(tM),n,cid};
   }
 
-  /* ═══════════════ TELA: composição + lista de compras dentro do CAP ═══════════════ */
+  /* ═══════════════ TELA: serviços do orçamento + materiais de cada um ═══════════════ */
   const obraCAP=()=>{const e=document.getElementById('cap-f-obra');return e?e.value:'';};
-  const chip=sv=>{const r=sv.r||{};const cod=r.t==='comp'&&r.c&&r.c.length?r.c.map(rotC).join(' + '):'';
-    if(r.t==='mo')return `<button type="button" class="cc-chip mo" data-cc="trocar" title="${fe(r.nota||'Só mão de obra')}"><i class="fas fa-helmet-safety"></i> só mão de obra</button>`;
+  const chip=sv=>{const r=sv.r||{};const cod=r.t==='comp'&&r.c&&r.c.length?r.c.filter(x=>x[0]!=='e').map(rotC).join(' + '):'';
+    if(r.t==='mo')return `<button type="button" class="cc-chip mo" data-cc="trocar" title="${fe(r.nota||'Serviço sem compra de material')}"><i class="fas fa-ban"></i> sem material</button>`;
     if(r.t==='proprio')return `<button type="button" class="cc-chip prop" data-cc="trocar" title="${fe(r.nota||'')}"><i class="fas fa-box"></i> peça pronta · cotar</button>`;
     if(r.t==='sem')return `<button type="button" class="cc-chip sem" data-cc="trocar"><i class="fas fa-circle-question"></i> escolher composição</button>`;
     const cl=r.orig==='conf'?'conf':r.orig==='auto'?'auto':'ok',ic=r.orig==='conf'?'fa-triangle-exclamation':r.orig==='auto'?'fa-wand-magic-sparkles':'fa-circle-check';
     const tt=r.orig==='obra'?'escolhida para esta obra':r.orig==='apr'?'escolhida em outra obra com o mesmo serviço':r.orig==='regra'?'composição da biblioteca do sistema':r.orig==='auto'?'achada pela busca automática':'busca automática com pouca certeza — confira';
     return `<button type="button" class="cc-chip ${cl}" data-cc="trocar" title="SINAPI ${fe(cod)} — ${fe(tt)}${r.nota?' · '+fe(r.nota):''}"><i class="fas ${ic}"></i> SINAPI ${fe(cod)}</button>`;};
   const insHtml=(sv,S)=>{
-    const r=sv.r||{},comp=r.t==='comp'?(r.c||[]).map(x=>{if(x[0]==='i'){const y=S.I.get(x[1]);return `<b>insumo ${x[1]}</b> ${fe(y?y.d:'')} × ${fq(x[2],4)}`;}if(x[0]==='e'){const c=S.C.get(+x[1]);return `<b>equipamento ${x[1]}</b> ${fe(c?curta(c.d):'')} × ${fq(x[2],4)} h`;}const c=S.C.get(+x[0]);return `<b>${x[0]}</b> ${fe(c?curta(c.d):'composição não encontrada')}${+x[1]!==1?` × ${fq(x[1],4)}`:''}`;}).join('<br>'):'';
-    const lin=sv.ins.slice().sort((a,b)=>b.v-a.v).map(x=>`<tr><td><span class="cc-tipo ${x.tipo}">${x.tipo==='E'?'EQUIP.':'MATERIAL'}</span></td><td>${x.cod?fe(x.cod):''}</td><td>${fe(x.d)}</td><td>${fe(x.u)}</td><td class="n">${fq(x.q/(sv.qtd||1),4)}</td><td class="n">${fq(x.q,2)}</td><td class="n">${x.p?fmt(x.p):'—'}<span class="cc-fi">${fe(x.f||'')}</span></td><td class="n"><b>${fmt(x.v)}</b></td></tr>`).join('');
-    return `<tr class="cc-ins"><td colspan="7">${comp?`<div class="comp">Composição: ${comp}${r.nota?` <span style="color:#B54708">· ${fe(r.nota)}</span>`:''}</div>`:r.nota?`<div class="comp">${fe(r.nota)}</div>`:''}
-      ${lin?`<table><thead><tr><th>Tipo</th><th>Código</th><th>O que comprar</th><th>Un.</th><th class="n">Consumo por ${fe(sv.un||'un.')}</th><th class="n">Quantidade</th><th class="n">Preço unit.</th><th class="n">Total</th></tr></thead><tbody>${lin}</tbody></table>`
-        :`<div class="cc-vazio" style="padding:8px;text-align:left">${r.t==='mo'?'Este serviço não compra material: é mão de obra (fica no bloco Mão de obra).':r.t==='sem'?'Nenhuma composição escolhida — clique no selo vermelho para escolher.':'Sem materiais nesta composição.'}</div>`}
+    const r=sv.r||{},comp=r.t==='comp'?(r.c||[]).filter(x=>x[0]!=='e').map(x=>{if(x[0]==='i'){const y=S.I.get(x[1]);return `<b>insumo ${x[1]}</b> ${fe(y?y.d:'')} × ${fq(x[2],4)}`;}const c=S.C.get(+x[0]);return `<b>${x[0]}</b> ${fe(c?curta(c.d):'composição não encontrada')}${+x[1]!==1?` × ${fq(x[1],4)}`:''}`;}).join('<br>'):'';
+    const lin=sv.ins.slice().sort((a,b)=>b.v-a.v).map(x=>`<tr><td>${x.cod?fe(x.cod):''}</td><td>${fe(x.d)}</td><td>${fe(x.u)}</td><td class="n">${fq(x.q/(sv.qtd||1),4)}</td><td class="n">${fq(x.q,2)}</td><td class="n">${x.p?fmt(x.p):'—'}<span class="cc-fi">${fe(x.f||'')}</span></td><td class="n"><b>${fmt(x.v)}</b></td></tr>`).join('');
+    return `<tr class="cc-ins"><td colspan="5">${comp?`<div class="comp">Composição: ${comp}${r.nota?` <span style="color:#B54708">· ${fe(r.nota)}</span>`:''}</div>`:r.nota?`<div class="comp">${fe(r.nota)}</div>`:''}
+      ${lin?`<table><thead><tr><th>Código</th><th>Material</th><th>Un.</th><th class="n">Consumo por ${fe(sv.un||'un.')}</th><th class="n">Quantidade</th><th class="n">Preço unit.</th><th class="n">Total</th></tr></thead><tbody>${lin}</tbody></table>`
+        :`<div class="cc-vazio" style="padding:8px;text-align:left">${r.t==='mo'?'Este serviço não compra material (mão de obra e equipamentos ficam nos quadros do topo).':r.t==='sem'?'Nenhuma composição escolhida — clique no selo vermelho para escolher.':'Sem materiais nesta composição.'}</div>`}
       <div style="margin-top:6px"><button type="button" class="fin-bt mini" data-cc="trocar"><i class="fas fa-right-left"></i> Trocar a composição</button></div></td></tr>`;};
   function htmlComp(){
     const res=ST.res,S=SN.S,cid=ST.meta.cidade||'';
-    const cab=`<div class="cc-cab"><div><h4><i class="fas fa-layer-group"></i>Composição analítica dos serviços</h4><p>Montada sozinha pelo <b>orçamento</b>, na mesma divisão do cronograma. Clique num serviço para ver o que é preciso comprar para executá-lo — <b>materiais e equipamentos</b> (a mão de obra fica no bloco próprio). Quantidade = quantidade do orçamento × consumo da composição oficial (SINAPI). O preço do orçamento não entra.</p></div>
+    const cab=`<div class="cc-cab"><div><h4><i class="fas fa-layer-group"></i>Serviços do orçamento e seus materiais</h4><p>Montado sozinho pelo <b>orçamento</b>, na mesma divisão do cronograma. Clique num serviço para ver os <b>materiais</b> que ele consome: quantidade do orçamento × consumo da composição oficial (SINAPI). Mão de obra e equipamentos ficam nos quadros do topo, para a obra toda. O preço do orçamento não entra.</p></div>
       <div class="cc-ferr"><label class="cc-cid" title="Cidade do preço médio de mercado"><i class="fas fa-location-dot"></i><input id="cc-cidade" placeholder="Cidade, UF — ex.: Itarantim, BA" value="${fe(cid)}"></label>
         <span class="cc-fonte">${S?`<i class="fas fa-tags"></i> SINAPI Bahia <b>${refTxt(S)}</b> · publicado ${fe(S.emissao||'')}`:'<i class="fas fa-tags"></i> tabela de preços'}</span>
         <button type="button" class="fin-bt mini" data-cc="atualizar" title="Busca a tabela de preços mais recente e as últimas cotações da cidade"><i class="fas fa-rotate"></i> Atualizar preços</button></div></div>`;
     if(ST.erro)return cab+`<div class="cc-aviso"><span><b>Não consegui carregar a tabela de preços.</b> ${fe(ST.erro)}</span><button type="button" class="fin-bt mini pri" data-cc="atualizar">Tentar de novo</button></div>`;
-    if(!res||ST.carregando)return cab+`<div class="cc-carr"><i class="fas fa-spinner fa-spin"></i> Buscando a tabela de preços atualizada e montando a composição…</div>`;
-    if(res.semOrc)return cab+`<div class="cc-aviso info"><span>Esta obra ainda não tem <b>orçamento</b>. Monte na aba <b>Orçamento</b>: a composição sai dos itens dele.</span></div>`;
+    if(!res||ST.carregando)return cab+`<div class="cc-carr"><i class="fas fa-spinner fa-spin"></i> Buscando a tabela de preços atualizada e montando os serviços…</div>`;
+    if(res.semOrc)return cab+`<div class="cc-aviso info"><span>Esta obra ainda não tem <b>orçamento</b>. Monte na aba <b>Orçamento</b>: os serviços e os materiais saem dos itens dele.</span></div>`;
     if(!res.servs.length)return cab+`<div class="cc-vazio">O orçamento não tem itens com quantidade.</div>`;
     const n=res.n,conf=n.conf+n.sem;
-    const k=`<div class="cc-kpis"><div class="cc-k"><small>Serviços do orçamento</small><b>${res.servs.length}</b><span>${n.ok+n.auto+n.conf} com composição · ${n.mo} só mão de obra${n.prop?` · ${n.prop} peça pronta`:''}</span></div>
-      <div class="cc-k"><small>Materiais</small><b>${fmt(res.tM)}</b><span>${[...res.lista.values()].filter(x=>x.tipo==='M').length} itens a comprar</span></div>
-      <div class="cc-k"><small>Equipamentos</small><b>${fmt(res.tE)}</b><span>${[...res.lista.values()].filter(x=>x.tipo==='E').length} itens (horas de uso)</span></div>
+    const k=`<div class="cc-kpis"><div class="cc-k"><small>Serviços do orçamento</small><b>${res.servs.length}</b><span>${n.ok+n.auto+n.conf} com materiais · ${n.mo} sem material${n.prop?` · ${n.prop} peça pronta`:''}</span></div>
+      <div class="cc-k"><small>Materiais</small><b>${fmt(res.tM)}</b><span>soma de todos os serviços</span></div>
+      <div class="cc-k"><small>Itens a comprar</small><b>${res.lista.size}</b><span>na lista de compras</span></div>
       <div class="cc-k ${conf?'at':'ok'}"><small>Para conferir</small><b>${conf}</b><span>${conf?'selos amarelos e vermelhos':'tudo com composição'}</span></div></div>`;
     const av=conf?`<div class="cc-aviso"><span><b>${conf} serviço${conf>1?'s':''} para conferir:</b> ${n.sem?`${n.sem} sem composição (selo vermelho) e `:''}${n.conf} com composição achada pela busca automática com pouca certeza (selo amarelo). Clique no selo e escolha a composição certa — a escolha fica guardada e serve para as próximas obras.</span></div>`:'';
     const grs=res.grupos.map((g,gi)=>{const ab=ST.grAbertos.has(g.nome)||(res.grupos.length<=2&&!ST.grAbertos.has('#fechou#'+g.nome));
-      return `<details class="cc-grupo" data-g="${gi}"${ab?' open':''}><summary><i class="fas fa-chevron-right seta"></i><span class="nm">${fe(g.nome)}</span><span class="vl">${g.servs.length} serviço${g.servs.length>1?'s':''} · materiais <b>${fmt(g.vM)}</b> · equip. <b>${fmt(g.vE)}</b></span></summary>
-        <div class="cc-rolar"><table class="cc-tab s"><thead><tr><th>Serviço</th><th>Un.</th><th class="n">Quant.</th><th>Composição</th><th class="n">Materiais</th><th class="n">Equip.</th><th class="n">Total</th></tr></thead><tbody>
-        ${g.servs.map((sv,si)=>{const id=gi+'.'+si,on=ST.abertos.has(sv.k+'#'+gi);return `<tr class="cc-serv${on?' on':''}" data-s="${id}"><td class="d"><i class="fas fa-chevron-right seta"></i>${sv.num?`<b>${fe(sv.num)}</b>`:''}${fe(sv.desc)}${sv.adt?' <small style="color:#5925DC">(aditivo)</small>':''}</td><td>${fe(sv.un)}</td><td class="n">${fq(sv.qtd)}</td><td>${chip(sv)}</td><td class="n">${sv.vM?fmt(sv.vM):'—'}</td><td class="n">${sv.vE?fmt(sv.vE):'—'}</td><td class="n"><b>${fmt(sv.vM+sv.vE)}</b></td></tr>${on?insHtml(sv,S):''}`;}).join('')}
+      return `<details class="cc-grupo" data-g="${gi}"${ab?' open':''}><summary><i class="fas fa-chevron-right seta"></i><span class="nm">${fe(g.nome)}</span><span class="vl">${g.servs.length} serviço${g.servs.length>1?'s':''} · materiais <b>${fmt(g.vM)}</b></span></summary>
+        <div class="cc-rolar"><table class="cc-tab s"><thead><tr><th>Serviço</th><th>Un.</th><th class="n">Quant.</th><th>Composição</th><th class="n">Materiais</th></tr></thead><tbody>
+        ${g.servs.map((sv,si)=>{const id=gi+'.'+si,on=ST.abertos.has(sv.k+'#'+gi);return `<tr class="cc-serv${on?' on':''}" data-s="${id}"><td class="d"><i class="fas fa-chevron-right seta"></i>${sv.num?`<b>${fe(sv.num)}</b>`:''}${fe(sv.desc)}${sv.adt?' <small style="color:#5925DC">(aditivo)</small>':''}</td><td>${fe(sv.un)}</td><td class="n">${fq(sv.qtd)}</td><td>${chip(sv)}</td><td class="n"><b>${sv.vM?fmt(sv.vM):'—'}</b></td></tr>${on?insHtml(sv,S):''}`;}).join('')}
         </tbody></table></div></details>`;}).join('');
     return cab+k+av+grs;
   }
   const FONTE_COR={cot:'#067647',cid:'#1652D8',sin:'#475467',nada:'#B42318'};
-  function tabelaLista(itens,tipo){
-    const L=itens.filter(x=>x.tipo===tipo).sort((a,b)=>b.v-a.v),tot=L.reduce((s,x)=>s+x.v,0),todos=ST.todos[tipo],vis=todos?L:L.slice(0,12);
+  function tabelaLista(itens){
+    const L=itens.slice().sort((a,b)=>b.v-a.v),tot=L.reduce((s,x)=>s+x.v,0),todos=ST.todos.M,vis=todos?L:L.slice(0,12);
     if(!L.length)return '';
-    return `<div class="cc-sub">${tipo==='M'?'Materiais':'Equipamentos'} · ${L.length} ite${L.length>1?'ns':'m'} · ${fmt(tot)}</div><div class="cc-rolar"><table class="cc-tab l"><thead><tr><th>Código</th><th>Descrição</th><th>Un.</th><th class="n">Quantidade</th><th class="n">Preço médio</th><th class="n">Total</th><th>Fonte do preço</th></tr></thead><tbody>
+    return `<div class="cc-sub">${L.length} ite${L.length>1?'ns':'m'} · ${fmt(tot)}</div><div class="cc-rolar"><table class="cc-tab l"><thead><tr><th>Código</th><th>Material</th><th>Un.</th><th class="n">Quantidade</th><th class="n">Preço médio</th><th class="n">Total</th><th>Fonte do preço</th></tr></thead><tbody>
       ${vis.map(x=>`<tr><td>${fe(x.cod||'')}</td><td>${fe(x.d)}${dica(x)}<span class="cc-fi">usado em ${x.usos.length} serviço${x.usos.length>1?'s':''}</span></td><td>${fe(x.u)}</td><td class="n">${fq(compra(x),2)}</td><td class="n">${x.p?fmt(x.p):'—'}</td><td class="n"><b>${fmt(x.v)}</b></td><td><span class="cc-fi" style="color:${FONTE_COR[x.tp]||'#667085'}">${fe(x.f)}</span></td></tr>`).join('')}
-      </tbody></table></div>${L.length>12?`<button type="button" class="cc-mais" data-cc="todos" data-t="${tipo}">${todos?'Mostrar só os 12 maiores':'Ver todos os '+L.length+' itens'}</button>`:''}`;
+      </tbody></table></div>${L.length>12?`<button type="button" class="cc-mais" data-cc="todos" data-t="M">${todos?'Mostrar só os 12 maiores':'Ver todos os '+L.length+' itens'}</button>`:''}`;
   }
   // quantidade de compra: peças inteiras arredondam para cima; o resto, 2 casas
   const INTEIRO=/^(UN|UND|PC|PECA|CJ|JG|PAR|SC|CX|RL|GL|BD|LATA|KIT|TB|FL|BALDE)$/;
@@ -17619,16 +17686,16 @@ const Mascara=(function(){
   function resumoMCC(){
     const res=ST.res,mc=ST.mcc||{},forn=(mc.forn||[]).filter(f=>f&&f.nome);if(!res||!res.lista)return '';
     const L=[...res.lista.values()],cot=L.filter(x=>((mc.p||{})[x.key]||[]).some(p=>+p>0));
-    if(!cot.length)return `<div class="cc-mcc-st"><span><i class="fas fa-scale-balanced" style="color:#1652D8"></i> Mapa comparativo ainda sem cotação: abra o <b>MCC</b>, informe três fornecedores e os preços — o CAP passa a usar o menor preço cotado de cada item.</span></div>`;
+    if(!cot.length)return `<div class="cc-mcc-st"><span><i class="fas fa-scale-balanced" style="color:#1652D8"></i> Mapa comparativo ainda sem cotação: abra o <b>MCC</b>, informe três fornecedores e os preços — o CAP passa a usar o menor preço cotado de cada material.</span></div>`;
     const m=calcMCC(L,mc,res.cid||mc.cidade);
     return `<div class="cc-mcc-st"><span><i class="fas fa-scale-balanced" style="color:#1652D8"></i> Mapa comparativo de <b>${brDe(dt(mc.data))||'—'}</b>${mc.cidade?` · ${fe(mc.cidade)}`:''}</span><span><b>${forn.length}</b> fornecedor${forn.length===1?'':'es'}</span><span><b>${cot.length}</b> de ${L.length} itens cotados</span><span>melhor compra <b>${fmt(m.melhor)}</b></span>${m.econ>0?`<span style="color:#067647">economia de <b>${fmt(m.econ)}</b> sobre o mercado</span>`:''}</div>`;
   }
   function htmlLista(){
     const res=ST.res;if(!res||res.semOrc||!res.lista||!res.lista.size)return '';
     const L=[...res.lista.values()],cid=res.cid;
-    return `<div class="cc-cab"><div><h4><i class="fas fa-cart-shopping" style="background:#12B76A"></i>Lista de compras — materiais e equipamentos</h4><p>Tudo o que a obra precisa comprar, somado de todos os serviços${cid?`, com o preço médio de mercado em <b>${fe(cid)}</b>`:' (informe a cidade para o preço médio da cidade)'}. Fonte do preço, nesta ordem: <span style="color:#067647">cotação desta obra</span> → <span style="color:#1652D8">média das cotações da cidade</span> → SINAPI Bahia do mês mais recente.</p></div>
+    return `<div class="cc-cab"><div><h4><i class="fas fa-cart-shopping" style="background:#12B76A"></i>Lista de compras — materiais</h4><p>Todos os materiais que a obra precisa comprar, somados de todos os serviços${cid?`, com o preço médio de mercado em <b>${fe(cid)}</b>`:' (informe a cidade para o preço médio da cidade)'}. Fonte do preço, nesta ordem: <span style="color:#067647">cotação desta obra</span> → <span style="color:#1652D8">média das cotações da cidade</span> → SINAPI Bahia do mês mais recente.</p></div>
       <div class="cc-ferr"><button type="button" class="fin-bt pri" data-cc="mcc"><i class="fas fa-scale-balanced"></i> Mapa comparativo (MCC)</button><button type="button" class="fin-bt" data-cc="csv"><i class="fas fa-file-csv"></i> Planilha</button><button type="button" class="fin-bt" data-cc="pdf"><i class="fas fa-file-pdf"></i> PDF</button></div></div>
-      ${resumoMCC()}${tabelaLista(L,'M')}${tabelaLista(L,'E')}`;
+      ${resumoMCC()}${tabelaLista(L)}`;
   }
   function pintar(){fecharDrop();
     const a=document.getElementById('cc-comp'),b=document.getElementById('cc-lista');if(!a)return;
@@ -17642,73 +17709,78 @@ const Mascara=(function(){
   }
   async function iniciar(forcar){
     const ob=obraCAP();ST.ob=ob;if(!document.getElementById('cc-comp'))return;
-    if(!ob){document.getElementById('cc-comp').innerHTML='<div class="cc-vazio">Escolha a obra acima: a composição é montada pelo orçamento dela.</div>';const b=document.getElementById('cc-lista');if(b)b.style.display='none';return;}
+    if(!ob){document.getElementById('cc-comp').innerHTML='<div class="cc-vazio">Escolha a obra acima: os serviços e materiais saem do orçamento dela.</div>';const b=document.getElementById('cc-lista');if(b)b.style.display='none';return;}
     if(!ST.meta.cidade){const o=(D().obras||[]).find(x=>Eng.nomeObra(x)===ob),c=Eng.contratoDe&&Eng.contratoDe(ob);ST.meta.cidade=(o&&getFuzzy(o,['cidade_obra']))||(c&&c.cidade_obra)||'';}
     ST.carregando=true;ST.erro='';pintar();
     try{await carregarSinapi(forcar);ST.carregando=false;recalcular();if(forcar)toast(`Preços atualizados: SINAPI Bahia ${refTxt(SN.S)} e cotações da cidade.`,'success');}
     catch(e){ST.carregando=false;ST.erro=e.message||String(e);pintar();}
   }
 
-  /* ═══════════════ BLOCOS EQUIPAMENTOS (C) E MATERIAIS (D) DO CAP: linhas automáticas ═══════════════ */
+  /* ═══════════════ MATERIAIS NO CAP: linhas automáticas (quadro D, escondido) ═══════════════
+     Os quadros "Serviço / Insumos / Materiais" e "Outros" saíram da tela: o custo de material é o dos
+     serviços. As linhas continuam no quadro D (escondido) só para gravar e somar como sempre. */
   let seq=0;
-  const CAT={C:'Equipamentos e Locações',D:'Materiais de Construção'};
-  function linhaAuto(bloco,x){
-    const tr=document.createElement('tr');tr.dataset.bloco=bloco;tr.dataset.rid='a'+(++seq);tr.dataset.auto='1';tr.dataset.chave=x.key;tr.dataset.sin=String(x.cod||'');tr.dataset.fonte=x.f||'';
+  function linhaAuto(x){
+    const tr=document.createElement('tr');tr.dataset.bloco='D';tr.dataset.rid='a'+(++seq);tr.dataset.auto='1';tr.dataset.chave=x.key;tr.dataset.sin=String(x.cod||'');tr.dataset.fonte=x.f||'';
     const un=UI._capMapUnidade?UI._capMapUnidade(x.u):x.u,q=compra(x),sub=r2(q*x.p);
-    tr.innerHTML=`<td style="padding:2px 3px"><input type="text" class="cap-fi cap-lanc" value="${todayDateTime()}" readonly></td>
-      <td style="padding:2px 3px"><select class="cap-fi-sel cap-cat" tabindex="-1"><option value="${CAT[bloco]}" selected>${CAT[bloco]}</option></select></td>
-      <td style="padding:2px 3px"><input type="text" class="cap-fi cap-desc" value="${fe(x.d)}" title="${fe(x.d)} — ${fe(x.f||'')}" readonly></td>
-      <td style="padding:2px 3px"><select class="cap-fi-sel cap-und" tabindex="-1"><option value="${fe(un)}" selected>${fe(un)}</option></select></td>
-      <td style="padding:2px 3px"><input type="text" class="cap-fi r cap-qtd" value="${q.toLocaleString('pt-BR',{maximumFractionDigits:2})}" readonly></td>
-      <td style="padding:2px 3px"><input type="text" class="cap-fi r cap-punit" value="${fmt(x.p)}" readonly></td>
-      <td style="padding:2px 3px"><input type="text" class="cap-fi r cap-maj" value="" readonly></td>
-      <td style="padding:2px 3px"><input type="text" class="cap-fi r cap-sub" value="${sub>0?fmt(sub):'R$ 0,00'}" readonly></td>
-      <td style="padding:2px 3px;width:36px;text-align:center"><span class="cc-auto" title="Vem da composição automática (troque a composição do serviço para mudar)">auto</span></td>`;
+    tr.innerHTML=`<td><input type="text" class="cap-fi cap-lanc" value="${todayDateTime()}" readonly></td>
+      <td><select class="cap-fi-sel cap-cat" tabindex="-1"><option value="Materiais de Construção" selected>Materiais de Construção</option></select></td>
+      <td><input type="text" class="cap-fi cap-desc" value="${fe(x.d)}" readonly></td>
+      <td><select class="cap-fi-sel cap-und" tabindex="-1"><option value="${fe(un)}" selected>${fe(un)}</option></select></td>
+      <td><input type="text" class="cap-fi r cap-qtd" value="${q.toLocaleString('pt-BR',{maximumFractionDigits:2})}" readonly></td>
+      <td><input type="text" class="cap-fi r cap-punit" value="${fmt(x.p)}" readonly></td>
+      <td><input type="text" class="cap-fi r cap-maj" value="" readonly></td>
+      <td><input type="text" class="cap-fi r cap-sub" value="${sub>0?fmt(sub):'R$ 0,00'}" readonly></td><td></td>`;
     return tr;
   }
   const vazia=tr=>![...tr.querySelectorAll('.cap-cat,.cap-desc,.cap-qtd,.cap-punit')].some(el=>el.value&&el.value.trim()&&el.value.trim()!=='0');
-  const legadas=()=>{const out=[];['C','D'].forEach(k=>{const tb=document.querySelector(`.cap-tbody[data-bloco="${k}"]`);if(!tb)return;
-    tb.querySelectorAll('tr:not([data-auto])').forEach(tr=>{if(vazia(tr))return;const cat=(tr.querySelector('.cap-cat')||{}).value||'';if(k==='C'||cat==='Materiais de Construção')out.push(tr);});});return out;};
-  function aplicarNosBlocos(forcar){
+  // linhas digitadas que ficaram nos quadros que saíram (Serviço / Insumos / Materiais e Outros)
+  const legadas=()=>{const out=[];['D','E'].forEach(k=>{const tb=document.querySelector(`.cap-tbody[data-bloco="${k}"]`);if(!tb)return;tb.querySelectorAll('tr:not([data-auto])').forEach(tr=>{if(!vazia(tr))out.push(tr);});});return out;};
+  function aplicarNosBlocos(){
     const res=ST.res,tbC=document.querySelector('.cap-tbody[data-bloco="C"]'),tbD=document.querySelector('.cap-tbody[data-bloco="D"]');
     const avisoEl=document.getElementById('cc-aviso-blocos');if(avisoEl)avisoEl.remove();
-    if(!res||!res.lista||!tbC||!tbD)return;
-    const leg=legadas();
-    // CAP antigo com materiais/equipamentos digitados: só troca quando o usuário mandar (para não somar em dobro)
-    if(leg.length&&!ST.meta.aplicado&&!forcar){
-      const tot=leg.reduce((s,tr)=>s+currencyToNumber((tr.querySelector('.cap-sub')||{}).value||''),0);
-      const card=tbD.closest('.capx-bloco')||tbD.closest('div');
-      card&&card.insertAdjacentHTML('beforebegin',`<div class="cc-aviso info" id="cc-aviso-blocos"><span>Este CAP já tem <b>${leg.length} linha${leg.length>1?'s':''} digitada${leg.length>1?'s':''}</b> de equipamentos e materiais (${fmt(tot)}). A composição automática calculou <b>${fmt(res.tM+res.tE)}</b> (materiais ${fmt(res.tM)} + equipamentos ${fmt(res.tE)}).</span><button type="button" class="fin-bt mini pri" data-cc="usar">Usar a composição nos blocos</button></div>`);
-      return;
-    }
-    if(forcar)leg.forEach(tr=>tr.remove());
+    if(!res||!res.lista||!tbD)return;
     const antes=[...document.querySelectorAll('#cap-scroll-body tr[data-auto] .cap-sub')].reduce((s,el)=>s+currencyToNumber(el.value||''),0);
+    // tira todas as linhas automáticas (inclusive equipamentos que vinham da composição) e põe os materiais de hoje
     document.querySelectorAll('#cap-scroll-body tr[data-auto]').forEach(tr=>tr.remove());
-    const L=[...res.lista.values()].sort((a,b)=>b.v-a.v);
-    [['C',tbC,'E'],['D',tbD,'M']].forEach(([k,tb,t])=>{const ls=L.filter(x=>x.tipo===t);if(!ls.length)return;
-      tb.querySelectorAll('tr:not([data-auto])').forEach(tr=>{if(vazia(tr))tr.remove();});
-      const frag=document.createDocumentFragment();ls.forEach(x=>frag.appendChild(linhaAuto(k,x)));tb.insertBefore(frag,tb.firstChild);});
-    ['C','D'].forEach(k=>{const tb=k==='C'?tbC:tbD;if(!tb.querySelector('tr'))UI._capAddRow&&UI._capAddRow(k);});
+    tbD.querySelectorAll('tr:not([data-auto])').forEach(tr=>{if(vazia(tr))tr.remove();});
+    const frag=document.createDocumentFragment();[...res.lista.values()].sort((a,b)=>b.v-a.v).forEach(x=>frag.appendChild(linhaAuto(x)));tbD.insertBefore(frag,tbD.firstChild);
+    if(tbC&&!tbC.querySelector('tr'))UI._capAddRow&&UI._capAddRow('C');
     if(!ST.meta.aplicado){ST.meta.aplicado=true;sujar();}
     try{UI._calcCAPAll();}catch(e){}
-    const depois=r2(res.tM+res.tE);if(Math.abs(depois-antes)>.5&&antes>0){sujar();
-      const card=tbC.closest('.capx-bloco')||tbC.closest('div');card&&card.insertAdjacentHTML('beforebegin',`<div class="cc-aviso ok" id="cc-aviso-blocos"><span><i class="fas fa-rotate"></i> Equipamentos e materiais atualizados pelos preços de hoje: ${fmt(antes)} → <b>${fmt(depois)}</b>. Clique em <b>Salvar</b> para gravar.</span></div>`);}
+    pintarLegado();
+    const depois=res.tM;if(Math.abs(depois-antes)>.5&&antes>0){sujar();
+      const a=document.getElementById('cc-comp');a&&a.insertAdjacentHTML('afterbegin',`<div class="cc-aviso ok" id="cc-aviso-blocos" style="margin:0 0 10px"><span><i class="fas fa-rotate"></i> Materiais atualizados pelos preços de hoje: ${fmt(antes)} → <b>${fmt(depois)}</b>. Clique em <b>Salvar</b> para gravar.</span></div>`);}
+  }
+  function pintarLegado(){
+    const box=document.getElementById('cc-legado');if(!box)return;const L=legadas();
+    if(!L.length){box.style.display='none';box.innerHTML='';return;}
+    const tot=L.reduce((s,tr)=>s+currencyToNumber((tr.querySelector('.cap-sub')||{}).value||''),0);
+    const v=(tr,s)=>{const e=tr.querySelector(s);return e?e.value:'';};
+    box.style.display='';
+    box.innerHTML=`<div class="cc-cab"><div><h4><i class="fas fa-box-archive" style="background:#98A2B3"></i>Linhas antigas deste CAP</h4><p>Estavam nos quadros <b>"Serviço / Insumos / Materiais"</b> e <b>"Outros"</b>, que deixaram de existir: os materiais agora saem dos serviços do orçamento. <b>Elas ainda somam ${fmt(tot)} no custo</b> até você tirá-las.</p></div>
+      <div class="cc-ferr"><button type="button" class="fin-bt mini err" data-cc="tirar-legado"><i class="fas fa-trash"></i> Tirar do CAP</button></div></div>
+      <div class="cc-rolar"><table class="cc-tab l"><thead><tr><th>Quadro</th><th>Descrição</th><th>Un.</th><th class="n">Qtd.</th><th class="n">P. unit.</th><th class="n">Total</th><th>Especificação</th></tr></thead><tbody>
+      ${L.map(tr=>`<tr><td>${tr.closest('.cap-tbody').dataset.bloco==='E'?'Outros':'Materiais'}</td><td>${fe(v(tr,'.cap-desc'))}</td><td>${fe(v(tr,'.cap-und'))}</td><td class="n">${fe(v(tr,'.cap-qtd'))}</td><td class="n">${fe(v(tr,'.cap-punit'))}</td><td class="n"><b>${fe(v(tr,'.cap-sub'))}</b></td><td>${fe(v(tr,'.cap-cat'))}</td></tr>`).join('')}</tbody></table></div>`;
   }
 
   /* ═══════════════ TROCAR A COMPOSIÇÃO DE UM SERVIÇO ═══════════════ */
+  // material de 1 unidade da composição (sem mão de obra e sem equipamento), a preço SINAPI
+  const matUnit=(S,cod)=>{const acc=new Map();explodir(S,cod,1,acc,0);let s=0;acc.forEach(x=>s+=x.q*x.ref);return s;};
   function trocar(sv){
     const S=SN.S;if(!S)return;const r=sv.r||{},cs=candidatos(S,sv.desc,sv.un,8);
-    const atual=r.t==='comp'&&r.c&&r.c.length===1&&r.c[0][0]!=='i'&&r.c[0][0]!=='e'?+r.c[0][0]:null,fatorAt=atual?+r.c[0][1]||1:1;
+    const cc=(r.c||[]).filter(x=>x[0]!=='e');
+    const atual=r.t==='comp'&&cc.length===1&&cc[0][0]!=='i'?+cc[0][0]:null,fatorAt=atual?+cc[0][1]||1:1;
     const op=(v,tit,sub,chk)=>`<label class="cc-op"><input type="radio" name="cc-esc" value="${fe(v)}"${chk?' checked':''}><span>${tit}${sub?`<small>${sub}</small>`:''}</span></label>`;
-    const opComp=(c,s)=>op('c:'+c.c,`<b>${c.c}</b> — ${fe(curta(c.d))} <small style="display:inline;color:#667085">(${fe(c.u)})</small>`,`material + equipamento por ${fe(c.u)}: ${fmt(custoSemMO(S,c.c))}${s!=null?` · semelhança ${Math.round(s*100)}%`:''}`,atual===c.c);
+    const opComp=(c,s)=>op('c:'+c.c,`<b>${c.c}</b> — ${fe(curta(c.d))} <small style="display:inline;color:#667085">(${fe(c.u)})</small>`,`materiais por ${fe(c.u)}: ${fmt(matUnit(S,c.c))}${s!=null?` · semelhança ${Math.round(s*100)}%`:''}`,atual===c.c);
     const lista=cs.map(x=>opComp(x.c,x.s)).join('');
-    const multi=r.t==='comp'&&r.c&&(r.c.length>1||r.c[0][0]==='i'||r.c[0][0]==='e');
+    const multi=r.t==='comp'&&(cc.length>1||(cc[0]&&cc[0][0]==='i'));
     const corpo=`<div class="fin-resumo" style="margin-bottom:10px"><b>${fe(sv.desc)}</b><br><span style="color:#667085">${fe(sv.un)} · quantidade ${fq(sv.qtd)}${sv.cod?` · código ${fe(sv.cod)}`:''}</span></div>
-      ${multi?op('atual','<b>Manter a composição atual</b>',(r.c||[]).map(x=>x[0]==='i'||x[0]==='e'?rotC(x)+' × '+fq(x[2],4):x[0]+(+x[1]!==1?' × '+fq(x[1],4):'')).join(' + ')+(r.nota?' — '+fe(r.nota):''),true):''}
+      ${multi?op('atual','<b>Manter a composição atual</b>',cc.map(x=>x[0]==='i'?rotC(x)+' × '+fq(x[2],4):x[0]+(+x[1]!==1?' × '+fq(x[1],4):'')).join(' + ')+(r.nota?' — '+fe(r.nota):''),true):''}
       <div class="cc-sub" style="margin-top:4px">Composições mais parecidas</div><div class="cc-lista-op" id="cc-ops">${lista||'<div class="cc-vazio">Nenhuma parecida.</div>'}</div>
       <div class="cc-sub">Procurar outra composição do SINAPI</div><input class="cc-busca" id="cc-busca" placeholder="Digite palavras: ex. alvenaria bloco ceramico 14" autocomplete="off"><div class="cc-lista-op" id="cc-achados"></div>
       <div class="cc-sub">Ou</div>
-      ${op('mo','<b>Só mão de obra</b> — este serviço não compra material','',r.t==='mo')}
+      ${op('mo','<b>Sem material</b> — o serviço é só mão de obra ou equipamento (quadros do topo)','',r.t==='mo')}
       ${op('proprio','<b>Peça pronta</b> — o material é o próprio item (cotar no mapa comparativo)','',r.t==='proprio')}
       <div class="fin-linha" style="margin-top:8px"><div class="fin-fld"><label>Fator: unidades da composição por ${fe(sv.un||'unidade')} do serviço</label><input id="cc-fator" inputmode="decimal" value="${fq(fatorAt,4)}"><div class="capx-dica">Ex.: 2 quando o serviço tem o dobro do consumo (duas faces, espessura dobrada).</div></div>
         <div class="fin-fld"><label style="display:flex;gap:8px;align-items:center;font-weight:600"><input type="checkbox" id="cc-global" checked style="width:auto"> Usar esta escolha também nas outras obras que tiverem este mesmo serviço</label></div></div>`;
@@ -17717,8 +17789,8 @@ const Mascara=(function(){
       {html:'<i class="fas fa-check"></i> Aplicar',cls:'pri',acao:jj=>{
         const v=(jj.querySelector('input[name="cc-esc"]:checked')||{}).value;if(!v)throw new Error('Escolha uma composição ou uma das opções.');
         const f=num(jj.querySelector('#cc-fator').value)||1,gl=jj.querySelector('#cc-global').checked,em=isoDe(hoje0());
-        let e;if(v==='atual')e={t:'comp',c:r.c,nota:r.nota||''};else if(v==='mo')e={t:'mo'};else if(v==='proprio')e={t:'proprio'};else e={t:'comp',c:[[+v.slice(2),f]]};
-        if(v==='atual'&&f!==fatorAt&&r.c.length===1)e.c=[[r.c[0][0],f]];
+        let e;if(v==='atual')e={t:'comp',c:cc,nota:r.nota||''};else if(v==='mo')e={t:'mo'};else if(v==='proprio')e={t:'proprio'};else e={t:'comp',c:[[+v.slice(2),f]]};
+        if(v==='atual'&&f!==fatorAt&&cc.length===1)e.c=[[cc[0][0],f]];
         ST.meta.esc=ST.meta.esc||{};ST.meta.esc[sv.k]={...e,man:1,global:gl?1:0,em};sujar();setTimeout(recalcular,30);}}],760);
     const bx=j.querySelector('#cc-busca'),out=j.querySelector('#cc-achados');let tm=null;
     bx.addEventListener('input',()=>{clearTimeout(tm);tm=setTimeout(()=>{const ws=nrm(bx.value).split(/\s+/).filter(w=>w.length>1);if(!ws.length){out.innerHTML='';return;}
@@ -17726,7 +17798,24 @@ const Mascara=(function(){
       out.innerHTML=ach.length?ach.map(c=>opComp(c)).join(''):'<div class="cc-vazio">Nada encontrado com essas palavras.</div>';},220);});
   }
 
-  /* ═══════════════ MAPA COMPARATIVO DE PREÇOS (MCC) ═══════════════ */
+  /* ═══════════════ MAPA COMPARATIVO DE PREÇOS (MCC) ═══════════════
+     Fornecedor novo (que não está no cadastro) é conferido pelo TELEFONE: se o número já pertence a
+     outro fornecedor cadastrado, avisa — e mesmo assim pode cadastrar. Ao salvar o mapa, os novos entram
+     no cadastro de Fornecedores. */
+  const FN=()=>(D().fornecedores||[]).filter(f=>f&&f.nome&&!f._lixeira_em);
+  const telN=s=>{let d=String(s||'').replace(/\D/g,'');if(d.length>11&&d.startsWith('55'))d=d.slice(2);if(d.length===11&&d[0]==='0')d=d.slice(1);return d;};
+  const mesmoTel=(a,b)=>{a=telN(a);b=telN(b);if(a.length<8||b.length<8)return false;if(a===b)return true;const sa=a.slice(-8),sb=b.slice(-8);if(sa!==sb)return false;return a.length<10||b.length<10||a.slice(0,2)===b.slice(0,2);};
+  const fornPorNome=n=>{const k=cn(n);return k?FN().find(f=>cn(f.nome)===k)||null:null;};
+  const fornPorTel=(t,nome)=>telN(t).length<8?[]:FN().filter(f=>(f.telefone||f.contato)&&mesmoTel(f.telefone||f.contato,t)&&cn(f.nome)!==cn(nome));
+  const fmtTel=t=>window.Mascara&&t?Mascara.F.tel(t):(t||'');
+  function statusForn(f){
+    if(!f.nome)return '<span class="mcc-cinza">Escolha um fornecedor do cadastro ou digite um novo.</span>';
+    const cad=fornPorNome(f.nome),dup=fornPorTel(f.tel,f.nome);let h='';
+    if(cad)h+=`<span class="mcc-ok"><i class="fas fa-circle-check"></i> Já cadastrado${cad.cidade?' · '+fe(cad.cidade):''}</span>`;
+    else h+=`<span class="mcc-novo"><i class="fas fa-user-plus"></i> Fornecedor novo: entra no cadastro ao salvar o mapa${telN(f.tel).length<10?' — informe o telefone':''}</span>`;
+    if(dup.length)h+=`<span class="mcc-dup"><i class="fas fa-triangle-exclamation"></i> Este telefone já é de <b>${dup.slice(0,2).map(x=>fe(x.nome)).join(', ')}</b>, no cadastro. Se for o mesmo fornecedor, <button type="button" class="mcc-usar" data-usar="${fe(dup[0].nome)}">usar ${fe(dup[0].nome)}</button>; se não for, pode cadastrar assim mesmo.</span>`;
+    return h;
+  }
   function calcMCC(L,mc,cid){
     const P=mc.p||{},forn=mc.forn||[],fre=[0,1,2].map(i=>num((forn[i]||{}).frete));
     let merc=0,melhor=0,melhorMerc=0;const tf=[0,0,0],cobre=[0,0,0];
@@ -17741,13 +17830,16 @@ const Mascara=(function(){
   function abrirMCC(){fecharDrop();
     const res=ST.res;if(!res||!res.lista||!res.lista.size)return toast('A lista de compras está vazia.','error');
     try{Eng.datalistFornecedores&&Eng.datalistFornecedores();}catch(e){}
-    const mc=JSON.parse(JSON.stringify(ST.mcc||{}));mc.cidade=mc.cidade||ST.meta.cidade||'';mc.forn=[0,1,2].map(i=>(mc.forn||[])[i]||{});mc.p=mc.p||{};
-    const L=[...res.lista.values()].sort((a,b)=>(a.tipo===b.tipo?0:a.tipo==='M'?-1:1)||b.v-a.v);
-    const forn=mc.forn.map((f,i)=>`<div><h5>Fornecedor ${i+1}</h5><input data-fo="${i}" data-c="nome" list="vx-forn-lista" placeholder="Nome do fornecedor" value="${fe(f.nome||'')}">
-      <div class="g2"><div><label>Contato / telefone</label><input data-fo="${i}" data-c="contato" value="${fe(f.contato||'')}"></div><div><label>Prazo de entrega</label><input data-fo="${i}" data-c="prazo" placeholder="Ex.: 5 dias" value="${fe(f.prazo||'')}"></div>
-      <div><label>Pagamento</label><input data-fo="${i}" data-c="pagto" placeholder="Ex.: 30 dias" value="${fe(f.pagto||'')}"></div><div><label>Frete (R$)</label><input data-fo="${i}" data-c="frete" inputmode="decimal" placeholder="0,00" value="${f.frete?fe(f.frete):''}"></div></div></div>`).join('');
+    const mc=JSON.parse(JSON.stringify(ST.mcc||{}));mc.cidade=mc.cidade||ST.meta.cidade||'';mc.p=mc.p||{};
+    mc.forn=[0,1,2].map(i=>{const f={...((mc.forn||[])[i]||{})};if(!f.tel&&telN(f.contato).length>=10){f.tel=f.contato;f.contato='';}return f;});   // mapa antigo: telefone estava em "contato"
+    const L=[...res.lista.values()].sort((a,b)=>b.v-a.v);
+    const forn=mc.forn.map((f,i)=>`<div><h5>Fornecedor ${i+1}</h5><input data-fo="${i}" data-c="nome" list="vx-forn-lista" autocomplete="off" placeholder="Nome do fornecedor" value="${fe(f.nome||'')}">
+      <div class="g2"><div><label>Telefone / WhatsApp</label><input data-fo="${i}" data-c="tel" data-mask="tel" inputmode="tel" placeholder="(77) 99999-9999" value="${fe(fmtTel(f.tel||''))}"></div><div><label>Pessoa de contato</label><input data-fo="${i}" data-c="contato" value="${fe(f.contato||'')}"></div>
+      <div><label>Prazo de entrega</label><input data-fo="${i}" data-c="prazo" placeholder="Ex.: 5 dias" value="${fe(f.prazo||'')}"></div><div><label>Pagamento</label><input data-fo="${i}" data-c="pagto" placeholder="Ex.: 30 dias" value="${fe(f.pagto||'')}"></div>
+      <div><label>Frete (R$)</label><input data-fo="${i}" data-c="frete" data-mask="moeda" inputmode="numeric" placeholder="R$ 0,00" value="${f.frete?fe(f.frete):''}"></div></div>
+      <div class="mcc-st" data-st="${i}"></div></div>`).join('');
     const pv=v=>v>0?v.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}):'';
-    const linhas=L.map((x,i)=>{const q=compra(x),ps=mc.p[x.key]||[];return `<tr data-k="${fe(x.key)}" data-q="${q}" data-m="${(x.merc&&x.merc.p)||0}"><td class="l" style="color:#98A2B3">${i+1}</td><td class="l"><span class="cc-tipo ${x.tipo}">${x.tipo==='E'?'EQ':'MAT'}</span> ${fe(x.d)}${x.cod?` <small style="color:#98A2B3">${fe(x.cod)}</small>`:''}</td><td class="l">${fe(x.u)}</td><td>${fq(q,2)}</td>
+    const linhas=L.map((x,i)=>{const q=compra(x),ps=mc.p[x.key]||[];return `<tr data-k="${fe(x.key)}" data-q="${q}" data-m="${(x.merc&&x.merc.p)||0}"><td class="l" style="color:#98A2B3">${i+1}</td><td class="l">${fe(x.d)}${x.cod?` <small style="color:#98A2B3">${fe(x.cod)}</small>`:''}</td><td class="l">${fe(x.u)}</td><td>${fq(q,2)}</td>
       <td class="bl" data-mu>${(x.merc&&x.merc.p)?fmt(x.merc.p):'—'}</td><td data-mt>${(x.merc&&x.merc.p)?fmt(q*x.merc.p):'—'}</td>
       ${[0,1,2].map(f=>`<td class="bl" data-c="${f}"><input data-p="${f}" inputmode="decimal" placeholder="R$" value="${pv(+ps[f]||0)}"></td><td data-t="${f}"></td>`).join('')}
       <td class="bl l" data-mf></td><td data-mv></td></tr>`;}).join('');
@@ -17755,12 +17847,17 @@ const Mascara=(function(){
         <span class="cc-fonte">Preço médio de mercado: média das cotações já feitas na cidade; sem cotação, SINAPI Bahia ${SN.S?refTxt(SN.S):''}</span>
         <span style="flex:1"></span><button type="button" class="fin-bt mini" data-mcc="csv"><i class="fas fa-file-csv"></i> Planilha</button><button type="button" class="fin-bt mini" data-mcc="pdf"><i class="fas fa-file-pdf"></i> PDF</button></div>
       <div class="mcc-forn">${forn}</div>
-      <div class="mcc-wrap"><table class="mcc-tab"><colgroup><col class="c1"><col class="c2"><col class="c3"><col class="c4"><col class="cm"><col class="ct"><col class="cp"><col class="ct"><col class="cp"><col class="ct"><col class="cp"><col class="ct"><col class="cf"><col class="ct"></colgroup><thead><tr class="grp"><th class="l" colspan="4" style="text-align:left">Itens a comprar (${L.length})</th><th colspan="2">Mercado — <span data-cidrot>${fe(mc.cidade||'cidade')}</span></th>${[0,1,2].map(i=>`<th colspan="2" data-fh="${i}">${fe(mc.forn[i].nome||'Fornecedor '+(i+1))}</th>`).join('')}<th colspan="2">Melhor preço</th></tr>
+      <div class="mcc-wrap"><table class="mcc-tab"><colgroup><col class="c1"><col class="c2"><col class="c3"><col class="c4"><col class="cm"><col class="ct"><col class="cp"><col class="ct"><col class="cp"><col class="ct"><col class="cp"><col class="ct"><col class="cf"><col class="ct"></colgroup><thead><tr class="grp"><th class="l" colspan="4" style="text-align:left">Materiais a comprar (${L.length})</th><th colspan="2">Mercado — <span data-cidrot>${fe(mc.cidade||'cidade')}</span></th>${[0,1,2].map(i=>`<th colspan="2" data-fh="${i}">${fe(mc.forn[i].nome||'Fornecedor '+(i+1))}</th>`).join('')}<th colspan="2">Melhor preço</th></tr>
         <tr class="col"><th class="l">#</th><th class="l">Descrição</th><th class="l">Un.</th><th>Qtd.</th><th>Unit.</th><th>Total</th>${[0,1,2].map(()=>'<th>Unit.</th><th>Total</th>').join('')}<th class="l">Fornecedor</th><th>Total</th></tr></thead>
         <tbody>${linhas}</tbody><tfoot><tr><td class="l" colspan="4">Totais (com frete)</td><td></td><td data-ft="m"></td>${[0,1,2].map(i=>`<td></td><td data-ft="${i}"></td>`).join('')}<td></td><td data-ft="b"></td></tr></tfoot></table></div>
       <div class="mcc-res" id="mcc-res"></div>`;
-    const j=janela('Mapa comparativo de preços (MCC) — '+(ST.ob||''),corpo,[{html:'<i class="fas fa-floppy-disk"></i> Salvar o mapa',cls:'pri',acao:jj=>{
-      ST.mcc=lerMCC(jj);sujar();setTimeout(()=>{recalcular();try{if(App.state.obraHub)UI._obraHubSalvar();else App.saveCAP();}catch(e){console.error(e);}},60);}}],1340);
+    const j=janela('Mapa comparativo de preços (MCC) — '+(ST.ob||''),corpo,[{html:'<i class="fas fa-floppy-disk"></i> Salvar o mapa',cls:'pri',acao:async jj=>{
+      const m=lerMCC(jj),vistos=new Set();
+      const novos=m.forn.filter(f=>{const k=cn(f.nome);if(!k||vistos.has(k)||fornPorNome(f.nome))return false;vistos.add(k);return true;});
+      for(const f of novos)await Fin.util.salvar('Fornecedores',{nome:f.nome,tipo:'Material de construção',contato:f.contato||'',telefone:fmtTel(f.tel||''),cidade:m.cidade||'',situacao:'Ativo',observacao:'Cadastrado pelo mapa comparativo da obra '+(ST.ob||''),data_lancamento:todayDateTime()});
+      if(novos.length)toast(`${novos.length===1?'Fornecedor novo cadastrado':novos.length+' fornecedores novos cadastrados'}: ${novos.map(f=>f.nome).join(', ')}.`,'success');
+      ST.mcc=m;sujar();setTimeout(()=>{recalcular();try{if(App.state.obraHub)UI._obraHubSalvar();else App.saveCAP();}catch(e){console.error(e);}},60);}}],1340);
+    const status=()=>{const m=lerMCC(j);[0,1,2].forEach(i=>{const el=j.querySelector(`[data-st="${i}"]`);if(el)el.innerHTML=statusForn(m.forn[i]);});};
     const recalc=()=>{
       const m=lerMCC(j),P=m.p,fre=[0,1,2].map(i=>num(m.forn[i].frete));const tf=[0,0,0],cobre=[0,0,0];let tm=0,tb=0,econ=0;const ganhos=[0,0,0];
       j.querySelectorAll('tbody tr[data-k]').forEach(tr=>{const k=tr.dataset.k,q=+tr.dataset.q||0,mu=+tr.dataset.m||0,ps=(P[k]||[0,0,0]).map(v=>+v||0);tm+=q*mu;
@@ -17778,7 +17875,13 @@ const Mascara=(function(){
         <div class="cc-k"><small>Tudo num fornecedor só</small><b>${unico?fmt(unico[1]):'—'}</b><span>${unico?fe(m.forn[unico[0]].nome||'Fornecedor '+(unico[0]+1))+' cotou todos os itens':'nenhum cotou todos os itens'}</span></div>`;
     };
     // a janela (#fin-jan) é reaproveitada: ouvintes só nos elementos novos (ou em on*, que a janela zera)
-    j.oninput=e=>{if(e.target.matches('[data-p],[data-fo]'))recalc();};
+    let tSt=null;
+    j.oninput=e=>{if(e.target.matches('[data-p],[data-fo]'))recalc();if(e.target.matches('[data-fo]')){clearTimeout(tSt);tSt=setTimeout(status,250);}};
+    // escolheu um fornecedor do cadastro: telefone e contato vêm de lá
+    j.onchange=e=>{const el=e.target;if(!el.matches('[data-c="nome"]'))return;const i=el.dataset.fo,cad=fornPorNome(el.value),tel=j.querySelector(`[data-fo="${i}"][data-c="tel"]`),ct=j.querySelector(`[data-fo="${i}"][data-c="contato"]`);
+      if(cad){if(tel&&!tel.value.trim()&&(cad.telefone||''))tel.value=fmtTel(cad.telefone);if(ct&&!ct.value.trim()&&cad.contato)ct.value=cad.contato;}status();recalc();};
+    j.querySelector('.mcc-forn').addEventListener('click',e=>{const b=e.target.closest('[data-usar]');if(!b)return;const card=b.closest('.mcc-forn>div'),i=card.querySelector('[data-c="nome"]').dataset.fo,cad=fornPorNome(b.dataset.usar);
+      const nm=j.querySelector(`[data-fo="${i}"][data-c="nome"]`);nm.value=b.dataset.usar;if(cad){const tel=j.querySelector(`[data-fo="${i}"][data-c="tel"]`);if(tel&&cad.telefone)tel.value=fmtTel(cad.telefone);const ct=j.querySelector(`[data-fo="${i}"][data-c="contato"]`);if(ct&&!ct.value.trim()&&cad.contato)ct.value=cad.contato;}status();recalc();});
     const wrap=j.querySelector('.mcc-wrap');
     wrap.addEventListener('focusout',e=>{if(e.target.matches('[data-p]')){const v=num(e.target.value);e.target.value=v>0?v.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}):'';}});
     wrap.addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target.matches('[data-p]')){e.preventDefault();const all=[...j.querySelectorAll(`[data-p="${e.target.dataset.p}"]`)],i=all.indexOf(e.target);if(all[i+1])all[i+1].focus();}});
@@ -17786,7 +17889,7 @@ const Mascara=(function(){
     const ci=j.querySelector('#mcc-cidade');ligar(ci,v=>{v=normalizar(v);const cot=cotacoesDaCidade(v,ST.ob);
       j.querySelectorAll('tbody tr[data-k]').forEach(tr=>{const x=res.lista.get(tr.dataset.k);if(!x)return;const c=cot[x.key]||[],md=c.length?c.reduce((s,y)=>s+y,0)/c.length:(x.ref||0);tr.dataset.m=md;const q=+tr.dataset.q||0;
         tr.querySelector('[data-mu]').textContent=md?fmt(md):'—';tr.querySelector('[data-mt]').textContent=md?fmt(q*md):'—';});recalc();});
-    recalc();
+    status();recalc();
   }
   function lerMCC(j){
     const forn=[0,1,2].map(i=>{const f={};j.querySelectorAll(`[data-fo="${i}"]`).forEach(el=>f[el.dataset.c]=el.value.trim());return f;});
@@ -17795,10 +17898,10 @@ const Mascara=(function(){
   }
   const nomeArq=()=>'mapa-comparativo-'+String(ST.ob||'obra').slice(0,40);
   function csvMCC(L,m){
-    const cab=['Item','Código','Descrição','Tipo','Unidade','Quantidade','Mercado unit.','Mercado total'].concat([0,1,2].flatMap(i=>[(m.forn[i].nome||'Fornecedor '+(i+1))+' unit.',(m.forn[i].nome||'Fornecedor '+(i+1))+' total']),['Melhor fornecedor','Melhor total']);
+    const cab=['Item','Código','Descrição','Unidade','Quantidade','Mercado unit.','Mercado total'].concat([0,1,2].flatMap(i=>[(m.forn[i].nome||'Fornecedor '+(i+1))+' unit.',(m.forn[i].nome||'Fornecedor '+(i+1))+' total']),['Melhor fornecedor','Melhor total']);
     const br=v=>v?String(r2(v)).replace('.',','):'';
     const ls=L.map((x,i)=>{const q=compra(x),mu=(x.merc&&x.merc.p)||0,ps=(m.p[x.key]||[]).map(v=>+v||0),pos=ps.filter(p=>p>0),b=pos.length?Math.min(...pos):0,bi=b?ps.indexOf(b):-1;
-      return [i+1,x.cod||'',x.d,x.tipo==='E'?'Equipamento':'Material',x.u,String(q).replace('.',','),br(mu),br(q*mu)].concat([0,1,2].flatMap(k=>[br(ps[k]),br(ps[k]*q)]),[bi>=0?(m.forn[bi].nome||'Fornecedor '+(bi+1)):'',br(b*q)]);});
+      return [i+1,x.cod||'',x.d,x.u,String(q).replace('.',','),br(mu),br(q*mu)].concat([0,1,2].flatMap(k=>[br(ps[k]),br(ps[k]*q)]),[bi>=0?(m.forn[bi].nome||'Fornecedor '+(bi+1)):'',br(b*q)]);});
     GS.baixarCSV(nomeArq(),cab,ls);
   }
   function pdfMCC(L,m){
@@ -17813,34 +17916,163 @@ const Mascara=(function(){
       .forn{display:flex;gap:8px;margin-bottom:8px;}.forn div{flex:1;border:1px solid #d9dde5;border-radius:4px;padding:5px 6px;font-size:8.5px;}.forn b{font-size:9.5px;}
       .ass{display:flex;gap:40px;margin-top:26px;}.ass div{flex:1;border-top:1px solid #333;padding-top:3px;text-align:center;font-size:8.5px;}</style></head><body>
       <h1>Mapa comparativo de preços (MCC)</h1><div class="sub">Obra: <b>${fe(ST.ob||'')}</b> · Cidade: <b>${fe(m.cidade||'—')}</b> · Data: ${brDe(hoje0())} · Mercado = média das cotações da cidade ou SINAPI Bahia ${SN.S?refTxt(SN.S):''}</div>
-      <div class="forn">${[0,1,2].map(i=>`<div><b>${fe(nomes[i])}</b><br>${fe(m.forn[i].contato||'')}${m.forn[i].prazo?' · entrega '+fe(m.forn[i].prazo):''}${m.forn[i].pagto?' · pagamento '+fe(m.forn[i].pagto):''}${fre[i]?' · frete '+fmt(fre[i]):''}</div>`).join('')}</div>
+      <div class="forn">${[0,1,2].map(i=>`<div><b>${fe(nomes[i])}</b><br>${[m.forn[i].tel?fmtTel(m.forn[i].tel):'',m.forn[i].contato].filter(Boolean).map(fe).join(' · ')}${m.forn[i].prazo?' · entrega '+fe(m.forn[i].prazo):''}${m.forn[i].pagto?' · pagamento '+fe(m.forn[i].pagto):''}${fre[i]?' · frete '+fmt(fre[i]):''}</div>`).join('')}</div>
       <table><thead><tr><th class="l" colspan="4"></th><th colspan="2">Mercado</th>${nomes.map(n=>`<th colspan="2">${fe(n)}</th>`).join('')}<th colspan="2">Melhor preço</th></tr><tr><th>#</th><th class="l">Descrição</th><th>Un.</th><th>Qtd.</th><th>Unit.</th><th>Total</th>${nomes.map(()=>'<th>Unit.</th><th>Total</th>').join('')}<th class="l">Fornecedor</th><th>Total</th></tr></thead>
       <tbody>${lin}</tbody><tfoot><tr><td colspan="4" class="l">Totais (fornecedores com frete)</td><td></td><td>${fmt(tm)}</td>${[0,1,2].map(i=>`<td></td><td>${tf[i]?fmt(tf[i]+fre[i]):'—'}</td>`).join('')}<td></td><td>${tb?fmt(tb+fb):'—'}</td></tr></tfoot></table>
       <div class="ass"><div>Responsável pela cotação</div><div>Aprovação da compra</div></div><script>window.onload=()=>setTimeout(()=>print(),250);<\/script></body></html>`);
     w.document.close();
   }
   // lista de compras (planilha / PDF) a partir da tela do CAP
-  function csvLista(){const res=ST.res;if(!res||!res.lista)return;const L=[...res.lista.values()].sort((a,b)=>(a.tipo===b.tipo?0:a.tipo==='M'?-1:1)||b.v-a.v);
-    GS.baixarCSV('lista-de-compras-'+String(ST.ob||'').slice(0,40),['Tipo','Código','Descrição','Unidade','Quantidade','Preço médio','Total','Fonte do preço','Serviços que usam'],L.map(x=>[x.tipo==='E'?'Equipamento':'Material',x.cod||'',x.d,x.u,String(compra(x)).replace('.',','),String(r2(x.p)).replace('.',','),String(r2(compra(x)*x.p)).replace('.',','),x.f,x.usos.map(s=>(s.num?s.num+' ':'')+s.desc).join(' | ')]));}
+  function csvLista(){const res=ST.res;if(!res||!res.lista)return;const L=[...res.lista.values()].sort((a,b)=>b.v-a.v);
+    GS.baixarCSV('lista-de-compras-'+String(ST.ob||'').slice(0,40),['Código','Material','Unidade','Quantidade','Preço médio','Total','Fonte do preço','Serviços que usam'],L.map(x=>[x.cod||'',x.d,x.u,String(compra(x)).replace('.',','),String(r2(x.p)).replace('.',','),String(r2(compra(x)*x.p)).replace('.',','),x.f,x.usos.map(s=>(s.num?s.num+' ':'')+s.desc).join(' | ')]));}
+  const PDF_CSS=`@page{size:A4;margin:12mm;}body{font-family:Arial,sans-serif;font-size:9.5px;color:#1d1d1f;margin:0;}h1{font-size:16px;margin:0 0 2px;}h2{font-size:12px;margin:16px 0 5px;padding-bottom:3px;border-bottom:2px solid #1652D8;}h3{font-size:10.5px;margin:10px 0 3px;color:#1652D8;}
+      .sub{color:#555;font-size:10px;margin-bottom:8px;}table{border-collapse:collapse;width:100%;}th,td{border-bottom:1px solid #e1e4ea;padding:3px 4px;text-align:right;vertical-align:top;}th{background:#eef2f8;font-size:8px;text-transform:uppercase;}td.l,th.l{text-align:left;}thead{display:table-header-group;}tr{page-break-inside:avoid;}tfoot td{font-weight:bold;}
+      .kp{display:flex;gap:8px;margin:6px 0 4px;}.kp div{flex:1;border:1px solid #e1e4ea;border-radius:6px;padding:6px 8px;}.kp small{display:block;font-size:7.5px;text-transform:uppercase;color:#667085;font-weight:bold;}.kp b{font-size:12px;}
+      .sv{margin:3px 0 5px;page-break-inside:avoid;}.sv ul{margin:2px 0 0 14px;padding:0;color:#333;}.tot td{font-weight:bold;border-top:1.5px solid #1d1d1f;}`;
   function pdfLista(){
     const res=ST.res;if(!res||!res.lista)return;const w=window.open('','_blank');if(!w)return toast('Permita pop-ups deste site para gerar o PDF.','error');
-    const S=SN.S,bloco=t=>{const L=[...res.lista.values()].filter(x=>x.tipo===t).sort((a,b)=>b.v-a.v);if(!L.length)return '';const tot=L.reduce((s,x)=>s+compra(x)*x.p,0);
-      return `<h2>${t==='M'?'Materiais':'Equipamentos'}</h2><table><thead><tr><th class="l">Código</th><th class="l">Descrição</th><th>Un.</th><th>Quantidade</th><th>Preço médio</th><th>Total</th><th class="l">Fonte</th></tr></thead><tbody>${L.map(x=>`<tr><td class="l">${fe(x.cod||'')}</td><td class="l">${fe(x.d)}</td><td>${fe(x.u)}</td><td>${fq(compra(x),2)}</td><td>${x.p?fmt(x.p):'—'}</td><td>${fmt(compra(x)*x.p)}</td><td class="l">${fe(x.f)}</td></tr>`).join('')}</tbody><tfoot><tr><td colspan="5" class="l">Total</td><td>${fmt(tot)}</td><td></td></tr></tfoot></table>`;};
-    const serv=res.grupos.map(g=>`<h3>${fe(g.nome)}</h3>${g.servs.map(sv=>`<div class="sv"><b>${sv.num?fe(sv.num)+' ':''}${fe(sv.desc)}</b> — ${fq(sv.qtd)} ${fe(sv.un)}${sv.ins.length?'<ul>'+sv.ins.slice().sort((a,b)=>b.v-a.v).map(x=>`<li>${fe(x.d)}: ${fq(x.q,2)} ${fe(x.u)} · ${fmt(x.v)}</li>`).join('')+'</ul>':`<div style="color:#777">${sv.r&&sv.r.t==='mo'?'só mão de obra':'sem materiais'}</div>`}</div>`).join('')}`).join('');
-    w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>&nbsp;</title><style>@page{size:A4;margin:12mm;}body{font-family:Arial,sans-serif;font-size:9.5px;color:#1d1d1f;margin:0;}h1{font-size:16px;margin:0 0 2px;}h2{font-size:12px;margin:14px 0 5px;}h3{font-size:10.5px;margin:10px 0 3px;color:#1652D8;}
-      .sub{color:#555;font-size:10px;margin-bottom:6px;}table{border-collapse:collapse;width:100%;}th,td{border-bottom:1px solid #e1e4ea;padding:3px 4px;text-align:right;}th{background:#eef2f8;font-size:8px;text-transform:uppercase;}td.l,th.l{text-align:left;}thead{display:table-header-group;}tr{page-break-inside:avoid;}tfoot td{font-weight:bold;}
-      .sv{margin:3px 0 5px;page-break-inside:avoid;}.sv ul{margin:2px 0 0 14px;padding:0;color:#333;}</style></head><body>
-      <h1>Lista de compras — materiais e equipamentos</h1><div class="sub">Obra: <b>${fe(ST.ob||'')}</b> · Cidade: <b>${fe(res.cid||'—')}</b> · ${brDe(hoje0())} · Preços: cotações desta obra, média da cidade ou SINAPI Bahia ${S?refTxt(S):''} (mão de obra não incluída)</div>
-      ${bloco('M')}${bloco('E')}<h2>O que cada serviço precisa (composição analítica)</h2>${serv}<script>window.onload=()=>setTimeout(()=>print(),250);<\/script></body></html>`);
+    const S=SN.S;w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>&nbsp;</title><style>${PDF_CSS}</style></head><body>
+      <h1>Lista de compras — materiais</h1><div class="sub">Obra: <b>${fe(ST.ob||'')}</b> · Cidade: <b>${fe(res.cid||'—')}</b> · ${brDe(hoje0())} · Preços: cotações desta obra, média da cidade ou SINAPI Bahia ${S?refTxt(S):''} (sem mão de obra e sem equipamentos)</div>
+      ${htmlListaPdf(res)}<h2>O que cada serviço precisa</h2>${htmlServPdf(res,true)}<script>window.onload=()=>setTimeout(()=>print(),250);<\/script></body></html>`);
     w.document.close();
   }
+  function htmlListaPdf(res){const L=[...res.lista.values()].sort((a,b)=>b.v-a.v);if(!L.length)return '<p>Sem materiais.</p>';const tot=L.reduce((s,x)=>s+x.v,0);
+    return `<table><thead><tr><th class="l">Código</th><th class="l">Material</th><th>Un.</th><th>Quantidade</th><th>Preço médio</th><th>Total</th><th class="l">Fonte</th></tr></thead><tbody>${L.map(x=>`<tr><td class="l">${fe(x.cod||'')}</td><td class="l">${fe(x.d)}</td><td>${fe(x.u)}</td><td>${fq(compra(x),2)}</td><td>${x.p?fmt(x.p):'—'}</td><td>${fmt(x.v)}</td><td class="l">${fe(x.f)}</td></tr>`).join('')}</tbody><tfoot><tr><td colspan="5" class="l">Total de materiais</td><td>${fmt(tot)}</td><td></td></tr></tfoot></table>`;}
+  function htmlServPdf(res,detalhe){return res.grupos.map(g=>`<h3>${fe(g.nome)} — ${fmt(g.vM)}</h3>${detalhe?g.servs.map(sv=>`<div class="sv"><b>${sv.num?fe(sv.num)+' ':''}${fe(sv.desc)}</b> — ${fq(sv.qtd)} ${fe(sv.un)} · materiais ${fmt(sv.vM)}${sv.ins.length?'<ul>'+sv.ins.slice().sort((a,b)=>b.v-a.v).map(x=>`<li>${fe(x.d)}: ${fq(x.q,2)} ${fe(x.u)} · ${fmt(x.v)}</li>`).join('')+'</ul>':`<div style="color:#777">${sv.r&&sv.r.t==='mo'?'sem material':'sem materiais'}</div>`}</div>`).join('')
+      :`<table><thead><tr><th class="l">Serviço</th><th>Un.</th><th>Quant.</th><th>Materiais</th></tr></thead><tbody>${g.servs.map(sv=>`<tr><td class="l">${sv.num?fe(sv.num)+' ':''}${fe(sv.desc)}</td><td>${fe(sv.un)}</td><td>${fq(sv.qtd)}</td><td>${sv.vM?fmt(sv.vM):'—'}</td></tr>`).join('')}</tbody></table>`}`).join('');}
+
+  /* ═══════════════ PAINEL DO CAP: custo, orçado × realizado e formação do preço ═══════════════ */
+  const numTxt=id=>currencyToNumber((document.getElementById(id)||{}).textContent||'');
+  const pctV=id=>{const e=document.getElementById(id);if(!e)return 0;const t=e.tagName==='INPUT'?e.value:e.textContent,m=String(t||'').match(/-?\d[\d.]*(,\d+)?/);return m?parseFloat(m[0].replace(/\./g,'').replace(',','.'))||0:0;};
+  const pc=(v,c)=>v==null||!isFinite(v)?'—':(Math.round(v*10)/10).toLocaleString('pt-BR',{maximumFractionDigits:c==null?1:c})+'%';
+  const COR={A:'#1652D8',C:'#F79009',D:'#12B76A',E:'#98A2B3',imp:'#7A5AF8',luc:'#067647',neg:'#F04438'};
+  const IMP=[['inss','INSS'],['irpf','IRPF'],['simples','Simples Nacional'],['antnf','Antecipação de NF'],['outros','Outros impostos']];
+  function painel(){
+    const body=document.getElementById('cap-scroll-body');if(!body||!body.dataset.cc)return;
+    const t={A:numTxt('cap-tot-A'),C:numTxt('cap-tot-C'),D:numTxt('cap-tot-D'),E:numTxt('cap-tot-E')},custo=t.A+t.C+t.D+t.E;
+    const preco=numTxt('cap-val-orcliquido'),imp=IMP.reduce((s,[k])=>s+numTxt('cap-val-'+k),0),lucro=preco?preco-imp-custo:0,pl=preco?lucro/preco*100:0;
+    const blocos=[['A','Mão de obra'],['C','Equipamentos'],['D','Materiais (serviços)']].concat(t.E?[['E','Linhas antigas']]:[]);
+    // painel do topo
+    const dash=document.getElementById('capx-dash');
+    if(dash)dash.innerHTML=`<div class="capx-k"><small>Custo direto orçado</small><b>${fmt(custo)}</b><span>mão de obra + equipamentos + materiais</span></div>
+      <div class="capx-k"><small>Preço de venda</small><b>${preco?fmt(preco):'—'}</b><span>${preco?'total do orçamento':'monte o orçamento da obra'}${preco&&custo?' · BDI implícito '+pc((preco/custo-1)*100):''}</span></div>
+      <div class="capx-k"><small>Impostos e retenções</small><b>${preco?fmt(imp):'—'}</b><span>${preco?pc(imp/preco*100)+' do preço':''}</span></div>
+      <div class="capx-k ${!preco?'':lucro<0?'err':pl<5?'warn':'ok'}"><small>Lucratividade prevista</small><b>${preco?fmt(lucro):'—'}</b><span>${preco?pc(pl)+' do preço'+(lucro<0?' — a obra dá prejuízo':pl<5?' — margem apertada':''):''}</span></div>
+      <div class="capx-comp"><div class="capx-tit" style="margin:0">Composição do custo</div><div class="capx-comp-barra">${blocos.map(([k])=>custo&&t[k]?`<i style="width:${t[k]/custo*100}%;background:${COR[k]}" title="${fmt(t[k])}"></i>`:'').join('')}</div>
+        <div class="capx-leg">${blocos.map(([k,r])=>`<span><em style="background:${COR[k]}"></em>${r} · <b>${fmt(t[k])}</b> · ${custo?pc(t[k]/custo*100):'—'}</span>`).join('')}</div></div>`;
+    // orçado × realizado (logo abaixo da composição do custo)
+    const real=document.getElementById('capx-real'),ob=obraCAP();
+    if(real&&ob){
+      const rr={A:0,C:0,D:0};try{(D().custos||[]).map(GS.contas.deCusto).filter(o=>o.centro===ob&&o.tipo==='Real').forEach(o=>{const b=o.cat==='Mão de Obra'?'A':o.cat==='Equipamentos e Locações'?'C':'D';rr[b]+=val(o.total);});}catch(e){}
+      let fis=null;try{const f=Eng.fisico(ob,hoje0());if(f&&f.tem)fis=f.real;}catch(e){}
+      const gasto=rr.A+rr.C+rr.D;
+      const linha=(rot,orc,gas,cor)=>{const p=orc?gas/orc*100:null,c2=p==null?'#8E8E93':p>100?'#F04438':fis!=null&&p>fis+10?'#F79009':cor;
+        return `<div class="capx-linha"><div><b>${rot}</b><span>${fmt(gas)} de ${fmt(orc)}${p!=null?' · '+pc(p):''}</span></div><em><i style="width:${Math.min(100,p||0)}%;background:${c2}"></i>${fis!=null?`<b style="left:${Math.min(100,fis)}%" title="avanço físico ${pc(fis)}"></b>`:''}</em></div>`;};
+      const pT=custo?gasto/custo*100:null;
+      real.innerHTML=`<h4>Orçado × realizado</h4>${linha('Total da obra',custo,gasto,'#1652D8')}${linha('Mão de obra',t.A,rr.A,COR.A)}${linha('Equipamentos',t.C,rr.C,COR.C)}${linha('Materiais e outros',t.D+t.E,rr.D,COR.D)}
+        <p class="capx-nota">${fis!=null?`A marca preta é o avanço físico (${pc(fis)}). `:''}${pT==null?'Monte o CAP para comparar com os custos reais.':pT>100?'<b style="color:#B42318">Os custos reais já passaram do orçado.</b> Revise o CAP ou negocie aditivo.':fis!=null&&pT>fis+10?`<b style="color:#B54708">O gasto (${pc(pT)}) está à frente do avanço físico (${pc(fis)})</b> — pode ser compra antecipada de material ou custo estourando.`:'O gasto acompanha o orçado.'} Custos reais = contas a pagar "Real" da obra.</p>`;
+    }
+    // formação do preço
+    const fp=document.getElementById('fp');if(!fp)return;
+    const base=Math.max(preco,custo+imp)||1,lucP=Math.max(0,lucro);
+    const segs=blocos.map(([k,r])=>[t[k],COR[k],r]).concat([[imp,COR.imp,'Impostos e retenções'],[lucP,COR.luc,'Lucratividade']]).filter(s=>s[0]>0);
+    fp.querySelector('#fp-barra').innerHTML=segs.map(([v,c,r])=>`<i style="width:${v/base*100}%;background:${c}" title="${fe(r)}: ${fmt(v)}"></i>`).join('')+(lucro<0&&preco?`<i class="neg" style="width:${Math.min(100,-lucro/base*100)}%" title="Prejuízo: ${fmt(lucro)}"></i>`:'');
+    fp.querySelector('#fp-leg').innerHTML=segs.map(([v,c,r])=>`<span><em style="background:${c}"></em>${fe(r)} <b>${preco?pc(v/preco*100):'—'}</b></span>`).join('')+(lucro<0&&preco?`<span><em style="background:${COR.neg}"></em>Prejuízo <b>${pc(pl)}</b></span>`:'');
+    const ip=document.getElementById('fp-imp-p'),iv=document.getElementById('fp-imp-v');if(ip)ip.textContent=preco?pc(imp/preco*100,2):'—';if(iv)iv.textContent=fmt(imp);
+    const st=!preco?['cinza','Sem preço de venda','monte o orçamento da obra']:lucro<0?['neg','Prejuízo','o custo + impostos passam do preço']:pl<5?['at','Margem apertada','abaixo de 5% do preço']:pl<10?['ok','Margem razoável','entre 5% e 10% do preço']:['ok','Margem boa','10% ou mais do preço'];
+    fp.querySelector('#fp-luc').innerHTML=`<div class="fp-chip ${st[0]}"><small>Lucratividade prevista</small><b>${preco?fmt(lucro):'—'}</b><span>${preco?pc(pl,2)+' · ':''}${st[1]}</span></div>`;
+    fp.querySelector('#fp-res').innerHTML=`<div><small>Preço de venda</small><b>${preco?fmt(preco):'—'}</b></div><i>−</i><div><small>Impostos e retenções</small><b>${fmt(imp)}</b></div><i>−</i><div><small>Custo direto</small><b>${fmt(custo)}</b></div><i>=</i><div class="${lucro<0?'neg':'pos'}"><small>Lucratividade prevista</small><b>${preco?fmt(lucro):'—'}</b><span>${preco?pc(pl,2)+' do preço':''}</span></div>`;
+    const le=fp.querySelector('[data-e]');if(le)le.style.display=t.E?'':'none';
+  }
+  // monta a formação do preço nova com os MESMOS campos (os cálculos do CAP continuam iguais)
+  function montarFP(body){
+    const res=body.querySelector('.cap-resumo');if(!res||document.getElementById('fp'))return;
+    const grade=res.closest('.capx-grade')||res;
+    const fp=document.createElement('div');fp.className='fp';fp.id='fp';
+    fp.innerHTML=`<div class="fp-cab"><div><h4><i class="fas fa-calculator"></i>Formação do preço</h4><p>Do preço do orçamento até o lucro previsto: o que sai do preço de venda e o que sobra.</p></div><div id="fp-luc"></div></div>
+      <div class="fp-barra" id="fp-barra"></div><div class="fp-leg" id="fp-leg"></div>
+      <div class="fp-grade">
+        <section><h5><span>1</span>Preço de venda</h5>
+          <div class="fp-l"><span>Orçamento bruto<small>antes do desconto</small></span><b data-slot="bruto"></b></div>
+          <div class="fp-l"><span>(−) Desconto / Fator K</span><em data-slot="fk"></em><b data-slot="fkv"></b></div>
+          <div class="fp-l tot"><span>= Preço de venda<small>orçamento líquido</small></span><b data-slot="liq"></b></div>
+          <div data-slot="dicas" class="fp-dicas"></div></section>
+        <section><h5><span>2</span>Impostos e retenções<small>sobre o preço de venda</small></h5>
+          ${IMP.map(([k,l])=>`<div class="fp-l"><span>${l}</span><em data-slot="p-${k}"></em><b data-slot="v-${k}"></b></div>`).join('')}
+          <div class="fp-l tot"><span>= Total de impostos</span><em class="fp-pct" id="fp-imp-p"></em><b id="fp-imp-v"></b></div></section>
+        <section><h5><span>3</span>Custo direto da obra</h5>
+          <div class="fp-l"><span><i style="background:${COR.A}"></i>Mão de obra</span><b data-slot="A"></b></div>
+          <div class="fp-l"><span><i style="background:${COR.C}"></i>Equipamentos</span><b data-slot="C"></b></div>
+          <div class="fp-l"><span><i style="background:${COR.D}"></i>Materiais<small>dos serviços do orçamento</small></span><b data-slot="D"></b></div>
+          <div class="fp-l" data-e><span><i style="background:${COR.E}"></i>Linhas antigas</span><b data-slot="E"></b></div>
+          <div class="fp-l tot"><span>= Custo direto</span><b data-slot="op"></b></div></section>
+      </div>
+      <div class="fp-res" id="fp-res"></div><div hidden data-slot="ocultos"></div>`;
+    const mv=(id,slot)=>{const el=document.getElementById(id),s=fp.querySelector(`[data-slot="${slot}"]`);if(el&&s)s.appendChild(el);};
+    mv('cap-orc-bruto','bruto');mv('cap-pct-fatork','fk');mv('cap-val-fatork','fkv');mv('cap-val-orcliquido','liq');
+    IMP.forEach(([k])=>{mv('cap-pct-'+k,'p-'+k);mv('cap-val-'+k,'v-'+k);});
+    ['A','C','D','E'].forEach(k=>mv('cap-rsum-'+k,k));mv('cap-r-op','op');
+    ['cap-pct-orcliquido','cap-pct-lucratividade','cap-val-lucratividade'].forEach(id=>mv(id,'ocultos'));
+    res.querySelectorAll('.capx-dica').forEach(d=>fp.querySelector('[data-slot="dicas"]').appendChild(d));
+    grade.classList.add('cc-oculto');body.appendChild(fp);
+  }
+  // quadros Mão de obra e Equipamentos: sem a coluna "Especificação" — a categoria é a do quadro
+  const CAT_UNICA={A:'Mão de Obra',C:'Equipamentos e Locações'};
+  function preencherCats(){Object.entries(CAT_UNICA).forEach(([k,cat])=>document.querySelectorAll(`.cap-tbody[data-bloco="${k}"] tr`).forEach(tr=>{const s=tr.querySelector('.cap-cat');if(!s||s.value===cat)return;
+    const tem=['.cap-desc','.cap-qtd','.cap-punit'].some(q=>{const e=tr.querySelector(q);const v=e&&e.value?e.value.trim():'';return v&&!/^(0|0,00|R\$\s*0,00)$/.test(v);});if(tem&&UI._capSetSelect)UI._capSetSelect(s,cat);}));}
+  function montarLayout(body){
+    const card=k=>{const tb=body.querySelector(`.cap-tbody[data-bloco="${k}"]`);return tb&&(tb.closest('.capx-bloco')||tb.parentElement.parentElement.parentElement);};
+    const dash=document.getElementById('capx-dash');let real=document.getElementById('capx-real');
+    if(!real){real=document.createElement('div');real.className='capx-real';real.id='capx-real';}
+    real.classList.remove('capx-fim');real.classList.add('cc-real');
+    const A=card('A'),Cc=card('C'),Dd=card('D'),E=card('E');
+    const ancora=dash||body.firstElementChild;
+    const ordem=[real,A,Cc,document.getElementById('cc-legado'),document.getElementById('cc-comp'),document.getElementById('cc-lista')].filter(Boolean);
+    let ref=ancora;ordem.forEach(el=>{ref.after(el);ref=el;});
+    [Dd,E].forEach(c=>c&&c.classList.add('cc-oculto'));
+    // dica embaixo do título dos quadros do topo
+    [[A,'Equipe da obra inteira: informe a mão de obra (pedreiros, serventes, encarregado…).'],[Cc,'Equipamentos e locações da obra inteira (betoneira, andaime, caminhão, compactador…): informe os que vão ser usados.']].forEach(([c,t])=>{if(!c||c.querySelector('.cc-dica-bloco'))return;const h=c.querySelector('.cap-bloco-head');h&&h.insertAdjacentHTML('afterend',`<p class="cc-dica-bloco">${t}</p>`);});
+    const lab=Cc&&Cc.querySelector('.cap-bloco-label');if(lab&&!/locaç/i.test(lab.textContent)){const n=[...lab.childNodes].find(x=>x.nodeType===3&&x.textContent.trim());if(n)n.textContent='Equipamentos e locações';}
+    montarFP(body);
+  }
+
+  /* ═══════════════ PDF DO CAP (botão PDF da obra) ═══════════════ */
+  UI._capExportPDF=function(){
+    const ob=obraCAP();if(!ob){toast('Selecione a obra antes de exportar.','error');return;}
+    preencherCats();if(UI._capValidarLinhas&&!UI._capValidarLinhas()){toast('Preencha todos os campos das linhas começadas, ou limpe-as por completo.','error');return;}
+    const w=window.open('','_blank');if(!w){toast('Permita pop-ups deste site para gerar o PDF.','error');return;}
+    const res=ST.res,S=SN.S,v=(tr,s)=>{const e=tr.querySelector(s);return e?e.value:'';};
+    const quadro=(k,tit)=>{const trs=[...document.querySelectorAll(`.cap-tbody[data-bloco="${k}"] tr`)].filter(tr=>!vazia(tr));const tot=numTxt('cap-tot-'+k);
+      return `<h2>${tit} — ${fmt(tot)}</h2>${trs.length?`<table><thead><tr><th class="l">Descrição</th><th>Un.</th><th>Qtd.</th><th>P. unit.</th><th>Majorar</th><th>Subtotal</th></tr></thead><tbody>${trs.map(tr=>`<tr><td class="l">${fe(v(tr,'.cap-desc'))}</td><td>${fe(v(tr,'.cap-und'))}</td><td>${fe(v(tr,'.cap-qtd'))}</td><td>${fe(v(tr,'.cap-punit'))}</td><td>${v(tr,'.cap-maj')?fe(v(tr,'.cap-maj'))+'%':''}</td><td>${fe(v(tr,'.cap-sub'))}</td></tr>`).join('')}</tbody></table>`:'<p style="color:#777">Nada informado.</p>'}`;};
+    const t={A:numTxt('cap-tot-A'),C:numTxt('cap-tot-C'),D:numTxt('cap-tot-D'),E:numTxt('cap-tot-E')},custo=t.A+t.C+t.D+t.E,preco=numTxt('cap-val-orcliquido'),imp=IMP.reduce((s,[k])=>s+numTxt('cap-val-'+k),0),lucro=preco-imp-custo;
+    const fpL=(r,p,vl,cls)=>`<tr class="${cls||''}"><td class="l">${r}</td><td>${p||''}</td><td>${vl}</td></tr>`;
+    const pIn=id=>{const e=document.getElementById(id);return e&&e.value?e.value.replace(/%?$/,'%'):'';};
+    w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>&nbsp;</title><style>${PDF_CSS}</style></head><body>
+      <h1>Composição Analítica de Preço (CAP)</h1><div class="sub">Obra: <b>${fe(ob)}</b> · Cidade: <b>${fe(ST.meta.cidade||'—')}</b> · ${brDe(hoje0())}${S?` · materiais pela SINAPI Bahia ${refTxt(S)} e cotações`:''}</div>
+      <div class="kp"><div><small>Custo direto</small><b>${fmt(custo)}</b></div><div><small>Preço de venda</small><b>${preco?fmt(preco):'—'}</b></div><div><small>Impostos e retenções</small><b>${fmt(imp)}</b></div><div><small>Lucratividade prevista</small><b style="color:${lucro<0?'#B42318':'#067647'}">${preco?fmt(lucro)+' ('+pc(lucro/preco*100,2)+')':'—'}</b></div></div>
+      ${quadro('A','Mão de obra')}${quadro('C','Equipamentos e locações')}
+      <h2>Serviços do orçamento — materiais — ${fmt(t.D)}</h2>${res&&res.grupos?htmlServPdf(res,false):'<p style="color:#777">Sem orçamento.</p>'}
+      ${t.E||legadas().length?quadro('E','Linhas antigas (Outros)'):''}
+      <h2>Lista de compras — materiais</h2>${res&&res.lista?htmlListaPdf(res):''}
+      <h2>Formação do preço</h2><table><tbody>
+        ${fpL('Orçamento bruto (antes do desconto)','',fmt(currencyToNumber((document.getElementById('cap-orc-bruto')||{}).value||'')))}
+        ${fpL('(−) Desconto / Fator K',pIn('cap-pct-fatork'),fmt(-numTxt('cap-val-fatork')))}
+        ${fpL('= Preço de venda (orçamento líquido)','',fmt(preco),'tot')}
+        ${IMP.map(([k,l])=>fpL('(−) '+l,pIn('cap-pct-'+k),fmt(-numTxt('cap-val-'+k)))).join('')}
+        ${fpL('(−) Mão de obra','',fmt(-t.A))}${fpL('(−) Equipamentos','',fmt(-t.C))}${fpL('(−) Materiais','',fmt(-t.D))}${t.E?fpL('(−) Linhas antigas','',fmt(-t.E)):''}
+        ${fpL('= Lucratividade prevista',preco?pc(lucro/preco*100,2):'',fmt(lucro),'tot')}
+      </tbody></table><script>window.onload=()=>setTimeout(()=>print(),250);<\/script></body></html>`);
+    w.document.close();
+  };
 
   /* ═══════════════ LIGAÇÃO COM O CAP ═══════════════ */
   function montar(){
     const body=document.getElementById('cap-scroll-body');if(!body||document.getElementById('cc-comp'))return;
+    body.dataset.cc='1';
     const dash=document.getElementById('capx-dash');
-    const html='<div class="cc-card" id="cc-comp"></div><div class="cc-card" id="cc-lista" style="display:none"></div>';
+    const html='<div class="cc-card" id="cc-legado" style="display:none"></div><div class="cc-card" id="cc-comp"></div><div class="cc-card" id="cc-lista" style="display:none"></div>';
     if(dash)dash.insertAdjacentHTML('afterend',html);else body.insertAdjacentHTML('afterbegin',html);
+    montarLayout(body);
     body.addEventListener('click',ev=>{
       const b=ev.target.closest('[data-cc]');
       if(b){ev.preventDefault();ev.stopPropagation();const a=b.dataset.cc;
@@ -17848,8 +18080,8 @@ const Mascara=(function(){
         if(a==='mcc')return abrirMCC();
         if(a==='csv')return csvLista();
         if(a==='pdf')return pdfLista();
-        if(a==='todos'){ST.todos[b.dataset.t]=!ST.todos[b.dataset.t];return pintar();}
-        if(a==='usar')return Fin.util.confirmar('Usar a composição nos blocos',`As <b>${legadas().length}</b> linhas digitadas de equipamentos e materiais saem do CAP e entram as da composição automática (uma linha por item da lista de compras). Serviços terceirizados e outras categorias continuam. Depois clique em <b>Salvar</b>.`,'Usar a composição',()=>{aplicarNosBlocos(true);ST.meta.aplicado=true;sujar();});
+        if(a==='todos'){ST.todos.M=!ST.todos.M;return pintar();}
+        if(a==='tirar-legado'){const L=legadas();return Fin.util.confirmar('Tirar as linhas antigas',`As <b>${L.length}</b> linhas antigas (${fmt(L.reduce((s,tr)=>s+currencyToNumber((tr.querySelector('.cap-sub')||{}).value||''),0))}) saem do CAP. O custo de material fica só o dos serviços do orçamento. Depois clique em <b>Salvar</b>.`,'Tirar do CAP',()=>{L.forEach(tr=>tr.remove());sujar();try{UI._calcCAPAll();}catch(e){}pintarLegado();});}
         if(a==='trocar'){const tr=b.closest('tr'),row=tr&&tr.classList.contains('cc-ins')?tr.previousElementSibling:tr,id=row&&row.dataset.s;if(!id)return;const [gi,si]=id.split('.').map(Number);const sv=ST.res.grupos[gi].servs[si];return trocar(sv);}
         return;}
       const tr=ev.target.closest('tr.cc-serv');
@@ -17859,8 +18091,9 @@ const Mascara=(function(){
     });
     body.addEventListener('toggle',ev=>{const d=ev.target;if(!d.classList||!d.classList.contains('cc-grupo')||!ST.res)return;const g=ST.res.grupos[+d.dataset.g];if(!g)return;
       if(d.open){ST.grAbertos.add(g.nome);ST.grAbertos.delete('#fechou#'+g.nome);}else{ST.grAbertos.delete(g.nome);ST.grAbertos.add('#fechou#'+g.nome);}},true);
+    ['input','change'].forEach(evn=>body.addEventListener(evn,ev=>{if(ev.target.closest&&ev.target.closest('.cap-tbody[data-bloco="A"],.cap-tbody[data-bloco="C"]'))preencherCats();}));
     const sel=document.getElementById('cap-f-obra');if(sel&&sel.tagName==='SELECT')sel.addEventListener('change',()=>{ST.meta={};ST.mcc={};ST.res=null;iniciar();});
-    setTimeout(()=>iniciar(),0);   // depois que a central da obra trava a obra no campo
+    pintarLegado();setTimeout(()=>{painel();iniciar();},0);   // depois que a central da obra trava a obra no campo
   }
   const bcOrig=UI._buildCAP;
   UI._buildCAP=function(form,headers,data,isNew){
@@ -17875,8 +18108,12 @@ const Mascara=(function(){
     try{montar();}catch(e){console.error(e);}
     return r;
   };
+  ['_calcCAPAll','_calcResumoFinanceiroCAP'].forEach(fn=>{const f=UI[fn];if(typeof f!=='function')return;UI[fn]=function(){const r=f.apply(this,arguments);try{painel();}catch(e){console.error(e);}return r;};});
+  const valOrig=UI._capValidarLinhas;
+  UI._capValidarLinhas=function(){try{preencherCats();}catch(e){}return valOrig.apply(this,arguments);};
   const colOrig=UI._capColetarItens;
   UI._capColetarItens=function(){
+    try{preencherCats();}catch(e){}
     const itens=colOrig.apply(this,arguments);
     try{
       const trs=[];document.querySelectorAll('.cap-tbody').forEach(tb=>tb.querySelectorAll('tr').forEach(tr=>{const g=s=>(tr.querySelector(s)||{}).value||'';if(!g('.cap-cat')&&!g('.cap-desc')&&!g('.cap-qtd')&&!g('.cap-punit'))return;trs.push(tr);}));
@@ -17885,7 +18122,7 @@ const Mascara=(function(){
       if(ob&&ST.ob===ob&&(Object.keys(ST.meta||{}).length||Object.keys(ST.mcc||{}).length)){
         const fin=UI._coletarResumoFinanceiroCAP?UI._coletarResumoFinanceiroCAP():{};
         itens.push({bloco:'X',tipo:'Materiais de Construção',especificacao:'Materiais de Construção',descricao:'Composição analítica automática — configuração e mapa comparativo',fator:'VB',qtd:0,p_unit:0,punit:0,majoracao:0,sub_total:0,subtotal:0,data_lancamento:todayDateTime(),...fin,
-          cap_comp:JSON.stringify({...ST.meta,v:1,sinapi:SN.S?SN.S.chave:(ST.meta.sinapi||'')}),cap_mcc:JSON.stringify(ST.mcc||{})});
+          cap_comp:JSON.stringify({...ST.meta,v:2,sinapi:SN.S?SN.S.chave:(ST.meta.sinapi||'')}),cap_mcc:JSON.stringify(ST.mcc||{})});
       }
     }catch(e){console.error(e);}
     return itens;
