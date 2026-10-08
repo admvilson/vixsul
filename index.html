@@ -17408,16 +17408,22 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
      mês novo publicado no site passa a valer na hora. Preço de insumo = mediana pesquisada pelo IBGE. */
   const SN={S:null,prom:null};
   const injetar=src=>new Promise((ok,er)=>{const s=document.createElement('script');s.src=src;s.onload=ok;s.onerror=()=>er(new Error('Não consegui baixar a tabela de preços ('+src+'). Confira a internet e clique em Atualizar preços.'));document.head.appendChild(s);});
-  async function carregarSinapi(forcar){
-    if(SN.S&&!forcar)return SN.S;
-    if(SN.prom&&!forcar)return SN.prom;
-    SN.prom=(async()=>{
-      try{await injetar('sinapi-manifest.js?t='+Date.now());}catch(e){}
-      const M=window.SINAPI_MANIFEST||{atual:'2026-08',tabelas:[{chave:'2026-08',arquivo:'sinapi-ba-2026-08.js'}]};
-      const t=(M.tabelas||[]).find(x=>x.chave===M.atual)||M.tabelas[0];
-      if(!(window.SINAPI&&window.SINAPI[t.chave]))await injetar(t.arquivo+'?v='+t.chave);
+  /* Ao ABRIR o CAP não se busca preço novo: usa a mesma tabela SINAPI com que ele foi salvo (meta.sinapi) e
+     os preços gravados. Só "Atualizar preços" lê o sinapi-manifest.js de novo e passa para o mês mais recente. */
+  async function carregarSinapi(forcar,chave){
+    if(!forcar&&chave&&window.SINAPI&&window.SINAPI[chave]){const S=window.SINAPI[chave];preparar(S,chave);return SN.S=S;}
+    if(!forcar&&!chave&&SN.S)return SN.S;
+    if(SN.prom&&!forcar&&!chave)return SN.prom;
+    const p=(async()=>{
+      let t=null;
+      if(!forcar&&chave)t={chave,arquivo:'sinapi-ba-'+chave+'.js'};
+      else{try{await injetar('sinapi-manifest.js?t='+Date.now());}catch(e){}
+        const M=window.SINAPI_MANIFEST||{atual:'2026-08',tabelas:[{chave:'2026-08',arquivo:'sinapi-ba-2026-08.js'}]};
+        t=(M.tabelas||[]).find(x=>x.chave===M.atual)||M.tabelas[0];}
+      if(!(window.SINAPI&&window.SINAPI[t.chave])){try{await injetar(t.arquivo+'?v='+t.chave);}catch(e){if(!forcar&&chave)return carregarSinapi(true);throw e;}}
       const S=window.SINAPI[t.chave];preparar(S,t.chave);return SN.S=S;})();
-    try{return await SN.prom;}catch(e){SN.prom=null;throw e;}
+    if(!chave)SN.prom=p;
+    try{return await p;}catch(e){SN.prom=null;throw e;}
   }
   const MESES=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
   const refTxt=S=>{const [m,a]=String(S.ref||'').split('/');return (MESES[(+m||1)-1]||m)+'/'+a;};
@@ -17601,6 +17607,9 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
     const S=SN.S,ref=S?refTxt(S):'';
     const merc=media>0?{p:media,f:`média de ${cid} (${c.length} cotaç${c.length>1?'ões':'ão'})`,tp:'cid'}:it.ref>0?{p:it.ref,f:it.med?`SINAPI ${ref} (sem coleta na BA: média do Brasil)`:`SINAPI BA ${ref}`,tp:'sin'}:{p:0,f:'sem preço de referência — cote',tp:'nada'};
     if(q)return {p:q[0],f:`cotado · ${((ST.mcc.forn||[])[q[1]]||{}).nome||'Fornecedor '+(q[1]+1)}`,tp:'cot',merc};
+    // preço gravado no CAP: só muda quando o usuário clicar em "Atualizar preços"
+    const cg=ST.congelado&&ST.congelado[it.key];
+    if(cg&&cg.p>0)return {p:cg.p,f:(cg.f?cg.f.replace(/ · salvo$/,''):'preço')+' · salvo',tp:'salvo',merc};
     return {...merc,merc};
   }
 
@@ -17663,10 +17672,10 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
     const res=ST.res,S=SN.S,cid=ST.meta.cidade||'';
     const cab=`<div class="cc-cab"><div><h4><i class="fas fa-layer-group"></i>Serviços do orçamento e seus materiais</h4><p>Os serviços do <b>orçamento</b>, na ordem dele. Clique num serviço para ver os <b>materiais</b> que ele consome: quantidade do orçamento × consumo da composição oficial (SINAPI). Mão de obra e equipamentos ficam nos quadros do topo, para a obra toda. O preço do orçamento não entra.</p></div>
       <div class="cc-ferr"><label class="cc-cid" title="Cidade do preço médio de mercado"><i class="fas fa-location-dot"></i><input id="cc-cidade" placeholder="Cidade, UF — ex.: Itarantim, BA" value="${fe(cid)}"></label>
-        <span class="cc-fonte">${S?`<i class="fas fa-tags"></i> SINAPI Bahia <b>${refTxt(S)}</b> · publicado ${fe(S.emissao||'')}`:'<i class="fas fa-tags"></i> tabela de preços'}</span>
+        <span class="cc-fonte" title="Os preços só mudam quando você clicar em Atualizar preços">${S?`<i class="fas fa-tags"></i> SINAPI Bahia <b>${refTxt(S)}</b>${ST.congelado&&Object.keys(ST.congelado).length?' · <b>preços salvos</b>':' · publicado '+fe(S.emissao||'')}`:'<i class="fas fa-tags"></i> tabela de preços'}</span>
         <button type="button" class="fin-bt mini" data-cc="atualizar" title="Busca a tabela de preços mais recente e as últimas cotações da cidade"><i class="fas fa-rotate"></i> Atualizar preços</button></div></div>`;
     if(ST.erro)return cab+`<div class="cc-aviso"><span><b>Não consegui carregar a tabela de preços.</b> ${fe(ST.erro)}</span><button type="button" class="fin-bt mini pri" data-cc="atualizar">Tentar de novo</button></div>`;
-    if(!res||ST.carregando)return cab+`<div class="cc-carr"><i class="fas fa-spinner fa-spin"></i> Buscando a tabela de preços atualizada e montando os serviços…</div>`;
+    if(!res||ST.carregando)return cab+`<div class="cc-carr"><i class="fas fa-spinner fa-spin"></i> ${ST.atualizou?'Buscando a tabela de preços mais recente e as cotações da cidade…':'Montando os serviços e materiais…'}</div>`;
     if(res.semOrc)return cab+`<div class="cc-aviso info"><span>Esta obra ainda não tem <b>orçamento</b>. Monte na aba <b>Orçamento</b>: os serviços e os materiais saem dos itens dele.</span></div>`;
     if(!res.servs.length)return cab+`<div class="cc-vazio">O orçamento não tem itens com quantidade.</div>`;
     const n=res.n,conf=n.conf+n.sem;
@@ -17682,7 +17691,7 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
         </tbody><tfoot><tr><td colspan="4">Materiais dos ${lst.length} serviços</td><td class="n"><b>${fmt(totM)}</b></td></tr></tfoot></table></div>`;
     return cab+k+av+grs;
   }
-  const FONTE_COR={cot:'#067647',cid:'#1652D8',sin:'#475467',nada:'#B42318'};
+  const FONTE_COR={cot:'#067647',cid:'#1652D8',sin:'#475467',salvo:'#344054',nada:'#B42318'};
   function tabelaLista(itens){
     const L=itens.slice().sort((a,b)=>b.v-a.v),tot=L.reduce((s,x)=>s+x.v,0),todos=ST.todos.M,vis=todos?L:L.slice(0,12);
     if(!L.length)return '';
@@ -17718,7 +17727,7 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
   function pintar(){fecharDrop();
     const a=document.getElementById('cc-comp'),b=document.getElementById('cc-lista');if(!a)return;
     a.innerHTML=htmlComp();if(b){const h=htmlLista();b.innerHTML=h;b.style.display=h?'':'none';}
-    const ci=document.getElementById('cc-cidade');if(ci)ligar(ci,v=>{v=normalizar(v);if(v===(ST.meta.cidade||''))return;ST.meta.cidade=v;sujar();recalcular();});
+    const ci=document.getElementById('cc-cidade');if(ci)ligar(ci,v=>{v=normalizar(v);if(v===(ST.meta.cidade||''))return;ST.meta.cidade=v;sujar();recalcular();if(ST.congelado&&Object.keys(ST.congelado).length)toast('Cidade trocada. Os preços continuam os salvos: clique em "Atualizar preços" para usar a média de '+(v||'outra cidade')+'.','info');});
   }
   function recalcular(){
     const ob=ST.ob;if(!ob||!SN.S){pintar();return;}
@@ -17729,8 +17738,13 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
     const ob=obraCAP();ST.ob=ob;if(!document.getElementById('cc-comp'))return;
     if(!ob){document.getElementById('cc-comp').innerHTML='<div class="cc-vazio">Escolha a obra acima: os serviços e materiais saem do orçamento dela.</div>';const b=document.getElementById('cc-lista');if(b)b.style.display='none';return;}
     if(!ST.meta.cidade){const o=(D().obras||[]).find(x=>Eng.nomeObra(x)===ob),c=Eng.contratoDe&&Eng.contratoDe(ob);ST.meta.cidade=(o&&getFuzzy(o,['cidade_obra']))||(c&&c.cidade_obra)||'';}
+    // "Atualizar preços": esquece os preços gravados e passa para a tabela SINAPI mais recente + médias da cidade
+    if(forcar){ST.congelado={};ST.atualizou=true;}
     ST.carregando=true;ST.erro='';pintar();
-    try{await carregarSinapi(forcar);ST.carregando=false;recalcular();if(forcar)toast(`Preços atualizados: SINAPI Bahia ${refTxt(SN.S)} e cotações da cidade.`,'success');}
+    try{await carregarSinapi(forcar,forcar?null:(ST.meta.sinapi||null));ST.carregando=false;
+      if(forcar&&SN.S&&ST.meta.sinapi!==SN.S.chave){ST.meta.sinapi=SN.S.chave;}
+      if(forcar)sujar();
+      recalcular();if(forcar)toast(`Preços atualizados: SINAPI Bahia ${refTxt(SN.S)} e cotações da cidade. Clique em Salvar para gravar.`,'success');ST.atualizou=false;}
     catch(e){ST.carregando=false;ST.erro=e.message||String(e);pintar();}
   }
 
@@ -17767,7 +17781,7 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
     if(!ST.meta.aplicado){ST.meta.aplicado=true;sujar();}
     try{UI._calcCAPAll();}catch(e){}
     pintarLegado();
-    const depois=res.tM;if(Math.abs(depois-antes)>.5&&antes>0){sujar();
+    const depois=res.tM;if(ST.atualizou&&Math.abs(depois-antes)>.5&&antes>0){sujar();
       const a=document.getElementById('cc-comp');a&&a.insertAdjacentHTML('afterbegin',`<div class="cc-aviso ok" id="cc-aviso-blocos" style="margin:0 0 10px"><span><i class="fas fa-rotate"></i> Materiais atualizados pelos preços de hoje: ${fmt(antes)} → <b>${fmt(depois)}</b>. Clique em <b>Salvar</b> para gravar.</span></div>`);}
   }
   function pintarLegado(){
@@ -17973,7 +17987,7 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
   const COR={A:'#1652D8',C:'#F79009',D:'#12B76A',E:'#98A2B3',imp:'#7A5AF8',luc:'#067647',neg:'#F04438'};
   const IMP=[['inss','INSS'],['irpf','IRPF'],['simples','Simples Nacional'],['antnf','Antecipação de NF'],['outros','Despesas extraordinárias']];
   function painel(){
-    const body=document.getElementById('cap-scroll-body');if(!body||!body.dataset.cc)return;
+    const body=document.getElementById('cap-scroll-body');if(!body||!body.dataset.ccMontado)return;
     const t={A:numTxt('cap-tot-A'),C:numTxt('cap-tot-C'),D:numTxt('cap-tot-D'),E:numTxt('cap-tot-E')},custo=t.A+t.C+t.D+t.E;
     const preco=numTxt('cap-val-orcliquido'),imp=IMP.reduce((s,[k])=>s+numTxt('cap-val-'+k),0),lucro=preco?preco-imp-custo:0,pl=preco?lucro/preco*100:0;
     const blocos=[['A','Mão de obra'],['C','Equipamentos'],['D','Materiais (serviços)']].concat(t.E?[['E','Linhas antigas']]:[]);
@@ -18021,7 +18035,7 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
     if(!currencyToNumber(bruto.value)&&total){bruto.value=fmt(desc?Math.round(total/(1-desc/100)*100)/100:total);bruto.readOnly=true;bruto.classList.add('capx-trava');}
     if(!fk.value.trim())fk.value=desc.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
     if(medida(ob)){fk.readOnly=true;fk.classList.add('capx-trava');fk.oninput=null;fk.title='A obra já tem medição: o desconto do contrato não muda mais.';}
-    else{fk.readOnly=false;fk.classList.remove('capx-trava');fk.oninput=()=>UI._capMaskPct(fk);fk.title='Desconto da proposta. Ao salvar o CAP, o % Desc. do Orçamento e os preços dos serviços passam a usar este desconto.';}
+    else{fk.readOnly=false;fk.classList.remove('capx-trava');fk.oninput=()=>{UI._capMaskPct(fk);descAoVivo();};fk.title='Desconto da proposta. Ao salvar o CAP, o % Desc. do Orçamento e os preços dos serviços passam a usar este desconto.';}
     try{UI._calcResumoFinanceiroCAP();}catch(e){}
   }
   // o orçamento com o desconto do CAP: P.Unit. = base × (1 + BDI) × (1 − desconto), como na tela do Orçamento
@@ -18118,14 +18132,14 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
   /* ═══════════════ LIGAÇÃO COM O CAP ═══════════════ */
   function montar(){
     const body=document.getElementById('cap-scroll-body');if(!body||document.getElementById('cc-comp'))return;
-    body.dataset.cc='1';
+    body.dataset.ccMontado='1';   // (não usar data-cc aqui: os botões do CAP usam [data-cc])
     const dash=document.getElementById('capx-dash');
     const html='<div class="cc-card" id="cc-legado" style="display:none"></div><div class="cc-card" id="cc-comp"></div><div class="cc-card" id="cc-lista" style="display:none"></div>';
     if(dash)dash.insertAdjacentHTML('afterend',html);else body.insertAdjacentHTML('afterbegin',html);
     montarLayout(body);
     body.addEventListener('click',ev=>{
       const b=ev.target.closest('[data-cc]');
-      if(b){ev.preventDefault();ev.stopPropagation();const a=b.dataset.cc;
+      if(b&&b!==body){ev.preventDefault();ev.stopPropagation();const a=b.dataset.cc;
         if(a==='atualizar')return iniciar(true);
         if(a==='mcc')return abrirMCC();
         if(a==='csv')return csvLista();
@@ -18150,7 +18164,9 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
     const lista=Array.isArray(data)?data:[];
     const mx=lista.filter(r=>String(getFuzzy(r,['bloco'])||'').toUpperCase()==='X'),resto=lista.filter(r=>!mx.includes(r));
     const meta=mx.length?mx[mx.length-1]:null;
-    ST.meta=lerJSON(meta&&meta.cap_comp)||{};ST.mcc=lerJSON(meta&&meta.cap_mcc)||{};ST.res=null;ST.abertos=new Set();ST.todos={};
+    ST.meta=lerJSON(meta&&meta.cap_comp)||{};ST.mcc=lerJSON(meta&&meta.cap_mcc)||{};ST.res=null;ST.abertos=new Set();ST.todos={};ST.descPend=null;ST.orcRecalc=false;
+    // preços que estavam gravados nas linhas de material: ficam até "Atualizar preços"
+    ST.congelado={};resto.forEach(x=>{if(x.origem==='composicao'&&x.cap_chave){const p=+parseStoredNumber(getFuzzy(x,['p_unit','punit']))||0;if(p>0)ST.congelado[x.cap_chave]={p,f:x.fonte_preco||''};}});
     const r=bcOrig.call(this,form,headers,data?resto:data,isNew);
     // linhas que vieram da composição: marcadas (e trocadas pelas atualizadas assim que a composição é montada)
     try{['C','D'].forEach(k=>{const its=resto.filter(x=>String(getFuzzy(x,['bloco'])||'').toUpperCase()===k),trs=[...document.querySelectorAll(`.cap-tbody[data-bloco="${k}"] tr`)];
@@ -18178,6 +18194,22 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
     return itens;
   };
   // salvar o CAP com o desconto mudado: primeiro grava o "% Desc." e os preços no orçamento da obra
+  /* % Desc. do Orçamento acompanha, NA HORA, o (−) Desconto / Fator K digitado no CAP: se a aba Orçamento já
+     foi aberta (fica guardada pela central da obra), o campo e os preços dela mudam junto e ela fica para salvar;
+     se ainda não foi aberta, ao abrir ela já vem com o desconto do CAP. Salvar grava os dois. */
+  const fmtD=v=>v.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+  function descAoVivo(){
+    const ob=obraCAP();if(!ob)return;const v=Math.max(0,Math.min(99.99,pctV('cap-pct-fatork')));ST.descPend={ob,v};
+    const hub=App.state.obraHub,c=UI._obraHubCache&&UI._obraHubCache.orcamentos,el=c&&c.frag&&c.frag.querySelector('#orc-desconto');
+    if(el&&Math.abs(currencyToNumber(el.value||'0')-v)>.0001){el.value=fmtD(v);ST.orcRecalc=true;if(hub&&hub._dirtyTabs)hub._dirtyTabs.add('orcamentos');}
+  }
+  function aplicarDescPend(){
+    const el=document.getElementById('orc-desconto');if(!el)return;
+    const ob=((document.getElementById('orc-titulo')||{}).value||'').trim(),p=ST.descPend,hub=App.state.obraHub;
+    if(p&&(!ob||ob===p.ob)&&Math.abs(currencyToNumber(el.value||'0')-p.v)>.0001){el.value=fmtD(p.v);ST.orcRecalc=true;if(hub&&hub._dirtyTabs)hub._dirtyTabs.add('orcamentos');}
+    if(ST.orcRecalc){ST.orcRecalc=false;try{UI._orcRecalc();}catch(e){}}
+  }
+  // salvar o CAP com o desconto mudado: primeiro grava o "% Desc." e os preços no orçamento da obra
   const saveCapOrig=App.saveCAP;
   App.saveCAP=async function(){
     if(App.state._busy)return;
@@ -18186,11 +18218,12 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
       if(orc&&fkEl&&!fkEl.readOnly&&UI._capValidarLinhas()){
         const fk=Math.max(0,Math.min(99.99,pctV('cap-pct-fatork')));
         if(Math.abs(fk-descOrc(orc))>.0001){
-          const hub=App.state.obraHub;
-          if(hub&&hub._dirtyTabs&&hub._dirtyTabs.has('orcamentos')){toast('O Orçamento tem alterações sem salvar: salve a aba Orçamento primeiro e depois o CAP (o desconto do CAP muda os preços do orçamento).','error');return;}
-          UI._showBusy('Atualizando o desconto no orçamento…');
-          try{await Fin.util.salvar('Orçamentos',orcComDesconto(orc,fk),orc.rowid);}finally{UI._hideBusy();}
-          if(UI._obraHubCache)delete UI._obraHubCache.orcamentos;   // a aba Orçamento volta a abrir com os preços novos
+          // ocupado durante a gravação do orçamento: a central da obra espera e não troca de aba no meio
+          App.state._busy=true;UI._showBusy('Atualizando o desconto no orçamento…');
+          try{await Fin.util.salvar('Orçamentos',orcComDesconto(orc,fk),orc.rowid);}finally{App.state._busy=false;UI._hideBusy();}
+          // aba Orçamento sem alteração: volta a abrir do banco (já com o desconto novo); com alteração, ela já
+          // está com o desconto do CAP e é salva logo depois pela central da obra
+          const hub=App.state.obraHub;if(UI._obraHubCache&&!(hub&&hub._dirtyTabs&&hub._dirtyTabs.has('orcamentos')))delete UI._obraHubCache.orcamentos;
           toast(`Orçamento atualizado: % Desc. = ${fk.toLocaleString('pt-BR',{maximumFractionDigits:2})}% e preços dos serviços recalculados.`,'success');
         }
       }
@@ -18199,14 +18232,34 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
   };
   // Orçamento: o "% Desc." fica travado — é o (−) Desconto / Fator K definido no CAP
   function travarDescOrc(){
-    const el=document.getElementById('orc-desconto');if(!el||el.dataset.capTrava)return;el.dataset.capTrava='1';
-    el.readOnly=true;el.removeAttribute('oninput');el.oninput=null;el.tabIndex=-1;
-    el.style.background='#F3F5F9';el.style.cursor='not-allowed';el.title='Vem do CAP: (−) Desconto / Fator K. Para mudar o desconto, altere no CAP e salve.';
-    const grade=el.closest('div[style*="grid-template-columns:1fr 1fr 1fr 1fr 1fr"]');
-    if(grade&&!grade.nextElementSibling?.classList?.contains('cc-dica-desc'))grade.insertAdjacentHTML('afterend','<div class="capx-dica cc-dica-desc" style="margin:6px 0 0">O <b>% Desc.</b> é definido no <b>CAP</b>, em "(−) Desconto / Fator K": ao salvar o CAP, o desconto e os preços deste orçamento são atualizados.</div>');
+    const el=document.getElementById('orc-desconto');if(!el)return;
+    if(!el.dataset.capTrava){el.dataset.capTrava='1';
+      el.readOnly=true;el.removeAttribute('oninput');el.oninput=null;el.tabIndex=-1;
+      el.style.background='#F3F5F9';el.style.cursor='not-allowed';el.title='Vem do CAP: (−) Desconto / Fator K. Para mudar o desconto, altere no CAP.';
+      const grade=el.closest('div[style*="grid-template-columns:1fr 1fr 1fr 1fr 1fr"]');
+      if(grade&&!grade.nextElementSibling?.classList?.contains('cc-dica-desc'))grade.insertAdjacentHTML('afterend','<div class="capx-dica cc-dica-desc" style="margin:6px 0 0">O <b>% Desc.</b> é definido no <b>CAP</b>, em "(−) Desconto / Fator K", e muda aqui na hora; ao salvar, o desconto e os preços deste orçamento são gravados.</div>');}
+    aplicarDescPend();
   }
   const ooOrig=UI.openOrcamento;
   if(typeof ooOrig==='function')UI.openOrcamento=function(){const r=ooOrig.apply(this,arguments);Promise.resolve(r).then(()=>setTimeout(travarDescOrc,0)).catch(()=>{});setTimeout(travarDescOrc,0);return r;};
+  // a aba Orçamento guardada pela central volta à tela: aplica o desconto do CAP e recalcula
+  const tabOrig=UI._obraHubTab;
+  if(typeof tabOrig==='function')UI._obraHubTab=function(tab){const r=tabOrig.apply(this,arguments);if(tab==='orcamentos')setTimeout(travarDescOrc,0);return r;};
+  /* "Salvar" da obra grava as abas uma depois da outra. Depois de salvar o Orçamento, a aba é remontada e
+     recarrega a tabela EMBASA (o sistema fica ocupado): sem esperar, a troca para a próxima aba (ex.: CAP) era
+     ignorada e ela não era salva. Agora cada passo espera o sistema terminar. */
+  // a espera de "salvou" olhava o sistema a cada 100 ms: uma gravação rápida passava despercebida e a central
+  // ficava 30 s parada antes da próxima aba. Agora olha a cada 20 ms e, se nada ficou ocupado em 1,5 s, segue.
+  if(typeof UI._obraHubAguardarSalvar==='function')UI._obraHubAguardarSalvar=function(){
+    return new Promise(resolve=>{let viu=false,t=0;const tick=()=>{if(App.state._busy)viu=true;else if(viu||t>=1500){resolve();return;}t+=20;if(t>30000){resolve();return;}setTimeout(tick,20);};setTimeout(tick,20);});
+  };
+  const salvarTudoOrig=UI._obraHubSalvarTudo;
+  if(typeof salvarTudoOrig==='function')UI._obraHubSalvarTudo=async function(){
+    for(let i=0;i<300&&App.state._busy;i++)await new Promise(r=>setTimeout(r,100));
+    await new Promise(r=>setTimeout(r,150));
+    for(let i=0;i<300&&App.state._busy;i++)await new Promise(r=>setTimeout(r,100));
+    return salvarTudoOrig.apply(this,arguments);
+  };
   Eng.capComposicao={calcular,carregarSinapi,regraDe,candidatos,_ST:ST,_SN:SN};
 })();
 </script>
