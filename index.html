@@ -584,7 +584,7 @@ tbody tr:hover td{background:rgba(0,113,227,.02);}
     html:not([data-authed="1"]) #app-shell{display:none;}
     #app-shell.hidden{display:none!important;}
   </style>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script><script src="gas-shim.js?v=20261005a"></script><script src="https://accounts.google.com/gsi/client" async defer></script></head>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script><script src="gas-shim.js?v=20261008a"></script><script src="https://accounts.google.com/gsi/client" async defer></script></head>
 <body>
 <div class="toast" id="toast"><span id="toast-icon"></span><span id="toast-msg">—</span></div>
 
@@ -18261,6 +18261,148 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
     return salvarTudoOrig.apply(this,arguments);
   };
   Eng.capComposicao={calcular,carregarSinapi,regraDe,candidatos,_ST:ST,_SN:SN};
+})();
+</script>
+<!-- ═══════════════════ ANEXOS NAS ABAS DA OBRA (Orçamento, CAP, Contrato, Medição) ═══════════════════ -->
+<style>
+.anx{background:#fff;border:1px solid #E4E9F2;border-radius:18px;padding:14px 16px;margin:16px 0 8px;box-shadow:0 1px 2px rgba(16,24,40,.04);}
+.hc-scroll>.anx,.hub-med>.anx{margin:16px 16px 12px;}
+.anx-cab{display:flex;flex-wrap:wrap;gap:10px;justify-content:space-between;align-items:center;}
+.anx-cab h4{margin:0;font:800 14px Inter,sans-serif;color:var(--text-1);display:flex;align-items:center;gap:9px;}
+.anx-cab h4 i{width:30px;height:30px;border-radius:10px;display:inline-grid;place-items:center;background:#7A5AF8;color:#fff;font-size:13px;}
+.anx-cab h4 small{font:700 11px Inter,sans-serif;color:#667085;background:#F2F4F7;border-radius:999px;padding:2px 8px;}
+.anx-drop{margin-top:10px;border:1.5px dashed #D0D5DD;border-radius:14px;padding:12px;text-align:center;font-size:12.5px;color:#667085;background:#FCFCFD;cursor:pointer;transition:background .15s,border-color .15s;}
+.anx-drop.on{border-color:#7A5AF8;background:#F4F3FF;color:#5925DC;}
+.anx-drop b{color:#344054;}
+.anx-lista{margin-top:10px;display:flex;flex-direction:column;gap:6px;}
+.anx-it{display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid #EEF1F6;border-radius:12px;background:#FAFBFE;}
+.anx-it .ic{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;font-size:15px;flex-shrink:0;}
+.anx-it .ic.pdf{background:#FEF3F2;color:#D92D20;} .anx-it .ic.img{background:#EEF4FF;color:#1652D8;} .anx-it .ic.xls{background:#ECFDF3;color:#067647;}
+.anx-it .ic.doc{background:#EFF8FF;color:#175CD3;} .anx-it .ic.out{background:#F2F4F7;color:#475467;}
+.anx-it .nm{flex:1;min-width:0;}
+.anx-it .nm b{display:block;font:700 12.5px Inter,sans-serif;color:var(--text-1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.anx-it .nm span{display:block;font-size:11px;color:#667085;margin-top:1px;}
+.anx-it .ac{display:flex;gap:6px;flex-shrink:0;}
+.anx-prog{margin-top:8px;font-size:12px;color:#5925DC;}
+.anx-prog em{display:block;height:6px;border-radius:999px;background:#EBE9FE;margin-top:4px;overflow:hidden;font-style:normal;}
+.anx-prog em i{display:block;height:100%;background:#7A5AF8;border-radius:999px;transition:width .2s;}
+.anx-vazio{font-size:12px;color:#98A2B3;margin-top:8px;}
+</style>
+<script>
+(function(){
+  const {fe,brDe}=GS.U;
+  const ABAS={orcamentos:'ao orçamento',cap:'ao CAP',contrato:'ao contrato',medicao:'à medição'};
+  const LIMITE=10*1024*1024,PARTE=600000;            // até 10 MB por arquivo; partes de ~600 KB (base64)
+  const ANX={cache:{},carregando:{},enviando:false};
+  const run=(fn,...a)=>new Promise((ok,er)=>{try{google.script.run.withSuccessHandler(r=>r&&r.ok===false?er(new Error(r.msg||'Não foi possível concluir.')):ok(r)).withFailureHandler(e=>er(e instanceof Error?e:new Error(String((e&&e.message)||e))))[fn](...a);}catch(e){er(e);}});
+  const eu=()=>{const s=Auth._session||{};return {nome:s.nome||s.email||'Usuário',id:String(s.cpf||s.email||s.id||'')};};
+  const admin=()=>{try{return !!UI._ehAdmin(Auth._session&&Auth._session.perfil);}catch(e){return false;}};
+  const tam=b=>b>=1048576?(b/1048576).toLocaleString('pt-BR',{maximumFractionDigits:1})+' MB':Math.max(1,Math.round(b/1024))+' KB';
+  const tipoIc=(m,n)=>{n=String(n||'').toLowerCase();m=String(m||'');if(/pdf/.test(m)||/\.pdf$/.test(n))return ['pdf','fa-file-pdf'];if(/^image\//.test(m))return ['img','fa-file-image'];
+    if(/sheet|excel|csv/.test(m)||/\.(xlsx?|csv|ods)$/.test(n))return ['xls','fa-file-excel'];if(/word|document|text/.test(m)||/\.(docx?|odt|txt|rtf)$/.test(n))return ['doc','fa-file-word'];return ['out','fa-file'];};
+  const quando=v=>{const d=new Date(v);return isNaN(d)?'':brDe(d)+' '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');};
+  const obraHub=()=>App.state.obraHub&&!App.state.obraHub.isNew?App.state.obraHub.obraName:'';
+
+  async function carregar(ob,forcar){
+    if(!ob)return [];if(ANX.cache[ob]&&!forcar)return ANX.cache[ob];
+    if(ANX.carregando[ob]&&!forcar)return ANX.carregando[ob];
+    ANX.carregando[ob]=run('listarAnexos',ob).then(r=>ANX.cache[ob]=(r&&r.itens)||[]).catch(e=>{console.error(e);return ANX.cache[ob]=ANX.cache[ob]||[];}).finally(()=>{delete ANX.carregando[ob];});
+    return ANX.carregando[ob];
+  }
+  function htmlLista(ob,aba){
+    if(!ANX.cache[ob])return '<div class="anx-vazio"><i class="fas fa-spinner fa-spin"></i> Carregando os anexos…</div>';
+    const L=ANX.cache[ob].filter(a=>a.aba===aba).sort((a,b)=>String(b.enviado_em||'').localeCompare(String(a.enviado_em||'')));
+    if(!L.length)return '<div class="anx-vazio">Nenhum documento anexado ainda.</div>';
+    const ad=admin(),me=eu().id;
+    return '<div class="anx-lista">'+L.map(a=>{const [c,ic]=tipoIc(a.mime,a.nome),pode=ad||!a.enviado_por_id||String(a.enviado_por_id)===me;
+      return `<div class="anx-it" data-uid="${fe(a.uid)}"><span class="ic ${c}"><i class="fas ${ic}"></i></span><div class="nm"><b title="${fe(a.nome)}">${fe(a.nome)}</b><span>${tam(+a.tamanho||0)}${a.enviado_por?' · enviado por '+fe(a.enviado_por):''}${a.enviado_em?' em '+quando(a.enviado_em):''}</span></div>
+        <div class="ac"><button type="button" class="fin-bt mini" data-anx="abrir" title="Abrir"><i class="fas fa-eye"></i> Abrir</button><button type="button" class="fin-bt mini" data-anx="baixar" title="Baixar"><i class="fas fa-download"></i></button>${pode?'<button type="button" class="fin-bt mini err" data-anx="excluir" title="Excluir"><i class="fas fa-trash"></i></button>':''}</div></div>`;}).join('')+'</div>';
+  }
+  function pintar(card){
+    const ob=card.dataset.ob,aba=card.dataset.aba,n=(ANX.cache[ob]||[]).filter(a=>a.aba===aba).length,el=card.querySelector('[data-anx-n]');
+    el.textContent=n?String(n):'';el.style.display=n?'':'none';
+    card.querySelector('.anx-corpo').innerHTML=htmlLista(ob,aba);
+  }
+  const pintarTodos=ob=>document.querySelectorAll('.anx').forEach(c=>{if(c.dataset.ob===ob)pintar(c);});
+  const lerB64=f=>new Promise((ok,er)=>{const r=new FileReader();r.onload=()=>ok(String(r.result).replace(/^data:[^,]*,/,''));r.onerror=()=>er(new Error('Não consegui ler o arquivo '+f.name+'.'));r.readAsDataURL(f);});
+  async function enviar(card,files){
+    const ob=card.dataset.ob,aba=card.dataset.aba;files=[...files];if(!files.length)return;
+    if(ANX.enviando)return toast('Aguarde: ainda estou enviando outro anexo.','info');
+    const grandes=files.filter(f=>f.size>LIMITE);if(grandes.length)toast(`Ficou de fora (maior que 10 MB): ${grandes.map(f=>f.name).join(', ')}. Diminua o arquivo (ex.: PDF comprimido) e tente de novo.`,'error');
+    files=files.filter(f=>f.size<=LIMITE&&f.size>0);if(!files.length)return;
+    ANX.enviando=true;const prog=card.querySelector('.anx-prog');const quem=eu();let ok=0;
+    try{
+      for(const f of files){
+        const b64=await lerB64(f),partes=Math.max(1,Math.ceil(b64.length/PARTE)),uid='ax'+Date.now().toString(36)+Math.random().toString(36).slice(2,8);
+        for(let i=0;i<partes;i++){
+          prog.innerHTML=`<i class="fas fa-spinner fa-spin"></i> Enviando <b>${fe(f.name)}</b>… ${Math.round(i/partes*100)}%<em><i style="width:${i/partes*100}%"></i></em>`;prog.style.display='';
+          await run('upsertRegistroLote','Arquivos',{titulo_obra:ob,tipo:'anexo_parte',anexo_uid:uid,ordem:i,conteudo:b64.slice(i*PARTE,(i+1)*PARTE)},null);
+        }
+        // o cabeçalho vai por último: o anexo só aparece na lista quando está inteiro
+        await run('upsertRegistroLote','Arquivos',{titulo_obra:ob,tipo:'anexo',aba,uid,nome:f.name,mime:f.type||'',tamanho:f.size,partes,enviado_por:quem.nome,enviado_por_id:quem.id,enviado_em:new Date().toISOString(),data_lancamento:todayDateTime()},null);
+        ok++;
+      }
+      toast(ok===1?'Documento anexado.':ok+' documentos anexados.','success');
+    }catch(e){toast('Não consegui anexar: '+((e&&e.message)||e),'error');}
+    finally{ANX.enviando=false;prog.style.display='none';await carregar(ob,true);pintarTodos(ob);}
+  }
+  async function blobDe(a){
+    const r=await run('partesAnexo',a.uid),ps=(r&&r.partes)||[];if(!ps.length)throw new Error('O conteúdo deste anexo não foi encontrado.');
+    const bin=atob(ps.map(p=>p.conteudo).join('')),u=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);
+    return new Blob([u],{type:a.mime||'application/octet-stream'});
+  }
+  const VE=/^(application\/pdf|image\/|text\/plain)/;
+  async function abrir(a,baixar){
+    const ver=!baixar&&VE.test(a.mime||'');const w=ver?window.open('','_blank'):null;
+    if(w){try{w.document.write('<p style="font-family:Arial;padding:20px;color:#555">Abrindo '+fe(a.nome)+'…</p>');}catch(e){}}
+    try{UI._showBusy('Abrindo o anexo…');const b=await blobDe(a),url=URL.createObjectURL(b);
+      if(w){w.location.href=url;}else{const l=document.createElement('a');l.href=url;l.download=a.nome||'anexo';document.body.appendChild(l);l.click();setTimeout(()=>l.remove(),500);}
+      setTimeout(()=>URL.revokeObjectURL(url),120000);}
+    catch(e){if(w)try{w.close();}catch(x){}toast((e&&e.message)||String(e),'error');}
+    finally{UI._hideBusy();}
+  }
+  function excluir(card,a){
+    Fin.util.confirmar('Excluir anexo',`O documento <b>${fe(a.nome)}</b> sai da obra de vez (não vai para a Lixeira).`,'Excluir',async()=>{
+      await run('excluirAnexo',a.uid,a.rowid);const ob=card.dataset.ob;await carregar(ob,true);pintarTodos(ob);toast('Anexo excluído.','success');});
+  }
+  function criar(cont,ob,aba){
+    const card=document.createElement('div');card.className='anx';card.dataset.ob=ob;card.dataset.aba=aba;
+    card.innerHTML=`<div class="anx-cab"><h4><i class="fas fa-paperclip"></i>Documentos anexados ${ABAS[aba]||''}<small data-anx-n style="display:none"></small></h4>
+      <button type="button" class="fin-bt pri mini" data-anx="anexar"><i class="fas fa-plus"></i> Anexar documentos</button></div>
+      <div class="anx-drop" data-anx="anexar"><i class="fas fa-cloud-arrow-up"></i> Arraste os arquivos para cá ou <b>clique para escolher</b> — PDF, Word, Excel, imagens… até 10 MB cada.</div>
+      <div class="anx-prog" style="display:none"></div><div class="anx-corpo"></div><input type="file" multiple hidden data-anx-arq>`;
+    cont.appendChild(card);
+    const inp=card.querySelector('[data-anx-arq]');
+    inp.addEventListener('change',()=>{const fs=[...inp.files];inp.value='';enviar(card,fs);});
+    card.addEventListener('click',e=>{const b=e.target.closest('[data-anx]');if(!b||!card.contains(b))return;e.preventDefault();e.stopPropagation();const ac=b.dataset.anx;
+      if(ac==='anexar')return inp.click();
+      const it=b.closest('[data-uid]'),uid=it&&it.dataset.uid,a=(ANX.cache[ob]||[]).find(x=>x.uid===uid);if(!a)return;
+      if(ac==='abrir')abrir(a,false);else if(ac==='baixar')abrir(a,true);else if(ac==='excluir')excluir(card,a);});
+    const drop=card.querySelector('.anx-drop');
+    ['dragenter','dragover'].forEach(t=>card.addEventListener(t,e=>{if(!e.dataTransfer||![...e.dataTransfer.types].includes('Files'))return;e.preventDefault();drop.classList.add('on');}));
+    card.addEventListener('dragleave',e=>{if(!card.contains(e.relatedTarget))drop.classList.remove('on');});
+    card.addEventListener('drop',e=>{drop.classList.remove('on');if(!e.dataTransfer||!e.dataTransfer.files.length)return;e.preventDefault();enviar(card,e.dataTransfer.files);});
+    pintar(card);carregar(ob).then(()=>pintar(card));
+    return card;
+  }
+  // coloca o quadro no fim da aba aberta da obra (cada aba tem o seu); espera a aba terminar de montar
+  function garantir(tab,tent){
+    tent=tent||0;const ob=obraHub();if(!ob||!ABAS[tab])return;
+    const hub=App.state.obraHub;if(!hub||hub.tab!==tab)return;
+    const form=document.getElementById('form-upsert');if(!form)return;
+    const cont=tab==='cap'?document.getElementById('cap-scroll-body'):tab==='contrato'?form.querySelector('.hc-scroll'):tab==='medicao'?form.querySelector('.hub-med'):[...form.children].find(c=>/auto|scroll/.test(getComputedStyle(c).overflowY));
+    if(!cont||App.state._busy||(tab==='orcamentos'&&!document.getElementById('orc-tbody'))){if(tent<40)setTimeout(()=>garantir(tab,tent+1),250);return;}
+    const ja=[...cont.children].find(c=>c.classList.contains('anx'));
+    if(ja&&ja.dataset.ob===ob&&ja.dataset.aba===tab){pintar(ja);return;}
+    if(ja)ja.remove();
+    criar(cont,ob,tab);
+  }
+  const tabAnt=UI._obraHubTab;
+  if(typeof tabAnt==='function')UI._obraHubTab=function(tab){const r=tabAnt.apply(this,arguments);setTimeout(()=>{const h=App.state.obraHub;if(h)garantir(h.tab);},60);return r;};
+  // ao abrir uma obra, a lista é lida de novo (alguém pode ter anexado de outro computador)
+  const abrirAnt=UI.openObraHub;
+  if(typeof abrirAnt==='function')UI.openObraHub=function(){const r=abrirAnt.apply(this,arguments);setTimeout(()=>{const ob=obraHub();if(ob)carregar(ob,true).then(()=>pintarTodos(ob));const h=App.state.obraHub;if(h)garantir(h.tab);},120);return r;};
+  GS.anexos={carregar,garantir,_ANX:ANX};
 })();
 </script>
 </body>
