@@ -17754,7 +17754,7 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
   let seq=0;
   function linhaAuto(x){
     const tr=document.createElement('tr');tr.dataset.bloco='D';tr.dataset.rid='a'+(++seq);tr.dataset.auto='1';tr.dataset.chave=x.key;tr.dataset.sin=String(x.cod||'');tr.dataset.fonte=x.f||'';
-    const un=UI._capMapUnidade?UI._capMapUnidade(x.u):x.u,q=compra(x),sub=r2(q*x.p);
+    const un=(UI._capMapUnidade?UI._capMapUnidade(x.u):x.u)||'UN',q=compra(x),sub=r2(q*x.p);
     tr.innerHTML=`<td><input type="text" class="cap-fi cap-lanc" value="${todayDateTime()}" readonly></td>
       <td><select class="cap-fi-sel cap-cat" tabindex="-1"><option value="Materiais de Construção" selected>Materiais de Construção</option></select></td>
       <td><input type="text" class="cap-fi cap-desc" value="${fe(x.d)}" readonly></td>
@@ -18176,7 +18176,15 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
   };
   ['_calcCAPAll','_calcResumoFinanceiroCAP'].forEach(fn=>{const f=UI[fn];if(typeof f!=='function')return;UI[fn]=function(){const r=f.apply(this,arguments);try{painel();}catch(e){console.error(e);}return r;};});
   const valOrig=UI._capValidarLinhas;
-  UI._capValidarLinhas=function(){try{preencherCats();}catch(e){}return valOrig.apply(this,arguments);};
+  // linhas dos quadros que saíram da tela (materiais antigos e Outros) não podem travar o Salvar com campo vazio
+  // que ninguém consegue ver: completa o que faltar (as automáticas já vêm completas)
+  function completarOcultas(){['D','E'].forEach(k=>document.querySelectorAll(`.cap-tbody[data-bloco="${k}"] tr`).forEach(tr=>{if(vazia(tr))return;
+    const s=tr.querySelector('.cap-cat');if(s&&!s.value&&UI._capSetSelect)UI._capSetSelect(s,s.options[1]?s.options[1].value:(k==='E'?'Despesas Administrativas':'Materiais de Construção'));
+    const u=tr.querySelector('.cap-und');if(u&&!u.value&&UI._capSetSelect)UI._capSetSelect(u,'UN');
+    const d=tr.querySelector('.cap-desc');if(d&&!d.value.trim())d.value='(sem descrição)';
+    const q=tr.querySelector('.cap-qtd');if(q&&(!q.value.trim()||q.value.trim()==='0'))q.value='1';
+    const p=tr.querySelector('.cap-punit');if(p&&!p.value.trim())p.value='R$ 0,00';}));}
+  UI._capValidarLinhas=function(){try{preencherCats();completarOcultas();}catch(e){}return valOrig.apply(this,arguments);};
   const colOrig=UI._capColetarItens;
   UI._capColetarItens=function(){
     try{preencherCats();}catch(e){}
@@ -18403,6 +18411,34 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
   const abrirAnt=UI.openObraHub;
   if(typeof abrirAnt==='function')UI.openObraHub=function(){const r=abrirAnt.apply(this,arguments);setTimeout(()=>{const ob=obraHub();if(ob)carregar(ob,true).then(()=>pintarTodos(ob));const h=App.state.obraHub;if(h)garantir(h.tab);},120);return r;};
   GS.anexos={carregar,garantir,_ANX:ANX};
+
+  /* ═══ Aba Orçamento carregando a tabela EMBASA: o sistema fica OCUPADO até terminar ═══
+     Antes, trocar de aba (ou o Salvar passar para a próxima aba) durante o carregamento fazia o Orçamento
+     terminar de montar POR CIMA da outra aba: a tela mostrava uma aba e o sistema achava que era outra, e o
+     Salvar pedia o "título do orçamento" ou a obra, que estavam preenchidos. Agora: ocupado durante o
+     carregamento; a aba clicada nesse meio tempo abre logo depois; Salvar avisa para aguardar. */
+  const ooCarga=UI.openOrcamento;
+  if(typeof ooCarga==='function')UI.openOrcamento=function(){
+    if(App.state._busy)return ooCarga.apply(this,arguments);
+    const r=ooCarga.apply(this,arguments);
+    if(r&&typeof r.then==='function'){
+      App.state._busy=true;UI._orcCarregando=true;
+      const fim=()=>{if(!UI._orcCarregando)return;UI._orcCarregando=false;App.state._busy=false;
+        const p=UI._abaPendente;UI._abaPendente=null;const h=App.state.obraHub;if(p&&h&&h.tab!==p)setTimeout(()=>UI._obraHubTab(p),30);};
+      r.then(fim,fim);setTimeout(fim,60000);   // segurança: nunca fica preso
+    }
+    return r;
+  };
+  const tabCarga=UI._obraHubTab;
+  if(typeof tabCarga==='function')UI._obraHubTab=function(tab){
+    if(UI._orcCarregando&&App.state._busy){UI._abaPendente=tab;return;}
+    return tabCarga.apply(this,arguments);
+  };
+  const salvarCarga=UI._obraHubSalvar;
+  if(typeof salvarCarga==='function')UI._obraHubSalvar=function(){
+    if(UI._orcCarregando&&App.state._busy){toast('Aguarde um instante: o orçamento ainda está carregando a tabela de preços. Depois clique em Salvar.','info');return;}
+    return salvarCarga.apply(this,arguments);
+  };
 })();
 </script>
 </body>
