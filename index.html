@@ -18382,6 +18382,8 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
     cont.appendChild(card);
     const inp=card.querySelector('[data-anx-arq]');
     inp.addEventListener('change',()=>{const fs=[...inp.files];inp.value='';enviar(card,fs);});
+    // o anexo é gravado na hora: escolher arquivo não deixa a aba "com alteração por salvar"
+    ['input','change'].forEach(ev=>card.addEventListener(ev,e=>e.stopPropagation()));
     card.addEventListener('click',e=>{const b=e.target.closest('[data-anx]');if(!b||!card.contains(b))return;e.preventDefault();e.stopPropagation();const ac=b.dataset.anx;
       if(ac==='anexar')return inp.click();
       const it=b.closest('[data-uid]'),uid=it&&it.dataset.uid,a=(ANX.cache[ob]||[]).find(x=>x.uid===uid);if(!a)return;
@@ -18438,6 +18440,51 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
   if(typeof salvarCarga==='function')UI._obraHubSalvar=function(){
     if(UI._orcCarregando&&App.state._busy){toast('Aguarde um instante: o orçamento ainda está carregando a tabela de preços. Depois clique em Salvar.','info');return;}
     return salvarCarga.apply(this,arguments);
+  };
+
+  /* ═══ Salvar da obra: cada aba com o seu jeito de salvar ═══
+     Medição e Contrato não usam o Salvar do formulário (a medição tem o "Salvar medição"; o contrato grava
+     em "Editar dados" e nos aditivos). Antes, com uma delas na tela, o Salvar da faixa — ou um Enter num
+     campo — chamava o salvar da última aba aberta (ex.: CAP), que não estava na tela, e aparecia
+     "Selecione a obra antes de salvar". Agora o Salvar grava as abas com alteração e, na Medição, a medição aberta. */
+  const SEM_FORM=['medicao','contrato','resumo'];
+  const hubAberto=()=>{const h=App.state.obraHub;return h&&!h.isNew&&document.getElementById('modal-editor')?.classList.contains('open')?h:null;};
+  // o formulário na tela é mesmo o da aba? (se a aba ainda está abrindo, não salva nada no lugar errado)
+  const abaPronta=tab=>{
+    const ed=App.state.editing||{};
+    if(tab==='cap')return ed.abaKey==='cap'&&!!document.getElementById('cap-f-obra');
+    if(tab==='orcamentos')return ed.abaKey==='orcamentos';
+    if(tab==='custos'||tab==='faturamentos'||tab==='aportes')return !!ed.isGroup&&!!UI._grContext;
+    if(tab==='dados')return ed.abaKey==='obras';
+    return true;
+  };
+  const saveAba=App.save;
+  App.save=function(e){
+    const h=hubAberto();
+    if(h){
+      if(SEM_FORM.includes(h.tab)||h.tab==='etapas'){if(e&&e.preventDefault)e.preventDefault();return;}   // Enter num campo dessas abas
+      if(!abaPronta(h.tab)){if(e&&e.preventDefault)e.preventDefault();toast('A aba ainda está abrindo. Aguarde um instante e clique em Salvar de novo.','info');return;}
+    }
+    return saveAba.apply(this,arguments);
+  };
+  const salvarAbas=UI._obraHubSalvar;
+  UI._obraHubSalvar=function(){
+    const h=hubAberto();
+    if(!h||App.state._busy||(Auth._session&&Auth._session.tipoUsuario==='externo'))return salvarAbas.apply(this,arguments);
+    SEM_FORM.forEach(t=>h._dirtyTabs.delete(t));
+    if(!SEM_FORM.includes(h.tab))return salvarAbas.apply(this,arguments);
+    const btMed=()=>h.tab==='medicao'?document.querySelector('#form-upsert button[data-me="salvar"]'):null;
+    const outras=[...h._dirtyTabs];
+    if(!outras.length){
+      const b=btMed();if(b){b.click();return;}
+      toast(h.tab==='medicao'?'Nada para salvar: não há medição aberta. Para lançar uma, clique em "+ Nova medição".':'Nada para salvar no Contrato: as mudanças dele são gravadas em "Editar dados" e nos aditivos.','info');
+      return;
+    }
+    const medAberta=!!btMed(),aqui=h.tab;
+    Promise.resolve(this._obraHubSalvarTudo(outras,0,aqui)).then(()=>{
+      const h2=App.state.obraHub;if(!medAberta||!h2||h2.tab!=='medicao')return;
+      setTimeout(()=>{const b=btMed();if(b)b.click();},80);
+    });
   };
 })();
 </script>
