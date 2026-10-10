@@ -218,6 +218,38 @@ tbody tr:hover td{background:rgba(0,113,227,.02);}
 .cap-fi.r{text-align:right;}
 /* Tabela de serviços do Orçamento: tudo alinhado à esquerda (cabeçalho e células). */
 .orc-tbl-left th,.orc-tbl-left td,.orc-tbl-left input,.orc-tbl-left select{text-align:left!important;}
+/* Orçamento em itens (títulos) e subitens, com "SUB-TOTAL ITEM n" (como a planilha da EMBASA) */
+.gr-table-wrap.orc-wrap{max-height:min(64vh,680px);}
+.orc-tbl-h tr.orc-grp td{background:#EEF2F8;border-bottom:1px solid #D7DEEA;}
+.orc-tbl-h tr.orc-grp.n1 td{background:#E2E8F2;border-top:2px solid #C9D3E3;}
+.orc-tbl-h tr.orc-grp input{font-weight:800;color:var(--text-1);}
+.orc-tbl-h tr.orc-grp .orc-g-desc{text-transform:uppercase;}
+.orc-tbl-h tr.orc-grp.n2 .orc-g-desc{padding-left:16px;}
+.orc-tbl-h tr.orc-grp input:not(:focus){background:transparent;}
+.orc-g-bts{display:flex;gap:6px;flex-wrap:wrap;padding:2px 4px;}
+.orc-g-bt{font:700 10.5px Inter,sans-serif;color:var(--blue);background:#fff;border:1px dashed rgba(0,113,227,.45);border-radius:7px;padding:4px 9px;cursor:pointer;white-space:nowrap;}
+.orc-g-bt:hover{background:rgba(0,113,227,.08);}
+.orc-tbl-h td.orc-g-tot{font-weight:800;font-size:12px;color:var(--text-2);padding-left:9px;white-space:nowrap;}
+.orc-tbl-h tr.orc-subt td{background:#F5F7FB;font-weight:800;font-size:11.5px;color:var(--text-1);padding:7px 9px;border-bottom:2px solid #D7DEEA;letter-spacing:.2px;}
+.orc-tbl-left.orc-tbl-h tr.orc-subt td.orc-subt-l{text-align:right!important;}
+.orc-tbl-h tr.orc-srv td:first-child input{padding-left:12px;}
+.orc-acoes{display:flex;gap:4px;justify-content:flex-end;align-items:center;padding-right:2px;}
+.orc-acoes .cap-row-btn{width:24px;height:24px;border-radius:7px;flex-shrink:0;}
+.cap-row-btn.orc-bt-add{background:rgba(0,113,227,.08);color:var(--blue);}
+.cap-row-btn.orc-bt-add:hover{background:var(--blue);color:#fff;}
+.cap-row-btn.orc-bt-edit{background:rgba(52,64,84,.08);color:#344054;}
+.cap-row-btn.orc-bt-edit:hover{background:#344054;color:#fff;}
+.orc-add-bar{display:flex;gap:10px;margin-top:10px;flex-wrap:wrap;}
+.orc-add-bt{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:600;color:var(--blue);background:rgba(0,113,227,.07);border:1px dashed rgba(0,113,227,.4);border-radius:7px;padding:6px 14px;cursor:pointer;}
+.orc-add-bt span{font-size:16px;line-height:1;}
+.orc-add-bt.cinza{color:#344054;background:#F2F4F7;border:1px solid #E4E7EC;}
+.orc-sug{position:fixed;z-index:100000;display:none;background:#fff;border:1px solid #D0D5DD;border-radius:12px;box-shadow:0 12px 32px rgba(16,24,40,.18);max-height:340px;overflow:auto;padding:4px;}
+.orc-sug-cab{font:800 10px Inter,sans-serif;text-transform:uppercase;letter-spacing:.05em;color:#667085;padding:6px 10px 4px;}
+.orc-sug-it{display:grid;grid-template-columns:78px minmax(0,1fr) auto;gap:10px;align-items:start;padding:7px 10px;border-radius:8px;cursor:pointer;font-size:12px;}
+.orc-sug-it.on,.orc-sug-it:hover{background:rgba(0,113,227,.08);}
+.orc-sug-it b{color:var(--blue);font-weight:800;}
+.orc-sug-it span{color:var(--text-1);line-height:1.35;}
+.orc-sug-it em{font-style:normal;color:#475467;font-weight:700;white-space:nowrap;}
 .cap-fi-sel{width:100%;padding:7px 6px;font-size:12px;border:1px solid transparent;border-radius:6px;background:transparent;color:var(--text-1);font-family:Inter,sans-serif;outline:none;cursor:pointer;line-height:1.4;}
 .cap-fi-sel:focus{border-color:var(--blue);background:var(--surface);}
 /* Campo não obrigatório no momento (bloqueado por regra de negócio, ex.: depende de
@@ -1228,7 +1260,7 @@ tbody tr:hover td{background:rgba(0,113,227,.02);}
   <div class="confirm-box" style="max-width:480px;text-align:left;padding:24px;position:relative">
     <button class="close-btn" onclick="UI.closeUsuario()" title="Fechar" style="position:absolute;top:18px;right:18px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
     <div class="confirm-title" id="usr-modal-title" style="text-align:left;margin-bottom:4px;padding-right:34px">Novo Usuário</div>
-    <div style="font-size:12px;color:var(--text-3);margin-bottom:16px">Defina os dados de acesso e quais seções o usuário pode ver.</div>
+    <div style="font-size:12px;color:var(--text-3);margin-bottom:16px">Defina os dados de acesso e o perfil. O que cada perfil pode ver e fazer fica em <b>Permissões de acesso</b>, nesta mesma tela.</div>
     <input type="hidden" id="usr-id">
     <div style="display:flex;flex-direction:column;gap:12px">
       <div><div style="font-size:12px;font-weight:700;color:var(--text-2);margin-bottom:4px">Nome</div><input id="usr-nome" class="field-input" style="width:100%" placeholder="Nome completo"></div>
@@ -1241,13 +1273,13 @@ tbody tr:hover td{background:rgba(0,113,227,.02);}
         <div style="flex:1"><div style="font-size:12px;font-weight:700;color:var(--text-2);margin-bottom:4px">Tipo de Usuário</div><select id="usr-tipo" class="field-input field-select" style="width:100%" onchange="UI._usrTipoChange()"><option value="interno">Interno (entra com CPF)</option><option value="externo">Externo (entra com e-mail)</option></select></div>
         <div style="flex:1"><div style="font-size:12px;font-weight:700;color:var(--text-2);margin-bottom:4px">Status</div><select id="usr-status" class="field-input field-select" style="width:100%"><option value="ativo">Ativo</option><option value="inativo">Inativo</option></select></div>
       </div>
-      <div id="usr-perfil-wrap" style="flex:1"><div style="font-size:12px;font-weight:700;color:var(--text-2);margin-bottom:4px">Perfil</div><select id="usr-perfil" class="field-input field-select" style="width:100%" onchange="UI._usrPerfilChange()"><option value="Usuário">Usuário</option><option value="admin">Administrador</option></select></div>
+      <div id="usr-perfil-wrap" style="flex:1"><div style="font-size:12px;font-weight:700;color:var(--text-2);margin-bottom:4px">Perfil</div><select id="usr-perfil" class="field-input field-select" style="width:100%" onchange="UI._usrPerfilChange()"><option value="Usuário">Usuário</option><option value="Gestão">Gestão</option><option value="Sócio">Sócio</option><option value="admin">Administrador</option></select><div id="usr-perfil-nota" class="usr-perfil-nota" style="display:none"></div></div>
       <div id="usr-externo-aviso" style="display:none;font-size:12px;color:var(--text-3);background:rgba(0,113,227,.06);border:1px solid rgba(0,113,227,.18);border-radius:8px;padding:10px 12px">O Usuário Externo entra com <strong>e-mail e senha</strong> e só tem acesso a <strong>Obras → Avanço &amp; Gantt</strong> e <strong>Relatórios → Cronograma Físico-financeiro</strong>.</div>
       <div id="usr-obras-wrap" style="display:none">
         <div style="font-size:12px;font-weight:700;color:var(--text-2);margin-bottom:6px">Obras que pode acessar</div>
         <div id="usr-obras" style="display:grid;grid-template-columns:1fr 1fr;gap:6px 14px;max-height:160px;overflow-y:auto"></div>
       </div>
-      <div id="usr-acessos-wrap">
+      <div id="usr-acessos-wrap" style="display:none">
         <div style="font-size:12px;font-weight:700;color:var(--text-2);margin-bottom:6px">Seções que pode acessar</div>
         <div id="usr-acessos" style="display:grid;grid-template-columns:1fr 1fr;gap:6px 14px"></div>
       </div>
@@ -3979,7 +4011,7 @@ const UI={
     const nEl=document.getElementById('nav-'+v);if(nEl)nEl.classList.add('active');
     this._navMarcar();
     this._navFecharPaineis();
-    const titles={inicio:'Início',faturamento:'Faturamento e recebimentos',reunioes:'Reuniões',socios:'Sócios e investimentos',orcamento:'Orçamento da empresa',projecao:'Fluxo de caixa projetado',dashboard:'Painel de indicadores',obras:'Contratos',custos:'Custos',faturamentos:'Faturamentos',aportes:'Aportes',cap:'CAP',orcamentos:'Orçamentos',usuarios:'Usuários',despesas:'Despesas da empresa',relatorios:'Relatórios',lixeira:'Lixeira',contas:'Contas a pagar',metas:'Metas e orçamento',conciliacao:'Conciliação bancária',medicoes:'Medições',diario:'Diário de obra',documentos:'Documentos e certidões',fornecedores:'Fornecedores',contratos:'Contratos',planejamento:'Planejamento e cronograma',acoes:'Tarefas e plano de ação',viabilidade:'Viabilidade do contrato'};
+    const titles={inicio:'Início',faturamento:'Faturamento e recebimentos',reunioes:'Reuniões',socios:'Sócios e investimentos',orcamento:'Orçamento da empresa',projecao:'Fluxo de caixa projetado',dashboard:'Painel de indicadores',obras:'Contratos',custos:'Custos',faturamentos:'Faturamentos',aportes:'Aportes',cap:'CAP',orcamentos:'Orçamentos',usuarios:'Usuários e permissões',despesas:'Despesas da empresa',relatorios:'Relatórios',lixeira:'Lixeira',contas:'Contas a pagar',metas:'Metas e orçamento',conciliacao:'Conciliação bancária',medicoes:'Medições',diario:'Diário de obra',documentos:'Documentos e certidões',fornecedores:'Fornecedores',contratos:'Contratos',planejamento:'Planejamento e cronograma',acoes:'Tarefas e plano de ação',viabilidade:'Viabilidade do contrato'};
     const ttl=document.getElementById('view-title');if(ttl)ttl.textContent=titles[v]||v;
     document.title=titles[v]||v; // título da aba do navegador acompanha a seção clicada
     if(v==='dashboard'&&App.state.data)App.renderDashboard();
@@ -4127,14 +4159,12 @@ const UI={
     const cpfEl=document.getElementById('usr-cpf');cpfEl.value=u?(u.cpf||''):'';this._usrMaskCpf(cpfEl);
     document.getElementById('usr-senha').value='';
     document.getElementById('usr-senha-hint').textContent=u?'Deixe em branco para manter a senha atual.':'Obrigatória para novo usuário.';
-    document.getElementById('usr-perfil').value=(u&&this._ehAdmin(u.perfil))?'admin':'Usuário';
+    document.getElementById('usr-perfil').value=u?this._usrPerfilValor(u.perfil):'Usuário';
     document.getElementById('usr-status').value=(u&&String(u.status||'ativo').toLowerCase()==='inativo')?'inativo':'ativo';
     document.getElementById('usr-tipo').value=(u&&u.tipoUsuario==='externo')?'externo':'interno';
-    // acessos: novo = todas marcadas; edição = as salvas (null = todas).
-    const sel=u?(Array.isArray(u.acessos)?u.acessos:this._MODULOS.map(m=>m[0])):this._MODULOS.map(m=>m[0]);
-    // acessos de telas que foram juntadas a outras (ex.: Painel de indicadores) continuam gravados — dão herança
-    this._usrLegado=u&&Array.isArray(u.acessos)?u.acessos.filter(k=>!this._MODULOS.some(m=>m[0]===k)):[];
-    document.getElementById('usr-acessos').innerHTML=this._MODULOS.map(([k,l])=>`<label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer"><input type="checkbox" class="usr-acesso" value="${k}" ${sel.includes(k)?'checked':''}>${l}</label>`).join('');
+    // O que o usuário pode fazer vem do PERFIL (Permissões de acesso, como na VTC). A lista antiga de
+    // telas marcadas no cadastro fica gravada como estava: vale só enquanto o perfil não é configurado.
+    this._usrEditando=u||null;
     // obras permitidas (só usado por Usuário Externo): lista todas as obras cadastradas.
     const obrasSel=u?(Array.isArray(u.obrasPermitidas)?u.obrasPermitidas.map(String):[]):[];
     const obras=App.state.data.obras||[];
@@ -4157,14 +4187,28 @@ const UI={
       document.getElementById('usr-perfil').value='Usuário';
       document.getElementById('usr-acessos-wrap').style.display='none';
       document.getElementById('usr-acessos-admin').style.display='none';
+      const nota=document.getElementById('usr-perfil-nota');if(nota)nota.style.display='none';
     }else{
       this._usrPerfilChange();
     }
   },
+  // valor do seletor de perfil para o que está gravado (admin, Sócio, Gestão; o resto é Usuário)
+  _usrPerfilValor(p){
+    if(this._ehAdmin(p))return 'admin';
+    const n=String(p||'').trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
+    return n==='socio'?'Sócio':n==='gestao'?'Gestão':'Usuário';
+  },
   _usrPerfilChange(){
-    const admin=document.getElementById('usr-perfil').value==='admin';
-    document.getElementById('usr-acessos-wrap').style.display=admin?'none':'';
+    const v=document.getElementById('usr-perfil').value,admin=v==='admin';
+    document.getElementById('usr-acessos-wrap').style.display='none';
     document.getElementById('usr-acessos-admin').style.display=admin?'':'none';
+    const nota=document.getElementById('usr-perfil-nota');if(!nota)return;
+    if(admin){nota.style.display='none';return;}
+    const conf=UI.permPerfilConfigurado&&UI.permPerfilConfigurado(v);
+    nota.className='usr-perfil-nota'+(conf?'':' aviso');
+    nota.innerHTML=conf?`O que o perfil <b>${v}</b> pode ver e fazer está em <b>Permissões de acesso</b>, abaixo da lista de usuários.`
+      :`O perfil <b>${v}</b> ainda não tem permissões definidas: enquanto isso, ${this._usrEditando&&Array.isArray(this._usrEditando.acessos)?'este usuário continua com as telas que já tinha':'este usuário vê <b>todas as telas</b>'}. Defina o perfil em <b>Permissões de acesso</b>, abaixo da lista.`;
+    nota.style.display='';
   },
   closeUsuario(){document.getElementById('modal-usuario').classList.remove('open');},
   saveUsuario(){
@@ -4180,7 +4224,8 @@ const UI={
       perfil:tipoUsuario==='externo'?'Usuário':perfil,
       status:document.getElementById('usr-status').value,
       tipoUsuario:tipoUsuario,
-      acessos:tipoUsuario==='externo'?['obras','relatorios']:(perfil==='admin'?null:[...document.querySelectorAll('#usr-acessos .usr-acesso:checked')].map(c=>c.value).concat(UI._usrLegado||[])),
+      // a lista antiga de telas do usuário fica como estava (vale só enquanto o perfil não é configurado)
+      acessos:tipoUsuario==='externo'?['obras','relatorios']:(perfil==='admin'?null:(this._usrEditando&&Array.isArray(this._usrEditando.acessos)?this._usrEditando.acessos:null)),
       obrasPermitidas:tipoUsuario==='externo'?[...document.querySelectorAll('#usr-obras .usr-obra:checked')].map(c=>c.value):[]
     };
     const fail=m=>{errEl.textContent=m;errEl.style.display='block';};
@@ -4188,7 +4233,6 @@ const UI={
     if(tipoUsuario==='interno'&&!this._validarCPF(dados.cpf)){document.getElementById('usr-cpf').classList.add('err');return fail('CPF inválido. Digite um CPF válido.');}
     if(!dados.email||!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(dados.email)){document.getElementById('usr-email').classList.add('err');return fail('Informe um e-mail válido (usado na recuperação de senha).');}
     if(!id&&!dados.senha)return fail('Defina uma senha para o novo usuário.');
-    if(tipoUsuario==='interno'&&perfil!=='admin'&&dados.acessos.length===0)return fail('Selecione ao menos uma seção de acesso.');
     if(tipoUsuario==='externo'&&dados.obrasPermitidas.length===0)return fail('Selecione ao menos uma obra que o usuário externo pode acessar.');
     const btn=document.querySelector('#modal-usuario .confirm-yes');const prev=btn.innerHTML;btn.disabled=true;btn.innerHTML='Salvando…';
     google.script.run
@@ -6055,6 +6099,7 @@ const UI={
     this._orcAddRow({manual:true});
     this._orcRecalc();
     this._orcUpdateLock();
+    this._orcSujar();
   },
   _orcLimparCancela(){
     document.getElementById('confirm-orc-limpar').classList.remove('open');
@@ -6104,7 +6149,6 @@ const UI={
     const sel=document.getElementById('orc-tabela'); if(!sel)return;
     const id=sel.value;
     const anterior=this._embasa?this._embasa.id:'';
-    const estadoAntes=this._orcColetar(); // preserva o que já foi lançado
     try{ await this._embasaAtivar(id); }
     catch(e){
       // Tabela ainda sem dados: volta a seleção para a tabela ativa. Se houver o PDF
@@ -6126,16 +6170,22 @@ const UI={
     // preenche Leis Sociais a partir da tabela escolhida
     const lh=document.getElementById('orc-leis-h'), lm=document.getElementById('orc-leis-m');
     if(lh&&emb.leis_h)lh.value=emb.leis_h; if(lm&&emb.leis_m)lm.value=emb.leis_m;
-    // re-lança as linhas re-precificadas na nova tabela
-    const tbody=document.getElementById('orc-tbody'); tbody.innerHTML='';
-    estadoAntes.forEach(it=>{
-      if(it.manual){ this._orcAddRow(it); return; }
-      const novo=emb._byCod[it.codigo];
-      if(novo){ this._orcAddRow({manual:false,mc:novo.mc,codigo:novo.codigo,descricao:novo.descricao,unidade:novo.unidade,p_unit_base:novo.preco,quant:it.quant}); }
-      else { this._orcAddRow({manual:true,mc:it.mc,codigo:it.codigo,descricao:it.descricao,unidade:it.unidade,p_unit_base:it.p_unit_base,quant:it.quant}); }
-    });
+    // re-precifica no lugar os subitens casados com a tabela nova (sem o código nela, viram
+    // manuais com o preço de antes); itens (títulos), números e subitens manuais ficam como estão
+    const tbody=document.getElementById('orc-tbody');if(!tbody)return;
+    this._orcMontando=true;
+    try{
+      [...tbody.querySelectorAll('tr.orc-srv')].forEach(tr=>{
+        if(tr.dataset.manual==='1')return;
+        const it=this._orcLerLinha(tr),novo=emb._byCod[it.codigo];
+        this._orcAddRow(novo?{manual:false,mc:it.mc,codigo:novo.codigo,descricao:novo.descricao,unidade:novo.unidade,p_unit_base:novo.preco,quant:it.quant}
+          :{manual:true,mc:it.mc,codigo:it.codigo,descricao:it.descricao,unidade:it.unidade,p_unit_base:it.p_unit_base,quant:it.quant},tr);
+        tr.remove();
+      });
+    }finally{this._orcMontando=false;}
     this._orcRecalc();
     this._orcUpdateLock();
+    this._orcSujar();
   },
   /* Abre o PDF oficial da EMBASA da tabela selecionada no momento — útil tanto para
      conferência das já incluídas quanto para consulta manual/temporária das que ainda
@@ -6231,33 +6281,37 @@ const UI={
       </div>
 
       <div style="background:rgba(0,113,227,.05);border:1px dashed rgba(0,113,227,.3);border-radius:10px;padding:12px 14px;margin-bottom:14px">
-        <div style="font-size:11px;font-weight:700;color:var(--blue);margin-bottom:6px">Colar planilha — uma linha por item, colunas separadas por TAB (copiar direto do Excel) ou ";"</div>
+        <div style="font-size:11px;font-weight:700;color:var(--blue);margin-bottom:6px">Colar planilha — copie do Excel (pode ser a planilha inteira, com os itens, subitens e subtotais) e cole aqui</div>
         <div style="font-size:10.5px;color:var(--text-3);margin-bottom:7px;line-height:1.55">
-          <strong style="color:var(--text-2)">Orçamento completo (6 colunas):</strong> Item · Código · Especificação · Unid. · Quant. · P. Unit. — entra exatamente como informado, sem buscar na EMBASA.<br>
-          <strong style="color:var(--text-2)">Só descrição (2 colunas):</strong> Descrição · Quant. — o preço vem da tabela EMBASA selecionada acima.
+          <strong style="color:var(--text-2)">Planilha completa:</strong> Item · Código · Especificação · Unid. · Quant. · P. Unit. (· P. Total). As linhas só com número e título (ex.: <b>1. MOBILIZAÇÃO E DESMOBILIZAÇÃO</b>, <b>2.1 RECURSOS HUMANOS</b>) viram <b>itens</b>; as com unidade, quantidade e preço viram <b>subitens</b>, que ficam editáveis; as linhas de <b>SUB-TOTAL</b> e <b>TOTAL</b> são refeitas pelo sistema. Se o número do subitem já existir na tabela, ele é <b>atualizado</b> (não duplica).<br>
+          <strong style="color:var(--text-2)">Só descrição (2 colunas):</strong> Descrição · Quant. — o preço vem da tabela EMBASA selecionada acima.<br>
+          Dá também para colar direto em qualquer célula da tabela abaixo.
         </div>
-        <textarea id="orc-paste" rows="4" placeholder="Orçamento completo:&#10;1.1&#9;01.91.02&#9;LOCACAO DE VEICULO 1.0&#9;MES&#9;2&#9;10.552,01&#10;1.2&#9;02.01.05&#9;ESCAVACAO MANUAL DE VALA&#9;M3&#9;15,5&#9;87,40&#10;&#10;Ou só descrição + quantidade:&#10;CONCRETO ARMADO P/CX/P.V.(ACO=40KG,FORMA=15M2)&#9;1,49" style="width:100%;border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:12px;font-family:inherit;resize:vertical"></textarea>
+        <textarea id="orc-paste" rows="4" placeholder="Planilha completa:&#10;1.&#9;&#9;MOBILIZAÇÃO E DESMOBILIZAÇÃO&#10;1.1.1&#9;19100&#9;MOBILIZACAO E INSTALACAO DE CANTEIRO DE OBRAS&#9;UN&#9;1,00&#9;913,14&#10;2&#9;19901&#9;ADMINISTRACAO LOCAL&#10;2.1&#9;&#9;RECURSOS HUMANOS&#10;2.1.1&#9;300111&#9;ENGENHEIRO JUNIOR&#9;H&#9;7,79&#9;201,01&#10;&#10;Ou só descrição + quantidade:&#10;CONCRETO ARMADO P/CX/P.V.(ACO=40KG,FORMA=15M2)&#9;1,49" style="width:100%;border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:12px;font-family:inherit;resize:vertical"></textarea>
         <label style="display:flex;align-items:center;gap:6px;margin-top:8px;font-size:11px;color:var(--text-2);cursor:pointer"><input type="checkbox" id="orc-paste-final" checked style="cursor:pointer;width:14px;height:14px">O P. Unit. informado já é o valor final (não aplicar BDI/Desconto por cima)</label>
         <button type="button" onclick="UI._orcProcessarColagem()" style="margin-top:8px;font-size:12px;font-weight:700;color:#fff;background:var(--blue);border:none;border-radius:8px;padding:7px 16px;cursor:pointer">Processar e adicionar</button>
       </div>
 
-      <div class="gr-table-wrap" style="overflow-x:auto">
-        <table class="cap-tbl orc-tbl-left" id="orc-tbl" style="width:100%;min-width:940px;table-layout:fixed">
+      <div class="gr-table-wrap orc-wrap" style="overflow-x:auto">
+        <table class="cap-tbl orc-tbl-left orc-tbl-h" id="orc-tbl" style="width:100%;min-width:980px;table-layout:fixed" onpaste="UI._orcColarNaTabela(event)">
           <thead><tr>
-            <th style="width:110px;text-align:left">Item</th>
-            <th style="width:80px;text-align:left">Código</th>
+            <th style="width:96px;text-align:left">Item</th>
+            <th style="width:84px;text-align:left">Código</th>
             <th style="text-align:left">Especificação</th>
             <th style="width:56px;text-align:left">Unid.</th>
             <th style="width:80px;text-align:left">Quant.</th>
             <th style="width:110px;text-align:left">P. Unit.</th>
             <th style="width:120px;text-align:left">P. Total</th>
-            <th style="width:34px"></th>
+            <th style="width:92px"></th>
           </tr></thead>
           <tbody id="orc-tbody"></tbody>
         </table>
       </div>
-      <div style="display:flex;gap:10px;margin-top:10px">
-        <button type="button" id="orc-btn-addrow" onclick="UI._orcAddRow({manual:true})" style="display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;color:var(--blue);background:rgba(0,113,227,.07);border:1px dashed rgba(0,113,227,.4);border-radius:7px;padding:6px 14px;cursor:pointer"><span style="font-size:16px;line-height:1">+</span> Adicionar linha e orçar manualmente</button>
+      <datalist id="orc-grp-sug">${this._orcTitulosSugeridos().map(t=>`<option value="${esc(t)}"></option>`).join('')}</datalist>
+      <div class="orc-add-bar">
+        <button type="button" id="orc-btn-additem" class="orc-add-bt" onclick="UI._orcNovoItem()" title="Título de um grupo de serviços (ex.: 1. MOBILIZAÇÃO E DESMOBILIZAÇÃO), já com o primeiro subitem"><span>+</span> Item (título com subitens)</button>
+        <button type="button" id="orc-btn-addrow" class="orc-add-bt" onclick="UI._orcNovoSubitem(null)" title="Serviço no fim da tabela: digite a descrição ou o código para buscar na tabela EMBASA, ou orce manualmente"><span>+</span> Subitem (serviço)</button>
+        <button type="button" id="orc-btn-renum" class="orc-add-bt cinza" onclick="UI._orcRenumerar()" title="Numera de novo, na ordem da tabela: itens 1, 2, 3…; subitens 1.1, 1.2…"><i class="fas fa-list-ol"></i> Renumerar</button>
         <button type="button" id="orc-btn-limpar" onclick="UI._orcLimpar()" style="display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;color:var(--red);background:rgba(255,59,48,.07);border:1px solid rgba(255,59,48,.25);border-radius:7px;padding:6px 14px;cursor:pointer"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"><path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2M19 6l-1 14a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1L5 6"/></svg> Limpar tabela</button>
       </div>
 
@@ -6266,10 +6320,16 @@ const UI={
       </div>
     </div>`;
     form.innerHTML=html;
-    itens.forEach(it=>this._orcAddRow(it));
+    // Itens (títulos) ficam em "grupos", cada um com a posição (pos = quantos subitens vêm antes
+    // dele); os subitens continuam na lista "itens" — medição, CAP e cronograma leem só ela.
+    const grupos=Array.isArray(data&&data.grupos)?data.grupos:[];
+    this._orcMontando=true;
+    itens.forEach((it,i)=>{grupos.filter(g=>(+g.pos||0)===i).forEach(g=>this._orcAddGrupo(g));this._orcAddRow(it);});
+    grupos.filter(g=>(+g.pos||0)>=itens.length).forEach(g=>this._orcAddGrupo(g));
+    this._orcMontando=false;
     // A tabela precisa de ao menos 1 linha sempre — orçamento novo (sem itens) já entra
     // com uma linha manual vazia, em vez de ficar sem nenhuma.
-    if(document.getElementById('orc-tbody').children.length===0)this._orcAddRow({manual:true});
+    if(!document.querySelector('#orc-tbody tr.orc-srv'))this._orcAddRow({manual:true});
     this._orcUpdateLock();
     this._orcRecalc();
   },
@@ -6288,14 +6348,34 @@ const UI={
     await this._orcTabelaChange();
   },
 
-  /* Uma linha da planilha. `item` reidrata de um orçamento salvo / colagem.
-     item.manual=true → linha totalmente digitável (não achou na EMBASA);
-     senão → linha "casada" (Item/Código/Descrição/Unid./Quant./P.Unit. bloqueados). */
-  _orcAddRow(item){
-    const tbody=document.getElementById('orc-tbody');if(!tbody)return;
+  /* ═══════════ ORÇAMENTO EM ITENS E SUBITENS (como a planilha da EMBASA) ═══════════
+     A tabela tem dois tipos de linha:
+     • ITEM (tr.orc-grp) = título de um grupo de serviços, nível 1 (1, 2, 3…) ou nível 2 (2.1, 3.1…),
+       com código opcional (ex.: 19901 ADMINISTRAÇÃO LOCAL). O nível 1 fecha com a linha
+       "SUB-TOTAL ITEM n" (tr.orc-subt, refeita a cada recálculo); o nível 2 mostra o subtotal na
+       própria linha;
+     • SUBITEM (tr.orc-srv) = o serviço com Unid./Quant./P.Unit. — casado com a tabela EMBASA (preço
+       da tabela; número e quantidade editáveis; o lápis libera descrição, unidade e preço) ou
+       manual (tudo digitável; ao digitar a descrição ou o código, sugere os serviços da EMBASA).
+     Gravação: "itens" continua só com os subitens (medição, CAP e cronograma leem só ela) e os
+     títulos vão em "grupos", com a posição deles (pos = quantos subitens vêm antes). */
+  _ORC_SVG_DEL:'<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2M19 6l-1 14a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1L5 6"/></svg>',
+  _ORC_SVG_ADD:'<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>',
+  _ORC_SVG_EDIT:'<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>',
+  // títulos sugeridos ao digitar um item: os usados nos outros orçamentos + os grupos de serviço mais comuns
+  _orcTitulosSugeridos(){
+    const usados=[];(App.state.data&&App.state.data.orcamentos||[]).forEach(o=>(Array.isArray(o.grupos)?o.grupos:[]).forEach(g=>{if(g&&g.descricao)usados.push(String(g.descricao).trim().toUpperCase());}));
+    const comuns=['MOBILIZAÇÃO E DESMOBILIZAÇÃO','ADMINISTRAÇÃO LOCAL','RECURSOS HUMANOS','SERVIÇOS PRELIMINARES','CANTEIRO DE OBRAS','SINALIZAÇÃO E SEGURANÇA','TOPOGRAFIA E SONDAGENS','LIMPEZA DO TERRENO','DEMOLIÇÕES E REMOÇÕES','MOVIMENTO DE TERRA','ESCAVAÇÃO, CARGA E TRANSPORTE','ESCORAMENTO E ESGOTAMENTO','FUNDAÇÕES','ESTRUTURA DE CONCRETO','ESTRUTURA METÁLICA E SERRALHERIA','ALVENARIA E VEDAÇÕES','COBERTURA','IMPERMEABILIZAÇÃO','INSTALAÇÕES HIDROSSANITÁRIAS','INSTALAÇÕES ELÉTRICAS','REVESTIMENTOS','FORROS','ESQUADRIAS','PISOS','PINTURA','LOUÇAS E METAIS','ASSENTAMENTO DE TUBULAÇÃO','POÇOS DE VISITA E CAIXAS','REATERRO E COMPACTAÇÃO','DRENAGEM','LIGAÇÕES PREDIAIS','EQUIPAMENTOS','PAVIMENTAÇÃO','URBANIZAÇÃO E PAISAGISMO','TESTES E COMISSIONAMENTO','LIMPEZA FINAL'];
+    return [...new Set(usados.concat(comuns))];
+  },
+  /* Um SUBITEM (serviço). `item` reidrata de um orçamento salvo / colagem; `antes` = linha diante
+     da qual entra (sem ela, vai para o fim). item.manual=true → linha toda digitável;
+     senão → casada com a EMBASA (Código/Descrição/Unid./P.Unit. da tabela). */
+  _orcAddRow(item,antes){
+    const tbody=document.getElementById('orc-tbody');if(!tbody)return null;
     item=item||{};
     const manual=!!item.manual;
-    const tr=document.createElement('tr');
+    const tr=document.createElement('tr');tr.className='orc-srv';
     const esc=s=>String(s==null?'':s).replace(/"/g,'&quot;');
     const desc=item.descricao||'';
     const cod=item.codigo||'';
@@ -6304,6 +6384,10 @@ const UI={
     const quant=parseStoredNumber(item.quant);
     const quantTxt=quant>0?quant.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}):'';
     tr.dataset.manual=manual?'1':'0';
+    const bAdd=`<button type="button" class="cap-row-btn orc-bt-add" onclick="UI._orcNovoAbaixo(this)" title="Incluir um subitem logo abaixo deste">${this._ORC_SVG_ADD}</button>`;
+    const bDel=`<button type="button" class="cap-row-btn del" onclick="UI._orcDelRow(this)" title="Remover este subitem">${this._ORC_SVG_DEL}</button>`;
+    // descrição e código da linha manual buscam na tabela EMBASA enquanto se digita
+    const busca='autocomplete="off" oninput="UI._orcBuscaDigitou(this)" onkeydown="UI._orcBuscaTecla(event,this)" onblur="UI._orcBuscaFechar()"';
 
     if(manual){
       // Manual (serviço não encontrado): usuário digita o PREÇO-BASE do serviço e o sistema
@@ -6316,43 +6400,247 @@ const UI={
       tr.dataset.semfator=item.sem_fator?'1':'0';
       tr.innerHTML=`
         <td><input class="cap-fi orc-mc" value="${esc(mc)}" placeholder="—" style="font-size:11px"></td>
-        <td><input class="cap-fi orc-cod-man" value="${esc(cod)}" placeholder="Código"></td>
-        <td><input class="cap-fi orc-desc" value="${esc(desc)}" placeholder="Descrição (manual)…"></td>
+        <td><input class="cap-fi orc-cod-man" value="${esc(cod)}" placeholder="Código" ${busca}></td>
+        <td><input class="cap-fi orc-desc" value="${esc(desc)}" placeholder="Descrição — digite para buscar na tabela EMBASA…" ${busca}></td>
         <td><input class="cap-fi orc-un" value="${esc(un)}" placeholder="Un"></td>
         <td><input class="cap-fi orc-quant" value="${quantTxt}" placeholder="0,00" inputmode="numeric" oninput="UI._orcMaskQuant(this)"></td>
         <td><input class="cap-fi orc-punit" placeholder="R$ 0,00" inputmode="numeric" oninput="UI._orcMaskPunit(this)" onfocus="UI._orcPunitFocus(this)" onblur="UI._orcRecalc()"></td>
         <td><input class="cap-fi orc-ptotal" readonly style="font-weight:700"></td>
-        <td style="text-align:center"><button type="button" class="cap-row-btn del" onclick="UI._orcDelRow(this)" title="Remover"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2M19 6l-1 14a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1L5 6"/></svg></button></td>`;
-      tbody.appendChild(tr);
-      this._orcRecalc();
-      return;
+        <td><div class="orc-acoes">${bAdd}${bDel}</div></td>`;
+    } else {
+      // Linha casada — Código pode ter mais de uma opção (ex.: mesmo serviço por Hora ou Mês)
+      const base=parseStoredNumber(item.p_unit_base);
+      const cands=desc?this._orcBuscar(desc):[];
+      let opts=cands.slice();
+      if(cod&&!opts.some(o=>o.codigo===cod&&Math.abs(o.preco-base)<0.005)){opts.unshift({mc,codigo:cod,descricao:desc,unidade:un,preco:base});}
+      const optHtml=opts.map(o=>`<option value="${esc(o.codigo)}|${o.preco}" data-un="${esc(o.unidade)}" data-desc="${esc(o.descricao)}" ${(o.codigo===cod&&Math.abs(o.preco-base)<0.005)?'selected':''}>${esc(o.codigo)} — ${fmt(o.preco)}</option>`).join('');
+      tr.dataset.base=base||0;
+      // número (Item) e quantidade são do orçamento: ficam editáveis; o resto segue a tabela
+      tr.innerHTML=`
+        <td><input class="cap-fi orc-mc" value="${esc(mc)}" placeholder="—" style="font-size:11px"></td>
+        <td>${opts.length>1?`<select class="cap-fi-sel orc-cod" onchange="UI._orcCodChange(this)">${optHtml}</select>`:`<input class="cap-fi orc-cod-txt" value="${esc(cod)}" readonly style="color:var(--text-3)">`}</td>
+        <td><input class="cap-fi orc-desc" value="${esc(desc)}" readonly style="color:var(--text-3)"></td>
+        <td><input class="cap-fi orc-un" value="${esc(un)}" readonly style="color:var(--text-3)"></td>
+        <td><input class="cap-fi orc-quant" value="${quantTxt}" placeholder="0,00" inputmode="numeric" oninput="UI._orcMaskQuant(this)"></td>
+        <td><input class="cap-fi orc-punit" readonly style="color:var(--text-3)"></td>
+        <td><input class="cap-fi orc-ptotal" readonly style="font-weight:700"></td>
+        <td><div class="orc-acoes"><button type="button" class="cap-row-btn orc-bt-edit" onclick="UI._orcEditarLinha(this)" title="Editar este subitem (descrição, unidade e preço) — ele deixa de seguir a tabela EMBASA">${this._ORC_SVG_EDIT}</button>${bAdd}${bDel}</div></td>`;
     }
-
-    // Linha casada — Código pode ter mais de uma opção (ex.: mesmo serviço por Hora ou Mês)
-    const base=parseStoredNumber(item.p_unit_base);
-    const cands=desc?this._orcBuscar(desc):[];
-    let opts=cands.slice();
-    if(cod&&!opts.some(o=>o.codigo===cod&&Math.abs(o.preco-base)<0.005)){opts.unshift({mc,codigo:cod,descricao:desc,unidade:un,preco:base});}
-    const optHtml=opts.map(o=>`<option value="${esc(o.codigo)}|${o.preco}" data-un="${esc(o.unidade)}" data-desc="${esc(o.descricao)}" data-mc="${esc(o.mc||'')}" ${(o.codigo===cod&&Math.abs(o.preco-base)<0.005)?'selected':''}>${esc(o.codigo)} — ${fmt(o.preco)}</option>`).join('');
-    tr.dataset.base=base||0;
+    if(antes&&antes.parentNode===tbody)tbody.insertBefore(tr,antes);else tbody.appendChild(tr);
+    if(!this._orcMontando)this._orcRecalc();
+    return tr;
+  },
+  /* Um ITEM (título de grupo de serviços). g = {nivel:1|2, mc, codigo, descricao}. */
+  _orcAddGrupo(g,antes){
+    const tbody=document.getElementById('orc-tbody');if(!tbody)return null;
+    g=g||{};
+    const esc=s=>String(s==null?'':s).replace(/"/g,'&quot;');
+    const nivel=+g.nivel===2?2:1;
+    const tr=document.createElement('tr');tr.className='orc-grp n'+nivel;tr.dataset.nivel=nivel;
     tr.innerHTML=`
-      <td><input class="cap-fi orc-mc" value="${esc(mc)}" readonly style="font-size:11px;color:var(--text-3)"></td>
-      <td>${opts.length>1?`<select class="cap-fi-sel orc-cod" onchange="UI._orcCodChange(this)">${optHtml}</select>`:`<input class="cap-fi orc-cod-txt" value="${esc(cod)}" readonly style="color:var(--text-3)">`}</td>
-      <td><input class="cap-fi orc-desc" value="${esc(desc)}" readonly style="color:var(--text-3)"></td>
-      <td><input class="cap-fi orc-un" value="${esc(un)}" readonly style="color:var(--text-3)"></td>
-      <td><input class="cap-fi orc-quant" value="${quantTxt}" readonly style="color:var(--text-3)"></td>
-      <td><input class="cap-fi orc-punit" readonly style="color:var(--text-3)"></td>
-      <td><input class="cap-fi orc-ptotal" readonly style="font-weight:700"></td>
-      <td style="text-align:center"><button type="button" class="cap-row-btn del" onclick="UI._orcDelRow(this)" title="Remover"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2M19 6l-1 14a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1L5 6"/></svg></button></td>`;
-    tbody.appendChild(tr);
-    this._orcRecalc();
+      <td><input class="cap-fi orc-g-mc" value="${esc(g.mc)}" placeholder="${nivel===1?'1':'1.1'}"></td>
+      <td><input class="cap-fi orc-g-cod" value="${esc(g.codigo)}" placeholder="Código"></td>
+      <td><input class="cap-fi orc-g-desc" value="${esc(g.descricao)}" list="orc-grp-sug" autocomplete="off" placeholder="${nivel===1?'Título do item (ex.: MOBILIZAÇÃO E DESMOBILIZAÇÃO)':'Título do subgrupo (ex.: RECURSOS HUMANOS)'}"></td>
+      <td colspan="3"><div class="orc-g-bts"><button type="button" class="orc-g-bt" onclick="UI._orcNovoSubitem(this.closest('tr'))" title="Serviço no fim deste ${nivel===1?'item':'subgrupo'}">+ Subitem</button>${nivel===1?`<button type="button" class="orc-g-bt" onclick="UI._orcNovoSubgrupo(this.closest('tr'))" title="Subdivisão deste item (ex.: 2.1 RECURSOS HUMANOS)">+ Subgrupo</button>`:''}</div></td>
+      <td class="orc-g-tot"></td>
+      <td><div class="orc-acoes"><button type="button" class="cap-row-btn del" onclick="UI._orcDelGrupo(this)" title="Remover este ${nivel===1?'item':'subgrupo'}">${this._ORC_SVG_DEL}</button></div></td>`;
+    if(antes&&antes.parentNode===tbody)tbody.insertBefore(tr,antes);else tbody.appendChild(tr);
+    if(!this._orcMontando)this._orcRecalc();
+    return tr;
+  },
+  // marca a aba Orçamento como alterada (incluir/remover linha não dispara "input" sozinho)
+  _orcSujar(){if(this._orcMontando)return;const t=document.getElementById('orc-tbody');if(t)t.dispatchEvent(new Event('input',{bubbles:true}));},
+  // onde termina o bloco de um item: no próximo item do mesmo nível (ou acima) ou na linha de subtotal dele
+  _orcFimBloco(gtr){
+    const L=+gtr.dataset.nivel||1;let n=gtr.nextElementSibling;
+    while(n){if(n.classList.contains('orc-subt'))return n;if(n.classList.contains('orc-grp')&&(+n.dataset.nivel||1)<=L)return n;n=n.nextElementSibling;}
+    return null;
+  },
+  _orcNumOk(s){return /^\d{1,4}(\.\d{1,4})*$/.test(String(s||'').trim());},
+  _orcNumMais(s){return String(s).replace(/(\d+)$/,m=>String(+m+1));},
+  // próximo número de um subitem novo: o do subitem de cima +1; o primeiro do item = número do item + ".1"
+  _orcProxNum(tr){
+    let p=tr.previousElementSibling;
+    while(p&&p.classList.contains('orc-subt'))p=p.previousElementSibling;
+    if(p&&p.classList.contains('orc-srv')){const v=(p.querySelector('.orc-mc')?.value||'').trim();return this._orcNumOk(v)?this._orcNumMais(v):'';}
+    if(p&&p.classList.contains('orc-grp')){const v=(p.querySelector('.orc-g-mc')?.value||'').trim().replace(/\.+$/,'');return this._orcNumOk(v)?v+'.1':'';}
+    return document.querySelector('#orc-tbody tr.orc-grp')?'':'1';
+  },
+  // próximo número de um item (nível 1) ou de um subgrupo dentro de `pai`
+  _orcProxGrupo(nivel,pai){
+    const nk=s=>String(s||'').trim().replace(/\.+$/,'');
+    if(nivel===1){let m=0;document.querySelectorAll('#orc-tbody tr.orc-grp.n1 .orc-g-mc').forEach(i=>{const n=parseInt(nk(i.value),10);if(n>m)m=n;});return String(m+1);}
+    const base=pai?nk(pai.querySelector('.orc-g-mc')?.value):'';if(!this._orcNumOk(base))return '';
+    let m=0;const fim=this._orcFimBloco(pai);
+    for(let n=pai.nextElementSibling;n&&n!==fim;n=n.nextElementSibling){const v=nk((n.querySelector('.orc-g-mc,.orc-mc')||{}).value);if(v.startsWith(base+'.')){const k=parseInt(v.slice(base.length+1),10);if(k>m)m=k;}}
+    return base+'.'+(m+1);
+  },
+  _orcTabelaVaziaSoComBranco(){
+    const tb=document.getElementById('orc-tbody');if(!tb||tb.querySelector('tr.orc-grp'))return false;
+    const s=[...tb.querySelectorAll('tr.orc-srv')];return s.length>0&&s.every(tr=>this._orcLerLinha(tr).vazia);
+  },
+  // "+ Item": título novo no fim da tabela, já com o primeiro subitem
+  _orcNovoItem(){
+    const tb=document.getElementById('orc-tbody');if(!tb)return;
+    if(this._orcTabelaVaziaSoComBranco())tb.querySelectorAll('tr.orc-srv').forEach(tr=>tr.remove());
+    const g=this._orcAddGrupo({nivel:1,mc:this._orcProxGrupo(1)});
+    const s=this._orcAddRow({manual:true});
+    s.querySelector('.orc-mc').value=this._orcProxNum(s);
+    this._orcRecalc();this._orcUpdateLock();this._orcSujar();
+    g.scrollIntoView({block:'nearest'});setTimeout(()=>g.querySelector('.orc-g-desc')?.focus(),30);
+  },
+  // "+ Subgrupo" de um item: subdivisão (nível 2) no fim do item, já com o primeiro subitem
+  _orcNovoSubgrupo(pai){
+    if(!pai)return;
+    const fim=this._orcFimBloco(pai);
+    const g=this._orcAddGrupo({nivel:2,mc:this._orcProxGrupo(2,pai)},fim);
+    const s=this._orcAddRow({manual:true},fim);
+    s.querySelector('.orc-mc').value=this._orcProxNum(s);
+    this._orcRecalc();this._orcSujar();
+    g.scrollIntoView({block:'nearest'});setTimeout(()=>g.querySelector('.orc-g-desc')?.focus(),30);
+  },
+  // "+ Subitem": serviço no fim do item (gtr) ou, sem item, no fim da tabela
+  _orcNovoSubitem(gtr){
+    const s=this._orcAddRow({manual:true},gtr?this._orcFimBloco(gtr):null);if(!s)return;
+    s.querySelector('.orc-mc').value=this._orcProxNum(s);
+    this._orcRecalc();this._orcUpdateLock();this._orcSujar();
+    s.scrollIntoView({block:'nearest'});setTimeout(()=>s.querySelector('.orc-desc')?.focus(),30);
+  },
+  // "+" na linha: subitem logo abaixo dela
+  _orcNovoAbaixo(btn){
+    const tr=btn.closest('tr');if(!tr)return;
+    const s=this._orcAddRow({manual:true},tr.nextElementSibling);
+    s.querySelector('.orc-mc').value=this._orcProxNum(s);
+    this._orcRecalc();this._orcSujar();
+    setTimeout(()=>s.querySelector('.orc-desc')?.focus(),30);
+  },
+  // numera de novo na ordem da tabela: itens 1, 2…; subgrupos 2.1…; subitens 1.1, 2.1.1…
+  _orcRenumerar(){
+    const tb=document.getElementById('orc-tbody');if(!tb)return;
+    const linhas=[...tb.children].filter(r=>!r.classList.contains('orc-subt'));
+    const temGrupo=linhas.some(r=>r.classList.contains('orc-grp'));
+    // item sem subgrupo cujos subitens já vinham com 3 números (1.1.1, 1.1.2 — o jeito da planilha
+    // da EMBASA) continua assim; senão fica 1.1, 1.2
+    const tres=new Set();
+    linhas.forEach((r,i)=>{
+      if(!r.classList.contains('orc-grp')||(+r.dataset.nivel||1)!==1)return;
+      let j=i+1,sg=false,prim=null;
+      for(;j<linhas.length&&!(linhas[j].classList.contains('orc-grp')&&(+linhas[j].dataset.nivel||1)===1);j++){
+        if(linhas[j].classList.contains('orc-grp'))sg=true;else if(!prim)prim=linhas[j];}
+      if(!sg&&prim&&String(prim.querySelector('.orc-mc')?.value||'').split('.').filter(Boolean).length>=3)tres.add(r);
+    });
+    let a=0,b=0,c=0,sub=false,solto=0,g1=null;
+    const por=(r,sel,v)=>{const i=r.querySelector(sel);if(i)i.value=v;};
+    linhas.forEach(r=>{
+      if(r.classList.contains('orc-grp')){
+        if((+r.dataset.nivel||1)===1){a++;b=0;c=0;sub=false;g1=r;por(r,'.orc-g-mc',String(a));}
+        else{if(!a)a=1;b++;c=0;sub=true;por(r,'.orc-g-mc',a+'.'+b);}
+        return;
+      }
+      if(!temGrupo||!a){solto++;por(r,'.orc-mc',String(solto));return;}
+      if(sub){c++;por(r,'.orc-mc',a+'.'+b+'.'+c);}
+      else if(tres.has(g1)){c++;por(r,'.orc-mc',a+'.1.'+c);}
+      else{b++;por(r,'.orc-mc',a+'.'+b);}
+    });
+    this._orcRecalc();this._orcSujar();
+    toast('Itens e subitens numerados de novo, na ordem da tabela.','success');
   },
   _orcDelRow(btn){
     const tr=btn.closest('tr');if(!tr)return;
     const tbody=document.getElementById('orc-tbody');
-    // A tabela precisa de ao menos 1 linha sempre — a última não pode ser removida.
-    if(!tbody||tbody.querySelectorAll('tr').length<=1){toast('A tabela precisa de ao menos 1 linha.','error');return;}
-    tr.remove();this._orcRecalc();this._orcUpdateLock();
+    // A tabela precisa de ao menos 1 subitem sempre — o último não pode ser removido.
+    if(!tbody||tbody.querySelectorAll('tr.orc-srv').length<=1){toast('A tabela precisa de ao menos 1 subitem.','error');return;}
+    tr.remove();this._orcRecalc();this._orcUpdateLock();this._orcSujar();
+  },
+  // remover um item: só o título (os subitens passam para o item de cima) ou o item com os subitens
+  _orcDelGrupo(btn){
+    const g=btn.closest('tr'),tbody=document.getElementById('orc-tbody');if(!g||!tbody)return;
+    const fim=this._orcFimBloco(g),filhos=[];
+    for(let n=g.nextElementSibling;n&&n!==fim;n=n.nextElementSibling)if(!n.classList.contains('orc-subt'))filhos.push(n);
+    const srv=filhos.filter(r=>r.classList.contains('orc-srv')).length,sg=filhos.length-srv;
+    const tirar=todos=>{
+      if(todos)filhos.forEach(r=>r.remove());
+      if(g._sub)g._sub.remove();g.remove();
+      if(!tbody.querySelector('tr.orc-srv'))this._orcAddRow({manual:true});
+      this._orcRecalc();this._orcUpdateLock();this._orcSujar();
+    };
+    if(!filhos.length)return tirar(false);
+    const fe=Fin.util.fe,v=c=>(g.querySelector(c)?.value||'').trim(),nome=(v('.orc-g-mc')+' '+v('.orc-g-desc')).trim()||'Este item';
+    Fin.util.janela('Remover o item',`<div class="fin-resumo"><b>${fe(nome)}</b> tem ${srv} subitem(ns)${sg?' e '+sg+' subgrupo(s)':''}.<br><br><b>Tirar só o título</b>: os subitens continuam e passam a fazer parte do item de cima.<br><b>Remover tudo</b>: o título e os subitens saem do orçamento.</div>`,
+      [{html:'Tirar só o título',acao:()=>{tirar(false);}},{html:'Remover tudo',cls:'pri',acao:()=>{tirar(true);}}],500);
+  },
+  // lê um subitem da tela (o mesmo formato gravado em "itens")
+  _orcLerLinha(tr,fator){
+    if(fator==null)fator=this._orcFator();
+    const manual=tr.dataset.manual==='1';
+    const desc=(tr.querySelector('.orc-desc')?.value||'').trim();
+    const un=(tr.querySelector('.orc-un')?.value||'').trim();
+    const mc=(tr.querySelector('.orc-mc')?.value||'').trim();
+    const quant=currencyToNumber(tr.querySelector('.orc-quant')?.value||'0');
+    const codEl=tr.querySelector('.orc-cod'),codTxt=tr.querySelector('.orc-cod-txt'),codMan=tr.querySelector('.orc-cod-man');
+    const cod=String(codEl?(codEl.value.split('|')[0]):(codMan?codMan.value:(codTxt?codTxt.value:''))).trim();
+    // Manual e casada: P.Unit. = base × fator (a base manual vem do dataset.base digitado).
+    // Arredonda o P.Unit. em 2 casas e usa esse valor exibido para o P.Total = P.Unit. × Quant.
+    const semFator=tr.dataset.semfator==='1';
+    const base=parseFloat(tr.dataset.base)||0;
+    const punit=Math.round(base*(semFator?1:fator)*100)/100;
+    const ptot=Math.round(punit*quant*100)/100;
+    return {manual,sem_fator:semFator,mc,codigo:cod,descricao:desc,unidade:un,quant,p_unit_base:base,p_unit:punit,p_total:ptot,vazia:!desc&&!quant&&!cod};
+  },
+  // lápis do subitem casado: vira manual com os mesmos valores (descrição, unidade e preço liberados)
+  _orcEditarLinha(btn){
+    const tr=btn.closest('tr');if(!tr)return;
+    const it=this._orcLerLinha(tr);
+    const novo=this._orcAddRow({manual:true,sem_fator:false,mc:it.mc,codigo:it.codigo,descricao:it.descricao,unidade:it.unidade,quant:it.quant,p_unit_base:it.p_unit_base},tr);
+    tr.remove();this._orcRecalc();this._orcSujar();
+    toast('Subitem liberado: descrição, unidade e preço agora podem ser mudados (ele não segue mais a tabela EMBASA).','info');
+    setTimeout(()=>novo.querySelector('.orc-desc')?.focus(),30);
+  },
+  /* Busca na tabela EMBASA ao digitar a descrição (3+ letras) ou o código (4+) de um subitem manual:
+     a lista aparece embaixo da linha; ↑/↓ escolhem, Enter ou clique usam o serviço (vira casado,
+     com o preço da tabela, mantendo o número e a quantidade digitados). */
+  _orcBusca:null,
+  _orcBuscaDigitou(inp){
+    clearTimeout(this._orcBuscaT);
+    this._orcBuscaT=setTimeout(()=>{
+      const q=(inp.value||'').trim(),ehCod=inp.classList.contains('orc-cod-man');
+      if(document.activeElement!==inp||!this._embasa||q.length<(ehCod?4:3)){this._orcBuscaFechar(true);return;}
+      const res=this._orcBuscar(q,8);
+      if(!res.length){this._orcBuscaFechar(true);return;}
+      const tr=inp.closest('tr');if(!tr)return;
+      const esc=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');
+      let box=document.getElementById('orc-sug');
+      if(!box){box=document.createElement('div');box.id='orc-sug';box.className='orc-sug';document.body.appendChild(box);
+        box.addEventListener('mousedown',ev=>{const d=ev.target.closest('.orc-sug-it');ev.preventDefault();if(d)this._orcBuscaUsar(+d.dataset.i);});
+        // a lista fica presa à tela: rolar a página (fora dela) fecha
+        window.addEventListener('scroll',ev=>{if(box.style.display!=='none'&&!box.contains(ev.target))this._orcBuscaFechar(true);},true);}
+      box.innerHTML=`<div class="orc-sug-cab">Tabela EMBASA ${esc(this._embasa.tabela||'')} · clique para usar</div>`+res.map((it,i)=>`<div class="orc-sug-it${i===0?' on':''}" data-i="${i}"><b>${esc(it.codigo)}</b><span>${esc(it.descricao)}</span><em>${esc(it.unidade)} · ${fmt(it.preco)}</em></div>`).join('');
+      const td=(tr.querySelector('.orc-desc')||inp).closest('td').getBoundingClientRect();
+      box.style.display='block';box.style.width=Math.max(460,Math.min(td.width+180,window.innerWidth-24))+'px';
+      box.style.left=Math.max(12,Math.min(td.left,window.innerWidth-box.offsetWidth-12))+'px';
+      const h=box.offsetHeight;box.style.top=(td.bottom+h+8<window.innerHeight?td.bottom+2:Math.max(8,td.top-h-2))+'px';
+      this._orcBusca={inp,tr,res,sel:0};
+    },200);
+  },
+  _orcBuscaTecla(ev,inp){
+    const B=this._orcBusca,box=document.getElementById('orc-sug');
+    if(!B||!box||box.style.display==='none'||B.inp!==inp)return;
+    if(ev.key==='ArrowDown'||ev.key==='ArrowUp'){ev.preventDefault();B.sel=(B.sel+(ev.key==='ArrowDown'?1:-1)+B.res.length)%B.res.length;box.querySelectorAll('.orc-sug-it').forEach((d,i)=>{d.classList.toggle('on',i===B.sel);if(i===B.sel)d.scrollIntoView({block:'nearest'});});}
+    else if(ev.key==='Enter'){ev.preventDefault();this._orcBuscaUsar(B.sel);}
+    else if(ev.key==='Escape'){ev.stopPropagation();this._orcBuscaFechar(true);}
+  },
+  _orcBuscaFechar(ja){
+    const f=()=>{const b=document.getElementById('orc-sug');if(b)b.style.display='none';this._orcBusca=null;};
+    if(ja)f();else setTimeout(f,150);
+  },
+  _orcBuscaUsar(i){
+    const B=this._orcBusca;if(!B)return;const it=B.res[i];if(!it||!B.tr.isConnected)return this._orcBuscaFechar(true);
+    const ant=this._orcLerLinha(B.tr);
+    this._orcBuscaFechar(true);
+    const novo=this._orcAddRow({manual:false,mc:ant.mc,codigo:it.codigo,descricao:it.descricao,unidade:it.unidade,p_unit_base:it.preco,quant:ant.quant},B.tr);
+    B.tr.remove();this._orcRecalc();this._orcSujar();
+    // já no campo da quantidade (na hora: o que for digitado em seguida cai nele)
+    const q=novo.querySelector('.orc-quant');if(q){q.focus();q.select();}
   },
   _orcMaskQuant(el){
     const raw=el.value.replace(/\D/g,'');
@@ -6382,7 +6670,7 @@ const UI={
     tr.dataset.base=(sel.value.split('|')[1])||0;
     tr.querySelector('.orc-un').value=opt.getAttribute('data-un')||'';
     tr.querySelector('.orc-desc').value=opt.getAttribute('data-desc')||tr.querySelector('.orc-desc').value;
-    const mcEl=tr.querySelector('.orc-mc');if(mcEl)mcEl.value=opt.getAttribute('data-mc')||'';
+    // o número (Item) é do orçamento: não muda com a variante escolhida
     this._orcRecalc();
   },
   /* Fator de ajuste único aplicado a TODAS as linhas (casadas E manuais):
@@ -6393,9 +6681,18 @@ const UI={
     return (1+bdi/100)*(1-desc/100);
   },
   _orcRecalc(){
+    const tbody=document.getElementById('orc-tbody');if(!tbody)return;
     const fator=this._orcFator();
     let total=0;
-    document.querySelectorAll('#orc-tbody tr').forEach(tr=>{
+    // itens (títulos) abertos enquanto percorre a tabela: cada subitem soma no item e no subgrupo dele
+    const grupos=[];let abertos=[];
+    [...tbody.children].forEach(tr=>{
+      if(tr.classList.contains('orc-subt'))return;
+      if(tr.classList.contains('orc-grp')){
+        const L=+tr.dataset.nivel||1;
+        abertos=abertos.filter(g=>g.nivel<L);abertos.forEach(g=>g.ult=tr);
+        const g={tr,nivel:L,soma:0,ult:tr};grupos.push(g);abertos.push(g);return;
+      }
       const manual=tr.dataset.manual==='1';
       const quant=currencyToNumber(tr.querySelector('.orc-quant')?.value||'0');
       const pu=tr.querySelector('.orc-punit');
@@ -6414,93 +6711,202 @@ const UI={
       if(pu && (!manual || document.activeElement!==pu)) pu.value=punit>0?fmt(punit):'';
       const ptot=Math.round(punit*quant*100)/100;
       total+=ptot;
+      abertos.forEach(g=>{g.soma+=ptot;g.ult=tr;});
       const pt=tr.querySelector('.orc-ptotal');if(pt)pt.value=ptot>0?fmt(ptot):'';
     });
+    // item de nível 1 fecha com "SUB-TOTAL ITEM n"; o subgrupo (nível 2) mostra o subtotal na linha dele
+    const usados=new Set();
+    grupos.forEach(g=>{
+      const cel=g.tr.querySelector('.orc-g-tot');
+      if(g.nivel!==1){if(cel)cel.textContent=fmt(g.soma);return;}
+      if(cel)cel.textContent='';
+      let st=g.tr._sub;
+      if(!st){st=document.createElement('tr');st.className='orc-subt';st.innerHTML='<td colspan="6" class="orc-subt-l"></td><td class="orc-subt-v"></td><td></td>';g.tr._sub=st;}
+      const n=(g.tr.querySelector('.orc-g-mc')?.value||'').trim().replace(/\.+$/,'');
+      st.children[0].textContent='SUB-TOTAL ITEM'+(n?' '+n:'');
+      st.children[1].textContent=fmt(g.soma);
+      if(g.ult.nextElementSibling!==st)g.ult.after(st);
+      usados.add(st);
+    });
+    tbody.querySelectorAll('tr.orc-subt').forEach(st=>{if(!usados.has(st))st.remove();});
     const tEl=document.getElementById('orc-total');if(tEl)tEl.textContent=fmt(total);
   },
-  /* Processa o texto colado. Dois formatos, detectados linha a linha:
-     • 6 colunas ou mais → orçamento COMPLETO já precificado: Item, Código, Especificação,
-       Unid., Quant., P.Unit. Entra exatamente como veio (linha manual), sem consultar a
-       EMBASA — assim nada que o usuário informou é sobrescrito por um item parecido.
-     • até 5 colunas → formato antigo: Descrição (ou Meu Código) + Quant. na última coluna,
-       e o preço vem da tabela EMBASA quando a descrição casa exatamente.
-     Separadores: TAB (o que Excel/Sheets usam ao copiar) ou ";". */
-  _orcProcessarColagem(){
-    const ta=document.getElementById('orc-paste');if(!ta)return;
-    const linhas=ta.value.split(/\r?\n/).map(l=>l.trim()).filter(Boolean);
-    if(linhas.length===0){toast('Cole ao menos uma linha.','error');return;}
-    const chk=document.getElementById('orc-paste-final');
-    const precoFinal=chk?chk.checked:true;
-    const cols=l=>{const t=l.split('\t');return t.length>=2?t:l.split(';');};
-    // Ignora o cabeçalho, quando vem colado junto com os dados: tem coluna "Quant." mas
-    // o que está NA coluna da quantidade não é número (num item de verdade, seria).
-    const ehCabecalho=l=>{
-      const c=cols(l);
-      if(c.length<5)return false;
-      return c.map(x=>this._orcNorm(x)).some(x=>x==='QUANT'||x==='QUANTIDADE') && parseStoredNumber(c[4])===0;
-    };
-    let add=0,semMatch=0,completos=0;
-    linhas.forEach((l,i)=>{
-      if(i===0&&ehCabecalho(l))return;
-      const c=cols(l);
-      if(c.length>=6){
-        const mc=c[0].trim(), codigo=c[1].trim(), descricao=c[2].trim(), unidade=c[3].trim();
-        this._orcAddRow({manual:true,sem_fator:precoFinal,mc,codigo,descricao,unidade,
-          quant:parseStoredNumber(c[4]),p_unit_base:parseStoredNumber(c[5])});
-        add++;completos++;return;
+  /* Lê o texto colado em linhas × colunas. Do Excel vem separado por TAB, e uma célula com
+     quebra de linha (descrição longa) vem entre aspas — o leitor respeita isso. Sem TAB, cada
+     linha é separada por ";" (formato antigo). */
+  _orcLerColagem(texto){
+    const t=String(texto||'').replace(/\r\n?/g,'\n');
+    if(t.indexOf('\t')<0)return t.split('\n').map(l=>l.trim()).filter(Boolean).map(l=>l.split(';').map(c=>c.trim()));
+    const rows=[];let row=[],f='',q=false;
+    for(let i=0;i<t.length;i++){const ch=t[i];
+      if(q){if(ch==='"'){if(t[i+1]==='"'){f+='"';i++;}else q=false;}else f+=ch;continue;}
+      if(ch==='"'&&f===''){q=true;continue;}
+      if(ch==='\t'){row.push(f);f='';continue;}
+      if(ch==='\n'){row.push(f);rows.push(row);row=[];f='';continue;}
+      f+=ch;}
+    row.push(f);rows.push(row);
+    return rows.map(r=>r.map(c=>String(c).replace(/\s+/g,' ').trim())).filter(r=>r.some(Boolean));
+  },
+  /* Transforma o que foi colado em itens (títulos) e subitens. Formatos:
+     • planilha completa (6+ colunas, ou com a linha de cabeçalho ITEM/CÓDIGO/ESPECIFICAÇÃO…):
+       linha só com número e título (sem unidade, quantidade e preço) = ITEM — "1." ou "2" é nível 1,
+       "2.1" é nível 2; linha com unidade/quantidade/preço = SUBITEM, entra como foi informado
+       (linha manual, editável, sem buscar na EMBASA); SUB-TOTAL e TOTAL são ignorados (o sistema refaz);
+     • só descrição (até 5 colunas, sem cabeçalho): Descrição + Quant. na última coluna — o preço
+       vem da tabela EMBASA quando a descrição casa exatamente. */
+  _orcInterpretarColagem(texto,precoFinal){
+    const rows=this._orcLerColagem(texto),N=s=>this._orcNorm(s);
+    const ehCab=r=>{const n=r.map(N);return n.some(x=>/^ITE[MN]S?$/.test(x))&&n.some(x=>/^(ESPECIFICAC|DESCRIC|DISCRIMINAC|SERVICO)/.test(x));};
+    const temQuantCab=r=>r.map(N).some(x=>/^(QUANT|QUANTIDADE|QTD|QTDE)$/.test(x));
+    let map=null;const L=[];let ign=0,semMatch=0;
+    const hi=rows.findIndex(ehCab);
+    if(hi>=0){const n=rows[hi].map(N),idx=re=>n.findIndex(x=>re.test(x));
+      map={mc:idx(/^ITE[MN]S?$/),cod:idx(/^(COD|CODIGO|REF|REFERENCIA)\b/),desc:idx(/^(ESPECIFICAC|DESCRIC|DISCRIMINAC|SERVICO)/),un:idx(/^(UN|UNID|UNIDADE)\b/),
+        q:idx(/^(QUANT|QUANTIDADE|QTD|QTDE)\b/),pu:idx(/^(P UNIT|PRECO UNIT|VALOR UNIT|V UNIT|PU|CUSTO UNIT)/)};}
+    const PADRAO={mc:0,cod:1,desc:2,un:3,q:4,pu:5};
+    rows.forEach((r,i)=>{
+      if(hi>=0&&i<=hi)return;                       // título da planilha e cabeçalho
+      if(ehCab(r)||temQuantCab(r))return;            // cabeçalho repetido (planilha de várias páginas)
+      const m=map||(r.length>=6?PADRAO:null);
+      if(m){
+        const cel=k=>m[k]>=0&&m[k]<r.length?String(r[m[k]]||'').trim():'';
+        const mc=cel('mc').replace(/\.+$/,''),cod=cel('cod'),desc=cel('desc'),un=cel('un'),q=parseStoredNumber(cel('q')),pu=parseStoredNumber(cel('pu'));
+        const tudo=N(r.join(' '));
+        if(/(^| )SUB ?TOTA/.test(tudo)||/^(TOTAL|VALOR TOTAL|PRECO TOTAL|BDI)\b/.test(N(desc))||(!desc&&!mc&&/TOTAL/.test(tudo))){ign++;return;}
+        if(!un&&!(q>0)&&!(pu>0)){                      // título (item)
+          if(!desc)return;
+          const prof=mc?mc.split('.').filter(Boolean).length:1;
+          L.push({t:'g',nivel:prof>=2?2:1,mc,codigo:cod,descricao:desc});return;
+        }
+        L.push({t:'s',item:{manual:true,sem_fator:precoFinal,mc,codigo:cod,descricao:desc,unidade:un,quant:q,p_unit_base:pu}});return;
       }
-      let desc=l,quant=0;
-      if(c.length>=2){ desc=c.slice(0,-1).join(' ').trim(); quant=parseStoredNumber(c[c.length-1]); }
-      else { const mm=l.match(/^(.*?)[\s,;]+([\d.]+,\d+|\d+)$/); if(mm){desc=mm[1].trim();quant=parseStoredNumber(mm[2]);} }
-      // Só casa quando a descrição (ou Meu Código) bate EXATAMENTE com a tabela EMBASA —
+      // só descrição + quantidade (preço pela EMBASA)
+      const linha=r.join(' ').trim();let desc=linha,quant=0;
+      if(r.length>=2){desc=r.slice(0,-1).join(' ').trim();quant=parseStoredNumber(r[r.length-1]);}
+      else{const mm=linha.match(/^(.*?)[\s,;]+([\d.]+,\d+|\d+)$/);if(mm){desc=mm[1].trim();quant=parseStoredNumber(mm[2]);}}
+      if(!desc)return;
+      // Só casa quando a descrição (ou o código) bate EXATAMENTE com a tabela EMBASA —
       // evita puxar o preço de um item parecido. Sem correspondência exata → linha manual.
       const best=this._orcMatchExato(desc);
-      if(best){ this._orcAddRow({manual:false,mc:best.mc,codigo:best.codigo,descricao:best.descricao,unidade:best.unidade,p_unit_base:best.preco,quant}); }
-      else { this._orcAddRow({manual:true,descricao:desc,quant}); semMatch++; }
-      add++;
+      if(best)L.push({t:'s',auto:true,item:{manual:false,mc:'',codigo:best.codigo,descricao:best.descricao,unidade:best.unidade,p_unit_base:best.preco,quant}});
+      else{L.push({t:'s',auto:true,item:{manual:true,descricao:desc,quant}});semMatch++;}
     });
-    ta.value='';
-    this._orcRecalc();
-    this._orcUpdateLock();
-    const det=[completos?completos+' com preço informado':'',semMatch?semMatch+' sem correspondência (preencha manualmente)':''].filter(Boolean).join(', ');
-    toast(add+' item(ns) adicionado(s)'+(det?' — '+det:'')+'.',semMatch?'':'success');
+    return {L,ign,semMatch};
+  },
+  /* Põe na tabela o que foi colado. Item ou subitem cujo NÚMERO já existe na tabela é ATUALIZADO
+     no lugar (colar a planilha revisada não duplica); os novos entram no fim do item a que
+     pertencem (pelo número: 2.1.3 vai para o 2.1) ou, sem número, no último item colado. */
+  _orcAplicarColagem(texto){
+    const tbody=document.getElementById('orc-tbody');if(!tbody)return;
+    const chk=document.getElementById('orc-paste-final');
+    const {L,ign,semMatch}=this._orcInterpretarColagem(texto,chk?chk.checked:true);
+    if(!L.length){toast(ign?'Só encontrei linhas de subtotal/total no que foi colado.':'Não encontrei itens nem subitens no que foi colado.','error');return false;}
+    this._orcBuscaFechar(true);
+    // a linha em branco (de orçamento novo ou recém-incluída) dá lugar ao que foi colado
+    tbody.querySelectorAll('tr.orc-srv').forEach(tr=>{if(this._orcLerLinha(tr).vazia)tr.remove();});
+    const nk=s=>String(s||'').trim().replace(/\.+$/,'');
+    const porG={},porS={},novos=new Set();
+    tbody.querySelectorAll('tr.orc-grp').forEach(tr=>{const k=nk(tr.querySelector('.orc-g-mc')?.value);if(k&&!porG[k])porG[k]=tr;});
+    tbody.querySelectorAll('tr.orc-srv').forEach(tr=>{const k=nk(tr.querySelector('.orc-mc')?.value);if(k&&!porS[k])porS[k]=tr;});
+    // item a que um número pertence: o de número mais longo que é começo dele (2.1 para 2.1.3)
+    const paiDe=k=>{let m=null,len=0;tbody.querySelectorAll('tr.orc-grp').forEach(tr=>{const g=nk(tr.querySelector('.orc-g-mc')?.value);if(g&&k.startsWith(g+'.')&&g.length>len){m=tr;len=g.length;}});return m;};
+    const nivel1De=tr=>{for(let p=tr;p;p=p.previousElementSibling)if(p.classList.contains('orc-grp')&&(+p.dataset.nivel||1)===1)return p;return null;};
+    let ultG=null,cG=0,cS=0,uG=0,uS=0;
+    this._orcMontando=true;
+    try{
+      L.forEach(x=>{
+        if(x.t==='g'){
+          const ex=x.mc&&porG[x.mc];
+          if(ex&&!novos.has(ex)){ex.querySelector('.orc-g-desc').value=x.descricao;ex.querySelector('.orc-g-cod').value=x.codigo||ex.querySelector('.orc-g-cod').value;ultG=ex;uG++;return;}
+          let antes=null;
+          if(x.nivel===2){const p=(x.mc&&paiDe(x.mc))||(ultG&&nivel1De(ultG));const pai=p&&(+p.dataset.nivel||1)===1?p:(p?nivel1De(p):null);if(pai)antes=this._orcFimBloco(pai);}
+          const tr=this._orcAddGrupo({nivel:x.nivel,mc:x.mc,codigo:x.codigo,descricao:x.descricao},antes);
+          novos.add(tr);if(x.mc)porG[x.mc]=tr;ultG=tr;cG++;return;
+        }
+        const k=nk(x.item.mc),ex=k&&porS[k];
+        if(ex&&!novos.has(ex)){const tr=this._orcAddRow(x.item,ex);ex.remove();porS[k]=tr;novos.add(tr);uS++;return;}
+        const pai=(k&&paiDe(k))||ultG;
+        const tr=this._orcAddRow(x.item,pai?this._orcFimBloco(pai):null);
+        if(x.auto){const m=tr.querySelector('.orc-mc');if(m&&!m.value)m.value=this._orcProxNum(tr);}
+        novos.add(tr);if(k)porS[k]=tr;cS++;
+      });
+    }finally{this._orcMontando=false;}
+    if(!tbody.querySelector('tr.orc-srv'))this._orcAddRow({manual:true});
+    this._orcRecalc();this._orcUpdateLock();this._orcSujar();
+    const p=[];
+    if(cG)p.push(cG+' item(ns)');if(cS)p.push(cS+' subitem(ns)');
+    let msg=(p.length?p.join(' e ')+' adicionado(s)':'Nada novo')+(uG+uS?` · ${uG+uS} atualizado(s) pelo número`:'');
+    if(ign)msg+=` · ${ign} linha(s) de subtotal/total ignorada(s) — o sistema refaz`;
+    if(semMatch)msg+=` · ${semMatch} sem correspondência na EMBASA (preencha manualmente)`;
+    toast(msg+'.',semMatch?'':'success');
+    return true;
+  },
+  _orcProcessarColagem(){
+    const ta=document.getElementById('orc-paste');if(!ta)return;
+    if(!ta.value.trim()){toast('Cole ao menos uma linha.','error');return;}
+    if(this._orcAplicarColagem(ta.value))ta.value='';
+  },
+  // colar direto na tabela: várias células (do Excel) viram itens/subitens; um valor só cola na célula
+  _orcColarNaTabela(ev){
+    const t=((ev.clipboardData||window.clipboardData)&&(ev.clipboardData||window.clipboardData).getData('text'))||'';
+    if(!/[\t\n]/.test(t.trim()))return;
+    ev.preventDefault();this._orcAplicarColagem(t);
   },
   _orcColetar(){
     const itens=[];
     const fator=this._orcFator();
-    document.querySelectorAll('#orc-tbody tr').forEach(tr=>{
-      const manual=tr.dataset.manual==='1';
-      const desc=(tr.querySelector('.orc-desc')?.value||'').trim();
-      const un=tr.querySelector('.orc-un')?.value||'';
-      const mc=tr.querySelector('.orc-mc')?.value||'';
-      const quant=currencyToNumber(tr.querySelector('.orc-quant')?.value||'0');
-      const codEl=tr.querySelector('.orc-cod'),codTxt=tr.querySelector('.orc-cod-txt'),codMan=tr.querySelector('.orc-cod-man');
-      const cod=codEl?(codEl.value.split('|')[0]):(codMan?codMan.value:(codTxt?codTxt.value:''));
-      if(!desc&&!quant&&!cod)return; // linha vazia
-      // Manual e casada: P.Unit. = base × fator (a base manual vem do dataset.base digitado).
-      // Arredonda o P.Unit. em 2 casas e usa esse valor exibido para o P.Total = P.Unit. × Quant.
-      const semFator=tr.dataset.semfator==='1';
-      const base=parseFloat(tr.dataset.base)||0;
-      const punit=Math.round(base*(semFator?1:fator)*100)/100;
-      const ptot=Math.round(punit*quant*100)/100;
-      itens.push({manual,sem_fator:semFator,mc:mc,codigo:cod,descricao:desc,unidade:un,quant:quant,p_unit_base:base,p_unit:punit,p_total:ptot});
+    document.querySelectorAll('#orc-tbody tr.orc-srv').forEach(tr=>{
+      const it=this._orcLerLinha(tr,fator);
+      if(it.vazia)return; // linha vazia
+      delete it.vazia;itens.push(it);
     });
     return itens;
   },
+  // títulos (itens) com a posição: pos = quantos subitens gravados vêm antes dele
+  _orcColetarGrupos(){
+    const grupos=[];let pos=0;
+    document.querySelectorAll('#orc-tbody tr.orc-grp, #orc-tbody tr.orc-srv').forEach(tr=>{
+      if(tr.classList.contains('orc-srv')){if(!this._orcLerLinha(tr).vazia)pos++;return;}
+      const v=c=>(tr.querySelector(c)?.value||'').trim();
+      grupos.push({nivel:+tr.dataset.nivel===2?2:1,mc:v('.orc-g-mc').replace(/\.+$/,''),codigo:v('.orc-g-cod'),descricao:v('.orc-g-desc'),pos});
+    });
+    return grupos;
+  },
+  // a tabela na ordem da tela, com os subtotais: [{t:'g',…},{t:'s',it},{t:'sub',mc,soma}]
+  _orcEstrutura(){
+    const fator=this._orcFator(),L=[];let abertos=[];
+    const fechar=()=>{const a=abertos.find(x=>x.nivel===1);if(a)L.push({t:'sub',mc:a.mc,soma:a.soma});abertos=[];};
+    document.querySelectorAll('#orc-tbody tr.orc-grp, #orc-tbody tr.orc-srv').forEach(tr=>{
+      if(tr.classList.contains('orc-grp')){
+        const nivel=+tr.dataset.nivel===2?2:1;if(nivel===1)fechar();
+        const v=c=>(tr.querySelector(c)?.value||'').trim();
+        const g={t:'g',nivel,mc:v('.orc-g-mc').replace(/\.+$/,''),codigo:v('.orc-g-cod'),descricao:v('.orc-g-desc'),soma:0};
+        abertos=abertos.filter(a=>a.nivel<nivel);abertos.push(g);L.push(g);return;
+      }
+      const it=this._orcLerLinha(tr,fator);if(it.vazia)return;delete it.vazia;
+      abertos.forEach(a=>a.soma+=it.p_total);L.push({t:'s',it});
+    });
+    fechar();
+    return L;
+  },
   /* Valida a planilha de serviços: nenhum campo pode ficar vazio ou zerado. Marca as
-     células com erro (borda vermelha) e retorna true se tudo estiver ok. */
+     células com erro (borda vermelha) e retorna true se tudo estiver ok. Linha de subitem
+     toda em branco não conta (não é gravada); item (título) precisa do título. */
   _orcValidar(){
     let ok=true,primeiro=null;
-    const rows=[...document.querySelectorAll('#orc-tbody tr')];
+    document.querySelectorAll('#orc-tbody tr.orc-grp .orc-g-desc').forEach(el=>{
+      el.classList.remove('err');if(!(el.value||'').trim()){el.classList.add('err');ok=false;if(!primeiro)primeiro=el;}
+    });
+    const rows=[...document.querySelectorAll('#orc-tbody tr.orc-srv')];
     rows.forEach(tr=>{
       const campos=[];
       const manualRow=tr.dataset.manual==='1';
-      const mc=tr.querySelector('.orc-mc'),desc=tr.querySelector('.orc-desc'),un=tr.querySelector('.orc-un'),quant=tr.querySelector('.orc-quant');
+      const desc=tr.querySelector('.orc-desc'),un=tr.querySelector('.orc-un'),quant=tr.querySelector('.orc-quant');
       const codEl=tr.querySelector('.orc-cod')||tr.querySelector('.orc-cod-txt')||tr.querySelector('.orc-cod-man');
-      // "Meu Código" (mc) é a numeração interna da EMBASA — só existe em linha casada;
-      // na linha manual (serviço não encontrado) o usuário não tem esse código, então
-      // não é obrigatório. Código/Descrição/Unid. continuam obrigatórios em ambos.
-      const obrig=manualRow?[codEl,desc,un]:[mc,codEl,desc,un];
+      if(this._orcLerLinha(tr).vazia){[codEl,desc,un,quant,tr.querySelector('.orc-punit')].forEach(el=>el&&el.classList.remove('err'));return;}
+      // O número (Item) é a numeração do orçamento — não é obrigatório.
+      // Código/Descrição/Unid. são obrigatórios na linha casada e na manual.
+      const obrig=[codEl,desc,un];
       obrig.forEach(el=>{if(el)campos.push({el,vazio:!(el.value||'').trim()});});
       // Quant. e P.Unit. não podem ser zero. Em linha casada o P.Unit. vem de base×fator
       // (dataset.base); em linha manual o P.Unit. é o valor digitado no próprio campo —
@@ -6532,7 +6938,8 @@ const UI={
     const total=itens.reduce((s,it)=>s+(it.p_total||0),0);
     const esc=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
     const pct=v=>{v=String(v||'').trim();return v?(v.replace('%','')+'%'):'—';};
-    const rowsHtmlArr=itens.map((it)=>`<tr>
+    // itens (títulos) e "SUB-TOTAL ITEM n" como na planilha da EMBASA; orçamento sem itens sai como antes
+    const linhaSrv=it=>`<tr>
       <td style="text-align:center;white-space:nowrap">${esc(it.mc)||'—'}</td>
       <td style="text-align:center;white-space:nowrap">${esc(it.codigo)||'—'}</td>
       <td>${esc(it.descricao)}</td>
@@ -6540,7 +6947,10 @@ const UI={
       <td style="text-align:right">${it.quant.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
       <td style="text-align:right;white-space:nowrap">${fmt(it.p_unit)}</td>
       <td style="text-align:right;white-space:nowrap">${fmt(it.p_total)}</td>
-    </tr>`);
+    </tr>`;
+    const rowsHtmlArr=this._orcEstrutura().map(x=>x.t==='s'?linhaSrv(x.it)
+      :x.t==='g'?`<tr class="g${x.nivel}"><td style="text-align:center;white-space:nowrap">${esc(x.mc)}</td><td style="text-align:center;white-space:nowrap">${esc(x.codigo)}</td><td colspan="5">${esc(x.descricao)}</td></tr>`
+      :`<tr class="st"><td colspan="6" style="text-align:right">SUB-TOTAL ITEM ${esc(x.mc)}</td><td style="text-align:right;white-space:nowrap">${fmt(x.soma)}</td></tr>`);
     const theadHtml=`<tr>
       <th style="width:78px">ITEM</th><th style="width:64px">CÓDIGO</th><th>ESPECIFICAÇÃO</th>
       <th style="width:58px">UNID.</th><th style="width:60px">QUANT.</th><th style="width:88px">P.UNIT.</th><th style="width:98px">P. TOTAL</th>
@@ -6591,6 +7001,9 @@ const UI={
         table{border-collapse:collapse;width:100%;font-size:10.5px;table-layout:fixed;}
         th,td{border:1px solid #bbb;padding:4px 6px;vertical-align:top;word-break:break-word;}
         thead th{background:#e9e9ec;font-weight:800;}
+        tr.g1 td{background:#bfbfc4;font-weight:800;text-transform:uppercase;}
+        tr.g2 td{background:#e9e9ec;font-weight:800;text-transform:uppercase;}
+        tr.st td{background:#d9d9de;font-weight:800;}
         .resumo{margin-top:10px;display:flex;justify-content:flex-end;gap:16px;align-items:center;background:#e9e9ec;border:1px solid #bbb;padding:7px 12px;font-weight:800;font-size:12px;}
         .pdf-page{position:relative;width:${pageWmm}mm;height:${pageHmm}mm;background:#fff;margin:0 auto 6mm;overflow:hidden;page-break-after:always;}
         .pdf-page-inner{position:absolute;top:14mm;left:14mm;right:14mm;bottom:18mm;overflow:hidden;}
@@ -9266,7 +9679,7 @@ App.saveOrcamento=function(){
     encargos:val('orc-encargos'), leis_sociais_h:val('orc-leis-h'), leis_sociais_m:val('orc-leis-m'),
     bdi:val('orc-bdi'), iss:val('orc-iss'), desconto:val('orc-desconto'),
     tabela_id:emb.id||'', tabela_embasa:emb.tabela||'', ano_embasa:emb.semestre||emb.ano||'',
-    itens, total_obra:totalObra.toFixed(2)
+    itens, grupos:UI._orcColetarGrupos(), total_obra:totalObra.toFixed(2)
   };
 
   App.state._busy=true;
@@ -12823,6 +13236,7 @@ const Eng=(function(){
     const orc=Eng.baseDaObra(ob);if(!orc)return null;
     const itens=Eng.itensVigentes(ob,orc);if(!itens.length)return null;   // contrato vigente: orçamento + aditivos em quantidade
     const brutos=Array.isArray(orc.itens)?orc.itens:[];
+    const titItem=n=>{const g=(Array.isArray(orc.grupos)?orc.grupos:[]).find(x=>String(x&&x.mc||'').trim().replace(/\.+$/,'')===n);return g&&String(g.descricao||'').trim();};
     const L0=itens.map(x=>{const raw=x.novo?{}:(brutos[x.item-1]||{});return {x,f:faseDo(x.descricao,x.codigo),v:r2(x.qtd_contrato*x.p_unit),num:numItem(raw.mc),adt:!!x.novo};});
     const tot=L0.reduce((s,y)=>s+y.v,0)||1;
     // tipo da obra = onde está o dinheiro
@@ -12861,7 +13275,9 @@ const Eng=(function(){
       const cedo=semOut.filter(([,v])=>v>=.15*G.valor).sort((a,b)=>ORDEM.indexOf(a[0])-ORDEM.indexOf(b[0]))[0];
       G.f=G.k.startsWith('item')?(cedo?cedo[0]:G.fNome):base;
       const seg=semOut.find(([f,v])=>f!==G.fNome&&v>=.3*G.valor);
-      G.nome=G.k.startsWith('item')?`Item ${G.cap} — ${FASES[G.fNome].nome}${seg?' · '+FASES[seg[0]].nome:''}`:(G.k.startsWith('adt')?'Aditivo — ':'')+FASES[G.f].nome;
+      // o orçamento tem o título do item (1. MOBILIZAÇÃO…, 2.1 RECURSOS HUMANOS): a etapa leva esse nome
+      const tit=G.k.startsWith('item')?titItem(G.cap):'';
+      G.nome=G.k.startsWith('item')?(tit?`Item ${G.cap} — ${tit}`:`Item ${G.cap} — ${FASES[G.fNome].nome}${seg?' · '+FASES[seg[0]].nome:''}`):(G.k.startsWith('adt')?'Aditivo — ':'')+FASES[G.f].nome;
     });
     const ordemDe=G=>G.k.startsWith('item')?ORDEM.indexOf('topo')+.5+numVal(G.cap)/1e10:G.k.startsWith('adt')?ORDEM.indexOf(G.k.slice(3))+.5:ORDEM.indexOf(G.k)+(G.k==='fim'?1000:0);
     const grupos=Object.values(g).sort((a,b)=>ordemDe(a)-ordemDe(b));
@@ -14411,7 +14827,7 @@ const PL2=(function(){
   // categoria do custo: a especificação, se for uma das categorias; senão o "tipo" antigo (como o editor antigo)
   const catC=(r,K)=>CATC().includes(r[K.espec])?r[K.espec]:(r[K.tipo]||'');
   // quem está usando: Administrador lança conta já aprovada; os demais lançam para aprovação (quem compra não paga)
-  const sessao=()=>Auth._session||{},souAdmin=()=>!!UI._ehAdmin(sessao().perfil),quem=()=>sessao().nome||'';
+  const sessao=()=>Auth._session||{},souAdmin=()=>!!UI._ehAdmin(sessao().perfil)||!!(UI.podeAprovar&&UI.podeAprovar('contas')),quem=()=>sessao().nome||'';
   const aprovDe=r=>({aprov:r.aprovacao==='pendente'?'pendente':'aprovada',aprovPor:r.aprovado_por||'',aprovEm:r.aprovado_em||'',lancPor:r.lancado_por||''});
   function deCusto(r){const K=KC(),h=h0(),real=cn(r[K.tipoCusto])==='real',pg=dt(r[K.pgto]),pago=real&&pg&&pg<=h?isoDe(pg):'';
     return {_t:'c',_r:r,rowid:r.rowid,centro:r[K.obra]||'',tipo:real?'Real':'Previsto',cat:catC(r,K),desc:r[K.desc]||'',forn:r[K.forn]||'',qtd:r[K.qtd]||'',fator:r[K.fator]||'',pUnit:r[K.pUnit]||'',total:r[K.pTotal]||'',
@@ -14527,7 +14943,7 @@ const PL2=(function(){
         if(o.centro===EMP)['qtd','fator','pUnit'].forEach(k=>{const e=tr.querySelector(`[data-col="${k}"]`);if(e)e.value='';});}
       PL2.telas.contas.recalc(tr,PL2.completa(PL2.telas.contas,tr));},
     finalizar:finalizarConta,
-    validar:o=>{if(!(val(o.total)>0))return 'Informe o valor da conta.';if(o.pago&&o.aprov==='pendente'&&!souAdmin())return 'Esta conta ainda aguarda aprovação de um Administrador — o pagamento só é registrado depois dela.';const p=dt(o.pago);if(p&&p>h0())return 'Pago em não pode ser uma data futura — para pagamento agendado use a coluna Vencimento.';if(o.centro===EMP&&!podeEmpresa())return 'Você não tem acesso às despesas da empresa.';return '';},
+    validar:o=>{if(!(val(o.total)>0))return 'Informe o valor da conta.';if(o.pago&&o.aprov==='pendente'&&!souAdmin())return 'Esta conta ainda aguarda aprovação (de um Administrador ou de quem tem permissão para aprovar) — o pagamento só é registrado depois dela.';const p=dt(o.pago);if(p&&p>h0())return 'Pago em não pode ser uma data futura — para pagamento agendado use a coluna Vencimento.';if(o.centro===EMP&&!podeEmpresa())return 'Você não tem acesso às despesas da empresa.';return '';},
     montar:montarConta,
     excluir:o=>excluir(o._t==='c'?'Custos':'Despesas',o.rowid),
     kpis:l=>{const h=h0(),S=a=>a.reduce((s,o)=>s+val(o.total),0),k=mesHoje();
@@ -14968,7 +15384,7 @@ const Mascara=(function(){
   }
   async function gravarConta(o,orig){const ops=C.montarConta(o,orig);await executar(()=>Promise.all(ops.map(x=>x.excluir?excluir(x.aba,x.rowid):salvar(x.aba,x.dados,x.rowid||null))));}
   function aprovarConta(o,aprovar){
-    if(!souAdmin())return toast('Só um Administrador aprova contas.','error');
+    if(!souAdmin())return toast('Só o Administrador ou quem tem permissão para aprovar (Usuários e permissões) aprova contas.','error');
     if(pagoC(o))return toast('Conta já paga — a aprovação não muda mais.','error');
     const txt=aprovar?`Aprovar a conta de <b>${fe(o.forn||o.desc)}</b>: ${fmt(val(o.total))}, vence ${brDe(dt(o.venc))}? Com a aprovação ela fica liberada para pagamento.`:`Tirar a aprovação da conta de <b>${fe(o.forn||o.desc)}</b> (${fmt(val(o.total))})? Ela volta para "Aguardando aprovação".`;
     confirmar(aprovar?'Aprovar conta':'Desaprovar conta',txt,aprovar?'Sim, aprovar':'Sim, desaprovar',async()=>{await gravarConta({...o,aprov:aprovar?'aprovada':'pendente',aprovPor:C.quem(),aprovMudou:true},o);toast(aprovar?'Conta aprovada.':'Aprovação retirada.','success');});
@@ -14978,20 +15394,20 @@ const Mascara=(function(){
     janela('A conta chegou',`<div class="fin-resumo"><b>${fe(o.forn||o.desc)}</b> · ${fe(o.centro)}<br>Estimativa: ${fmt(val(o.total))}</div>
       <div class="fin-linha"><div class="fin-fld"><label>Valor da conta (R$)</label><input data-k="total" data-mask="moeda" inputmode="numeric" value="${fmt(val(o.total))}"></div>
       <div class="fin-fld"><label>Vencimento <span class="obg">*</span></label><input type="date" data-k="venc" value="${fe(o.venc||isoDe(addD(hoje0(),7)))}"></div></div>
-      ${souAdmin()?'':'<div class="fin-aviso"><div>A conta vai para "Aguardando aprovação" de um Administrador.</div></div>'}`,
+      ${souAdmin()?'':'<div class="fin-aviso"><div>A conta vai para "Aguardando aprovação".</div></div>'}`,
       [{html:'Cancelar'},{html:'<i class="fas fa-file-invoice-dollar"></i> Virar conta a pagar',cls:'pri',acao:async j=>{
         const v=j.querySelector('[data-k="venc"]').value,t=num(j.querySelector('[data-k="total"]').value);if(!v)throw new Error('Informe o vencimento.');if(!(t>0))throw new Error('Informe o valor.');
         const u={...o,tipo:'Real',venc:v,total:dinheiro(t),aprov:souAdmin()?'aprovada':'pendente',aprovPor:C.quem(),aprovMudou:true};if(o.centro!==EMP&&val(o.qtd)>0)u.pUnit=dinheiro(t/val(o.qtd));
         await gravarConta(u,o);toast(souAdmin()?'Agora é uma conta a pagar.':'Conta lançada — aguardando aprovação.','success');}}],520);
   }
   function voltarEstimativa(o){
-    if(!podeEditarConta(o))return toast('Só um Administrador mexe numa conta já aprovada.','error');
+    if(!podeEditarConta(o))return toast('Só o Administrador ou quem aprova mexe numa conta já aprovada.','error');
     confirmar('Voltar para estimativa',`<b>${fe(o.forn||o.desc)}</b> (${fmt(val(o.total))}) volta a ser só uma estimativa (Previsto) — sai das contas a pagar.`,'Sim, voltar',async()=>{await gravarConta({...o,tipo:'Previsto'},o);toast('Voltou para Previstas.','success');});
   }
   function pagarConta(o){
     if(!pode('contas'))return toast('Seu perfil não registra pagamentos.','error');
     if(pagoC(o))return toast('Esta conta já está paga.','error');
-    if(o.aprov==='pendente'&&o.tipo==='Real'&&!souAdmin())return toast('Esta conta ainda aguarda aprovação de um Administrador.','error');
+    if(o.aprov==='pendente'&&o.tipo==='Real'&&!souAdmin())return toast('Esta conta ainda aguarda aprovação (de um Administrador ou de quem tem permissão para aprovar).','error');
     janela('Registrar pagamento',`<div class="fin-resumo"><b>${fe(o.forn||o.desc)}</b> · ${fe(C.limparParc(o.desc)||o.cat)}<br>${fe(o.centro)} · vence ${brDe(dt(o.venc))}</div>
       <div class="fin-linha"><div class="fin-fld"><label>Valor pago (R$)</label><input data-k="total" data-mask="moeda" inputmode="numeric" value="${fmt(val(o.total))}"></div>
       <div class="fin-fld"><label>Data do pagamento</label><input type="date" data-k="data" max="${isoDe(hoje0())}" value="${isoDe(hoje0())}"></div>
@@ -15062,7 +15478,7 @@ const Mascara=(function(){
         if(x.centro!==EMP&&n>1&&rep==='parc'){x.qtd='1.00';x.fator='VB';x.pUnit=x.total;}
         ops.push(...C.montarConta(x,null));}
       await executar(()=>Promise.all(ops.map(x=>salvar(x.aba,x.dados,null))));
-      toast(n>1?`${n} contas lançadas.`:u.tipo!=='Real'?'Estimativa lançada em Previstas.':(souAdmin()?'Conta lançada.':'Conta lançada — aguardando a aprovação de um Administrador.'),'success');}}],720);
+      toast(n>1?`${n} contas lançadas.`:u.tipo!=='Real'?'Estimativa lançada em Previstas.':(souAdmin()?'Conta lançada.':'Conta lançada — aguardando a aprovação (de um Administrador ou de quem tem permissão para aprovar).'),'success');}}],720);
     ligarCamposConta(jan());
   }
   function fichaConta(o){
@@ -15074,7 +15490,7 @@ const Mascara=(function(){
         <li><i class="fas ${o.centro===EMP?'fa-building':'fa-helmet-safety'}"></i> ${fe(o.centro)} · ${fe(o.cat||'—')}${o.desc?' · '+fe(o.desc):''}${val(o.qtd)>0&&o.centro!==EMP?` · ${n2(val(o.qtd))} ${fe(o.fator||'')} × ${fmt(val(o.pUnit))}`:''}</li>
         <li><i class="fas fa-calendar-day"></i> Vencimento ${brDe(dt(o.venc))}${o.forma?' · '+fe(o.forma):''}${o.lancPor?` · lançada por ${fe(o.lancPor)}`:''}</li>
         ${pagoC(o)?`<li><i class="fas fa-circle-check"></i> Paga em ${brDe(dt(o.pago))}</li>`:''}
-        ${o.tipo==='Real'?`<li><i class="fas fa-signature"></i> ${o.aprov==='pendente'?'Aguardando aprovação de um Administrador':o.aprovPor?`Aprovada por ${fe(o.aprovPor)}${o.aprovEm?' em '+brDe(dt(o.aprovEm)):''}`:'Aprovada'}</li>`:''}
+        ${o.tipo==='Real'?`<li><i class="fas fa-signature"></i> ${o.aprov==='pendente'?'Aguardando aprovação':o.aprovPor?`Aprovada por ${fe(o.aprovPor)}${o.aprovEm?' em '+brDe(dt(o.aprovEm)):''}`:'Aprovada'}</li>`:''}
         ${o.obs?`<li><i class="fas fa-note-sticky"></i> ${fe(o.obs)}</li>`:''}
       </ul>
       ${ed?camposConta(o,false):!pagoC(o)?'<p class="vk-dica"><i class="fas fa-lock"></i> Conta aprovada fica travada. Para corrigir, peça a um Administrador.</p>':''}`;
@@ -15143,7 +15559,7 @@ const Mascara=(function(){
     App._vkFat=filtrados;
     const filtroAtivo=f.busca||f.obra||f.mes||f.semNF;
     box.innerHTML=`<div class="gf">
-      ${cabG('Faturamento e recebimentos','O caminho do dinheiro das obras, ligado às medições: a medição lançada aparece em <b>Medição em andamento</b>; aprovada pela fiscalização, vai para <b>A faturar</b>; ao emitir a nota (arraste ou abra o cartão) ela vira <b>Nota emitida</b>; quando o dinheiro entra, arraste para <b>Recebida</b>. Sem data combinada, o sistema espera o dinheiro no prazo médio que aquela obra costuma pagar (30 dias, enquanto não há histórico).','<button type="button" class="gf-bt" data-vk="imprimir"><i class="fas fa-print"></i> Imprimir</button><button type="button" class="gf-bt" data-vk="exportar"><i class="fas fa-file-excel"></i> Exportar</button>'+(pode('medicoes')?'<button type="button" class="gf-bt" data-vk="medicao"><i class="fas fa-ruler-combined"></i> Nova medição</button>':'')+(pode('faturamento')?'<button type="button" class="gf-bt pri" data-vk="nova"><i class="fas fa-plus"></i> Nota avulsa</button>':''))}
+      ${cabG('Faturamento e recebimentos','O caminho do dinheiro das obras, ligado às medições: a medição lançada aparece em <b>Medição em andamento</b>; aprovada pela fiscalização, vai para <b>A faturar</b>; ao emitir a nota (arraste ou abra o cartão) ela vira <b>Nota emitida</b>; quando o dinheiro entra, arraste para <b>Recebida</b>. Sem data combinada, o sistema espera o dinheiro no prazo médio que aquela obra costuma pagar (30 dias, enquanto não há histórico).','<button type="button" class="gf-bt" data-vk="imprimir"><i class="fas fa-print"></i> Imprimir</button><button type="button" class="gf-bt" data-vk="exportar"><i class="fas fa-file-excel"></i> Exportar</button>'+(pode('faturamento')?'<button type="button" class="gf-bt pri" data-vk="nova"><i class="fas fa-plus"></i> Nota avulsa</button>':''))}
       ${parados.length?`<div class="vk-aviso" style="background:#FEF3F2;color:#912018"><i class="fas fa-triangle-exclamation"></i><div><b>${parados.length} medição(ões) aprovada(s) há mais de 5 dias sem nota</b> — ${fmt(SB(parados))} parado. Cada dia sem nota atrasa o recebimento um dia.</div></div>`:''}
       <div class="gf-kpis">
         ${kpiG(atr.length?'vermelho':'verde','fa-triangle-exclamation','Recebimento atrasado',Rk(S(atr)),atr.length?`${atr.length} nota(s) — cobrar a contratante`:'nenhuma nota atrasada')}
@@ -17321,6 +17737,10 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
 .fp-res>div.pos{background:#ECFDF3;border-color:#ABEFC6;} .fp-res>div.pos b{color:#067647;}
 .fp-res>div.neg{background:#FEF3F2;border-color:#FECDCA;} .fp-res>div.neg b{color:#B42318;}
 .fp-res>i{align-self:center;font:800 18px Inter,sans-serif;color:#98A2B3;font-style:normal;}
+.fp-res>div.fp-chip{flex:1.3;min-width:230px;text-align:right;border-radius:14px;padding:10px 16px;}
+.fp-res>div.fp-chip small{color:inherit;opacity:.85;}
+.fp-res>div.fp-chip b{font-size:22px;color:inherit;letter-spacing:-.01em;margin:2px 0;}
+.fp-res>div.fp-chip span{color:inherit;font-weight:700;}
 @media (max-width:1000px){.fp-grade{grid-template-columns:1fr;}.fp-res>i{display:none;}}
 .mcc-st{margin-top:8px;display:flex;flex-direction:column;gap:5px;font-size:11.5px;line-height:1.4;}
 .mcc-st span{border-radius:8px;padding:5px 8px;}
@@ -18016,8 +18436,8 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
     fp.querySelector('#fp-leg').innerHTML=segs.map(([v,c,r])=>`<span><em style="background:${c}"></em>${fe(r)} <b>${preco?pc(v/preco*100):'—'}</b></span>`).join('')+(lucro<0&&preco?`<span><em style="background:${COR.neg}"></em>Prejuízo <b>${pc(pl)}</b></span>`:'');
     const ip=document.getElementById('fp-imp-p'),iv=document.getElementById('fp-imp-v');if(ip)ip.textContent=preco?pc(imp/preco*100,2):'—';if(iv)iv.textContent=fmt(imp);
     const st=!preco?['cinza','Sem preço de orçamento','monte o orçamento da obra']:lucro<0?['neg','Prejuízo','o custo + impostos passam do preço']:pl<5?['at','Margem apertada','abaixo de 5% do preço']:pl<10?['ok','Margem razoável','entre 5% e 10% do preço']:['ok','Margem boa','10% ou mais do preço'];
-    fp.querySelector('#fp-luc').innerHTML=`<div class="fp-chip ${st[0]}"><small>Lucratividade prevista</small><b>${preco?fmt(lucro):'—'}</b><span>${preco?pc(pl,2)+' · ':''}${st[1]}</span></div>`;
-    fp.querySelector('#fp-res').innerHTML=`<div><small>Preço de orçamento</small><b>${preco?fmt(preco):'—'}</b></div><i>−</i><div><small>Impostos e retenções</small><b>${fmt(imp)}</b></div><i>−</i><div><small>Custo direto</small><b>${fmt(custo)}</b></div><i>=</i><div class="${lucro<0?'neg':'pos'}"><small>Lucratividade prevista</small><b>${preco?fmt(lucro):'—'}</b><span>${preco?pc(pl,2)+' do preço':''}</span></div>`;
+    // o resultado aparece uma vez só: o cartão da lucratividade (com a avaliação da margem) fecha a conta
+    fp.querySelector('#fp-res').innerHTML=`<div><small>Preço de orçamento</small><b>${preco?fmt(preco):'—'}</b></div><i>−</i><div><small>Impostos e retenções</small><b>${fmt(imp)}</b></div><i>−</i><div><small>Custo direto</small><b>${fmt(custo)}</b></div><i>=</i><div class="fp-chip ${st[0]}" title="${fe(st[2])}"><small>Lucratividade prevista</small><b>${preco?fmt(lucro):'—'}</b><span>${preco?pc(pl,2)+' · ':''}${st[1]}</span></div>`;
     const le=fp.querySelector('[data-e]');if(le)le.style.display=t.E?'':'none';
     const dk=document.getElementById('fp-dica-fk');
     if(dk){const orc=ob&&Eng.baseDaObra&&Eng.baseDaObra(ob),dO=descOrc(orc),fk=pctV('cap-pct-fatork'),p2=v=>v.toLocaleString('pt-BR',{maximumFractionDigits:2})+'%';
@@ -18052,7 +18472,7 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
     const res=body.querySelector('.cap-resumo');if(!res||document.getElementById('fp'))return;
     const grade=res.closest('.capx-grade')||res;
     const fp=document.createElement('div');fp.className='fp';fp.id='fp';
-    fp.innerHTML=`<div class="fp-cab"><div><h4><i class="fas fa-calculator"></i>Formação do preço</h4><p>Do preço do orçamento até o lucro previsto: o que sai do preço de orçamento e o que sobra.</p></div><div id="fp-luc"></div></div>
+    fp.innerHTML=`<div class="fp-cab"><div><h4><i class="fas fa-calculator"></i>Formação do preço</h4><p>Do preço do orçamento até o lucro previsto: o que sai do preço de orçamento e o que sobra.</p></div></div>
       <div class="fp-barra" id="fp-barra"></div><div class="fp-leg" id="fp-leg"></div>
       <div class="fp-grade">
         <section><h5><span>1</span>Preço de orçamento</h5>
@@ -18486,6 +18906,270 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
       setTimeout(()=>{const b=btMed();if(b)b.click();},80);
     });
   };
+})();
+</script>
+<!-- ═══════════════════════ USUÁRIOS E PERMISSÕES NA PEGADA DA VTC ═══════════════════════ -->
+<style>
+#grid-usuarios.usr-pag{display:block;}
+.usr-card{background:#fff;border:1px solid #E4E9F2;border-radius:18px;box-shadow:0 1px 2px rgba(16,24,40,.04);overflow:hidden;}
+.usr-card-cab{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:14px 18px;border-bottom:1px solid #EEF1F6;}
+.usr-card-cab h3,.perm-tit h3{margin:0;font:800 15px Inter,sans-serif;color:var(--text-1);display:flex;align-items:center;gap:9px;}
+.usr-card-cab h3 i,.perm-tit h3 i{width:30px;height:30px;border-radius:9px;display:inline-grid;place-items:center;background:#101828;color:#fff;font-size:12px;}
+.usr-card-cab span{font-size:12px;color:#667085;font-weight:600;}
+.usr-tab-wrap{overflow-x:auto;}
+.usr-tab{width:100%;border-collapse:collapse;font-size:13px;min-width:760px;}
+.usr-tab th{text-align:left;font:800 10px Inter,sans-serif;text-transform:uppercase;letter-spacing:.05em;color:#667085;background:#F8FAFC;padding:9px 14px;border-bottom:1px solid #EEF1F6;}
+.usr-tab td{padding:10px 14px;border-bottom:1px solid #F2F4F7;color:#344054;vertical-align:middle;}
+.usr-tab tbody tr{cursor:pointer;transition:background .12s;} .usr-tab tbody tr:hover{background:#F8FAFF;}
+.usr-tab tbody tr:last-child td{border-bottom:0;}
+.usr-tab td b{color:var(--text-1);font-weight:700;}
+.usr-chip{display:inline-block;font:700 11.5px Inter,sans-serif;padding:3px 10px;border-radius:999px;background:#F2F4F7;color:#344054;}
+.usr-chip.adm{background:rgba(0,113,227,.1);color:var(--blue);} .usr-chip.ext{background:#FEF0C7;color:#93370D;}
+.usr-st{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:#98A2B3;} .usr-st i{width:8px;height:8px;border-radius:50%;background:#D0D5DD;}
+.usr-st.on{color:#067647;} .usr-st.on i{background:#12B76A;}
+.usr-bt{display:inline-flex;align-items:center;gap:6px;border:1px solid #D0D5DD;background:#fff;color:#344054;border-radius:999px;padding:5px 12px;font:600 12px Inter,sans-serif;cursor:pointer;}
+.usr-bt:hover{border-color:var(--blue);color:var(--blue);}
+.usr-vazio{text-align:center;color:#98A2B3;padding:26px!important;}
+.usr-perfil-nota{margin-top:8px;font-size:12px;line-height:1.45;color:#475467;background:rgba(0,113,227,.06);border:1px solid rgba(0,113,227,.18);border-radius:8px;padding:9px 11px;}
+.usr-perfil-nota.aviso{background:#FFFAEB;border-color:#FEDF89;color:#93370D;}
+.perm-wrap{margin-top:22px;}
+.perm-tit p{margin:6px 0 0;font-size:12.5px;color:#667085;}
+.perm-legenda{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:11.5px;color:#667085;margin:12px 0 14px;padding:10px 14px;background:#F2F4F7;border-radius:10px;}
+.perm-legenda b{color:#344054;}
+.perm-cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;align-items:start;}
+@media (max-width:1180px){.perm-cards{grid-template-columns:1fr;}}
+.perm-card{background:#fff;border:1px solid #E4E9F2;border-radius:18px;padding:14px 16px;box-shadow:0 1px 2px rgba(16,24,40,.04);min-width:0;}
+.perm-card.salvando{opacity:.75;}
+.perm-card-cab{display:flex;justify-content:space-between;align-items:baseline;gap:8px;}
+.perm-card-cab b{font:800 16px Inter,sans-serif;color:var(--text-1);} .perm-card-cab span{font-size:12px;color:#667085;font-weight:600;}
+.perm-st{margin-top:8px;font-size:11.5px;line-height:1.45;border-radius:8px;padding:7px 10px;}
+.perm-st.ok{background:#ECFDF3;color:#067647;} .perm-st.aviso{background:#FFFAEB;color:#93370D;}
+.perm-sub{font:800 10px Inter,sans-serif;text-transform:uppercase;letter-spacing:.06em;color:#98A2B3;margin:14px 0 6px;}
+.perm-grid{display:flex;flex-direction:column;gap:2px;}
+.perm-item{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:12.5px;padding:5px 0;border-bottom:1px dashed #EEF1F6;}
+.perm-item>span{color:#344054;display:flex;align-items:center;gap:8px;min-width:0;}
+.perm-item>span i{color:#98A2B3;width:16px;text-align:center;font-size:12px;flex-shrink:0;}
+.perm-ctrl{display:flex;align-items:center;gap:9px;flex-shrink:0;}
+.perm-ctrl select{border:1px solid #D0D5DD;border-radius:8px;padding:5px 8px;font:600 12px Inter,sans-serif;color:#344054;background:#fff;cursor:pointer;min-width:84px;}
+.perm-ctrl select[data-v="nenhum"]{color:#98A2B3;} .perm-ctrl select[data-v="ver"]{color:#B54708;} .perm-ctrl select[data-v="editar"]{color:#067647;}
+.perm-chk{display:inline-flex;align-items:center;gap:4px;font-size:11.5px;color:#475467;white-space:nowrap;cursor:pointer;}
+.perm-chk.off{color:#D0D5DD;cursor:default;}
+.perm-chk input,.perm-rel input{accent-color:var(--blue);width:14px;height:14px;cursor:pointer;}
+.perm-rels{display:flex;flex-direction:column;gap:8px;}
+.perm-relg small{display:block;font-size:11px;font-weight:700;color:#667085;margin-bottom:2px;}
+.perm-rel{display:flex;align-items:center;gap:7px;font-size:12px;color:#475467;cursor:pointer;padding:2px 0;}
+</style>
+<script>
+/* ═══════════════════════ USUÁRIOS E PERMISSÕES NA PEGADA DA VTC ═══════════════════════
+   Como no sistema da VTC: a tela "Usuários e permissões" tem a lista de quem usa o sistema e, para o
+   Administrador, as PERMISSÕES DE ACESSO POR PERFIL (Sócio, Gestão, Usuário), em cartões lado a lado.
+   Em cada tela: Nenhum (nem aparece no menu) · Ver (só consulta) · Editar (cria e altera) · + Excluir ·
+   + Aprovar (Contas a pagar); e os relatórios que o perfil pode abrir. O Administrador faz tudo.
+   Gravado na tabela "planejamento" ({tipo:'permissoes', perfil, acessos{tela:nível}, aprovar{}, relatorios{}}).
+   Perfil ainda não configurado: cada usuário segue a lista de telas que já tinha no cadastro (null = todas),
+   com acesso completo nelas — ninguém perde nem ganha acesso de repente.
+   Ver/Excluir valem em todas as telas por um guarda único: com "Ver", botões de incluir, salvar, aprovar,
+   lançar… e o arrastar dos quadros ficam travados; sem "Excluir", os de excluir/remover. */
+(function(){
+  const fe=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  const PERFIS=['Sócio','Gestão','Usuário'];
+  const TELAS=[
+    ['inicio','Início (painel)','fa-house'],['reunioes','Reuniões','fa-people-group'],['acoes','Tarefas e plano de ação','fa-list-check'],
+    ['obras','Contratos e central da obra (orçamento, CAP)','fa-building'],['contratos','Ficha do contrato e aditivos','fa-file-signature'],
+    ['planejamento','Planejamento e cronograma','fa-diagram-project'],['medicoes','Medições','fa-ruler-combined'],['diario','Diário de obra','fa-book-open'],
+    ['documentos','Documentos e certidões','fa-file-shield'],['contas','Contas a pagar','fa-file-invoice-dollar'],['despesas','Despesas da empresa (em Contas a pagar)','fa-receipt'],
+    ['faturamento','Faturamento e recebimentos','fa-file-invoice'],['conciliacao','Conciliação bancária','fa-building-columns'],['socios','Sócios e investimentos','fa-piggy-bank'],
+    ['metas','Metas','fa-bullseye'],['orcamento','Orçamento da empresa','fa-calculator'],['projecao','Fluxo de caixa projetado','fa-chart-line'],
+    ['viabilidade','Viabilidade de contrato','fa-scale-balanced'],['relatorios','Relatórios','fa-chart-pie'],['fornecedores','Fornecedores','fa-truck']];
+  const APROVA=['contas'];   // onde existe aprovação (como na VTC: só Contas a pagar)
+  const NIVEIS=[['nenhum','Nenhum'],['ver','Ver'],['editar','Editar']];
+  const sess=()=>Auth._session||{};
+  const ehAdm=()=>UI._ehAdmin(sess().perfil),ehExt=()=>sess().tipoUsuario==='externo';
+  const perfilDe=p=>UI._usrPerfilValor(p);   // 'admin' | 'Sócio' | 'Gestão' | 'Usuário'
+  const linhas=()=>((App.state.data&&App.state.data.planejamento)||[]).filter(p=>p&&p.tipo==='permissoes');
+  const cfgDe=p=>linhas().filter(x=>x.perfil===p).sort((a,b)=>(+b.rowid||0)-(+a.rowid||0))[0]||null;
+  const herda=k=>[].concat(UI._HERDA[k]||[]);
+  // nível de uma tela na configuração do perfil (tela nova herda a da tela parecida, como na VTC)
+  const nivelCfg=(cfg,k)=>{const a=(cfg&&cfg.acessos)||{};if(a[k])return a[k];for(const h of herda(k))if(a[h])return a[h];return 'nenhum';};
+  // lista antiga de telas do cadastro (vale enquanto o perfil não é configurado): acesso completo nelas
+  const nivelAntigo=(ac,k)=>{if(!Array.isArray(ac))return 'excluir';
+    const tem=ac.includes(k)||herda(k).some(x=>ac.includes(x))||(k==='obras'&&['custos','faturamentos','aportes','cap','orcamentos'].some(x=>ac.includes(x)));
+    return tem?'excluir':'nenhum';};
+  UI.permNivel=function(k){
+    const s=sess();if(!s||!s.perfil||ehAdm())return 'excluir';
+    if(ehExt())return nivelAntigo(s.acessos,k);
+    const cfg=cfgDe(perfilDe(s.perfil));
+    return cfg?nivelCfg(cfg,k):nivelAntigo(s.acessos,k);
+  };
+  UI.podeEditar=k=>['editar','excluir'].includes(UI.permNivel(k));
+  UI.podeExcluir=k=>UI.permNivel(k)==='excluir';
+  UI.podeAprovar=k=>{if(ehAdm())return true;if(ehExt())return false;const cfg=cfgDe(perfilDe(sess().perfil));return !!(cfg&&cfg.aprovar&&cfg.aprovar[k]&&nivelCfg(cfg,k)!=='nenhum');};
+  UI.podeRelatorio=r=>{if(ehAdm()||ehExt())return true;const cfg=cfgDe(perfilDe(sess().perfil));return !cfg||!cfg.relatorios||cfg.relatorios[r]!==false;};
+  UI.permPerfilConfigurado=p=>!!cfgDe(p);
+
+  /* ───── menu: o que o perfil vê ───── */
+  UI._permAplicarMenu=function(navegar){
+    const s=Auth._session;if(!s||ehAdm()||ehExt())return;
+    const allowed=[];
+    UI._MODULOS.forEach(([k])=>{const ok=UI.permNivel(k)!=='nenhum';const el=document.getElementById('nav-'+k);if(el)el.style.display=ok?'':'none';if(ok)allowed.push(k);});
+    const antes=(UI._allowedViews||[]).join(',');
+    UI._allowedViews=allowed;UI._navAjustar();
+    if(!navegar||antes===allowed.join(','))return;
+    // a tela aberta deixou de ser permitida (o Administrador mudou o perfil): vai para a primeira permitida
+    const v=(document.querySelector('.view.active')||{}).id||'';const k=v.replace(/^view-/,'');
+    if(UI._MODULOS.some(m=>m[0]===k)&&!allowed.includes(k))UI.nav(allowed[0]||'inicio');
+  };
+  const aplicarSessao=Auth._applySession;
+  Auth._applySession=function(){const r=aplicarSessao.apply(this,arguments);try{UI._permAplicarMenu(false);}catch(e){console.error(e);}return r;};
+  const raPerm=App.renderAll;
+  App.renderAll=function(){const r=raPerm.apply(this,arguments);try{UI._permAplicarMenu(true);}catch(e){console.error(e);}return r;};
+
+  /* ───── relatórios: só os que o perfil pode abrir ───── */
+  function filtrarRelatorios(){
+    const sel=document.getElementById('rel-tipo');if(!sel)return;
+    sel.querySelectorAll('option').forEach(o=>{const ok=UI.podeRelatorio(o.value);o.hidden=!ok;o.disabled=!ok;});
+    sel.querySelectorAll('optgroup').forEach(g=>{g.hidden=![...g.querySelectorAll('option')].some(o=>!o.disabled);});
+    const atual=sel.options[sel.selectedIndex];
+    if(atual&&atual.disabled){const p=[...sel.options].find(o=>!o.disabled);if(p){sel.value=p.value;try{App._relatorioGerar();}catch(e){}}}
+  }
+  const navPerm=UI.nav;
+  UI.nav=function(v){const r=navPerm.apply(this,arguments);if(v==='relatorios')try{filtrarRelatorios();}catch(e){console.error(e);}return r;};
+  function relatoriosLista(){
+    const sel=document.getElementById('rel-tipo');if(!sel)return [];
+    return [...sel.querySelectorAll('optgroup')].map(g=>({grupo:g.label,itens:[...g.querySelectorAll('option')].map(o=>[o.value,o.textContent.trim()])})).filter(g=>g.itens.length);
+  }
+
+  /* ───── tela Usuários e permissões ───── */
+  const cpfFmt=c=>{const d=String(c||'').replace(/\D/g,'');return d.length===11?d.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/,'$1.$2.$3-$4'):String(c||'');};
+  const doPerfil=p=>(UI._usuarios||[]).filter(u=>u.tipoUsuario!=='externo'&&!UI._ehAdmin(u.perfil)&&perfilDe(u.perfil)===p);
+  function linhaUsuario(u){
+    const p=perfilDe(u.perfil),ext=u.tipoUsuario==='externo',ativo=String(u.status||'ativo').toLowerCase()==='ativo';
+    const pf=ext?'Externo':p==='admin'?'Administrador':p;
+    return `<tr data-usr="${fe(u.id)}"><td><b>${fe(u.nome||'—')}</b></td><td>${ext?'—':fe(cpfFmt(u.cpf))||'—'}</td><td>${fe(u.email||'—')}</td>
+      <td><span class="usr-chip ${p==='admin'?'adm':ext?'ext':''}">${pf}</span></td><td>${ext?'Externo (entra com e-mail)':'Interno (entra com CPF)'}</td>
+      <td><span class="usr-st ${ativo?'on':''}"><i></i>${ativo?'Ativo':'Inativo'}</span></td>
+      <td style="text-align:right"><button type="button" class="usr-bt" data-usr-ed="${fe(u.id)}"><i class="fas fa-pen"></i> Editar</button></td></tr>`;
+  }
+  // o que o cartão mostra para um perfil ainda não configurado: as telas que os usuários dele já tinham
+  function nivelInicial(p){
+    const us=doPerfil(p);
+    if(!us.length||us.some(u=>!Array.isArray(u.acessos)))return ()=>'excluir';
+    return k=>us.some(u=>nivelAntigo(u.acessos,k)==='excluir')?'excluir':'nenhum';
+  }
+  function cartaoPerfil(p,rels){
+    const cfg=cfgDe(p),ini=cfg?null:nivelInicial(p),n=doPerfil(p).length;
+    const nivel=k=>cfg?nivelCfg(cfg,k):ini(k);
+    const itens=TELAS.map(([k,t,ic])=>{
+      const nv=nivel(k),cur=nv==='excluir'?'editar':nv;
+      const apOn=!!(cfg&&cfg.aprovar&&cfg.aprovar[k]);
+      return `<div class="perm-item"><span><i class="fas ${ic}"></i>${fe(t)}</span><div class="perm-ctrl">
+        <select data-tela="${k}" data-v="${cur}">${NIVEIS.map(([v,l])=>`<option value="${v}" ${cur===v?'selected':''}>${l}</option>`).join('')}</select>
+        <label class="perm-chk ${cur!=='editar'?'off':''}" title="Também pode excluir nesta tela (só com Editar)"><input type="checkbox" data-excluir="${k}" ${nv==='excluir'?'checked':''} ${cur!=='editar'?'disabled':''}> Excluir</label>
+        ${APROVA.includes(k)?`<label class="perm-chk ${cur==='nenhum'?'off':''}" title="Pode aprovar e desaprovar as contas a pagar"><input type="checkbox" data-aprov="${k}" ${apOn&&cur!=='nenhum'?'checked':''} ${cur==='nenhum'?'disabled':''}> Aprovar</label>`:''}
+      </div></div>`;}).join('');
+    const rel=rels.map(g=>`<div class="perm-relg"><small>${fe(g.grupo)}</small>${g.itens.map(([k,t])=>`<label class="perm-rel"><input type="checkbox" data-rel="${fe(k)}" ${!cfg||!cfg.relatorios||cfg.relatorios[k]!==false?'checked':''}> ${fe(t)}</label>`).join('')}</div>`).join('');
+    const st=cfg?`<div class="perm-st ok"><i class="fas fa-circle-check"></i> Configurado${cfg.atualizado_por?' · última mudança por '+fe(cfg.atualizado_por):''}${cfg.atualizado_em?' em '+fe(cfg.atualizado_em):''}</div>`
+      :`<div class="perm-st aviso"><i class="fas fa-triangle-exclamation"></i> Ainda não configurado: ${n?'cada usuário deste perfil segue as telas que já tinha no cadastro':'quem entrar com este perfil vê todas as telas'}. Ao mudar qualquer opção, passa a valer o que está aqui.</div>`;
+    return `<div class="perm-card" data-perfil="${fe(p)}"><div class="perm-card-cab"><b>${fe(p)}</b><span>${n} usuário${n===1?'':'s'}</span></div>${st}
+      <div class="perm-sub">Telas · nível de acesso e ações</div><div class="perm-grid">${itens}</div>
+      <div class="perm-sub">Relatórios que pode abrir</div><div class="perm-rels">${rel}</div></div>`;
+  }
+  function painelPermissoes(){
+    const rels=relatoriosLista();
+    return `<div class="perm-wrap"><div class="perm-tit"><h3><i class="fas fa-user-shield"></i>Permissões de acesso</h3>
+      <p>O <b>Administrador</b> tem acesso total. Configure abaixo, por perfil, o que cada usuário pode fazer. Cada mudança é salva na hora; quem estiver usando o sistema passa a ver a mudança na próxima atualização da tela.</p></div>
+      <div class="perm-legenda"><span><b>Nenhum</b> — nem aparece no menu</span><span><b>Ver</b> — só consulta</span><span><b>Editar</b> — cria e altera</span><span><b>Excluir</b> — também pode excluir (só com Editar)</span><span><b>Aprovar</b> — aprova e desaprova contas a pagar</span></div>
+      <div class="perm-cards">${PERFIS.map(p=>cartaoPerfil(p,rels)).join('')}</div></div>`;
+  }
+  UI.renderUsuarios=function(){
+    const grid=document.getElementById('grid-usuarios');if(!grid)return;
+    grid.className='usr-pag';
+    const q=(document.getElementById('find-usuarios')?.value||'').toLowerCase().trim();
+    let lista=this._usuarios||[];
+    if(q)lista=lista.filter(u=>(`${u.nome||''} ${u.cpf||''} ${u.email||''} ${u.perfil||''}`).toLowerCase().includes(q));
+    const n=(this._usuarios||[]).length;
+    grid.innerHTML=`<div class="usr-card"><div class="usr-card-cab"><h3><i class="fas fa-users"></i>Usuários</h3><span>${n} cadastrado${n===1?'':'s'} · clique numa linha para editar</span></div>
+      <div class="usr-tab-wrap"><table class="usr-tab"><thead><tr><th>Nome</th><th>CPF</th><th>E-mail</th><th>Perfil</th><th>Tipo</th><th>Situação</th><th></th></tr></thead>
+      <tbody>${lista.length?lista.map(linhaUsuario).join(''):'<tr><td colspan="7" class="usr-vazio">Nenhum usuário encontrado.</td></tr>'}</tbody></table></div></div>
+      ${ehAdm()?painelPermissoes():''}`;
+    grid.onclick=ev=>{const tr=ev.target.closest('tr[data-usr]');if(tr)UI.openUsuario(tr.dataset.usr);};
+    grid.onchange=ev=>{
+      const card=ev.target.closest('.perm-card');if(!card)return;
+      const s=ev.target.closest('select[data-tela]');
+      if(s){s.dataset.v=s.value;const k=s.dataset.tela;
+        const ex=card.querySelector(`[data-excluir="${k}"]`);if(ex){const ok=s.value==='editar';ex.disabled=!ok;if(!ok)ex.checked=false;ex.closest('.perm-chk').classList.toggle('off',!ok);}
+        const ap=card.querySelector(`[data-aprov="${k}"]`);if(ap){const ok=s.value!=='nenhum';ap.disabled=!ok;if(!ok)ap.checked=false;ap.closest('.perm-chk').classList.toggle('off',!ok);}}
+      agendar(card);
+    };
+  };
+  // grava o cartão do perfil (um pouco depois da última mudança; uma gravação por vez)
+  const timers={};let fila=Promise.resolve();
+  function agendar(card){const p=card.dataset.perfil;clearTimeout(timers[p]);card.classList.add('salvando');timers[p]=setTimeout(()=>salvarPerfil(p,card),500);}
+  function salvarPerfil(p,card){
+    const acessos={},aprovar={},relatorios={};
+    card.querySelectorAll('select[data-tela]').forEach(s=>{let v=s.value;const ex=card.querySelector(`[data-excluir="${s.dataset.tela}"]`);if(v==='editar'&&ex&&ex.checked)v='excluir';acessos[s.dataset.tela]=v;});
+    card.querySelectorAll('[data-aprov]').forEach(c=>aprovar[c.dataset.aprov]=c.checked);
+    card.querySelectorAll('[data-rel]').forEach(c=>relatorios[c.dataset.rel]=c.checked);
+    fila=fila.then(()=>new Promise(fim=>{
+      const r=cfgDe(p);
+      const o={...(r||{}),tipo:'permissoes',perfil:p,acessos,aprovar,relatorios,atualizado_por:sess().nome||'',atualizado_em:todayDateTime()};
+      if(!r)o.data_lancamento=todayDateTime();
+      google.script.run.withSuccessHandler(res=>{
+        card.classList.remove('salvando');
+        if(res&&res.ok){
+          if(res.data){App.state.data=res.data;try{App.renderAll();}catch(e){console.error(e);}}
+          const st=card.querySelector('.perm-st');if(st){st.className='perm-st ok';st.innerHTML=`<i class="fas fa-circle-check"></i> Configurado · última mudança por ${fe(sess().nome||'')} agora`;}
+          toast('Permissões do perfil '+p+' salvas.','success');
+        }else toast((res&&res.msg)||'Não foi possível salvar as permissões.','error');
+        fim();
+      }).withFailureHandler(()=>{card.classList.remove('salvando');toast('Erro de conexão ao salvar as permissões. Tente de novo.','error');fim();})
+        .upsertRegistro('Planejamento',o,r?r.rowid:null);
+    }));
+  }
+
+  /* ───── o guarda: "Ver" só consulta; sem "Excluir" não exclui ───── */
+  const NORM=s=>String(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/\s+/g,' ').trim();
+  const SEGURO=/(sem salvar|nao salvar|descartar|\bpdf\b|imprimir|exportar|baixar|planilha|\bcsv\b|filtr|buscar|pesquisar|sincroniz|fechar|^ver\b|^abrir\b|^voltar$|^atualizar$|minha senha|^sair\b|^anterior|^proxim|^hoje$)/;
+  const MUDA=/(^\+|\b(salvar|gravar|excluir|apagar|remover|novo|nova|novos|novas|adicionar|incluir|lancar|registrar|aprovar|desaprovar|emitir|faturar|confirmar|duplicar|parcelar|repetir|importar|gerar|aplicar|ajustar|renomear|criar|enviar|concluir|desfazer|restaurar|tirar|limpar|processar|marcar|pagar|cadastrar|editar|mover|juntar|arrumar|transformar|usar|renumerar|anexar|definir|trocar|recebid|a conta chegou|atualizar pelo|atualizar precos|voltar para|nao feita|reabrir|subitem|subgrupo)\b)/;
+  const APAGA=/\b(excluir|apagar|remover|lixeira|limpar tabela|tirar so|tirar do|tirar da)\b/;
+  // o que o botão diz: o texto dele (curto); botão só com ícone, a dica (title)
+  const rotulo=el=>{const t=NORM(el.textContent);return t&&t.length<=48?t:NORM([el.getAttribute('title'),el.getAttribute('aria-label')].filter(Boolean).join(' '));};
+  const iconeApaga=el=>!!(el.matches('.del')||el.querySelector('.fa-trash,.fa-trash-can,.fa-trash-alt'));
+  const iconeMuda=el=>!!el.querySelector('.fa-plus,.fa-pen,.fa-pencil,.fa-floppy-disk,.fa-signature,.fa-upload,.fa-paperclip,.fa-copy,.fa-clone');
+  const restrito=()=>{const s=Auth._session;return !!(s&&s.perfil&&!UI._ehAdmin(s.perfil)&&s.tipoUsuario!=='externo');};
+  const telaAtiva=()=>((document.querySelector('.view.active')||{}).id||'').replace(/^view-/,'');
+  const hubAberto=()=>{const ed=document.getElementById('modal-editor');return ed&&ed.classList.contains('open')?App.state.obraHub:null;};
+  // de que tela é o botão: central da obra (pela aba), atalhos do Início (pelo que abrem) ou a tela aberta
+  const ctxBase=el=>{
+    const h=hubAberto();if(h)return h.tab==='medicao'?'medicoes':h.tab==='contrato'?'contratos':'obras';
+    const v=telaAtiva();
+    if(v==='inicio'&&el&&el.closest){const a=el.closest('[data-ini]');if(a){const d=NORM(a.dataset.ini);
+      if(/medic/.test(d))return 'medicoes';if(/dia|diario|rdo/.test(d))return 'diario';if(/conta|pagar/.test(d))return 'contas';if(/reuni/.test(d))return 'reunioes';if(/tarefa|acao/.test(d))return 'acoes';}}
+    return v==='dashboard'?'relatorios':v;
+  };
+  // janela (diálogo) aberta: vale a tela de onde ela saiu
+  let ctxUlt='',ctxDlg='';
+  const ov=document.getElementById('fin-ov');
+  if(ov)new MutationObserver(()=>{if(ov.classList.contains('open')){if(!ctxDlg)ctxDlg=ctxUlt||ctxBase(null);}else ctxDlg='';}).observe(ov,{attributes:true,attributeFilter:['class']});
+  const ctxDe=el=>el.closest('#fin-ov')?(ctxDlg||ctxBase(null)):ctxBase(el);
+  const parar=(ev,msg)=>{ev.preventDefault();ev.stopPropagation();ev.stopImmediatePropagation();toast(msg,'error');};
+  document.addEventListener('click',ev=>{
+    if(!restrito())return;
+    const el=ev.target.closest&&ev.target.closest('button,a,[role="button"],input[type="submit"],input[type="button"]');
+    if(!el||el.closest('.vx-topo,#login-screen,#pw-overlay,#modal-usuario,#view-usuarios,.orc-sug'))return;
+    const k=ctxDe(el);if(!k)return;
+    if(!el.closest('#fin-ov'))ctxUlt=k;
+    const n=UI.permNivel(k);if(n==='excluir')return;
+    const r=rotulo(el),apaga=APAGA.test(r)||iconeApaga(el);
+    if(!apaga&&SEGURO.test(r))return;
+    if(apaga)return parar(ev,n==='ver'?'Seu perfil só pode ver esta tela.':'Seu perfil não tem permissão para excluir nesta tela.');
+    if(n==='ver'&&(MUDA.test(r)||iconeMuda(el))){
+      if(/\b(aprovar|desaprovar)\b/.test(r)&&UI.podeAprovar(k))return;
+      parar(ev,'Seu perfil só pode ver esta tela: não pode incluir nem alterar.');
+    }
+  },true);
+  document.addEventListener('dragstart',ev=>{if(!restrito())return;if(UI.permNivel(ctxBase(ev.target))==='ver'){ev.preventDefault();toast('Seu perfil só pode ver esta tela: não pode mover os cartões.','error');}},true);
+  document.addEventListener('submit',ev=>{if(!restrito())return;if(UI.permNivel(ctxBase(ev.target))==='ver')parar(ev,'Seu perfil só pode ver esta tela.');},true);
 })();
 </script>
 </body>
