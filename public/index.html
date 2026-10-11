@@ -10505,8 +10505,10 @@ window.onload=()=>{
 .fin-jan-cab b{font-size:17px;font-weight:800;color:var(--text-1);}
 .fin-x{border:0;background:none;font-size:24px;line-height:1;color:var(--text-3);cursor:pointer;padding:0 4px;}
 .fin-jan-corpo{padding:16px 22px;overflow-y:auto;display:flex;flex-direction:column;gap:12px;}
-.fin-jan-pe{display:flex;align-items:center;justify-content:flex-end;gap:8px;padding:12px 22px 18px;border-top:1px solid var(--border);}
-.fin-jan-erro{flex:1;font-size:12px;color:var(--red);font-weight:600;}
+.fin-jan-pe{display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:8px;padding:12px 22px 18px;border-top:1px solid var(--border);}
+.fin-jan-pe .fin-bt{max-width:100%;}
+.fin-jan-erro{flex:1 1 100%;font-size:12px;color:var(--red);font-weight:600;text-align:right;} .fin-jan-erro:empty{display:none;}
+.fin-jan-corpo>*{min-width:0;} #fin-jan [hidden]{display:none!important;}
 .fin-fld label{display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text-2);margin-bottom:5px;}
 .fin-fld input,.fin-fld select{width:100%;padding:9px 11px;border:1px solid var(--border);border-radius:10px;font:13px Inter,sans-serif;background:#fff;color:var(--text-1);}
 .fin-linha{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
@@ -15946,6 +15948,7 @@ const Mascara=(function(){
       if(col==='receber'&&de==='faturar')return emitirNota(x);
       if(col==='recebida')return de==='faturar'?toast('Emita a nota antes (arraste para "Nota emitida").','error'):receberNota(x.r);
       if(de==='recebida'&&col==='receber')return desfazerRecebimento(x.r);
+      if((de==='receber'||de==='recebida')&&(col==='medicao'||col==='faturar'))return toast(de==='recebida'?'Nota recebida não volta. Para corrigir o recebimento, arraste de volta para "Nota emitida".':'Nota emitida só volta cancelando: abra o cartão e use "Cancelar a nota" (os anexos dela saem junto).','error');
       if(col==='medicao')return voltarParaMedicao(x.r);
       if(col==='faturar')return desfazerFaturamento(x.r);});}
   }
@@ -16067,22 +16070,19 @@ const Mascara=(function(){
       +(!nova&&col!=='faturar'&&GS.docs?GS.docs.fichaNotaExtras(r,K,col):'');
     const bts=[];
     if(ed&&!nova){
-      // nota emitida não se exclui: desfaz o faturamento (volta para "A faturar"); só o previsto se exclui
-      if(col==='receber')bts.push({html:'<i class="fas fa-rotate-left"></i> Desfazer faturamento',acao:()=>{setTimeout(()=>desfazerFaturamento(r),10);}});
-      else if(col==='faturar')bts.push({html:'<i class="fas fa-trash"></i> Excluir',acao:()=>{setTimeout(()=>confirmar('Excluir nota',`${r[K.nf]?'A NF '+fe(r[K.nf]):'O faturamento'} de ${fe(r[K.obra]||'')} (${fmt(val(r[K.bruto]))}) será excluído.${r.medicao_rowid?' A medição volta para "A faturar".':''}`,'Sim, excluir',async()=>{
+      // nota emitida não se exclui nem volta para "A faturar"/medição: só cancelando a nota (que tira os anexos dela)
+      if(col==='faturar')bts.push({html:'<i class="fas fa-trash"></i> Excluir',acao:()=>{setTimeout(()=>confirmar('Excluir nota',`${r[K.nf]?'A NF '+fe(r[K.nf]):'O faturamento'} de ${fe(r[K.obra]||'')} (${fmt(val(r[K.bruto]))}) será excluído.${r.medicao_rowid?' A medição volta para "A faturar".':''}`,'Sim, excluir',async()=>{
         await executar(async()=>{await excluir('Faturamentos',r.rowid);const m=r.medicao_rowid&&(D().medicoes||[]).find(x=>String(x.rowid)===String(r.medicao_rowid));if(m)await salvar('Medições',{...copiaF(m),status:'Aprovada'},m.rowid);});toast('Nota excluída.','success');}),10);}});
       if(col==='faturar')bts.push({html:'<i class="fas fa-file-invoice"></i> Emitir a nota',acao:()=>{setTimeout(()=>emitirNota({k:'f',r,obra:r[K.obra]||''}),10);}});
       if(col==='receber')bts.push({html:'<i class="fas fa-circle-check"></i> Registrar recebimento',acao:()=>{setTimeout(()=>receberNota(r),10);}});
       if(col==='recebida')bts.push({html:'<i class="fas fa-rotate-left"></i> Desfazer recebimento',acao:()=>{setTimeout(()=>desfazerRecebimento(r),10);}});
-      if(col==='recebida')bts.push({html:'<i class="fas fa-file-pen"></i> Desfazer faturamento',acao:()=>{setTimeout(()=>desfazerFaturamento(r),10);}});
-      // nota que veio de uma medição (fora de "Nota emitida · a receber"): volta tudo até a medição em andamento, sem excluir
-      if(r.medicao_rowid&&col!=='receber')bts.push({html:'<i class="fas fa-ruler-combined"></i> Voltar para a medição',acao:()=>{setTimeout(()=>voltarParaMedicao(r),10);}});
+      // faturamento ainda sem nota que veio de uma medição: volta até a medição em andamento, sem excluir
+      if(r.medicao_rowid&&col==='faturar')bts.push({html:'<i class="fas fa-ruler-combined"></i> Voltar para a medição',acao:()=>{setTimeout(()=>voltarParaMedicao(r),10);}});
       // EMBASA: formulário do Programa Avançar Fornecedores — só enquanto a nota não foi recebida
       if(col==='receber'&&embasa)bts.push({html:'<i class="fas fa-forward-fast"></i> Antecipar recebimento Embasa',acao:()=>{setTimeout(()=>GS.docs.antecipacao(r,K),10);}});
       // NFS-e do padrão nacional: substituir (emite a nota certa e a Receita cancela esta) ou cancelar
-      if((col==='receber'||col==='recebida')&&/^\d{50}$/.test(String(r.nfse_chave||''))&&GS.docs&&GS.docs.cancelarNotaDoFaturamento){
-        bts.push({html:'<i class="fas fa-right-left"></i> Substituir a nota',acao:()=>{setTimeout(()=>emitirNota({k:'f',r,obra:r[K.obra]||'',subst:{chave:r.nfse_chave,numero:r[K.nf]}}),10);}});
-        bts.push({html:'<i class="fas fa-ban"></i> Cancelar a nota',acao:()=>{setTimeout(()=>GS.docs.cancelarNotaDoFaturamento(r,K),10);}});}
+      if(col==='receber'&&/^\d{50}$/.test(String(r.nfse_chave||'')))bts.push({html:'<i class="fas fa-right-left"></i> Substituir a nota',acao:()=>{setTimeout(()=>emitirNota({k:'f',r,obra:r[K.obra]||'',subst:{chave:r.nfse_chave,numero:r[K.nf]}}),10);}});
+      if(col==='receber'&&GS.docs&&GS.docs.cancelarNotaDoFaturamento)bts.push({html:'<i class="fas fa-ban"></i> Cancelar a nota',acao:()=>{setTimeout(()=>GS.docs.cancelarNotaDoFaturamento(r,K),10);}});
     }
     if(ed&&col!=='recebida')bts.push({html:'<i class="fas fa-floppy-disk"></i> Salvar',cls:'pri',acao:async j=>{
       const g=k=>(j.querySelector(`[data-k="${k}"]`)||{}).value||'',tem=k=>!!j.querySelector(`[data-k="${k}"]`),m=k=>dinheiro(num(g(k)));
@@ -19664,7 +19664,7 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
 .nfc-vazio{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;font-size:12.5px;color:#667085;} .nfc-vazio .fin-bt,.nfa-pe .fin-bt{white-space:normal;max-width:100%;text-align:left;}
 .nfc-senha{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;margin-top:8px;} .nfc-senha .fin-fld{margin:0;min-width:220px;}
 .nfc-obs{display:block;margin-top:8px;font-size:11.5px;color:#667085;line-height:1.45;}
-.nfc-amb{display:flex;gap:8px;align-items:flex-start;font-size:12.5px;color:#344054;margin:4px 0;cursor:pointer;} .nfc-amb input{margin-top:3px;}
+.nfc-amb{display:flex;gap:8px;align-items:flex-start;font-size:12.5px;color:#344054;margin:4px 0;cursor:pointer;} .nfc-amb span{min-width:0;overflow-wrap:anywhere;} .nfc-amb input{margin-top:3px;}
 .nfc-pe{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end;}
 .vk-infos{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px;margin:8px 0 10px;}
 .vk-inf{border:1px solid #EEF1F6;border-radius:10px;padding:6px 9px;background:#FAFBFE;} .vk-inf span{display:block;font:700 10px Inter,sans-serif;text-transform:uppercase;letter-spacing:.04em;color:#667085;} .vk-inf b{font-size:13px;color:var(--text-1);}
@@ -20240,34 +20240,43 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
   // nome do município pelo código IBGE (para o PDF): cadastro dos contratantes ou os conhecidos
   const NOME_MUN={'2927408':'Salvador/BA','2916807':'Itarantim/BA','2919959':'Maetinga/BA','2902906':'Barra do Choça/BA','2933307':'Vitória da Conquista/BA'};
   const nomeMun=cod=>{cod=String(cod||'');const r=PLAN().find(p=>p.tipo==='contratante'&&String(p.end_cmun||'')===cod&&p.end_mun);return (r&&r.end_mun)||NOME_MUN[cod]||cod;};
-  // cancelamento na Receita (evento e101101); "depois" grava o resultado no sistema
+  // cancelamento na Receita (evento e101101); "depois" grava o resultado no sistema. Nota sem chave (de antes do
+  // sistema) ou já cancelada no Emissor Nacional: só registra o cancelamento aqui.
   function janelaCancelarNfse(o,depois){
-    janela(`Cancelar a NFS-e nº ${o.numero||''} na Receita`,`<div class="fin-aviso"><div><b>Atenção:</b> o cancelamento é feito na Receita Federal e não tem volta. Se a nota só tem algum dado errado, prefira <b>Substituir a nota</b>: o sistema emite a nota certa e a Receita cancela esta sozinha.</div></div>
+    const temChave=/^\d{50}$/.test(String(o.chave||''));
+    janela(`Cancelar a NFS-e nº ${o.numero||''}`,`<div class="fin-aviso"><div><b>Atenção:</b> o cancelamento não tem volta.${o.pend?' A nota ainda não foi concluída no sistema; ela só é cancelada na Receita.':` A nota sai de "Nota emitida", `+(o.daMedicao?'a medição volta para "Aprovada · a faturar"':'o faturamento volta para "A faturar"')+' e os anexos dela (PDF, XML, DAPS, declaração de entrega e formulário de antecipação) são apagados.'}${temChave?' Se a nota só tem algum dado errado, prefira <b>Substituir a nota</b>.':''}</div></div>
+      ${temChave?`<label class="nfc-amb"><input type="checkbox" data-k="fora"><span>Esta nota <b>já foi cancelada</b> no Emissor Nacional — só registrar aqui</span></label>`:'<div class="fin-resumo">Esta nota não tem a chave da NFS-e no sistema (é de antes da emissão automática): cancele no site onde ela foi emitida e registre aqui.</div>'}
       <div class="fin-fld"><label>Motivo</label><select data-k="mot"><option value="1">Erro na emissão</option><option value="2">Serviço não prestado</option><option value="9">Outros</option></select></div>
       <div class="fin-fld"><label>Justificativa (pelo menos 15 letras) <span class="obg">*</span></label><textarea data-k="just" rows="2" placeholder="Ex.: nota emitida com o valor da medição errado"></textarea></div>
-      ${certLocal()&&!senhaMem()?'<div class="fin-fld"><label>Senha do certificado</label><input type="password" data-k="senha" autocomplete="off"></div>':''}
-      <label class="nfc-amb"><input type="checkbox" data-k="ok"><span>Confirmo o cancelamento da NFS-e nº <b>${fe(o.numero||'')}</b> (chave ${fe(o.chave)})</span></label>`,
-      [{html:'<i class="fas fa-ban"></i> Cancelar a nota na Receita',cls:'pri',acao:async j=>{const g=k=>((j.querySelector(`[data-k="${k}"]`)||{}).value||'').trim();
+      ${temChave&&certLocal()&&!senhaMem()?'<div class="fin-fld" data-canc-senha><label>Senha do certificado</label><input type="password" data-k="senha" autocomplete="off"></div>':''}
+      <label class="nfc-amb"><input type="checkbox" data-k="ok"><span>Confirmo o cancelamento da NFS-e nº <b>${fe(o.numero||'')}</b>${temChave?` (chave ${fe(o.chave)})`:''}</span></label>`,
+      [{html:temChave?'<i class="fas fa-ban"></i> Cancelar a nota':'<i class="fas fa-ban"></i> Registrar o cancelamento',cls:'pri',acao:async j=>{const g=k=>((j.querySelector(`[data-k="${k}"]`)||{}).value||'').trim();
         if(!j.querySelector('[data-k="ok"]').checked)throw new Error('Marque a confirmação do cancelamento.');const just=g('just');if(just.length<15)throw new Error('Escreva a justificativa com pelo menos 15 letras.');
-        const cred=credenciais(g('senha'));UI._showBusy('Cancelando a nota na Receita…');let r;try{r=await nfseApi({acao:'cancelar',ambiente:+o.amb===2?2:1,chave:o.chave,cMotivo:g('mot'),xMotivo:just,...cred});}finally{UI._hideBusy();}
-        if(!r.ok){if(/senha/i.test(r.msg||''))esquecerSenha();throw new Error(r.erros&&r.erros.length?'A Receita não aceitou: '+r.erros.map(e=>(e.codigo?e.codigo+' — ':'')+e.descricao).join(' · '):(r.msg||'Não consegui cancelar a nota.'));}
-        memorizar(cred.senha);
+        const fora=!temChave||(j.querySelector('[data-k="fora"]')||{}).checked;let r={ok:true,evento:''};
+        if(!fora){const cred=credenciais(g('senha'));UI._showBusy('Cancelando a nota na Receita…');try{r=await nfseApi({acao:'cancelar',ambiente:+o.amb===2?2:1,chave:o.chave,cMotivo:g('mot'),xMotivo:just,...cred});}finally{UI._hideBusy();}
+          if(!r.ok){if(/senha/i.test(r.msg||''))esquecerSenha();throw new Error(r.erros&&r.erros.length?'A Receita não aceitou: '+r.erros.map(e=>(e.codigo?e.codigo+' — ':'')+e.descricao).join(' · ')+' (se ela já foi cancelada no Emissor Nacional, marque a opção acima)':(r.msg||'Não consegui cancelar a nota.'));}
+          memorizar(cred.senha);}
         const motivo={'1':'Erro na emissão','2':'Serviço não prestado','9':'Outros'}[g('mot')]||'';
-        await guardarEmitida({...(emitidas().find(p=>String(p.chave)===String(o.chave))||{chave:o.chave,numero:o.numero,amb:String(o.amb||1)}),status:'cancelada',cancelada_em:new Date().toISOString(),cancelada_por:eu().nome,motivo_cancelamento:motivo+' — '+just});
-        await depois(r,{motivo,just});}}],580);
+        if(temChave)await guardarEmitida({...(emitidas().find(p=>String(p.chave)===String(o.chave))||{chave:o.chave,numero:o.numero,amb:String(o.amb||1)}),status:'cancelada',cancelada_em:new Date().toISOString(),cancelada_por:eu().nome,motivo_cancelamento:motivo+' — '+just});
+        await depois(r,{motivo,just,fora});}}],600);
+    const fo=document.querySelector('#fin-jan [data-k="fora"]'),sn=document.querySelector('#fin-jan [data-canc-senha]');if(fo&&sn)fo.addEventListener('change',()=>{sn.hidden=fo.checked;});
   }
-  // faturamento da nota cancelada volta para "A faturar" (a medição volta a "Aprovada"); a nota cancelada fica no histórico
+  // nota cancelada: o faturamento volta para "A faturar" (a medição volta a "Aprovada") e os anexos da nota saem;
+  // fica só o registro de que a nota foi cancelada (na ficha)
   async function cancelarNotaDoFaturamento(r,K){
     const ob=r[K.obra]||'',num=r[K.nf]||'';
-    janelaCancelarNfse({chave:r.nfse_chave,numero:num,amb:r.nfse_amb||1},async(res,mt)=>{
+    janelaCancelarNfse({chave:r.nfse_chave,numero:num,amb:r.nfse_amb||1,daMedicao:!!r.medicao_rowid},async(res,mt)=>{
       const o={...limpo(r)};const hist=(()=>{try{return JSON.parse(o.nfse_canceladas||'[]');}catch(e){return [];}})();
-      hist.push({chave:r.nfse_chave,numero:num,em:new Date().toISOString(),motivo:mt.motivo+' — '+mt.just});
-      Object.assign(o,{[K.tipo]:'Previsto',[K.nf]:'',[K.em]:'',[K.rec]:'',nfse_chave:'',nfse_auto:'',nfse_substituida:'',nfse_canceladas:JSON.stringify(hist)});
+      hist.push({chave:r.nfse_chave||'',numero:num,em:new Date().toISOString(),motivo:mt.motivo+' — '+mt.just+(mt.fora?' (cancelada fora do sistema)':'')});
+      Object.assign(o,{[K.tipo]:'Previsto',[K.nf]:'',[K.em]:'',[K.rec]:'',[K.antecData]:'',[K.antec]:dinheiro(0),[K.inss]:'',[K.irpf]:'',[K.iss]:'',[K.simples]:'',[K.liq]:'',
+        nfse_chave:'',nfse_auto:'',nfse_amb:'',nfse_serie:'',nfse_ndps:'',nfse_id_dps:'',nfse_substituida:'',deducao_materiais:'',csll_retida:'',iss_aliquota:'',daps:'',declaracao_em:'',nfse_canceladas:JSON.stringify(hist)});
       await executar(async()=>{
-        if(res.evento&&r.fat_uid)await enviarArq(ob,{aba:'nf',fat_uid:r.fat_uid,doc:'nf_cancelamento',nf:num},new File([res.evento],`Cancelamento NFS-e ${num}.xml`,{type:'application/xml'}));
+        // anexos da nota (PDF, XML, DANFSe, DAPS, declaração e antecipação anexadas) e os documentos gerados dela
+        if(r.fat_uid){const L=(await listarArq(ob,true)).filter(a=>a.aba==='nf'&&a.fat_uid===r.fat_uid);for(const a of L)await run('excluirAnexo',a.uid,a.rowid);
+          for(const g of PLAN().filter(p=>p.tipo==='doc_gerado'&&p.fat_uid===r.fat_uid&&/declaracao|antecipacao/.test(p.modelo||'')))await excluir('Planejamento',g.rowid);}
         await salvar('Faturamentos',o,r.rowid);
         const m=r.medicao_rowid&&(D().medicoes||[]).find(x=>String(x.rowid)===String(r.medicao_rowid));if(m)await salvar('Medições',{...limpo(m),status:'Aprovada',faturado_em:''},m.rowid);});
-      toast(`NFS-e nº ${num} cancelada na Receita — o faturamento voltou para "A faturar".`,'success');});
+      toast(`NFS-e nº ${num} cancelada — ${r.medicao_rowid?'a medição voltou para "Aprovada · a faturar"':'o faturamento voltou para "A faturar"'} e os anexos da nota foram apagados.`,'success');});
   }
 
   /* configuração (Documentos e certidões › Empresa › Nota fiscal) */
@@ -20544,7 +20553,7 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
       if(a==='usar-emitida'){const p=pendDaqui()[+b2.dataset.i];if(!p)return;if(!p.xml)return toast('Não achei o XML desta nota no sistema.','error');
         aplicarNota({xml:p.xml,chave:p.chave,amb:1,serie:p.serie,nDPS:+p.ndps||0,id:p.id_dps||'',nota:{numero:p.numero},pdf:null},null,{daMemoria:true});toast(`NFS-e nº ${p.numero} aplicada — confira e clique em Concluir.`,'success');return;}
       if(a==='desvincular'){const p=pendDaqui()[+b2.dataset.i];if(!p)return;guardarEmitida({...p,titulo_obra:'',medicao_rowid:'',fat_rowid:''}).then(()=>{pintarPend();toast(`NFS-e nº ${p.numero} desligada desta medição — ligue na obra certa em Documentos e certidões › Empresa › Nota fiscal (NFS-e).`,'info');});return;}
-      if(a==='cancelar-emitida'){const p=pendDaqui()[+b2.dataset.i];if(!p)return;return janelaCancelarNfse({chave:p.chave,numero:p.numero,amb:1},async()=>{toast(`NFS-e nº ${p.numero} cancelada na Receita.`,'success');});}
+      if(a==='cancelar-emitida'){const p=pendDaqui()[+b2.dataset.i];if(!p)return;return janelaCancelarNfse({chave:p.chave,numero:p.numero,amb:1,pend:true},async()=>{toast(`NFS-e nº ${p.numero} cancelada na Receita.`,'success');});}
       if(a==='desc-padrao'){ev.preventDefault();const ta=box.querySelector('[data-a="desc"]');if(ta){delete ta.dataset.mexeu;calc(j);}return;}
       if(a==='previa'){let m;try{m=montarDps();}catch(e){return toast(e.message,'error');}return abrirPdf(()=>pdfNota(danfseDaDps(m.dps,cidade)),'previa-nota.pdf');}
       if(a==='ver-arq'){const f=ST.arq[b2.dataset.k];if(f){const u=URL.createObjectURL(f),w=window.open(u,'_blank');if(!w){const l=document.createElement('a');l.href=u;l.download=f.name;l.click();}setTimeout(()=>URL.revokeObjectURL(u),120000);}return;}
@@ -20704,11 +20713,11 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
     const pintar=async()=>{
       const cont=box.querySelector('[data-nfx-arqs]');let L=[];try{L=(await listarArq(ob,true)).filter(a=>a.aba==='nf'&&r.fat_uid&&a.fat_uid===r.fat_uid);}catch(e){}
       const decl=r.fat_uid?gerados({modelo:'declaracao',fat_uid:r.fat_uid})[0]:null,ant=r.fat_uid?gerados({modelo:'antecipacao',fat_uid:r.fat_uid}):[];
-      const lin=(doc,rot,ic)=>{const a=recente(L.filter(x=>x.doc===doc));return `<div class="kit-it" data-nf-doc="${doc}"><span class="ic ${a?'ok':'cinza'}"><i class="fas ${ic}"></i></span><div class="nm"><b>${rot}</b><span>${a?fe(a.nome)+' · '+brDe(new Date(a.enviado_em)):'não anexado'}</span></div><div class="ac">${a?'<button type="button" class="fin-bt mini" data-nf="baixar"><i class="fas fa-download"></i> Baixar</button>':''}${doc==='nf_pdf'&&L.some(x=>x.doc==='nf_xml')&&pode('faturamento')&&!(a&&a.logo)?'<button type="button" class="fin-bt mini" data-nf="logo" title="Monta o PDF da nota com a logo da empresa a partir do XML"><i class="fas fa-wand-magic-sparkles"></i> PDF com a logo</button>':''}${doc!=='nf_pdf_oficial'&&pode('faturamento')?`<button type="button" class="fin-bt mini" data-nf="enviar"><i class="fas fa-upload"></i> ${a?'Trocar':'Anexar'}</button>`:''}</div></div>`;};
+      const lin=(doc,rot,ic)=>{const a=recente(L.filter(x=>x.doc===doc));return `<div class="kit-it" data-nf-doc="${doc}"><span class="ic ${a?'ok':'cinza'}"><i class="fas ${ic}"></i></span><div class="nm"><b>${rot}</b><span>${a?fe(a.nome)+' · '+brDe(new Date(a.enviado_em)):'não anexado'}</span></div><div class="ac">${a?'<button type="button" class="fin-bt mini" data-nf="baixar"><i class="fas fa-download"></i> Baixar</button>':''}${doc==='nf_pdf'&&col!=='recebida'&&L.some(x=>x.doc==='nf_xml')&&pode('faturamento')&&!(a&&a.logo)?'<button type="button" class="fin-bt mini" data-nf="logo" title="Monta o PDF da nota com a logo da empresa a partir do XML"><i class="fas fa-wand-magic-sparkles"></i> PDF com a logo</button>':''}${doc!=='nf_pdf_oficial'&&pode('faturamento')&&(col!=='recebida'||!a)?`<button type="button" class="fin-bt mini" data-nf="enviar"><i class="fas fa-upload"></i> ${a?'Trocar':'Anexar'}</button>`:''}</div></div>`;};
       cont.innerHTML=`<div class="kit-l">${lin('nf_pdf','Nota Fiscal (PDF)','fa-file-pdf')}${lin('nf_xml','XML da nota','fa-file-code')}${L.some(x=>x.doc==='nf_pdf_oficial')?lin('nf_pdf_oficial','DANFSe da Receita (PDF oficial)','fa-building-columns'):''}${r.daps==='sim'||L.some(a=>a.doc==='daps')?lin('daps','DAPS','fa-file-lines'):''}
-        ${(()=>{const da=recente(L.filter(x=>x.doc==='declaracao'));return `<div class="kit-it" data-nf-doc="declaracao"><span class="ic ${decl||da?'ok':'cinza'}"><i class="fas fa-file-signature"></i></span><div class="nm"><b>Declaração de entrega da nota fiscal</b><span>${da?fe(da.nome)+' · anexada '+brDe(new Date(da.enviado_em)):decl?'gerada em '+brDe(new Date(decl.gerado_em))+(decl.gerado_por?' por '+fe(decl.gerado_por):''):'ainda não gerada — se já foi feita antes, anexe'}</span></div><div class="ac">${da?'<button type="button" class="fin-bt mini" data-nf="baixar"><i class="fas fa-download"></i> Baixar</button>':decl?'<button type="button" class="fin-bt mini" data-nf="decl"><i class="fas fa-download"></i> Baixar</button>':''}${pode('faturamento')?`<button type="button" class="fin-bt mini" data-nf="enviar"><i class="fas fa-upload"></i> ${decl||da?'Anexar outra':'Anexar'}</button>`:''}</div></div>`;})()}
+        ${(()=>{const da=recente(L.filter(x=>x.doc==='declaracao'));return `<div class="kit-it" data-nf-doc="declaracao"><span class="ic ${decl||da?'ok':'cinza'}"><i class="fas fa-file-signature"></i></span><div class="nm"><b>Declaração de entrega da nota fiscal</b><span>${da?fe(da.nome)+' · anexada '+brDe(new Date(da.enviado_em)):decl?'gerada em '+brDe(new Date(decl.gerado_em))+(decl.gerado_por?' por '+fe(decl.gerado_por):''):'ainda não gerada — se já foi feita antes, anexe'}</span></div><div class="ac">${da?'<button type="button" class="fin-bt mini" data-nf="baixar"><i class="fas fa-download"></i> Baixar</button>':decl?'<button type="button" class="fin-bt mini" data-nf="decl"><i class="fas fa-download"></i> Baixar</button>':''}${pode('faturamento')&&(col!=='recebida'||!(decl||da))?`<button type="button" class="fin-bt mini" data-nf="enviar"><i class="fas fa-upload"></i> ${decl||da?'Anexar outra':'Anexar'}</button>`:''}</div></div>`;})()}
         ${ant.map((g,i)=>`<div class="kit-it"><span class="ic ok"><i class="fas fa-forward-fast"></i></span><div class="nm"><b>Formulário de antecipação de pagamento (EMBASA)</b><span>gerado em ${brDe(new Date(g.gerado_em))}</span></div><div class="ac"><button type="button" class="fin-bt mini" data-nf="ant" data-i="${i}"><i class="fas fa-download"></i> Baixar</button></div></div>`).join('')}
-        ${(()=>{const aa=recente(L.filter(x=>x.doc==='antecipacao'));if(ant.length&&!aa)return '';if(!aa&&!(dt(r[K.antecData])||ehEmbasa(contratanteDaNota(r,K))))return '';return `<div class="kit-it" data-nf-doc="antecipacao"><span class="ic ${aa?'ok':'cinza'}"><i class="fas fa-forward-fast"></i></span><div class="nm"><b>Formulário de antecipação de pagamento ${aa?'(anexado)':''}</b><span>${aa?fe(aa.nome)+' · '+brDe(new Date(aa.enviado_em)):'não gerado — se já foi feito antes, anexe'}</span></div><div class="ac">${aa?'<button type="button" class="fin-bt mini" data-nf="baixar"><i class="fas fa-download"></i> Baixar</button>':''}${pode('faturamento')?`<button type="button" class="fin-bt mini" data-nf="enviar"><i class="fas fa-upload"></i> ${aa?'Trocar':'Anexar'}</button>`:''}</div></div>`;})()}</div>`;
+        ${(()=>{const aa=recente(L.filter(x=>x.doc==='antecipacao'));if(ant.length&&!aa)return '';if(!aa&&!(dt(r[K.antecData])||ehEmbasa(contratanteDaNota(r,K))))return '';return `<div class="kit-it" data-nf-doc="antecipacao"><span class="ic ${aa?'ok':'cinza'}"><i class="fas fa-forward-fast"></i></span><div class="nm"><b>Formulário de antecipação de pagamento ${aa?'(anexado)':''}</b><span>${aa?fe(aa.nome)+' · '+brDe(new Date(aa.enviado_em)):'não gerado — se já foi feito antes, anexe'}</span></div><div class="ac">${aa?'<button type="button" class="fin-bt mini" data-nf="baixar"><i class="fas fa-download"></i> Baixar</button>':''}${pode('faturamento')&&(col!=='recebida'||!aa)?`<button type="button" class="fin-bt mini" data-nf="enviar"><i class="fas fa-upload"></i> ${aa?'Trocar':'Anexar'}</button>`:''}</div></div>`;})()}</div>`;
       box._L=L;box._decl=decl;box._ant=ant;
     };
     await pintar();pintarKit(box.querySelector('[data-kit-box]'));
