@@ -18916,9 +18916,12 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
     const form=document.getElementById('form-upsert');if(!form)return;
     const cont=tab==='cap'?document.getElementById('cap-scroll-body'):tab==='contrato'?form.querySelector('.hc-scroll'):tab==='medicao'?form.querySelector('.hub-med'):[...form.children].find(c=>/auto|scroll/.test(getComputedStyle(c).overflowY));
     if(!cont||App.state._busy||(tab==='orcamentos'&&!document.getElementById('orc-tbody'))){if(tent<40)setTimeout(()=>garantir(tab,tent+1),250);return;}
-    const ja=[...cont.children].find(c=>c.classList.contains('anx'));
-    if(ja&&ja.dataset.ob===ob&&ja.dataset.aba===tab){pintar(ja);return;}
-    if(ja)ja.remove();
+    // só os quadros de anexos (o "Documentos gerados" do Contrato tem o mesmo visual, mas não é um deles);
+    // fica um só — sobra de montagens anteriores sai
+    const cards=[...cont.children].filter(c=>c.classList.contains('anx')&&c.dataset.aba);
+    const ja=cards.find(c=>c.dataset.ob===ob&&c.dataset.aba===tab);
+    cards.forEach(c=>{if(c!==ja)c.remove();});
+    if(ja){pintar(ja);return;}
     criar(cont,ob,tab);
   }
   const tabAnt=UI._obraHubTab;
@@ -19760,8 +19763,8 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
   // a aba Contrato pode terminar de montar depois (e ser remontada): o quadro entra quando ela está na tela
   const poeDocsCt=()=>{try{const h=App.state.obraHub,f=document.getElementById('form-upsert');if(!h||h.tab!=='contrato'||!f)return;const cont=f.querySelector('.hc-scroll');if(!cont)return;
     const ja=cont.querySelector('[data-docs-ct]');if(ja&&ja.dataset.docsCt===h.obraName&&ja.dataset.n===String(gerados({titulo_obra:h.obraName}).length))return;if(ja)ja.remove();
-    const tmp=document.createElement('div');tmp.innerHTML=cardDocsContrato(h.obraName);const card=tmp.firstElementChild;card.dataset.n=String(gerados({titulo_obra:h.obraName}).length);cont.insertBefore(card,cont.querySelector('.anx')||null);}catch(e){console.error(e);}};
-  if(typeof hubCt==='function')Eng.hubContrato=function(){const r=hubCt.apply(this,arguments);[80,500,1500].forEach(t=>setTimeout(poeDocsCt,t));return r;};
+    const tmp=document.createElement('div');tmp.innerHTML=cardDocsContrato(h.obraName);const card=tmp.firstElementChild;card.dataset.n=String(gerados({titulo_obra:h.obraName}).length);cont.insertBefore(card,cont.querySelector('.anx[data-aba]')||null);}catch(e){console.error(e);}};
+  if(typeof hubCt==='function')Eng.hubContrato=function(){const r=hubCt.apply(this,arguments);[80,500,1500].forEach(t=>setTimeout(()=>{poeDocsCt();try{GS.anexos&&GS.anexos.garantir('contrato');}catch(e){}},t));return r;};
   const tabCt=UI._obraHubTab;
   UI._obraHubTab=function(t){const r=tabCt.apply(this,arguments);if(t==='contrato')[120,600,1600].forEach(x=>setTimeout(poeDocsCt,x));return r;};
 
