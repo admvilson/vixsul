@@ -15614,6 +15614,7 @@ const Mascara=(function(){
         ${r.periodo_ini||r.periodo_fim?`<div class="vk-sub">período ${r.periodo_ini?brDe(dt(r.periodo_ini)).slice(0,5):'—'} a ${r.periodo_fim?brDe(dt(r.periodo_fim)).slice(0,5):'—'}</div>`:''}
         <div class="vk-val"><span>bruto</span><b>${fmt(x.bruto)}</b></div>
         ${x.ret?`<div class="vk-sub" title="Garantia do contrato retida nesta 1ª medição">${pill('garantia retida '+fmt(x.ret),'warn','fa-shield-halved')}</div>`:''}
+        ${(()=>{const p=GS.docs&&GS.docs.emitidasPendentes?GS.docs.emitidasPendentes().find(q=>String(q.medicao_rowid||'')===String(r.rowid)):null;return p?`<div class="vk-sub">${pill('NFS-e nº '+fe(p.numero||'?')+' já emitida — conclua','err','fa-triangle-exclamation')}</div>`:'';})()}
         <div class="vk-pe">${x.col==='faturar'?(parado>5?pill(`aprovada há ${parado} dias sem nota`,'err'):pill('emitir a nota','warn','fa-file-pen')):pill(d?'medida em '+brDe(d).slice(0,5):'medição','')}</div>
       </article>`;}
     const venc=Fa.vencF(r,K);
@@ -15815,7 +15816,7 @@ const Mascara=(function(){
     // o líquido aparece uma vez só (no topo da ficha) e acompanha o que se digita
     const corpo=(nova?'':`<div class="vk-ficha-cab"><span class="vk-etq" style="--cor:${cc.cor}"><i class="fas ${cc.ico}"></i> ${cc.rot}</span>
         <div class="vk-num"><span>Líquido</span><b data-liq-cab>${fmt(liqF(r))}</b></div><div class="vk-num"><span>Situação</span><b>${pill(s[0],s[1]==='cinza'?'':s[1])}</b></div></div>
-      <ul class="vk-lista">${r.medicao_numero?`<li><i class="fas fa-ruler-combined"></i> Medição nº ${fe(r.medicao_numero)}</li>`:''}${col!=='faturar'?`<li><i class="fas fa-calendar-day"></i> ${recebidaF(r,K)?'Recebida em '+brDe(dt(r[K.rec])):'Vence '+(v?brDe(v):'—')}</li>`:''}</ul>`)+(ed?campos:'')
+      <ul class="vk-lista">${r.medicao_numero?`<li><i class="fas fa-ruler-combined"></i> Medição nº ${fe(r.medicao_numero)}</li>`:''}${(()=>{try{return JSON.parse(r.nfse_canceladas||'[]');}catch(e){return [];}})().map(c=>`<li style="color:#B42318"><i class="fas fa-ban"></i> NFS-e nº ${fe(c.numero||'')} cancelada em ${brDe(new Date(c.em))}</li>`).join('')}${r.nfse_substituida?`<li><i class="fas fa-right-left"></i> Esta nota substituiu outra NFS-e</li>`:''}${col!=='faturar'?`<li><i class="fas fa-calendar-day"></i> ${recebidaF(r,K)?'Recebida em '+brDe(dt(r[K.rec])):'Vence '+(v?brDe(v):'—')}</li>`:''}</ul>`)+(ed?campos:'')
       +(!nova&&col!=='faturar'&&GS.docs?GS.docs.fichaNotaExtras(r,K,col):'');
     const bts=[];
     if(ed&&!nova){
@@ -15831,6 +15832,10 @@ const Mascara=(function(){
       if(r.medicao_rowid&&col!=='receber')bts.push({html:'<i class="fas fa-ruler-combined"></i> Voltar para a medição',acao:()=>{setTimeout(()=>voltarParaMedicao(r),10);}});
       // EMBASA: formulário do Programa Avançar Fornecedores para antecipar o recebimento
       if((col==='receber'||col==='recebida')&&GS.docs&&GS.docs.ehEmbasa(GS.docs.contratanteDaNota(r,K)))bts.push({html:'<i class="fas fa-forward-fast"></i> Antecipar recebimento Embasa',acao:()=>{setTimeout(()=>GS.docs.antecipacao(r,K),10);}});
+      // NFS-e do padrão nacional: substituir (emite a nota certa e a Receita cancela esta) ou cancelar
+      if((col==='receber'||col==='recebida')&&/^\d{50}$/.test(String(r.nfse_chave||''))&&GS.docs&&GS.docs.cancelarNotaDoFaturamento){
+        bts.push({html:'<i class="fas fa-right-left"></i> Substituir a nota',acao:()=>{setTimeout(()=>emitirNota({k:'f',r,obra:r[K.obra]||'',subst:{chave:r.nfse_chave,numero:r[K.nf]}}),10);}});
+        bts.push({html:'<i class="fas fa-ban"></i> Cancelar a nota',acao:()=>{setTimeout(()=>GS.docs.cancelarNotaDoFaturamento(r,K),10);}});}
     }
     if(ed)bts.push({html:'<i class="fas fa-floppy-disk"></i> Salvar',cls:'pri',acao:async j=>{
       const g=k=>(j.querySelector(`[data-k="${k}"]`)||{}).value||'',m=k=>dinheiro(num(g(k)));
@@ -19402,6 +19407,9 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
 .nfc-obs{display:block;margin-top:8px;font-size:11.5px;color:#667085;line-height:1.45;}
 .nfc-amb{display:flex;gap:8px;align-items:flex-start;font-size:12.5px;color:#344054;margin:4px 0;cursor:pointer;} .nfc-amb input{margin-top:3px;}
 .nfc-pe{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end;}
+.nfa-pend{border:1px solid #FECDCA;background:#FEF3F2;border-radius:10px;padding:8px 10px;font-size:12.5px;color:#B42318;display:flex;flex-direction:column;gap:3px;margin-bottom:6px;} .nfa-pend span{color:#344054;}
+.nfa-sub{border:1px solid #D9D6FE;background:#F4F3FF;border-radius:10px;padding:8px 10px;font-size:12.5px;color:#5925DC;display:flex;flex-direction:column;gap:4px;} .nfa-sub span{color:#344054;}
+.nfa-toma{border:1px solid #E4E9F2;border-radius:10px;padding:7px 10px;background:#fff;font-size:12px;color:#344054;line-height:1.45;} .nfa-toma small{color:#98A2B3;} .nfa-toma.err{border-color:#FEDF89;background:#FFFAEB;color:#93370D;}
 .nfa-trib{border:1px solid #E4E9F2;border-radius:10px;padding:8px 10px;background:#fff;font-size:12px;color:#344054;}
 .nfa-trib>b{display:flex;align-items:center;gap:6px;margin-bottom:6px;font:800 12px Inter,sans-serif;}
 .nfa-trib small{display:block;color:#667085;font-size:11px;margin-top:4px;line-height:1.4;}
@@ -19485,18 +19493,18 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
   const EMBASA_NOME='EMBASA - Empresa Baiana de Águas e Saneamento S.A.',EMBASA_CNPJ='13.504.675/0001-10';
   function contratantes(){
     const m=new Map();
-    const add=(nome,doc,rowid,inativo)=>{nome=String(nome||'').trim();if(!nome)return;const k=cn(nome);const x=m.get(k)||{nome,doc:'',rowid:null,inativo:false};if(rowid){x.rowid=rowid;x.nome=nome;if(doc)x.doc=doc;x.inativo=inativo===true||inativo==='true';}else if(doc&&!x.doc)x.doc=doc;m.set(k,x);};
-    PLAN().filter(p=>p.tipo==='contratante').sort((a,b)=>(+a.rowid||0)-(+b.rowid||0)).forEach(p=>add(p.nome,p.doc,p.rowid,p.inativo));
+    const add=(nome,doc,rowid,inativo,row)=>{nome=String(nome||'').trim();if(!nome)return;const k=cn(nome);const x=m.get(k)||{nome,doc:'',rowid:null,inativo:false};if(rowid){x.rowid=rowid;x.nome=nome;if(doc)x.doc=doc;x.inativo=inativo===true||inativo==='true';x.row=row||null;}else if(doc&&!x.doc)x.doc=doc;m.set(k,x);};
+    PLAN().filter(p=>p.tipo==='contratante').sort((a,b)=>(+a.rowid||0)-(+b.rowid||0)).forEach(p=>add(p.nome,p.doc,p.rowid,p.inativo,p));
     (D().contratos||[]).forEach(c=>add(c.contratante,c.cnpj_contratante));
     if(![...m.values()].some(x=>ehEmbasa(x.nome)))add(EMBASA_NOME,EMBASA_CNPJ);
     [...m.values()].forEach(x=>{if(ehEmbasa(x.nome)&&!x.doc)x.doc=EMBASA_CNPJ;});
     return [...m.values()].sort((a,b)=>a.nome.localeCompare(b.nome,'pt-BR'));
   }
   const contratanteDe=nome=>contratantes().find(x=>cn(x.nome)===cn(nome))||null;
-  async function salvarContratante(nome,doc,rowid){
+  async function salvarContratante(nome,doc,rowid,extra){
     nome=String(nome||'').trim();if(!nome)return;
     const ex=rowid?PLAN().find(p=>String(p.rowid)===String(rowid)):PLAN().find(p=>p.tipo==='contratante'&&cn(p.nome)===cn(nome));
-    await salvar('Planejamento',{...limpo(ex||{}),tipo:'contratante',nome,doc:doc||'',atualizado_em:todayDateTime(),data_lancamento:(ex&&ex.data_lancamento)||todayDateTime()},ex?ex.rowid:null);
+    await salvar('Planejamento',{...limpo(ex||{}),tipo:'contratante',nome,doc:doc||'',...(extra||{}),atualizado_em:todayDateTime(),data_lancamento:(ex&&ex.data_lancamento)||todayDateTime()},ex?ex.rowid:null);
   }
   function datalistContratantes(){
     let dl=document.getElementById('vx-contratantes');if(!dl){dl=document.createElement('datalist');dl.id='vx-contratantes';document.body.appendChild(dl);}
@@ -19723,7 +19731,7 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
      está aberto. A cada emissão os dois vão (HTTPS) para a função api/nfse do próprio sistema, que monta a DPS no
      padrão nacional, assina, envia ao Sefin Nacional e devolve o XML e o PDF (DANFSe) da nota. */
   const NFSE_API='https://vixsul.vercel.app/api/nfse',CNPJ_VX='64518375000120';
-  const NFC_PADRAO={ambiente:'2',serie:'900',ndps_1:'1',ndps_2:'1',cmun_emi:'2916807',im:'',op_simp:'3',reg_ap:'1',reg_esp:'0',ctrib:'070201',cnbs:'101012200',iss_retido:'sim',aliq:'',ptot_sn:''};
+  const NFC_PADRAO={ambiente:'2',serie:'900',ndps_1:'1',ndps_2:'1',cmun_emi:'2916807',im:'',op_simp:'3',reg_ap:'1',reg_esp:'0',ctrib:'070201',cnbs:'101012200',iss_retido:'sim',aliq:'2',ptot_sn:''};
   const nfcRow=()=>ultimo(PLAN().filter(p=>p.tipo==='nfse_config'));
   const nfc=()=>({...NFC_PADRAO,...(nfcRow()||{})});
   const COD_SERV=[['070101','Engenharia e congêneres'],['070201','Obras de construção civil, hidráulica ou elétrica — por administração'],['070202','Obras de construção civil, hidráulica ou elétrica — por empreitada ou subempreitada'],
@@ -19731,6 +19739,15 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
     ['070602','Instalação de revestimentos, vidros, divisórias, forros e congêneres'],['070901','Varrição, coleta e remoção de lixo e resíduos'],['071001','Limpeza e conservação de vias, logradouros, parques e jardins'],
     ['071002','Limpeza e conservação de imóveis'],['071102','Jardinagem, corte e poda de árvores'],['071701','Escoramento e contenção de encostas'],['071901','Acompanhamento e fiscalização de obras'],['072003','Levantamentos topográficos']];
   const pedeObra=c=>/^07(02|04|05|17)/.test(String(c||''));
+  // NBS (Nomenclatura Brasileira de Serviços): obrigatória na nota; sugestão pelo código do serviço (a NF 20 usou 1.0101.22.00)
+  const NBS_OPS=[['101012200','Construção de edificações comerciais'],['101012900','Construção de edificações não residenciais (outras)'],['101012100','Construção de edificações industriais'],['101011100','Construção de edificações residenciais (até 2 pavimentos)'],
+    ['101011200','Construção de edificações residenciais (mais de 2 pavimentos)'],['101013000','Construção de edificações de uso misto'],['101021100','Construção de estradas, ruas e rodovias'],['101025310','Construção de sistemas de esgotos'],
+    ['101025320','Construção de estações de elevação, tratamento e purificação de água'],['101024120','Construção de dutos de longo curso para águas'],['101025100','Construção de dutos locais'],['101029000','Obras de engenharia civil (outras)'],
+    ['101031000','Demolição'],['101032000','Preparação de terrenos e canteiros de obras'],['101033000','Escavação e remoção de terra'],['101034100','Perfuração de poços de água'],['101056000','Alvenaria'],['101053000','Telhados, coberturas e impermeabilização'],
+    ['101061100','Instalação elétrica'],['101062100','Instalação de tubulação de água'],['101062200','Instalação de tubulação de escoamento de água'],['101073000','Pintura'],['101074000','Revestimento de pisos e paredes'],['101079000','Acabamento (outros)']];
+  const NBS_SUG={'070201':'101012200','070202':'101012200','070401':'101031000','070502':'101029000','071701':'101029000'};
+  const fmtNbs=c=>{c=String(c||'').replace(/\D/g,'');return c.length===9?`${c[0]}.${c.slice(1,5)}.${c.slice(5,7)}.${c.slice(7)}`:c;};
+  const opsNbs=sel=>`<option value="">Escolha…</option>`+NBS_OPS.map(([k,l])=>`<option value="${k}" ${k===sel?'selected':''}>${fmtNbs(k)} — ${fe(l)}</option>`).join('')+(sel&&!NBS_OPS.some(x=>x[0]===sel)?`<option value="${fe(sel)}" selected>${fmtNbs(sel)}</option>`:'');
   const opsCod=sel=>COD_SERV.map(([k,l])=>`<option value="${k}" ${k===sel?'selected':''}>${k.slice(0,2)}.${k.slice(2,4)}.${k.slice(4)} — ${fe(l)}</option>`).join('')+(sel&&!COD_SERV.some(x=>x[0]===sel)?`<option value="${fe(sel)}" selected>${fe(sel)}</option>`:'');
   const LS_CERT='vx_nfse_cert_v1';
   const certLocal=()=>{try{return JSON.parse(localStorage.getItem(LS_CERT)||'null');}catch(e){return null;}};
@@ -19822,7 +19839,7 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
     return {previa:false,amb:+t('tpAmb',dps)||1,numero:t('nNFSe',inf),chave:(inf.getAttribute('Id')||'').replace(/^NFS/,''),dh:t('dhProc',inf)||t('dhEmi',dps),dCompet:t('dCompet',dps),
       locEmi:t('xLocEmi',inf),locPrest:t('xLocPrestacao',inf),locIncid:t('xLocIncid',inf),xTribNac:t('xTribNac',inf),xNBS:t('xNBS',inf),simples:t('opSimpNac',dps),
       prest:{doc:t('CNPJ',emit)||t('CPF',emit),im:t('IM',emit),nome:t('xNome',emit),end:[t('xLgr',ender),t('nro',ender),t('xCpl',ender),t('xBairro',ender)].filter(Boolean).join(', '),cep:t('CEP',ender),uf:t('UF',ender),fone:t('fone',emit),email:t('email',emit)},
-      toma:{doc:t('CNPJ',toma)||t('CPF',toma),nome:t('xNome',toma),email:t('email',toma),im:t('IM',toma)},
+      toma:{doc:t('CNPJ',toma)||t('CPF',toma),nome:t('xNome',toma),email:t('email',toma),im:t('IM',toma),end:(()=>{const te=todos('end',toma)[0];if(!te)return '';const cm=t('cMun',te),cp=t('CEP',te);return [[t('xLgr',te),t('nro',te),t('xCpl',te),t('xBairro',te)].filter(Boolean).join(', '),cm?nomeMun(cm):'',cp?'CEP '+cp.replace(/^(\d{5})(\d{3})$/,'$1-$2'):''].filter(Boolean).join(' · ');})()},
       serv:{cTribNac:t('cTribNac',serv),desc:t('xDescServ',serv),cNBS:t('cNBS',serv),obra:obra?(t('cObra',obra)?'CNO '+t('cObra',obra):[t('xLgr',obra),t('nro',obra),t('xBairro',obra),t('CEP',obra)?'CEP '+t('CEP',obra).replace(/^(\d{5})(\d{3})$/,'$1-$2'):''].filter(Boolean).join(', ')):''},
       v:{serv:n(t('vServ',valD)),bc:n(t('vBC',valN))||n(t('vServ',valD)),aliq:n(t('pAliqAplic',valN))||n(t('pAliq',valD)),iss:n(t('vISSQN',valN)),issRet:t('tpRetISSQN',valD)==='2',cp:n(t('vRetCP',valD)),irrf:n(t('vRetIRRF',valD)),csll:n(t('vRetCSLL',valD)),totRet:n(t('vTotalRet',valN)),liq:n(t('vLiq',valN))}};
   }
@@ -19831,7 +19848,7 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
     const cod=COD_SERV.find(x=>x[0]===d.serv.cTribNac);
     return {previa:true,amb:nfc().ambiente==='1'?1:2,numero:'',chave:'',dh:new Date().toISOString(),dCompet:d.dCompet,locEmi:(String(e.endereco||'').split(',').pop()||'').trim(),locPrest:cidadePrest||d.serv.cLocPrestacao,locIncid:'',xTribNac:cod?cod[1]:'',xNBS:'',simples:String(d.prest.opSimpNac),
       prest:{doc:CNPJ_VX,im:d.prest.im||'',nome:e.razao,end:e.endereco,cep:String(e.cep||'').replace(/\D/g,''),uf:'',fone:e.telefone,email:e.email},
-      toma:{doc:d.toma.cnpj||d.toma.cpf,nome:d.toma.xNome,email:'',im:''},
+      toma:{doc:d.toma.cnpj||d.toma.cpf,nome:d.toma.xNome,email:'',im:'',end:(()=>{const te=d.toma.end;if(!te)return '';return [[te.xLgr,te.nro,te.xCpl,te.xBairro].filter(Boolean).join(', '),te.mun||nomeMun(te.cMun),te.cep?'CEP '+String(te.cep).replace(/^(\d{5})(\d{3})$/,'$1-$2'):''].filter(Boolean).join(' · ');})()},
       serv:{cTribNac:d.serv.cTribNac,desc:d.serv.xDescServ,cNBS:d.serv.cNBS||'',obra:ob?(ob.cObra?'CNO '+ob.cObra:[ob.xLgr,ob.nro,ob.xBairro,ob.cep?'CEP '+String(ob.cep).replace(/^(\d{5})(\d{3})$/,'$1-$2'):''].filter(Boolean).join(', ')):''},
       v:{serv:+v.vServ,bc:+v.vServ,aliq:+v.pAliq||0,iss:ret?iss:0,issRet:ret,cp:+v.vRetCP||0,irrf:+v.vRetIRRF||0,csll:+v.vRetCSLL||0,totRet,liq:Math.round((v.vServ-totRet)*100)/100}};
   }
@@ -19864,10 +19881,11 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
     campo('Telefone',n.prest.fone||e.telefone,X,y,W*.22,9.5);campo('E-mail',n.prest.email||e.email,X+W*.22,y,W*.4,9.5);campo('Regime de tributação',n.simples==='3'?'Simples Nacional — ME/EPP':n.simples==='2'?'MEI':'Não optante do Simples',X+W*.62,y,W*.38,9.5);y+=9.5;
     y=faixa('TOMADOR DO SERVIÇO',y+2);
     campo('Nome / razão social',n.toma.nome,X,y,W*.62,9.5);campo('CNPJ / CPF',fmtDoc(n.toma.doc),X+W*.62,y,W*.22,9.5);campo('Inscrição municipal',n.toma.im||'-',X+W*.84,y,W*.16,9.5);y+=9.5;
+    if(n.toma.end){campo('Endereço',n.toma.end,X,y,W,9.5);y+=9.5;}
     // serviço
     y=faixa('SERVIÇO PRESTADO',y+2);
     campo('Código de tributação nacional',`${fmtCod(n.serv.cTribNac)} - ${n.xTribNac||''}`,X,y,W,11.5);y+=11.5;
-    campo('Local da prestação',n.locPrest,X,y,W*.34,9.5);campo('Município de incidência do ISSQN',n.locIncid||n.locPrest,X+W*.34,y,W*.33,9.5);campo('Código NBS',n.serv.cNBS?(n.serv.cNBS+(n.xNBS?' - '+n.xNBS:'')):'-',X+W*.67,y,W*.33,9.5);y+=9.5;
+    campo('Local da prestação',n.locPrest,X,y,W*.34,9.5);campo('Município de incidência do ISSQN',n.locIncid||n.locPrest,X+W*.34,y,W*.33,9.5);campo('Código NBS',n.serv.cNBS?(fmtNbs(n.serv.cNBS)+' - '+(n.xNBS||((NBS_OPS.find(z=>z[0]===String(n.serv.cNBS))||[])[1]||''))):'-',X+W*.67,y,W*.33,9.5);y+=9.5;
     if(n.serv.obra){campo('Local da obra',n.serv.obra,X,y,W,9.5);y+=9.5;}
     y=faixa('DISCRIMINAÇÃO DO SERVIÇO',y+2);
     fonte(9,false);const ld=doc.splitTextToSize(L1(n.serv.desc||'-'),W-5),hd=Math.max(24,ld.length*4.1+5);caixa(X,y,W,hd);doc.text(ld,X+2.5,y+5);y+=hd;
@@ -19896,6 +19914,55 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
     catch(e){if(w)try{w.close();}catch(x){}toast((e&&e.message)||String(e),'error');return null;}
   }
 
+  /* ───── nota emitida fica guardada na hora (antes do "Concluir"): se a janela fechar, ela continua no sistema ───── */
+  const EMIT_MEM=[];
+  const chavesFat=()=>new Set((D().faturamentos||[]).flatMap(f=>[f.nfse_chave,f.nfse_substituida]).map(c=>String(c||'')).filter(Boolean));
+  const emitidas=()=>{const m=new Map();PLAN().filter(p=>p.tipo==='nfse_emitida'&&p.chave).sort((a,b)=>(+a.rowid||0)-(+b.rowid||0)).forEach(p=>m.set(String(p.chave),p));EMIT_MEM.forEach(p=>m.set(String(p.chave),{...(m.get(String(p.chave))||{}),...p}));return [...m.values()];};
+  // emitida (valendo), não cancelada e ainda sem faturamento concluído com ela
+  const emitidasPendentes=()=>{const cf=chavesFat();return emitidas().filter(p=>String(p.amb)==='1'&&!/cancelada|substituida/.test(p.status||'')&&!cf.has(String(p.chave)));};
+  async function guardarEmitida(o){
+    const i=EMIT_MEM.findIndex(p=>p.chave===o.chave);if(i>=0)EMIT_MEM[i]={...EMIT_MEM[i],...o};else EMIT_MEM.push(o);
+    const ex=PLAN().find(p=>p.tipo==='nfse_emitida'&&String(p.chave)===String(o.chave));
+    try{await salvar('Planejamento',{...limpo(ex||{}),...o,tipo:'nfse_emitida',atualizado_em:todayDateTime(),data_lancamento:(ex&&ex.data_lancamento)||todayDateTime()},ex?ex.rowid:null);if(ex)Object.assign(ex,o);}
+    catch(e){console.error(e);toast('A nota saiu, mas não consegui guardá-la no sistema agora — conclua antes de fechar a janela.','error');}
+  }
+  // nota recuperada: a obra e a medição saem da descrição ("Contrato 460025232/2026 - … Medição 01 …")
+  function adivinharObra(desc){desc=String(desc||'');const mc=desc.match(/Contrato\s+([\w.\/-]+)/i),mm=desc.match(/Medi[çc][ãa]o\s+(?:n[ºo°.]?\s*)?0*(\d+)/i);
+    const o=mc?(D().obras||[]).find(x=>String(getFuzzy(x,['numero_contrato','num_contrato','n_contrato'])||'').trim()===mc[1].trim()):null,nome=o?(getFuzzy(o,['titulo_obra','nome_obra','titulo'])||''):'';
+    const med=nome&&mm?(D().medicoes||[]).find(m=>m.titulo_obra===nome&&String(+m.numero)===String(+mm[1])):null;return {ob:nome,med};}
+  // nome do município pelo código IBGE (para o PDF): cadastro dos contratantes ou os conhecidos
+  const NOME_MUN={'2927408':'Salvador/BA','2916807':'Itarantim/BA','2919959':'Maetinga/BA','2902906':'Barra do Choça/BA','2933307':'Vitória da Conquista/BA'};
+  const nomeMun=cod=>{cod=String(cod||'');const r=PLAN().find(p=>p.tipo==='contratante'&&String(p.end_cmun||'')===cod&&p.end_mun);return (r&&r.end_mun)||NOME_MUN[cod]||cod;};
+  // cancelamento na Receita (evento e101101); "depois" grava o resultado no sistema
+  function janelaCancelarNfse(o,depois){
+    janela(`Cancelar a NFS-e nº ${o.numero||''} na Receita`,`<div class="fin-aviso"><div><b>Atenção:</b> o cancelamento é feito na Receita Federal e não tem volta. Se a nota só tem algum dado errado, prefira <b>Substituir a nota</b>: o sistema emite a nota certa e a Receita cancela esta sozinha.</div></div>
+      <div class="fin-fld"><label>Motivo</label><select data-k="mot"><option value="1">Erro na emissão</option><option value="2">Serviço não prestado</option><option value="9">Outros</option></select></div>
+      <div class="fin-fld"><label>Justificativa (pelo menos 15 letras) <span class="obg">*</span></label><textarea data-k="just" rows="2" placeholder="Ex.: nota emitida com o valor da medição errado"></textarea></div>
+      ${certLocal()&&!senhaMem()?'<div class="fin-fld"><label>Senha do certificado</label><input type="password" data-k="senha" autocomplete="off"></div>':''}
+      <label class="nfc-amb"><input type="checkbox" data-k="ok"><span>Confirmo o cancelamento da NFS-e nº <b>${fe(o.numero||'')}</b> (chave ${fe(o.chave)})</span></label>`,
+      [{html:'<i class="fas fa-ban"></i> Cancelar a nota na Receita',cls:'pri',acao:async j=>{const g=k=>((j.querySelector(`[data-k="${k}"]`)||{}).value||'').trim();
+        if(!j.querySelector('[data-k="ok"]').checked)throw new Error('Marque a confirmação do cancelamento.');const just=g('just');if(just.length<15)throw new Error('Escreva a justificativa com pelo menos 15 letras.');
+        const cred=credenciais(g('senha'));UI._showBusy('Cancelando a nota na Receita…');let r;try{r=await nfseApi({acao:'cancelar',ambiente:+o.amb===2?2:1,chave:o.chave,cMotivo:g('mot'),xMotivo:just,...cred});}finally{UI._hideBusy();}
+        if(!r.ok){if(/senha/i.test(r.msg||''))SENHA=null;throw new Error(r.erros&&r.erros.length?'A Receita não aceitou: '+r.erros.map(e=>(e.codigo?e.codigo+' — ':'')+e.descricao).join(' · '):(r.msg||'Não consegui cancelar a nota.'));}
+        if(!senhaMem())SENHA={v:cred.senha,t:Date.now()};
+        const motivo={'1':'Erro na emissão','2':'Serviço não prestado','9':'Outros'}[g('mot')]||'';
+        await guardarEmitida({...(emitidas().find(p=>String(p.chave)===String(o.chave))||{chave:o.chave,numero:o.numero,amb:String(o.amb||1)}),status:'cancelada',cancelada_em:new Date().toISOString(),cancelada_por:eu().nome,motivo_cancelamento:motivo+' — '+just});
+        await depois(r,{motivo,just});}}],580);
+  }
+  // faturamento da nota cancelada volta para "A faturar" (a medição volta a "Aprovada"); a nota cancelada fica no histórico
+  async function cancelarNotaDoFaturamento(r,K){
+    const ob=r[K.obra]||'',num=r[K.nf]||'';
+    janelaCancelarNfse({chave:r.nfse_chave,numero:num,amb:r.nfse_amb||1},async(res,mt)=>{
+      const o={...limpo(r)};const hist=(()=>{try{return JSON.parse(o.nfse_canceladas||'[]');}catch(e){return [];}})();
+      hist.push({chave:r.nfse_chave,numero:num,em:new Date().toISOString(),motivo:mt.motivo+' — '+mt.just});
+      Object.assign(o,{[K.tipo]:'Previsto',[K.nf]:'',[K.em]:'',[K.rec]:'',nfse_chave:'',nfse_auto:'',nfse_substituida:'',nfse_canceladas:JSON.stringify(hist)});
+      await executar(async()=>{
+        if(res.evento&&r.fat_uid)await enviarArq(ob,{aba:'nf',fat_uid:r.fat_uid,doc:'nf_cancelamento',nf:num},new File([res.evento],`Cancelamento NFS-e ${num}.xml`,{type:'application/xml'}));
+        await salvar('Faturamentos',o,r.rowid);
+        const m=r.medicao_rowid&&(D().medicoes||[]).find(x=>String(x.rowid)===String(r.medicao_rowid));if(m)await salvar('Medições',{...limpo(m),status:'Aprovada',faturado_em:''},m.rowid);});
+      toast(`NFS-e nº ${num} cancelada na Receita — o faturamento voltou para "A faturar".`,'success');});
+  }
+
   /* configuração (Documentos e certidões › Empresa › Nota fiscal) */
   function htmlNfseCfg(){
     const c=nfc(),cert=certLocal(),venc=cert&&cert.validoAte?new Date(cert.validoAte):null,dias=venc?Math.ceil((venc-Date.now())/864e5):null;
@@ -19920,16 +19987,16 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
         <div class="fin-fld"><label>Apuração no Simples</label>${sel('reg_ap',[['1','Tributos federais e ISS pelo Simples'],['2','Federais pelo Simples e ISS fora dele'],['3','Federais e ISS fora do Simples']])}</div>
         <div class="fin-fld"><label>Regime especial</label>${sel('reg_esp',[['0','Nenhum'],['3','Microempresa municipal'],['2','Estimativa'],['6','Sociedade de profissionais'],['1','Ato cooperado']])}</div>
         <div class="fin-fld" style="grid-column:1/-1"><label>Código do serviço (padrão das notas)</label><select data-nfc="ctrib">${opsCod(c.ctrib)}</select></div>
-        <div class="fin-fld"><label>Código NBS (opcional)</label>${inp('cnbs','9 números','inputmode="numeric" maxlength="9"')}</div>
+        <div class="fin-fld" style="grid-column:1/-1"><label>Código NBS (padrão das notas)</label><select data-nfc="cnbs">${opsNbs(c.cnbs)}</select><small>A NF 20 usou 1.0101.22.00. Na janela de emissão dá para trocar nota a nota.</small></div>
         <div class="fin-fld"><label>ISS retido pela contratante? (padrão)</label>${sel('iss_retido',[['nao','Não'],['sim','Sim']])}</div>
-        <div class="fin-fld"><label>Alíquota do ISS (%)</label>${inp('aliq','ex.: 5','inputmode="decimal"')}<small>Usada quando o ISS é retido.</small></div>
+        <div class="fin-fld"><label>Alíquota do ISS (%)</label>${inp('aliq','ex.: 2','inputmode="decimal"')}<small>Simples Nacional: a parte do ISS da sua faixa (NF 20: 2%).</small></div>
         <div class="fin-fld"><label>% aproximado dos tributos (Simples)</label>${inp('ptot_sn','opcional','inputmode="decimal"')}</div></div></div>
       <div class="nfc-sec"><h5><i class="fas fa-list-ol"></i> Numeração das notas enviadas (DPS)</h5><div class="fin-linha">
         <div class="fin-fld"><label>Série</label>${inp('serie','900','inputmode="numeric" maxlength="5"')}</div>
         <div class="fin-fld"><label>Próximo nº — Teste</label>${inp('ndps_2','1','inputmode="numeric"')}</div>
         <div class="fin-fld"><label>Próximo nº — Valendo</label>${inp('ndps_1','1','inputmode="numeric"')}</div></div>
         <small class="nfc-obs">Cada envio usa um nº, e o sistema passa para o seguinte sozinho. Só mude se a Receita avisar que o nº já foi usado em outro programa.</small></div>
-      <div class="nfc-pe"><button type="button" class="fin-bt" data-ec="nf-mun"><i class="fas fa-magnifying-glass"></i> O município está no Emissor Nacional?</button><button type="button" class="fin-bt pri" data-ec="nf-salvar"><i class="fas fa-floppy-disk"></i> Salvar</button></div>
+      <div class="nfc-pe"><button type="button" class="fin-bt" data-ec="nf-procurar" title="Procura na Receita as notas que este sistema emitiu e guarda as que não foram concluídas"><i class="fas fa-magnifying-glass-plus"></i> Procurar notas emitidas pelo sistema</button><button type="button" class="fin-bt" data-ec="nf-mun"><i class="fas fa-magnifying-glass"></i> O município está no Emissor Nacional?</button><button type="button" class="fin-bt pri" data-ec="nf-salvar"><i class="fas fa-floppy-disk"></i> Salvar</button></div>
       <div data-nf-res></div></div>`;
   }
   async function cliqueNfse(a,ec,refazer){
@@ -19962,6 +20029,22 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
       mostra(`<div class="nfa-res ${sim(R[1])?'ok':'err'}"><b>Município ${cm} no Emissor Nacional:</b>${lin(1)}${lin(2)}
         ${sim(R[1])&&!sim(R[2])?'<span>Normal: muitas prefeituras não se cadastram no ambiente de teste. As notas valendo saem; para conferir antes, use "Ver a nota antes de enviar" na janela de emissão.</span>':''}
         <details><summary>Ver a resposta da Receita</summary><pre>${fe(txt.slice(0,2000))}</pre></details></div>`);return;}
+    // recupera nota emitida pelo sistema e não concluída (ex.: a janela fechou por inatividade)
+    if(a==='nf-procurar'){
+      let cred;try{cred=credenciais(senhaDig());}catch(e){return toast(e.message,'error');}
+      const c=nfc(),ate=Math.max(proxNDPS(1)-1,0)+3;
+      UI._showBusy('Procurando na Receita as notas emitidas pelo sistema…');let r;try{r=await nfseApi({acao:'procurar',ambiente:1,serie:c.serie,de:1,ate,cLocEmi:c.cmun_emi,...cred});}catch(e){r={ok:false,msg:e.message};}finally{UI._hideBusy();}
+      if(!r.ok){if(/senha/i.test(r.msg||''))SENHA=null;return mostra(`<div class="nfa-res err"><b><i class="fas fa-triangle-exclamation"></i> ${fe(r.msg||'Não consegui procurar as notas.')}</b></div>`);}
+      if(!senhaMem())SENHA={v:cred.senha,t:Date.now()};
+      const cf=chavesFat(),ja=new Set(emitidas().map(p=>String(p.chave))),linhas=[];
+      for(const n of r.notas||[]){const no=n.nota||{};let sit;
+        if(cf.has(String(n.chave)))sit='já está no faturamento';
+        else if(ja.has(String(n.chave))){const p=emitidas().find(q=>String(q.chave)===String(n.chave));sit=p&&/cancelada|substituida/.test(p.status||'')?(p.status==='cancelada'?'cancelada':'substituída'):'já guardada — aparece na janela "Emitir a nota"';}
+        else{const g=adivinharObra(no.desc);await guardarEmitida({chave:n.chave,numero:no.numero,amb:'1',serie:String(c.serie),ndps:String(n.nDPS),id_dps:n.id,titulo_obra:g.ob||'',medicao_rowid:g.med?String(g.med.rowid):'',fat_rowid:'',valor:String(no.valor||''),emitida_em:no.data?no.data+'T12:00:00':'',emitida_por:'(recuperada na Receita)',xml:n.xml||'',status:'pendente',recuperada:'sim'});
+          sit=g.ob?`RECUPERADA — aparece na janela "Emitir a nota" ${g.med?'da medição nº '+g.med.numero+' — ':'da obra '}${g.ob}`:'RECUPERADA, mas não achei a obra pela descrição';}
+        linhas.push(`<li><b>NFS-e nº ${fe(no.numero||'?')}</b> · ${fmt(+no.valor||0)} · ${fe(String(no.desc||'').slice(0,90))}… — <b>${fe(sit)}</b></li>`);}
+      mostra(`<div class="nfa-res ${linhas.length?'ok':'info'}"><b>${linhas.length?`Notas emitidas por este sistema (série ${fe(c.serie)}, nº 1 a ${r.ate}):`:`Nenhuma nota emitida por este sistema foi encontrada na Receita (série ${fe(c.serie)}, nº 1 a ${r.ate}).`}</b>${linhas.length?`<ul class="nfa-erros">${linhas.join('')}</ul><span>As notas emitidas pelo site da Receita (série 70000) não entram nesta busca.</span>`:''}</div>`);
+      return;}
     if(a==='nf-salvar'){
       const o={...NFC_PADRAO,...limpo(nfcRow()||{}),tipo:'nfse_config'};ec.querySelectorAll('[data-nfc]').forEach(i=>o[i.dataset.nfc]=String(i.value).trim());
       o.ambiente=(ec.querySelector('[name="nfc-amb"]:checked')||{}).value==='1'?'1':'2';
@@ -19976,17 +20059,23 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
   }
 
   /* painel da emissão automática (passo 2 da janela "Emitir a nota") */
-  function painelAutoHtml(ob,desc){
+  function painelAutoHtml(ob,desc,sub){
     const c=nfc(),of=obraFiscal(ob),cert=certLocal(),amb=c.ambiente==='1'?1:2,ct=of.ctrib||c.ctrib,ret=(of.iss_retido||'sim')==='sim';
     const f=(k,l,v,extra,larga)=>`<div class="fin-fld"${larga?' style="grid-column:1/-1"':''}><label>${l}</label><input data-a="${k}" value="${fe(v||'')}" ${extra||''}></div>`;
     return `<div class="nfa" data-nfa>
       <div class="nfa-cab"><b><i class="fas fa-bolt"></i> Emitir automaticamente na Receita</b><span class="nfa-amb ${amb===1?'real':'teste'}">${amb===1?'VALENDO — nota real':'TESTE — sem valor fiscal'}</span></div>
+      <div data-nfa-pend></div>
+      ${sub?`<div class="nfa-sub"><b><i class="fas fa-right-left"></i> Substituindo a NFS-e nº ${fe(sub.numero||'')}</b><span>A nota nova substitui a anterior, e a Receita cancela a anterior automaticamente.</span>
+        <div class="fin-linha"><div class="fin-fld"><label>Motivo da substituição</label><select data-a="smot"><option value="99">Outros (correção de dados da nota)</option><option value="01">Desenquadramento do Simples Nacional</option><option value="02">Enquadramento no Simples Nacional</option><option value="03">Inclusão retroativa de imunidade/isenção</option><option value="04">Exclusão retroativa de imunidade/isenção</option><option value="05">Rejeição da nota pelo tomador</option></select></div>
+        <div class="fin-fld"><label>O que foi corrigido (opcional, pelo menos 15 letras)</label><input data-a="sjust" placeholder="Ex.: correção do código do serviço"></div></div></div>`:''}
       ${cert?'':`<div class="fin-aviso"><div>Para emitir sozinho, coloque o certificado digital A1 da empresa em <b>Documentos e certidões › Empresa › Nota fiscal (NFS-e)</b>. Enquanto isso, use a emissão manual logo abaixo.</div></div>`}
       <div class="fin-linha">
         <div class="fin-fld" style="grid-column:1/-1"><label>Código do serviço</label><select data-a="ctrib">${opsCod(ct)}</select></div>
+        <div class="fin-fld" style="grid-column:1/-1"><label>Código NBS <span class="obg">*</span></label><select data-a="nbs">${opsNbs(of.cnbs||c.cnbs||NBS_SUG[ct]||'')}</select></div>
         ${f('cmun','Município da prestação — código IBGE',of.cmun||'','inputmode="numeric" maxlength="7" placeholder="buscando…"')}
         <div class="fin-fld"><label>ISS retido pela contratante?</label><select data-a="issret"><option value="nao" ${ret?'':'selected'}>Não</option><option value="sim" ${ret?'selected':''}>Sim</option></select></div>
         <div class="fin-fld" data-a-aliq ${ret?'':'hidden'}><label>Alíquota do ISS (%)</label><input data-a="aliq" inputmode="decimal" value="${fe(of.aliq||c.aliq||'')}" placeholder="ex.: 4,5"></div></div>
+      <div class="nfa-toma" data-toma><i class="fas fa-spinner fa-spin"></i> Buscando o endereço do tomador…</div>
       <div class="nfa-obra"><b>Local da obra</b> <small data-obra-dica>— o CNO da obra <u>ou</u> o endereço${pedeObra(ct)?' (obrigatório para obras)':''}. Digite o CEP que o endereço vem sozinho.</small><div class="fin-linha">
         ${f('cno','CNO da obra',of.cno,'placeholder="se tiver"')}${f('cep','CEP',of.cep,'inputmode="numeric" maxlength="9" placeholder="00000-000"')}${f('lgr','Rua / logradouro',of.lgr)}${f('nro','Número',of.nro,'placeholder="S/N"')}${f('bairro','Bairro / localidade',of.bairro)}</div><div class="nfa-cep" data-cep-st></div></div>
       <div class="nfa-trib"><b><i class="fas fa-scale-balanced"></i> Tributos e retenções que vão na nota</b><div class="nfa-trib-l" data-trib></div>
@@ -20018,10 +20107,8 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
     const numCt=getFuzzy(obra,['numero_contrato','num_contrato','n_contrato'])||'',contratante=ct.contratante||'',docCt=ct.cnpj_contratante||(contratanteDe(contratante)||{}).doc||'';
     const cidade=getFuzzy(obra,['cidade_obra'])||ct.cidade_obra||'',ret=med?retencao1aMed(ob,med):0,g=infoGarantia(ob);
     const seguro0=!ehM&&val(r[K.seguro])?val(r[K.seguro]):ret;
-    // endereço do tomador (a Receita exige quando o ISS é retido): EMBASA como na NF 20; outros pelo CNPJ (BrasilAPI)
-    const dgCt=String(docCt||'').replace(/\D/g,'');
-    let tomaEnd=dgCt==='13504675000110'?{razao:'EMPRESA BAIANA DE AGUAS E SANEAMENTO SA',xLgr:'LUIS VIANA',nro:'420',xCpl:'EDIF SEDUR',xBairro:'CENTRO ADMINISTRATIVO DA BAHIA',cMun:'2927408',cep:'41745010'}:null;
-    if(!tomaEnd&&dgCt.length===14)fetch('https://brasilapi.com.br/api/cnpj/v1/'+dgCt).then(r=>r.ok?r.json():null).then(j=>{if(j&&j.codigo_municipio_ibge)tomaEnd={razao:j.razao_social,xLgr:[j.descricao_tipo_de_logradouro,j.logradouro].filter(Boolean).join(' '),nro:j.numero||'S/N',xCpl:j.complemento||'',xBairro:j.bairro||'',cMun:String(j.codigo_municipio_ibge),cep:String(j.cep||'')};}).catch(()=>{});
+    // endereço do tomador (a Receita exige quando o ISS é retido): o do cadastro do contratante, o da EMBASA ou pelo CNPJ
+    let tomaEnd=null;const tomaProm=enderecoTomador(contratante,docCt).then(e=>{tomaEnd=e;try{pintarToma();}catch(x){}return e;});
     const exige=exigeDaps(cidade);
     const ST={arq:{},daps:exige===true?null:false,exige,marcouExige:false,decl:null,xml:null,auto:null,pend:null};
     const per=d=>{const z=dt(d);return z?brDe(z):'';};
@@ -20049,7 +20136,7 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
         ${ret?`<div class="fin-aviso"><div><b>Garantia retida nesta 1ª medição:</b> o contrato tem a garantia na modalidade "Retenção na 1ª medição" (${pf(g.pct)}% de ${fmt(g.vc)} = <b>${fmt(ret)}</b>). O valor já entrou em "Seguro do contrato" e sai do líquido.</div></div>`:''}
         <div class="fin-resumo" data-liq></div></div>
       <div class="nfw-sec"><h5 data-auto-h><span>2</span>Emitir a NFS-e na Receita Federal</h5>
-        ${painelAutoHtml(ob,desc)}
+        ${painelAutoHtml(ob,desc,x.subst)}
         <details class="nfa-man" ${certLocal()?'':'open'}><summary>Prefere emitir pelo site da Receita? (manual)</summary>
         <p class="dica">No <b>Emissor Nacional da NFS-e</b>, com o certificado digital ou a conta gov.br da empresa. Use os dados abaixo (botão Copiar) e, emitida a nota, baixe o PDF e o XML e anexe no passo 3 — o sistema lê o número, a data e o valor do XML.</p>
         <div style="margin-bottom:8px"><a class="fin-bt pri mini" href="${EMISSOR}" target="_blank" rel="noopener"><i class="fas fa-arrow-up-right-from-square"></i> Abrir o Emissor Nacional (Receita Federal)</a></div>
@@ -20077,7 +20164,7 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
       const o=ehM?{}:copiaF(r);
       Object.assign(o,{[K.obra]:ob,[K.tipo]:'Real',[K.nf]:nf,[K.em]:em,[K.bruto]:dinheiro(c.bruto),[K.inss]:dinheiro(c.inss),[K.irpf]:dinheiro(c.irpf),[K.simples]:dinheiro(c.simples),[K.antec]:dinheiro(c.antec),[K.seguro]:dinheiro(c.seguro),[K.liq]:dinheiro(c.liq),
         fat_uid:uid,nfse_chave:(ST.xml&&ST.xml.chave)||'',daps:ST.daps?'sim':'não',
-        ...(ST.auto?{nfse_auto:'sim',nfse_amb:String(ST.auto.amb),nfse_serie:String(ST.auto.serie),nfse_ndps:String(ST.auto.nDPS),nfse_id_dps:ST.auto.id||''}:{}),declaracao_em:new Date().toISOString(),garantia_retida:ret&&c.seguro>0?'sim':(o.garantia_retida||'')});
+        ...(ST.auto?{nfse_auto:'sim',nfse_amb:String(ST.auto.amb),nfse_serie:String(ST.auto.serie),nfse_ndps:String(ST.auto.nDPS),nfse_id_dps:ST.auto.id||'',nfse_substituida:x.subst?x.subst.chave:(o.nfse_substituida||'')}:{}),declaracao_em:new Date().toISOString(),garantia_retida:ret&&c.seguro>0?'sim':(o.garantia_retida||'')});
       if(rec)o[K.rec]=rec;else if(ehM)o[K.rec]='';
       if(ehM){o[K.lanc]=todayDateTime();o.medicao_rowid=String(r.rowid);o.medicao_numero=String(r.numero||'');if(!o[K.antecData])o[K.antecData]='';}
       else if(!r.rowid)o[K.lanc]=todayDateTime();   // nota avulsa (sem medição)
@@ -20089,7 +20176,8 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
         await salvar('Planejamento',docRegistro('declaracao',ST.decl.dados,{titulo_obra:ob,fat_uid:uid,medicao_rowid:med?String(med.rowid):''}),null);
         if(ST.marcouExige)await marcarDaps(cidade,ST.exige);
       });
-      toast('Nota emitida e arquivada — agora está em "Nota emitida · a receber".','success');}}],900);
+      if(x.subst){const ant=emitidas().find(p=>String(p.chave)===String(x.subst.chave));guardarEmitida({...(ant||{chave:x.subst.chave,numero:x.subst.numero,amb:'1'}),status:'substituida',substituida_por:ST.xml&&ST.xml.chave||''});}
+      toast(x.subst?'Nota substituída e arquivada — a Receita cancela a nota anterior automaticamente.':'Nota emitida e arquivada — agora está em "Nota emitida · a receber".','success');}}],900);
     const box=j.querySelector('[data-nfw-box]');
     function calc(jj){const gg=k=>Mascara.numero((jj.querySelector(`[data-k="${k}"]`)||{}).value)||0,bb=gg('bruto');
       const c={bruto:bb,inss:Math.round(bb*gg('inss'))/100,irpf:Math.round(bb*gg('irpf'))/100,simples:Math.round(bb*gg('simples'))/100,antec:Math.round(bb*gg('antec'))/100,seguro:gg('seguro')};c.liq=Math.round((bb-c.inss-c.irpf-c.simples-c.antec-c.seguro)*100)/100;
@@ -20128,6 +20216,9 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
       if(a==='auto')return emitirAuto();
       if(a==='conferir-saiu')return conferirSaiu();
       if(a==='pdf-de-novo')return pdfDeNovo();
+      if(a==='usar-emitida'){const p=pendDaqui()[+b2.dataset.i];if(!p)return;if(!p.xml)return toast('Não achei o XML desta nota no sistema.','error');
+        aplicarNota({xml:p.xml,chave:p.chave,amb:1,serie:p.serie,nDPS:+p.ndps||0,id:p.id_dps||'',nota:{numero:p.numero},pdf:null},null,{daMemoria:true});toast(`NFS-e nº ${p.numero} aplicada — confira e clique em Concluir.`,'success');return;}
+      if(a==='cancelar-emitida'){const p=pendDaqui()[+b2.dataset.i];if(!p)return;return janelaCancelarNfse({chave:p.chave,numero:p.numero,amb:1},async()=>{toast(`NFS-e nº ${p.numero} cancelada na Receita.`,'success');});}
       if(a==='desc-padrao'){ev.preventDefault();const ta=box.querySelector('[data-a="desc"]');if(ta){delete ta.dataset.mexeu;calc(j);}return;}
       if(a==='previa'){let m;try{m=montarDps();}catch(e){return toast(e.message,'error');}return abrirPdf(()=>pdfNota(danfseDaDps(m.dps,cidade)),'previa-nota.pdf');}
       if(a==='ver-arq'){const f=ST.arq[b2.dataset.k];if(f){const u=URL.createObjectURL(f),w=window.open(u,'_blank');if(!w){const l=document.createElement('a');l.href=u;l.download=f.name;l.click();}setTimeout(()=>URL.revokeObjectURL(u),120000);}return;}
@@ -20145,6 +20236,8 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
     const resAuto=h=>{const el=nfa.querySelector('[data-nfa-res]');if(el)el.innerHTML=h;};
     if(!av('cmun'))codIBGE(cidade).then(cod=>{const el=nfa.querySelector('[data-a="cmun"]');if(!el)return;if(cod&&!el.value)el.value=cod;el.placeholder=cod?'':'7 números — não achei pela cidade';});
     nfa.addEventListener('change',ev=>{if(ev.target.matches('[data-a="issret"]')){nfa.querySelector('[data-a-aliq]').hidden=ev.target.value!=='sim';calc(j);}
+      if(ev.target.matches('[data-a="nbs"]'))ev.target.dataset.mexeu='1';
+      if(ev.target.matches('[data-a="ctrib"]')){const nb=nfa.querySelector('[data-a="nbs"]'),sug=NBS_SUG[ev.target.value];if(nb&&sug&&!nb.dataset.mexeu)nb.innerHTML=opsNbs(sug);}
       if(ev.target.matches('[data-a="ctrib"]'))nfa.querySelector('[data-obra-dica]').textContent='— o CNO da obra ou o endereço'+(pedeObra(ev.target.value)?' (obrigatório para obras)':'')+'. Digite o CEP que o endereço vem sozinho.';});
     // descrição mexida à mão deixa de acompanhar os valores (o link "voltar ao texto padrão" desfaz)
     nfa.querySelector('[data-a="desc"]').addEventListener('input',ev=>{ev.target.dataset.mexeu='1';});
@@ -20168,31 +20261,46 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
       if(docT.length!==14&&docT.length!==11)throw new Error('O contratante está sem CNPJ/CPF: cadastre em Documentos e certidões › Empresa › Contratantes (ou no contrato da obra).');
       if(!contratante)throw new Error('A obra está sem contratante (Contrato › Editar dados).');
       if(cmun.length!==7)throw new Error('Informe o código IBGE do município da prestação (7 números).');
+      const nbs=av('nbs').replace(/\D/g,'');if(nbs.length!==9)throw new Error('Escolha o código NBS do serviço (a NF 20 usou 1.0101.22.00).');
       const cno=av('cno'),cep=av('cep').replace(/\D/g,''),obraD=cno.replace(/\D/g,'')?{cObra:cno}:(cep||av('lgr')||av('bairro'))?{cep,xLgr:av('lgr'),nro:av('nro')||'S/N',xBairro:av('bairro')}:null;
       if(pedeObra(ct)&&!obraD)throw new Error('Para obra, informe o CNO da obra ou o endereço (CEP, rua e bairro).');
       if(obraD&&!obraD.cObra&&(cep.length!==8||!obraD.xLgr||!obraD.xBairro))throw new Error('Endereço da obra incompleto: CEP com 8 números, rua e bairro.');
-      const aliq=num(av('aliq'));if(ret&&!(aliq>0))throw new Error('Com ISS retido, informe a alíquota do ISS (%).');if(ret&&!tomaEnd)throw new Error('Com ISS retido, a Receita exige o endereço do contratante: não consegui buscá-lo pelo CNPJ — tente de novo em instantes.');
+      const aliq=num(av('aliq'));if(ret&&!(aliq>0))throw new Error('Com ISS retido, informe a alíquota do ISS (%).');if(ret&&!tomaEnd)throw new Error('Com ISS retido, a Receita exige o endereço do contratante: cadastre em Documentos e certidões › Empresa › Contratantes (botão "Buscar dados pelo CNPJ").');
       const hojeI=isoDe(hoje0()),emI=(j.querySelector('[data-k="em"]')||{}).value||hojeI;
-      return {dps:{dCompet:emI>hojeI?hojeI:emI,cLocEmi:conf.cmun_emi,prest:{cnpj:CNPJ_VX,im:conf.im,opSimpNac:conf.op_simp,regApTribSN:conf.reg_ap,regEspTrib:conf.reg_esp},
-          toma:{[docT.length===14?'cnpj':'cpf']:docT,xNome:(tomaEnd&&tomaEnd.razao)||contratante,end:tomaEnd},serv:{cLocPrestacao:cmun,cTribNac:ct,xDescServ:av('desc').replace(/\s+/g,' ')||desc,cNBS:conf.cnbs,obra:obraD},
+      const sj=av('sjust');if(x.subst&&sj&&sj.length<15)throw new Error('O motivo da substituição precisa ter pelo menos 15 letras (ou deixe em branco).');
+      return {dps:{dCompet:emI>hojeI?hojeI:emI,cLocEmi:conf.cmun_emi,...(x.subst?{subst:{chSubstda:x.subst.chave,cMotivo:av('smot')||'99',xMotivo:sj}}:{}),prest:{cnpj:CNPJ_VX,im:conf.im,opSimpNac:conf.op_simp,regApTribSN:conf.reg_ap,regEspTrib:conf.reg_esp},
+          toma:{[docT.length===14?'cnpj':'cpf']:docT,xNome:(tomaEnd&&tomaEnd.razao)||contratante,end:tomaEnd},serv:{cLocPrestacao:cmun,cTribNac:ct,cNBS:nbs,xDescServ:av('desc').replace(/\s+/g,' ')||desc,obra:obraD},
           valores:{vServ:c.bruto,tribISSQN:1,tpRetISSQN:ret?2:1,pAliq:ret||conf.op_simp==='1'?aliq||num(conf.aliq):'',vRetCP:c.inss,vRetIRRF:c.irpf,vRetCSLL:c.csll||0,pTotTribSN:conf.op_simp==='1'?'':num(conf.ptot_sn)}},
-        fiscal:{ctrib:ct,cmun,cno,cep,lgr:av('lgr'),nro:av('nro'),bairro:av('bairro'),iss_retido:ret?'sim':'nao',aliq:av('aliq')}};
+        fiscal:{ctrib:ct,cnbs:nbs,cmun,cno,cep,lgr:av('lgr'),nro:av('nro'),bairro:av('bairro'),iss_retido:ret?'sim':'nao',aliq:av('aliq')}};
     }
     // a nota saiu: XML e PDF entram no passo 3, os campos se preenchem e a declaração de entrega é gerada
-    function aplicarNota(r,fiscal){
+    function aplicarNota(r,fiscal,opts){
       const nn=(r.nota&&r.nota.numero)||'',nome=`NFS-e ${nn||r.chave}${r.amb===1?'':' (TESTE)'}`;
       ST.arq.xml=new File([r.xml],nome+'.xml',{type:'application/xml'});ST.xml=lerXmlNfse(r.xml);if(!ST.xml.chave)ST.xml.chave=r.chave;
       if(r.pdf)ST.arq.nf=new File([bytesB64(r.pdf)],nome+'.pdf',{type:'application/pdf'});
       ST.auto={chave:r.chave,amb:r.amb,serie:r.serie,nDPS:r.nDPS,id:r.id,numero:nn,semPdf:!r.pdf};ST.pend=null;
       const set=(k,v)=>{const el=j.querySelector(`[data-k="${k}"]`);if(el&&v)el.value=v;};
       set('nf',ST.xml.numero||nn);set('em',ST.xml.data);if(ST.xml.valor>0)set('bruto',fmt(ST.xml.valor));calc(j);
-      montarDecl(false);pintarDaps();pintarAuto();
-      guardarObraFiscal(ob,fiscal);
+      montarDecl(false);pintarDaps();pintarAuto();pintarPend();
+      if(fiscal)guardarObraFiscal(ob,fiscal);
+      // nota valendo fica guardada na hora: se a janela fechar antes do "Concluir", ela aparece de novo aqui
+      if(r.amb===1&&!(opts&&opts.daMemoria))guardarEmitida({chave:r.chave,numero:nn,amb:'1',serie:String(r.serie||''),ndps:String(r.nDPS||''),id_dps:r.id||'',titulo_obra:ob,medicao_rowid:med?String(med.rowid):'',fat_rowid:(!ehM&&x.r.rowid)?String(x.r.rowid):'',
+        valor:String(ST.xml.valor||''),emitida_em:new Date().toISOString(),emitida_por:eu().nome,xml:r.xml,status:'pendente',substitui:x.subst?x.subst.chave:''});
       // o PDF com a logo da empresa vira a "Nota Fiscal (PDF)"; o DANFSe da Receita fica guardado junto
       (async()=>{try{const blob=await pdfNota(danfseDoXml(r.xml));if(ST.arq.nf&&!ST.arq.oficial)ST.arq.oficial=new File([ST.arq.nf],nome+' - DANFSe Receita.pdf',{type:'application/pdf'});
         ST.arq.nf=new File([blob],nome+'.pdf',{type:'application/pdf'});ST.auto.logo=true;pintarArqs();pintarAuto();}
         catch(e){console.error(e);toast('A nota saiu, mas não consegui montar o PDF com a logo: '+((e&&e.message)||e),'info');}})();
     }
+    // nota já emitida para esta medição (ou nota avulsa) e ainda não concluída
+    function pendDaqui(){return emitidasPendentes().filter(p=>{if(ST.auto&&String(ST.auto.chave)===String(p.chave))return false;if(med&&String(p.medicao_rowid||'')===String(med.rowid))return true;
+      if(!ehM&&x.r.rowid&&String(p.fat_rowid||'')===String(x.r.rowid))return true;return p.titulo_obra===ob&&!p.medicao_rowid&&!p.fat_rowid;});}
+    function pintarPend(){const el=box.querySelector('[data-nfa-pend]');if(!el)return;
+      el.innerHTML=pendDaqui().map((p,i)=>`<div class="nfa-pend"><b><i class="fas fa-triangle-exclamation"></i> Já existe a NFS-e nº ${fe(p.numero||'?')} emitida${p.emitida_em?' em '+brDe(new Date(p.emitida_em)):''}${+p.valor?' ('+fmt(+p.valor)+')':''} ${p.medicao_rowid?'para esta medição':'para esta obra'}, e o faturamento não foi concluído.</b>
+        <span>Use esta nota para concluir — não emita outra para o mesmo serviço. Se ela estiver errada, cancele na Receita.</span><div class="nfa-bts"><button type="button" class="fin-bt mini pri" data-nfw="usar-emitida" data-i="${i}"><i class="fas fa-check"></i> Usar esta nota</button><button type="button" class="fin-bt mini" data-nfw="cancelar-emitida" data-i="${i}"><i class="fas fa-ban"></i> Cancelar na Receita</button></div></div>`).join('');}
+    function pintarToma(){const el=box.querySelector('[data-toma]');if(!el)return;const e=tomaEnd,cepF=c=>String(c||'').replace(/^(\d{5})(\d{3})$/,'$1-$2');
+      el.className='nfa-toma'+(e?'':' err');
+      el.innerHTML=e?`<b>Tomador:</b> ${fe(e.razao||contratante)} · ${fe(docCt)}<br><span>${fe([e.xLgr,e.nro,e.xCpl,e.xBairro].filter(Boolean).join(', '))} · ${fe(e.mun||e.cMun)} · CEP ${fe(cepF(e.cep))}</span> <small>— corrija em Empresa › Contratantes</small>`
+        :`<b>Tomador:</b> ${fe(contratante||'(sem contratante)')} — <span>sem endereço cadastrado. Com ISS retido a Receita exige: cadastre em Documentos e certidões › Empresa › Contratantes.</span>`;}
     function pintarAuto(){
       const h=box.querySelector('[data-auto-h]');if(!ST.auto){h.classList.remove('ok');return;}
       const t=ST.auto,teste=t.amb!==1;h.classList.toggle('ok',!teste);
@@ -20204,6 +20312,7 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
     }
     async function emitirAuto(){
       if(ST.auto&&ST.auto.amb===1)return toast('A nota desta janela já foi emitida.','info');
+      if(!ST.auto&&pendDaqui().length)return toast('Já existe nota emitida para esta medição: clique em "Usar esta nota" (ou cancele-a) — assim não sai nota em dobro.','error');
       if(!pode('faturamento'))return toast('Seu perfil não pode emitir notas.','error');
       let m,cred;try{m=montarDps();cred=credenciais(av('senha'));}catch(e){return toast(e.message,'error');}
       const real=nfc().ambiente==='1',bt=nfa.querySelector('[data-nfw="auto"]');
@@ -20255,7 +20364,7 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
         toast(x2.numero?`XML lido: NF ${x2.numero}${x2.valor?' · '+fmt(x2.valor):''}.`:'XML anexado (não achei o número da nota nele — confira o campo).',x2.numero?'success':'info');}catch(e){toast('Não consegui ler o XML: '+(e.message||e),'error');}}
       pintarArqs();
     });
-    calc(j);j.oninput=()=>calc(j);pintarDaps();pintarDecl();assinatura();
+    calc(j);j.oninput=()=>calc(j);pintarDaps();pintarDecl();pintarPend();assinatura();
   }
 
   // ficha da nota emitida: arquivos da nota, documentos gerados e o kit da empresa
@@ -20351,7 +20460,7 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
     else if(EC.aba==='dados')corpo=`<div class="fin-linha">${cps.map(([k,l,w])=>`<div class="fin-fld"${w?' style="grid-column:1/-1"':''}><label>${l}</label><input data-emp="${k}" value="${fe(e[k]||'')}"></div>`).join('')}</div><div style="display:flex;justify-content:flex-end;margin-top:8px"><button type="button" class="fin-bt pri" data-ec="salvar-dados"><i class="fas fa-floppy-disk"></i> Salvar</button></div>`;
     else if(EC.aba==='ass')corpo=`<div class="empc-ass"><div class="prev" data-ass-prev>carregando…</div><div style="display:flex;flex-direction:column;gap:8px"><button type="button" class="fin-bt" data-ec="ass-enviar"><i class="fas fa-upload"></i> Enviar imagem (PNG/JPG)</button><button type="button" class="fin-bt" data-ec="ass-desenhar"><i class="fas fa-pen-nib"></i> Desenhar a assinatura</button><button type="button" class="fin-bt" data-ec="ass-excluir"><i class="fas fa-trash"></i> Excluir a assinatura</button><small style="color:#667085;max-width:300px">A assinatura de <b>${fe(e.representante)}</b> entra nas declarações, solicitações e formulários gerados pelo sistema. De preferência PNG com fundo transparente.</small></div></div>`;
     else if(EC.aba==='ct'){const L=contratantes();corpo=`<p style="margin:0 0 8px;font-size:12px;color:#667085">Contratante com quem a empresa não vai mais trabalhar: <b>Inativar</b> — ele sai da lista do contrato, mas o histórico das obras continua. <b>Excluir</b> só aparece para quem não tem contrato no sistema.</p>
-      <table class="empc-tab"><thead><tr><th>Contratante</th><th>CPF/CNPJ</th><th>Contratos</th><th></th></tr></thead><tbody>${L.map((x,i)=>{const u=usoCt(x.nome);return `<tr class="${x.inativo?'inativo':''}"><td><b>${fe(x.nome)}</b>${x.inativo?' <span class="tag-in">inativo</span>':''}</td><td>${fe(x.doc||'—')}</td><td>${u||'—'}</td><td style="text-align:right;white-space:nowrap"><button type="button" class="fin-bt mini" data-ec="ct-editar" data-i="${i}"><i class="fas fa-pen"></i> Editar</button> <button type="button" class="fin-bt mini" data-ec="ct-ativo" data-i="${i}"><i class="fas fa-${x.inativo?'rotate-left':'ban'}"></i> ${x.inativo?'Reativar':'Inativar'}</button>${!u&&x.rowid?` <button type="button" class="fin-bt mini" data-ec="ct-excluir" data-i="${i}"><i class="fas fa-trash"></i> Excluir</button>`:''}</td></tr>`;}).join('')}</tbody></table><div style="display:flex;justify-content:flex-end;margin-top:8px"><button type="button" class="fin-bt pri" data-ec="ct-novo"><i class="fas fa-plus"></i> Novo contratante</button></div>`;}
+      <table class="empc-tab"><thead><tr><th>Contratante</th><th>CPF/CNPJ</th><th>Endereço</th><th>Contratos</th><th></th></tr></thead><tbody>${L.map((x,i)=>{const u=usoCt(x.nome);return `<tr class="${x.inativo?'inativo':''}"><td><b>${fe(x.nome)}</b>${x.inativo?' <span class="tag-in">inativo</span>':''}</td><td>${fe(x.doc||'—')}</td><td>${(()=>{const en=endDoRow(x.row)||(String(x.doc||'').replace(/\D/g,'')==='13504675000110'?EMBASA_END:null);return en?fe(en.mun||en.cMun):'<span style="color:#B54708">sem endereço</span>';})()}</td><td>${u||'—'}</td><td style="text-align:right;white-space:nowrap"><button type="button" class="fin-bt mini" data-ec="ct-editar" data-i="${i}"><i class="fas fa-pen"></i> Editar</button> <button type="button" class="fin-bt mini" data-ec="ct-ativo" data-i="${i}"><i class="fas fa-${x.inativo?'rotate-left':'ban'}"></i> ${x.inativo?'Reativar':'Inativar'}</button>${!u&&x.rowid?` <button type="button" class="fin-bt mini" data-ec="ct-excluir" data-i="${i}"><i class="fas fa-trash"></i> Excluir</button>`:''}</td></tr>`;}).join('')}</tbody></table><div style="display:flex;justify-content:flex-end;margin-top:8px"><button type="button" class="fin-bt pri" data-ec="ct-novo"><i class="fas fa-plus"></i> Novo contratante</button></div>`;}
     else if(EC.aba==='nfse')corpo=htmlNfseCfg();
     else if(EC.aba==='mun'){const L=munLista(),ex=x=>x.exige_daps===true||x.exige_daps==='true';corpo=`<p style="margin:0 0 8px;font-size:12px;color:#667085">Quando o município da obra exige a DAPS, a janela de emissão pergunta se deseja emitir também a DAPS e mostra o link do site da prefeitura e o botão para copiar a chave da nota. Dá para marcar também na própria janela de emissão.</p>${L.length?`<table class="empc-tab"><thead><tr><th>Município</th><th>Exige DAPS?</th><th>Site da prefeitura</th><th></th></tr></thead><tbody>${L.map((x,i)=>`<tr><td><b>${fe(x.cidade)}</b></td><td>${ex(x)?'Sim':'Não'}</td><td>${x.portal?`<a href="${fe(x.portal)}" target="_blank" rel="noopener">abrir</a>`:'—'}</td><td style="text-align:right;white-space:nowrap"><button type="button" class="fin-bt mini" data-ec="mun-editar" data-i="${i}"><i class="fas fa-pen"></i> Editar</button> <button type="button" class="fin-bt mini" data-ec="mun-excluir" data-i="${i}"><i class="fas fa-trash"></i> Excluir</button></td></tr>`).join('')}</tbody></table>`:'<div class="anx-vazio">Nenhum município marcado ainda.</div>'}<div style="display:flex;justify-content:flex-end;margin-top:8px"><button type="button" class="fin-bt pri" data-ec="mun-novo"><i class="fas fa-plus"></i> Marcar município</button></div>`;}
     return `<div class="empc" data-empc><div class="empc-cab"><div><h3><i class="fas fa-building-shield"></i>Empresa e documentos para a contratante</h3><p>Kit de documentos, dados e assinatura usados nas declarações e formulários que o sistema gera.</p></div></div>
@@ -20371,12 +20480,36 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
         await executar(()=>salvar('Planejamento',{...limpo(ant||{}),tipo:'municipio',cidade:cid,exige_daps:g('ex')==='sim',portal,atualizado_em:todayDateTime()},ant?ant.rowid:null));toast('Município salvo.','success');}}],520);
     if(!x)setTimeout(()=>{try{GS.cidade&&GS.cidade.ligar(document.querySelector('#fin-jan [data-k="c"]'));}catch(e){}},60);
   }
+  // contratante: nome, CPF/CNPJ e o endereço (a Receita exige o endereço do tomador quando o ISS é retido)
+  const EMBASA_END={razao:'EMPRESA BAIANA DE AGUAS E SANEAMENTO SA',xLgr:'LUIS VIANA',nro:'420',xCpl:'EDIF SEDUR',xBairro:'CENTRO ADMINISTRATIVO DA BAHIA',cMun:'2927408',cep:'41745010',mun:'Salvador/BA'};
+  const endDoRow=r=>r&&r.end_cmun&&r.end_cep&&r.end_lgr?{razao:r.razao||'',xLgr:r.end_lgr,nro:r.end_nro||'S/N',xCpl:r.end_cpl||'',xBairro:r.end_bairro||'',cMun:String(r.end_cmun),cep:String(r.end_cep),mun:r.end_mun||''}:null;
+  async function buscaCnpj(dg){try{const r=await fetch('https://brasilapi.com.br/api/cnpj/v1/'+dg);if(!r.ok)return null;const j=await r.json();if(!j||!j.codigo_municipio_ibge)return null;
+    return {razao:j.razao_social||'',xLgr:[j.descricao_tipo_de_logradouro,j.logradouro].filter(Boolean).join(' '),nro:j.numero||'S/N',xCpl:j.complemento||'',xBairro:j.bairro||'',cMun:String(j.codigo_municipio_ibge),cep:String(j.cep||'').replace(/\D/g,''),mun:`${j.municipio||''}/${j.uf||''}`};}catch(e){return null;}}
+  // endereço do tomador: o cadastrado no contratante; senão o da EMBASA (como na NF 20); senão pelo CNPJ
+  async function enderecoTomador(nome,doc){const x=contratanteDe(nome),dg=String(doc||(x&&x.doc)||'').replace(/\D/g,'');
+    return endDoRow(x&&x.row)||(dg==='13504675000110'?EMBASA_END:null)||(dg.length===14?await buscaCnpj(dg):null);}
   function editarContratante(x){
-    janela(x?'Contratante':'Novo contratante',`<div class="fin-linha"><div class="fin-fld" style="grid-column:1/-1"><label>Nome / razão social <span class="obg">*</span></label><input data-k="nome" value="${fe(x?x.nome:'')}"></div>
-      <div class="fin-fld"><label>CPF ou CNPJ</label><input data-k="doc" data-mask="cpfcnpj" inputmode="numeric" value="${fe(x?x.doc:'')}" placeholder="000.000.000-00 ou 00.000.000/0000-00"></div></div>`,
-      [{html:'<i class="fas fa-floppy-disk"></i> Salvar',cls:'pri',acao:async j=>{const n=j.querySelector('[data-k="nome"]').value.trim(),d=j.querySelector('[data-k="doc"]').value.trim();if(!n)throw new Error('Informe o nome.');
+    const e=endDoRow(x&&x.row)||(x&&String(x.doc||'').replace(/\D/g,'')==='13504675000110'?EMBASA_END:{})||{};
+    const f=(k,l,v,extra,larga)=>`<div class="fin-fld"${larga?' style="grid-column:1/-1"':''}><label>${l}</label><input data-k="${k}" value="${fe(v||'')}" ${extra||''}></div>`;
+    janela(x?'Contratante':'Novo contratante',`<div class="fin-linha">${f('nome','Nome (como aparece no sistema) <span class="obg">*</span>',x?x.nome:'','',1)}
+      <div class="fin-fld"><label>CPF ou CNPJ</label><input data-k="doc" data-mask="cpfcnpj" inputmode="numeric" value="${fe(x?x.doc:'')}" placeholder="000.000.000-00 ou 00.000.000/0000-00"></div>
+      <div class="fin-fld" style="align-self:end"><button type="button" class="fin-bt" data-ctb="cnpj"><i class="fas fa-magnifying-glass"></i> Buscar dados pelo CNPJ</button></div>
+      ${f('razao','Razão social (sai na nota fiscal)',e.razao,'',1)}</div>
+      <div class="nfa-obra" style="margin-top:8px"><b>Endereço</b> <small>— vai na nota fiscal (a Receita exige quando o ISS é retido)</small><div class="fin-linha">
+      ${f('cep','CEP',e.cep?String(e.cep).replace(/^(\d{5})(\d{3})$/,'$1-$2'):'','inputmode="numeric" maxlength="9"')}${f('lgr','Rua / logradouro',e.xLgr)}${f('nro','Número',e.nro)}${f('cpl','Complemento',e.xCpl)}${f('bairro','Bairro',e.xBairro)}
+      ${f('mun','Município',e.mun,'readonly placeholder="vem pelo CEP"')}${f('cmun','Código IBGE',e.cMun,'readonly placeholder="vem pelo CEP"')}</div><div class="nfa-cep" data-ct-st></div></div>`,
+      [{html:'<i class="fas fa-floppy-disk"></i> Salvar',cls:'pri',acao:async j=>{const g=k=>j.querySelector(`[data-k="${k}"]`).value.trim(),n=g('nome'),d=g('doc');if(!n)throw new Error('Informe o nome.');
         const dg=d.replace(/\D/g,'');if(dg&&dg.length!==11&&dg.length!==14)throw new Error('CPF tem 11 números e CNPJ tem 14.');
-        await executar(()=>salvarContratante(n,d,x&&x.rowid));toast('Contratante salvo.','success');}}],560);
+        const cep=g('cep').replace(/\D/g,''),temEnd=cep||g('lgr')||g('bairro');
+        if(temEnd&&(cep.length!==8||!g('lgr')||!g('bairro')||!/^\d{7}$/.test(g('cmun'))))throw new Error('Endereço incompleto: CEP (com o município), rua e bairro.');
+        await executar(()=>salvarContratante(n,d,x&&x.rowid,{razao:g('razao'),end_cep:cep,end_lgr:g('lgr'),end_nro:g('nro')||(temEnd?'S/N':''),end_cpl:g('cpl'),end_bairro:g('bairro'),end_cmun:g('cmun'),end_mun:g('mun')}));toast('Contratante salvo.','success');}}],640);
+    const j=document.getElementById('fin-jan'),st=j.querySelector('[data-ct-st]'),put=(k,v)=>{const el=j.querySelector(`[data-k="${k}"]`);if(el&&v!=null&&v!=='')el.value=v;};
+    const porCep=async()=>{const cp=j.querySelector('[data-k="cep"]').value.replace(/\D/g,'');if(cp.length!==8)return;st.textContent='Buscando o CEP…';const c=await buscaCep(cp);
+      if(!c){st.textContent='Não achei este CEP.';return;}put('lgr',c.logradouro);put('bairro',c.bairro);put('mun',`${c.localidade}/${c.uf}`);put('cmun',c.ibge);st.textContent=`${c.localidade}/${c.uf}`;};
+    j.querySelector('[data-k="cep"]').addEventListener('change',porCep);j.querySelector('[data-k="cep"]').addEventListener('blur',porCep);
+    j.querySelector('[data-ctb="cnpj"]').addEventListener('click',async()=>{const dg=j.querySelector('[data-k="doc"]').value.replace(/\D/g,'');if(dg.length!==14)return toast('Digite o CNPJ (14 números).','error');
+      st.textContent='Buscando os dados do CNPJ…';const r=await buscaCnpj(dg);if(!r){st.textContent='Não achei os dados deste CNPJ — preencha o endereço à mão.';return;}
+      put('razao',r.razao);put('cep',r.cep.replace(/^(\d{5})(\d{3})$/,'$1-$2'));put('lgr',r.xLgr);put('nro',r.nro);put('cpl',r.xCpl);put('bairro',r.xBairro);put('mun',r.mun);put('cmun',r.cMun);st.textContent='Dados da Receita Federal (cadastro do CNPJ) — confira.';});
   }
   async function pintarAss(box){const p=box.querySelector('[data-ass-prev]');if(!p)return;const u=await assinatura();p.innerHTML=u?`<img src="${u}" alt="assinatura">`:'nenhuma assinatura cadastrada';}
   async function enviarAssinatura(f){UI._showBusy('Enviando…');try{await enviarArq(EMP_ARQ,{aba:'assinatura'},f);ASS=null;toast('Assinatura guardada.','success');}finally{UI._hideBusy();}}
@@ -20545,7 +20678,7 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
   Auth.logout=function(){fecharModais();esconderAviso();clearTimeout(tAviso);return sair.apply(this,arguments);};
 
   GS.docs={empresa,assinatura,contratantes,contratanteDe,salvarContratante,datalistContratantes,ehEmbasa,exigeDaps,marcarDaps,infoGarantia,retencao1aMed,imprimirDoc,gerados,gerarSolicitacaoGarantia,
-    emitirNota,fichaNotaExtras,ligarFichaNota,antecipacao,contratanteDaNota,dadosAntecipacao,registrarAntecipacao,listarArq,enviarArq,baixarArq,lerXmlNfse,KIT,_EC:EC,_SO2:SO2};
+    emitirNota,fichaNotaExtras,ligarFichaNota,antecipacao,contratanteDaNota,dadosAntecipacao,registrarAntecipacao,cancelarNotaDoFaturamento,emitidasPendentes,listarArq,enviarArq,baixarArq,lerXmlNfse,KIT,_EC:EC,_SO2:SO2};
 })();
 </script>
 </body>

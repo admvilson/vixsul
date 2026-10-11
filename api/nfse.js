@@ -60,6 +60,7 @@ module.exports = async (req, res) => {
     const info = { nome: crt.nome, cnpj: crt.cnpj, validoDe: crt.validoDe, validoAte: crt.validoAte };
     // só monta e assina (sem enviar nada à Receita): serve para conferir o XML com qualquer certificado
     if (b.acao === 'teste-assinatura') { const r = core.dpsAssinada(b.dps, crt); return responder(200, { ok: true, info, id: r.id, xml: r.xml }); }
+    if (b.acao === 'teste-evento') { const r = core.eventoCancelamento({ tpAmb: 2, chave: b.chave, cMotivo: b.cMotivo, xMotivo: b.xMotivo, cnpj: crt.cnpj }, crt); return responder(200, { ok: true, info, id: r.id, xml: r.xml }); }
     if (crt.cnpj !== CNPJ_EMPRESA) return responder(403, { ok: false, info, msg: `Este certificado é de outro CNPJ (${crt.cnpj || 'sem CNPJ'}): use o certificado A1 da Vixsul.` });
     if (new Date(crt.validoAte) < new Date()) return responder(400, { ok: false, info, msg: 'O certificado venceu em ' + crt.validoAte.slice(0, 10).split('-').reverse().join('/') + '.' });
     if (b.acao === 'info') return responder(200, { ok: true, info });
@@ -87,6 +88,29 @@ module.exports = async (req, res) => {
         return responder(200, { ok: true, info, id, chave, xml: xmlN, pdf: d2.pdf, avisoPdf: d2.aviso, alertas: (j.alertas || j.Alertas || []), nota: core.lerNFSe(xmlN) });
       }
       return responder(200, { ok: false, info, id, status: r.status, erros: erros(j), msg: j ? '' : `Resposta inesperada da Receita (HTTP ${r.status}): ${r.buf.toString('utf8').slice(0, 300)}`, dps: xml });
+    }
+    // cancelamento da NFS-e (evento e101101): motivo 1 erro na emissão, 2 serviço não prestado, 9 outros
+    if (b.acao === 'cancelar') {
+      const chave = String(b.chave || '').replace(/\D/g, '');
+      const ev = core.eventoCancelamento({ tpAmb: +b.ambiente === 1 ? 1 : 2, chave, cMotivo: b.cMotivo, xMotivo: b.xMotivo, cnpj: CNPJ_EMPRESA }, crt);
+      const corpo = JSON.stringify({ pedidoRegistroEventoXmlGZipB64: zlib.gzipSync(Buffer.from(ev.xml, 'utf8')).toString('base64') });
+      const r = await pedir(`${amb.sefin}/nfse/${chave}/eventos`, { metodo: 'POST', corpo, crt }), j = json(r.buf), er = erros(j);
+      if (r.status >= 200 && r.status < 300 && j && !er.length) return responder(200, { ok: true, info, evento: xmlDaResposta(j) });
+      return responder(200, { ok: false, info, status: r.status, erros: er, msg: j ? '' : `Resposta inesperada da Receita (HTTP ${r.status}): ${r.buf.toString('utf8').slice(0, 300)}` });
+    }
+    // procura as notas que o sistema emitiu (série e faixa de nº de DPS): serve para recuperar nota emitida e não concluída
+    if (b.acao === 'procurar') {
+      const serie = String(b.serie || '900').replace(/\D/g, ''), de = Math.max(1, +b.de || 1), ate = Math.min(de + 39, Math.max(de, +b.ate || de));
+      const notas = [];
+      for (let n = de; n <= ate; n++) {
+        const id = core.idDPS({ cLocEmi: b.cLocEmi, prest: { cnpj: CNPJ_EMPRESA }, serie, nDPS: n });
+        let r; try { r = await pedir(`${amb.sefin}/dps/${id}`, { crt }); } catch (e) { continue; }
+        const j = json(r.buf), chave = j && (j.chaveAcesso || j.ChaveAcesso);
+        if (r.status !== 200 || !chave) continue;
+        const r2 = await pedir(`${amb.sefin}/nfse/${chave}`, { crt }), xml = xmlDaResposta(json(r2.buf));
+        notas.push({ nDPS: n, id, chave, xml, nota: xml ? core.lerNFSe(xml) : null });
+      }
+      return responder(200, { ok: true, info, de, ate, notas });
     }
     if (b.acao === 'recuperar') {
       let chave = String(b.chave || '').replace(/\D/g, '');

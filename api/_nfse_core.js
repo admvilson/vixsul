@@ -85,14 +85,18 @@
     const totTrib = +v.pTotTribSN > 0 ? tx('pTotTribSN', dec2(v.pTotTribSN)) : tx('indTotTrib', '0');
     const valores = el('vServPrest', tx('vServ', dec2(v.vServ))) +
       el('trib', el('tribMun', tx('tribISSQN', String(v.tribISSQN || '1')) + tx('tpRetISSQN', String(v.tpRetISSQN || '1')) + tx('pAliq', +v.pAliq > 0 ? dec2(v.pAliq) : '')) + el('tribFed', fed) + el('totTrib', totTrib));
+    // substituição de NFS-e: a nova nota cancela a anterior (chave da substituída + motivo)
+    const sb = d.subst || null;
+    if (sb && so(sb.chSubstda).length !== 50) throw new Error('Chave da nota substituída inválida (50 números).');
+    const subst = sb ? el('subst', tx('chSubstda', so(sb.chSubstda)) + tx('cMotivo', String(sb.cMotivo || '99').padStart(2, '0')) + tx('xMotivo', limpa(sb.xMotivo, 255))) : '';
     const corpo = tx('tpAmb', String(d.tpAmb)) + tx('dhEmi', dhEmi) + tx('verAplic', VER_APLIC) + tx('serie', String(+so(d.serie))) + tx('nDPS', String(+so(d.nDPS))) +
-      tx('dCompet', d.dCompet) + tx('tpEmit', '1') + tx('cLocEmi', so(d.cLocEmi)) + el('prest', prest) + (toma ? el('toma', toma) : '') + el('serv', serv) + el('valores', valores);
+      tx('dCompet', d.dCompet) + tx('tpEmit', '1') + tx('cLocEmi', so(d.cLocEmi)) + subst + el('prest', prest) + (toma ? el('toma', toma) : '') + el('serv', serv) + el('valores', valores);
     return { id, inf: `<infDPS Id="${escAt(id)}">${corpo}</infDPS>` };
   }
   function sha256B64(s) { const md = forge.md.sha256.create(); md.update(s, 'utf8'); return forge.util.encode64(md.digest().getBytes()); }
   function assinar(infXml, id, crt) {
     // forma canônica do infDPS dentro da DPS: herda o xmlns padrão da DPS
-    const infC14n = infXml.replace(/^<infDPS /, `<infDPS xmlns="${NS}" `);
+    const infC14n = infXml.replace(/^<([A-Za-z]+) /, `<$1 xmlns="${NS}" `);
     const digest = sha256B64(infC14n);
     const si = `<CanonicalizationMethod Algorithm="${C14N}"></CanonicalizationMethod><SignatureMethod Algorithm="http://www.w3.org/2001/04/xmldsig-more#rsa-sha256"></SignatureMethod><Reference URI="#${escAt(id)}"><Transforms><Transform Algorithm="http://www.w3.org/2000/09/xmldsig#enveloped-signature"></Transform><Transform Algorithm="${C14N}"></Transform></Transforms><DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"></DigestMethod><DigestValue>${digest}</DigestValue></Reference>`;
     const md = forge.md.sha256.create(); md.update(`<SignedInfo xmlns="${DS}">${si}</SignedInfo>`, 'utf8');
@@ -114,5 +118,16 @@
     return { numero: tag('nNFSe'), chave: (s.match(/Id="NFS(\d{50})"/) || [])[1] || '', data: (tag('dhProc') || tag('dhEmi')).slice(0, 10), valor: parseFloat(tag('vServ')) || 0,
       codVerif: tag('cVerif'), desc: txt(tag('xDescServ')), tomador: tag('CNPJ', 'toma') || tag('CPF', 'toma') };
   }
-  return { NS, DS, VERSAO, AMB, agoraBrasilia, lerCertificado, idDPS, montarInfDPS, assinar, dpsAssinada, lerNFSe };
+  /* ───── evento de cancelamento (e101101), assinado no grupo infPedReg ───── */
+  function eventoCancelamento(o, crt, dhEvento) {
+    const ch = so(o.chave);
+    if (ch.length !== 50) throw new Error('Chave de acesso inválida (50 números).');
+    const xm = limpa(o.xMotivo, 255);
+    if (xm.length < 15) throw new Error('A justificativa do cancelamento precisa ter pelo menos 15 letras.');
+    const id = 'PRE' + ch + '101101';
+    const inf = `<infPedReg Id="${id}">` + tx('tpAmb', String(o.tpAmb)) + tx('verAplic', VER_APLIC) + tx('dhEvento', dhEvento || agoraBrasilia()) + tx('CNPJAutor', pad(o.cnpj, 14)) + tx('chNFSe', ch) +
+      el('e101101', tx('xDesc', 'Cancelamento de NFS-e') + tx('cMotivo', String(o.cMotivo || '1')) + tx('xMotivo', xm)) + '</infPedReg>';
+    return { id, xml: `<?xml version="1.0" encoding="UTF-8"?><pedRegEvento xmlns="${NS}" versao="${VERSAO}">${inf}${assinar(inf, id, crt)}</pedRegEvento>` };
+  }
+  return { NS, DS, VERSAO, AMB, agoraBrasilia, lerCertificado, idDPS, montarInfDPS, assinar, dpsAssinada, eventoCancelamento, lerNFSe };
 });
