@@ -83,7 +83,7 @@
       (obra ? el('obra', obra) : '') + (s.xInfComp ? el('infoCompl', tx('xInfComp', limpa(s.xInfComp, 2000))) : '');
     const fed = tx('vRetCP', +v.vRetCP > 0 ? dec2(v.vRetCP) : '') + tx('vRetIRRF', +v.vRetIRRF > 0 ? dec2(v.vRetIRRF) : '') + tx('vRetCSLL', +v.vRetCSLL > 0 ? dec2(v.vRetCSLL) : '');
     const totTrib = +v.pTotTribSN > 0 ? tx('pTotTribSN', dec2(v.pTotTribSN)) : tx('indTotTrib', '0');
-    const valores = el('vServPrest', tx('vServ', dec2(v.vServ))) +
+    const valores = el('vServPrest', tx('vServ', dec2(v.vServ))) + (+v.vDR > 0 ? el('vDedRed', tx('vDR', dec2(v.vDR))) : '') +
       el('trib', el('tribMun', tx('tribISSQN', String(v.tribISSQN || '1')) + tx('tpRetISSQN', String(v.tpRetISSQN || '1')) + tx('pAliq', +v.pAliq > 0 ? dec2(v.pAliq) : '')) + el('tribFed', fed) + el('totTrib', totTrib));
     // substituição de NFS-e: a nova nota cancela a anterior (chave da substituída + motivo)
     const sb = d.subst || null;

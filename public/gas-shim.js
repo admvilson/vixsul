@@ -64,7 +64,33 @@ async function _getSistemaData() {
     pacote[chave] = todos.filter(r => !r._lixeira_em);
     pacote.lixeira[chave] = todos.filter(r => r._lixeira_em);
   });
+  _filtrarPorObras(pacote);
   return pacote;
+}
+
+// Usuário com obras marcadas (interno ou externo, que não seja administrador) só recebe o que é dessas
+// obras: as próprias obras e as linhas ligadas a elas. Configurações do sistema (planejamento sem obra),
+// fornecedores e as tarefas em que ele é o responsável continuam; o resto da empresa fica de fora.
+function _filtrarPorObras(pacote) {
+  let s = null;
+  try { s = JSON.parse(sessionStorage.getItem('vixsul_session') || 'null'); } catch (e) { s = null; }
+  const ids = s && Array.isArray(s.obrasPermitidas) ? s.obrasPermitidas.map(String) : [];
+  if (!s || !ids.length || /admin/i.test(String(s.perfil || ''))) return;
+  const nomeObra = o => o.titulo_obra || o.nome_obra || o.titulo || '';
+  pacote.obras = (pacote.obras || []).filter(o => ids.includes(String(o.rowid)));
+  const nomes = new Set(pacote.obras.map(nomeObra).filter(Boolean));
+  const eu = String(s.nome || '').trim().toLowerCase();
+  Object.keys(pacote).forEach(ch => {
+    if (['obras', 'metadata', 'lixeira', 'fornecedores'].includes(ch) || !Array.isArray(pacote[ch])) return;
+    pacote[ch] = pacote[ch].filter(r => {
+      const ob = r.titulo_obra || r.obra || (ch === 'orcamentos' ? r.titulo : '') || '';
+      if (ob) return nomes.has(ob);
+      if (ch === 'planejamento') return !['doc_gerado', 'nfse_emitida', 'obra_fiscal'].includes(r.tipo || '');
+      if (ch === 'acoes') return !!eu && String(r.responsavel || r.quem || '').trim().toLowerCase() === eu;
+      return false;
+    });
+  });
+  pacote.lixeira = {};
 }
 
 async function _upsertRegistro(abaNome, dados, rowId) {
@@ -247,7 +273,7 @@ async function _login(cpf, senha) {
   }
 
   if (ehSuperAdmin) return { ok: true, nome: u.nome || cpf, perfil: 'admin', acessos: null, tipoUsuario: 'interno' };
-  return { ok: true, nome: u.nome || cpf, perfil: u.perfil || 'Usuário', acessos: _parseAcessos(u.acessos), tipoUsuario: 'interno' };
+  return { ok: true, nome: u.nome || cpf, perfil: u.perfil || 'Usuário', acessos: _parseAcessos(u.acessos), tipoUsuario: 'interno', obrasPermitidas: _parseAcessos(u.obras_permitidas) || [] };
 }
 
 // Usuário Externo: entra com E-MAIL + senha (não tem CPF cadastrado pra digitar) e,
@@ -340,7 +366,7 @@ async function _salvarUsuario(dados, id) {
     email,
     acessos: tipoUsuario === 'externo' ? JSON.stringify(['obras', 'relatorios']) : (Array.isArray(dados.acessos) ? JSON.stringify(dados.acessos) : null),
     tipo_usuario: tipoUsuario,
-    obras_permitidas: tipoUsuario === 'externo' ? JSON.stringify(obrasPermitidas) : null
+    obras_permitidas: (tipoUsuario === 'externo' || (obrasPermitidas.length && perfil !== 'admin')) ? JSON.stringify(obrasPermitidas) : null
   };
   // Só grava a senha se veio preenchida (na edição, em branco = mantém a atual). Sempre
   // gravada como hash, nunca em texto puro.
