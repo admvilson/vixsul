@@ -19723,7 +19723,7 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
      está aberto. A cada emissão os dois vão (HTTPS) para a função api/nfse do próprio sistema, que monta a DPS no
      padrão nacional, assina, envia ao Sefin Nacional e devolve o XML e o PDF (DANFSe) da nota. */
   const NFSE_API='https://vixsul.vercel.app/api/nfse',CNPJ_VX='64518375000120';
-  const NFC_PADRAO={ambiente:'2',serie:'900',ndps_1:'1',ndps_2:'1',cmun_emi:'2916807',im:'',op_simp:'3',reg_ap:'1',reg_esp:'0',ctrib:'070202',cnbs:'',iss_retido:'nao',aliq:'',ptot_sn:''};
+  const NFC_PADRAO={ambiente:'2',serie:'900',ndps_1:'1',ndps_2:'1',cmun_emi:'2916807',im:'',op_simp:'3',reg_ap:'1',reg_esp:'0',ctrib:'070201',cnbs:'101012200',iss_retido:'sim',aliq:'',ptot_sn:''};
   const nfcRow=()=>ultimo(PLAN().filter(p=>p.tipo==='nfse_config'));
   const nfc=()=>({...NFC_PADRAO,...(nfcRow()||{})});
   const COD_SERV=[['070101','Engenharia e congêneres'],['070201','Obras de construção civil, hidráulica ou elétrica — por administração'],['070202','Obras de construção civil, hidráulica ou elétrica — por empreitada ou subempreitada'],
@@ -19977,7 +19977,7 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
 
   /* painel da emissão automática (passo 2 da janela "Emitir a nota") */
   function painelAutoHtml(ob,desc){
-    const c=nfc(),of=obraFiscal(ob),cert=certLocal(),amb=c.ambiente==='1'?1:2,ct=of.ctrib||c.ctrib,ret=(of.iss_retido||c.iss_retido)==='sim';
+    const c=nfc(),of=obraFiscal(ob),cert=certLocal(),amb=c.ambiente==='1'?1:2,ct=of.ctrib||c.ctrib,ret=(of.iss_retido||'sim')==='sim';
     const f=(k,l,v,extra,larga)=>`<div class="fin-fld"${larga?' style="grid-column:1/-1"':''}><label>${l}</label><input data-a="${k}" value="${fe(v||'')}" ${extra||''}></div>`;
     return `<div class="nfa" data-nfa>
       <div class="nfa-cab"><b><i class="fas fa-bolt"></i> Emitir automaticamente na Receita</b><span class="nfa-amb ${amb===1?'real':'teste'}">${amb===1?'VALENDO — nota real':'TESTE — sem valor fiscal'}</span></div>
@@ -20018,6 +20018,10 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
     const numCt=getFuzzy(obra,['numero_contrato','num_contrato','n_contrato'])||'',contratante=ct.contratante||'',docCt=ct.cnpj_contratante||(contratanteDe(contratante)||{}).doc||'';
     const cidade=getFuzzy(obra,['cidade_obra'])||ct.cidade_obra||'',ret=med?retencao1aMed(ob,med):0,g=infoGarantia(ob);
     const seguro0=!ehM&&val(r[K.seguro])?val(r[K.seguro]):ret;
+    // endereço do tomador (a Receita exige quando o ISS é retido): EMBASA como na NF 20; outros pelo CNPJ (BrasilAPI)
+    const dgCt=String(docCt||'').replace(/\D/g,'');
+    let tomaEnd=dgCt==='13504675000110'?{razao:'EMPRESA BAIANA DE AGUAS E SANEAMENTO SA',xLgr:'LUIS VIANA',nro:'420',xCpl:'EDIF SEDUR',xBairro:'CENTRO ADMINISTRATIVO DA BAHIA',cMun:'2927408',cep:'41745010'}:null;
+    if(!tomaEnd&&dgCt.length===14)fetch('https://brasilapi.com.br/api/cnpj/v1/'+dgCt).then(r=>r.ok?r.json():null).then(j=>{if(j&&j.codigo_municipio_ibge)tomaEnd={razao:j.razao_social,xLgr:[j.descricao_tipo_de_logradouro,j.logradouro].filter(Boolean).join(' '),nro:j.numero||'S/N',xCpl:j.complemento||'',xBairro:j.bairro||'',cMun:String(j.codigo_municipio_ibge),cep:String(j.cep||'')};}).catch(()=>{});
     const exige=exigeDaps(cidade);
     const ST={arq:{},daps:exige===true?null:false,exige,marcouExige:false,decl:null,xml:null,auto:null,pend:null};
     const per=d=>{const z=dt(d);return z?brDe(z):'';};
@@ -20167,10 +20171,10 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
       const cno=av('cno'),cep=av('cep').replace(/\D/g,''),obraD=cno.replace(/\D/g,'')?{cObra:cno}:(cep||av('lgr')||av('bairro'))?{cep,xLgr:av('lgr'),nro:av('nro')||'S/N',xBairro:av('bairro')}:null;
       if(pedeObra(ct)&&!obraD)throw new Error('Para obra, informe o CNO da obra ou o endereço (CEP, rua e bairro).');
       if(obraD&&!obraD.cObra&&(cep.length!==8||!obraD.xLgr||!obraD.xBairro))throw new Error('Endereço da obra incompleto: CEP com 8 números, rua e bairro.');
-      const aliq=num(av('aliq'));if(ret&&!(aliq>0))throw new Error('Com ISS retido, informe a alíquota do ISS (%).');
+      const aliq=num(av('aliq'));if(ret&&!(aliq>0))throw new Error('Com ISS retido, informe a alíquota do ISS (%).');if(ret&&!tomaEnd)throw new Error('Com ISS retido, a Receita exige o endereço do contratante: não consegui buscá-lo pelo CNPJ — tente de novo em instantes.');
       const hojeI=isoDe(hoje0()),emI=(j.querySelector('[data-k="em"]')||{}).value||hojeI;
       return {dps:{dCompet:emI>hojeI?hojeI:emI,cLocEmi:conf.cmun_emi,prest:{cnpj:CNPJ_VX,im:conf.im,opSimpNac:conf.op_simp,regApTribSN:conf.reg_ap,regEspTrib:conf.reg_esp},
-          toma:{[docT.length===14?'cnpj':'cpf']:docT,xNome:contratante},serv:{cLocPrestacao:cmun,cTribNac:ct,xDescServ:av('desc').replace(/\s+/g,' ')||desc,cNBS:conf.cnbs,obra:obraD},
+          toma:{[docT.length===14?'cnpj':'cpf']:docT,xNome:(tomaEnd&&tomaEnd.razao)||contratante,end:tomaEnd},serv:{cLocPrestacao:cmun,cTribNac:ct,xDescServ:av('desc').replace(/\s+/g,' ')||desc,cNBS:conf.cnbs,obra:obraD},
           valores:{vServ:c.bruto,tribISSQN:1,tpRetISSQN:ret?2:1,pAliq:ret||conf.op_simp==='1'?aliq||num(conf.aliq):'',vRetCP:c.inss,vRetIRRF:c.irpf,vRetCSLL:c.csll||0,pTotTribSN:conf.op_simp==='1'?'':num(conf.ptot_sn)}},
         fiscal:{ctrib:ct,cmun,cno,cep,lgr:av('lgr'),nro:av('nro'),bairro:av('bairro'),iss_retido:ret?'sim':'nao',aliq:av('aliq')}};
     }

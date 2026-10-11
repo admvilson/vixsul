@@ -63,6 +63,8 @@
            toma:{cnpj|cpf, xNome, email},
            serv:{cLocPrestacao, cTribNac, cTribMun, xDescServ, cNBS, obra:{cObra}|{cep,xLgr,nro,xCpl,xBairro}, xInfComp},
            valores:{vServ, tribISSQN, tpRetISSQN, pAliq, vRetCP, vRetIRRF, vRetCSLL, pTotTribSN} } */
+  // endereço nacional do tomador (obrigatório quando o ISS é retido pelo tomador — rejeição E0237)
+  const endToma = e => e && /^\d{7}$/.test(so(e.cMun)) && so(e.cep).length === 8 && e.xLgr && e.xBairro ? el('end', el('endNac', tx('cMun', so(e.cMun)) + tx('CEP', so(e.cep))) + tx('xLgr', limpa(e.xLgr, 255)) + tx('nro', limpa(e.nro || 'S/N', 60)) + tx('xCpl', limpa(e.xCpl, 156)) + tx('xBairro', limpa(e.xBairro, 60))) : '';
   function idDPS(d) { return 'DPS' + pad(d.cLocEmi, 7) + '2' + pad(d.prest.cnpj, 14) + pad(d.serie, 5) + pad(d.nDPS, 15); }
   function montarInfDPS(d, dhEmi) {
     const id = idDPS(d), p = d.prest, t = d.toma || null, s = d.serv, v = d.valores;
@@ -73,7 +75,7 @@
     const sn = String(p.opSimpNac || '1');
     const prest = tx('CNPJ', pad(p.cnpj, 14)) + tx('IM', limpa(p.im, 15)) +
       el('regTrib', tx('opSimpNac', sn) + (sn === '3' ? tx('regApTribSN', String(p.regApTribSN || '1')) : '') + tx('regEspTrib', String(p.regEspTrib == null ? '0' : p.regEspTrib)));
-    const toma = t ? ((so(t.cnpj).length === 14 ? tx('CNPJ', so(t.cnpj)) : tx('CPF', pad(t.cpf || t.cnpj, 11))) + tx('xNome', limpa(t.xNome, 300)) + tx('email', limpa(t.email, 80))) : '';
+    const toma = t ? ((so(t.cnpj).length === 14 ? tx('CNPJ', so(t.cnpj)) : tx('CPF', pad(t.cpf || t.cnpj, 11))) + tx('xNome', limpa(t.xNome, 300)) + endToma(t.end) + tx('email', limpa(t.email, 80))) : '';
     const ob = s.obra || null;
     const obra = ob ? (so(ob.cObra) ? tx('cObra', so(ob.cObra)) : (so(ob.cep).length === 8 && ob.xLgr && ob.nro && ob.xBairro ? el('end', tx('CEP', so(ob.cep)) + tx('xLgr', limpa(ob.xLgr, 255)) + tx('nro', limpa(ob.nro, 60)) + tx('xCpl', limpa(ob.xCpl, 156)) + tx('xBairro', limpa(ob.xBairro, 60))) : '')) : '';
     const serv = el('locPrest', tx('cLocPrestacao', so(s.cLocPrestacao))) +
