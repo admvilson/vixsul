@@ -10610,9 +10610,12 @@ const Fin=(function(){
         desc:(nf?'NF '+nf:'Faturamento')+(real?'':' (previsto)'),origem:getFuzzy(r,['titulo_obra'])||'—',quem:'',kTipo,kRec});
     });
     (d.aportes||[]).forEach(r=>{
-      const da=dt(getFuzzy(r,['data_aporte'])),quem=getFuzzy(r,['quem_aportou']);
-      out.push({tipo:'aporte',sent:1,r,valor:Math.abs(val(getFuzzy(r,['valor_aportado','valor_aporte','valor']))),venc:da,pago:true,dataBaixa:da,
-        desc:'Aporte'+(quem?' · '+quem:''),origem:getFuzzy(r,['titulo_obra'])||'—',quem:quem||''});
+      const da=dt(getFuzzy(r,['data_aporte'])),quem=getFuzzy(r,['quem_aportou']),bruto=val(getFuzzy(r,['valor_aportado','valor_aporte','valor']));
+      // Sócios e investimentos: retirada (pró-labore, lucro) e devolução de aporte ficam na mesma tabela, com valor
+      // negativo e o campo "movimento" — saem do caixa (antes eram lançadas em Contas a pagar)
+      const sai=/retir|devolu/i.test(r.movimento||'')||bruto<0;
+      out.push({tipo:sai?'retirada':'aporte',sent:sai?-1:1,r,valor:Math.abs(bruto),venc:da,pago:true,dataBaixa:da,
+        desc:(sai?(/devolu/i.test(r.movimento||'')?'Devolução de aporte':'Retirada'):'Aporte')+(quem?' · '+quem:''),origem:getFuzzy(r,['titulo_obra'])||'—',quem:quem||''});
     });
     return out.filter(m=>m.valor>0);
   }
@@ -10884,10 +10887,10 @@ const Fin=(function(){
      junta TODAS as colunas de texto da linha. Linha sem data logo abaixo de um
      lançamento é a continuação do histórico (Bradesco, Sicoob…). Arquivo sem cabeçalho
      (Itaú): as colunas são descobertas pelo conteúdo. */
-  function lerCSVExtrato(txt){
+  function lerCSVExtrato(txt,sepForcado){
     const linhas=txt.split(/\r?\n/).filter(l=>l.trim());
     const amostra=linhas.slice(0,20).join('\n');
-    const sep=[';','\t',','].map(s=>[s,amostra.split(s).length]).sort((a,b)=>b[1]-a[1])[0][0];
+    const sep=sepForcado||[';','\t',','].map(s=>[s,amostra.split(s).length]).sort((a,b)=>b[1]-a[1])[0][0];
     const partir=l=>{const out=[];let cur='',q=false;for(const ch of l){if(ch==='"')q=!q;else if(ch===sep&&!q){out.push(cur);cur='';}else cur+=ch;}out.push(cur);return out.map(x=>x.trim());};
     const ehValor=s=>/^[-+(]?\s*(R\$)?\s*-?[\d.,]*[.,]\d{1,2}\s*\)?\s*[DC+-]?$/i.test(String(s||'').trim());
     const semTexto=s=>/^[\d\s.,()+\-/:R$*•xX]*$/.test(s)||/^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(s);
@@ -11019,8 +11022,8 @@ const Fin=(function(){
     if(!App.state.data){box.innerHTML='<div class="fin-vazio">Carregando…</div>';return;}
     const ext=CONC.extrato;
     const cab=`<div class="fin-cab"><div><h2>Conciliação bancária</h2><p>Importe o extrato do banco: o sistema encontra sozinho cada custo, despesa e faturamento que bate com o banco e dá a baixa com a data certa. O que não bater fica separado para você escolher a qual lançamento pertence, lançar o que faltou ou ignorar (tarifa, transferência entre contas…).</p></div>${ext?'<button type="button" class="fin-bt" data-cc-cancelar>Fechar este extrato</button>':''}</div>`;
-    const zona=`<label class="fin-drop" id="fin-drop"><input type="file" id="fin-arq" accept=".ofx,.qfx,.csv,.txt,.xls,.xlsx" hidden>${ICO_ARQ}<b>${ext?'Importar outro extrato':'Arraste o extrato do banco aqui (OFX, CSV ou Excel)'}</b><small>ou clique para escolher o arquivo — ele é lido só neste computador</small></label>`;
-    const ajuda=`<div class="fin-card fin-ajuda"><h3>Como baixar o extrato</h3><ol><li>No internet banking da conta da empresa, abra o <b>extrato</b> do período.</li><li>Escolha <b>Exportar / Salvar como</b> → <b>OFX</b> (às vezes aparece como “Money” ou “Quicken”). Se o banco não tiver OFX, use <b>CSV</b> ou <b>Excel</b>.</li><li>Arraste o arquivo para o quadro acima. Nada vai para o sistema até você confirmar as baixas.</li></ol><p class="fin-sub" style="margin:10px 0 0">Prefira o <b>OFX</b>: além dos lançamentos ele traz o saldo da conta, que passa a ser o ponto de partida do fluxo de caixa em Contas a pagar e receber.</p></div>`;
+    const zona=`<label class="fin-drop" id="fin-drop"><input type="file" id="fin-arq" accept=".ofx,.qfx,.csv,.txt,.xls,.xlsx,.pdf" hidden>${ICO_ARQ}<b>${ext?'Importar outro extrato':'Arraste o extrato do banco aqui (OFX, CSV, Excel ou PDF)'}</b><small>ou clique para escolher o arquivo — ele é lido só neste computador</small></label>`;
+    const ajuda=`<div class="fin-card fin-ajuda"><h3>Como baixar o extrato</h3><ol><li>No internet banking da conta da empresa, abra o <b>extrato</b> do período.</li><li>Escolha <b>Exportar / Salvar como</b> → <b>OFX</b> (às vezes aparece como “Money” ou “Quicken”). Se o banco não tiver OFX, use <b>CSV</b>, <b>Excel</b> ou o <b>PDF</b> do extrato.</li><li>Arraste o arquivo para o quadro acima. Nada vai para o sistema até você confirmar as baixas.</li></ol><p class="fin-sub" style="margin:10px 0 0">Prefira o <b>OFX</b>: além dos lançamentos ele traz o saldo da conta, que passa a ser o ponto de partida do fluxo de caixa em Contas a pagar e receber.</p></div>`;
     if(!ext){box.innerHTML=`<div class="fin-wrap">${cab}${zona}${ajuda}</div>`;ligarArquivo(box);box.onclick=null;box.onchange=null;return;}
     const props=conciliar(ext),g={ok:[],confira:[],vincular:[],sem:[],feito:[],ignorado:[]};
     props.forEach(p=>g[p.st].push(p));
@@ -11105,13 +11108,72 @@ const Fin=(function(){
     drop.ondragleave=ev=>{ev.preventDefault();drop.classList.remove('alvo');};
     drop.ondrop=ev=>{ev.preventDefault();drop.classList.remove('alvo');abrirArquivo(ev.dataTransfer.files&&ev.dataTransfer.files[0]);};
   }
+  /* Extrato em PDF: o texto de cada página é lido (pdf.js), as linhas são remontadas pela posição na página e as
+     colunas separadas pelos espaços grandes — vira um "CSV" e segue a mesma leitura dos outros arquivos. Se o
+     PDF não tiver cabeçalho de colunas, cada linha que começa com data vira lançamento (o valor é o último
+     número da linha, ou o penúltimo quando o extrato traz a coluna de saldo). PDF escaneado (imagem) não tem texto. */
+  function carregarPdfJsFin(){
+    if(window.pdfjsLib)return Promise.resolve(window.pdfjsLib);
+    return new Promise((ok,er)=>{const s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+      s.onload=()=>{try{window.pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';ok(window.pdfjsLib);}catch(e){er(e);}};
+      s.onerror=()=>er(new Error('Não consegui carregar o leitor de PDF — confira a internet.'));document.head.appendChild(s);});
+  }
+  async function pdfParaCsv(buf){
+    const lib=await carregarPdfJsFin(),pdf=await lib.getDocument({data:buf}).promise,rows=[];
+    for(let p=1;p<=pdf.numPages;p++){
+      const tc=await (await pdf.getPage(p)).getTextContent();
+      const its=tc.items.filter(i=>i.str&&i.str.trim()).map(i=>({s:i.str.trim(),x:i.transform[4],y:i.transform[5],w:i.width||0}));
+      const grupos=[];its.forEach(it=>{const g=grupos.find(g=>Math.abs(g.y-it.y)<=2.5);if(g)g.its.push(it);else grupos.push({y:it.y,its:[it]});});
+      grupos.sort((a,b)=>b.y-a.y).forEach(g=>{g.its.sort((a,b)=>a.x-b.x);
+        // pedaços quase encostados (mesma palavra/frase) viram um só
+        const m=[];g.its.forEach(it=>{const u=m[m.length-1];if(u&&it.x-(u.x+u.w)<=1.5){u.s+=(it.x-(u.x+u.w)>0.4?' ':'')+it.s;u.w=it.x+it.w-u.x;}else m.push({...it});});
+        rows.push(m);});
+    }
+    if(!rows.length)throw new Error('Este PDF não tem texto (parece digitalizado). Baixe o extrato em OFX, CSV ou Excel no banco.');
+    // com cabeçalho (Data · Histórico · Valor · Saldo…): cada pedaço vai para a coluna de centro mais próximo,
+    // o que funciona com valores alinhados à direita ou à esquerda; sem cabeçalho, separa pelos espaços grandes
+    const txtDe=r=>r.map(i=>i.s).join(' ');
+    const hi=rows.findIndex(r=>{const t=cn(txtDe(r));return /\bdata\b|\bdt\b/.test(t)&&/(valor|credito|debito|lancamento|movimento)/.test(t);});
+    const cols=hi>=0?rows[hi].map(i=>({x:i.x,c:i.x+i.w/2,s:i.s})):null;
+    const ehNum=s=>/^[-+(]?\s*(R\$)?\s*-?[\d.]*\d,\d{2}\s*\)?\s*[CD+-]?$/i.test(s)||/^[CD]$/i.test(s);
+    const linhas=rows.map((r,i)=>{
+      if(cols&&i>hi){const out=cols.map(()=>[]);r.forEach(it=>{let k=0;
+        if(ehNum(it.s)){const c=it.x+it.w/2;let d=1e9;cols.forEach((h,j)=>{const dd=Math.abs(h.c-c);if(dd<d){d=dd;k=j;}});}
+        else cols.forEach((h,j)=>{if(h.x<=it.x+3)k=j;});   // texto: a coluna onde ele começa (histórico comprido não invade o valor)
+        out[k].push(it.s);});return out.map(a=>a.join(' ')).join(';');}
+      if(cols&&i===hi)return cols.map(h=>h.s).join(';');
+      let out='',fim=null;r.forEach(it=>{if(fim!==null)out+=it.x-fim>10?';':' ';out+=it.s;fim=it.x+it.w;});return out;
+    }).map(l=>l.replace(/[ \t]+/g,' ').trim());
+    const txt=linhas.join('\n');
+    const ano=(txt.match(/\b\d{2}\/\d{2}\/(20\d{2})\b/)||[])[1]||String(new Date().getFullYear());
+    return linhas.map(l=>l.replace(/^(\d{2}\/\d{2})(?!\/\d)(?=[\s;]|$)/,'$1/'+ano)).join('\n');   // data sem ano ganha o ano do extrato
+  }
+  function lerLinhasPdf(txt){
+    const temSaldo=/saldo/i.test(txt),itens=[],vistos={},VAL=/^[-(]?(R\$)?-?\d{1,3}(\.\d{3})*,\d{2}\)?[CD-]?$/i;
+    txt.split('\n').forEach(l=>{
+      const d=dataBanco(l);if(!d)return;
+      const toks=l.split(/[;\s]+/),vals=[];
+      toks.forEach((t,i)=>{if(VAL.test(t)){let v=numBanco(t);if(/^D$/i.test(toks[i+1]||''))v=-Math.abs(v);vals.push(v);}});
+      if(!vals.length||/saldo (anterior|do dia|final|em)/i.test(l))return;
+      let v=temSaldo&&vals.length>=2?vals[vals.length-2]:vals[vals.length-1];
+      const desc=l.split(/[;\s]+/).slice(1).filter(t=>!VAL.test(t)&&!/^[CD]$/i.test(t)).join(' ').trim();
+      if(v>0&&/\b(PAGAMENTO|PAGTO|PGTO|DEBITO|DÉBITO|SAQUE|TARIFA|ENVIAD[OA]|COMPRA|BOLETO PAGO)\b/i.test(desc))v=-v;
+      if(!v||isNaN(v))return;
+      let id=`${d}|${v}|${desc}`;vistos[id]=(vistos[id]||0)+1;if(vistos[id]>1)id+='#'+vistos[id];
+      itens.push({id:'pdf:'+id,data:d,valor:Math.round(v*100)/100,desc,quem:quemDoExtrato(desc)});
+    });
+    return {itens,saldo:null,saldoData:'',banco:'',conta:''};
+  }
   async function abrirArquivo(arq){
     if(!arq)return;
     if(arq.size>8*1024*1024)return toast('Arquivo grande demais para um extrato (máx. 8 MB).','error');
     try{
-      const ehExcel=/\.xlsx?$/i.test(arq.name);
-      const txt=ehExcel?await excelParaCsv(await arq.arrayBuffer()):decodificarExtrato(await arq.arrayBuffer());
-      const ext=!ehExcel&&/<OFX>|OFXHEADER|<STMTTRN>/i.test(txt)?lerOFX(txt):lerCSVExtrato(txt);
+      const ehExcel=/\.xlsx?$/i.test(arq.name),ehPdf=/\.pdf$/i.test(arq.name)||arq.type==='application/pdf';
+      if(ehPdf)toast('Lendo o PDF do extrato…','');
+      const txt=ehPdf?await pdfParaCsv(await arq.arrayBuffer()):ehExcel?await excelParaCsv(await arq.arrayBuffer()):decodificarExtrato(await arq.arrayBuffer());
+      let ext;
+      if(ehPdf){try{ext=lerCSVExtrato(txt,';');}catch(e){ext=null;}if(!ext||!ext.itens.length)ext=lerLinhasPdf(txt);}
+      else ext=!ehExcel&&/<OFX>|OFXHEADER|<STMTTRN>/i.test(txt)?lerOFX(txt):lerCSVExtrato(txt);
       if(!ext.itens.length)throw new Error('Não encontrei lançamentos nesse arquivo.');
       ext.nome=arq.name;CONC.extrato=ext;CONC.marcados=null;CONC.escolhas={};
       if(ext.saldo!=null){try{localStorage.setItem(SALDO,JSON.stringify({valor:ext.saldo,data:ext.saldoData||brDe(hoje0())}));}catch(e){}}
@@ -12889,7 +12951,7 @@ const Eng=(function(){
     const valorOrig=val(c.valor_contrato)||rm.base||0,adV=ads.reduce((s,a)=>s+val(a.aditivo_valor),0);
     let vig=dt(c.vigencia_fim);const vigOrig=vig;ads.forEach(a=>{const n=dt(a.nova_vigencia);if(n&&(!vig||n>vig))vig=n;});
     let garVal=dt(c.garantia_validade);docsObra(ob,/garantia/i).forEach(d=>{const v=dt(d.data_validade);if(v&&(!garVal||v>garVal))garVal=v;});
-    const exigeGar=c.garantia_tipo?c.garantia_tipo!=='Não exigida':!!garVal;
+    const exigeGar=c.garantia_tipo?!/^(não exigida|reten)/i.test(c.garantia_tipo):!!garVal;   // retida na medição: não há apólice a vencer
     // data-base do reajuste = data de apresentação (envio) da proposta
     const dataBase=dt(getFuzzy(o,['envio_proposta']))||dt(c.data_base),reaj=dataBase?addM(dataBase,12):null,ck=c.checklist||{};
     const diasVig=vig?dias(h,vig):null;
@@ -12971,7 +13033,7 @@ const Eng=(function(){
           ${linha('Fiscal',fe([c.fiscal,c.fiscal_contato].filter(Boolean).join(' · ')||'—'))}${linha('Responsável técnico',fe(c.responsavel_tecnico||'—'))}${linha('Preposto na obra',fe(c.preposto||'—'))}
         </div>
         <div class="op-card"><h4>Garantia e reajuste</h4>
-          ${linha('Garantia',fe(c.garantia_tipo||'—')+(c.garantia_pct?` · ${fe(c.garantia_pct)}%${x.vigente?' ('+fmt(x.vigente*moeda(c.garantia_pct)/100)+')':''}`:''))}
+          ${linha('Garantia',fe(/^reten/i.test(c.garantia_tipo||'')?'Retenção na 1ª medição':(c.garantia_tipo||'—'))+(c.garantia_pct?` · ${fe(c.garantia_pct)}%${x.vigente?' ('+fmt(x.vigente*moeda(c.garantia_pct)/100)+')':''}`:''))}
           ${linha('Validade da garantia',x.garVal?sem(x.sGar,brDe(x.garVal)):'—')}
           ${linha('Data-base do reajuste <small style="color:var(--text-3)">(envio da proposta)</small>',brDe(x.dataBase))}${linha('Índice de reajuste',fe(c.indice_reajuste||'—'))}
           ${linha('Reajuste disponível a partir de',x.reaj?sem(x.reajDisp?'amarelo':'verde',brDe(x.reaj)):'—')}
@@ -13005,7 +13067,7 @@ const Eng=(function(){
     {k:'vigencia_fim',label:'Fim da vigência',tipo:'data'},
     {k:'data_base',label:'Data-base do orçamento (reajuste)',tipo:'data'},
     {k:'indice_reajuste',label:'Índice de reajuste',tipo:'sel',ops:['INCC-DI (FGV)','IPCA (IBGE)','Índice da contratante','Sem reajuste previsto']},
-    {k:'garantia_tipo',label:'Garantia contratual',tipo:'sel',ops:['Seguro-garantia','Caução em dinheiro','Fiança bancária','Retenção em medição','Não exigida']},
+    {k:'garantia_tipo',label:'Garantia contratual',tipo:'sel',ops:['Seguro-garantia','Caução em dinheiro','Fiança bancária','Retenção na 1ª medição','Não exigida']},
     {k:'garantia_pct',label:'Garantia (% do contrato)',tipo:'num',ph:'Ex.: 5'},
     {k:'garantia_validade',label:'Validade da garantia',tipo:'data'},
     {k:'fiscal',label:'Fiscal do contrato'},
@@ -13895,7 +13957,7 @@ const GS=(function(){
   }
 
   /* ───── os números do mês, do jeito que a gestão da obra enxerga ───── */
-  const ehRetirada=m=>m.tipo==='despesa'&&/pr[oó]-?labore|retirad|devolu[cç][aã]o de aporte|distribui/i.test(String(getFuzzy(m.r,['categoria'])||''));
+  const ehRetirada=m=>m.tipo==='retirada'||m.tipo==='despesa'&&/pr[oó]-?labore|retirad|devolu[cç][aã]o de aporte|distribui/i.test(String(getFuzzy(m.r,['categoria'])||''));
   function resumoMes(k){
     const ms=Fin.movimentos();
     const meds=(D().medicoes||[]).filter(m=>noMes(dt(m.data_medicao),k));
@@ -15304,11 +15366,14 @@ const Mascara=(function(){
     const semAprov=abertas.filter(o=>o.aprov==='pendente'),pagoMes=todas.filter(o=>pagoC(o)&&o.pago.slice(0,7)===mesHoje());
     const filtradas=filtrarContas(todas),lim=addD(h,-30),visiveis=filtradas.filter(o=>!pagoC(o)||f.antigas||f.mes||f.semForn||dt(o.pago)>=lim);
     const ordV=(a,b)=>String(a.venc||'9999').localeCompare(String(b.venc||'9999'));
-    const cols=COLS_CP.map(c=>{const itens=visiveis.filter(o=>colConta(o)===c.k).sort(c.k==='paga'?(a,b)=>String(b.pago).localeCompare(String(a.pago)):ordV);return {c,itens,total:S(itens)};});
+    // "Previstas" (estimativas lançadas à mão) saiu: a previsão de custo vem do CAP. A coluna só aparece
+    // enquanto houver estimativa antiga, para virar conta ("A conta chegou") ou ser excluída.
+    const temPrev=todas.some(o=>colConta(o)==='previstas');
+    const cols=COLS_CP.filter(c=>c.k!=='previstas'||temPrev).map(c=>{const itens=visiveis.filter(o=>colConta(o)===c.k).sort(c.k==='paga'?(a,b)=>String(b.pago).localeCompare(String(a.pago)):ordV);return {c:c.k==='previstas'?{...c,rot:'Estimativas antigas'}:c,itens,total:S(itens)};});
     App._vkContas=filtradas;
     const filtroAtivo=f.busca||f.obra||f.mes||f.aprovar||f.semForn;
     box.innerHTML=`<div class="gf">
-      ${cabG('Contas a pagar','Tudo o que a empresa paga: compras e serviços de cada obra e as despesas da Empresa. <b>Previstas</b> são estimativas (ainda sem conta); arraste para <b>A pagar</b> quando a conta chegar. Um Administrador aprova (conta lançada por Administrador já nasce aprovada) e, quando pagar, arraste o cartão para <b>Paga</b>. Clique no cartão para ver e corrigir todos os dados.','<button type="button" class="gf-bt" data-vk="imprimir"><i class="fas fa-print"></i> Imprimir</button><button type="button" class="gf-bt" data-vk="exportar"><i class="fas fa-file-excel"></i> Exportar</button>'+(pode('contas')?'<button type="button" class="gf-bt pri" data-vk="nova"><i class="fas fa-plus"></i> Nova conta</button>':''))}
+      ${cabG('Contas a pagar','Tudo o que a empresa paga: compras e serviços de cada obra e as despesas da Empresa — só contas que já existem (a previsão de custo das obras vem do CAP). Um Administrador aprova (conta lançada por Administrador já nasce aprovada) e, quando pagar, arraste o cartão para <b>Paga</b>. Clique no cartão para ver e corrigir todos os dados.','<button type="button" class="gf-bt" data-vk="imprimir"><i class="fas fa-print"></i> Imprimir</button><button type="button" class="gf-bt" data-vk="exportar"><i class="fas fa-file-excel"></i> Exportar</button>'+(pode('contas')?'<button type="button" class="gf-bt pri" data-vk="nova"><i class="fas fa-plus"></i> Nova conta</button>':''))}
       ${semAprov.length&&souAdmin()?`<div class="vk-aviso"><i class="fas fa-signature"></i><div><b>${semAprov.length} conta(s) esperando a sua aprovação</b> — ${fmt(S(semAprov))}. Abra o cartão (ou arraste para "Aprovada") para aprovar.</div><button type="button" class="gf-bt mini" data-vk="so-aprovar">${f.aprovar?'Ver todas':'Ver só elas'}</button></div>`:''}
       <div class="gf-kpis">
         ${kpiG(vencidas.length?'vermelho':'verde','fa-triangle-exclamation','Vencidas',Rk(S(vencidas)),vencidas.length?`${vencidas.length} conta(s) em atraso — juros e multa correndo`:'nenhuma conta atrasada')}
@@ -15429,16 +15494,14 @@ const Mascara=(function(){
     const fatores=typeof FATORES!=='undefined'?FATORES:['UN'];
     return `<div class="fin-linha">
       <div class="fin-fld" style="grid-column:1/-1"><label>Obra ou Empresa <span class="obg">*</span></label><select data-k="centro"><option value="">Escolha…</option>${centros.map(c=>`<option ${c===o.centro?'selected':''}>${fe(c)}</option>`).join('')}${o.centro&&!centros.includes(o.centro)?`<option selected>${fe(o.centro)}</option>`:''}</select></div>
-      <div class="fin-fld"><label>Tipo</label><select data-k="tipo"><option value="Real" ${o.tipo!=='Previsto'?'selected':''}>Conta (já existe)</option><option value="Previsto" ${o.tipo==='Previsto'?'selected':''}>Estimativa (Previsto)</option></select></div>
       <div class="fin-fld"><label>Vencimento <span class="obg" data-obg-venc>*</span></label><input type="date" data-k="venc" value="${fe(o.venc||'')}"></div>
       <div class="fin-fld" style="grid-column:1/-1"><label>Fornecedor / quem recebe</label><input data-k="forn" list="vx-forn-lista" autocomplete="off" value="${fe(o.forn||'')}" placeholder="Nome (os cadastrados aparecem na lista; um nome novo entra no cadastro)"></div>
       <div class="fin-fld"><label>Categoria <span class="obg">*</span></label><select data-k="cat"><option value="">Escolha…</option>${cats.map(c=>`<option ${c===o.cat?'selected':''}>${fe(c)}</option>`).join('')}${o.cat&&!cats.includes(o.cat)?`<option selected>${fe(o.cat)}</option>`:''}</select></div>
-      <div class="fin-fld"><label>Descrição</label><input data-k="desc" value="${fe(o.desc||'')}" placeholder="Ex.: 200 sacos de cimento · aluguel de outubro"></div>
+      <div class="fin-fld"><label>Descrição</label><input data-k="desc" list="vx-desc-lista" autocomplete="off" value="${fe(o.desc||'')}" placeholder="Comece a digitar: o sistema sugere o item"></div>
       <div class="fin-fld" data-so-obra ${emp?'hidden':''}><label>Quantidade</label><input data-k="qtd" inputmode="decimal" value="${val(o.qtd)?n2(val(o.qtd)):''}" placeholder="opcional"></div>
       <div class="fin-fld" data-so-obra ${emp?'hidden':''}><label>Unidade</label><select data-k="fator"><option value="">—</option>${fatores.map(x=>`<option ${x===o.fator?'selected':''}>${fe(x)}</option>`).join('')}</select></div>
       <div class="fin-fld" data-so-obra ${emp?'hidden':''}><label>Preço unitário (R$)</label><input data-k="pUnit" data-mask="moeda" inputmode="numeric" value="${val(o.pUnit)&&val(o.qtd)>0?fmt(val(o.pUnit)):''}" placeholder="opcional"></div>
       <div class="fin-fld"><label>Valor (R$) <span class="obg">*</span></label><input data-k="total" data-mask="moeda" inputmode="numeric" value="${val(o.total)?fmt(val(o.total)):''}" placeholder="R$ 0,00"></div>
-      <div class="fin-fld"><label>Forma de pagamento</label><select data-k="forma"><option value="">—</option>${FORMAS.map(x=>`<option ${x===o.forma?'selected':''}>${fe(x)}</option>`).join('')}</select></div>
       ${nova?`<div class="fin-fld"><label>Repete?</label><select data-k="rep"><option value="">Não — conta única</option><option value="parc">Compra parcelada (divide o valor)</option><option value="mes">Todo mês (conta fixa)</option></select></div>
       <div class="fin-fld" data-vezes hidden><label>Quantas vezes</label><input type="number" data-k="vezes" min="2" max="60" value="3"></div>`:''}
       <div class="fin-fld" style="grid-column:1/-1"><label>Observação</label><input data-k="obs" value="${fe(o.obs||'')}" placeholder="opcional"></div>
@@ -15452,12 +15515,27 @@ const Mascara=(function(){
     const calc=()=>{const q=Mascara.numero(g('qtd')&&g('qtd').value),p=Mascara.numero(g('pUnit')&&g('pUnit').value);if(q>0&&p>0&&g('total')){g('total').value=Mascara.brl(Math.round(q*p*100)/100);}};
     ['qtd','pUnit'].forEach(k=>g(k)&&g(k).addEventListener('input',calc));
     const tp=g('tipo'),ob=j.querySelector('[data-obg-venc]');if(tp&&ob){const f=()=>{ob.hidden=tp.value!=='Real';};tp.addEventListener('change',f);f();}
+    // descrição: ao digitar, sugere os itens do CAP da obra e o que já foi lançado antes (mesma obra primeiro);
+    // escolhida uma sugestão, completa categoria, unidade e fornecedor que estiverem vazios
+    let SUG=[];
+    const montarSug=()=>{const centro=ce?ce.value:'',m=new Map(),add=(t,meta)=>{t=String(t||'').trim();if(t.length<3)return;const k=cn(t);if(!m.has(k))m.set(k,{t,meta:meta||{}});};
+      if(centro&&centro!==EMP)(D().cap||[]).filter(r=>(getFuzzy(r,['titulo_obra','obra'])||'')===centro&&r.bloco!=='X').forEach(r=>add(r.descricao,{cat:r.especificacao||r.tipo,un:r.fator}));
+      const todas=todasContas();todas.filter(o=>o.centro===centro).forEach(o=>add(C.limparParc(o.desc),{cat:o.cat,un:o.fator,forn:o.forn}));todas.forEach(o=>add(C.limparParc(o.desc),{cat:o.cat,un:o.fator}));
+      SUG=[...m.values()].slice(0,400);let dl=document.getElementById('vx-desc-lista');if(!dl){dl=document.createElement('datalist');dl.id='vx-desc-lista';document.body.appendChild(dl);}
+      dl.innerHTML=SUG.map(x=>`<option value="${fe(x.t)}">${fe([x.meta.cat,x.meta.un].filter(Boolean).join(' · '))}</option>`).join('');};
+    montarSug();if(ce)ce.addEventListener('change',montarSug);
+    const de=g('desc');if(de)de.addEventListener('change',()=>{const x=SUG.find(s=>cn(s.t)===cn(de.value));if(!x)return;
+      if(ca&&!ca.value&&x.meta.cat&&[...ca.options].some(o=>o.value===x.meta.cat))ca.value=x.meta.cat;
+      const fa=g('fator');if(fa&&!fa.value&&x.meta.un&&[...fa.options].some(o=>o.value===x.meta.un))fa.value=x.meta.un;
+      const fo=g('forn');if(fo&&!fo.value&&x.meta.forn)fo.value=x.meta.forn;});
     const rp=g('rep'),vz=j.querySelector('[data-vezes]');
     if(rp&&vz)rp.addEventListener('change',()=>{vz.hidden=!rp.value;g('vezes').value=rp.value==='mes'?12:3;});
   }
   async function lerCamposConta(j,o){
     const v=k=>String((j.querySelector(`[data-k="${k}"]`)||{}).value||'').trim();
-    const u={...(o||{}),centro:v('centro'),tipo:v('tipo')||'Real',venc:v('venc'),total:dinheiro(num(v('total'))),forn:v('forn'),cat:v('cat'),forma:v('forma'),desc:v('desc'),obs:v('obs')};
+    // não existe mais "estimativa" lançada à mão (a previsão de custo vem do CAP): conta nova é conta de verdade;
+    // a forma de pagamento é informada só ao registrar o pagamento
+    const u={...(o||{}),centro:v('centro'),tipo:o&&o.tipo==='Previsto'&&o.rowid?'Previsto':'Real',venc:v('venc'),total:dinheiro(num(v('total'))),forn:v('forn'),cat:v('cat'),forma:(o&&o.forma)||'',desc:v('desc'),obs:v('obs')};
     if(u.centro!==EMP){const q=Mascara.numero(v('qtd')),p=num(v('pUnit'));u.qtd=q>0?dinheiro(q):'';u.fator=v('fator');u.pUnit=p>0?dinheiro(p):'';if(q>0&&p>0)u.total=dinheiro(q*p);}
     if(!u.centro)throw new Error('Escolha a obra (ou Empresa).');if(u.tipo==='Real'&&!u.venc)throw new Error('Informe o vencimento.');
     if(!(val(u.total)>0))throw new Error('Informe o valor.');if(!u.cat)throw new Error('Escolha a categoria.');
@@ -15518,7 +15596,9 @@ const Mascara=(function(){
   // um item do quadro: medição ainda sem nota ('m') ou faturamento ('f')
   function itensFat(){
     const K=KF(),fats=D().faturamentos||[],ligadas=new Set(fats.map(f=>String(f.medicao_rowid||'')).filter(Boolean));
-    const meds=(D().medicoes||[]).filter(m=>!ehFatMed(m)&&!ligadas.has(String(m.rowid))).map(m=>({k:'m',id:'m'+m.rowid,r:m,obra:m.titulo_obra||'',col:ehAprov(m)?'faturar':'medicao',bruto:valorMed(m),liq:valorMed(m)*fatorLiq(m.titulo_obra),data:dt(m.data_aprovacao)||dt(m.data_medicao)}));
+    // garantia na modalidade "Retenção na 1ª medição": o valor dela sai do líquido da 1ª medição da obra
+    const ret1=m=>{try{return GS.docs?GS.docs.retencao1aMed(m.titulo_obra,m):0;}catch(e){return 0;}};
+    const meds=(D().medicoes||[]).filter(m=>!ehFatMed(m)&&!ligadas.has(String(m.rowid))).map(m=>{const rt=ret1(m);return {k:'m',id:'m'+m.rowid,r:m,obra:m.titulo_obra||'',col:ehAprov(m)?'faturar':'medicao',bruto:valorMed(m),ret:rt,liq:valorMed(m)*fatorLiq(m.titulo_obra)-rt,data:dt(m.data_aprovacao)||dt(m.data_medicao)};});
     const fs=fats.map(r=>({k:'f',id:'f'+r.rowid,r,obra:r[K.obra]||'',col:!Fa.ehReal(r,K)?'faturar':recebidaF(r,K)?'recebida':'receber',bruto:val(r[K.bruto]),liq:liqF(r),data:recebidaF(r,K)?dt(r[K.rec]):Fa.vencF(r,K)||dt(r[K.lanc])}));
     return meds.concat(fs);
   }
@@ -15533,6 +15613,7 @@ const Mascara=(function(){
         <div class="vk-obra" title="${fe(x.obra)}"><i class="fas fa-helmet-safety"></i>${fe(x.obra)}</div>
         ${r.periodo_ini||r.periodo_fim?`<div class="vk-sub">período ${r.periodo_ini?brDe(dt(r.periodo_ini)).slice(0,5):'—'} a ${r.periodo_fim?brDe(dt(r.periodo_fim)).slice(0,5):'—'}</div>`:''}
         <div class="vk-val"><span>bruto</span><b>${fmt(x.bruto)}</b></div>
+        ${x.ret?`<div class="vk-sub" title="Garantia do contrato retida nesta 1ª medição">${pill('garantia retida '+fmt(x.ret),'warn','fa-shield-halved')}</div>`:''}
         <div class="vk-pe">${x.col==='faturar'?(parado>5?pill(`aprovada há ${parado} dias sem nota`,'err'):pill('emitir a nota','warn','fa-file-pen')):pill(d?'medida em '+brDe(d).slice(0,5):'medição','')}</div>
       </article>`;}
     const venc=Fa.vencF(r,K);
@@ -15608,7 +15689,7 @@ const Mascara=(function(){
     box.onchange=ev=>{const t=ev.target.closest('[data-vkf]');if(!t||t.dataset.vkf==='busca')return;QF[t.dataset.vkf]=t.type==='checkbox'?t.checked:t.value;re();};
     box.onclick=ev=>{
       const b=ev.target.closest('[data-vk]');if(b){ev.preventDefault();const a=b.dataset.vk;
-        if(a==='nova')return fichaNota(null);
+        if(a==='nova')return novaAvulsa();
         if(a==='medicao'){Eng._ME.edit=null;if(QF.obra)Eng._ME.obra=QF.obra;return UI.nav('medicoes');}
         if(a==='limpar'){Object.assign(QF,{busca:'',obra:'',mes:'',semNF:false});return re();}
         if(a==='exportar')return exportarFat();
@@ -15653,36 +15734,11 @@ const Mascara=(function(){
         await executar(()=>salvar('Medições',{...copiaF(m),status:'Aprovada',data_aprovacao:d},m.rowid));toast('Medição aprovada — agora está em "A faturar".','success');}}],480);
   }
   function voltarMedicao(m){confirmar('Voltar para a fiscalização',`A medição nº ${fe(m.numero)} volta para "Enviada à fiscalização".`,'Sim, voltar',async()=>{await executar(()=>salvar('Medições',{...copiaF(m),status:'Enviada à fiscalização'},m.rowid));toast('Medição voltou para a fiscalização.','success');});}
-  // emitir a nota: de uma medição aprovada (cria o faturamento ligado a ela) ou de um faturamento previsto
+  // emitir a nota: NFS-e na Receita Federal, os arquivos (NF, XML e DAPS) guardados com a nota e a declaração
+  // de entrega gerada — só então a nota passa para "Nota emitida · a receber" (janela em GS.docs.emitirNota)
   function emitirNota(x){
-    const K=KF(),r=x.r,ehM=x.k==='m',ob=x.obra,b=ehM?valorMed(r):val(r[K.bruto]);
-    const pcts=(!ehM&&Fa.temRet(r,K)&&b>0)?{inss:val(r[K.inss])/b*100,irpf:val(r[K.irpf])/b*100,simples:val(r[K.simples])/b*100,antec:val(r[K.antec])/b*100}:Fa.pctObra(ob,K);
-    const pf=v=>(Math.round(v*100)/100).toLocaleString('pt-BR',{maximumFractionDigits:2});
-    const j=janela('Emitir a nota',`<div class="fin-resumo"><b>${fe(ob)}</b>${ehM?' · medição nº '+fe(r.numero):r.medicao_numero?' · medição nº '+fe(r.medicao_numero):''}</div>
-      <div class="fin-linha"><div class="fin-fld"><label>Nº da nota fiscal <span class="obg">*</span></label><input data-k="nf" inputmode="numeric" placeholder="Ex.: 1234"></div>
-      <div class="fin-fld"><label>Data de emissão <span class="obg">*</span></label><input type="date" data-k="em" value="${isoDe(hoje0())}"></div>
-      <div class="fin-fld"><label>Valor bruto (R$)</label><input data-k="bruto" data-mask="moeda" inputmode="numeric" value="${fmt(b)}"></div>
-      <div class="fin-fld"><label>Recebimento combinado</label><input type="date" data-k="rec" title="Vazio = prazo médio da obra"></div>
-      <div class="fin-fld"><label>% INSS</label><input data-k="inss" inputmode="decimal" value="${pf(pcts.inss)}"></div>
-      <div class="fin-fld"><label>% IRPF</label><input data-k="irpf" inputmode="decimal" value="${pf(pcts.irpf)}"></div>
-      <div class="fin-fld"><label>% Simples</label><input data-k="simples" inputmode="decimal" value="${pf(pcts.simples)}"></div>
-      <div class="fin-fld"><label>% Antecipação da nota</label><input data-k="antec" inputmode="decimal" value="${pf(pcts.antec)}" title="Zere se a nota não for antecipada"></div>
-      <div class="fin-fld"><label>Seguro do contrato (R$)</label><input data-k="seguro" data-mask="moeda" inputmode="numeric" value="${!ehM&&val(r[K.seguro])?fmt(val(r[K.seguro])):''}" placeholder="R$ 0,00"></div></div>
-      <div class="fin-resumo" data-liq></div>`,
-      [{html:'Cancelar'},{html:'<i class="fas fa-file-invoice"></i> Emitir',cls:'pri',acao:async jj=>{
-        const c=calc(jj),nf=jj.querySelector('[data-k="nf"]').value.trim(),em=jj.querySelector('[data-k="em"]').value,rec=jj.querySelector('[data-k="rec"]').value;
-        if(!nf)throw new Error('Informe o nº da nota.');if(!em)throw new Error('Informe a data de emissão.');if(!(c.bruto>0))throw new Error('Informe o valor bruto.');if(c.liq<0)throw new Error('As retenções passam do valor bruto.');
-        const o=ehM?{}:copiaF(r),kf=(k,fb)=>U.col('faturamentos',[k],fb);
-        Object.assign(o,{[K.obra]:ob,[K.tipo]:'Real',[K.nf]:nf,[K.em]:em,[K.bruto]:dinheiro(c.bruto),[K.inss]:dinheiro(c.inss),[K.irpf]:dinheiro(c.irpf),[K.simples]:dinheiro(c.simples),[K.antec]:dinheiro(c.antec),[K.seguro]:dinheiro(c.seguro),[K.liq]:dinheiro(c.liq)});
-        if(rec)o[K.rec]=rec;else if(ehM)o[K.rec]='';
-        if(ehM){o[K.lanc]=todayDateTime();o.medicao_rowid=String(r.rowid);o.medicao_numero=String(r.numero||'');if(!o[K.antecData])o[K.antecData]='';}
-        await executar(async()=>{await salvar('Faturamentos',o,ehM?null:r.rowid);if(ehM)await salvar('Medições',{...copiaF(r),status:'Faturada',faturado_em:todayDateTime()},r.rowid);
-          else if(r.medicao_rowid){const md=(D().medicoes||[]).find(y=>String(y.rowid)===String(r.medicao_rowid));if(md)await salvar('Medições',{...copiaF(md),status:'Faturada',faturado_em:todayDateTime()},md.rowid);}});
-        toast('Nota emitida — agora está em "a receber".','success');}}],640);
-    function calc(jj){const g=k=>Mascara.numero(jj.querySelector(`[data-k="${k}"]`).value)||0,bb=g('bruto');
-      const c={bruto:bb,inss:Math.round(bb*g('inss'))/100,irpf:Math.round(bb*g('irpf'))/100,simples:Math.round(bb*g('simples'))/100,antec:Math.round(bb*g('antec'))/100,seguro:g('seguro')};c.liq=Math.round((bb-c.inss-c.irpf-c.simples-c.antec-c.seguro)*100)/100;
-      jj.querySelector('[data-liq]').innerHTML=`Retenções: INSS ${fmt(c.inss)} · IRPF ${fmt(c.irpf)} · Simples ${fmt(c.simples)} · Antecipação ${fmt(c.antec)}${c.seguro?' · Seguro '+fmt(c.seguro):''}<br>Líquido a receber: <b style="color:var(--blue);font-size:15px">${fmt(c.liq)}</b>`;return c;}
-    calc(j);j.oninput=()=>calc(j);
+    if(!(GS.docs&&GS.docs.emitirNota))return toast('Aguarde o sistema terminar de carregar e tente de novo.','error');
+    return GS.docs.emitirNota(x,{K:KF(),copiaF,valorMed,pctObra:Fa.pctObra});
   }
   function receberNota(r){
     const K=KF();
@@ -15715,6 +15771,7 @@ const Mascara=(function(){
         <li><i class="fas fa-helmet-safety"></i> <b>${fe(m.titulo_obra)}</b> · medição nº ${fe(m.numero)}</li>
         <li><i class="fas fa-calendar-day"></i> Período ${m.periodo_ini?brDe(dt(m.periodo_ini)):'—'} a ${m.periodo_fim?brDe(dt(m.periodo_fim)):'—'} · medida em ${brDe(dt(m.data_medicao))}${m.data_aprovacao?' · aprovada em '+brDe(dt(m.data_aprovacao)):''}</li>
         <li><i class="fas fa-scale-balanced"></i> Situação: ${fe(m.status||'—')}${rm.contrato?` · acumulado da obra ${pct(rm.pct)} do contrato · saldo ${fmt(rm.saldo)}`:''}</li>
+        ${x.ret?`<li><i class="fas fa-shield-halved"></i> <b>Garantia retida nesta 1ª medição: ${fmt(x.ret)}</b> — o contrato tem a garantia na modalidade "Retenção na 1ª medição"; o valor já sai do líquido estimado e entra no "Seguro do contrato" ao emitir a nota.</li>`:''}
       </ul>`;
     const bts=[];
     if(pode('faturamento')){
@@ -15724,14 +15781,26 @@ const Mascara=(function(){
     bts.push({html:'Fechar'});
     janela('Medição nº '+(m.numero||''),corpo,bts,660);
   }
+  // nota avulsa (sem medição): escolhe a obra e o valor e segue a mesma emissão (NFS-e, arquivos e declaração)
+  function novaAvulsa(){
+    const K=KF();
+    janela('Nota avulsa (sem medição)',`<div class="fin-linha"><div class="fin-fld" style="grid-column:1/-1"><label>Obra <span class="obg">*</span></label><select data-k="obra"><option value="">Escolha…</option>${opsObra().map(o=>`<option ${o===QF.obra?'selected':''}>${fe(o)}</option>`).join('')}</select></div>
+      <div class="fin-fld"><label>Valor bruto (R$) <span class="obg">*</span></label><input data-k="bruto" data-mask="moeda" inputmode="numeric" placeholder="R$ 0,00"></div></div>
+      <div class="fin-aviso"><div>Em seguida vem a emissão da nota na Receita Federal, os arquivos (NF, XML e DAPS) e a declaração de entrega — igual à nota de uma medição.</div></div>`,
+      [{html:'Continuar <i class="fas fa-arrow-right"></i>',cls:'pri',acao:j=>{const ob=j.querySelector('[data-k="obra"]').value,b=num(j.querySelector('[data-k="bruto"]').value);
+        if(!ob)throw new Error('Escolha a obra.');if(!(b>0))throw new Error('Informe o valor bruto.');
+        setTimeout(()=>emitirNota({k:'f',r:{[K.obra]:ob,[K.bruto]:dinheiro(b),[K.tipo]:'Previsto'},obra:ob}),10);}}],520);
+  }
   // nota: todos os campos (o que a planilha tinha), com o líquido calculado na hora
   function fichaNota(r){
     const K=KF(),nova=!r;r=r||{[K.tipo]:'Real'};
     const col=nova?'receber':(!Fa.ehReal(r,K)?'faturar':recebidaF(r,K)?'recebida':'receber'),cc=COLS_F.find(c=>c.k===col),s=nova?['nova','']:Fa.sitF(r,K),v=nova?null:Fa.vencF(r,K);
     const ed=pode('faturamento'),mo=k=>val(r[K[k]])?fmt(val(r[K[k]])):'';
+    // a nota que veio de uma medição já tem a obra da medição: não muda. O tipo (previsto/real) não se escolhe:
+    // a previsão de faturamento sai do orçamento e das medições; aqui só existe nota emitida.
+    const travaObra=!nova&&!!r.medicao_rowid;
     const campos=`<div class="fin-linha">
-      <div class="fin-fld" style="grid-column:1/-1"><label>Obra <span class="obg">*</span></label><select data-k="obra"><option value="">Escolha…</option>${opsObra().map(o=>`<option ${o===r[K.obra]?'selected':''}>${fe(o)}</option>`).join('')}${r[K.obra]&&!opsObra().includes(r[K.obra])?`<option selected>${fe(r[K.obra])}</option>`:''}</select></div>
-      <div class="fin-fld"><label>Tipo</label><select data-k="tipo"><option value="Real" ${Fa.ehReal(r,K)?'selected':''}>Nota emitida (Real)</option><option value="Previsto" ${!Fa.ehReal(r,K)?'selected':''}>A faturar (Previsto)</option></select></div>
+      <div class="fin-fld" style="grid-column:1/-1"><label>Obra <span class="obg">*</span></label><select data-k="obra" ${travaObra?'disabled title="A obra vem da medição"':''}><option value="">Escolha…</option>${opsObra().map(o=>`<option ${o===r[K.obra]?'selected':''}>${fe(o)}</option>`).join('')}${r[K.obra]&&!opsObra().includes(r[K.obra])?`<option selected>${fe(r[K.obra])}</option>`:''}</select>${travaObra?`<div class="capx-dica">A obra vem da medição nº ${fe(r.medicao_numero||'')} e não muda aqui.</div>`:''}</div>
       <div class="fin-fld"><label>Nº da nota</label><input data-k="nf" inputmode="numeric" value="${fe(r[K.nf]||'')}"></div>
       <div class="fin-fld"><label>Emissão</label><input type="date" data-k="em" value="${dt(r[K.em])?isoDe(dt(r[K.em])):''}"></div>
       <div class="fin-fld"><label>Valor bruto (R$) <span class="obg">*</span></label><input data-k="bruto" data-mask="moeda" inputmode="numeric" value="${mo('bruto')}"></div>
@@ -15742,10 +15811,12 @@ const Mascara=(function(){
       <div class="fin-fld"><label>Seguro do contrato (R$)</label><input data-k="seguro" data-mask="moeda" inputmode="numeric" value="${mo('seguro')}"></div>
       <div class="fin-fld"><label>Antecipada em</label><input type="date" data-k="antecData" value="${dt(r[K.antecData])?isoDe(dt(r[K.antecData])):''}"></div>
       <div class="fin-fld"><label>Recebimento (combinado ou recebida em)</label><input type="date" data-k="rec" value="${dt(r[K.rec])?isoDe(dt(r[K.rec])):''}"></div>
-    </div><div class="fin-resumo" data-liq></div>`;
+    </div>${nova?'<div class="fin-resumo" data-liq></div>':''}`;
+    // o líquido aparece uma vez só (no topo da ficha) e acompanha o que se digita
     const corpo=(nova?'':`<div class="vk-ficha-cab"><span class="vk-etq" style="--cor:${cc.cor}"><i class="fas ${cc.ico}"></i> ${cc.rot}</span>
-        <div class="vk-num"><span>Líquido</span><b>${fmt(liqF(r))}</b></div><div class="vk-num"><span>Situação</span><b>${pill(s[0],s[1]==='cinza'?'':s[1])}</b></div></div>
-      <ul class="vk-lista">${r.medicao_numero?`<li><i class="fas fa-ruler-combined"></i> Medição nº ${fe(r.medicao_numero)}</li>`:''}${col!=='faturar'?`<li><i class="fas fa-calendar-day"></i> ${recebidaF(r,K)?'Recebida em '+brDe(dt(r[K.rec])):'Vence '+(v?brDe(v):'—')}</li>`:''}</ul>`)+(ed?campos:'');
+        <div class="vk-num"><span>Líquido</span><b data-liq-cab>${fmt(liqF(r))}</b></div><div class="vk-num"><span>Situação</span><b>${pill(s[0],s[1]==='cinza'?'':s[1])}</b></div></div>
+      <ul class="vk-lista">${r.medicao_numero?`<li><i class="fas fa-ruler-combined"></i> Medição nº ${fe(r.medicao_numero)}</li>`:''}${col!=='faturar'?`<li><i class="fas fa-calendar-day"></i> ${recebidaF(r,K)?'Recebida em '+brDe(dt(r[K.rec])):'Vence '+(v?brDe(v):'—')}</li>`:''}</ul>`)+(ed?campos:'')
+      +(!nova&&col!=='faturar'&&GS.docs?GS.docs.fichaNotaExtras(r,K,col):'');
     const bts=[];
     if(ed&&!nova){
       // nota emitida não se exclui: desfaz o faturamento (volta para "A faturar"); só o previsto se exclui
@@ -15756,13 +15827,15 @@ const Mascara=(function(){
       if(col==='receber')bts.push({html:'<i class="fas fa-circle-check"></i> Registrar recebimento',acao:()=>{setTimeout(()=>receberNota(r),10);}});
       if(col==='recebida')bts.push({html:'<i class="fas fa-rotate-left"></i> Desfazer recebimento',acao:()=>{setTimeout(()=>desfazerRecebimento(r),10);}});
       if(col==='recebida')bts.push({html:'<i class="fas fa-file-pen"></i> Desfazer faturamento',acao:()=>{setTimeout(()=>desfazerFaturamento(r),10);}});
-      // nota que veio de uma medição: volta tudo até a medição em andamento, sem excluir
-      if(r.medicao_rowid)bts.push({html:'<i class="fas fa-ruler-combined"></i> Voltar para a medição',acao:()=>{setTimeout(()=>voltarParaMedicao(r),10);}});
+      // nota que veio de uma medição (fora de "Nota emitida · a receber"): volta tudo até a medição em andamento, sem excluir
+      if(r.medicao_rowid&&col!=='receber')bts.push({html:'<i class="fas fa-ruler-combined"></i> Voltar para a medição',acao:()=>{setTimeout(()=>voltarParaMedicao(r),10);}});
+      // EMBASA: formulário do Programa Avançar Fornecedores para antecipar o recebimento
+      if(col==='receber'&&GS.docs&&GS.docs.ehEmbasa(GS.docs.contratanteDaNota(r,K)))bts.push({html:'<i class="fas fa-forward-fast"></i> Antecipar recebimento Embasa',acao:()=>{setTimeout(()=>GS.docs.antecipacao(r,K),10);}});
     }
     if(ed)bts.push({html:'<i class="fas fa-floppy-disk"></i> Salvar',cls:'pri',acao:async j=>{
       const g=k=>(j.querySelector(`[data-k="${k}"]`)||{}).value||'',m=k=>dinheiro(num(g(k)));
       const o=nova?{[K.lanc]:todayDateTime()}:copiaF(r);
-      Object.assign(o,{[K.obra]:g('obra'),[K.tipo]:g('tipo'),[K.nf]:g('nf').trim(),[K.em]:g('em'),[K.bruto]:m('bruto'),[K.inss]:m('inss'),[K.irpf]:m('irpf'),[K.simples]:m('simples'),[K.antec]:m('antec'),[K.seguro]:m('seguro'),[K.antecData]:g('antecData'),[K.rec]:g('rec')});
+      Object.assign(o,{[K.obra]:travaObra?r[K.obra]:g('obra'),[K.tipo]:nova?'Real':(r[K.tipo]||'Real'),[K.nf]:g('nf').trim(),[K.em]:g('em'),[K.bruto]:m('bruto'),[K.inss]:m('inss'),[K.irpf]:m('irpf'),[K.simples]:m('simples'),[K.antec]:m('antec'),[K.seguro]:m('seguro'),[K.antecData]:g('antecData'),[K.rec]:g('rec')});
       if(!o[K.obra])throw new Error('Escolha a obra.');if(!(val(o[K.bruto])>0))throw new Error('Informe o valor bruto.');
       if(o[K.tipo]==='Real'&&(!o[K.nf]||!o[K.em]))throw new Error('Nota emitida precisa do nº e da data de emissão.');
       if(dt(o[K.rec])&&dt(o[K.rec])<=hoje0()&&o[K.tipo]!=='Real')throw new Error('Para registrar o recebimento, a nota precisa estar emitida (Real).');
@@ -15771,7 +15844,9 @@ const Mascara=(function(){
     else bts.push({html:'Fechar'});
     janela(nova?'Nota avulsa (sem medição)':r[K.nf]?'NF '+r[K.nf]:'Faturamento',corpo,bts,760);
     const j=jan();
-    if(ed){const liq=()=>{const g=k=>Mascara.numero((j.querySelector(`[data-k="${k}"]`)||{}).value)||0;const l=g('bruto')-g('inss')-g('irpf')-g('simples')-g('antec')-g('seguro');const e=j.querySelector('[data-liq]');if(e)e.innerHTML=`Líquido a receber: <b style="color:var(--blue);font-size:15px">${fmt(l)}</b>${l<0?' <span style="color:#B42318">— retenções maiores que o bruto</span>':''}`;};
+    if(!nova&&col!=='faturar'&&GS.docs)GS.docs.ligarFichaNota(j,r,K,col);
+    if(ed){const liq=()=>{const g=k=>Mascara.numero((j.querySelector(`[data-k="${k}"]`)||{}).value)||0;const l=g('bruto')-g('inss')-g('irpf')-g('simples')-g('antec')-g('seguro');const e=j.querySelector('[data-liq]');if(e)e.innerHTML=`Líquido a receber: <b style="color:var(--blue);font-size:15px">${fmt(l)}</b>${l<0?' <span style="color:#B42318">— retenções maiores que o bruto</span>':''}`;
+        const c=j.querySelector('[data-liq-cab]');if(c){c.textContent=fmt(l);c.style.color=l<0?'#B42318':'';}};
       // nota nova: retenções pelos percentuais da obra quando digita o bruto
       j.oninput=ev=>{const k=ev.target.dataset.k;if(nova&&(k==='bruto'||k==='obra')){const ob=j.querySelector('[data-k="obra"]').value,b=Mascara.numero(j.querySelector('[data-k="bruto"]').value)||0;if(ob&&b){const p=Fa.pctObra(ob,K);['inss','irpf','simples','antec'].forEach(x=>{const el=j.querySelector(`[data-k="${x}"]`);if(el&&!el.dataset.mexeu)el.value=Mascara.brl(Math.round(b*p[x])/100);});}}else if(k&&['inss','irpf','simples','antec'].includes(k))ev.target.dataset.mexeu='1';liq();};
       j.onchange=()=>liq();liq();}
@@ -16419,7 +16494,11 @@ const Mascara=(function(){
   const CT_CAMPOS=['contratante','cnpj_contratante','modalidade','numero_licitacao','data_assinatura','valor_contrato','vigencia_fim','data_base','indice_reajuste','garantia_tipo','garantia_pct','garantia_validade','fiscal','fiscal_contato','responsavel_tecnico','preposto','observacoes'];
   const MODAL=['Licitação (Lei 13.303 — estatais)','Concorrência (Lei 14.133)','Pregão','Dispensa / contratação direta','Contrato privado'];
   const INDICES=['INCC-DI (FGV)','IPCA (IBGE)','Índice da contratante','Sem reajuste previsto'];
-  const GARANTIAS=['Seguro-garantia','Caução em dinheiro','Fiança bancária','Retenção em medição','Não exigida'];
+  const GARANTIAS=['Seguro-garantia','Caução em dinheiro','Fiança bancária','Retenção na 1ª medição','Não exigida'];
+  // "Retenção na 1ª medição" só existe para a EMBASA; o nome antigo "Retenção em medição" vira o novo
+  const RET1='Retenção na 1ª medição';
+  const garantiaNorm=v=>/^reten/i.test(String(v||''))?RET1:(v||'');
+  const garantiasPara=ct=>GARANTIAS.filter(g=>g!==RET1||(GS.docs?GS.docs.ehEmbasa(ct):/embasa/i.test(ct||'')));
   function editarDadosObra(ob){
     const o=obraDe(ob);if(!o)return toast('Obra não encontrada.','error');
     const c=(Eng.contratoDe&&Eng.contratoDe(ob))||{},rm=(()=>{try{return Eng.resumoMedicoes(ob);}catch(e){return {};}})(),orc=Eng.baseDaObra?Eng.baseDaObra(ob):null;
@@ -16433,9 +16512,9 @@ const Mascara=(function(){
     const corpo=`<div class="fin-linha">
       <div class="hc-sec">Identificação</div>
       ${fld('Nº do contrato',inp('numero',g(['numero_contrato','num_contrato','n_contrato'])))}
-      ${fld('Contratante',inp('contratante',c.contratante||'EMBASA'))}
+      ${fld('Contratante',inp('contratante',c.contratante||(GS.docs?(GS.docs.contratantes().find(x=>GS.docs.ehEmbasa(x.nome))||{}).nome:'')||'EMBASA',' list="vx-contratantes" autocomplete="off" placeholder="Digite e escolha na lista"')+'<div class="capx-dica">Escolha na lista: o CPF/CNPJ vem junto. Contratante novo entra na lista ao salvar.</div>')}
       ${fld('Cidade da obra',inp('cidade_obra',g(['cidade_obra'])||c.cidade_obra,' autocomplete="off" placeholder="Ex.: Itarantim, BA"')+'<div class="capx-dica">Comece a digitar e escolha na lista. É a cidade usada no preço médio de mercado do CAP.</div>')}
-      ${fld('CNPJ do contratante',inp('cnpj_contratante',c.cnpj_contratante,' data-mask="cnpj" inputmode="numeric" placeholder="00.000.000/0000-00"'))}
+      ${fld('CPF ou CNPJ do contratante',inp('cnpj_contratante',c.cnpj_contratante,' data-mask="cpfcnpj" inputmode="numeric" placeholder="000.000.000-00 ou 00.000.000/0000-00"'))}
       ${fld('Modalidade da licitação',sel('modalidade',MODAL,c.modalidade))}
       ${fld('Nº da licitação / processo',inp('numero_licitacao',c.numero_licitacao))}
       ${fld('Objeto do contrato (descrição da obra)',`<textarea data-k="objeto" rows="2">${fe(g(['descricao'])||c.objeto||'')}</textarea>`,1)}
@@ -16452,7 +16531,7 @@ const Mascara=(function(){
       <div class="hc-sec">Valor, reajuste e garantia</div>
       ${fld('Valor assinado (R$)',`<input data-k="valor_contrato" data-mask="moeda" inputmode="numeric" value="${valorAss?fmt(valorAss):''}" placeholder="R$ 0,00">`+(rm.base&&!val(c.valor_contrato)?'<div class="capx-dica">Preenchido com o total do orçamento da obra.</div>':''))}
       ${fld('Índice de reajuste',sel('indice_reajuste',INDICES,c.indice_reajuste))}
-      ${fld('Garantia contratual',sel('garantia_tipo',GARANTIAS,c.garantia_tipo))}
+      ${fld('Garantia contratual',sel('garantia_tipo',garantiasPara(c.contratante||'EMBASA'),garantiaNorm(c.garantia_tipo))+'<div class="capx-dica" data-dica-ret>"Retenção na 1ª medição" (só EMBASA): ao salvar, o sistema gera a solicitação de abatimento da garantia na primeira medição, já assinada.</div>')}
       ${fld('Garantia (% do contrato)',inp('garantia_pct',c.garantia_pct,' inputmode="decimal" placeholder="Ex.: 5"'))}
       ${fld('Validade da garantia',dat('garantia_validade',c.garantia_validade)+'<div class="capx-dica">Ou cadastre a apólice em Documentos › Seguro-garantia.</div>')}
       <div class="hc-sec">Equipe</div>
@@ -16493,9 +16572,24 @@ const Mascara=(function(){
       ct.valor_contrato=ct.valor_contrato?dinheiro(Mascara.numero(ct.valor_contrato)||0):'';
       ct.garantia_pct=ct.garantia_pct?String(Mascara.numero(ct.garantia_pct)||'').replace('.',','):'';
       if(!temCt)ct.data_lancamento=todayDateTime();
+      if(ct.cnpj_contratante){const dg=ct.cnpj_contratante.replace(/\D/g,'');if(dg.length!==11&&dg.length!==14)throw new Error('O CPF do contratante tem 11 números e o CNPJ tem 14.');}
+      if(ct.garantia_tipo===RET1&&!(GS.docs?GS.docs.ehEmbasa(ct.contratante):/embasa/i.test(ct.contratante)))throw new Error('"Retenção na 1ª medição" é só para contratos com a EMBASA.');
+      // garantia passou a ser "Retenção na 1ª medição": gera a solicitação de abatimento (uma por contrato)
+      const novaRet=ct.garantia_tipo===RET1&&c.garantia_tipo!==RET1&&!(GS.docs&&GS.docs.gerados({modelo:'garantia',titulo_obra:ob}).length);
+      const novoCt=GS.docs&&ct.contratante&&!GS.docs.contratantes().some(x=>x.rowid&&cn(x.nome)===cn(ct.contratante)&&(x.doc||'')===(ct.cnpj_contratante||''));
       // salvar aqui CRIA o contrato da obra (é a partir dele que a aba Medição aparece)
-      await executar(async()=>{await salvar('Obras',o2,o.rowid);await salvar('Contratos',ct,temCt?c.rowid:null);});
-      toast(temCt?'Dados do contrato salvos.':'Contrato criado — a aba Medição já está disponível.','success');}}],820);
+      await executar(async()=>{await salvar('Obras',o2,o.rowid);await salvar('Contratos',ct,temCt?c.rowid:null);
+        if(novoCt){const ex=GS.docs.contratanteDe(ct.contratante);await GS.docs.salvarContratante(ct.contratante,ct.cnpj_contratante||(ex&&ex.doc)||'',ex&&ex.rowid);}});
+      toast(temCt?'Dados do contrato salvos.':'Contrato criado — a aba Medição já está disponível.','success');
+      if(novaRet&&GS.docs)setTimeout(()=>GS.docs.gerarSolicitacaoGarantia(ob).catch(e=>toast((e&&e.message)||String(e),'error')),80);}}],820);
+    // contratante escolhido na lista: o CPF/CNPJ vem junto; "Retenção na 1ª medição" só aparece para a EMBASA
+    try{
+      if(GS.docs)GS.docs.datalistContratantes();
+      const ctIn=j.querySelector('[data-k="contratante"]'),docIn=j.querySelector('[data-k="cnpj_contratante"]'),gSel=j.querySelector('[data-k="garantia_tipo"]'),dica=j.querySelector('[data-dica-ret]');
+      const ajustaGar=()=>{const at=gSel.value,ops=garantiasPara(ctIn.value);gSel.innerHTML='<option value="">—</option>'+ops.map(x=>`<option ${x===at?'selected':''}>${fe(x)}</option>`).join('');if(at&&!ops.includes(at)){gSel.value='';toast('"Retenção na 1ª medição" é só para a EMBASA — escolha outra garantia.','info');}if(dica)dica.hidden=!ops.includes(RET1);};
+      ctIn.addEventListener('change',()=>{const x=GS.docs&&GS.docs.contratanteDe(ctIn.value);if(x&&x.doc){docIn.value=Mascara.F.cpfcnpj(x.doc);}ajustaGar();});
+      ajustaGar();
+    }catch(e){console.error(e);}
     // término previsto calculado na hora
     const atualiza=()=>{
       const os=j.querySelector('[data-k="os"]').value,p=+j.querySelector('[data-k="prazo"]').value.replace(/\D/g,'')||0,cc=j.querySelector('[data-calc]');
@@ -19170,6 +19264,686 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
   },true);
   document.addEventListener('dragstart',ev=>{if(!restrito())return;if(UI.permNivel(ctxBase(ev.target))==='ver'){ev.preventDefault();toast('Seu perfil só pode ver esta tela: não pode mover os cartões.','error');}},true);
   document.addEventListener('submit',ev=>{if(!restrito())return;if(UI.permNivel(ctxBase(ev.target))==='ver')parar(ev,'Seu perfil só pode ver esta tela.');},true);
+})();
+</script>
+<!-- ═══════════════════ EMPRESA, DOCUMENTOS GERADOS, NOTA FISCAL, KIT, SÓCIOS E INATIVIDADE ═══════════════════ -->
+<style>
+.nfw{display:flex;flex-direction:column;gap:12px;}
+.nfw-sec{border:1px solid #E4E9F2;border-radius:14px;padding:12px 14px;background:#fff;}
+.nfw-sec>h5{margin:0 0 8px;font:800 13px Inter,sans-serif;color:var(--text-1);display:flex;align-items:center;gap:8px;}
+.nfw-sec>h5 span{width:22px;height:22px;border-radius:999px;background:#1652D8;color:#fff;display:inline-grid;place-items:center;font-size:11px;flex-shrink:0;}
+.nfw-sec>h5.ok span{background:#12B76A;}
+.nfw-sec p.dica{margin:0 0 8px;font-size:12px;color:#667085;line-height:1.45;}
+.nfw-copiar{display:grid;grid-template-columns:150px minmax(0,1fr) auto;gap:4px 10px;align-items:center;font-size:12px;margin:6px 0;}
+.nfw-copiar span{color:#667085;font-weight:700;} .nfw-copiar b{color:var(--text-1);font-weight:600;word-break:break-word;}
+.nfw-copiar button{border:1px solid #D0D5DD;background:#fff;border-radius:8px;padding:3px 8px;font-size:11px;cursor:pointer;color:#344054;}
+.nfw-daps{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:8px;padding:9px 11px;border-radius:10px;background:#FFFAEB;border:1px solid #FEDF89;font-size:12.5px;color:#93370D;}
+.nfw-daps button{border:1px solid #D0D5DD;background:#fff;border-radius:999px;padding:5px 12px;font:700 12px Inter,sans-serif;cursor:pointer;color:#344054;}
+.nfw-daps button.on{background:#1652D8;border-color:#1652D8;color:#fff;}
+.nfw-arqs{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:8px;}
+.nfw-arq{border:1.5px dashed #D0D5DD;border-radius:12px;padding:10px;text-align:center;cursor:pointer;font-size:12px;color:#667085;background:#FCFCFD;position:relative;}
+.nfw-arq b{display:block;color:#344054;font-size:12.5px;margin-bottom:2px;}
+.nfw-arq.ok{border-style:solid;border-color:#ABEFC6;background:#ECFDF3;color:#067647;}
+.nfw-arq input{display:none;}
+.nfw-decl{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;margin-top:8px;}
+.nfw-st{font-size:12.5px;font-weight:700;color:#B54708;} .nfw-st.ok{color:#067647;}
+.nfx{display:flex;flex-direction:column;gap:10px;margin-top:12px;}
+.nfx-sec{border:1px solid #E4E9F2;border-radius:14px;padding:10px 12px;background:#FAFBFE;}
+.nfx-sec h5{margin:0 0 6px;font:800 12.5px Inter,sans-serif;color:var(--text-1);display:flex;align-items:center;gap:7px;}
+.kit-l{display:flex;flex-direction:column;gap:6px;}
+.kit-it{display:flex;align-items:center;gap:10px;padding:7px 9px;border:1px solid #EEF1F6;border-radius:10px;background:#fff;}
+.kit-it .ic{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;background:#EEF4FF;color:#1652D8;flex-shrink:0;font-size:13px;}
+.kit-it .ic.err{background:#FEF3F2;color:#D92D20;} .kit-it .ic.warn{background:#FFFAEB;color:#B54708;} .kit-it .ic.ok{background:#ECFDF3;color:#067647;} .kit-it .ic.cinza{background:#F2F4F7;color:#98A2B3;}
+.kit-it .nm{flex:1;min-width:0;} .kit-it .nm b{display:block;font:700 12.5px Inter,sans-serif;color:var(--text-1);}
+.kit-it .nm span{display:block;font-size:11px;color:#667085;margin-top:1px;}
+.kit-it .ac{display:flex;gap:5px;flex-wrap:wrap;justify-content:flex-end;}
+.empc{background:#fff;border:1px solid #E4E9F2;border-radius:18px;padding:16px 18px;margin:0 0 16px;box-shadow:0 1px 2px rgba(16,24,40,.04);}
+.empc-cab{display:flex;flex-wrap:wrap;justify-content:space-between;gap:10px;align-items:center;margin-bottom:10px;}
+.empc-cab h3{margin:0;font:800 15px Inter,sans-serif;color:var(--text-1);display:flex;align-items:center;gap:9px;}
+.empc-cab h3 i{width:30px;height:30px;border-radius:9px;display:inline-grid;place-items:center;background:#101828;color:#fff;font-size:12px;}
+.empc-cab p{margin:4px 0 0;font-size:12px;color:#667085;}
+.empc-abas{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;}
+.empc-abas button{border:1px solid #D0D5DD;background:#fff;border-radius:999px;padding:6px 13px;font:700 12px Inter,sans-serif;color:#344054;cursor:pointer;}
+.empc-abas button.on{background:#101828;border-color:#101828;color:#fff;}
+.empc-ass{display:flex;flex-wrap:wrap;gap:14px;align-items:center;}
+.empc-ass .prev{width:260px;height:100px;border:1px dashed #D0D5DD;border-radius:12px;display:grid;place-items:center;background:#fff;color:#98A2B3;font-size:12px;overflow:hidden;}
+.empc-ass .prev img{max-width:100%;max-height:100%;}
+.empc-tab{width:100%;border-collapse:collapse;font-size:12.5px;}
+.empc-tab th{text-align:left;font:800 10px Inter,sans-serif;text-transform:uppercase;letter-spacing:.05em;color:#667085;background:#F8FAFC;padding:7px 10px;}
+.empc-tab td{padding:7px 10px;border-bottom:1px solid #F2F4F7;}
+.ass-pad{border:1px solid #D0D5DD;border-radius:10px;background:#fff;touch-action:none;cursor:crosshair;width:100%;height:180px;}
+.so2-tab{width:100%;border-collapse:collapse;font-size:12.5px;}
+.so2-tab th{text-align:left;font:800 10px Inter,sans-serif;text-transform:uppercase;letter-spacing:.05em;color:#667085;background:#F8FAFC;padding:8px 10px;white-space:nowrap;}
+.so2-tab td{padding:8px 10px;border-bottom:1px solid #F2F4F7;vertical-align:middle;}
+.so2-tab td.num{text-align:right;white-space:nowrap;font-weight:700;}
+.so2-tab td.ent{color:#067647;} .so2-tab td.sai{color:#B42318;}
+.so2-tipo{display:inline-flex;align-items:center;gap:6px;font:700 11.5px Inter,sans-serif;padding:3px 9px;border-radius:999px;}
+.so2-tipo.ent{background:#ECFDF3;color:#067647;} .so2-tipo.sai{background:#FEF3F2;color:#B42318;} .so2-tipo.dev{background:#FFFAEB;color:#B54708;}
+.so2-ac{display:flex;gap:5px;justify-content:flex-end;}
+.so2-filtros{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0;}
+.so2-filtros select{border:1px solid #D0D5DD;border-radius:10px;padding:7px 10px;font:600 12.5px Inter,sans-serif;background:#fff;}
+.idle-ov{position:fixed;inset:0;z-index:2147483000;background:rgba(16,24,40,.55);display:none;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(3px);}
+.idle-ov.open{display:flex;}
+.idle-box{background:#fff;border-radius:20px;max-width:420px;width:100%;padding:24px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.25);}
+.idle-box i.big{font-size:30px;color:#B54708;}
+.idle-box h3{margin:10px 0 6px;font:800 18px Inter,sans-serif;color:var(--text-1);}
+.idle-box p{margin:0 0 16px;font-size:13.5px;color:#475467;line-height:1.5;}
+.idle-box b.cont{font-size:28px;color:#B42318;display:block;margin:4px 0 12px;}
+.idle-box button{border:0;border-radius:999px;padding:11px 22px;font:700 14px Inter,sans-serif;background:var(--blue);color:#fff;cursor:pointer;}
+</style>
+<script>
+(function(){
+  const {D,U,kpiG,cabG,Rk,MESES}=GS;
+  const {janela,confirmar,executar,salvar,excluir,fe,cn,dt,brDe,isoDe,hoje0,addD,dinheiro,val}=U;
+  const pode=v=>!UI._allowedViews||UI._allowedViews.includes(v);
+  const run=(fn,...a)=>new Promise((ok,er)=>{try{google.script.run.withSuccessHandler(r=>r&&r.ok===false?er(new Error(r.msg||'Não foi possível concluir.')):ok(r)).withFailureHandler(e=>er(e instanceof Error?e:new Error(String((e&&e.message)||e))))[fn](...a);}catch(e){er(e);}});
+  const PLAN=()=>D().planejamento||[];
+  const eu=()=>{const s=Auth._session||{};return {nome:s.nome||'Usuário',id:String(s.cpf||s.email||'')};};
+  const num=s=>Mascara.numero(s)||0;
+  const limpo=o=>{const x={...o};delete x.rowid;delete x.visualId;delete x._aba;return x;};
+  const ultimo=l=>l.slice().sort((a,b)=>(+b.rowid||0)-(+a.rowid||0))[0]||null;
+  const EMP_ARQ='__empresa__';
+
+  /* ═══════════════ DADOS DA EMPRESA (para os documentos) ═══════════════ */
+  const EMP_PADRAO={razao:'VIXSUL EMPREENDIMENTOS LIMITADA',cnpj:'64.518.375/0001-20',endereco:'Rua Markimann Carvalho de Oliveira N.º 12, Anedilha de Carvalho, Itarantim/BA',cep:'45.780-000',
+    telefone:'(77) 98114-7919',email:'admvilsonsouza@outlook.com',representante:'Vilson Souza Oliveira',cpf:'055.823.765-77',rg:'1610353455',cargo:'Sócio-Administrador',
+    nacionalidade:'brasileiro',cidade_doc:'Vitória da Conquista/BA',oficio_ultimo:'0'};
+  const empRow=()=>ultimo(PLAN().filter(p=>p.tipo==='empresa_dados'));
+  const empresa=()=>({...EMP_PADRAO,...(empRow()||{})});
+  const dataExtenso=d=>`${d.getDate()} de ${MESES[d.getMonth()]} de ${d.getFullYear()}`;
+  const brl=v=>(+v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+
+  /* ═══════════════ ARQUIVOS (mesmo jeito dos anexos: partes na tabela "arquivos") ═══════════════ */
+  const PARTE=600000,LIMITE=10*1024*1024,ARQ={cache:{}};
+  const lerB64=f=>new Promise((ok,er)=>{const r=new FileReader();r.onload=()=>ok(String(r.result).replace(/^data:[^,]*,/,''));r.onerror=()=>er(new Error('Não consegui ler o arquivo '+f.name+'.'));r.readAsDataURL(f);});
+  async function listarArq(ob,forcar){if(ARQ.cache[ob]&&!forcar)return ARQ.cache[ob];const r=await run('listarAnexos',ob);return ARQ.cache[ob]=(r&&r.itens)||[];}
+  async function enviarArq(ob,meta,f){
+    if(!f||!f.size)throw new Error('Arquivo vazio.');if(f.size>LIMITE)throw new Error(`"${f.name}" passa de 10 MB — diminua o arquivo e tente de novo.`);
+    const b64=await lerB64(f),partes=Math.max(1,Math.ceil(b64.length/PARTE)),uid='ax'+Date.now().toString(36)+Math.random().toString(36).slice(2,8),q=eu();
+    for(let i=0;i<partes;i++)await run('upsertRegistroLote','Arquivos',{titulo_obra:ob,tipo:'anexo_parte',anexo_uid:uid,ordem:i,conteudo:b64.slice(i*PARTE,(i+1)*PARTE)},null);
+    const h={titulo_obra:ob,tipo:'anexo',uid,nome:f.name,mime:f.type||'',tamanho:f.size,partes,enviado_por:q.nome,enviado_por_id:q.id,enviado_em:new Date().toISOString(),data_lancamento:todayDateTime(),...meta};
+    await run('upsertRegistroLote','Arquivos',h,null);delete ARQ.cache[ob];return h;
+  }
+  async function blobArq(a){
+    const r=await run('partesAnexo',a.uid),ps=((r&&r.partes)||[]).slice().sort((x,y)=>(+x.ordem||0)-(+y.ordem||0));if(!ps.length)throw new Error('O conteúdo deste arquivo não foi encontrado.');
+    const bin=atob(ps.map(p=>p.conteudo).join('')),u=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);
+    return new Blob([u],{type:a.mime||'application/octet-stream'});
+  }
+  async function baixarArq(a,ver){
+    const w=ver&&/^(application\/pdf|image\/|text\/)/.test(a.mime||'')?window.open('','_blank'):null;
+    try{UI._showBusy('Abrindo o arquivo…');const b=await blobArq(a),url=URL.createObjectURL(b);
+      if(w)w.location.href=url;else{const l=document.createElement('a');l.href=url;l.download=a.nome||'arquivo';document.body.appendChild(l);l.click();setTimeout(()=>l.remove(),500);}
+      setTimeout(()=>URL.revokeObjectURL(url),120000);}
+    catch(e){if(w)try{w.close();}catch(x){}toast((e&&e.message)||String(e),'error');}
+    finally{UI._hideBusy();}
+  }
+  const dataUrlArq=async a=>{const b=await blobArq(a);return await new Promise(ok=>{const r=new FileReader();r.onload=()=>ok(r.result);r.readAsDataURL(b);});};
+  const recente=l=>l.slice().sort((x,y)=>String(y.enviado_em||'').localeCompare(String(x.enviado_em||'')))[0]||null;
+
+  /* ═══════════════ ASSINATURA DO REPRESENTANTE ═══════════════ */
+  let ASS=null;
+  async function assinatura(){
+    try{const a=recente((await listarArq(EMP_ARQ)).filter(x=>x.aba==='assinatura'));if(!a)return null;
+      if(ASS&&ASS.uid===a.uid)return ASS.url;const url=await dataUrlArq(a);ASS={uid:a.uid,url};return url;}catch(e){console.error(e);return null;}
+  }
+
+  /* ═══════════════ CONTRATANTES (lista com CPF/CNPJ) ═══════════════ */
+  const ehEmbasa=n=>/embasa/i.test(String(n||''));
+  const EMBASA_NOME='EMBASA - Empresa Baiana de Águas e Saneamento S.A.',EMBASA_CNPJ='13.504.675/0001-10';
+  function contratantes(){
+    const m=new Map();
+    const add=(nome,doc,rowid)=>{nome=String(nome||'').trim();if(!nome)return;const k=cn(nome);const x=m.get(k)||{nome,doc:'',rowid:null};if(rowid){x.rowid=rowid;x.nome=nome;if(doc)x.doc=doc;}else if(doc&&!x.doc)x.doc=doc;m.set(k,x);};
+    PLAN().filter(p=>p.tipo==='contratante').forEach(p=>add(p.nome,p.doc,p.rowid));
+    (D().contratos||[]).forEach(c=>add(c.contratante,c.cnpj_contratante));
+    if(![...m.values()].some(x=>ehEmbasa(x.nome)))add(EMBASA_NOME,EMBASA_CNPJ);
+    [...m.values()].forEach(x=>{if(ehEmbasa(x.nome)&&!x.doc)x.doc=EMBASA_CNPJ;});
+    return [...m.values()].sort((a,b)=>a.nome.localeCompare(b.nome,'pt-BR'));
+  }
+  const contratanteDe=nome=>contratantes().find(x=>cn(x.nome)===cn(nome))||null;
+  async function salvarContratante(nome,doc,rowid){
+    nome=String(nome||'').trim();if(!nome)return;
+    const ex=rowid?PLAN().find(p=>String(p.rowid)===String(rowid)):PLAN().find(p=>p.tipo==='contratante'&&cn(p.nome)===cn(nome));
+    await salvar('Planejamento',{...limpo(ex||{}),tipo:'contratante',nome,doc:doc||'',atualizado_em:todayDateTime(),data_lancamento:(ex&&ex.data_lancamento)||todayDateTime()},ex?ex.rowid:null);
+  }
+  function datalistContratantes(){
+    let dl=document.getElementById('vx-contratantes');if(!dl){dl=document.createElement('datalist');dl.id='vx-contratantes';document.body.appendChild(dl);}
+    dl.innerHTML=contratantes().map(x=>`<option value="${fe(x.nome)}">${fe(x.doc||'')}</option>`).join('');
+  }
+
+  /* ═══════════════ MUNICÍPIOS QUE EXIGEM A DAPS ═══════════════ */
+  const cidadeSo=c=>String(c||'').replace(/\s*[,/-]\s*[A-Z]{2}\s*$/,'').trim();
+  const munRow=c=>ultimo(PLAN().filter(p=>p.tipo==='municipio'&&cn(cidadeSo(p.cidade))===cn(cidadeSo(c))));
+  const exigeDaps=c=>{if(!c)return null;const r=munRow(c);return r?r.exige_daps===true||r.exige_daps==='true':null;};
+  async function marcarDaps(c,v){if(!c)return;const ex=munRow(c);await salvar('Planejamento',{...limpo(ex||{}),tipo:'municipio',cidade:c,exige_daps:!!v,atualizado_em:todayDateTime()},ex?ex.rowid:null);}
+
+  /* ═══════════════ GARANTIA RETIDA NA 1ª MEDIÇÃO ═══════════════ */
+  // contrato com garantia "Retenção na 1ª medição": o valor da garantia sai da 1ª medição da obra
+  function infoGarantia(ob){
+    const c=(Eng.contratoDe&&Eng.contratoDe(ob))||null;if(!c||!/reten/i.test(c.garantia_tipo||''))return null;
+    const pct=Mascara.numero(c.garantia_pct)||0;let vc=val(c.valor_contrato);
+    if(!vc){try{vc=Eng.resumoMedicoes(ob).contrato||0;}catch(e){}}
+    return {pct,vc,valor:Math.round(vc*pct)/100};
+  }
+  function retencao1aMed(ob,m){
+    const g=infoGarantia(ob);if(!g||!(g.valor>0)||!m)return 0;
+    const meds=(D().medicoes||[]).filter(x=>x.titulo_obra===ob);
+    const menor=Math.min(...meds.map(x=>+x.numero||Infinity));if((+m.numero||Infinity)!==menor)return 0;
+    // já descontada numa nota de outra medição?
+    const outra=(D().faturamentos||[]).some(f=>getFuzzy(f,['titulo_obra'])===ob&&f.medicao_rowid&&String(f.medicao_rowid)!==String(m.rowid)&&f.garantia_retida==='sim');
+    return outra?0:g.valor;
+  }
+
+  /* ═══════════════ DOCUMENTOS GERADOS (papel timbrado, assinados) ═══════════════ */
+  const WM=`<svg viewBox="0 0 1154 1080" xmlns="http://www.w3.org/2000/svg"><polygon points="269,358 577,48 577,670" fill="#BEBEBE"/><polygon points="577,48 886,358 577,670" fill="#D0D0D0"/><polygon points="0,617 165,454 577,868 577,1078 210,705 148,767" fill="#A7B5D8"/><polygon points="577,868 988,454 1153,619 1006,767 943,705 577,1078" fill="#B5CCF7"/></svg>`;
+  const EMBASA_LOGO='data:image/png;base64,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',AESBE_LOGO='data:image/png;base64,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';
+  const CSS_DOC=`@page{size:A4;margin:0;}*{box-sizing:border-box;}html,body{margin:0;padding:0;}body{background:#d9d9d9;font-family:Arial,Helvetica,sans-serif;color:#111;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+    .pg{position:relative;width:210mm;height:297mm;background:#fff;margin:6mm auto;overflow:hidden;}
+    .cab{position:absolute;top:9mm;left:20mm;right:20mm;height:23mm;display:flex;justify-content:space-between;align-items:center;border-bottom:1.3px solid #4A86E8;}
+    .cab img{height:17mm;}.ref{font-family:'Times New Roman',serif;font-weight:bold;color:#1F4E9C;font-size:11pt;}
+    .wm{position:absolute;left:50%;top:50%;width:118mm;transform:translate(-50%,-48%);opacity:.6;z-index:0;}.wm svg{width:100%;height:auto;display:block;}
+    .corpo{position:absolute;top:40mm;left:25mm;right:25mm;bottom:30mm;z-index:1;font-size:11.5pt;line-height:1.72;}
+    .corpo p{margin:0 0 10pt;}.dir{text-align:right;}.just{text-align:justify;}.ind{text-indent:18mm;text-align:justify;}.cen{text-align:center;}
+    .rod{position:absolute;left:20mm;right:20mm;bottom:9mm;border-top:1.3px solid #4A86E8;padding:2.5mm 24mm 0;text-align:center;font-family:'Times New Roman',serif;font-size:7.6pt;line-height:1.35;text-transform:uppercase;}
+    .rod .em{text-transform:none;}.rod .pag{position:absolute;right:0;top:3mm;font-family:Arial;font-size:8pt;text-transform:none;}
+    table.t{border-collapse:collapse;width:100%;margin:8pt 0 14pt;font-size:10.5pt;line-height:1.35;background:rgba(255,255,255,.35);}
+    table.t td,table.t th{border:1px solid #333;padding:4pt 6pt;text-align:left;}table.t th{font-weight:bold;}
+    .ass{margin-top:12pt;line-height:1.5;}.ass img{height:20mm;display:block;margin:0 0 -2mm;}.ass .esp{height:20mm;}.ass.cen{text-align:center;}.ass.cen img{margin:0 auto -2mm;}
+    .emb-cab{position:absolute;top:8mm;left:15mm;right:15mm;display:flex;justify-content:space-between;align-items:center;}
+    .emb-cab img{height:14mm;}.emb-tit{border:1.2px solid #222;padding:2.5mm 6mm;font-family:Calibri,Arial,sans-serif;font-weight:bold;font-size:11pt;text-align:center;line-height:1.3;width:105mm;}
+    .emb-corpo{position:absolute;top:30mm;left:15mm;right:15mm;bottom:28mm;font-size:9.6pt;line-height:1.55;}
+    .emb-corpo p{margin:0 0 7pt;text-align:justify;}.emb-corpo ol{margin:0;padding-left:16pt;}.emb-corpo li{margin:0 0 5pt;text-align:justify;}
+    .emb-corpo table{border-collapse:collapse;width:100%;margin:6pt 0 2pt;font-size:9.6pt;}.emb-corpo td{border:1px solid #333;padding:3pt 6pt;}.emb-corpo td:first-child{font-weight:bold;width:42%;}
+    .formula{border:1px solid #999;border-radius:6px;padding:4pt 10pt;width:62mm;margin:6pt auto;text-align:center;}
+    .emb-rod{position:absolute;right:15mm;bottom:8mm;}.emb-rod img{height:16mm;}
+    @media print{body{background:#fff;}.pg{margin:0;page-break-after:always;}.pg:last-child{page-break-after:auto;}}`;
+  const rodape=(p,t)=>{const e=empresa();return `<div class="rod">${fe(e.endereco)}, CEP: ${fe(e.cep)}<br>CELULAR: ${fe(e.telefone)} E-MAIL: <span class="em">${fe(e.email)}</span><span class="pag">Página ${p} de ${t}</span></div>`;};
+  const folha=(conteudo,o)=>`<div class="pg"><div class="cab"><img src="${PDF_LOGO_FULL_B64}" alt="Vixsul"><span class="ref">${fe((o&&o.ref)||'')}</span></div><div class="wm">${WM}</div><div class="corpo">${conteudo}</div>${rodape((o&&o.p)||1,(o&&o.t)||1)}</div>`;
+  const assRep=(img,e,cen)=>`<div class="ass${cen?' cen':''}">${img?`<img src="${img}" alt="assinatura">`:'<div class="esp"></div>'}<div>${fe(e.representante)}</div><div>CPF: ${fe(e.cpf)}</div><div>${fe(e.cargo)}</div></div>`;
+  const destinatario=n=>ehEmbasa(n)?'<b>EMBASA</b> – Empresa Baiana de Águas e Saneamento S.A.':'<b>'+fe(n||'Contratante')+'</b>';
+  const MODELOS={
+    declaracao:{nome:'Declaração de entrega de nota fiscal',html:(d,img)=>{const e=empresa(),tot=(d.notas||[]).reduce((s,n)=>s+(+n.valor||0),0);
+      return folha(`<p class="dir"><b>${fe(e.cidade_doc)}, ${dataExtenso(dt(d.data)||hoje0())}</b></p><br>
+        <p style="margin:0">À ${destinatario(d.contratante)}</p><p><b>Ref.:</b> Contrato de prestação de serviço n.º ${fe(d.contrato)}</p>
+        <p><b>Assunto:</b> Declaração de entrega de notas fiscais referente a medição ${fe(d.medicao)}</p>
+        <p class="ind">A empresa <b>${fe(e.razao)}</b>, pessoa jurídica de direito privado, inscrita no CNPJ sob o n° ${fe(e.cnpj)}, com sede a ${fe(e.endereco)}, fornecedora no município de ${fe(d.municipio)}, parte integrante do contrato ${fe(d.contrato)} no período de ${fe(d.periodo_ini)} à ${fe(d.periodo_fim)} no valor de <b>R$ ${brl(tot)}</b> na data de <b>${fe(d.data_nf)}</b>, comparece à presença de V.Sa, através de seu representante, que ao final subscreve, declarar a entrega da nota fiscal que segue.</p>
+        <table class="t"><tr><th>NOTA FISCAL</th><th>LOCAL</th><th>Valor</th></tr>${(d.notas||[]).map(n=>`<tr><td>${fe(n.nf)}</td><td>${fe(n.local)}</td><td>R$ ${brl(n.valor)}</td></tr>`).join('')}<tr><td colspan="2"><b>SUBTOTAL</b></td><td><b>R$ ${brl(tot)}</b></td></tr></table>
+        <p><b>Atenciosamente,</b></p>${assRep(img,e)}`);}},
+    garantia:{nome:'Solicitação de abatimento da garantia contratual na primeira medição',html:(d,img)=>{const e=empresa();
+      return folha(`<p style="margin:0">À ${destinatario(d.contratante)}</p><p style="margin:0"><b>Ref.:</b> Contrato de prestação de serviço n.º ${fe(d.contrato)}</p><p><b>Assunto:</b> Solicitação de abatimento da garantia contratual na primeira medição.</p>
+        <p class="ind">A empresa <b>${fe(e.razao)}</b>, pessoa jurídica de direito privado, inscrita no CNPJ sob o n° ${fe(e.cnpj)}, com sede à ${fe(e.endereco)}, comparece à presença de V.Sa, através de seu representante, que ao final subscreve, expor e ao final requerer o que segue.</p>
+        <p>1 - DOS FATOS.</p>
+        <p class="ind">A Contratada firmou junto à ${ehEmbasa(d.contratante)?'EMBASA':fe(d.contratante)} o <b>Contrato n.º ${fe(d.contrato)}</b>, cujo objeto consiste na execução do <b>${fe(String(d.objeto||'').toUpperCase())}</b>.</p>
+        <p class="ind">Considerando as obrigações financeiras inerentes ao início da execução contratual, bem como visando proporcionar melhor equilíbrio operacional e financeiro durante a mobilização inicial da prestação dos serviços, a Contratada vem solicitar que o valor referente à garantia contratual seja abatido diretamente na primeira medição do contrato.</p>
+        <p>2 – DO REQUERIMENTO.</p>
+        <p class="ind">Diante do exposto, em ${dataExtenso(dt(d.data)||hoje0())}, requer a contratada que o valor correspondente à garantia contratual seja considerada para abatimento na primeira medição vinculada ao Contrato n.º ${fe(d.contrato)}.</p>
+        <p>Atenciosamente,</p>
+        <div class="ass cen">${img?`<img src="${img}" alt="assinatura">`:'<div class="esp"></div>'}<div><b>${fe(e.razao)}</b></div><div><b>CNPJ n.º ${fe(e.cnpj)}</b></div></div>`,{ref:d.oficio});}},
+    desoneracao:{nome:'Declaração de desoneração do INSS',html:(d,img)=>{const e=empresa();
+      return folha(`<p class="dir"><b>${fe(e.cidade_doc)}, ${dataExtenso(dt(d.data)||hoje0())}</b></p><br>
+        <p style="margin:0">À ${destinatario(d.contratante||EMBASA_NOME)}</p>
+        <p><b>Assunto:</b> Declaração de opção da sistemática de recolhimento das contribuições previdenciárias (Art. 9º, § 6º da IN RFB nº 1436/2013)</p>
+        <p class="ind">A empresa <b>${fe(e.razao)}</b>, pessoa jurídica de direito privado, inscrita no CNPJ sob o n° ${fe(e.cnpj)}, com sede a ${fe(e.endereco)}, declara, sob as penas da Lei, para fins do disposto no art. 9º, § 6º, da Instrução Normativa RFB nº 1436/2013, que a empresa acima identificada recolhe a contribuição previdenciária incidente sobre o valor da receita bruta, em substituição às contribuições previdenciárias incidentes sobre a folha de pagamento, previstas nos incisos I e III do caput do art. 22 da Lei nº 8.212, de 24 de julho de 1991, na forma do caput do art. 7º (ou 8º) da Lei nº 12.546, de 14 de dezembro de 2011. Declaro também ter conhecimento de que a opção tem caráter irretratável.</p>
+        <p><b>Atenciosamente,</b></p>${assRep(img,e)}`);}},
+    antecipacao:{nome:'Formulário de solicitação de antecipação da data de pagamento',html:(d,img)=>{const e=empresa();
+      const cab=`<div class="emb-cab"><img src="${EMBASA_LOGO}" alt="EMBASA"><div class="emb-tit">FORMULÁRIO DE SOLICITAÇÃO DE ANTECIPAÇÃO DA DATA DE PAGAMENTO</div></div>`,rod=`<div class="emb-rod"><img src="${AESBE_LOGO}" alt="aesbe"></div>`;
+      const p1=`<div class="pg">${cab}<div class="emb-corpo"><p>À FAFP,</p>
+        <p>A ${fe(e.razao)}, com sede à ${fe(e.endereco)}, inscrita no CNPJ/MF sob o número ${fe(e.cnpj)}, que mantém com a EMBASA o Contrato/Pedido sem contrato, aqui denominado Fornecedor, neste ato representado por ${fe(e.representante)}, CPF ${fe(e.cpf)}, RG ${fe(e.rg)}, ${fe(e.nacionalidade)}, ${fe(String(e.cargo||'').toLowerCase())}, <b>ADERE</b> ao Programa Avançar Fornecedores da Empresa Baiana de Água e Saneamento – EMBASA, declarando ter <b><i><u>pleno conhecimento e estar de acordo</u></i></b> com as condições estabelecidas no Programa Avançar Fornecedores da Embasa, conforme regras descritas abaixo, e em vigor desde a publicação da Norma de Pagamentos NOR_11_2_001, ficando a sua realização condicionada a autorização da área financeira da Embasa.</p>
+        <table><tr><td>FORNECEDOR:</td><td>${fe(e.razao)}</td></tr><tr><td>CNPJ:</td><td>${fe(e.cnpj)}</td></tr><tr><td>Nº CONTRATO:*</td><td>${fe(d.contratos)}</td></tr><tr><td>Nº NOTA FISCAL/ RECIBO:**</td><td>${fe(d.notas)}</td></tr><tr><td>VALOR BRUTO TOTAL:</td><td>R$ ${brl(d.valor)}</td></tr></table>
+        <div style="font-size:8.6pt;line-height:1.3;margin-bottom:7pt">* Este campo pode ser preenchido com vários contratos<br>** Este campo pode ser preenchido com várias notas fiscais.</div>
+        <p><i>(<u>Observação</u>: Esse formulário deve ser assinado, digitalizado e enviado por e-mail p/: <u>avancarfornecedores.fafp@embasa.ba.gov.br</u>, junto com a cópia dos documentos de identificação do representante legal e documento de constituição da empresa. Caso o representante legal seja um procurador, deve ser encaminhado a procuração pública que lhe concedeu poderes legais sobre a empresa.)</i></p>
+        <p><b>REGRAS DO PROGRAMA AVANÇAR FORNECEDORES</b></p>
+        <ol><li>Por meio do e-mail avancarfornecedores.fafp@embasa.ba.gov.br o fornecedor poderá efetuar a solicitação de antecipação da data de pagamento de seus créditos, atualizado a valor presente, mediante taxa de desconto;</li>
+        <li>O desconto será calculado de acordo com a seguinte expressão:<div class="formula">VP = ( VF – D ) x ( T x n)</div>
+          <div style="padding-left:10pt">▪ VP = Valor presente, já deduzido o desconto, para pagamento antecipado;<br>▪ VF = Valor futuro, líquido de impostos, da Nota Fiscal/ Recibo, a ser paga na data de vencimento;<br>▪ D = Deduções de multas, glosas, bloqueios;<br>▪ T = Taxa de Desconto Diária<br>▪ N = Prazo, em dias corridos, a decorrer entre a data da antecipação do pagamento e a data de vencimento original da Nota Fiscal/ Recibo;</div></li>
+        <li>A taxa de desconto mensal será convertida em diária, para apuração do valor presente, por meio da equivalência de taxas a juros simples;</li>
+        <li>O valor presente (VP) será obtido pela diferença entre o valor futuro (VF) menos o desconto (D);</li>
+        <li>A solicitação de antecipação da data de pagamento, feita pelo fornecedor, não poderá ser cancelada, após a confirmação do recebimento pela Gerência de Pagamentos – FAFP da Embasa, salvo por deliberação da Embasa;</li></ol></div>${rod}</div>`;
+      const p2=`<div class="pg">${cab}<div class="emb-corpo"><ol start="6">
+        <li>A taxa de desconto que será utilizada nesta Solicitação de Antecipação de Data de Pagamento é de <b style="color:#C00000"><u>${fe(d.taxa||'2,37%')} a.m</u></b>, que foi estabelecida através da Norma de Pagamentos NOR_11_2_001 da Embasa. Entretanto, é facultado à EMBASA alterar, a qualquer tempo, essa taxa de desconto.</li>
+        <li>O Fornecedor deverá formular a sua proposta até às 14h00, horário oficial de Brasília, de qualquer dia útil, para que o processo se inicie neste mesmo dia. Caso haja alguma proposta realizada após esse horário ou em dia não útil, a mesma será lançada no sistema no primeiro dia útil seguinte.</li>
+        <li>A Gerência de Pagamentos terá um prazo de 03 dias úteis para processar ou não a Solicitação de Antecipação de data de pagamento e desde de que sejam atendidas as seguintes condições: (i) a fatura esteja apta para pagamento no Contas a Pagar, ou seja, não haja nenhum tipo de bloqueio de pagamento, e; (ii) desde de que haja solicitação pelo fornecedor, através do envio deste formulário por e-mail constante do cadastro do fornecedor na Embasa.</li>
+        <li>O montante dos pagamentos diários relacionados a essa operação, será estabelecido pela EMBASA, com base em suas disponibilidades diárias. Caso não haja recursos disponíveis para essa operação, na previsão do dia proposto pelo Fornecedor, a EMBASA disponibilizará, através de e-mail solicitante, a informação de que a operação não será realizada;</li>
+        <li>A efetivação da operação está condicionada também ao lançamento no Sistema Integrado de Pagamento – ERP/SAP das Notas Fiscais/ Recibos as quais o contratado está pleiteando o recebimento a valor presente relativo ao fornecimento de materiais, bens e equipamentos ou da prestação de serviço;<br><b>a) Antes dessa solicitação o fornecedor deve verificar com a unidade responsável pelo seu contrato se as faturas já estão com o processo de lançamento finalizado no sistema</b></li>
+        <li>O Fornecedor poderá acompanhar a solicitação através do e-mail <u>pagamentos@embasa.ba.gov.br</u>;</li>
+        <li>A Embasa se reserva o direito de, quando julgar necessário, suspender as operações do Programa Avançar Fornecedores;</li>
+        <li>A EMBASA não se responsabiliza por eventuais bloqueios de origem contratual ou judicial, que impossibilitem o cumprimento da operação proposta pelo Fornecedor;</li>
+        <li>Poderá haver outras deduções por parte da EMBASA, decorrentes do estabelecido em cláusulas contratuais. Essas deduções, não serão motivos de cancelamento da operação, desde que confirmada no Programa Avançar Fornecedores;</li>
+        <li>Por ocasião da efetivação do crédito na conta do fornecedor, decorrente da adesão deste Termo, o mesmo dará plena quitação à EMBASA em relação à operação realizada, não gerando direitos a reivindicações de eventuais diferenças pretéritas;</li></ol>
+        <p style="margin-top:14pt">${fe(e.cidade_doc)}, ${dataExtenso(dt(d.data)||hoje0())}.</p>
+        <div class="ass cen" style="margin-top:4pt">${img?`<img src="${img}" alt="assinatura">`:'<div class="esp"></div>'}<div style="border-top:1px solid #333;width:80mm;margin:0 auto;padding-top:2pt"><b>${fe(e.representante)}</b></div><div>CPF ${fe(e.cpf)} · ${fe(e.cargo)}</div><div>${fe(e.razao)} — CNPJ ${fe(e.cnpj)}</div></div></div>${rod}</div>`;
+      return p1+p2;}}
+  };
+  // abre o documento pronto para salvar em PDF (a janela abre na hora do clique; o conteúdo entra em seguida)
+  function imprimirDoc(modelo,dados,titulo){
+    const w=window.open('','_blank');
+    if(!w){toast('Permita as janelas (pop-ups) deste site para baixar o documento.','error');return false;}
+    try{w.document.write('<p style="font-family:Arial;padding:24px;color:#555">Gerando o documento…</p>');}catch(e){}
+    assinatura().then(img=>{
+      if(!img)toast('O documento saiu sem a assinatura: cadastre a imagem da assinatura em Documentos e certidões › Empresa.','info');
+      const html=MODELOS[modelo].html(dados,img);
+      w.document.open();w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${fe(titulo||MODELOS[modelo].nome)}</title><style>${CSS_DOC}</style></head><body>${html}<script>window.onload=function(){setTimeout(function(){window.print();},400);};<\/script></body></html>`);w.document.close();
+    }).catch(e=>{try{w.close();}catch(x){}toast((e&&e.message)||String(e),'error');});
+    return true;
+  }
+  const gerados=f=>PLAN().filter(p=>p.tipo==='doc_gerado'&&Object.entries(f||{}).every(([k,v])=>String(p[k]||'')===String(v))).sort((a,b)=>String(b.gerado_em||'').localeCompare(String(a.gerado_em||'')));
+  function proxOficio(){
+    const ano=new Date().getFullYear(),ns=PLAN().filter(p=>p.tipo==='doc_gerado'&&String(p.oficio||'').includes('-'+ano+'-')).map(p=>+String(p.oficio).split('-').pop()||0);
+    const base=Math.max(+empresa().oficio_ultimo||0,...ns,0);return `OFC-VS-${ano}-${String(base+1).padStart(4,'0')}`;
+  }
+  const docRegistro=(modelo,dados,lig)=>({tipo:'doc_gerado',modelo,dados,...(lig||{}),gerado_por:eu().nome,gerado_em:new Date().toISOString(),data_lancamento:todayDateTime()});
+  const tituloDoc=g=>{const d=g.dados||{};return g.modelo==='declaracao'?`Declaração de entrega — NF ${(d.notas||[]).map(n=>n.nf).join(', ')} — medição ${d.medicao||''}`:g.modelo==='antecipacao'?`Antecipação de pagamento — NF ${d.notas||''}`:g.modelo==='garantia'?`${d.oficio||''} — Abatimento da garantia na 1ª medição`:MODELOS[g.modelo]?MODELOS[g.modelo].nome:'Documento';};
+
+  /* ═══════════════ KIT DE DOCUMENTOS DA EMPRESA (sempre prontos para baixar) ═══════════════ */
+  const KIT=[
+    {k:'alvara',nome:'Alvará de Funcionamento',venc:true,orgao:'Prefeitura de Itarantim',link:''},
+    {k:'cartao_cnpj',nome:'Cartão CNPJ (Comprovante de Inscrição e de Situação Cadastral)',venc:false,orgao:'Receita Federal',link:'https://solucoes.receita.fazenda.gov.br/Servicos/cnpjreva/Cnpjreva_Solicitacao.asp'},
+    {k:'contrato_social',nome:'Contrato Social',venc:false,orgao:'JUCEB',link:'https://regin.juceb.ba.gov.br/'},
+    {k:'cnd_federal',nome:'Certidão Negativa de Débitos Federais (RFB/PGFN)',venc:true,orgao:'Receita Federal / PGFN',link:'https://servicos.receitafederal.gov.br/servico/certidoes/#/home/cnpj'},
+    {k:'simples',nome:'Termo de Deferimento da Opção pelo Simples Nacional',venc:false,orgao:'Receita Federal',link:'https://www8.receita.fazenda.gov.br/SimplesNacional/'},
+    {k:'dctfweb',nome:'DCTFWeb — recibo de entrega',venc:true,orgao:'Receita Federal (e-CAC)',link:'https://cav.receita.fazenda.gov.br/'},
+    {k:'cnh',nome:'CNH-e do representante legal',venc:true,orgao:'SENATRAN (gov.br)',link:'https://www.gov.br/pt-br/servicos/obter-a-carteira-nacional-de-habilitacao-digital'},
+    {k:'desoneracao',nome:'Declaração de Desoneração do INSS',gerado:true}
+  ];
+  function situacaoKit(it,a){
+    if(it.gerado)return {ic:'ok',txt:'gerada pelo sistema com a data do dia, já assinada'};
+    if(!a)return {ic:'cinza',txt:'sem arquivo — envie o documento'};
+    const quem=`enviado ${brDe(new Date(a.enviado_em))}${a.enviado_por?' por '+a.enviado_por:''}`;
+    if(!it.venc)return {ic:'ok',txt:quem};
+    const v=dt(a.validade);if(!v)return {ic:'warn',txt:'sem data de validade · '+quem};
+    const n=Math.round((v-hoje0())/864e5);
+    return n<0?{ic:'err',txt:`vencido em ${brDe(v)} — atualize`,venc:true}:n<=15?{ic:'warn',txt:`vence em ${n} dia(s) (${brDe(v)})`,venc:true}:{ic:'ok',txt:`válido até ${brDe(v)}`};
+  }
+  async function kitHtml(){
+    const L=(await listarArq(EMP_ARQ)).filter(a=>a.aba==='kit');
+    return `<div class="kit-l">${KIT.map(it=>{const a=recente(L.filter(x=>x.kit===it.k)),s=situacaoKit(it,a);
+      return `<div class="kit-it" data-kit-k="${it.k}"><span class="ic ${s.ic}"><i class="fas ${it.gerado?'fa-file-signature':'fa-file-pdf'}"></i></span><div class="nm"><b>${fe(it.nome)}</b><span>${fe(s.txt)}${it.orgao?' · '+fe(it.orgao):''}</span></div>
+        <div class="ac">${it.gerado||a?`<button type="button" class="fin-bt mini" data-kit="baixar"><i class="fas fa-download"></i> Baixar</button>`:''}${it.venc&&it.link?`<a class="fin-bt mini" href="${fe(it.link)}" target="_blank" rel="noopener"><i class="fas fa-arrow-up-right-from-square"></i> Atualizar no portal</a>`:''}${it.gerado?'':`<button type="button" class="fin-bt mini" data-kit="enviar"><i class="fas fa-upload"></i> ${a?'Nova versão':'Enviar'}</button>`}</div></div>`;}).join('')}</div>
+      <div style="display:flex;justify-content:flex-end;margin-top:8px"><button type="button" class="fin-bt mini" data-kit="todos"><i class="fas fa-file-zipper"></i> Baixar todos</button></div>`;
+  }
+  async function pintarKit(cont){if(!cont)return;cont.innerHTML='<div class="anx-vazio"><i class="fas fa-spinner fa-spin"></i> Carregando os documentos…</div>';try{cont.innerHTML=await kitHtml();}catch(e){cont.innerHTML=`<div class="anx-vazio">Não consegui carregar os documentos: ${fe(e.message||e)}</div>`;}}
+  async function cliqueKit(ev,cont){
+    const b=ev.target.closest('[data-kit]');if(!b||!cont.contains(b))return;ev.preventDefault();
+    const a0=b.dataset.kit,L=(await listarArq(EMP_ARQ)).filter(a=>a.aba==='kit');
+    if(a0==='todos'){for(const it of KIT){if(it.gerado){imprimirDoc('desoneracao',{data:isoDe(hoje0())},'Declaração de desoneração do INSS');continue;}const a=recente(L.filter(x=>x.kit===it.k));if(a){await baixarArq(a);await new Promise(r=>setTimeout(r,600));}}return;}
+    const k=b.closest('[data-kit-k]').dataset.kitK,it=KIT.find(x=>x.k===k),a=recente(L.filter(x=>x.kit===k));
+    if(a0==='baixar'){if(it.gerado)return imprimirDoc('desoneracao',{data:isoDe(hoje0())},'Declaração de desoneração do INSS');if(a)return baixarArq(a);}
+    if(a0==='enviar')janela(`Enviar: ${it.nome}`,`<div class="fin-fld"><label>Arquivo (PDF ou imagem) <span class="obg">*</span></label><input type="file" data-k="arq" accept=".pdf,image/*"></div>
+      ${it.venc?`<div class="fin-fld"><label>Válido até <span class="obg">*</span></label><input type="date" data-k="validade"></div>`:''}
+      ${it.link?`<div class="fin-aviso"><div>Baixe a versão atual em <a href="${fe(it.link)}" target="_blank" rel="noopener">${fe(it.orgao)}</a> e envie aqui. A versão anterior continua guardada.</div></div>`:''}`,
+      [{html:'<i class="fas fa-upload"></i> Enviar',cls:'pri',acao:async j=>{const f=j.querySelector('[data-k="arq"]').files[0];if(!f)throw new Error('Escolha o arquivo.');const v=it.venc?j.querySelector('[data-k="validade"]').value:'';if(it.venc&&!v)throw new Error('Informe a validade.');
+        UI._showBusy('Enviando…');try{await enviarArq(EMP_ARQ,{aba:'kit',kit:k,validade:v},f);}finally{UI._hideBusy();}toast('Documento atualizado.','success');setTimeout(()=>document.querySelectorAll('[data-kit-box]').forEach(pintarKit),50);}}],520);
+  }
+
+  /* ═══════════════ NOTA FISCAL: emitir (NFS-e), arquivar e gerar a declaração ═══════════════ */
+  // lê o XML da NFS-e (padrão nacional ou ABRASF dos municípios): número, data, valor e chave
+  function lerXmlNfse(txt){
+    const tag=(...ns)=>{for(const n of ns){const m=String(txt).match(new RegExp('<(?:[\\w]+:)?'+n+'(?:\\s[^>]*)?>\\s*([^<]+?)\\s*<','i'));if(m)return m[1];}return '';};
+    const numero=tag('nNFSe','NumeroNfse','Numero','nNF'),data=tag('dhEmi','DataEmissao','dhProc','dEmi','DataEmissaoRps'),valor=tag('vServ','ValorServicos','vServPrest','ValorLiquidoNfse');
+    const chave=(String(txt).match(/Id="NFS(\d{30,})"/i)||[])[1]||tag('chNFSe','chaveAcesso','CodigoVerificacao');
+    return {numero,data:/^\d{4}-\d{2}-\d{2}/.test(data)?data.slice(0,10):(()=>{const d=dt(data);return d?isoDe(d):'';})(),valor:valor?parseFloat(String(valor).replace(',','.'))||0:0,chave};
+  }
+  const EMISSOR='https://www.nfse.gov.br/EmissorNacional/';
+  function emitirNota(x,C){
+    const {K,copiaF,valorMed,pctObra}=C;
+    const r=x.r,ehM=x.k==='m',ob=x.obra,med=ehM?r:((D().medicoes||[]).find(y=>String(y.rowid)===String(r.medicao_rowid))||null);
+    const b=ehM?valorMed(r):val(r[K.bruto]);
+    const pcts=(!ehM&&b>0&&[K.inss,K.irpf,K.simples,K.antec].some(k=>val(r[k])>0))?{inss:val(r[K.inss])/b*100,irpf:val(r[K.irpf])/b*100,simples:val(r[K.simples])/b*100,antec:val(r[K.antec])/b*100}:pctObra(ob,K);
+    const pf=v=>(Math.round(v*100)/100).toLocaleString('pt-BR',{maximumFractionDigits:2});
+    const obra=(D().obras||[]).find(o=>(getFuzzy(o,['titulo_obra','nome_obra','titulo'])||'')===ob)||{},ct=(Eng.contratoDe&&Eng.contratoDe(ob))||{};
+    const numCt=getFuzzy(obra,['numero_contrato','num_contrato','n_contrato'])||'',contratante=ct.contratante||'',docCt=ct.cnpj_contratante||(contratanteDe(contratante)||{}).doc||'';
+    const cidade=getFuzzy(obra,['cidade_obra'])||ct.cidade_obra||'',ret=med?retencao1aMed(ob,med):0,g=infoGarantia(ob);
+    const seguro0=!ehM&&val(r[K.seguro])?val(r[K.seguro]):ret;
+    const exige=exigeDaps(cidade);
+    const ST={arq:{},daps:exige===true?null:false,exige,marcouExige:false,decl:null,xml:null};
+    const per=d=>{const z=dt(d);return z?brDe(z):'';};
+    const desc=`Prestação de serviços de engenharia — ${med?'medição nº '+(med.numero||''):'nota avulsa'}${numCt?' do contrato nº '+numCt:''}${med&&(med.periodo_ini||med.periodo_fim)?` (período de ${per(med.periodo_ini)} a ${per(med.periodo_fim)})`:''} — ${ob}`;
+    const linhaCp=(rot,v,k)=>`<div class="nfw-copiar"><span>${rot}</span><b data-cp-v="${k}">${fe(v||'—')}</b><button type="button" data-nfw="copiar" data-cp="${k}"><i class="fas fa-copy"></i> Copiar</button></div>`;
+    const corpo=`<div class="nfw" data-nfw-box>
+      <div class="fin-resumo"><b>${fe(ob)}</b>${med?' · medição nº '+fe(med.numero):''}${contratante?' · '+fe(contratante):''}${numCt?' · contrato nº '+fe(numCt):''}${cidade?' · '+fe(cidade):''}</div>
+      <div class="nfw-sec"><h5><span>1</span>Dados da nota</h5><div class="fin-linha">
+        <div class="fin-fld"><label>Nº da nota fiscal <span class="obg">*</span></label><input data-k="nf" inputmode="numeric" placeholder="vem do XML"></div>
+        <div class="fin-fld"><label>Data de emissão <span class="obg">*</span></label><input type="date" data-k="em" value="${isoDe(hoje0())}"></div>
+        <div class="fin-fld"><label>Valor bruto (R$)</label><input data-k="bruto" data-mask="moeda" inputmode="numeric" value="${fmt(b)}"></div>
+        <div class="fin-fld"><label>Recebimento combinado</label><input type="date" data-k="rec" title="Vazio = prazo médio da obra"></div>
+        <div class="fin-fld"><label>% INSS</label><input data-k="inss" inputmode="decimal" value="${pf(pcts.inss)}"></div>
+        <div class="fin-fld"><label>% IRPF</label><input data-k="irpf" inputmode="decimal" value="${pf(pcts.irpf)}"></div>
+        <div class="fin-fld"><label>% Simples</label><input data-k="simples" inputmode="decimal" value="${pf(pcts.simples)}"></div>
+        <div class="fin-fld"><label>% Antecipação da nota</label><input data-k="antec" inputmode="decimal" value="${pf(pcts.antec)}" title="Zere se a nota não for antecipada"></div>
+        <div class="fin-fld"><label>Seguro do contrato (R$)</label><input data-k="seguro" data-mask="moeda" inputmode="numeric" value="${seguro0?fmt(seguro0):''}" placeholder="R$ 0,00"></div></div>
+        ${ret?`<div class="fin-aviso"><div><b>Garantia retida nesta 1ª medição:</b> o contrato tem a garantia na modalidade "Retenção na 1ª medição" (${pf(g.pct)}% de ${fmt(g.vc)} = <b>${fmt(ret)}</b>). O valor já entrou em "Seguro do contrato" e sai do líquido.</div></div>`:''}
+        <div class="fin-resumo" data-liq></div></div>
+      <div class="nfw-sec"><h5><span>2</span>Emitir a NFS-e na Receita Federal</h5>
+        <p class="dica">A nota fiscal de serviço é emitida no <b>Emissor Nacional da NFS-e</b> (Receita Federal), com o certificado digital ou a conta gov.br da empresa. Use os dados abaixo (botão Copiar) e, emitida a nota, baixe o PDF e o XML e anexe no passo 3 — o sistema lê o número, a data e o valor do XML.</p>
+        <div style="margin-bottom:8px"><a class="fin-bt pri mini" href="${EMISSOR}" target="_blank" rel="noopener"><i class="fas fa-arrow-up-right-from-square"></i> Abrir o Emissor Nacional (Receita Federal)</a></div>
+        ${linhaCp('Tomador (contratante)',contratante,'tom')}${linhaCp('CNPJ/CPF do tomador',docCt,'doc')}${linhaCp('Município da prestação',cidade,'mun')}${linhaCp('Descrição do serviço',desc,'desc')}${linhaCp('Valor do serviço',fmt(b),'val')}${linhaCp('Retenções',`INSS ${pf(pcts.inss)}% · IRRF ${pf(pcts.irpf)}%`,'ret')}
+        <div class="nfw-daps" data-daps-box></div></div>
+      <div class="nfw-sec"><h5><span>3</span>Arquivos da nota</h5><p class="dica">Ficam guardados com a nota, cada um no seu campo, prontos para baixar depois.</p><div class="nfw-arqs" data-arqs></div></div>
+      <div class="nfw-sec"><h5 data-decl-h><span>4</span>Declaração de entrega da nota fiscal</h5>
+        <p class="dica">Gerada no papel timbrado, já assinada. A nota só passa para <b>Nota emitida · a receber</b> depois que a declaração for gerada.</p>
+        <div class="fin-linha">
+          <div class="fin-fld"><label>Município de fornecimento</label><input data-d="municipio" value="${fe(cidadeSo(cidade)+(cidade&&/,\s*BA$/i.test(cidade)?', Bahia':''))}"></div>
+          <div class="fin-fld"><label>Local (coluna da tabela)</label><input data-d="local" value="${fe(cidadeSo(cidade))}"></div>
+          <div class="fin-fld"><label>Período — início</label><input type="date" data-d="ini" value="${med&&dt(med.periodo_ini)?isoDe(dt(med.periodo_ini)):''}"></div>
+          <div class="fin-fld"><label>Período — fim</label><input type="date" data-d="fim" value="${med&&dt(med.periodo_fim)?isoDe(dt(med.periodo_fim)):''}"></div></div>
+        <div class="nfw-decl"><span class="nfw-st" data-decl-st>Ainda não gerada</span><button type="button" class="fin-bt pri" data-nfw="decl"><i class="fas fa-file-signature"></i> Gerar a declaração de entrega</button></div></div>
+    </div>`;
+    const j=janela('Emitir a nota fiscal',corpo,[{html:'Cancelar'},{html:'<i class="fas fa-file-invoice"></i> Concluir — nota emitida',cls:'pri',acao:async jj=>{
+      const c=calc(jj),v=k=>(jj.querySelector(`[data-k="${k}"]`)||{}).value||'',nf=v('nf').trim(),em=v('em'),rec=v('rec');
+      if(!nf)throw new Error('Informe o nº da nota (ou anexe o XML, que preenche sozinho).');if(!em)throw new Error('Informe a data de emissão.');if(!(c.bruto>0))throw new Error('Informe o valor bruto.');if(c.liq<0)throw new Error('As retenções passam do valor bruto.');
+      if(!ST.arq.nf)throw new Error('Anexe o PDF da nota fiscal (passo 3).');if(!ST.arq.xml)throw new Error('Anexe o XML da nota fiscal (passo 3).');
+      if(ST.daps===null)throw new Error('Responda se deseja emitir também a DAPS (passo 2).');if(ST.daps&&!ST.arq.daps)throw new Error('Anexe a DAPS (passo 3).');
+      if(!ST.decl)throw new Error('Gere a declaração de entrega (passo 4) — sem ela a nota não passa para "Nota emitida".');
+      if(ST.decl.nf!==nf||Math.abs(ST.decl.valor-c.bruto)>.005)throw new Error('O nº ou o valor da nota mudou depois da declaração: gere a declaração de novo.');
+      const uid=(!ehM&&r.fat_uid)||('nf'+Date.now().toString(36)+Math.random().toString(36).slice(2,6));
+      const o=ehM?{}:copiaF(r);
+      Object.assign(o,{[K.obra]:ob,[K.tipo]:'Real',[K.nf]:nf,[K.em]:em,[K.bruto]:dinheiro(c.bruto),[K.inss]:dinheiro(c.inss),[K.irpf]:dinheiro(c.irpf),[K.simples]:dinheiro(c.simples),[K.antec]:dinheiro(c.antec),[K.seguro]:dinheiro(c.seguro),[K.liq]:dinheiro(c.liq),
+        fat_uid:uid,nfse_chave:(ST.xml&&ST.xml.chave)||'',daps:ST.daps?'sim':'não',declaracao_em:new Date().toISOString(),garantia_retida:ret&&c.seguro>0?'sim':(o.garantia_retida||'')});
+      if(rec)o[K.rec]=rec;else if(ehM)o[K.rec]='';
+      if(ehM){o[K.lanc]=todayDateTime();o.medicao_rowid=String(r.rowid);o.medicao_numero=String(r.numero||'');if(!o[K.antecData])o[K.antecData]='';}
+      else if(!r.rowid)o[K.lanc]=todayDateTime();   // nota avulsa (sem medição)
+      await executar(async()=>{
+        await enviarArq(ob,{aba:'nf',fat_uid:uid,doc:'nf_pdf',nf},ST.arq.nf);await enviarArq(ob,{aba:'nf',fat_uid:uid,doc:'nf_xml',nf},ST.arq.xml);
+        if(ST.daps)await enviarArq(ob,{aba:'nf',fat_uid:uid,doc:'daps',nf},ST.arq.daps);
+        await salvar('Faturamentos',o,ehM?null:r.rowid);
+        if(med)await salvar('Medições',{...copiaF(med),status:'Faturada',faturado_em:todayDateTime()},med.rowid);
+        await salvar('Planejamento',docRegistro('declaracao',ST.decl.dados,{titulo_obra:ob,fat_uid:uid,medicao_rowid:med?String(med.rowid):''}),null);
+        if(ST.marcouExige)await marcarDaps(cidade,ST.exige);
+      });
+      toast('Nota emitida e arquivada — agora está em "Nota emitida · a receber".','success');}}],900);
+    const box=j.querySelector('[data-nfw-box]');
+    function calc(jj){const gg=k=>Mascara.numero((jj.querySelector(`[data-k="${k}"]`)||{}).value)||0,bb=gg('bruto');
+      const c={bruto:bb,inss:Math.round(bb*gg('inss'))/100,irpf:Math.round(bb*gg('irpf'))/100,simples:Math.round(bb*gg('simples'))/100,antec:Math.round(bb*gg('antec'))/100,seguro:gg('seguro')};c.liq=Math.round((bb-c.inss-c.irpf-c.simples-c.antec-c.seguro)*100)/100;
+      const el=jj.querySelector('[data-liq]');if(el)el.innerHTML=`Retenções: INSS ${fmt(c.inss)} · IRPF ${fmt(c.irpf)} · Simples ${fmt(c.simples)} · Antecipação ${fmt(c.antec)}${c.seguro?' · Seguro/garantia '+fmt(c.seguro):''}<br>Líquido a receber: <b style="color:var(--blue);font-size:15px">${fmt(c.liq)}</b>`;
+      const cv=jj.querySelector('[data-cp-v="val"]');if(cv)cv.textContent=fmt(bb);return c;}
+    function pintarDaps(){
+      const el=box.querySelector('[data-daps-box]');
+      if(ST.exige===true)el.innerHTML=`<i class="fas fa-circle-question"></i> <span>O município <b>${fe(cidadeSo(cidade))}</b> exige a <b>DAPS</b> (Documento Auxiliar de Prestação de Serviço). Deseja emitir também a DAPS?</span><button type="button" data-nfw="daps-sim" class="${ST.daps===true?'on':''}">Sim, emitir</button><button type="button" data-nfw="daps-nao" class="${ST.daps===false?'on':''}">Não</button>${ST.marcouExige?'':'<a href="#" data-nfw="exige-nao" style="font-size:11.5px;margin-left:auto">o município não exige</a>'}`;
+      else el.innerHTML=`<i class="fas fa-circle-info"></i> <span>${cidade?`${ST.exige===false?'O município '+fe(cidadeSo(cidade))+' não exige':'Não sei se o município '+fe(cidadeSo(cidade))+' exige'} a DAPS.`:'A obra está sem a cidade cadastrada (Contrato › Editar dados).'}</span>${cidade?'<a href="#" data-nfw="exige-sim" style="margin-left:auto;font-size:12px">Este município exige a DAPS</a>':''}`;
+      el.style.background=ST.exige===true?'':'#F8FAFC';el.style.borderColor=ST.exige===true?'':'#E4E9F2';el.style.color=ST.exige===true?'':'#475467';
+      pintarArqs();
+    }
+    function pintarArqs(){
+      const slot=(k,rot,ac,dica)=>{const f=ST.arq[k];return `<label class="nfw-arq ${f?'ok':''}"><input type="file" data-arq="${k}" accept="${ac}"><b>${rot} <span class="obg">*</span></b>${f?`<i class="fas fa-check"></i> ${fe(f.name)}`:`<i class="fas fa-upload"></i> ${dica}`}</label>`;};
+      box.querySelector('[data-arqs]').innerHTML=slot('nf','Nota Fiscal (PDF)','.pdf,application/pdf','clique e escolha o PDF da nota')+slot('xml','XML da nota','.xml,text/xml,application/xml','clique e escolha o XML')+(ST.daps?slot('daps','DAPS (PDF)','.pdf,application/pdf,image/*','clique e escolha a DAPS'):'');
+    }
+    function pintarDecl(){const st=box.querySelector('[data-decl-st]'),h=box.querySelector('[data-decl-h]');if(ST.decl){st.className='nfw-st ok';st.innerHTML='<i class="fas fa-circle-check"></i> Declaração gerada — '+fe(new Date(ST.decl.em).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}))+' (pode gerar de novo)';h.classList.add('ok');}}
+    box.addEventListener('click',ev=>{
+      const b2=ev.target.closest('[data-nfw]');if(!b2)return;const a=b2.dataset.nfw;
+      if(a==='copiar'){ev.preventDefault();const t=(box.querySelector(`[data-cp-v="${b2.dataset.cp}"]`)||{}).textContent||'';try{navigator.clipboard.writeText(t);toast('Copiado.','success');}catch(e){toast('Não consegui copiar — selecione o texto.','error');}return;}
+      if(a==='daps-sim'){ST.daps=true;return pintarDaps();}
+      if(a==='daps-nao'){ST.daps=false;delete ST.arq.daps;return pintarDaps();}
+      if(a==='exige-sim'){ev.preventDefault();ST.exige=true;ST.marcouExige=true;ST.daps=null;return pintarDaps();}
+      if(a==='exige-nao'){ev.preventDefault();ST.exige=false;ST.marcouExige=true;ST.daps=false;delete ST.arq.daps;return pintarDaps();}
+      if(a==='decl'){
+        const c=calc(j),v=k=>(j.querySelector(`[data-k="${k}"]`)||{}).value||'',dv=k=>(box.querySelector(`[data-d="${k}"]`)||{}).value||'',nf=v('nf').trim(),em=v('em');
+        if(!nf||!em||!(c.bruto>0))return toast('Preencha o nº da nota, a emissão e o valor (ou anexe o XML) antes de gerar a declaração.','error');
+        const dados={data:isoDe(hoje0()),contratante:contratante||EMBASA_NOME,contrato:numCt,medicao:med?String(med.numero||'').padStart(2,'0'):'',municipio:dv('municipio'),periodo_ini:dv('ini')?brDe(dt(dv('ini'))):'',periodo_fim:dv('fim')?brDe(dt(dv('fim'))):'',data_nf:brDe(dt(em)),notas:[{nf,local:dv('local'),valor:c.bruto}]};
+        if(!imprimirDoc('declaracao',dados,`Declaração de entrega NF ${nf}${med?' - medição '+dados.medicao:''}`))return;
+        ST.decl={dados,nf,valor:c.bruto,em:Date.now()};pintarDecl();
+      }
+    });
+    box.addEventListener('change',async ev=>{
+      const inp=ev.target.closest('[data-arq]');if(!inp)return;const f=inp.files[0];if(!f)return;const k=inp.dataset.arq;
+      if(f.size>LIMITE){toast('Arquivo maior que 10 MB.','error');inp.value='';return;}
+      ST.arq[k]=f;
+      if(k==='xml'){try{const x2=lerXmlNfse(await f.text());ST.xml=x2;const set=(kk,vv)=>{const el=j.querySelector(`[data-k="${kk}"]`);if(el&&vv)el.value=vv;};
+        set('nf',x2.numero);set('em',x2.data);if(x2.valor>0){const el=j.querySelector('[data-k="bruto"]');el.value=fmt(x2.valor);}calc(j);
+        toast(x2.numero?`XML lido: NF ${x2.numero}${x2.valor?' · '+fmt(x2.valor):''}.`:'XML anexado (não achei o número da nota nele — confira o campo).',x2.numero?'success':'info');}catch(e){toast('Não consegui ler o XML: '+(e.message||e),'error');}}
+      pintarArqs();
+    });
+    calc(j);j.oninput=()=>calc(j);pintarDaps();pintarDecl();assinatura();
+  }
+
+  // ficha da nota emitida: arquivos da nota, documentos gerados e o kit da empresa
+  function fichaNotaExtras(r,K,col){
+    return `<div class="nfx" data-nfx><div class="nfx-sec"><h5><i class="fas fa-file-invoice"></i> Arquivos da nota</h5><div data-nfx-arqs><div class="anx-vazio"><i class="fas fa-spinner fa-spin"></i> Carregando…</div></div></div>
+      ${col==='receber'?`<div class="nfx-sec"><h5><i class="fas fa-folder-open"></i> Documentos da empresa — sempre prontos para baixar</h5><div data-kit-box></div></div>`:''}</div>`;
+  }
+  async function ligarFichaNota(j,r,K,col,aoAtualizar){
+    const box=j.querySelector('[data-nfx]');if(!box)return;const ob=r[K.obra]||'';
+    const pintar=async()=>{
+      const cont=box.querySelector('[data-nfx-arqs]');let L=[];try{L=(await listarArq(ob,true)).filter(a=>a.aba==='nf'&&r.fat_uid&&a.fat_uid===r.fat_uid);}catch(e){}
+      const decl=r.fat_uid?gerados({modelo:'declaracao',fat_uid:r.fat_uid})[0]:null,ant=r.fat_uid?gerados({modelo:'antecipacao',fat_uid:r.fat_uid}):[];
+      const lin=(doc,rot,ic)=>{const a=recente(L.filter(x=>x.doc===doc));return `<div class="kit-it" data-nf-doc="${doc}"><span class="ic ${a?'ok':'cinza'}"><i class="fas ${ic}"></i></span><div class="nm"><b>${rot}</b><span>${a?fe(a.nome)+' · '+brDe(new Date(a.enviado_em)):'não anexado'}</span></div><div class="ac">${a?'<button type="button" class="fin-bt mini" data-nf="baixar"><i class="fas fa-download"></i> Baixar</button>':''}${pode('faturamento')?`<button type="button" class="fin-bt mini" data-nf="enviar"><i class="fas fa-upload"></i> ${a?'Trocar':'Anexar'}</button>`:''}</div></div>`;};
+      cont.innerHTML=`<div class="kit-l">${lin('nf_pdf','Nota Fiscal (PDF)','fa-file-pdf')}${lin('nf_xml','XML da nota','fa-file-code')}${r.daps==='sim'||L.some(a=>a.doc==='daps')?lin('daps','DAPS','fa-file-lines'):''}
+        <div class="kit-it"><span class="ic ${decl?'ok':'cinza'}"><i class="fas fa-file-signature"></i></span><div class="nm"><b>Declaração de entrega da nota fiscal</b><span>${decl?'gerada em '+brDe(new Date(decl.gerado_em))+(decl.gerado_por?' por '+fe(decl.gerado_por):''):'ainda não gerada'}</span></div><div class="ac">${decl?'<button type="button" class="fin-bt mini" data-nf="decl"><i class="fas fa-download"></i> Baixar</button>':''}</div></div>
+        ${ant.map((g,i)=>`<div class="kit-it"><span class="ic ok"><i class="fas fa-forward-fast"></i></span><div class="nm"><b>Formulário de antecipação de pagamento (EMBASA)</b><span>gerado em ${brDe(new Date(g.gerado_em))}</span></div><div class="ac"><button type="button" class="fin-bt mini" data-nf="ant" data-i="${i}"><i class="fas fa-download"></i> Baixar</button></div></div>`).join('')}</div>`;
+      box._L=L;box._decl=decl;box._ant=ant;
+    };
+    await pintar();pintarKit(box.querySelector('[data-kit-box]'));
+    box.addEventListener('click',async ev=>{
+      const kb=box.querySelector('[data-kit-box]');if(kb&&kb.contains(ev.target))return cliqueKit(ev,kb);
+      const b=ev.target.closest('[data-nf]');if(!b)return;const a=b.dataset.nf;
+      if(a==='decl'&&box._decl)return imprimirDoc('declaracao',box._decl.dados,tituloDoc(box._decl));
+      if(a==='ant'){const g=box._ant[+b.dataset.i];if(g)return imprimirDoc('antecipacao',g.dados,tituloDoc(g));}
+      const doc=b.closest('[data-nf-doc]')&&b.closest('[data-nf-doc]').dataset.nfDoc;
+      if(a==='baixar'){const f=recente((box._L||[]).filter(x=>x.doc===doc));if(f)baixarArq(f);return;}
+      if(a==='enviar'){const inp=document.createElement('input');inp.type='file';inp.accept=doc==='nf_xml'?'.xml':'.pdf,image/*';
+        inp.onchange=async()=>{const f=inp.files[0];if(!f)return;try{UI._showBusy('Enviando…');let uid=r.fat_uid;
+          if(!uid){uid='nf'+Date.now().toString(36);const o={...r};delete o.rowid;delete o.visualId;delete o._aba;o.fat_uid=uid;await salvar('Faturamentos',o,r.rowid);r.fat_uid=uid;}
+          await enviarArq(ob,{aba:'nf',fat_uid:uid,doc,nf:r[K.nf]||''},f);toast('Arquivo guardado.','success');await pintar();}catch(e){toast(e.message||String(e),'error');}finally{UI._hideBusy();}};
+        inp.click();}
+    });
+  }
+  // EMBASA: formulário do Programa Avançar Fornecedores (antecipar o recebimento da nota)
+  function antecipacao(r,K){
+    const ob=r[K.obra]||'',obra=(D().obras||[]).find(o=>(getFuzzy(o,['titulo_obra','nome_obra','titulo'])||'')===ob)||{},numCt=getFuzzy(obra,['numero_contrato','num_contrato','n_contrato'])||'';
+    janela('Antecipar recebimento — EMBASA',`<div class="fin-resumo">Gera o <b>Formulário de Solicitação de Antecipação da Data de Pagamento</b> (Programa Avançar Fornecedores) no modelo da EMBASA, já assinado. Envie para <b>avancarfornecedores.fafp@embasa.ba.gov.br</b> junto com a cópia do documento do representante e o contrato social (estão em "Documentos da empresa", na ficha da nota).</div>
+      <div class="fin-linha"><div class="fin-fld"><label>Nº do(s) contrato(s)</label><input data-k="ct" value="${fe(numCt)}"></div><div class="fin-fld"><label>Nº da(s) nota(s) fiscal(is)</label><input data-k="nf" value="${fe(r[K.nf]||'')}"></div>
+      <div class="fin-fld"><label>Valor bruto total (R$)</label><input data-k="v" data-mask="moeda" inputmode="numeric" value="${fmt(val(r[K.bruto]))}"></div><div class="fin-fld"><label>Taxa de desconto (a.m.)</label><input data-k="tx" value="2,37%"></div></div>`,
+      [{html:'<i class="fas fa-file-signature"></i> Gerar o formulário',cls:'pri',acao:async j=>{const g=k=>j.querySelector(`[data-k="${k}"]`).value.trim();
+        const dados={data:isoDe(hoje0()),contratos:g('ct'),notas:g('nf'),valor:num(g('v')),taxa:g('tx')||'2,37%'};if(!dados.contratos||!dados.notas||!(dados.valor>0))throw new Error('Preencha contrato, nota e valor.');
+        if(!imprimirDoc('antecipacao',dados,`Antecipação de pagamento EMBASA - NF ${dados.notas}`))return false;
+        let uid=r.fat_uid;if(!uid){uid='nf'+Date.now().toString(36);const o={...r};delete o.rowid;delete o.visualId;delete o._aba;o.fat_uid=uid;await salvar('Faturamentos',o,r.rowid);}
+        await salvar('Planejamento',docRegistro('antecipacao',dados,{titulo_obra:ob,fat_uid:uid}),null);
+        await new Promise(ok=>App.init(true,()=>ok()));toast('Formulário gerado e guardado na nota.','success');}}],640);
+  }
+  const contratanteDaNota=(r,K)=>{const c=(Eng.contratoDe&&Eng.contratoDe(r[K.obra]||''))||{};return c.contratante||'';};
+
+  /* ═══════════════ CONTRATO: garantia "Retenção na 1ª medição" gera a solicitação ═══════════════ */
+  async function gerarSolicitacaoGarantia(ob){
+    const obra=(D().obras||[]).find(o=>(getFuzzy(o,['titulo_obra','nome_obra','titulo'])||'')===ob)||{},c=(Eng.contratoDe&&Eng.contratoDe(ob))||{};
+    const dados={data:isoDe(hoje0()),oficio:proxOficio(),contratante:c.contratante||EMBASA_NOME,contrato:getFuzzy(obra,['numero_contrato','num_contrato','n_contrato'])||'',objeto:c.objeto||getFuzzy(obra,['descricao'])||ob};
+    await salvar('Planejamento',docRegistro('garantia',dados,{titulo_obra:ob,oficio:dados.oficio}),null);
+    await new Promise(ok=>App.init(true,()=>ok()));
+    const g=gerados({modelo:'garantia',titulo_obra:ob})[0];
+    janela('Solicitação gerada',`<div class="fin-resumo"><i class="fas fa-circle-check" style="color:#067647"></i> A garantia ficou como <b>Retenção na 1ª medição</b> e o sistema gerou a <b>Solicitação de abatimento da garantia contratual na primeira medição</b> (${fe(dados.oficio)}), no papel timbrado e já assinada.<br><br>Ela fica guardada na aba Contrato da obra, em "Documentos gerados".</div>`,
+      [{html:'<i class="fas fa-download"></i> Baixar a solicitação',cls:'pri',acao:()=>{if(g)imprimirDoc('garantia',g.dados,tituloDoc(g));}}],520);
+  }
+  function cardDocsContrato(ob){
+    const L=gerados({titulo_obra:ob});
+    return `<div class="anx" data-docs-ct="${fe(ob)}"><div class="anx-cab"><h4><i class="fas fa-file-signature" style="background:#101828"></i>Documentos gerados<small ${L.length?'':'style="display:none"'}>${L.length}</small></h4></div>
+      ${L.length?`<div class="anx-lista">${L.map((g,i)=>`<div class="anx-it"><span class="ic pdf"><i class="fas fa-file-pdf"></i></span><div class="nm"><b>${fe(tituloDoc(g))}</b><span>gerado em ${brDe(new Date(g.gerado_em))}${g.gerado_por?' por '+fe(g.gerado_por):''}</span></div><div class="ac"><button type="button" class="fin-bt mini" data-docct="${i}"><i class="fas fa-download"></i> Baixar</button></div></div>`).join('')}</div>`:'<div class="anx-vazio">A solicitação de abatimento da garantia, as declarações de entrega das notas e os formulários de antecipação desta obra aparecem aqui.</div>'}</div>`;
+  }
+  document.addEventListener('click',ev=>{const b=ev.target.closest('[data-docct]');if(!b)return;const c=b.closest('[data-docs-ct]'),g=gerados({titulo_obra:c.dataset.docsCt})[+b.dataset.docct];if(g)imprimirDoc(g.modelo,g.dados,tituloDoc(g));});
+  const hubCt=Eng.hubContrato;
+  // a aba Contrato pode terminar de montar depois (e ser remontada): o quadro entra quando ela está na tela
+  const poeDocsCt=()=>{try{const h=App.state.obraHub,f=document.getElementById('form-upsert');if(!h||h.tab!=='contrato'||!f)return;const cont=f.querySelector('.hc-scroll');if(!cont)return;
+    const ja=cont.querySelector('[data-docs-ct]');if(ja&&ja.dataset.docsCt===h.obraName&&ja.dataset.n===String(gerados({titulo_obra:h.obraName}).length))return;if(ja)ja.remove();
+    const tmp=document.createElement('div');tmp.innerHTML=cardDocsContrato(h.obraName);const card=tmp.firstElementChild;card.dataset.n=String(gerados({titulo_obra:h.obraName}).length);cont.insertBefore(card,cont.querySelector('.anx')||null);}catch(e){console.error(e);}};
+  if(typeof hubCt==='function')Eng.hubContrato=function(){const r=hubCt.apply(this,arguments);[80,500,1500].forEach(t=>setTimeout(poeDocsCt,t));return r;};
+  const tabCt=UI._obraHubTab;
+  UI._obraHubTab=function(t){const r=tabCt.apply(this,arguments);if(t==='contrato')[120,600,1600].forEach(x=>setTimeout(poeDocsCt,x));return r;};
+
+  /* ═══════════════ EMPRESA E KIT (tela Documentos e certidões) ═══════════════ */
+  const EC={aba:'kit'};
+  function htmlEmpresa(){
+    const e=empresa(),cps=[['razao','Razão social',1],['cnpj','CNPJ'],['endereco','Endereço da sede (como sai nos documentos)',1],['cep','CEP'],['telefone','Celular'],['email','E-mail'],['representante','Representante legal'],['cpf','CPF do representante'],['rg','RG do representante'],['cargo','Cargo'],['nacionalidade','Nacionalidade'],['cidade_doc','Cidade da assinatura (data dos documentos)'],['oficio_ultimo','Último nº de ofício já usado']];
+    const abas=[['kit','fa-folder-open','Kit de documentos'],['dados','fa-building','Dados da empresa'],['ass','fa-signature','Assinatura'],['ct','fa-handshake','Contratantes'],['mun','fa-city','Municípios (DAPS)']];
+    let corpo='';
+    if(EC.aba==='kit')corpo='<p style="margin:0 0 8px;font-size:12px;color:#667085">Os documentos que a contratante pede junto com a nota. Ficam sempre prontos para baixar — também na ficha de cada nota emitida. Os que vencem mostram a validade e o link do portal para atualizar.</p><div data-kit-box></div>';
+    else if(EC.aba==='dados')corpo=`<div class="fin-linha">${cps.map(([k,l,w])=>`<div class="fin-fld"${w?' style="grid-column:1/-1"':''}><label>${l}</label><input data-emp="${k}" value="${fe(e[k]||'')}"></div>`).join('')}</div><div style="display:flex;justify-content:flex-end;margin-top:8px"><button type="button" class="fin-bt pri" data-ec="salvar-dados"><i class="fas fa-floppy-disk"></i> Salvar</button></div>`;
+    else if(EC.aba==='ass')corpo=`<div class="empc-ass"><div class="prev" data-ass-prev>carregando…</div><div style="display:flex;flex-direction:column;gap:8px"><button type="button" class="fin-bt" data-ec="ass-enviar"><i class="fas fa-upload"></i> Enviar imagem (PNG/JPG)</button><button type="button" class="fin-bt" data-ec="ass-desenhar"><i class="fas fa-pen-nib"></i> Desenhar a assinatura</button><small style="color:#667085;max-width:300px">A assinatura de <b>${fe(e.representante)}</b> entra nas declarações, solicitações e formulários gerados pelo sistema. De preferência PNG com fundo transparente.</small></div></div>`;
+    else if(EC.aba==='ct'){const L=contratantes();corpo=`<table class="empc-tab"><thead><tr><th>Contratante</th><th>CPF/CNPJ</th><th></th></tr></thead><tbody>${L.map((x,i)=>`<tr><td><b>${fe(x.nome)}</b></td><td>${fe(x.doc||'—')}</td><td style="text-align:right"><button type="button" class="fin-bt mini" data-ec="ct-editar" data-i="${i}"><i class="fas fa-pen"></i> Editar</button></td></tr>`).join('')}</tbody></table><div style="display:flex;justify-content:flex-end;margin-top:8px"><button type="button" class="fin-bt pri" data-ec="ct-novo"><i class="fas fa-plus"></i> Novo contratante</button></div>`;}
+    else if(EC.aba==='mun'){const L=PLAN().filter(p=>p.tipo==='municipio');corpo=`<p style="margin:0 0 8px;font-size:12px;color:#667085">Ao emitir uma nota, o sistema pergunta se deseja emitir também a DAPS quando o município da obra está marcado aqui. Dá para marcar também na própria janela de emissão.</p>${L.length?`<table class="empc-tab"><thead><tr><th>Município</th><th>Exige DAPS?</th><th></th></tr></thead><tbody>${L.map(x=>`<tr><td><b>${fe(x.cidade)}</b></td><td>${x.exige_daps===true||x.exige_daps==='true'?'Sim':'Não'}</td><td style="text-align:right"><button type="button" class="fin-bt mini" data-ec="mun-troca" data-c="${fe(x.cidade)}">${x.exige_daps===true||x.exige_daps==='true'?'Não exige':'Exige'}</button></td></tr>`).join('')}</tbody></table>`:'<div class="anx-vazio">Nenhum município marcado ainda.</div>'}<div style="display:flex;justify-content:flex-end;margin-top:8px"><button type="button" class="fin-bt pri" data-ec="mun-novo"><i class="fas fa-plus"></i> Marcar município</button></div>`;}
+    return `<div class="empc" data-empc><div class="empc-cab"><div><h3><i class="fas fa-building-shield"></i>Empresa e documentos para a contratante</h3><p>Kit de documentos, dados e assinatura usados nas declarações e formulários que o sistema gera.</p></div></div>
+      <div class="empc-abas">${abas.map(([k,ic,l])=>`<button type="button" class="${EC.aba===k?'on':''}" data-ec-aba="${k}"><i class="fas ${ic}"></i> ${l}</button>`).join('')}</div><div data-ec-corpo>${corpo}</div></div>`;
+  }
+  function editarContratante(x){
+    janela(x?'Contratante':'Novo contratante',`<div class="fin-linha"><div class="fin-fld" style="grid-column:1/-1"><label>Nome / razão social <span class="obg">*</span></label><input data-k="nome" value="${fe(x?x.nome:'')}"></div>
+      <div class="fin-fld"><label>CPF ou CNPJ</label><input data-k="doc" data-mask="cpfcnpj" inputmode="numeric" value="${fe(x?x.doc:'')}" placeholder="000.000.000-00 ou 00.000.000/0000-00"></div></div>`,
+      [{html:'<i class="fas fa-floppy-disk"></i> Salvar',cls:'pri',acao:async j=>{const n=j.querySelector('[data-k="nome"]').value.trim(),d=j.querySelector('[data-k="doc"]').value.trim();if(!n)throw new Error('Informe o nome.');
+        const dg=d.replace(/\D/g,'');if(dg&&dg.length!==11&&dg.length!==14)throw new Error('CPF tem 11 números e CNPJ tem 14.');
+        await executar(()=>salvarContratante(n,d,x&&x.rowid));toast('Contratante salvo.','success');}}],560);
+  }
+  async function pintarAss(box){const p=box.querySelector('[data-ass-prev]');if(!p)return;const u=await assinatura();p.innerHTML=u?`<img src="${u}" alt="assinatura">`:'nenhuma assinatura cadastrada';}
+  async function enviarAssinatura(f){UI._showBusy('Enviando…');try{await enviarArq(EMP_ARQ,{aba:'assinatura'},f);ASS=null;toast('Assinatura guardada.','success');}finally{UI._hideBusy();}}
+  function desenharAss(box){
+    const j=janela('Desenhar a assinatura','<p style="margin:0 0 8px;font-size:12.5px;color:#475467">Assine com o mouse ou com o dedo (no celular/tablet).</p><canvas class="ass-pad" data-pad></canvas><div style="display:flex;justify-content:flex-end;margin-top:6px"><button type="button" class="fin-bt mini" data-limpar><i class="fas fa-eraser"></i> Limpar</button></div>',
+      [{html:'<i class="fas fa-floppy-disk"></i> Usar esta assinatura',cls:'pri',acao:async jj=>{const c=jj.querySelector('[data-pad]');if(!c._sujo)throw new Error('Desenhe a assinatura.');const blob=await new Promise(ok=>c.toBlob(ok,'image/png'));await enviarAssinatura(new File([blob],'assinatura.png',{type:'image/png'}));pintarAss(box);}}],620);
+    const c=j.querySelector('[data-pad]'),r=c.getBoundingClientRect();c.width=r.width*2;c.height=r.height*2;const x=c.getContext('2d');x.lineWidth=4.2;x.lineCap='round';x.lineJoin='round';x.strokeStyle='#0B2A6F';
+    let des=false;const pos=e=>{const b=c.getBoundingClientRect();return [(e.clientX-b.left)*2,(e.clientY-b.top)*2];};
+    c.onpointerdown=e=>{des=true;c.setPointerCapture(e.pointerId);const [a,b]=pos(e);x.beginPath();x.moveTo(a,b);};
+    c.onpointermove=e=>{if(!des)return;const [a,b]=pos(e);x.lineTo(a,b);x.stroke();c._sujo=true;};
+    c.onpointerup=()=>{des=false;};
+    j.querySelector('[data-limpar]').onclick=()=>{x.clearRect(0,0,c.width,c.height);c._sujo=false;};
+  }
+  function ligarEmpresa(box){
+    const ec=box.querySelector('[data-empc]');if(!ec)return;
+    pintarKit(ec.querySelector('[data-kit-box]'));pintarAss(ec);
+    ec.addEventListener('click',async ev=>{
+      const kb=ec.querySelector('[data-kit-box]');if(kb&&kb.contains(ev.target))return cliqueKit(ev,kb);
+      const ab=ev.target.closest('[data-ec-aba]');if(ab){EC.aba=ab.dataset.ecAba;const t=document.createElement('div');t.innerHTML=htmlEmpresa();ec.replaceWith(t.firstElementChild);ligarEmpresa(box);return;}
+      const b=ev.target.closest('[data-ec]');if(!b)return;const a=b.dataset.ec;
+      if(a==='salvar-dados'){const o={...limpo(empRow()||{}),tipo:'empresa_dados'};ec.querySelectorAll('[data-emp]').forEach(i=>o[i.dataset.emp]=i.value.trim());o.atualizado_em=todayDateTime();
+        try{await executar(()=>salvar('Planejamento',o,(empRow()||{}).rowid||null));toast('Dados da empresa salvos.','success');}catch(e){toast(e.message,'error');}return;}
+      if(a==='ass-enviar'){const inp=document.createElement('input');inp.type='file';inp.accept='image/*';inp.onchange=async()=>{const f=inp.files[0];if(!f)return;try{await enviarAssinatura(f);pintarAss(ec);}catch(e){toast(e.message||String(e),'error');}};inp.click();return;}
+      if(a==='ass-desenhar')return desenharAss(ec);
+      if(a==='ct-novo')return editarContratante(null);
+      if(a==='ct-editar')return editarContratante(contratantes()[+b.dataset.i]);
+      if(a==='mun-troca'){const c=b.dataset.c;try{await executar(()=>marcarDaps(c,!exigeDaps(c)));}catch(e){toast(e.message,'error');}return;}
+      if(a==='mun-novo')janela('Município que exige a DAPS','<div class="fin-fld"><label>Município</label><input data-k="c" placeholder="Ex.: Maetinga, BA" autocomplete="off"></div>',[{html:'<i class="fas fa-check"></i> Marcar',cls:'pri',acao:async j=>{const c=j.querySelector('[data-k="c"]').value.trim();if(!c)throw new Error('Informe o município.');await executar(()=>marcarDaps(GS.cidade?GS.cidade.normalizar(c):c,true));}}],480),setTimeout(()=>{try{GS.cidade&&GS.cidade.ligar(document.querySelector('#fin-jan [data-k="c"]'));}catch(e){}},60);
+    });
+  }
+  const reEng=App._renderEng;
+  App._renderEng=function(v){
+    const r=reEng.apply(this,arguments);
+    if(v==='documentos'){try{const box=document.getElementById('eng-documentos'),w=box&&box.querySelector('.fin-wrap');if(w&&!w.querySelector('[data-empc]')){const t=document.createElement('div');t.innerHTML=htmlEmpresa();const cab=w.firstElementChild;w.insertBefore(t.firstElementChild,cab?cab.nextSibling:null);ligarEmpresa(box);}}catch(e){console.error(e);}}
+    return r;
+  };
+
+  /* ═══════════════ SÓCIOS E INVESTIMENTOS: aportes entram, retiradas e devoluções saem ═══════════════ */
+  const SO2={aba:'mov',obra:'',quem:'',tipo:'',ano:''};
+  const kAp=(cands,fb)=>{const m=(D().metadata&&D().metadata.aportes)||[];return cands.map(c=>m.find(k=>k===c)).find(Boolean)||cands.map(c=>m.find(k=>k.includes(c))).find(Boolean)||fb;};
+  const KAp=()=>({obra:kAp(['titulo_obra'],'titulo_obra'),quem:kAp(['quem_aportou','quem'],'quem_aportou'),data:kAp(['data_aporte'],'data_aporte'),valor:kAp(['valor_aportado','valor_aporte','valor'],'valor_aportado'),obs:kAp(['observacao','observ','obs'],'observacao'),lanc:kAp(['data_lancamento','lancamento'],'data_lancamento')});
+  const ehSaida=r=>{const K=KAp();return /retir|devolu/i.test(r.movimento||'')||val(r[K.valor])<0;};
+  function livro(){
+    const K=KAp(),L=[];
+    (D().aportes||[]).forEach(r=>{const sai=ehSaida(r),dev=/devolu/i.test(r.movimento||'');
+      L.push({r,fonte:'ap',data:dt(r[K.data]),tipo:sai?(dev?'Devolução de aporte':'Retirada'):'Aporte',sai,dev,quem:r[K.quem]||'—',obra:r[K.obra]||'—',valor:Math.abs(val(r[K.valor])),obs:r[K.obs]||'',ref:r.aporte_ref||''});});
+    // retiradas antigas, lançadas em Contas a pagar (Empresa, categorias de pró-labore / retirada / devolução)
+    Fin.movimentos().filter(m=>m.tipo==='despesa'&&GS.ehRetirada(m)&&m.pago).forEach(m=>{const cat=getFuzzy(m.r,['categoria'])||'',dev=/devolu/i.test(cat);
+      L.push({r:m.r,fonte:'cp',data:m.dataBaixa,tipo:dev?'Devolução de aporte':'Retirada',sai:true,dev,quem:m.quem||'—',obra:'Empresa',valor:m.valor,obs:(m.desc||'')+' · lançada em Contas a pagar'});});
+    return L.filter(x=>x.valor>0).sort((a,b)=>(b.data||0)-(a.data||0));
+  }
+  const saldoAporte=(x,L)=>x.valor-L.filter(y=>y.dev&&y.fonte==='ap'&&String(y.ref)===String(x.r.rowid)).reduce((s,y)=>s+y.valor,0);
+  const quemOps=()=>[...new Set((typeof QUEM_APORTOU!=='undefined'?QUEM_APORTOU:['Vixsul','Externo']).concat((D().aportes||[]).map(r=>r[KAp().quem]).filter(Boolean)))];
+  const obrasOps=()=>[...new Set((D().obras||[]).map(o=>getFuzzy(o,['titulo_obra','nome_obra','titulo'])).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'pt-BR'));
+  function editarMov(x,tipo,de){
+    const K=KAp(),r=x?x.r:null,L=livro(),tp=x?x.tipo:(tipo||'Aporte');
+    const aps=L.filter(y=>y.fonte==='ap'&&!y.sai).map(y=>({y,s:saldoAporte(y,L)+(x&&String(x.ref)===String(y.r.rowid)?x.valor:0)})).filter(z=>z.s>0.004||(x&&String(x.ref)===String(z.y.r.rowid)));
+    const sel=(k,ops,v,vazio)=>`<select data-k="${k}">${vazio!=null?`<option value="">${vazio}</option>`:''}${ops.map(o=>`<option ${o===v?'selected':''}>${fe(o)}</option>`).join('')}${v&&!ops.includes(v)?`<option selected>${fe(v)}</option>`:''}</select>`;
+    const obraIni=x?x.obra:(de?de.obra:'');const quemIni=x?x.quem:(de?de.quem:'');
+    const vIni=x?x.valor:(de?saldoAporte(de,L):0);
+    janela(x?'Editar lançamento':tp==='Aporte'?'Novo aporte':tp==='Retirada'?'Nova retirada':'Devolver aporte',`<div class="fin-linha">
+      <div class="fin-fld"><label>Tipo</label>${sel('tipo',['Aporte','Retirada','Devolução de aporte'],tp)}</div>
+      <div class="fin-fld"><label>Sócio / investidor <span class="obg">*</span></label><input data-k="quem" list="so2-quem" value="${fe(quemIni==='—'?'':quemIni)}" autocomplete="off"><datalist id="so2-quem">${quemOps().map(q=>`<option value="${fe(q)}">`).join('')}</datalist></div>
+      <div class="fin-fld" style="grid-column:1/-1"><label>Obra (referência) <span class="obg">*</span></label>${sel('obra',['Empresa (sem obra)'].concat(obrasOps()),obraIni==='Empresa'?'Empresa (sem obra)':obraIni,'Escolha…')}</div>
+      <div class="fin-fld"><label>Data <span class="obg">*</span></label><input type="date" data-k="data" max="${isoDe(hoje0())}" value="${x&&x.data?isoDe(x.data):isoDe(hoje0())}"></div>
+      <div class="fin-fld"><label>Valor (R$) <span class="obg">*</span></label><input data-k="valor" data-mask="moeda" inputmode="numeric" value="${vIni?fmt(vIni):''}"></div>
+      <div class="fin-fld" style="grid-column:1/-1" data-ref-box><label>Aporte que está sendo devolvido</label><select data-k="ref"><option value="">— nenhum em especial —</option>${aps.map(z=>`<option value="${z.y.r.rowid}" ${(x&&String(x.ref)===String(z.y.r.rowid))||(de&&de.r.rowid===z.y.r.rowid)?'selected':''}>${fe(z.y.quem)} · ${fe(z.y.obra)} · ${z.y.data?brDe(z.y.data):''} · ${fmt(z.y.valor)} (falta devolver ${fmt(z.s)})</option>`).join('')}</select></div>
+      <div class="fin-fld" style="grid-column:1/-1"><label>Observação</label><input data-k="obs" value="${fe(x?x.obs:'')}"></div></div>
+      <div class="fin-aviso"><div><b>Aporte</b> entra no caixa; <b>Retirada</b> (pró-labore, distribuição de lucro) e <b>Devolução de aporte</b> saem do caixa. Não precisa lançar em Contas a pagar.</div></div>`,
+      [{html:'<i class="fas fa-floppy-disk"></i> Salvar',cls:'pri',acao:async j=>{
+        const g=k=>(j.querySelector(`[data-k="${k}"]`)||{}).value||'',t=g('tipo'),v=num(g('valor')),ob=g('obra'),q=g('quem').trim(),d=g('data');
+        if(!q)throw new Error('Informe o sócio / investidor.');if(!ob)throw new Error('Escolha a obra (ou Empresa).');if(!d)throw new Error('Informe a data.');if(d>isoDe(hoje0()))throw new Error('A data não pode ser no futuro.');if(!(v>0))throw new Error('Informe o valor.');
+        const sai=t!=='Aporte';
+        const o=r?limpo(r):{[K.lanc]:todayDateTime()};
+        Object.assign(o,{[K.obra]:ob==='Empresa (sem obra)'?'Empresa':ob,[K.quem]:q,[K.data]:d,[K.valor]:dinheiro(sai?-v:v),movimento:t,aporte_ref:t==='Devolução de aporte'?g('ref'):'',[K.obs]:g('obs').trim()});
+        await executar(()=>salvar('Aportes financeiros',o,r?r.rowid:null));toast(sai?'Saída lançada.':'Aporte lançado.','success');}}],640);
+    const j=document.getElementById('fin-jan'),ts=j.querySelector('[data-k="tipo"]'),rb=j.querySelector('[data-ref-box]');const f=()=>{rb.hidden=ts.value!=='Devolução de aporte';};ts.addEventListener('change',f);f();
+  }
+  GS.renderSocios=function(){
+    const box=document.getElementById('gs-socios');if(!box)return;
+    const L=livro(),h=hoje0(),ms=Fin.movimentos();
+    const ent=L.filter(x=>!x.sai),sai=L.filter(x=>x.sai),S=a=>a.reduce((s,x)=>s+x.valor,0);
+    const capital=S(ent),devol=S(sai.filter(x=>x.dev)),retir=S(sai.filter(x=>!x.dev));
+    const recebido=ms.filter(m=>m.tipo==='fat'&&m.pago).reduce((s,m)=>s+m.valor,0),pagoOp=ms.filter(m=>m.sent<0&&m.pago&&!GS.ehRetirada(m)).reduce((s,m)=>s+m.valor,0),gerado=recebido-pagoOp;
+    const anos=[...new Set(L.map(x=>x.data&&x.data.getFullYear()).filter(Boolean))].sort((a,b)=>b-a);
+    const f=SO2,vis=L.filter(x=>(!f.obra||x.obra===f.obra)&&(!f.quem||x.quem===f.quem)&&(!f.tipo||x.tipo===f.tipo)&&(!f.ano||(x.data&&String(x.data.getFullYear())===f.ano)));
+    const abas=`<div class="gf-abas"><button type="button" class="gf-aba ${f.aba==='mov'?'on':''}" data-so2-aba="mov"><i class="fas fa-right-left"></i> Movimentos</button><button type="button" class="gf-aba ${f.aba==='socio'?'on':''}" data-so2-aba="socio"><i class="fas fa-user-tie"></i> Por sócio</button><button type="button" class="gf-aba ${f.aba==='obra'?'on':''}" data-so2-aba="obra"><i class="fas fa-helmet-safety"></i> Por obra</button></div>`;
+    const podeEd=pode('socios');
+    let corpo='';
+    if(f.aba==='mov'){
+      corpo=`<div class="gf-sec"><div class="gf-sec-cab"><div><h3>Entradas e saídas dos sócios</h3><p>Aportes entram (verde); retiradas e devoluções saem (vermelho) — cada um com a obra de referência. Em cada aporte dá para lançar a devolução.</p></div>${podeEd?'<div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="gf-bt" data-so2="retirada"><i class="fas fa-arrow-up"></i> Retirada</button><button type="button" class="gf-bt pri" data-so2="aporte"><i class="fas fa-plus"></i> Aporte</button></div>':''}</div>
+        <div class="so2-filtros"><select data-so2f="obra"><option value="">Todas as obras</option><option ${f.obra==='Empresa'?'selected':''}>Empresa</option>${obrasOps().map(o=>`<option ${f.obra===o?'selected':''}>${fe(o)}</option>`).join('')}</select>
+          <select data-so2f="quem"><option value="">Todos os sócios</option>${[...new Set(L.map(x=>x.quem))].map(q=>`<option ${f.quem===q?'selected':''}>${fe(q)}</option>`).join('')}</select>
+          <select data-so2f="tipo"><option value="">Entradas e saídas</option>${['Aporte','Retirada','Devolução de aporte'].map(t=>`<option ${f.tipo===t?'selected':''}>${t}</option>`).join('')}</select>
+          <select data-so2f="ano"><option value="">Todos os anos</option>${anos.map(a=>`<option ${f.ano===String(a)?'selected':''}>${a}</option>`).join('')}</select></div>
+        ${vis.length?`<div class="gf-rolar"><table class="so2-tab"><thead><tr><th>Data</th><th>Tipo</th><th>Sócio / investidor</th><th>Obra</th><th style="text-align:right">Valor</th><th>Observação</th><th></th></tr></thead><tbody>
+          ${vis.map((x,i)=>{const sd=!x.sai&&x.fonte==='ap'?saldoAporte(x,L):0;return `<tr><td>${x.data?brDe(x.data):'—'}</td><td><span class="so2-tipo ${!x.sai?'ent':x.dev?'dev':'sai'}"><i class="fas ${!x.sai?'fa-arrow-down':'fa-arrow-up'}"></i> ${x.tipo}</span></td><td><b>${fe(x.quem)}</b></td><td>${fe(x.obra)}</td>
+            <td class="num ${x.sai?'sai':'ent'}">${x.sai?'−':'+'} ${fmt(x.valor)}</td><td style="color:#667085;font-size:12px">${fe(x.obs)}${!x.sai&&x.fonte==='ap'&&sd<x.valor-0.004?`<br><span style="color:#B54708">devolvido ${fmt(x.valor-sd)} · falta ${fmt(sd)}</span>`:''}</td>
+            <td><div class="so2-ac">${x.fonte==='ap'&&podeEd?`${!x.sai&&sd>0.004?`<button type="button" class="fin-bt mini" data-so2="devolver" data-i="${i}" title="Lançar a devolução deste aporte"><i class="fas fa-rotate-left"></i> Devolver</button>`:''}<button type="button" class="fin-bt mini" data-so2="editar" data-i="${i}" title="Editar"><i class="fas fa-pen"></i></button><button type="button" class="fin-bt mini err" data-so2="excluir" data-i="${i}" title="Excluir"><i class="fas fa-trash"></i></button>`:x.fonte==='cp'?'<span class="gf-pill">Contas a pagar</span>':''}</div></td></tr>`;}).join('')}
+          </tbody><tfoot><tr><td colspan="4" style="font-weight:800;padding:9px 10px">Saldo do filtro</td><td class="num" style="padding:9px 10px">${fmt(S(vis.filter(x=>!x.sai))-S(vis.filter(x=>x.sai)))}</td><td colspan="2" style="color:#667085;font-size:12px;padding:9px 10px">entradas ${fmt(S(vis.filter(x=>!x.sai)))} · saídas ${fmt(S(vis.filter(x=>x.sai)))}</td></tr></tfoot></table></div>`:'<div class="gf-vazio"><i class="fas fa-piggy-bank"></i><p>Nenhum lançamento neste filtro.</p></div>'}</div>`;
+    }else if(f.aba==='socio'){
+      const g={};L.forEach(x=>{const k=x.quem;(g[k]=g[k]||{ap:0,ret:0,dev:0});if(!x.sai)g[k].ap+=x.valor;else if(x.dev)g[k].dev+=x.valor;else g[k].ret+=x.valor;});
+      const linhas=Object.entries(g).sort((a,b)=>(b[1].ap-b[1].dev)-(a[1].ap-a[1].dev));
+      corpo=`<div class="gf-sec"><div class="gf-sec-cab"><div><h3>Por sócio</h3><p>Capital colocado, o que já voltou como devolução e o que foi retirado como pró-labore ou lucro.</p></div></div>${linhas.length?`<div class="gf-rolar"><table class="so2-tab"><thead><tr><th>Sócio / investidor</th><th style="text-align:right">Aportado</th><th style="text-align:right">Devolvido</th><th style="text-align:right">Capital ainda na empresa</th><th style="text-align:right">Retiradas</th></tr></thead><tbody>${linhas.map(([q,v])=>`<tr><td><b>${fe(q)}</b></td><td class="num ent">${fmt(v.ap)}</td><td class="num sai">${fmt(v.dev)}</td><td class="num">${fmt(v.ap-v.dev)}</td><td class="num sai">${fmt(v.ret)}</td></tr>`).join('')}</tbody></table></div>`:'<div class="gf-vazio"><i class="fas fa-user-tie"></i><p>Nenhum lançamento.</p></div>'}</div>`;
+    }else{
+      const obras=[...new Set(L.map(x=>x.obra).concat(ms.filter(m=>m.tipo==='fat'||m.tipo==='custo').map(m=>m.origem)))].filter(o=>o&&o!=='—');
+      const lin=obras.map(ob=>{const mo=ms.filter(m=>m.origem===ob&&m.tipo!=='despesa'&&m.tipo!=='aporte'&&m.tipo!=='retirada'),ap=S(L.filter(x=>x.obra===ob&&!x.sai)),sa=S(L.filter(x=>x.obra===ob&&x.sai));const rc=mo.filter(m=>m.tipo==='fat'&&m.pago).reduce((s,m)=>s+m.valor,0),pg=mo.filter(m=>m.sent<0&&m.pago).reduce((s,m)=>s+m.valor,0);return {ob,ap,sa,rc,pg,cx:rc-pg};}).filter(x=>x.ap||x.sa||x.rc||x.pg).sort((a,b)=>a.cx-b.cx);
+      corpo=`<div class="gf-sec"><div class="gf-sec-cab"><div><h3>Por obra</h3><p>O que os sócios colocaram e tiraram por obra, ao lado do caixa que a obra já gerou (recebido − pago).</p></div></div>${lin.length?`<div class="gf-rolar"><table class="so2-tab"><thead><tr><th>Obra</th><th style="text-align:right">Aportes</th><th style="text-align:right">Retiradas e devoluções</th><th style="text-align:right">Recebido</th><th style="text-align:right">Pago</th><th style="text-align:right">Caixa da obra</th></tr></thead><tbody>${lin.map(x=>`<tr><td><b>${fe(x.ob)}</b></td><td class="num ent">${fmt(x.ap)}</td><td class="num sai">${fmt(x.sa)}</td><td class="num">${fmt(x.rc)}</td><td class="num">${fmt(x.pg)}</td><td class="num ${x.cx<0?'sai':'ent'}">${fmt(x.cx)}</td></tr>`).join('')}</tbody></table></div>`:'<div class="gf-vazio"><i class="fas fa-helmet-safety"></i><p>Sem movimento nas obras.</p></div>'}</div>`;
+    }
+    App._so2=vis;
+    box.innerHTML=`<div class="gf">
+      ${cabG('Sócios e investimentos','Um livro só para o dinheiro dos sócios: <b>aportes</b> entram no caixa; <b>retiradas</b> (pró-labore, lucro) e <b>devoluções de aporte</b> saem — sem passar por Contas a pagar. Cada lançamento leva a obra de referência.',abas)}
+      <div class="gf-kpis">
+        ${kpiG('verde','fa-arrow-down','Aportado',Rk(capital),`${ent.length} aporte(s)`)}
+        ${kpiG('laranja','fa-rotate-left','Devolvido aos sócios',Rk(devol),capital?`${Math.round(devol/capital*100)}% do capital · falta ${Rk(Math.max(0,capital-devol))}`:'')}
+        ${kpiG('vermelho','fa-arrow-up','Retiradas',Rk(retir),'pró-labore e distribuição de lucro')}
+        ${kpiG(gerado<0?'vermelho':'','fa-wallet','Caixa gerado pela operação',Rk(gerado),`recebido ${Rk(recebido)} − pago ${Rk(pagoOp)}`)}
+      </div>${corpo}</div>`;
+    box.onclick=ev=>{
+      const a=ev.target.closest('[data-so2-aba]');if(a){SO2.aba=a.dataset.so2Aba;return GS.renderSocios();}
+      const b=ev.target.closest('[data-so2]');if(!b)return;const ac=b.dataset.so2,x=App._so2[+b.dataset.i];
+      if(ac==='aporte')return editarMov(null,'Aporte');if(ac==='retirada')return editarMov(null,'Retirada');
+      if(ac==='devolver'&&x)return editarMov(null,'Devolução de aporte',x);
+      if(ac==='editar'&&x)return editarMov(x);
+      if(ac==='excluir'&&x)return confirmar('Excluir lançamento',`${x.tipo} de <b>${fe(x.quem)}</b> · ${fmt(x.valor)} · ${x.data?brDe(x.data):''} será excluído de vez.`,'Sim, excluir',async()=>{await executar(()=>excluir('Aportes financeiros',x.r.rowid));toast('Lançamento excluído.','success');});
+    };
+    box.onchange=ev=>{const s=ev.target.closest('[data-so2f]');if(!s)return;SO2[s.dataset.so2f]=s.value;GS.renderSocios();};
+  };
+
+  /* ═══════════════ INATIVIDADE: avisa 1 minuto antes e fecha tudo junto ═══════════════ */
+  const AVISO_MS=60000;let tAviso=null,tCont=null,avisando=false;
+  const ov=document.createElement('div');ov.className='idle-ov';ov.innerHTML=`<div class="idle-box" role="alertdialog" aria-live="assertive"><i class="fas fa-hourglass-half big"></i><h3>Sua sessão vai ser encerrada</h3><p>Você está sem mexer no sistema há um tempo. Por segurança, a sessão será encerrada por inatividade em</p><b class="cont" data-idle-s>60 s</b><p style="margin-top:-6px">O que não foi salvo será perdido e as janelas abertas serão fechadas.</p><button type="button" data-idle-ok>Continuar conectado</button></div>`;
+  document.body.appendChild(ov);
+  function fecharModais(){
+    document.querySelectorAll('.modal-overlay.open,.confirm-overlay.open,#fin-ov.open,#pw-overlay.open').forEach(el=>el.classList.remove('open'));
+    const s=document.getElementById('orc-sug');if(s)s.style.display='none';
+    try{if(App.state){App.state.obraHub=null;App.state.editing=null;App.state._busy=false;}UI._hideBusy&&UI._hideBusy();}catch(e){}
+    const f=document.getElementById('form-upsert');if(f){f.removeAttribute('style');f.innerHTML='';}
+  }
+  function esconderAviso(){avisando=false;ov.classList.remove('open');clearInterval(tCont);}
+  function mostrarAviso(){
+    if(!Auth._session)return;avisando=true;ov.classList.add('open');let s=Math.round(AVISO_MS/1000);const el=ov.querySelector('[data-idle-s]');el.textContent=s+' s';
+    clearInterval(tCont);tCont=setInterval(()=>{s--;el.textContent=Math.max(0,s)+' s';},1000);
+  }
+  ov.querySelector('[data-idle-ok]').addEventListener('click',()=>{esconderAviso();Auth._resetIdleTimer();});
+  Auth._resetIdleTimer=function(){
+    if(avisando)return;
+    clearTimeout(this._idleTimer);clearTimeout(tAviso);
+    if(!this._session)return;
+    tAviso=setTimeout(mostrarAviso,Math.max(1000,this._IDLE_MS-AVISO_MS));
+    this._idleTimer=setTimeout(()=>{esconderAviso();fecharModais();this._clearSession();this.logout(true);},this._IDLE_MS);
+  };
+  const pararIdle=Auth._stopIdleWatcher;
+  Auth._stopIdleWatcher=function(){clearTimeout(tAviso);esconderAviso();return pararIdle.apply(this,arguments);};
+  const sair=Auth.logout;
+  Auth.logout=function(){fecharModais();esconderAviso();clearTimeout(tAviso);return sair.apply(this,arguments);};
+
+  GS.docs={empresa,assinatura,contratantes,contratanteDe,salvarContratante,datalistContratantes,ehEmbasa,exigeDaps,marcarDaps,infoGarantia,retencao1aMed,imprimirDoc,gerados,gerarSolicitacaoGarantia,
+    emitirNota,fichaNotaExtras,ligarFichaNota,antecipacao,contratanteDaNota,listarArq,enviarArq,baixarArq,lerXmlNfse,KIT,_EC:EC,_SO2:SO2};
 })();
 </script>
 </body>
