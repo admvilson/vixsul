@@ -11541,6 +11541,14 @@ const Atencao=(function(){
 .eng-med-tab input:focus{outline:2px solid rgba(0,113,227,.35);border-color:var(--blue);}
 .eng-med-tab tr.medido td{background:rgba(0,113,227,.035);}
 .eng-med-tab tr.estouro td{background:rgba(255,59,48,.06);}
+/* a tabela da medição rola dentro dela mesma (as duas barras ficam sempre à vista) e o cabeçalho fica parado */
+.eng-med-rolar{max-height:calc(100vh - 210px);min-height:280px;overflow:auto;border:1px solid var(--border);border-radius:12px;}
+/* dentro da ficha da obra a tabela cabe na janela junto com a barra de baixo (Cancelar / Salvar medição) */
+.hub-med .eng-med-rolar{max-height:calc(100vh - 365px);min-height:240px;}
+.eng-med-rolar thead th{position:sticky;top:0;z-index:2;background:var(--surface);box-shadow:inset 0 -1px 0 var(--border);}
+.eng-med-rolar::-webkit-scrollbar{width:12px;height:12px;}
+.eng-med-rolar::-webkit-scrollbar-thumb{background:#c7c7cc;border-radius:8px;border:3px solid #f2f2f7;}
+.eng-med-rolar::-webkit-scrollbar-track{background:#f2f2f7;}
 .eng-barra{height:8px;border-radius:99px;background:var(--bg);overflow:hidden;min-width:70px;}
 .eng-barra i{display:block;height:100%;background:var(--blue);border-radius:99px;}
 .eng-barra i.cheia{background:#34C759;} .eng-barra i.estouro{background:var(--red);}
@@ -12099,7 +12107,7 @@ const Eng=(function(){
         <div class="fin-fld" style="grid-column:1/-1"><label>Observação</label><input data-mc="observacao" value="${fe(c.observacao)}" placeholder="Ex.: medição conferida com o fiscal em campo"></div>
       </div></div>
       <div class="fin-card"><div class="fin-card-cab"><input class="eng-busca" data-me="busca" placeholder="Buscar item, código ou descrição…" value="${fe(E.busca)}"><label style="display:flex;gap:7px;align-items:center;font-size:12.5px;font-weight:600;color:var(--text-2);cursor:pointer"><input type="checkbox" data-me="so" ${E.so?'checked':''} style="width:16px;height:16px"> Só os itens desta medição</label></div>
-        <div class="fin-rolar"><table class="fin-tab eng-med-tab"><thead><tr><th>Item</th><th class="fin-esconder-cel">Código</th><th>Descrição</th><th>Un.</th><th class="num">Contrato</th><th class="num fin-esconder-cel">Acum. anterior</th><th class="num">Nesta medição</th><th class="num">Acum. atual</th><th>% do item</th><th class="num">P. unit.</th><th class="num">Valor</th></tr></thead><tbody data-me-corpo>${linhasEditor()}</tbody></table></div></div>
+        <div class="fin-rolar eng-med-rolar"><table class="fin-tab eng-med-tab"><thead><tr><th>Item</th><th class="fin-esconder-cel">Código</th><th>Descrição</th><th>Un.</th><th class="num">Contrato</th><th class="num fin-esconder-cel">Acum. anterior</th><th class="num">Nesta medição</th><th class="num">Acum. atual</th><th>% do item</th><th class="num">P. unit.</th><th class="num">Valor</th></tr></thead><tbody data-me-corpo>${linhasEditor()}</tbody></table></div></div>
       <div class="fin-rodape"><span data-me-tot style="flex:1"></span><button type="button" class="fin-bt" data-me="cancelar">Cancelar</button><button type="button" class="fin-bt pri" data-me="salvar">Salvar medição</button></div>
     </div>`;
     totaisEditor();
@@ -14962,12 +14970,15 @@ const PL2=(function(){
   const KD=()=>({lanc:ch('despesas',c=>c.includes('lancamento'),'data_lancamento'),tipo:ch('despesas',c=>c.includes('tipo_despesa')||c==='tipo','tipo_despesa'),venc:ch('despesas',c=>c.includes('data_despesa'),'data_despesa'),
     desc:ch('despesas',c=>c==='descricao','descricao'),cat:ch('despesas',c=>c.includes('categoria'),'categoria'),forn:ch('despesas',c=>c.includes('fornecedor')||c.includes('beneficiario'),'fornecedor_beneficiario'),
     st:ch('despesas',c=>c.includes('status_pagamento')||c.includes('status_pgto'),'status_pagamento'),pg:ch('despesas',c=>c.includes('data_pagamento')||c.includes('data_pgto'),'data_pagamento'),valor:ch('despesas',c=>c==='valor','valor'),obs:ch('despesas',c=>c.includes('observ'),'observacao'),fpg:ch('despesas',c=>c.includes('forma_pagamento'),'forma_pagamento')});
-  const CATC=()=>typeof TIPOS_CUSTO!=='undefined'?Object.keys(TIPOS_CUSTO):[];
+  // contas das obras: as 3 categorias do CAP; as antigas (do editor de custos) entram na mais próxima
+  const CATC=()=>['Mão de obra','Equipamentos e locações','Materiais'];
+  const CAT_ANTIGA=c=>typeof TIPOS_CUSTO!=='undefined'&&!!TIPOS_CUSTO[c];
+  const cat3=c=>{const t=cn(c);if(!t)return '';if(/mao de obra/.test(t))return 'Mão de obra';if(/equipamento|locac/.test(t))return 'Equipamentos e locações';return 'Materiais';};
   const CATD=()=>typeof CATEGORIAS_DESPESA!=='undefined'?CATEGORIAS_DESPESA:[];
   // despesas da empresa (pró-labore, salários do escritório…) só para quem tem acesso a elas
   const podeEmpresa=()=>pode('despesas');
   // categoria do custo: a especificação, se for uma das categorias; senão o "tipo" antigo (como o editor antigo)
-  const catC=(r,K)=>CATC().includes(r[K.espec])?r[K.espec]:(r[K.tipo]||'');
+  const catC=(r,K)=>cat3(CATC().includes(r[K.espec])||CAT_ANTIGA(r[K.espec])?r[K.espec]:(r[K.tipo]||''));
   // quem está usando: Administrador lança conta já aprovada; os demais lançam para aprovação (quem compra não paga)
   const sessao=()=>Auth._session||{},souAdmin=()=>!!UI._ehAdmin(sessao().perfil)||!!(UI.podeAprovar&&UI.podeAprovar('contas')),quem=()=>sessao().nome||'';
   const aprovDe=r=>({aprov:r.aprovacao==='pendente'?'pendente':'aprovada',aprovPor:r.aprovado_por||'',aprovEm:r.aprovado_em||'',lancPor:r.lancado_por||''});
@@ -15002,7 +15013,7 @@ const PL2=(function(){
     if(alvo==='c'){const K=KC();
       Object.assign(base,{[K.obra]:o.centro,[K.tipoCusto]:o.tipo,[K.tipo]:o.cat,[K.desc]:o.desc,[K.forn]:o.forn,[K.fator]:o.fator||'UN',[K.qtd]:o.qtd,[K.pUnit]:o.pUnit,[K.pTotal]:o.total,[K.venc]:o.venc,[K.pgto]:o.pago,[K.obs]:o.obs});
       if(o.forma!=null)base.forma_pagamento=o.forma;
-      if(K.espec!==K.tipo&&CATC().includes(base[K.espec]))base[K.espec]=o.cat;
+      if(K.espec!==K.tipo&&(CATC().includes(base[K.espec])||CAT_ANTIGA(base[K.espec])))base[K.espec]=o.cat;
       if(!base[K.lanc])base[K.lanc]=o.lanc||todayDateTime();
       Object.assign(base,aprovCampos(o,orig));
       ops.push({aba:'Custos',dados:base,rowid:mesmo?orig.rowid:null});}
@@ -15453,7 +15464,7 @@ const Mascara=(function(){
     App._vkContas=filtradas;
     const filtroAtivo=f.busca||f.obra||f.mes||f.aprovar||f.semForn;
     box.innerHTML=`<div class="gf">
-      ${cabG('Contas a pagar','Tudo o que a empresa paga: compras e serviços de cada obra e as despesas da Empresa — só contas que já existem (a previsão de custo das obras vem do CAP). Um Administrador aprova (conta lançada por Administrador já nasce aprovada) e, quando pagar, arraste o cartão para <b>Paga</b>. Clique no cartão para ver e corrigir todos os dados.','<button type="button" class="gf-bt" data-vk="imprimir"><i class="fas fa-print"></i> Imprimir</button><button type="button" class="gf-bt" data-vk="exportar"><i class="fas fa-file-excel"></i> Exportar</button>'+(pode('contas')?'<button type="button" class="gf-bt" data-vk="lote" title="Lance vários itens de uma vez, ou leia a nota/recibo (foto, PDF ou XML)"><i class="fas fa-cart-shopping"></i> Várias de uma vez / ler nota</button><button type="button" class="gf-bt pri" data-vk="nova"><i class="fas fa-plus"></i> Nova conta</button>':''))}
+      ${cabG('Contas a pagar','Tudo o que a empresa paga: compras e serviços de cada obra e as despesas da Empresa — só contas que já existem (a previsão de custo das obras vem do CAP). Um Administrador aprova (conta lançada por Administrador já nasce aprovada) e, quando pagar, arraste o cartão para <b>Paga</b>. Clique no cartão para ver e corrigir todos os dados.','<button type="button" class="gf-bt" data-vk="imprimir"><i class="fas fa-print"></i> Imprimir</button><button type="button" class="gf-bt" data-vk="exportar"><i class="fas fa-file-excel"></i> Exportar</button>'+(pode('contas')?'<button type="button" class="gf-bt pri" data-vk="nova"><i class="fas fa-plus"></i> Nova conta</button>':''))}
       ${semAprov.length&&souAdmin()?`<div class="vk-aviso"><i class="fas fa-signature"></i><div><b>${semAprov.length} conta(s) esperando a sua aprovação</b> — ${fmt(S(semAprov))}. Abra o cartão (ou arraste para "Aprovada") para aprovar.</div><button type="button" class="gf-bt mini" data-vk="so-aprovar">${f.aprovar?'Ver todas':'Ver só elas'}</button></div>`:''}
       <div class="gf-kpis">
         ${kpiG(vencidas.length?'vermelho':'verde','fa-triangle-exclamation','Vencidas',Rk(S(vencidas)),vencidas.length?`${vencidas.length} conta(s) em atraso — juros e multa correndo`:'nenhuma conta atrasada')}
@@ -15496,8 +15507,7 @@ const Mascara=(function(){
     box.onchange=ev=>{const t=ev.target.closest('[data-vkf]');if(!t||t.dataset.vkf==='busca')return;QC[t.dataset.vkf]=t.type==='checkbox'?t.checked:t.value;re();};
     box.onclick=ev=>{
       const b=ev.target.closest('[data-vk]');if(b){ev.preventDefault();const a=b.dataset.vk;
-        if(a==='nova')return fichaNovaConta();
-        if(a==='lote')return fichaLote();
+        if(a==='nova')return fichaLote();
         if(a==='so-aprovar'){QC.aprovar=!QC.aprovar;return re();}
         if(a==='limpar'){Object.assign(QC,{busca:'',obra:'',mes:'',aprovar:false,semForn:false});return re();}
         if(a==='exportar')return exportarContas();
@@ -15617,7 +15627,8 @@ const Mascara=(function(){
     // não existe mais "estimativa" lançada à mão (a previsão de custo vem do CAP): conta nova é conta de verdade;
     // a forma de pagamento é informada só ao registrar o pagamento
     const u={...(o||{}),centro:v('centro'),tipo:o&&o.tipo==='Previsto'&&o.rowid?'Previsto':'Real',venc:v('venc'),total:dinheiro(num(v('total'))),forn:v('forn'),cat:v('cat'),forma:(o&&o.forma)||'',desc:v('desc'),obs:v('obs')};
-    if(u.centro!==EMP){const q=Mascara.numero(v('qtd')),p=num(v('pUnit'));u.qtd=q>0?dinheiro(q):'';u.fator=v('fator');u.pUnit=p>0?dinheiro(p):'';if(q>0&&p>0)u.total=dinheiro(q*p);}
+    if(u.centro!==EMP){const q=Mascara.numero(v('qtd')),p=num(v('pUnit')),q0=val(o&&o.qtd),p0=val(o&&o.pUnit),igual=(a,b)=>a>0&&Math.abs(a-Math.round(b*100)/100)<0.005;
+      u.qtd=q>0?(igual(q,q0)?String(o.qtd):dinheiro(q)):'';u.fator=v('fator');u.pUnit=p>0?(igual(p,p0)?String(o.pUnit):dinheiro(p)):'';if(q>0&&p>0)u.total=dinheiro(val(u.qtd)*val(u.pUnit));}
     if(!u.centro)throw new Error('Escolha a obra (ou Empresa).');if(u.tipo==='Real'&&!u.venc)throw new Error('Informe o vencimento.');
     if(!(val(u.total)>0))throw new Error('Informe o valor.');if(!u.cat)throw new Error('Escolha a categoria.');
     if(!u.desc&&!u.forn)throw new Error('Informe o fornecedor ou uma descrição.');
@@ -15625,68 +15636,85 @@ const Mascara=(function(){
     if(u.forn&&!(D().fornecedores||[]).some(f=>cn(f.nome)===cn(u.forn))&&pode('fornecedores')){try{await salvar('Fornecedores',{nome:u.forn,tipo:u.centro===EMP?'Escritório / administrativo':'Outros',situacao:'Ativo',data_lancamento:todayDateTime()},null);}catch(e){}}
     return u;
   }
-  function fichaNovaConta(pre){
-    const o={centro:QC.obra||'',tipo:'Real',...(pre||{})};
-    janela('Nova conta a pagar',camposConta(o,true),[{html:'Cancelar'},{html:'<i class="fas fa-floppy-disk"></i> Lançar',cls:'pri',acao:async j=>{
-      const u=await lerCamposConta(j,{_t:'',centro:'',tipo:'Real',qtd:'',fator:'',pUnit:'',pago:'',obs:'',lanc:''});C.finalizarConta(u);
-      const rep=j.querySelector('[data-k="rep"]').value,n=rep?Math.round(+j.querySelector('[data-k="vezes"]').value||0):1;
-      if(rep&&!(n>=2&&n<=60))throw new Error('Informe de 2 a 60 vezes.');if(rep&&!u.venc)throw new Error('Informe o vencimento da 1ª.');
-      const ops=[],ini=dt(u.venc),tot=Math.round(val(u.total)*100),parte=Math.floor(tot/n);
-      for(let i=0;i<n;i++){const vv=rep==='parc'?(i<n-1?parte:tot-parte*(n-1))/100:tot/100;
-        const x={...u,total:dinheiro(vv),venc:ini?isoDe(C.somaMes(ini,i)):'',desc:n>1?`${u.desc} (${i+1}/${n})`:u.desc};
-        if(x.centro!==EMP&&n>1&&rep==='parc'){x.qtd='1.00';x.fator='VB';x.pUnit=x.total;}
-        ops.push(...C.montarConta(x,null));}
-      await executar(()=>Promise.all(ops.map(x=>salvar(x.aba,x.dados,null))));
-      toast(n>1?`${n} contas lançadas.`:u.tipo!=='Real'?'Estimativa lançada em Previstas.':(souAdmin()?'Conta lançada.':'Conta lançada — aguardando a aprovação (de um Administrador ou de quem tem permissão para aprovar).'),'success');}}],720);
-    ligarCamposConta(jan());
-  }
-  /* ═══════════════ VÁRIAS CONTAS DE UMA VEZ (como um carrinho) + LEITURA DE NOTA / RECIBO ═══════════════
-     Monta a lista de itens (à mão ou lendo a nota/recibo) e lança todos de uma vez — cada item vira uma conta.
-     Leitura: XML da NF-e (exato) · QR code do cupom NFC-e (a página da SEFAZ traz os itens) · PDF com texto ·
-     foto (leitura do texto pela câmera — confira, pode errar). A categoria e a descrição o sistema escolhe
-     (descrição padronizada pelo catálogo da obra, pelas compras anteriores e pela tabela SINAPI). */
+  // conta nova: sempre pelo formulário que lança um ou vários itens (e lê a nota)
+  function fichaNovaConta(){fichaLote();}
+  /* ═══════════════ NOVA CONTA A PAGAR (um ou vários itens de uma vez) + LEITURA DO DOCUMENTO ═══════════════
+     Monta a lista de itens (à mão ou lendo o documento) e lança todos de uma vez — cada item vira uma conta.
+     Leitura: XML da NF-e ou da NFS-e (exato) · QR code do cupom NFC-e (a página da SEFAZ traz os itens) ·
+     leitura inteligente (nota, DANFE, cupom, recibo, boleto — foto ou PDF), quando ligada no servidor ·
+     sem ela: PDF com texto (DANFE, recibo, cupom) e foto (leitura do texto — confira, pode errar).
+     A descrição fica como está no documento; a categoria o sistema sugere (Mão de obra, Equipamentos e locações, Materiais). */
   const COMPRA_API='https://vixsul.vercel.app/api/compra';
   const semAcento=s=>String(s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toUpperCase();
   const UNID={UN:'UN',UND:'UN',UNID:'UN',UNIDADE:'UN',U:'UN',PC:'PC',PCS:'PC',PCA:'PC',PECA:'PC',KG:'KG',KGS:'KG',M:'M',MT:'M',MTS:'M',ML:'M',M2:'M²','M²':'M²',MQ:'M²',M3:'M³','M³':'M³',L:'L',LT:'L',LTS:'L',LITRO:'L',CX:'CX',CAIXA:'CX',SC:'SC',SACO:'SC',T:'T',TON:'T',GL:'GL',GALAO:'GL',RL:'RL',ROLO:'RL',JG:'JG',JOGO:'JG',PAR:'PAR',PR:'PAR',BD:'BD',BALDE:'BD',VB:'VB',H:'HR',HR:'HR',DI:'DI',DIA:'DI',MES:'MÊS'};
   const unidade=u=>{const k=semAcento(u).replace(/[^A-Z0-9²³]/g,'');return UNID[k]||'';};
   const numBR=s=>{s=String(s==null?'':s).trim();if(!s)return 0;if(/,\d{1,4}$/.test(s))s=s.replace(/\./g,'').replace(',','.');else if(/^\d{1,3}(\.\d{3})+$/.test(s))s=s.replace(/\./g,'');return parseFloat(s)||0;};
   // categoria pelo que foi comprado (obra: categorias de custo; empresa: categorias de despesa)
-  const REGRAS_OBRA=[['Equipamentos e Locações',/LOCAC|ALUGUEL D|BETONEIRA|ANDAIME|COMPACTADOR|MARTELETE|RETROESC|MUNCK|GUINDASTE|GERADOR|CA[CÇ]AMBA/],
-    ['Mão de Obra',/DIARIA|PEDREIRO|SERVENTE|MAO DE OBRA|EMPREITA|AJUDANTE|ELETRICISTA|ENCANADOR|PINTOR/],
-    ['Serviços Terceirizados',/SERVICO|FRETE|TRANSPORTE|TOPOGRAF|SONDAGEM|ENSAIO|LAUDO|PROJETO|CONSULTORIA/],
-    ['Despesas Administrativas',/GASOLINA|DIESEL|ETANOL|COMBUSTIVEL|ALIMENTA|REFEI[CÇ]|MARMITA|HOSPEDAG|HOTEL|PEDAGIO|ESTACIONAM/],
-    ['Materiais de Construção',/CIMENTO|AREIA|BRITA|PEDRA|FERRO|ACO|VERGALH|ARAME|PREGO|PARAFUS|BUCHA|MADEIRA|TABUA|SARRAFO|VIGA|CAIBRO|RIPA|TELHA|TIJOLO|BLOCO|ARGAMASSA|REJUNTE|\bCAL\b|GESSO|TUBO|CANO|CONEX|JOELHO|LUVA|REGISTRO|\bTE\b|\bFIO\b|CABO|DISJUNT|TOMADA|INTERRUPT|LAMPADA|TINTA|MASSA|SELADOR|LIXA|ROLO|PINCEL|IMPERMEAB|MANTA|CERAMIC|PORCELAN|PISO|AZULEJO|VIDRO|DRYWALL|PERFIL|COLA|SILICONE|ESPUMA|VEDA|CONCRETO|GRAUTE|TELA|MALHA/]];
+  const REGRAS_OBRA=[['Equipamentos e locações',/LOCAC|ALUGUEL|BETONEIRA|ANDAIME|COMPACTADOR|MARTELETE|RETROESC|ESCAVADEIRA|MUNCK|GUINDASTE|GERADOR|CA[CÇ]AMBA|PLACA VIBRAT|ROMPEDOR|BANHEIRO QUIMICO|CONTAINER|HORA MAQUINA|HORAS? TRABALHADAS? DE/],
+    ['Mão de obra',/DIARIA|PEDREIRO|SERVENTE|MAO DE OBRA|EMPREITA|AJUDANTE|ELETRICISTA|ENCANADOR|PINTOR|CARPINTEIRO|ARMADOR|SERRALHEIRO|ENCARREGADO|MESTRE DE OBRA|SERVICOS? DE (MONTAGEM|INSTALACAO|EXECUCAO|PINTURA|ALVENARIA|REFORMA|CONSTRUCAO)/]];
   const REGRAS_EMP=[['Combustível',/GASOLINA|DIESEL|ETANOL|COMBUSTIVEL/],['Material de Escritório',/PAPEL|CANETA|TONER|CARTUCHO|GRAMPE|PASTA|ENVELOPE|IMPRESS/],['Equipamentos e Ferramentas',/FERRAMENTA|FURADEIRA|SERRA|ESMERILH|ALICATE|CHAVE|MARTELO|TRENA|NIVEL/],
     ['Água, Luz e Internet',/ENERGIA|COELBA|NEOENERGIA|EMBASA|AGUA|INTERNET|TELEFON/],['Manutenção e Reparo',/MANUTEN|CONSERTO|REPARO|PECA/],['Viagens e Deslocamentos',/HOTEL|HOSPEDAG|PASSAGEM|PEDAGIO|UBER|TAXI/]];
-  function categoriaDe(desc,forn,emp){const t=semAcento(desc+' '),f=semAcento(forn);
-    const L=emp?REGRAS_EMP:REGRAS_OBRA;for(const [c,re] of L)if(re.test(t))return c;
-    if(!emp&&/MATERI|CONSTRU|MADEIREIRA|FERRAGEN|DEPOSITO|HOME CENTER/.test(f))return 'Materiais de Construção';return 'Outros';}
-  // descrição padronizada: catálogo da obra (CAP), compras anteriores e a tabela SINAPI
-  const PARADAS=new Set(['DE','DA','DO','DAS','DOS','COM','PARA','EM','E','A','O','TIPO','REF','COD','UN','KG','M','CX','SC','PC','MM','CM','X']);
-  const toks=s=>semAcento(s).replace(/[^A-Z0-9 ]/g,' ').split(/\s+/).filter(w=>w.length>1&&!PARADAS.has(w));
-  let CATALOGO=null;
-  async function catalogo(centro){
-    const L=[],add=(d,u,f)=>{d=String(d||'').trim();if(d.length>3)L.push({d,u:u||'',t:toks(d),f});};
-    (D().cap||[]).filter(r=>!centro||(getFuzzy(r,['titulo_obra','obra'])||'')===centro).forEach(r=>add(r.descricao,r.fator,'obra'));
-    todasContas().forEach(o=>add(C.limparParc(o.desc),o.fator,'compra'));
-    try{if(!CATALOGO){if(!(window.SINAPI&&Object.keys(window.SINAPI).length)){await injetarJs('sinapi-manifest.js');const M=window.SINAPI_MANIFEST||{atual:'2026-08',tabelas:[{chave:'2026-08',arquivo:'sinapi-ba-2026-08.js'}]};const t=(M.tabelas||[]).find(x=>x.chave===M.atual)||M.tabelas[0];await injetarJs(t.arquivo,()=>window.SINAPI&&window.SINAPI[t.chave]);}
-      const S=window.SINAPI[Object.keys(window.SINAPI).sort().pop()];CATALOGO=(S.ins||[]).map(x=>({d:x[1],u:x[2],t:toks(x[1]),f:'sinapi'}));}}catch(e){CATALOGO=CATALOGO||[];}
-    return L.concat(CATALOGO||[]);
+  // obra: o que não é mão de obra nem equipamento/locação é material (como no CAP); nota de serviço é mão de obra
+  function categoriaDe(desc,forn,emp,tipoDoc){const t=semAcento(desc+' ');
+    if(emp){for(const [c,re] of REGRAS_EMP)if(re.test(t))return c;return 'Outros';}
+    for(const [c,re] of REGRAS_OBRA)if(re.test(t))return c;
+    return tipoDoc==='nfse'?'Mão de obra':'Materiais';}
+  // CNPJ da própria empresa (é o comprador: nunca é o fornecedor)
+  const CNPJ_PROPRIO=()=>{try{return String((GS.docs&&GS.docs.empresa().cnpj)||'64518375000120').replace(/\D/g,'');}catch(e){return '64518375000120';}};
+  // arruma o que foi lido: os itens somam o total do documento (desconto e frete gerais entram proporcionalmente em
+  // cada item, só quando a leitura é confiável); parcelas da nota viram os vencimentos
+  function ajustar(r){
+    r.itens=(r.itens||[]).filter(it=>it&&(String(it.desc||'').trim()||+it.total));
+    r.itens.forEach(it=>{it.desc=String(it.desc||'').replace(/\s+/g,' ').trim();it.qtd=+it.qtd||1;it.total=Math.round((+it.total||(+it.pUnit||0)*it.qtd)*100)/100;it.pUnit=+it.pUnit||(it.total/it.qtd);});
+    const soma=Math.round(r.itens.reduce((x,it)=>x+it.total,0)*100)/100;r.ajuste=0;
+    if(r.confiavel&&r.total>0&&soma>0&&Math.abs(soma-r.total)>0.05){const fa=r.total/soma;let acum=0;
+      r.itens.forEach((it,i)=>{it.total=i<r.itens.length-1?Math.round(it.total*fa*100)/100:Math.round((r.total-acum)*100)/100;acum+=it.total;it.pUnit=it.total/it.qtd;});r.ajuste=Math.round((r.total-soma)*100)/100;}
+    if(r.cnpj&&String(r.cnpj).replace(/\D/g,'')===CNPJ_PROPRIO())r.cnpj='';
+    r.parcelas=(r.parcelas||[]).filter(p=>p.venc&&p.valor>0).sort((a,b)=>a.venc.localeCompare(b.venc));
+    if(r.parcelas.length){r.venc=r.parcelas[0].venc;if(r.parcelas.length===1)r.parcelas=[];}
+    return r;
   }
-  function padronizar(desc,cat){
-    const t=toks(desc);if(!t.length)return null;let melhor=null,nota=0;
-    for(const c of cat){if(!c.t.length||c.t[0]!==t[0])continue;const comum=t.filter(w=>c.t.includes(w)).length;if(comum<2&&!(t.length===1&&comum===1))continue;
-      const s=comum/Math.max(t.length,1)+comum/Math.max(c.t.length,1)*.5+(c.f==='obra'?.3:c.f==='compra'?.2:0);if(s>nota){nota=s;melhor=c;}}
-    return nota>=.75?melhor:null;
+  // leitura inteligente (no servidor, quando a chave está configurada na Vercel): entende qualquer documento de compra
+  const IA={on:null};
+  async function iaLigada(){if(IA.on===null){try{const r=await fetch(COMPRA_API,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({acao:'status'})});const j=await r.json();IA.on=!!(j&&j.ia);}catch(e){IA.on=false;}}return IA.on;}
+  const b64De=f=>new Promise((ok,er)=>{const r=new FileReader();r.onload=()=>ok(String(r.result).replace(/^data:[^,]*,/,''));r.onerror=()=>er(new Error('Não consegui ler o arquivo.'));r.readAsDataURL(f);});
+  async function lerComIA(f,canvas){
+    let arquivo,tipo;
+    if(canvas){arquivo=canvas.toDataURL('image/jpeg',0.88).replace(/^data:[^,]*,/,'');tipo='image/jpeg';}
+    else{if(f.size>3e6)throw new Error('PDF grande demais para a leitura inteligente (máx. 3 MB).');arquivo=await b64De(f);tipo='application/pdf';}
+    const r=await fetch(COMPRA_API,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({acao:'ler',arquivo,tipo,nome:f.name||''})}),j=await r.json().catch(()=>null);
+    if(!j||!j.ok){if(j&&j.semIA)IA.on=false;throw new Error((j&&j.msg)||'A leitura inteligente não respondeu.');}
+    const x=j.dados||{},n=v=>+v||0,dia=v=>/^\d{4}-\d{2}-\d{2}$/.test(String(v||''))?String(v):'';
+    const itens=(x.itens||[]).map(it=>({desc:String(it.descricao||''),qtd:n(it.quantidade)||1,un:it.unidade||'',pUnit:n(it.valor_unitario),total:n(it.valor_total)}));
+    const soma=itens.reduce((s0,it)=>s0+it.total,0),tot=n(x.total);
+    return ajustar({origem:'Leitura inteligente',tipo:x.tipo||'',forn:String(x.fornecedor||'').trim(),cnpj:String(x.cnpj_cpf||'').replace(/\D/g,''),numero:String(x.numero||'').replace(/^0+(?=\d)/,'').trim(),data:dia(x.data_emissao),
+      parcelas:(x.vencimentos||[]).map(v=>({venc:dia(v.data),valor:n(v.valor)})),total:tot,itens,
+      // diferença explicada por desconto/frete do próprio documento: entra nos itens
+      confiavel:Math.abs(soma-n(x.desconto)+n(x.frete)+n(x.outras_despesas)-tot)<0.06,aviso:String(x.observacao||'').trim()});
   }
   const injetarJs=(url,pronto)=>new Promise((ok,er)=>{if(pronto&&pronto())return ok();const s=document.createElement('script');s.src=url;s.onload=()=>ok();s.onerror=()=>er(new Error('Não consegui carregar o leitor — confira a internet.'));document.head.appendChild(s);});
   // ── leitura ──
-  function lerXmlNFe(txt){
-    const d=new DOMParser().parseFromString(txt,'application/xml'),t=(n,r)=>{const e=(r||d).getElementsByTagNameNS('*',n)[0];return e?e.textContent.trim():'';};
-    const inf=d.getElementsByTagNameNS('*','infNFe')[0];if(!inf)throw new Error('Este XML não é de uma NF-e de compra.');
-    const emit=d.getElementsByTagNameNS('*','emit')[0],itens=[...d.getElementsByTagNameNS('*','det')].map(det=>{const p=det.getElementsByTagNameNS('*','prod')[0];return {desc:t('xProd',p),qtd:+t('qCom',p)||1,un:t('uCom',p),pUnit:+t('vUnCom',p)||0,total:+t('vProd',p)||0};});
-    const dup=d.getElementsByTagNameNS('*','dup')[0];
-    return {origem:'XML da NF-e',forn:t('xNome',emit),cnpj:t('CNPJ',emit),numero:t('nNF'),data:(t('dhEmi')||t('dEmi')).slice(0,10),venc:dup?t('dVenc',dup):'',total:+t('vNF')||0,itens};
+  // XML: NF-e (compra de material) e NFS-e (serviço — padrão nacional e o municipal ABRASF): leitura exata
+  function lerXml(txt){
+    const d=new DOMParser().parseFromString(txt,'application/xml');if(d.getElementsByTagName('parsererror').length)throw new Error('Este arquivo XML está com defeito.');
+    const tags=(n,r)=>[...(r||d).getElementsByTagNameNS('*',n)],t=(n,r)=>{const e=tags(n,r)[0];return e?e.textContent.trim():'';},nv=(n,r)=>+t(n,r)||0;
+    const inf=tags('infNFe')[0];
+    if(inf){const emit=tags('emit',inf)[0],tot=tags('ICMSTot',inf)[0];
+      // valor de cada item como sai na nota: produto − desconto + frete, seguro, outras despesas, IPI e ICMS-ST do item
+      const itens=tags('det',inf).map(det=>{const p=tags('prod',det)[0],im=tags('imposto',det)[0],q=nv('qCom',p)||1,soma=k=>im?tags(k,im).reduce((a,e)=>a+(+e.textContent||0),0):0;
+        const v=Math.round((nv('vProd',p)-nv('vDesc',p)+nv('vFrete',p)+nv('vSeg',p)+nv('vOutro',p)+soma('vIPI')+soma('vICMSST')+soma('vFCPST'))*100)/100;
+        return {desc:t('xProd',p),qtd:q,un:t('uCom',p),pUnit:v/q,total:v};});
+      return ajustar({origem:'XML da NF-e',tipo:'nfe',confiavel:true,forn:t('xNome',emit),fantasia:t('xFant',emit),cnpj:t('CNPJ',emit)||t('CPF',emit),numero:t('nNF',inf),data:(t('dhEmi',inf)||t('dEmi',inf)).slice(0,10),
+        parcelas:tags('dup',inf).map(x=>({venc:t('dVenc',x),valor:nv('vDup',x)})),total:nv('vNF',tot||inf),itens});}
+    const nac=tags('infNFSe')[0];
+    if(nac){const emit=tags('emit',nac)[0],vs=nv('vServ',nac),vl=nv('vLiq',nac)||vs;
+      return ajustar({origem:'XML da NFS-e',tipo:'nfse',confiavel:true,forn:t('xNome',emit),fantasia:t('xFant',emit),cnpj:t('CNPJ',emit)||t('CPF',emit),numero:t('nNFSe',nac),data:(t('dhEmi',nac)||t('dhProc',nac)).slice(0,10),parcelas:[],total:vl,
+        itens:[{desc:t('xDescServ',nac),qtd:1,un:'VB',pUnit:vl,total:vl}],aviso:vl<vs-0.005?`Serviço de ${fmt(vs)}: ao prestador vão ${fmt(vl)} (as retenções da nota são pagas em guia).`:''});}
+    const ab=tags('InfNfse')[0];
+    if(ab){const pr=tags('PrestadorServico',ab)[0]||tags('Prestador',ab)[0]||ab,vs=nv('ValorServicos',ab),vl=nv('ValorLiquidoNfse',ab)||vs;
+      return ajustar({origem:'XML da NFS-e',tipo:'nfse',confiavel:true,forn:t('RazaoSocial',pr)||t('NomeFantasia',pr),fantasia:t('NomeFantasia',pr),cnpj:t('Cnpj',pr)||t('Cpf',pr),numero:t('Numero',ab),data:t('DataEmissao',ab).slice(0,10),parcelas:[],total:vl,
+        itens:[{desc:t('Discriminacao',ab),qtd:1,un:'VB',pUnit:vl,total:vl}],aviso:vl<vs-0.005?`Serviço de ${fmt(vs)}: ao prestador vão ${fmt(vl)} (as retenções da nota são pagas em guia).`:''});}
+    throw new Error('Este XML não é de nota fiscal (NF-e de compra ou NFS-e de serviço).');
   }
   async function textoPdf(f){
     if(!window.pdfjsLib){await injetarJs('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js',()=>window.pdfjsLib);window.pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';}
@@ -15700,84 +15728,141 @@ const Mascara=(function(){
   async function lerNfce(url){
     const r=await fetch(COMPRA_API,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({acao:'nfce',url})});const j=await r.json().catch(()=>null);
     if(!j||!j.ok)throw new Error((j&&j.msg)||'A página da SEFAZ não respondeu.');
-    if(j.itens&&j.itens.length)return {origem:'Cupom NFC-e (SEFAZ)',...j};
-    const x=lerTextoNota(j.texto||'','nfce');x.origem='Cupom NFC-e (SEFAZ)';if(j.forn&&!x.forn)x.forn=j.forn;if(j.cnpj&&!x.cnpj)x.cnpj=j.cnpj;return x;
+    if(j.itens&&j.itens.length)return ajustar({origem:'Cupom NFC-e (SEFAZ)',tipo:'nfce',confiavel:true,...j,parcelas:[]});
+    const x=lerTextoNota(j.texto||'','nfce');x.origem='Cupom NFC-e (SEFAZ)';if(j.forn)x.forn=j.forn;if(j.cnpj)x.cnpj=j.cnpj;if(j.data)x.data=j.data;if(j.numero)x.numero=j.numero;return x;
   }
   async function carregarImagem(f){const url=URL.createObjectURL(f);try{const im=await new Promise((ok,er)=>{const i=new Image();i.onload=()=>ok(i);i.onerror=()=>er(new Error('Não consegui abrir a imagem.'));i.src=url;});
     const esc=Math.min(1,2200/Math.max(im.naturalWidth,im.naturalHeight)),c=document.createElement('canvas');c.width=Math.round(im.naturalWidth*esc);c.height=Math.round(im.naturalHeight*esc);c.getContext('2d').drawImage(im,0,0,c.width,c.height);return c;}finally{setTimeout(()=>URL.revokeObjectURL(url),5000);}}
   async function lerQr(c){try{await injetarJs('https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js',()=>window.jsQR);const d=c.getContext('2d').getImageData(0,0,c.width,c.height),q=window.jsQR(d.data,c.width,c.height);return q?q.data:'';}catch(e){return '';}}
   async function ocr(c,progresso){await injetarJs('https://cdn.jsdelivr.net/npm/tesseract.js@5.1.0/dist/tesseract.min.js',()=>window.Tesseract);
     const r=await window.Tesseract.recognize(c,'por',{logger:m=>{if(progresso&&m.status==='recognizing text')progresso(Math.round((m.progress||0)*100));}});return (r&&r.data&&r.data.text)||'';}
-  // texto de nota/cupom/recibo → fornecedor, data, itens (qtd, unidade, preço) e total
+  // texto de nota/DANFE/cupom/recibo → fornecedor, data, nº, itens (qtd, unidade, preço), total e parcelas
   function lerTextoNota(tx,origem){
-    const L=String(tx||'').split(/\r?\n/).map(s=>s.replace(/\s+/g,' ').trim()).filter(Boolean),out={origem:origem==='foto'?'Foto (leitura do texto — confira)':'Texto do PDF',forn:'',cnpj:'',numero:'',data:'',venc:'',total:0,itens:[]};
-    const cn1=String(tx).match(/\d{2}\.?\d{3}\.?\d{3}\/?\d{4}-?\d{2}/);if(cn1)out.cnpj=cn1[0].replace(/\D/g,'');
-    const dd=String(tx).match(/(\d{2})\/(\d{2})\/(\d{4})/);if(dd)out.data=`${dd[3]}-${dd[2]}-${dd[1]}`;
-    const iC=L.findIndex(s=>/CNPJ/i.test(s));out.forn=(L.slice(0,Math.max(iC,1)).find(s=>/[A-Za-z]{3}/.test(s)&&!/CNPJ|CUPOM|DANFE|NOTA|DOCUMENTO|EMISS|RECIBO/i.test(s))||'').slice(0,80);
-    const tot=String(tx).match(/(?:VALOR\s+(?:TOTAL|A\s+PAGAR)|TOTAL\s*(?:R\$)?)\s*:?\s*R?\$?\s*(\d{1,3}(?:\.\d{3})*,\d{2})/i);if(tot)out.total=numBR(tot[1]);
-    const nn=String(tx).match(/(?:N[ºo°.]?\s*(?:DA\s+NOTA|NF|NFC-?E)?|NOTA\s+FISCAL\s+N[ºo°.]?)\s*:?\s*(\d{3,9})/i);if(nn)out.numero=nn[1];
-    const V='(\\d{1,3}(?:\\.\\d{3})*,\\d{2})',Q='(\\d+(?:[.,]\\d{1,4})?)',U='([A-Za-z²³]{1,6})';
-    const reLinha=new RegExp('^(?:\\d{1,4}\\s+)?(?:\\d{6,14}\\s+)?(.+?)\\s+'+Q+'\\s*'+U+'?\\s*[xX*]?\\s*'+V+'\\s+'+V+'$'),reQtd=new RegExp('^'+Q+'\\s*'+U+'?\\s*[xX*]\\s*'+V+'\\s+'+V+'$');
-    for(let i=0;i<L.length;i++){const s=L[i];if(/TOTAL|SUBTOTAL|DESCONTO|TROCO|PAGAMENTO|CART[AÃ]O|DINHEIRO|TRIBUTOS/i.test(s))continue;
-      let m=s.match(reLinha);if(m){const [,d,q,u,pu,vt]=m;if(/[A-Za-z]{3}/.test(d))out.itens.push({desc:d.replace(/^\d+\s+/,''),qtd:numBR(q),un:u||'',pUnit:numBR(pu),total:numBR(vt)});continue;}
-      m=s.match(reQtd);if(m&&i>0&&/[A-Za-z]{3}/.test(L[i-1])){const [,q,u,pu,vt]=m;out.itens.push({desc:L[i-1].replace(/^\d+\s+(\d{6,14}\s+)?/,''),qtd:numBR(q),un:u||'',pUnit:numBR(pu),total:numBR(vt)});}}
-    // recibo simples: "a quantia de R$ X … referente a …"
-    if(!out.itens.length){const rec=String(tx).match(/(?:quantia|import[aâ]ncia|valor)\s+de\s+R?\$?\s*(\d{1,3}(?:\.\d{3})*,\d{2})[\s\S]{0,200}?refer[eê]nte\s+(?:a|ao|à)\s+([^\n.]{3,120})/i);
-      if(rec)out.itens.push({desc:rec[2].trim(),qtd:1,un:'',pUnit:numBR(rec[1]),total:numBR(rec[1])});
+    const T=String(tx||''),L=T.split(/\r?\n/).map(s=>s.replace(/\s+/g,' ').trim()).filter(Boolean),eu=CNPJ_PROPRIO(),V='(\\d{1,3}(?:\\.\\d{3})*,\\d{2})';
+    const out={origem:origem==='foto'?'Foto (leitura do texto — confira)':origem==='nfce'?'Cupom NFC-e (SEFAZ)':'Texto do PDF',forn:'',cnpj:'',numero:'',data:'',venc:'',total:0,itens:[],parcelas:[]};
+    // CNPJ do fornecedor: o primeiro que não é o da própria empresa (ela é a compradora)
+    const cnpjs=(T.match(/\d{2}\.?\d{3}\.?\d{3}\/?\d{4}-?\d{2}/g)||[]).map(x=>x.replace(/\D/g,'')).filter(x=>x!==eu);if(cnpjs[0])out.cnpj=cnpjs[0];
+    // fornecedor: no DANFE vem em "RECEBEMOS DE … OS PRODUTOS"; no recibo, em "Eu, …"; senão, o nome do topo
+    const rcb=T.match(/RECEBEMOS DE\s+(.+?)\s+OS PRODUTOS/i),eu1=T.match(/\bEu,?\s+([A-ZÀ-Ú][A-Za-zÀ-ú .'-]{3,60}?),\s/);
+    const iC=L.findIndex(x=>/CNPJ|CPF/i.test(x)&&!x.replace(/\D/g,'').includes(eu));
+    out.forn=rcb?rcb[1].trim():eu1&&/RECIBO/i.test(T)?eu1[1].trim():(L.slice(0,Math.max(iC,1)+1).find(x=>/[A-Za-zÀ-ú]{3}/.test(x)&&!/VIXSUL|CNPJ|CPF|CUPOM|DANFE|NOTA|DOCUMENTO|EMISS|RECIBO|RECEBEMOS|IDENTIFICA|ENTRADA|SA[IÍ]DA|CHAVE|CONSULTA|PROTOCOLO|AUXILIAR|ELETR[OÔ]NIC|^\d/i.test(x))||'');
+    out.forn=out.forn.replace(/\s+(CNPJ|CPF|IE|INSC).*$/i,'').slice(0,80);
+    // data de emissão: a que vem junto de "emissão"; senão a primeira do documento
+    const iE=L.findIndex(x=>/EMISS[AÃ]O/i.test(x)),dE=(iE>=0?(L[iE]+' '+(L[iE+1]||'')):'').match(/(\d{2})\/(\d{2})\/(\d{4})/)||T.match(/(\d{2})\/(\d{2})\/(\d{4})/);if(dE)out.data=`${dE[3]}-${dE[2]}-${dE[1]}`;
+    const nn=T.match(/(?:N[ºo°.]\.?|N[UÚ]MERO|NOTA\s+FISCAL\s+N[ºo°.]?|NF-?E?\s+N[ºo°.]?)\s*:?\s*(\d{3}\.\d{3}\.\d{3}|\d{1,9})(?!\d)/i);if(nn)out.numero=nn[1].replace(/\D/g,'').replace(/^0+(?=\d)/,'');
+    // DANFE, quadro "cálculo do imposto": rótulos numa linha e valores na de baixo, na mesma ordem (colunas separadas por 2+ espaços)
+    const R=T.split(/\r?\n/),qd={};
+    for(let i=0;i<R.length-1;i++){const rot=R[i].split(/\s{2,}/).map(x=>x.trim()).filter(Boolean),vals=R[i+1].match(new RegExp(V,'g'))||[];
+      if(rot.length<2||vals.length!==rot.length||/NCM|CFOP|DESCRI/i.test(R[i])||rot.some(x=>new RegExp(V).test(x)))continue;
+      rot.forEach((x,k)=>{const n=semAcento(x),v=numBR(vals[k]);if(/TOTAL DA NOTA/.test(n))qd.total=v;else if(/BASE|\bBC\b/.test(n))return;else if(/FRETE/.test(n))qd.frete=v;else if(/SEGURO/.test(n))qd.seguro=v;else if(/DESCONTO/.test(n))qd.desconto=v;else if(/OUTRAS/.test(n))qd.outras=v;else if(/IPI/.test(n))qd.ipi=v;else if(/SUBST|\bST\b/.test(n))qd.st=v;});}
+    // total: "VALOR TOTAL DA NOTA" (no DANFE o valor vem na linha de baixo, último da linha) ou "TOTAL / VALOR A PAGAR"
+    const iT=L.findIndex(x=>/VALOR TOTAL DA NOTA|V\. TOTAL DA NOTA|TOTAL DA NOTA/i.test(x));
+    if(qd.total)out.total=qd.total;
+    else if(iT>=0){const mesma=L[iT].match(new RegExp('TOTAL DA NOTA\\s*:?\\s*R?\\$?\\s*'+V,'i')),prox=(L[iT+1]||'').match(new RegExp(V,'g'));out.total=mesma?numBR(mesma[1]):prox?numBR(prox[prox.length-1]):0;}
+    if(!out.total){const tt=T.match(new RegExp('(?:VALOR\\s+(?:TOTAL|A\\s+PAGAR|PAGO)|TOTAL\\s*(?:R\\$)?)\\s*:?\\s*R?\\$?\\s*'+V,'i'));if(tt)out.total=numBR(tt[1]);}
+    // parcelas (FATURA / DUPLICATAS do DANFE ou do boleto): nº, vencimento e valor
+    const iF=T.search(/FATURA|DUPLICATA|PARCELA/i);if(iF>=0){const tre=T.slice(iF,iF+1500),re=new RegExp('(\\d{1,3})\\D{0,15}?(\\d{2})\\/(\\d{2})\\/(\\d{4})\\D{0,15}?'+V,'g');let m;
+      while((m=re.exec(tre))&&out.parcelas.length<24)out.parcelas.push({venc:`${m[4]}-${m[3]}-${m[2]}`,valor:numBR(m[5])});}
+    // itens do DANFE: código, descrição, NCM (8 dígitos), CST, CFOP, unidade, quantidade, valor unitário, valor total
+    const Nm='(\\d+(?:[.,]\\d+)*)',reDanfe=new RegExp('^(?:(?=\\S*\\d)\\S+\\s+)?(.+?)\\s+(\\d{8})\\s+(\\d{3,4})\\s+(\\d{4})\\s+([A-Za-z]{1,6}\\d?)\\s+'+Nm+'\\s+'+Nm+'\\s+'+Nm);
+    let dentro=false,ult=null;
+    for(const x of L){if(/DADOS DOS? PRODUTOS|DESCRI[ÇC][ÃA]O DO(S)? PRODUTO/i.test(x)){dentro=true;continue;}if(/DADOS ADICIONAIS|C[ÁA]LCULO DO ISSQN|INFORMA[ÇC][ÕO]ES COMPLEMENTARES/i.test(x)){dentro=false;ult=null;continue;}
+      const m=x.match(reDanfe);if(m){const [,d,,,,u,q,pu,vt]=m;ult={desc:d.replace(/^\d{1,14}\s+/,''),qtd:numBR(q),un:u,pUnit:numBR(pu),total:numBR(vt)};out.itens.push(ult);continue;}
+      // descrição que continua na linha de baixo
+      if(dentro&&ult&&/[A-Za-z]{3}/.test(x)&&!/NCM|CFOP|QUANT|VALOR|UNIT|C[ÓO]DIGO/i.test(x)&&!new RegExp(V).test(x))ult.desc+=' '+x;}
+    // cupom e outros: "descrição qtd un x preço total" (na mesma linha ou com a descrição na linha de cima)
+    if(!out.itens.length){const Q='(\\d+(?:[.,]\\d{1,4})?)',U='([A-Za-z²³]{1,6})';
+      const reLinha=new RegExp('^(?:\\d{1,4}\\s+)?(?:\\d{6,14}\\s+)?(.+?)\\s+'+Q+'\\s*'+U+'?\\s*[xX*]?\\s*'+V+'\\s+'+V+'$'),reQtd=new RegExp('^'+Q+'\\s*'+U+'?\\s*[xX*]\\s*'+V+'\\s+'+V+'$');
+      for(let i=0;i<L.length;i++){const x=L[i];if(/TOTAL|SUBTOTAL|DESCONTO|TROCO|PAGAMENTO|CART[AÃ]O|DINHEIRO|TRIBUTOS/i.test(x))continue;
+        let m=x.match(reLinha);if(m){const [,d,q,u,pu,vt]=m;if(/[A-Za-z]{3}/.test(d))out.itens.push({desc:d.replace(/^\d+\s+/,''),qtd:numBR(q),un:u||'',pUnit:numBR(pu),total:numBR(vt)});continue;}
+        m=x.match(reQtd);if(m&&i>0&&/[A-Za-z]{3}/.test(L[i-1])){const [,q,u,pu,vt]=m;out.itens.push({desc:L[i-1].replace(/^\d+\s+(\d{6,14}\s+)?/,''),qtd:numBR(q),un:u||'',pUnit:numBR(pu),total:numBR(vt)});}}}
+    // recibo: "a quantia/importância de R$ X … referente a …"
+    if(!out.itens.length){const rec=T.match(new RegExp('(?:quantia|import[aâ]ncia|valor)\\s+(?:l[ií]quid[oa]\\s+)?de\\s+R?\\$?\\s*'+V+'[\\s\\S]{0,250}?(?:refer[eê]nte|correspondente)\\s+(?:a|ao|à|aos|às)\\s+([^\\n]{3,140})','i'));
+      if(rec){const v=numBR(rec[1]);out.itens.push({desc:rec[2].replace(/[.;]\s*$/,'').trim(),qtd:1,un:'',pUnit:v,total:v});if(!out.total)out.total=v;}
       else if(out.total)out.itens.push({desc:'',qtd:1,un:'',pUnit:out.total,total:out.total});}
-    // conferência: preço × quantidade ≈ total (corrige leitura trocada)
-    out.itens.forEach(it=>{if(it.qtd&&it.pUnit&&it.total&&Math.abs(it.qtd*it.pUnit-it.total)>0.05&&it.total&&it.pUnit)it.qtd=Math.round(it.total/it.pUnit*1000)/1000;});
-    return out;
+    // conferência: preço × quantidade ≈ total (corrige quantidade lida trocada)
+    out.itens.forEach(it=>{if(it.qtd&&it.pUnit&&it.total&&Math.abs(it.qtd*it.pUnit-it.total)>0.05)it.qtd=Math.round(it.total/it.pUnit*1000)/1000;});
+    // diferença explicada pelo frete, seguro, outras despesas, IPI, ST e desconto do DANFE: entra nos itens
+    const somaI=out.itens.reduce((a,it)=>a+(it.total||0),0),extra=(qd.frete||0)+(qd.seguro||0)+(qd.outras||0)+(qd.ipi||0)+(qd.st||0)-(qd.desconto||0);
+    out.confiavel=!!(qd.total&&out.itens.length&&Math.abs(somaI+extra-qd.total)<0.06);
+    return ajustar(out);
   }
   async function lerArquivoNota(f,progresso){
-    const nome=String(f.name||'').toLowerCase();
-    if(/\.xml$/.test(nome)||/xml/.test(f.type))return lerXmlNFe(await f.text());
-    if(/\.pdf$/.test(nome)||/pdf/.test(f.type)){const tx=await textoPdf(f);if(tx.trim().length<20)throw new Error('Este PDF é uma imagem (escaneado): tire uma foto da nota e envie a foto.');const u=urlNfce(tx);if(u){try{return await lerNfce(u);}catch(e){console.warn(e);}}return lerTextoNota(tx,'pdf');}
-    const c=await carregarImagem(f),qr=await lerQr(c);
-    if(qr&&/^https?:\/\//i.test(qr)){progresso&&progresso('Lendo o cupom na SEFAZ…');try{return await lerNfce(qr);}catch(e){console.warn(e);progresso&&progresso('A SEFAZ não respondeu — lendo o texto da foto…');}}
+    const nome=String(f.name||'').toLowerCase(),pdf=/\.pdf$/.test(nome)||/pdf/.test(f.type);
+    if(/\.xml$/.test(nome)||/xml/.test(f.type))return lerXml(await f.text());
+    let canvas=null,tx='';
+    if(pdf){try{tx=await textoPdf(f);}catch(e){tx='';}const u=urlNfce(tx);if(u){try{return await lerNfce(u);}catch(e){console.warn(e);}}}
+    else{canvas=await carregarImagem(f);const qr=await lerQr(canvas);
+      if(qr&&/^https?:\/\//i.test(qr)){progresso&&progresso('Lendo o cupom na SEFAZ…');try{return await lerNfce(qr);}catch(e){console.warn(e);}}}
+    // leitura inteligente (quando ligada): entende nota, DANFE, cupom, recibo e boleto, em foto ou PDF
+    if(await iaLigada()){progresso&&progresso('Leitura inteligente do documento (alguns segundos)…');try{return await lerComIA(f,canvas);}catch(e){console.warn(e);progresso&&progresso('A leitura inteligente não respondeu — lendo o texto…');}}
+    if(pdf){if(tx.trim().length<20)throw new Error('Este PDF é uma imagem (escaneado): tire uma foto da nota e envie a foto.');return lerTextoNota(tx,'pdf');}
     progresso&&progresso('Lendo o texto da foto (pode levar alguns segundos)…');
-    return lerTextoNota(await ocr(c,p=>progresso&&progresso(`Lendo o texto da foto… ${p}%`)),'foto');
+    return lerTextoNota(await ocr(canvas,p=>progresso&&progresso(`Lendo o texto da foto… ${p}%`)),'foto');
   }
   async function nomePorCnpj(cnpj){try{const r=await fetch('https://brasilapi.com.br/api/cnpj/v1/'+cnpj);if(!r.ok)return '';const j=await r.json();return j.nome_fantasia||j.razao_social||'';}catch(e){return '';}}
+  // fornecedor: o do cadastro (pelo CNPJ ou pelo nome); senão o nome da nota; sem nome, pelo CNPJ
+  async function fornecedorDe(r){
+    const L=D().fornecedores||[],c=String(r.cnpj||'').replace(/\D/g,''),porC=c&&L.find(x=>String(x.cnpj||'').replace(/\D/g,'')===c);if(porC)return porC.nome;
+    const nomes=[r.fantasia,r.forn].filter(Boolean),porN=L.find(x=>nomes.some(n=>cn(n)===cn(x.nome)));if(porN)return porN.nome;
+    return r.fantasia||r.forn||(c.length===14?await nomePorCnpj(c):'');
+  }
 
   function fichaLote(){
     const centros=(C.podeEmpresa()?[EMP]:[]).concat(opsObra()),fatores=typeof FATORES!=='undefined'?FATORES:['UN'];
     const corpo=`<div class="lote">
       <div class="fin-linha">
         <div class="fin-fld" style="grid-column:1/-1"><label>Obra ou Empresa <span class="obg">*</span></label><select data-l="centro"><option value="">Escolha…</option>${centros.map(c=>`<option ${c===QC.obra?'selected':''}>${fe(c)}</option>`).join('')}</select></div>
-        <div class="fin-fld" style="grid-column:span 2"><label>Fornecedor / quem recebe</label><input data-l="forn" list="vx-forn-lista" autocomplete="off" placeholder="vem da nota, ou digite"></div>
+        <div class="fin-fld" style="grid-column:span 2"><label>Fornecedor / quem recebe</label><input data-l="forn" list="vx-forn-lista" autocomplete="off" placeholder="vem do documento, ou digite"></div>
         <div class="fin-fld"><label>Vencimento <span class="obg">*</span></label><input type="date" data-l="venc"></div>
-        <div class="fin-fld"><label>Nº da nota / recibo</label><input data-l="num" placeholder="opcional"></div></div>
-      <div class="lote-ler"><label class="fin-bt pri"><i class="fas fa-camera"></i> Ler nota ou recibo (foto, PDF ou XML)<input type="file" data-l="arq" accept="image/*,.pdf,.xml,application/pdf,text/xml" hidden></label>
+        <div class="fin-fld"><label>Nº da nota / recibo</label><input data-l="num" placeholder="opcional"></div>
+        <div class="fin-fld"><label>Repete?</label><select data-l="rep"><option value="">Não — conta única</option><option value="parc">Compra parcelada (divide o valor)</option><option value="mes">Todo mês (conta fixa)</option></select></div>
+        <div class="fin-fld" data-l="vezes-box" hidden><label>Quantas vezes</label><input type="number" data-l="vezes" min="2" max="60" value="3"></div></div>
+      <div class="lote-parc" data-l="parc" hidden></div>
+      <div class="lote-ler"><label class="fin-bt pri"><i class="fas fa-camera"></i> Ler o documento (nota, cupom, recibo — foto, PDF ou XML)<input type="file" data-l="arq" accept="image/*,.pdf,.xml,application/pdf,text/xml" hidden></label>
         <button type="button" class="fin-bt" data-l="add"><i class="fas fa-plus"></i> Adicionar item</button><span class="lote-st" data-l="st"></span></div>
       <div class="lote-tab"><table><thead><tr><th>Categoria</th><th>Descrição</th><th>Qtd</th><th>Un.</th><th>Preço unit.</th><th>Valor</th><th></th></tr></thead><tbody data-l="itens"></tbody></table></div>
       <div class="lote-tot" data-l="tot"></div></div>`;
-    janela('Lançar várias contas',corpo,[{html:'<i class="fas fa-cart-arrow-down"></i> Lançar as contas',cls:'pri',acao:async j=>{
-      const g=k=>(j.querySelector(`[data-l="${k}"]`).value||'').trim(),centro=g('centro'),venc=g('venc'),forn=g('forn'),num=g('num');
-      if(!centro)throw new Error('Escolha a obra (ou Empresa).');if(!venc)throw new Error('Informe o vencimento.');
+    // parcelas lidas da nota (duplicatas/boleto) e CNPJ do fornecedor lido
+    let PARC=[],CNPJ_LIDO='';
+    janela('Nova conta a pagar',corpo,[{html:'<i class="fas fa-cart-arrow-down"></i> Lançar',cls:'pri',acao:async j=>{
+      const g=k=>(j.querySelector(`[data-l="${k}"]`).value||'').trim(),centro=g('centro'),venc=g('venc'),forn=g('forn'),num=g('num'),rep=g('rep');
+      if(!centro)throw new Error('Escolha a obra (ou Empresa).');if(!venc&&rep!=='nota')throw new Error('Informe o vencimento.');
       const its=lerItens(j).filter(x=>x.desc||x.total);if(!its.length)throw new Error('Inclua pelo menos um item.');
       const ruim=its.findIndex(x=>!x.cat||!(x.total>0));if(ruim>=0)throw new Error(`Item ${ruim+1}: escolha a categoria e informe o valor.`);
       if(!forn&&its.some(x=>!x.desc))throw new Error('Informe o fornecedor ou a descrição de cada item.');
-      const ops=[];
-      for(const x of its){const u={centro,tipo:'Real',venc,total:dinheiro(x.total),forn,cat:x.cat,forma:'',desc:x.desc||x.cat,obs:num?'Nota/recibo nº '+num:'',
-          qtd:centro===EMP?'':(x.qtd>0?dinheiro(x.qtd):''),fator:centro===EMP?'':x.un,pUnit:centro===EMP?'':(x.pUnit>0?dinheiro(x.pUnit):''),pago:'',lanc:''};
-        C.finalizarConta(u);ops.push(...C.montarConta(u,null));}
-      if(forn&&!(D().fornecedores||[]).some(f=>cn(f.nome)===cn(forn))&&pode('fornecedores')){try{await salvar('Fornecedores',{nome:forn,tipo:centro===EMP?'Escritório / administrativo':'Material de construção',situacao:'Ativo',data_lancamento:todayDateTime()},null);}catch(e){}}
+      const n=rep==='nota'?PARC.length:rep?Math.round(+g('vezes')||0):1;
+      if(rep&&rep!=='nota'&&!(n>=2&&n<=60))throw new Error('Informe de 2 a 60 vezes.');
+      const somaP=PARC.reduce((a,p)=>a+p.valor,0),ops=[];
+      for(const x of its){const tot=Math.round(x.total*100);let acum=0;
+        for(let i=0;i<n;i++){
+          // parcelado: divide o valor (pelas parcelas da nota, ou em partes iguais); todo mês: o mesmo valor a cada mês
+          const cent=rep==='nota'?(i<n-1?Math.round(tot*PARC[i].valor/somaP):tot-acum):rep==='parc'?(i<n-1?Math.floor(tot/n):tot-Math.floor(tot/n)*(n-1)):tot;acum+=cent;
+          const vv=rep==='nota'?PARC[i].venc:rep?isoDe(C.somaMes(dt(venc),i)):venc,vt=cent/100,q=centro===EMP?0:(x.qtd>0?x.qtd:1)*(rep==='nota'||rep==='parc'?cent/tot:1);
+          const u={centro,tipo:'Real',venc:vv,total:dinheiro(vt),forn,cat:x.cat,forma:'',desc:(x.desc||x.cat)+(n>1?` (${i+1}/${n})`:''),obs:num?'Nota/recibo nº '+num:'',qtd:'',fator:'',pUnit:'',pago:'',lanc:''};
+          // quantidade e preço unitário guardados com mais casas: quantidade × preço dá o valor exato da nota
+          if(centro!==EMP){u.qtd=String(Math.round(q*10000)/10000);u.fator=x.un||'UN';u.pUnit=String(Math.round(vt/q*1e6)/1e6);}
+          C.finalizarConta(u);ops.push(...C.montarConta(u,null));}}
+      if(forn&&!(D().fornecedores||[]).some(fo=>cn(fo.nome)===cn(forn))&&pode('fornecedores')){try{await salvar('Fornecedores',{nome:forn,cnpj:CNPJ_LIDO,tipo:centro===EMP?'Escritório / administrativo':'Material de construção',situacao:'Ativo',data_lancamento:todayDateTime()},null);}catch(e){}}
       await executar(()=>Promise.all(ops.map(x=>salvar(x.aba,x.dados,null))));
-      toast(`${ops.length} conta(s) lançada(s)${souAdmin()?'.':' — aguardando a aprovação.'}`,'success');}}],980);
+      toast(`${ops.length>1?ops.length+' contas lançadas':'Conta lançada'}${souAdmin()?'.':' — aguardando a aprovação (de um Administrador ou de quem tem permissão para aprovar).'}`,'success');}}],980);
     const j=jan(),q=k=>j.querySelector(`[data-l="${k}"]`),tb=q('itens');
     try{Eng.datalistFornecedores();}catch(e){}
     const emp=()=>q('centro').value===EMP,cats=()=>emp()?C.CATD():C.CATC();
     const linha=(x={})=>{const tr=document.createElement('tr');const cs=cats();
       tr.innerHTML=`<td><select data-i="cat"><option value="">Escolha…</option>${cs.map(c=>`<option ${c===x.cat?'selected':''}>${fe(c)}</option>`).join('')}</select></td>
-        <td><input data-i="desc" list="vx-desc-lista" value="${fe(x.desc||'')}" placeholder="item comprado">${x.lido?`<small title="Lido na nota">${fe(x.lido)}</small>`:''}</td>
-        <td><input data-i="qtd" inputmode="decimal" value="${x.qtd?String(x.qtd).replace('.',','):''}" ${emp()?'disabled':''}></td>
-        <td><select data-i="un" ${emp()?'disabled':''}><option value="">—</option>${fatores.map(u=>`<option ${u===x.un?'selected':''}>${u}</option>`).join('')}</select></td>
+        <td><input data-i="desc" list="vx-desc-lista" value="${fe(x.desc||'')}" placeholder="item comprado"></td>
+        <td><input data-i="qtd" inputmode="decimal" value="${x.qtd?String(Math.round(x.qtd*10000)/10000).replace('.',','):''}" ${emp()?'disabled':''}></td>
+        <td><select data-i="un" ${emp()?'disabled':''}><option value="">—</option>${fatores.map(u=>`<option ${u===x.un?'selected':''}>${u}</option>`).join('')}${x.un&&!fatores.includes(x.un)?`<option selected>${fe(x.un)}</option>`:''}</select></td>
         <td><input data-i="pu" data-mask="moeda" inputmode="numeric" value="${x.pUnit?fmt(x.pUnit):''}" ${emp()?'disabled':''}></td>
         <td><input data-i="vt" data-mask="moeda" inputmode="numeric" value="${x.total?fmt(x.total):''}"></td>
         <td><button type="button" class="fin-bt mini" data-i="tirar" title="Tirar o item"><i class="fas fa-xmark"></i></button></td>`;tb.appendChild(tr);soma();};
     const lerItens=jj=>[...tb.querySelectorAll('tr')].map(tr=>{const v=k=>(tr.querySelector(`[data-i="${k}"]`)||{}).value||'';return {cat:v('cat'),desc:v('desc').trim(),qtd:numBR(v('qtd')),un:v('un'),pUnit:Mascara.numero(v('pu'))||0,total:Mascara.numero(v('vt'))||0};});
-    const soma=()=>{const its=lerItens(j),t=its.reduce((s,x)=>s+(x.total||0),0);q('tot').innerHTML=`${its.length} item(ns) · total <b>${fmt(t)}</b>`;};
+    const soma=()=>{const its=lerItens(j),t=its.reduce((a,x)=>a+(x.total||0),0);q('tot').innerHTML=`${its.length} item(ns) · total <b>${fmt(t)}</b>`;};
+    // "Repete?": parcelado/todo mês pede quantas vezes; "conforme a nota" usa as parcelas lidas
+    const pintarRep=()=>{const r=q('rep').value;q('vezes-box').hidden=!r||r==='nota';const pb=q('parc');pb.hidden=r!=='nota'||!PARC.length;
+      if(r==='nota'&&PARC.length){pb.innerHTML=`<b><i class="fas fa-calendar-days"></i> Parcelas da nota</b> ${PARC.map((p,i)=>`<span>${i+1}ª ${brDe(dt(p.venc))} · ${fmt(p.valor)}</span>`).join('')}<small>Cada item é dividido nessas parcelas, com o vencimento de cada uma.</small>`;q('venc').value=PARC[0].venc;}};
+    q('rep').addEventListener('change',()=>{if(q('rep').value&&q('rep').value!=='nota')q('vezes').value=q('rep').value==='mes'?12:3;pintarRep();});
     tb.addEventListener('input',ev=>{const tr=ev.target.closest('tr');if(!tr)return;const k=ev.target.dataset.i;
       if(k==='qtd'||k==='pu'){const qd=numBR(tr.querySelector('[data-i="qtd"]').value),pu=Mascara.numero(tr.querySelector('[data-i="pu"]').value)||0;if(qd>0&&pu>0)tr.querySelector('[data-i="vt"]').value=fmt(Math.round(qd*pu*100)/100);}soma();});
     tb.addEventListener('click',ev=>{const b=ev.target.closest('[data-i="tirar"]');if(b){b.closest('tr').remove();soma();}});
@@ -15785,16 +15870,18 @@ const Mascara=(function(){
     q('centro').addEventListener('change',()=>{const its=lerItens(j);tb.innerHTML='';its.forEach(x=>linha({...x,cat:cats().includes(x.cat)?x.cat:categoriaDe(x.desc,q('forn').value,emp())}));if(!its.length)linha({});});
     q('arq').addEventListener('change',async()=>{const f=q('arq').files[0];if(!f)return;const st=q('st');st.textContent='Lendo…';
       try{const r=await lerArquivoNota(f,t=>{st.textContent=t;});
-        if(!q('forn').value&&r.forn)q('forn').value=r.forn;if(!q('forn').value&&r.cnpj){const n=await nomePorCnpj(r.cnpj);if(n)q('forn').value=n;}
-        if(!q('num').value&&r.numero)q('num').value=r.numero;if(!q('venc').value)q('venc').value=r.venc||r.data||isoDe(hoje0());
-        if(!r.itens.length){st.textContent='Não achei os itens na nota — inclua à mão.';return;}
-        st.textContent='Padronizando as descrições…';const cat=await catalogo(q('centro').value===EMP?'':q('centro').value);
+        if(r.cnpj)CNPJ_LIDO=r.cnpj;if(!q('forn').value){const fo=await fornecedorDe(r);if(fo)q('forn').value=fo;}
+        if(!q('num').value&&r.numero)q('num').value=r.numero;
+        q('venc').value=r.venc||q('venc').value||r.data||isoDe(hoje0());
+        // nota com várias parcelas (duplicatas/boleto): "Repete?" fica "Conforme a nota"
+        const op=q('rep').querySelector('option[value="nota"]');if(op)op.remove();PARC=r.parcelas||[];
+        if(PARC.length>1){q('rep').insertAdjacentHTML('beforeend',`<option value="nota">Conforme a nota (${PARC.length} parcelas)</option>`);q('rep').value='nota';}else if(q('rep').value==='nota')q('rep').value='';pintarRep();
+        if(!r.itens.length){st.textContent='Não achei os itens no documento — inclua à mão.';return;}
         // linha vazia que estava sozinha sai antes de pôr os itens lidos
         [...tb.querySelectorAll('tr')].forEach(tr=>{if(!tr.querySelector('[data-i="desc"]').value&&!tr.querySelector('[data-i="vt"]').value)tr.remove();});
-        r.itens.forEach(it=>{const p=emp()?null:padronizar(it.desc,cat),un=unidade(it.un)||(p?unidade(p.u):'');
-          linha({cat:categoriaDe(it.desc,q('forn').value,emp()),desc:p?p.d:semAcento(it.desc).replace(/\s+/g,' ').trim(),lido:p&&semAcento(p.d)!==semAcento(it.desc)?'lido: '+it.desc:'',qtd:it.qtd||1,un,pUnit:it.pUnit||(it.total&&it.qtd?it.total/it.qtd:0),total:it.total||(it.qtd*it.pUnit)||0});});
-        const t=r.itens.reduce((s,x)=>s+(x.total||0),0);
-        st.innerHTML=`<i class="fas fa-circle-check" style="color:#067647"></i> ${fe(r.origem)}: ${r.itens.length} item(ns)${r.total&&Math.abs(r.total-t)>0.05?` · <b style="color:#B54708">total da nota ${fmt(r.total)} ≠ soma ${fmt(t)} — confira</b>`:''}. Confira e ajuste se precisar.`;}
+        r.itens.forEach(it=>linha({cat:categoriaDe(it.desc,q('forn').value,emp(),r.tipo),desc:it.desc,qtd:it.qtd||1,un:unidade(it.un)||String(it.un||'').toUpperCase().slice(0,6),pUnit:it.pUnit,total:it.total}));
+        const t=Math.round(r.itens.reduce((a,x)=>a+(x.total||0),0)*100)/100,dif=r.total&&Math.abs(r.total-t)>0.05;
+        st.innerHTML=`<i class="fas fa-circle-check" style="color:#067647"></i> ${fe(r.origem)}: ${r.itens.length} item(ns), total ${fmt(t)}${r.ajuste?` · ${r.ajuste<0?'desconto':'frete/despesas'} de ${fmt(Math.abs(r.ajuste))} distribuído nos itens`:''}${PARC.length>1?` · ${PARC.length} parcelas`:''}${dif?` · <b style="color:#B54708">o total do documento é ${fmt(r.total)} — confira os itens</b>`:''}${r.aviso?` · <b style="color:#B54708">${fe(r.aviso)}</b>`:''}. Confira e ajuste se precisar.`;}
       catch(e){st.textContent='Não consegui ler: '+((e&&e.message)||e);}finally{q('arq').value='';}});
     linha({});
   }
@@ -15858,7 +15945,7 @@ const Mascara=(function(){
       </article>`;}
     const venc=Fa.vencF(r,K);
     return `<article class="vk-card" style="--cor:${cc.cor}" draggable="${pode('faturamento')?'true':'false'}" data-card="${x.id}" tabindex="0">
-      <div class="vk-top"><b>${r[K.nf]?'NF '+fe(r[K.nf]):r.medicao_numero?'Medição nº '+fe(r.medicao_numero):'Faturamento previsto'}</b>${r.medicao_numero&&r[K.nf]?pill('med. '+fe(r.medicao_numero),''):''}</div>
+      <div class="vk-top"><b>${r[K.nf]?'NF '+fe(r[K.nf]):r.medicao_numero?'Medição nº '+fe(r.medicao_numero):'Faturamento previsto'}</b>${r.antecipada==='sim'?pill('antecipada','info','fa-forward-fast'):''}${r.medicao_numero&&r[K.nf]?pill('med. '+fe(r.medicao_numero),''):''}</div>
       <div class="vk-obra" title="${fe(x.obra)}"><i class="fas fa-helmet-safety"></i>${fe(x.obra||'—')}</div>
       <div class="vk-val"><span>bruto ${fmt(x.bruto)}</span><b>${fmt(x.liq)}</b></div>
       <div class="vk-pe">${x.col==='faturar'?pill('emitir a nota','warn','fa-file-pen'):vencePill(venc?isoDe(venc):'',x.col==='recebida'?r[K.rec]:'','recebida')}</div>
@@ -15948,7 +16035,7 @@ const Mascara=(function(){
       if(col==='receber'&&de==='faturar')return emitirNota(x);
       if(col==='recebida')return de==='faturar'?toast('Emita a nota antes (arraste para "Nota emitida").','error'):receberNota(x.r);
       if(de==='recebida'&&col==='receber')return desfazerRecebimento(x.r);
-      if((de==='receber'||de==='recebida')&&(col==='medicao'||col==='faturar'))return toast(de==='recebida'?'Nota recebida não volta. Para corrigir o recebimento, arraste de volta para "Nota emitida".':'Nota emitida só volta cancelando: abra o cartão e use "Cancelar a nota" (os anexos dela saem junto).','error');
+      if((de==='receber'||de==='recebida')&&(col==='medicao'||col==='faturar'))return toast(de==='recebida'?'Nota recebida não volta. Para corrigir o recebimento, arraste de volta para "Nota emitida".':'Nota emitida só volta cancelando: abra o cartão e use "Cancelar NF" (os anexos dela saem junto).','error');
       if(col==='medicao')return voltarParaMedicao(x.r);
       if(col==='faturar')return desfazerFaturamento(x.r);});}
   }
@@ -15982,12 +16069,21 @@ const Mascara=(function(){
     return GS.docs.emitirNota(x,{K:KF(),copiaF,valorMed,pctObra:Fa.pctObra});
   }
   function receberNota(r){
-    const K=KF();
-    janela('Registrar recebimento',`<div class="fin-resumo"><b>${r[K.nf]?'NF '+fe(r[K.nf]):'Nota'}</b> · ${fe(r[K.obra]||'')}<br>Líquido esperado: <b>${fmt(liqF(r))}</b></div>
-      <div class="fin-fld"><label>Data em que entrou na conta</label><input type="date" data-k="data" max="${isoDe(hoje0())}" value="${isoDe(hoje0())}"></div>`,
+    const K=KF(),ant=r.antecipada==='sim'&&!!dt(r.vencimento_original)&&GS.docs&&GS.docs.descontoAntecipacao;
+    janela('Registrar recebimento',`<div class="fin-resumo"><b>${r[K.nf]?'NF '+fe(r[K.nf]):'Nota'}</b> · ${fe(r[K.obra]||'')}${ant?' · <b>antecipada</b> (Avançar Fornecedores)':''}<br>Líquido esperado: <b data-liq-rec>${fmt(liqF(r))}</b></div>
+      <div class="fin-fld"><label>Data em que entrou na conta</label><input type="date" data-k="data" max="${isoDe(hoje0())}" value="${isoDe(hoje0())}"></div>
+      ${ant?'<div class="fin-fld"><label>Desconto da antecipação (R$)</label><input data-k="desc" data-mask="moeda" inputmode="numeric" value=""><div class="capx-dica" data-desc-dica></div></div>':''}`,
       [{html:'Cancelar'},{html:'<i class="fas fa-circle-check"></i> Confirmar recebimento',cls:'pri',acao:async j=>{
         const d=j.querySelector('[data-k="data"]').value;if(!d)throw new Error('Informe a data.');if(d>isoDe(hoje0()))throw new Error('A data não pode ser depois de hoje.');
-        const o=copiaF(r);o[K.rec]=d;await executar(()=>salvar('Faturamentos',o,r.rowid));toast('Recebimento registrado.','success');}}],480);
+        const o=copiaF(r);o[K.rec]=d;
+        if(ant){o[K.antec]=dinheiro(Mascara.numero(j.querySelector('[data-k="desc"]').value)||0);o[K.liq]=dinheiro(val(o[K.bruto])-Fa.RET.reduce((s,k)=>s+val(o[K[k]]),0));if(val(o[K.liq])<0)throw new Error('O desconto passa do líquido da nota.');}
+        await executar(()=>salvar('Faturamentos',o,r.rowid));toast(ant?'Recebimento registrado — nota recebida por antecipação.':'Recebimento registrado.','success');}}],480);
+    if(!ant)return;
+    const j=jan(),dIn=j.querySelector('[data-k="data"]'),dsc=j.querySelector('[data-k="desc"]'),dica=j.querySelector('[data-desc-dica]'),lq=j.querySelector('[data-liq-rec]');
+    const vf=val(r[K.bruto])-['inss','irpf','iss','seguro'].reduce((s,k)=>s+val(r[K[k]]),0),mostra=()=>{lq.textContent=fmt(vf-(Mascara.numero(dsc.value)||0));};
+    const refaz=()=>{const c=GS.docs.descontoAntecipacao(r,K,dIn.value);if(!c)return;dsc.value=Mascara.brl(c.desc);
+      dica.textContent=`Refeito pela data em que entrou: ${c.n} dia${c.n===1?'':'s'} antes do vencimento original (${brDe(dt(r.vencimento_original))}), a ${r.antec_taxa||'2,37%'} ao mês ÷ 30. Se a EMBASA descontou outro valor, corrija.`;mostra();};
+    dIn.addEventListener('change',refaz);dsc.addEventListener('input',mostra);refaz();
   }
   // desfaz a emissão da nota: o faturamento volta para "A faturar" (sem nº, emissão e recebimento) e,
   // se veio de uma medição, a medição volta a "Aprovada" — nada é excluído
@@ -16003,7 +16099,7 @@ const Mascara=(function(){
       await executar(async()=>{await salvar('Faturamentos',{...copiaF(r),_lixeira_em:new Date().toISOString(),_lixeira_obra_id:'avulso',_lixeira_motivo:'Faturamento desfeito (medição nº '+(m.numero||'')+' voltou para a fiscalização)'},r.rowid);
         await salvar('Medições',{...copiaF(m),status:'Enviada à fiscalização',faturado_em:''},m.rowid);});
       toast('Voltou para "Medição em andamento".','success');});}
-  function desfazerRecebimento(r){const K=KF();confirmar('Desfazer recebimento',`${r[K.nf]?'A NF '+fe(r[K.nf]):'A nota'} volta para "a receber".`,'Sim, desfazer',async()=>{const o=copiaF(r);o[K.rec]='';await executar(()=>salvar('Faturamentos',o,r.rowid));toast('Voltou para "a receber".','success');});}
+  function desfazerRecebimento(r){const K=KF();confirmar('Desfazer recebimento',`${r[K.nf]?'A NF '+fe(r[K.nf]):'A nota'} volta para "a receber".`,'Sim, desfazer',async()=>{const o=copiaF(r);o[K.rec]=r.antecipada==='sim'&&dt(r.antec_previsto)&&dt(r.antec_previsto)>hoje0()?r.antec_previsto:'';await executar(()=>salvar('Faturamentos',o,r.rowid));toast('Voltou para "a receber".','success');});}
   function fichaMedicao(x){
     const m=x.r,rm=Eng.resumoMedicoes(m.titulo_obra),cc=COLS_F.find(c=>c.k===x.col);
     const corpo=`<div class="vk-ficha-cab"><span class="vk-etq" style="--cor:${cc.cor}"><i class="fas ${cc.ico}"></i> ${cc.rot}</span>
@@ -16043,11 +16139,13 @@ const Mascara=(function(){
     // valores que vieram da nota (emitida pelo sistema ou com o XML anexado) ficam travados
     const daNota=!nova&&(!!r.nfse_chave||r.nfse_auto==='sim'),dIso=k=>dt(r[K[k]])?isoDe(dt(r[K[k]])):'';
     const embasa=!nova&&GS.docs&&GS.docs.ehEmbasa(GS.docs.contratanteDaNota(r,K));
+    // antecipação (EMBASA): só existe com o formulário gerado (ou o pedido anexado) — a data "Antecipada em" vem dele
+    const antecipada=!nova&&(r.antecipada==='sim'||!!(r.fat_uid&&GS.docs&&GS.docs.gerados({modelo:'antecipacao',fat_uid:r.fat_uid}).length));
     const info=(rot,val0)=>`<div class="vk-inf"><span>${rot}</span><b>${val0}</b></div>`;
     const resumoNota=`<div class="vk-infos">${info('Nº da nota',fe(r[K.nf]||'—'))}${info('Emissão',dt(r[K.em])?brDe(dt(r[K.em])):'—')}${info('Valor bruto',fmt(val(r[K.bruto])))}
       ${info('INSS retido',fmt(val(r[K.inss])))}${info('IRRF retido',fmt(val(r[K.irpf])))}${info('ISS retido',fmt(val(r[K.iss])))}
-      ${val(r.deducao_materiais)?info('Dedução de materiais',fmt(val(r.deducao_materiais))):''}${val(r[K.seguro])?info('Garantia retida',fmt(val(r[K.seguro]))):''}${val(r[K.antec])?info('Desconto da antecipação',fmt(val(r[K.antec]))):''}
-      ${val(r[K.simples])?info('Simples (só informado)',fmt(val(r[K.simples]))):''}${dt(r[K.antecData])?info('Antecipada em',brDe(dt(r[K.antecData]))):''}${dt(r[K.rec])?info(col==='recebida'?'Recebida em':'Recebimento combinado',brDe(dt(r[K.rec]))):''}</div>`;
+      ${val(r.deducao_materiais)?info('Dedução de materiais',fmt(val(r.deducao_materiais))):''}${val(r[K.seguro])?info('Garantia retida',fmt(val(r[K.seguro]))):''}${val(r[K.antec])?info('Desconto da antecipação'+(col==='receber'&&antecipada?' (estimado)':''),fmt(val(r[K.antec]))):''}
+      ${val(r[K.simples])?info('Simples (só informado)',fmt(val(r[K.simples]))):''}${antecipada&&dt(r[K.antecData])?info('Antecipada em',brDe(dt(r[K.antecData]))):''}${antecipada&&dt(r.vencimento_original)?info('Vencimento original',brDe(dt(r.vencimento_original))):''}</div>`;
     const selObra=`<div class="fin-fld" style="grid-column:1/-1"><label>Obra <span class="obg">*</span></label><select data-k="obra" ${travaObra?'disabled title="A obra vem da medição"':''}><option value="">Escolha…</option>${opsObra().map(o=>`<option ${o===r[K.obra]?'selected':''}>${fe(o)}</option>`).join('')}${r[K.obra]&&!opsObra().includes(r[K.obra])?`<option selected>${fe(r[K.obra])}</option>`:''}</select>${travaObra?`<div class="capx-dica">A obra vem da medição nº ${fe(r.medicao_numero||'')} e não muda aqui.</div>`:''}</div>`;
     const inp=(k,rot,extra)=>`<div class="fin-fld"><label>${rot}</label><input data-k="${k}" data-mask="moeda" inputmode="numeric" value="${mo(k)}" ${extra||''}></div>`;
     let campos='';
@@ -16058,15 +16156,13 @@ const Mascara=(function(){
     else if(col==='faturar')campos=`<div class="fin-linha">${selObra}${r.medicao_rowid?`<div class="fin-fld"><label>Valor bruto</label><b style="padding:8px 0;display:block">${fmt(val(r[K.bruto]))}</b><div class="capx-dica">Vem da medição.</div></div>`:inp('bruto','Valor bruto (R$) <span class="obg">*</span>')}
       <div class="fin-fld"><label>Recebimento combinado</label><input type="date" data-k="rec" value="${dIso('rec')}"></div></div><p class="vk-dica"><i class="fas fa-circle-info"></i> Nº, emissão e retenções vêm da nota, na emissão.</p>`;
     else if(col==='receber')campos=resumoNota+(daNota?'':`<div class="fin-linha"><div class="hc-sec" style="grid-column:1/-1">Nota anterior ao sistema de emissão — confira as retenções</div>${inp('inss','INSS retido (R$)')}${inp('irpf','IRRF retido (R$)')}${inp('iss','ISS retido (R$)')}${inp('seguro','Garantia retida (R$)')}</div>`)
-      +`<div class="fin-linha"><div class="fin-fld"><label>Recebimento combinado</label><input type="date" data-k="rec" value="${dIso('rec')}"></div>
-        <div class="fin-fld"><label>Antecipada em</label><input type="date" data-k="antecData" value="${dIso('antecData')}" max="${isoDe(hoje0())}"></div>
-        <div class="fin-fld" data-antec-val ${dt(r[K.antecData])?'':'hidden'}><label>Desconto da antecipação (R$)</label><input data-k="antec" data-mask="moeda" inputmode="numeric" value="${mo('antec')}"></div></div>
-        <div class="nfa-pend" data-ant-conf hidden><b><i class="fas fa-circle-question"></i> Deseja de fato antecipar o recebimento desta nota?</b><span>${embasa?'O formulário do Programa Avançar Fornecedores (EMBASA) é gerado ao salvar.':'O desconto da antecipação sai do líquido.'}</span><div class="nfa-bts"><button type="button" class="fin-bt mini pri" data-ant="sim"><i class="fas fa-check"></i> Sim, antecipar</button><button type="button" class="fin-bt mini" data-ant="nao">Não</button></div></div>`;
+      +(antecipada?`<div class="vk-ant"><i class="fas fa-forward-fast"></i><div><b>Recebimento antecipado (Avançar Fornecedores): até ${dt(r[K.rec])?brDe(dt(r[K.rec])):'—'}</b><span>Formulário de ${dt(r[K.antecData])?brDe(dt(r[K.antecData])):'—'} · vencimento original ${dt(r.vencimento_original)?brDe(dt(r.vencimento_original)):'—'}${r.antec_dias?' ('+fe(r.antec_dias)+' dias antes)':''}. A data segue as regras do programa: para mudar, use "Substituir antecipação".</span></div></div>`
+        :`<div class="fin-linha"><div class="fin-fld"><label>Recebimento combinado</label><input type="date" data-k="rec" value="${dIso('rec')}">${!dIso('rec')&&v?`<div class="capx-dica">Sem data combinada, o sistema conta ${brDe(v)} (emissão + prazo médio da obra).</div>`:''}</div></div>`);
     else campos=resumoNota;   // recebida: só leitura (documentos continuam abaixo)
     // o líquido aparece uma vez só (no topo da ficha) e acompanha o que se digita
     const corpo=(nova?'':`<div class="vk-ficha-cab"><span class="vk-etq" style="--cor:${cc.cor}"><i class="fas ${cc.ico}"></i> ${cc.rot}</span>
         <div class="vk-num"><span>Líquido</span><b data-liq-cab>${fmt(liqF(r))}</b></div><div class="vk-num"><span>Situação</span><b>${pill(s[0],s[1]==='cinza'?'':s[1])}</b></div></div>
-      <ul class="vk-lista">${r.medicao_numero?`<li><i class="fas fa-ruler-combined"></i> Medição nº ${fe(r.medicao_numero)}</li>`:''}${(()=>{try{return JSON.parse(r.nfse_canceladas||'[]');}catch(e){return [];}})().map(c=>`<li style="color:#B42318"><i class="fas fa-ban"></i> NFS-e nº ${fe(c.numero||'')} cancelada em ${brDe(new Date(c.em))}</li>`).join('')}${r.nfse_substituida?`<li><i class="fas fa-right-left"></i> Esta nota substituiu outra NFS-e</li>`:''}${col!=='faturar'?`<li><i class="fas fa-calendar-day"></i> ${recebidaF(r,K)?'Recebida em '+brDe(dt(r[K.rec])):'Vence '+(v?brDe(v):'—')}</li>`:''}</ul>`)+(ed?campos:(col==='faturar'?'':resumoNota))
+      <ul class="vk-lista">${r.medicao_numero?`<li><i class="fas fa-ruler-combined"></i> Medição nº ${fe(r.medicao_numero)}</li>`:''}${(()=>{try{return JSON.parse(r.nfse_canceladas||'[]');}catch(e){return [];}})().map(c=>`<li style="color:#B42318"><i class="fas fa-ban"></i> NFS-e nº ${fe(c.numero||'')} cancelada em ${brDe(new Date(c.em))}</li>`).join('')}${r.nfse_substituida?`<li><i class="fas fa-right-left"></i> Esta nota substituiu outra NFS-e</li>`:''}${col==='recebida'?`<li><i class="fas fa-calendar-check"></i> Recebida em ${brDe(dt(r[K.rec]))}${antecipada?' — <b>por antecipação</b> (Avançar Fornecedores)':''}</li>`:col==='receber'&&!ed?`<li><i class="fas fa-calendar-day"></i> ${antecipada?'Recebimento antecipado até ':'Vence '}${v?brDe(v):'—'}</li>`:''}</ul>`)+(ed?campos:(col==='faturar'?'':resumoNota))
       +(!nova&&col!=='faturar'&&GS.docs?GS.docs.fichaNotaExtras(r,K,col):'');
     const bts=[];
     if(ed&&!nova){
@@ -16079,33 +16175,24 @@ const Mascara=(function(){
       // faturamento ainda sem nota que veio de uma medição: volta até a medição em andamento, sem excluir
       if(r.medicao_rowid&&col==='faturar')bts.push({html:'<i class="fas fa-ruler-combined"></i> Voltar para a medição',acao:()=>{setTimeout(()=>voltarParaMedicao(r),10);}});
       // EMBASA: formulário do Programa Avançar Fornecedores — só enquanto a nota não foi recebida
-      if(col==='receber'&&embasa)bts.push({html:'<i class="fas fa-forward-fast"></i> Antecipar recebimento Embasa',acao:()=>{setTimeout(()=>GS.docs.antecipacao(r,K),10);}});
+      if(col==='receber'&&embasa)bts.push({html:'<i class="fas fa-forward-fast"></i> '+(antecipada?'Substituir antecipação':'Antecipar recebimento Embasa'),acao:()=>{setTimeout(()=>GS.docs.antecipacao(r,K),10);}});
       // NFS-e do padrão nacional: substituir (emite a nota certa e a Receita cancela esta) ou cancelar
-      if(col==='receber'&&/^\d{50}$/.test(String(r.nfse_chave||'')))bts.push({html:'<i class="fas fa-right-left"></i> Substituir a nota',acao:()=>{setTimeout(()=>emitirNota({k:'f',r,obra:r[K.obra]||'',subst:{chave:r.nfse_chave,numero:r[K.nf]}}),10);}});
-      if(col==='receber'&&GS.docs&&GS.docs.cancelarNotaDoFaturamento)bts.push({html:'<i class="fas fa-ban"></i> Cancelar a nota',acao:()=>{setTimeout(()=>GS.docs.cancelarNotaDoFaturamento(r,K),10);}});
+      if(col==='receber'&&/^\d{50}$/.test(String(r.nfse_chave||'')))bts.push({html:'<i class="fas fa-right-left"></i> Substituir NF',acao:()=>{setTimeout(()=>emitirNota({k:'f',r,obra:r[K.obra]||'',subst:{chave:r.nfse_chave,numero:r[K.nf]}}),10);}});
+      if(col==='receber'&&GS.docs&&GS.docs.cancelarNotaDoFaturamento)bts.push({html:'<i class="fas fa-ban"></i> Cancelar NF',acao:()=>{setTimeout(()=>GS.docs.cancelarNotaDoFaturamento(r,K),10);}});
     }
     if(ed&&col!=='recebida')bts.push({html:'<i class="fas fa-floppy-disk"></i> Salvar',cls:'pri',acao:async j=>{
       const g=k=>(j.querySelector(`[data-k="${k}"]`)||{}).value||'',tem=k=>!!j.querySelector(`[data-k="${k}"]`),m=k=>dinheiro(num(g(k)));
       const o=nova?{[K.lanc]:todayDateTime(),[K.tipo]:'Real'}:copiaF(r);
       if(tem('obra')&&!travaObra)o[K.obra]=g('obra');
-      ['nf','em','antecData','rec'].forEach(k=>{if(tem(k))o[K[k]]=k==='nf'?g(k).trim():g(k);});
+      ['nf','em','rec'].forEach(k=>{if(tem(k))o[K[k]]=k==='nf'?g(k).trim():g(k);});
       ['bruto','inss','irpf','iss','simples','antec','seguro'].forEach(k=>{if(tem(k))o[K[k]]=m(k);});
-      if(tem('antecData')&&!g('antecData'))o[K.antec]=dinheiro(0);
       if(!o[K.obra])throw new Error('Escolha a obra.');if(!(val(o[K.bruto])>0))throw new Error('Informe o valor bruto.');
       if(nova&&(!o[K.nf]||!o[K.em]))throw new Error('Nota emitida precisa do nº e da data de emissão.');
       if(dt(o[K.rec])&&dt(o[K.rec])<=hoje0()&&o[K.tipo]!=='Real')throw new Error('Para registrar o recebimento, a nota precisa estar emitida.');
+      if(col==='receber'&&!nova&&tem('rec')&&g('rec')!==dIso('rec')&&dt(g('rec'))&&dt(g('rec'))<=hoje0())throw new Error('"Recebimento combinado" é uma data que ainda vai chegar. Se o dinheiro já entrou, use "Registrar recebimento".');
       o[K.liq]=dinheiro(val(o[K.bruto])-Fa.RET.reduce((s,k)=>s+val(o[K[k]]),0));if(val(o[K.liq])<0)throw new Error('As retenções passam do valor bruto.');
-      // antecipação: só com o "Sim, antecipar"; nunca no futuro e sempre antes do recebimento
-      const ant=o[K.antecData],recD=o[K.rec],antAntes=dIso('antecData');
-      if(ant&&ant!==antAntes&&j.dataset.antOk!=='1')throw new Error('Confirme a antecipação: clique em "Sim, antecipar" (ou em "Não").');
-      if(ant){if(ant>isoDe(hoje0()))throw new Error('"Antecipada em" não pode ser uma data futura: preencha quando a antecipação acontecer (para pedir antes, use "Antecipar recebimento Embasa").');
-        if(recD&&ant>=recD)throw new Error('A antecipação tem que ser antes da data de recebimento.');}
-      const gerarAnt=!!(ant&&ant!==antAntes&&embasa&&!(o.fat_uid&&GS.docs.gerados({modelo:'antecipacao',fat_uid:o.fat_uid}).length));
-      if(gerarAnt&&!o.fat_uid)o.fat_uid='nf'+Date.now().toString(36);
-      const wAnt=gerarAnt?window.open('','_blank'):null,dAnt=gerarAnt?GS.docs.dadosAntecipacao(o,K):null;
-      await executar(async()=>{await salvar('Faturamentos',o,nova?null:r.rowid);if(gerarAnt)await GS.docs.registrarAntecipacao(o,K,dAnt);});
-      if(gerarAnt){GS.docs.imprimirDoc('antecipacao',dAnt,`Antecipação de pagamento EMBASA - NF ${dAnt.notas}`,wAnt);toast('Antecipação registrada — o formulário da EMBASA foi gerado e guardado na nota.','success');}
-      else toast(nova?'Nota lançada.':'Nota atualizada.','success');}});
+      await executar(()=>salvar('Faturamentos',o,nova?null:r.rowid));
+      toast(nova?'Nota lançada.':'Nota atualizada.','success');}});
     else if(!bts.length)bts.push({html:'Fechar'});
     janela(nova?'Nota avulsa (sem medição)':r[K.nf]?'NF '+r[K.nf]:'Faturamento',corpo,bts,760);
     const j=jan();
@@ -16117,18 +16204,6 @@ const Mascara=(function(){
       const c=j.querySelector('[data-liq-cab]');if(c){c.textContent=fmt(l);c.style.color=l<0?'#B42318':'';}};
     // nota nova: retenções pelos percentuais da obra quando digita o bruto
     j.oninput=ev=>{const k=ev.target.dataset.k;if(nova&&(k==='bruto'||k==='obra')){const ob=j.querySelector('[data-k="obra"]').value,b=Mascara.numero(j.querySelector('[data-k="bruto"]').value)||0;if(ob&&b){const p=Fa.pctObra(ob,K);['inss','irpf','iss','simples'].forEach(x=>{const el=j.querySelector(`[data-k="${x}"]`);if(el&&!el.dataset.mexeu)el.value=Mascara.brl(Math.round(b*(p[x]||0))/100);});}}else if(k&&['inss','irpf','iss','simples'].includes(k))ev.target.dataset.mexeu='1';liq();};
-    // antecipação: pergunta antes ("Sim, antecipar" / "Não"); o desconto vem estimado (EMBASA: 2,37% a.m., juros simples)
-    const box=j.querySelector('[data-ant-conf]'),antIn=j.querySelector('[data-k="antecData"]'),antVal=j.querySelector('[data-antec-val]');
-    const sugerirDesc=()=>{const ant=dt(antIn.value),rc=dt(j.querySelector('[data-k="rec"]').value)||Fa.vencF(r,K),el=j.querySelector('[data-k="antec"]');
-      if(!el||!ant||!rc||rc<=ant||(el.value&&!el.dataset.sug)||!embasa)return;
-      const n=Math.round((rc-ant)/864e5),base=nv('bruto')-nv('inss')-nv('irpf')-nv('iss')-nv('seguro'),d=Math.round(base*0.0237/30*n*100)/100;
-      el.value=Mascara.brl(d);el.dataset.sug='1';toast(`Desconto da antecipação estimado: ${fmt(d)} (2,37% a.m. por ${n} dia${n>1?'s':''}). Ajuste se a EMBASA informar outro valor.`,'info');};
-    if(antIn&&box){
-      antIn.addEventListener('change',()=>{if(antIn.value&&antIn.value!==dIso('antecData')){box.hidden=false;delete j.dataset.antOk;}else box.hidden=true;if(!antIn.value&&antVal){antVal.hidden=true;}});
-      box.addEventListener('click',ev=>{const b=ev.target.closest('[data-ant]');if(!b)return;
-        if(b.dataset.ant==='sim'){j.dataset.antOk='1';box.hidden=true;if(antVal)antVal.hidden=false;sugerirDesc();liq();}
-        else{antIn.value=dIso('antecData');box.hidden=true;delete j.dataset.antOk;if(antVal)antVal.hidden=!antIn.value;const el=j.querySelector('[data-k="antec"]');if(el&&!dIso('antecData'))el.value='';liq();}});}
-    j.addEventListener('input',ev=>{if(ev.target.dataset.k==='antec')delete ev.target.dataset.sug;});
     j.onchange=()=>liq();liq();
   }
 
@@ -19680,6 +19755,8 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
 .lote-tab td:nth-child(1){width:150px;} .lote-tab td:nth-child(3){width:70px;} .lote-tab td:nth-child(4){width:74px;} .lote-tab td:nth-child(5),.lote-tab td:nth-child(6){width:110px;} .lote-tab td:nth-child(7){width:36px;}
 .lote-tab td small{display:block;font-size:10.5px;color:#98A2B3;margin-top:2px;}
 .lote-tot{text-align:right;margin-top:8px;font-size:13px;color:#344054;}
+.lote-parc{display:flex;flex-wrap:wrap;gap:6px;align-items:center;border:1px solid #D1E0FF;background:#F5F8FF;border-radius:12px;padding:8px 10px;margin:6px 0;font-size:12.5px;color:#344054;}
+.lote-parc>b{color:#1849A9;margin-right:4px;} .lote-parc span{background:#fff;border:1px solid #D1E0FF;border-radius:999px;padding:2px 9px;} .lote-parc small{flex-basis:100%;color:#667085;font-size:11px;}
 .nfa-pend{border:1px solid #FECDCA;background:#FEF3F2;border-radius:10px;padding:8px 10px;font-size:12.5px;color:#B42318;display:flex;flex-direction:column;gap:3px;margin-bottom:6px;} .nfa-pend span{color:#344054;}
 .nfa-sub{border:1px solid #D9D6FE;background:#F4F3FF;border-radius:10px;padding:8px 10px;font-size:12.5px;color:#5925DC;display:flex;flex-direction:column;gap:4px;} .nfa-sub span{color:#344054;}
 .nfa-toma{border:1px solid #E4E9F2;border-radius:10px;padding:7px 10px;background:#fff;font-size:12px;color:#344054;line-height:1.45;} .nfa-toma small{color:#98A2B3;} .nfa-toma.err{border-color:#FEDF89;background:#FFFAEB;color:#93370D;}
@@ -19691,12 +19768,22 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
 .nfa-cep{font-size:11.5px;color:#667085;margin-top:4px;min-height:14px;} .nfa-cep.ok{color:#067647;} .nfa-cep.err{color:#B54708;}
 .nfa-lk{font-weight:600;font-size:11px;margin-left:6px;text-transform:none;letter-spacing:0;}
 .nfw-daps-como{flex-basis:100%;margin-top:4px;padding-top:8px;border-top:1px dashed #FEDF89;font-size:12px;line-height:1.45;color:#7A2E0E;}
+.nfw-daps-passos{margin:4px 0 8px;padding-left:18px;} .nfw-daps-passos li{margin:2px 0;}
+.mun-el{margin-top:14px;border:1px solid #E4E9F2;border-radius:12px;padding:10px 12px;background:#F8FAFC;font-size:12.5px;color:#344054;}
+.mun-el>b{display:flex;align-items:center;gap:6px;} .mun-el p{margin:4px 0 8px;color:#667085;font-size:12px;}
+.mun-el-l{display:flex;flex-wrap:wrap;gap:6px;} .mun-el-l a{background:#fff;border:1px solid #D0D5DD;border-radius:999px;padding:3px 10px;font-size:12px;color:#1652D8;text-decoration:none;}
 .nfa-amb-l{font-size:12.5px;margin:2px 0;} .nfa-amb-l.ok{color:#067647;} .nfa-amb-l.err{color:#B42318;}
 .kit-it.vencido{border-color:#FECDCA;background:#FFFBFA;} .kit-it.vencido .nm span{color:#B42318;font-weight:600;}
 .empc-tab tr.inativo td{color:#98A2B3;} .tag-in{display:inline-block;font:700 10px Inter,sans-serif;background:#F2F4F7;color:#667085;border-radius:999px;padding:1px 7px;margin-left:4px;text-transform:uppercase;}
 .vk-falta{margin:8px 0 0;padding-left:20px;font-size:13px;color:#B42318;} .vk-falta li{margin:3px 0;}
 .empc-ass .prev{width:320px;max-width:100%;height:130px;padding:10px;box-sizing:border-box;}
 .empc-ass .prev img{width:100%;height:100%;object-fit:contain;}
+.ant-calc{border:1px solid #D1E0FF;background:#F5F8FF;border-radius:12px;padding:10px 12px;font-size:12.5px;color:#344054;line-height:1.5;margin-top:4px;}
+.ant-calc>b{display:flex;align-items:center;gap:6px;font:800 12.5px Inter,sans-serif;color:#1849A9;}
+.ant-calc ol{margin:6px 0 8px;padding-left:20px;} .ant-calc li{margin:2px 0;}
+.ant-res{border-top:1px dashed #B2CCFF;padding-top:7px;} .ant-res small{display:block;color:#667085;font-size:11px;margin-top:3px;}
+.vk-ant{display:flex;gap:10px;align-items:flex-start;border:1px solid #D1E0FF;background:#F5F8FF;border-radius:12px;padding:10px 12px;margin:8px 0;font-size:12.5px;color:#344054;}
+.vk-ant>i{color:#1849A9;margin-top:3px;} .vk-ant b{display:block;color:#1849A9;} .vk-ant span{display:block;margin-top:2px;line-height:1.45;}
 </style>
 <script>
 (function(){
@@ -19787,7 +19874,15 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
   /* ═══════════════ MUNICÍPIOS QUE EXIGEM A DAPS ═══════════════ */
   const cidadeSo=c=>String(c||'').replace(/\s*[,/-]\s*[A-Z]{2}\s*$/,'').trim();
   const munRow=c=>ultimo(PLAN().filter(p=>p.tipo==='municipio'&&cn(cidadeSo(p.cidade))===cn(cidadeSo(c))));
-  const exigeDaps=c=>{if(!c)return null;const r=munRow(c);return r?r.exige_daps===true||r.exige_daps==='true':null;};
+  // municípios da Bahia com a nota fiscal municipal no sistema EL (cloud.el.com.br): no portal deles se faz a
+  // "Declaração de Nota Fiscal" — a DAPS da NFS-e nacional. O endereço do portal sai do nome do município.
+  // (Os portais não têm API para a DAPS — a de lá é só para emitir nota —, então o sistema leva até o portal com a chave pronta.)
+  const EL_MUN=['Arataca','Baianópolis','Barra','Barra do Choça','Barreiras','Barro Preto','Buritirama','Caetanos','Caravelas','Cordeiros','Érico Cardoso','Firmino Alves','Floresta Azul','Guaratinga','Ibicoara','Ibirapitanga','Iguaí','Ipiaú','Itaju do Colônia','Itamaraju','Itapé','Ituaçu','Jequié','Jitaúna','Jussari','Jussiape','Mascote','Medeiros Neto','Nova Canaã','Pau Brasil','Planalto','Poções','Prado','Presidente Jânio Quadros','São José da Vitória','Simões Filho','Ubaitaba','Una','Valença','Vitória da Conquista'];
+  const slugEL=n=>String(n).normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().replace(/[^a-z]/g,'');
+  const linkEL=n=>`https://ba-${slugEL(n)}-pm-nfs.cloud.el.com.br/#/login`;
+  const portalEL=c=>{const uf=(String(c||'').match(/[,/-]\s*([A-Za-z]{2})\s*$/)||[])[1];if(uf&&uf.toUpperCase()!=='BA')return '';const n=cn(cidadeSo(c)),m=EL_MUN.find(x=>cn(x)===n);return m?linkEL(m):'';};
+  // município do portal EL exige a DAPS (até alguém marcar que não exige)
+  const exigeDaps=c=>{if(!c)return null;const r=munRow(c);if(r)return r.exige_daps===true||r.exige_daps==='true';return portalEL(c)?true:null;};
   async function marcarDaps(c,v){if(!c)return;const ex=munRow(c);await salvar('Planejamento',{...limpo(ex||{}),tipo:'municipio',cidade:c,exige_daps:!!v,atualizado_em:todayDateTime()},ex?ex.rowid:null);}
 
   /* ═══════════════ GARANTIA RETIDA NA 1ª MEDIÇÃO ═══════════════ */
@@ -20244,13 +20339,13 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
   // sistema) ou já cancelada no Emissor Nacional: só registra o cancelamento aqui.
   function janelaCancelarNfse(o,depois){
     const temChave=/^\d{50}$/.test(String(o.chave||''));
-    janela(`Cancelar a NFS-e nº ${o.numero||''}`,`<div class="fin-aviso"><div><b>Atenção:</b> o cancelamento não tem volta.${o.pend?' A nota ainda não foi concluída no sistema; ela só é cancelada na Receita.':` A nota sai de "Nota emitida", `+(o.daMedicao?'a medição volta para "Aprovada · a faturar"':'o faturamento volta para "A faturar"')+' e os anexos dela (PDF, XML, DAPS, declaração de entrega e formulário de antecipação) são apagados.'}${temChave?' Se a nota só tem algum dado errado, prefira <b>Substituir a nota</b>.':''}</div></div>
+    janela(`Cancelar a NFS-e nº ${o.numero||''}`,`<div class="fin-aviso"><div><b>Atenção:</b> o cancelamento não tem volta.${o.pend?' A nota ainda não foi concluída no sistema; ela só é cancelada na Receita.':` A nota sai de "Nota emitida", `+(o.daMedicao?'a medição volta para "Aprovada · a faturar"':'o faturamento volta para "A faturar"')+' e os anexos dela (PDF, XML, DAPS, declaração de entrega e formulário de antecipação) são apagados.'}${temChave?' Se a nota só tem algum dado errado, prefira <b>Substituir NF</b>.':''}</div></div>
       ${temChave?`<label class="nfc-amb"><input type="checkbox" data-k="fora"><span>Esta nota <b>já foi cancelada</b> no Emissor Nacional — só registrar aqui</span></label>`:'<div class="fin-resumo">Esta nota não tem a chave da NFS-e no sistema (é de antes da emissão automática): cancele no site onde ela foi emitida e registre aqui.</div>'}
       <div class="fin-fld"><label>Motivo</label><select data-k="mot"><option value="1">Erro na emissão</option><option value="2">Serviço não prestado</option><option value="9">Outros</option></select></div>
       <div class="fin-fld"><label>Justificativa (pelo menos 15 letras) <span class="obg">*</span></label><textarea data-k="just" rows="2" placeholder="Ex.: nota emitida com o valor da medição errado"></textarea></div>
       ${temChave&&certLocal()&&!senhaMem()?'<div class="fin-fld" data-canc-senha><label>Senha do certificado</label><input type="password" data-k="senha" autocomplete="off"></div>':''}
       <label class="nfc-amb"><input type="checkbox" data-k="ok"><span>Confirmo o cancelamento da NFS-e nº <b>${fe(o.numero||'')}</b>${temChave?` (chave ${fe(o.chave)})`:''}</span></label>`,
-      [{html:temChave?'<i class="fas fa-ban"></i> Cancelar a nota':'<i class="fas fa-ban"></i> Registrar o cancelamento',cls:'pri',acao:async j=>{const g=k=>((j.querySelector(`[data-k="${k}"]`)||{}).value||'').trim();
+      [{html:temChave?'<i class="fas fa-ban"></i> Cancelar NF':'<i class="fas fa-ban"></i> Registrar o cancelamento',cls:'pri',acao:async j=>{const g=k=>((j.querySelector(`[data-k="${k}"]`)||{}).value||'').trim();
         if(!j.querySelector('[data-k="ok"]').checked)throw new Error('Marque a confirmação do cancelamento.');const just=g('just');if(just.length<15)throw new Error('Escreva a justificativa com pelo menos 15 letras.');
         const fora=!temChave||(j.querySelector('[data-k="fora"]')||{}).checked;let r={ok:true,evento:''};
         if(!fora){const cred=credenciais(g('senha'));UI._showBusy('Cancelando a nota na Receita…');try{r=await nfseApi({acao:'cancelar',ambiente:+o.amb===2?2:1,chave:o.chave,cMotivo:g('mot'),xMotivo:just,...cred});}finally{UI._hideBusy();}
@@ -20269,7 +20364,8 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
       const o={...limpo(r)};const hist=(()=>{try{return JSON.parse(o.nfse_canceladas||'[]');}catch(e){return [];}})();
       hist.push({chave:r.nfse_chave||'',numero:num,em:new Date().toISOString(),motivo:mt.motivo+' — '+mt.just+(mt.fora?' (cancelada fora do sistema)':'')});
       Object.assign(o,{[K.tipo]:'Previsto',[K.nf]:'',[K.em]:'',[K.rec]:'',[K.antecData]:'',[K.antec]:dinheiro(0),[K.inss]:'',[K.irpf]:'',[K.iss]:'',[K.simples]:'',[K.liq]:'',
-        nfse_chave:'',nfse_auto:'',nfse_amb:'',nfse_serie:'',nfse_ndps:'',nfse_id_dps:'',nfse_substituida:'',deducao_materiais:'',csll_retida:'',iss_aliquota:'',daps:'',declaracao_em:'',nfse_canceladas:JSON.stringify(hist)});
+        nfse_chave:'',nfse_auto:'',nfse_amb:'',nfse_serie:'',nfse_ndps:'',nfse_id_dps:'',nfse_substituida:'',deducao_materiais:'',csll_retida:'',iss_aliquota:'',daps:'',declaracao_em:'',nfse_canceladas:JSON.stringify(hist),
+        vencimento_original:'',antecipada:'',antec_previsto:'',antec_dias:'',antec_deducoes:'',antec_taxa:''});
       await executar(async()=>{
         // anexos da nota (PDF, XML, DANFSe, DAPS, declaração e antecipação anexadas) e os documentos gerados dela
         if(r.fat_uid){const L=(await listarArq(ob,true)).filter(a=>a.aba==='nf'&&a.fat_uid===r.fat_uid);for(const a of L)await run('excluirAnexo',a.uid,a.rowid);
@@ -20527,8 +20623,12 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
       return c;}
     function pintarDaps(){
       const el=box.querySelector('[data-daps-box]');
-      if(ST.exige===true)el.innerHTML=`<i class="fas fa-circle-question"></i> <span>O município <b>${fe(cidadeSo(cidade))}</b> exige a <b>DAPS</b> (Documento Auxiliar de Prestação de Serviço). Deseja emitir também a DAPS?</span><button type="button" data-nfw="daps-sim" class="${ST.daps===true?'on':''}">Sim, emitir</button><button type="button" data-nfw="daps-nao" class="${ST.daps===false?'on':''}">Não</button>${ST.marcouExige?'':'<a href="#" data-nfw="exige-nao" style="font-size:11.5px;margin-left:auto">o município não exige</a>'}${ST.daps===true?(()=>{const mr=munRow(cidade)||{},ch=ST.xml&&ST.xml.chave;return `<div class="nfw-daps-como"><b>Como emitir a DAPS:</b> no site da prefeitura de ${fe(cidadeSo(cidade))}, com a chave de acesso da NFS-e (na DAPS ela aparece como "código de verificação de origem"). Depois anexe o PDF da DAPS no passo 3.
-        <div class="nfa-bts">${mr.portal?`<a class="fin-bt mini" href="${fe(mr.portal)}" target="_blank" rel="noopener"><i class="fas fa-arrow-up-right-from-square"></i> Abrir o portal da prefeitura</a>`:'<span style="font-size:11.5px">Cadastre o link do portal da prefeitura em Documentos e certidões › Empresa › Municípios (DAPS).</span>'}${ch?`<button type="button" class="fin-bt mini" data-nfw="copiar-chave"><i class="fas fa-copy"></i> Copiar a chave da nota</button>`:'<span style="font-size:11.5px">— a chave aparece aqui quando a nota for emitida.</span>'}</div></div>`;})():''}`;
+      if(ST.exige===true)el.innerHTML=`<i class="fas fa-circle-question"></i> <span>O município <b>${fe(cidadeSo(cidade))}</b> exige a <b>DAPS</b> (Documento Auxiliar de Prestação de Serviço). Deseja emitir também a DAPS?</span><button type="button" data-nfw="daps-sim" class="${ST.daps===true?'on':''}">Sim, emitir</button><button type="button" data-nfw="daps-nao" class="${ST.daps===false?'on':''}">Não</button>${ST.marcouExige?'':'<a href="#" data-nfw="exige-nao" style="font-size:11.5px;margin-left:auto">o município não exige</a>'}${ST.daps===true?(()=>{const mr=munRow(cidade)||{},ch=ST.xml&&ST.xml.chave,pe=portalEL(cidade),link=mr.portal||pe,nm=fe(cidadeSo(cidade));return `<div class="nfw-daps-como"><b>Como fazer a DAPS${pe&&!mr.portal?' (portal EL da prefeitura de '+nm+')':''}:</b>
+        <ol class="nfw-daps-passos"><li>Abra o portal da prefeitura de ${nm} e entre com o login da empresa (CNPJ e a senha cadastrada na prefeitura).</li>
+          <li>No menu, abra <b>Declaração de Nota Fiscal</b> (é a DAPS) e comece uma nova declaração.</li>
+          <li>Cole a <b>chave de acesso</b> da NFS-e (botão abaixo) — no portal ela aparece como "código de verificação de origem" — e confira os dados.</li>
+          <li>Gere e baixe o PDF da DAPS e anexe aqui, no passo 3.</li></ol>
+        <div class="nfa-bts">${link?`<a class="fin-bt mini" href="${fe(link)}" target="_blank" rel="noopener"><i class="fas fa-arrow-up-right-from-square"></i> Abrir o portal da DAPS de ${nm}</a>`:'<span style="font-size:11.5px">Cadastre o link do portal da prefeitura em Documentos e certidões › Empresa › Municípios (DAPS).</span>'}${ch?`<button type="button" class="fin-bt mini" data-nfw="copiar-chave"><i class="fas fa-copy"></i> Copiar a chave da nota</button>`:'<span style="font-size:11.5px">— a chave aparece aqui quando a nota for emitida.</span>'}</div></div>`;})():''}`;
       else el.innerHTML=`<i class="fas fa-circle-info"></i> <span>${cidade?`${ST.exige===false?'O município '+fe(cidadeSo(cidade))+' não exige':'Não sei se o município '+fe(cidadeSo(cidade))+' exige'} a DAPS.`:'A obra está sem a cidade cadastrada (Contrato › Editar dados).'}</span>${cidade?'<a href="#" data-nfw="exige-sim" style="margin-left:auto;font-size:12px">Este município exige a DAPS</a>':''}`;
       el.style.background=ST.exige===true?'':'#F8FAFC';el.style.borderColor=ST.exige===true?'':'#E4E9F2';el.style.color=ST.exige===true?'':'#475467';
       pintarArqs();
@@ -20716,8 +20816,10 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
       const lin=(doc,rot,ic)=>{const a=recente(L.filter(x=>x.doc===doc));return `<div class="kit-it" data-nf-doc="${doc}"><span class="ic ${a?'ok':'cinza'}"><i class="fas ${ic}"></i></span><div class="nm"><b>${rot}</b><span>${a?fe(a.nome)+' · '+brDe(new Date(a.enviado_em)):'não anexado'}</span></div><div class="ac">${a?'<button type="button" class="fin-bt mini" data-nf="baixar"><i class="fas fa-download"></i> Baixar</button>':''}${doc==='nf_pdf'&&col!=='recebida'&&L.some(x=>x.doc==='nf_xml')&&pode('faturamento')&&!(a&&a.logo)?'<button type="button" class="fin-bt mini" data-nf="logo" title="Monta o PDF da nota com a logo da empresa a partir do XML"><i class="fas fa-wand-magic-sparkles"></i> PDF com a logo</button>':''}${doc!=='nf_pdf_oficial'&&pode('faturamento')&&(col!=='recebida'||!a)?`<button type="button" class="fin-bt mini" data-nf="enviar"><i class="fas fa-upload"></i> ${a?'Trocar':'Anexar'}</button>`:''}</div></div>`;};
       cont.innerHTML=`<div class="kit-l">${lin('nf_pdf','Nota Fiscal (PDF)','fa-file-pdf')}${lin('nf_xml','XML da nota','fa-file-code')}${L.some(x=>x.doc==='nf_pdf_oficial')?lin('nf_pdf_oficial','DANFSe da Receita (PDF oficial)','fa-building-columns'):''}${r.daps==='sim'||L.some(a=>a.doc==='daps')?lin('daps','DAPS','fa-file-lines'):''}
         ${(()=>{const da=recente(L.filter(x=>x.doc==='declaracao'));return `<div class="kit-it" data-nf-doc="declaracao"><span class="ic ${decl||da?'ok':'cinza'}"><i class="fas fa-file-signature"></i></span><div class="nm"><b>Declaração de entrega da nota fiscal</b><span>${da?fe(da.nome)+' · anexada '+brDe(new Date(da.enviado_em)):decl?'gerada em '+brDe(new Date(decl.gerado_em))+(decl.gerado_por?' por '+fe(decl.gerado_por):''):'ainda não gerada — se já foi feita antes, anexe'}</span></div><div class="ac">${da?'<button type="button" class="fin-bt mini" data-nf="baixar"><i class="fas fa-download"></i> Baixar</button>':decl?'<button type="button" class="fin-bt mini" data-nf="decl"><i class="fas fa-download"></i> Baixar</button>':''}${pode('faturamento')&&(col!=='recebida'||!(decl||da))?`<button type="button" class="fin-bt mini" data-nf="enviar"><i class="fas fa-upload"></i> ${decl||da?'Anexar outra':'Anexar'}</button>`:''}</div></div>`;})()}
-        ${ant.map((g,i)=>`<div class="kit-it"><span class="ic ok"><i class="fas fa-forward-fast"></i></span><div class="nm"><b>Formulário de antecipação de pagamento (EMBASA)</b><span>gerado em ${brDe(new Date(g.gerado_em))}</span></div><div class="ac"><button type="button" class="fin-bt mini" data-nf="ant" data-i="${i}"><i class="fas fa-download"></i> Baixar</button></div></div>`).join('')}
-        ${(()=>{const aa=recente(L.filter(x=>x.doc==='antecipacao'));if(ant.length&&!aa)return '';if(!aa&&!(dt(r[K.antecData])||ehEmbasa(contratanteDaNota(r,K))))return '';return `<div class="kit-it" data-nf-doc="antecipacao"><span class="ic ${aa?'ok':'cinza'}"><i class="fas fa-forward-fast"></i></span><div class="nm"><b>Formulário de antecipação de pagamento ${aa?'(anexado)':''}</b><span>${aa?fe(aa.nome)+' · '+brDe(new Date(aa.enviado_em)):'não gerado — se já foi feito antes, anexe'}</span></div><div class="ac">${aa?'<button type="button" class="fin-bt mini" data-nf="baixar"><i class="fas fa-download"></i> Baixar</button>':''}${pode('faturamento')&&(col!=='recebida'||!aa)?`<button type="button" class="fin-bt mini" data-nf="enviar"><i class="fas fa-upload"></i> ${aa?'Trocar':'Anexar'}</button>`:''}</div></div>`;})()}</div>`;
+        ${(()=>{const g=ant[0],aa=recente(L.filter(x=>x.doc==='antecipacao'));
+          if(g)return `<div class="kit-it"><span class="ic ok"><i class="fas fa-forward-fast"></i></span><div class="nm"><b>Formulário de antecipação de pagamento (EMBASA)</b><span>gerado em ${brDe(new Date(g.gerado_em))}${g.gerado_por?' por '+fe(g.gerado_por):''}</span></div><div class="ac"><button type="button" class="fin-bt mini" data-nf="ant" data-i="0"><i class="fas fa-download"></i> Baixar</button></div></div>`;
+          if(!aa&&!(col==='receber'&&ehEmbasa(contratanteDaNota(r,K))))return '';
+          return `<div class="kit-it" data-nf-doc="antecipacao"><span class="ic ${aa?'ok':'cinza'}"><i class="fas fa-forward-fast"></i></span><div class="nm"><b>Formulário de antecipação de pagamento${aa?' (anexado)':''}</b><span>${aa?fe(aa.nome)+' · '+brDe(new Date(aa.enviado_em)):'ainda não pedido — use "Antecipar recebimento Embasa"; se o pedido já foi feito fora do sistema, anexe o formulário'}</span></div><div class="ac">${aa?'<button type="button" class="fin-bt mini" data-nf="baixar"><i class="fas fa-download"></i> Baixar</button>':''}${pode('faturamento')&&col==='receber'?`<button type="button" class="fin-bt mini" data-nf="enviar"><i class="fas fa-upload"></i> ${aa?'Trocar':'Anexar'}</button>`:''}</div></div>`;})()}</div>`;
       box._L=L;box._decl=decl;box._ant=ant;
     };
     await pintar();pintarKit(box.querySelector('[data-kit-box]'));
@@ -20735,6 +20837,8 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
           await enviarArq(ob,{aba:'nf',fat_uid:r.fat_uid,doc:'nf_pdf',nf:r[K.nf]||'',logo:true},new File([blob],`NFS-e ${n.numero||r[K.nf]||''}.pdf`,{type:'application/pdf'}));
           toast('PDF da nota com a logo gerado e guardado (o da Receita continua guardado).','success');await pintar();}
         catch(e){toast((e&&e.message)||String(e),'error');}finally{UI._hideBusy();}return;}
+      // formulário de antecipação feito fora do sistema: registra a antecipação junto (data do pedido e desconto)
+      if(a==='enviar'&&doc==='antecipacao'){const inp=document.createElement('input');inp.type='file';inp.accept='.pdf,image/*';inp.onchange=()=>{const f=inp.files[0];if(f)antecipacao(r,K,f);};inp.click();return;}
       if(a==='enviar'){const inp=document.createElement('input');inp.type='file';inp.accept=doc==='nf_xml'?'.xml':'.pdf,image/*';
         inp.onchange=async()=>{const f=inp.files[0];if(!f)return;try{UI._showBusy('Enviando…');let uid=r.fat_uid;
           if(!uid){uid='nf'+Date.now().toString(36);const o={...r};delete o.rowid;delete o.visualId;delete o._aba;o.fat_uid=uid;await salvar('Faturamentos',o,r.rowid);r.fat_uid=uid;}
@@ -20742,22 +20846,87 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
         inp.click();}
     });
   }
-  // EMBASA: formulário do Programa Avançar Fornecedores (antecipar o recebimento da nota)
-  function antecipacao(r,K){
-    const ob=r[K.obra]||'',obra=(D().obras||[]).find(o=>(getFuzzy(o,['titulo_obra','nome_obra','titulo'])||'')===ob)||{},numCt=getFuzzy(obra,['numero_contrato','num_contrato','n_contrato'])||'';
-    janela('Antecipar recebimento — EMBASA',`<div class="fin-resumo">Gera o <b>Formulário de Solicitação de Antecipação da Data de Pagamento</b> (Programa Avançar Fornecedores) no modelo da EMBASA, já assinado. Envie para <b>avancarfornecedores.fafp@embasa.ba.gov.br</b> junto com a cópia do documento do representante e o contrato social (estão em "Documentos da empresa", na ficha da nota).</div>
-      <div class="fin-linha"><div class="fin-fld"><label>Nº do(s) contrato(s)</label><input data-k="ct" value="${fe(numCt)}"></div><div class="fin-fld"><label>Nº da(s) nota(s) fiscal(is)</label><input data-k="nf" value="${fe(r[K.nf]||'')}"></div>
-      <div class="fin-fld"><label>Valor bruto total (R$)</label><input data-k="v" data-mask="moeda" inputmode="numeric" value="${fmt(val(r[K.bruto]))}"></div><div class="fin-fld"><label>Taxa de desconto (a.m.)</label><input data-k="tx" value="2,37%"></div></div>`,
-      [{html:'<i class="fas fa-file-signature"></i> Gerar o formulário',cls:'pri',acao:async j=>{const g=k=>j.querySelector(`[data-k="${k}"]`).value.trim();
-        const dados={data:isoDe(hoje0()),contratos:g('ct'),notas:g('nf'),valor:num(g('v')),taxa:g('tx')||'2,37%'};if(!dados.contratos||!dados.notas||!(dados.valor>0))throw new Error('Preencha contrato, nota e valor.');
-        if(!imprimirDoc('antecipacao',dados,`Antecipação de pagamento EMBASA - NF ${dados.notas}`))return false;
-        let uid=r.fat_uid;if(!uid){uid='nf'+Date.now().toString(36);const o={...r};delete o.rowid;delete o.visualId;delete o._aba;o.fat_uid=uid;await salvar('Faturamentos',o,r.rowid);}
-        await salvar('Planejamento',docRegistro('antecipacao',dados,{titulo_obra:ob,fat_uid:uid}),null);
-        await new Promise(ok=>App.init(true,()=>ok()));toast('Formulário gerado e guardado na nota.','success');}}],640);
+  // EMBASA — Programa Avançar Fornecedores, pelas regras do formulário: o pedido feito até 14h de um dia útil começa no
+  // mesmo dia (depois disso, no próximo dia útil); a FAFP tem até 3 dias úteis para processar; desconto = (VF − D) × (T × n),
+  // com VF = líquido da nota, D = deduções (multas, glosas, bloqueios), T = taxa mensal em diária a juros simples (÷ 30) e
+  // n = dias corridos entre o pagamento antecipado e o vencimento original. Só existe um formulário por nota.
+  const TAXA_AF='2,37%';
+  const pascoa=a=>{const b=a%19,c=Math.floor(a/100),d=a%100,e=Math.floor(c/4),f=c%4,g=Math.floor((c+8)/25),h=Math.floor((c-g+1)/3),i=(19*b+c-e-h+15)%30,k=Math.floor(d/4),l=d%4,m=(32+2*f+2*k-i-l)%7,n=Math.floor((b+11*i+22*m)/451),x=i+m-7*n+114;return new Date(a,Math.floor(x/31)-1,x%31+1);};
+  // feriados nacionais, da Bahia (2 de julho) e de Salvador (São João e Conceição da Praia), onde fica a EMBASA; Carnaval,
+  // Sexta-feira Santa e Corpus Christi contam como dias sem expediente
+  const FERIADOS={};
+  const feriados=a=>FERIADOS[a]||(FERIADOS[a]=(()=>{const s=new Set(['01-01','04-21','05-01','06-24','07-02','09-07','10-12','11-02','11-15','11-20','12-08','12-25'].map(x=>a+'-'+x)),p=pascoa(a);[-48,-47,-2,60].forEach(k=>s.add(isoDe(addD(p,k))));return s;})());
+  const diaUtil=d=>d.getDay()!==0&&d.getDay()!==6&&!feriados(d.getFullYear()).has(isoDe(d));
+  const proxUtil=d=>{let x=addD(d,1);while(!diaUtil(x))x=addD(x,1);return x;};
+  const agoraBrasilia=()=>{const p=new Intl.DateTimeFormat('en-CA',{timeZone:'America/Sao_Paulo',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(new Date()),g=t=>(p.find(x=>x.type===t)||{}).value||'0';
+    return {dia:new Date(+g('year'),+g('month')-1,+g('day')),hora:+g('hour')%24,min:+g('minute')};};
+  const taxaNum=t=>parseFloat(String(t||TAXA_AF).replace(/[^\d,.]/g,'').replace(',','.'))||2.37;
+  // VF: líquido da nota sem o desconto da antecipação (bruto − INSS − IRRF − ISS retido − garantia)
+  const vfNota=(r,K)=>Math.round((val(r[K.bruto])-['inss','irpf','iss','seguro'].reduce((s,k)=>s+val(r[K[k]]),0))*100)/100;
+  const descAvancar=(vf,ded,taxa,n)=>Math.round(Math.max(0,vf-(ded||0))*taxaNum(taxa)/100/30*Math.max(0,n)*100)/100;
+  const diasEntre=(a,b)=>Math.round((b-a)/864e5);
+  function calcAvancar(o){   // o: {pedido, depois14, venc, vf, ded, taxa}
+    const ini=diaUtil(o.pedido)&&!o.depois14?o.pedido:proxUtil(o.pedido);let pag=ini;for(let i=0;i<3;i++)pag=proxUtil(pag);
+    const n=o.venc?diasEntre(pag,o.venc):0;return {...o,ini,pag,n,desc:descAvancar(o.vf,o.ded,o.taxa,n)};
+  }
+  // desconto refeito pela data em que o dinheiro entrou (em "Registrar recebimento"); inclui as deduções da EMBASA
+  const descontoAntecipacao=(r,K,dataIso)=>{const v=dt(r.vencimento_original),d=dt(dataIso);if(!v||!d)return null;const n=Math.max(0,diasEntre(d,v)),ded=val(r.antec_deducoes);
+    return {n,desc:Math.round((descAvancar(vfNota(r,K),ded,r.antec_taxa,n)+ded)*100)/100};};
+  const formsAntecipacao=r=>r.fat_uid?gerados({modelo:'antecipacao',fat_uid:r.fat_uid}):[];
+  // tira o formulário da nota (gerado ou anexado): o novo substitui o anterior
+  async function tirarFormsAntecipacao(r,K){
+    for(const g of formsAntecipacao(r))await excluir('Planejamento',g.rowid);
+    if(r.fat_uid){const L=(await listarArq(r[K.obra]||'',true)).filter(a=>a.aba==='nf'&&a.fat_uid===r.fat_uid&&a.doc==='antecipacao');for(const a of L)await run('excluirAnexo',a.uid,a.rowid);}
+  }
+  const refazLiq=(o,K)=>{o[K.liq]=dinheiro(val(o[K.bruto])-GS.fat.RET.reduce((s,k)=>s+val(o[K[k]]),0));return o;};
+  // arq: formulário já enviado fora do sistema (só registra a antecipação e guarda o arquivo)
+  function antecipacao(r,K,arq){
+    const ob=r[K.obra]||'',forms=formsAntecipacao(r),ja=forms.length>0||r.antecipada==='sim';
+    const vOrig=dt(r.vencimento_original)||GS.fat.vencF(r,K),vf=vfNota(r,K),ag=agoraBrasilia();
+    const corpo=`<div class="fin-resumo">${arq?`Registra o pedido de antecipação feito fora do sistema e guarda o formulário <b>${fe(arq.name)}</b> na nota.`:'Gera o <b>Formulário de Solicitação de Antecipação da Data de Pagamento</b> (Programa Avançar Fornecedores) no modelo da EMBASA, já assinado. Envie para <b>avancarfornecedores.fafp@embasa.ba.gov.br</b> junto com a cópia do documento do representante e o contrato social (estão em "Documentos da empresa", na ficha da nota).'}</div>
+      ${ja?`<div class="fin-aviso laranja"><div>Esta nota já tem um formulário de antecipação${forms[0]?' (gerado em '+brDe(new Date(forms[0].gerado_em))+')':''}. Só pode haver um por nota: o novo <b>substitui</b> o anterior.</div></div>`:''}
+      <div class="fin-linha">${arq?`<div class="fin-fld"><label>Data em que o pedido foi enviado <span class="obg">*</span></label><input type="date" data-k="ped" max="${isoDe(hoje0())}" value="${isoDe(hoje0())}"></div>
+        <label class="nfc-amb" style="align-self:end"><input type="checkbox" data-k="d14"><span>Enviado depois das 14h (ou em dia sem expediente)</span></label>`
+        :`<div class="fin-fld"><label>Nº do(s) contrato(s)</label><input data-k="ct" value="${fe(numCtDe(ob))}"></div><div class="fin-fld"><label>Nº da(s) nota(s) fiscal(is)</label><input data-k="nf" value="${fe(r[K.nf]||'')}"></div>
+        <div class="fin-fld"><label>Valor bruto total (R$)</label><input data-k="v" data-mask="moeda" inputmode="numeric" value="${fmt(val(r[K.bruto]))}"></div>`}
+        <div class="fin-fld"><label>Taxa de desconto (ao mês)</label><input data-k="tx" value="${fe(r.antec_taxa||TAXA_AF)}"></div>
+        <div class="fin-fld"><label>Vencimento original da nota <span class="obg">*</span></label><input type="date" data-k="venc" value="${vOrig?isoDe(vOrig):''}"></div>
+        <div class="fin-fld"><label>Deduções da EMBASA — multas, glosas (R$)</label><input data-k="ded" data-mask="moeda" inputmode="numeric" value="${fmt(val(r.antec_deducoes))}"></div></div>
+      <div class="ant-calc" data-calc></div>`;
+    const calc=j=>{const g=k=>((j.querySelector(`[data-k="${k}"]`)||{}).value||'').trim(),pedido=arq?dt(g('ped')):ag.dia;
+      return pedido?calcAvancar({pedido,depois14:arq?!!(j.querySelector('[data-k="d14"]')||{}).checked:ag.hora>=14,venc:dt(g('venc')),vf,ded:num(g('ded')),taxa:g('tx')||TAXA_AF}):null;};
+    const pintar=j=>{const box=j.querySelector('[data-calc]'),c=calc(j);if(!box)return;if(!c){box.innerHTML='Informe a data em que o pedido foi enviado.';return;}
+      const mesmo=isoDe(c.ini)===isoDe(c.pedido),td=(taxaNum(c.taxa)/30).toLocaleString('pt-BR',{maximumFractionDigits:4});
+      box.innerHTML=`<b><i class="fas fa-calculator"></i> Regras do Avançar Fornecedores</b><ol>
+        <li>Pedido ${arq?'enviado em <b>'+brDe(c.pedido)+'</b>':`<b>hoje, ${String(ag.hora).padStart(2,'0')}:${String(ag.min).padStart(2,'0')}</b> (Brasília)`}: ${mesmo?'até 14h de dia útil, o processo começa no mesmo dia':'depois das 14h ou em dia sem expediente, o processo começa no próximo dia útil'}, <b>${brDe(c.ini)}</b>.</li>
+        <li>A EMBASA (FAFP) tem até 3 dias úteis para processar: pagamento <b>até ${brDe(c.pag)}</b> — vira o novo "Recebimento combinado".</li>
+        <li>${c.venc?`Vencimento original ${brDe(c.venc)} → <b>n = ${c.n} dia${c.n===1?'':'s'} corrido${c.n===1?'':'s'}</b>.`:'<b>Informe o vencimento original da nota.</b>'}</li>
+        <li>Desconto = (VF − D) × (T × n) = (${fmt(c.vf)} − ${fmt(c.ded)}) × (${td}% × ${c.n}) = <b>${fmt(c.desc)}</b></li></ol>
+        <div class="ant-res">${c.n>0?`Você recebe cerca de <b>${fmt(Math.max(0,c.vf-c.ded-c.desc))}</b> até ${brDe(c.pag)}`:'<b style="color:#B42318">O vencimento original não é depois do pagamento antecipado: não há o que antecipar.</b>'}<small>VF = líquido da nota (bruto − INSS − IRRF − ISS − garantia); T = ${fe(c.taxa)} ao mês ÷ 30 (juros simples). Se a EMBASA pagar antes, o desconto sobe um pouco — ele é refeito em "Registrar recebimento".</small></div>`;};
+    const bts=[{html:arq?'<i class="fas fa-floppy-disk"></i> Registrar a antecipação':ja?'<i class="fas fa-file-signature"></i> Gerar e substituir o formulário':'<i class="fas fa-file-signature"></i> Gerar o formulário',cls:'pri',acao:async j=>{
+      const g=k=>((j.querySelector(`[data-k="${k}"]`)||{}).value||'').trim(),c=calc(j);
+      if(!c)throw new Error('Informe a data em que o pedido foi enviado.');if(!c.venc)throw new Error('Informe o vencimento original da nota.');
+      if(c.n<=0)throw new Error(`O vencimento original (${brDe(c.venc)}) não é depois do pagamento antecipado (${brDe(c.pag)}): não há o que antecipar.`);
+      let dados=null;
+      if(!arq){dados={data:isoDe(hoje0()),contratos:g('ct'),notas:g('nf'),valor:num(g('v')),taxa:g('tx')||TAXA_AF};if(!dados.contratos||!dados.notas||!(dados.valor>0))throw new Error('Preencha contrato, nota e valor.');
+        if(!imprimirDoc('antecipacao',dados,`Antecipação de pagamento EMBASA - NF ${dados.notas}`))return false;}
+      const uid=r.fat_uid||('nf'+Date.now().toString(36));
+      const o=refazLiq({...limpo(r),fat_uid:uid,[K.antecData]:isoDe(c.pedido),[K.rec]:isoDe(c.pag),[K.antec]:dinheiro(c.desc+c.ded),vencimento_original:isoDe(c.venc),antecipada:'sim',antec_previsto:isoDe(c.pag),antec_dias:String(c.n),antec_deducoes:c.ded?dinheiro(c.ded):'',antec_taxa:c.taxa},K);
+      await executar(async()=>{await tirarFormsAntecipacao(r,K);await salvar('Faturamentos',o,r.rowid);
+        if(dados)await salvar('Planejamento',docRegistro('antecipacao',dados,{titulo_obra:ob,fat_uid:uid}),null);
+        if(arq)await enviarArq(ob,{aba:'nf',fat_uid:uid,doc:'antecipacao',nf:r[K.nf]||''},arq);});
+      toast(`Antecipação registrada: o recebimento combinado passou para ${brDe(c.pag)} e o desconto estimado é ${fmt(c.desc+c.ded)}.`,'success');}}];
+    if(ja&&!arq)bts.unshift({html:'<i class="fas fa-rotate-left"></i> A EMBASA não antecipou — desfazer',acao:()=>{setTimeout(()=>desfazerAntecipacao(r,K),10);}});
+    janela(arq?'Registrar antecipação feita fora do sistema':ja?'Substituir antecipação — EMBASA':'Antecipar recebimento — EMBASA',corpo,bts,680);
+    const j=document.getElementById('fin-jan'),cp=j.querySelector('.fin-jan-corpo');cp.addEventListener('input',()=>pintar(j));cp.addEventListener('change',()=>pintar(j));pintar(j);
+  }
+  function desfazerAntecipacao(r,K){
+    confirmar('Desfazer a antecipação',`O formulário de antecipação da ${r[K.nf]?'NF '+fe(r[K.nf]):'nota'} é apagado, o desconto sai e o recebimento combinado volta para o vencimento original${dt(r.vencimento_original)?' ('+brDe(dt(r.vencimento_original))+')':''}.`,'Sim, desfazer',async()=>{
+      const o=refazLiq({...limpo(r),[K.antecData]:'',[K.antec]:dinheiro(0),[K.rec]:r.vencimento_original||'',vencimento_original:'',antecipada:'',antec_previsto:'',antec_dias:'',antec_deducoes:'',antec_taxa:''},K);
+      await executar(async()=>{await tirarFormsAntecipacao(r,K);await salvar('Faturamentos',o,r.rowid);});
+      toast('Antecipação desfeita — a nota volta a vencer na data original.','success');});
   }
   const numCtDe=ob=>{const obra=(D().obras||[]).find(o=>(getFuzzy(o,['titulo_obra','nome_obra','titulo'])||'')===ob)||{};return getFuzzy(obra,['numero_contrato','num_contrato','n_contrato'])||'';};
-  const dadosAntecipacao=(r,K)=>({data:isoDe(dt(r[K.antecData])||hoje0()),contratos:numCtDe(r[K.obra]||''),notas:String(r[K.nf]||''),valor:val(r[K.bruto]),taxa:'2,37%'});
-  const registrarAntecipacao=(r,K,dados)=>salvar('Planejamento',docRegistro('antecipacao',dados||dadosAntecipacao(r,K),{titulo_obra:r[K.obra]||'',fat_uid:r.fat_uid}),null);
   const contratanteDaNota=(r,K)=>{const c=(Eng.contratoDe&&Eng.contratoDe(r[K.obra]||''))||{};return c.contratante||'';};
 
   /* ═══════════════ CONTRATO: garantia "Retenção na 1ª medição" gera a solicitação ═══════════════ */
@@ -20799,7 +20968,9 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
     else if(EC.aba==='ct'){const L=contratantes();corpo=`<p style="margin:0 0 8px;font-size:12px;color:#667085">Contratante com quem a empresa não vai mais trabalhar: <b>Inativar</b> — ele sai da lista do contrato, mas o histórico das obras continua. <b>Excluir</b> só aparece para quem não tem contrato no sistema.</p>
       <table class="empc-tab"><thead><tr><th>Contratante</th><th>CPF/CNPJ</th><th>Endereço</th><th>Contratos</th><th></th></tr></thead><tbody>${L.map((x,i)=>{const u=usoCt(x.nome);return `<tr class="${x.inativo?'inativo':''}"><td><b>${fe(x.nome)}</b>${x.inativo?' <span class="tag-in">inativo</span>':''}</td><td>${fe(x.doc||'—')}</td><td>${(()=>{const en=endDoRow(x.row)||(String(x.doc||'').replace(/\D/g,'')==='13504675000110'?EMBASA_END:null);return en?fe(en.mun||en.cMun):'<span style="color:#B54708">sem endereço</span>';})()}</td><td>${u||'—'}</td><td style="text-align:right;white-space:nowrap"><button type="button" class="fin-bt mini" data-ec="ct-editar" data-i="${i}"><i class="fas fa-pen"></i> Editar</button> <button type="button" class="fin-bt mini" data-ec="ct-ativo" data-i="${i}"><i class="fas fa-${x.inativo?'rotate-left':'ban'}"></i> ${x.inativo?'Reativar':'Inativar'}</button>${!u&&x.rowid?` <button type="button" class="fin-bt mini" data-ec="ct-excluir" data-i="${i}"><i class="fas fa-trash"></i> Excluir</button>`:''}</td></tr>`;}).join('')}</tbody></table><div style="display:flex;justify-content:flex-end;margin-top:8px"><button type="button" class="fin-bt pri" data-ec="ct-novo"><i class="fas fa-plus"></i> Novo contratante</button></div>`;}
     else if(EC.aba==='nfse')corpo=htmlNfseCfg();
-    else if(EC.aba==='mun'){const L=munLista(),ex=x=>x.exige_daps===true||x.exige_daps==='true';corpo=`<p style="margin:0 0 8px;font-size:12px;color:#667085">Quando o município da obra exige a DAPS, a janela de emissão pergunta se deseja emitir também a DAPS e mostra o link do site da prefeitura e o botão para copiar a chave da nota. Dá para marcar também na própria janela de emissão.</p>${L.length?`<table class="empc-tab"><thead><tr><th>Município</th><th>Exige DAPS?</th><th>Site da prefeitura</th><th></th></tr></thead><tbody>${L.map((x,i)=>`<tr><td><b>${fe(x.cidade)}</b></td><td>${ex(x)?'Sim':'Não'}</td><td>${x.portal?`<a href="${fe(x.portal)}" target="_blank" rel="noopener">abrir</a>`:'—'}</td><td style="text-align:right;white-space:nowrap"><button type="button" class="fin-bt mini" data-ec="mun-editar" data-i="${i}"><i class="fas fa-pen"></i> Editar</button> <button type="button" class="fin-bt mini" data-ec="mun-excluir" data-i="${i}"><i class="fas fa-trash"></i> Excluir</button></td></tr>`).join('')}</tbody></table>`:'<div class="anx-vazio">Nenhum município marcado ainda.</div>'}<div style="display:flex;justify-content:flex-end;margin-top:8px"><button type="button" class="fin-bt pri" data-ec="mun-novo"><i class="fas fa-plus"></i> Marcar município</button></div>`;}
+    else if(EC.aba==='mun'){const L=munLista(),ex=x=>x.exige_daps===true||x.exige_daps==='true';corpo=`<p style="margin:0 0 8px;font-size:12px;color:#667085">Quando o município da obra exige a DAPS, a janela de emissão pergunta se deseja emitir também a DAPS e mostra o link do site da prefeitura e o botão para copiar a chave da nota. Dá para marcar também na própria janela de emissão.</p>${L.length?`<table class="empc-tab"><thead><tr><th>Município</th><th>Exige DAPS?</th><th>Site da prefeitura</th><th></th></tr></thead><tbody>${L.map((x,i)=>`<tr><td><b>${fe(x.cidade)}</b></td><td>${ex(x)?'Sim':'Não'}</td><td>${x.portal||portalEL(x.cidade)?`<a href="${fe(x.portal||portalEL(x.cidade))}" target="_blank" rel="noopener">abrir</a>${!x.portal?' <small style="color:#667085">(portal EL)</small>':''}`:'—'}</td><td style="text-align:right;white-space:nowrap"><button type="button" class="fin-bt mini" data-ec="mun-editar" data-i="${i}"><i class="fas fa-pen"></i> Editar</button> <button type="button" class="fin-bt mini" data-ec="mun-excluir" data-i="${i}"><i class="fas fa-trash"></i> Excluir</button></td></tr>`).join('')}</tbody></table>`:'<div class="anx-vazio">Nenhum município marcado ainda.</div>'}<div style="display:flex;justify-content:flex-end;margin-top:8px"><button type="button" class="fin-bt pri" data-ec="mun-novo"><i class="fas fa-plus"></i> Marcar município</button></div>
+      <div class="mun-el"><b><i class="fas fa-city"></i> Municípios com o portal EL (DAPS já pronta no sistema)</b><p>Nestes ${EL_MUN.length} municípios da Bahia a DAPS é feita no portal da prefeitura (sistema EL), em <b>Declaração de Nota Fiscal</b>. Quando a obra é em um deles, a janela de emissão da nota já traz o botão do portal e o passo a passo — não precisa cadastrar nada.</p>
+        <div class="mun-el-l">${EL_MUN.map(n=>`<a href="${fe(linkEL(n))}" target="_blank" rel="noopener">${fe(n)}</a>`).join('')}</div></div>`;}
     return `<div class="empc" data-empc><div class="empc-cab"><div><h3><i class="fas fa-building-shield"></i>Empresa e documentos para a contratante</h3><p>Kit de documentos, dados e assinatura usados nas declarações e formulários que o sistema gera.</p></div></div>
       <div class="empc-abas">${abas.map(([k,ic,l])=>`<button type="button" class="${EC.aba===k?'on':''}" data-ec-aba="${k}"><i class="fas ${ic}"></i> ${l}</button>`).join('')}</div><div data-ec-corpo>${corpo}</div></div>`;
   }
@@ -20810,7 +20981,7 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
     const ex=!x||x.exige_daps===true||x.exige_daps==='true';
     janela(x?'Município — '+x.cidade:'Marcar município',`<div class="fin-fld"><label>Município <span class="obg">*</span></label><input data-k="c" value="${fe(x?x.cidade:'')}" placeholder="Ex.: Vitória da Conquista, BA" autocomplete="off" ${x?'disabled':''}></div>
       <div class="fin-fld"><label>Exige a DAPS?</label><select data-k="ex"><option value="sim" ${ex?'selected':''}>Sim</option><option value="nao" ${ex?'':'selected'}>Não</option></select></div>
-      <div class="fin-fld"><label>Site da prefeitura onde se emite a DAPS (opcional)</label><input data-k="portal" value="${fe(x&&x.portal||'')}" placeholder="https://…"><div class="capx-dica">Aparece como botão na janela de emissão da nota, junto com "Copiar a chave da nota".</div></div>`,
+      <div class="fin-fld"><label>Site da prefeitura onde se emite a DAPS (opcional)</label><input data-k="portal" value="${fe(x&&x.portal||'')}" placeholder="${fe((x&&portalEL(x.cidade))||'https://…')}"><div class="capx-dica">Aparece como botão na janela de emissão da nota, junto com "Copiar a chave da nota".</div></div>`,
       [{html:'<i class="fas fa-floppy-disk"></i> Salvar',cls:'pri',acao:async j=>{const g=k=>j.querySelector(`[data-k="${k}"]`).value.trim(),c0=x?x.cidade:g('c'),portal=g('portal');
         if(!c0)throw new Error('Informe o município.');if(portal&&!/^https?:\/\//i.test(portal))throw new Error('O link começa com https://');
         const cid=x?x.cidade:(GS.cidade?GS.cidade.normalizar(c0):c0),ant=munRow(cid);
@@ -21020,7 +21191,7 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
   Auth.logout=function(){fecharModais();esconderAviso();clearTimeout(tAviso);return sair.apply(this,arguments);};
 
   GS.docs={empresa,assinatura,contratantes,contratanteDe,salvarContratante,datalistContratantes,ehEmbasa,exigeDaps,marcarDaps,infoGarantia,retencao1aMed,imprimirDoc,gerados,gerarSolicitacaoGarantia,
-    emitirNota,fichaNotaExtras,ligarFichaNota,antecipacao,contratanteDaNota,dadosAntecipacao,registrarAntecipacao,cancelarNotaDoFaturamento,emitidasPendentes,listarArq,enviarArq,baixarArq,lerXmlNfse,KIT,_EC:EC,_SO2:SO2};
+    emitirNota,fichaNotaExtras,ligarFichaNota,antecipacao,desfazerAntecipacao,descontoAntecipacao,contratanteDaNota,cancelarNotaDoFaturamento,emitidasPendentes,listarArq,enviarArq,baixarArq,lerXmlNfse,KIT,_EC:EC,_SO2:SO2};
 })();
 </script>
 </body>
