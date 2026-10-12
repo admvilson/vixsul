@@ -19811,12 +19811,19 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
 .empc-tab th{text-align:left;font:800 10px Inter,sans-serif;text-transform:uppercase;letter-spacing:.05em;color:#667085;background:#F8FAFC;padding:7px 10px;}
 .empc-tab td{padding:7px 10px;border-bottom:1px solid #F2F4F7;}
 .ass-pad{border:1px solid #D0D5DD;border-radius:10px;background:#fff;touch-action:none;cursor:crosshair;width:100%;height:180px;}
-.so2-tab{width:100%;border-collapse:collapse;font-size:12.5px;}
+.so2-tab{width:100%;min-width:0;border-collapse:collapse;font-size:12.5px;}
 .so2-tab th{text-align:left;font:800 10px Inter,sans-serif;text-transform:uppercase;letter-spacing:.05em;color:#667085;background:#F8FAFC;padding:8px 10px;white-space:nowrap;}
 .so2-tab td{padding:6px 9px;border-bottom:1px solid #F2F4F7;vertical-align:middle;}
 .so2-tab tfoot td{padding:8px 9px;background:#F8FAFC;}
-.so2-mov td{white-space:nowrap;} .so2-mov td.so2-obs{width:100%;max-width:0;overflow:hidden;text-overflow:ellipsis;color:#667085;font-size:12px;}
-.so2-mov td.so2-ob{max-width:220px;overflow:hidden;text-overflow:ellipsis;} .so2-mov td.so2-dt{color:#475467;font-variant-numeric:tabular-nums;}
+.so2-mov td{white-space:nowrap;} .so2-mov td.so2-dt{color:#475467;font-variant-numeric:tabular-nums;font-size:12px;line-height:1.3;}
+.so2-mov th{white-space:normal;} .so2-mov th.tb-ord{white-space:normal;} .so2-mov tfoot td{white-space:normal;}
+.so2-mov .so2-l2{display:block;font-size:11px;color:#667085;margin-top:2px;max-width:165px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.so2-mov td.so2-quem b{display:block;max-width:165px;overflow:hidden;text-overflow:ellipsis;}
+.so2-mov td.num>div{margin-top:3px;}
+.so2-mov td.so2-obs{white-space:normal;min-width:110px;width:40%;} .so2-mov td.so2-obs>div{color:#667085;font-size:12px;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;word-break:break-word;}
+.so2-ic{width:28px;height:28px;display:inline-grid;place-items:center;border:1px solid #E4E9F2;background:#fff;border-radius:8px;color:#475467;font-size:12px;cursor:pointer;padding:0;}
+.so2-ic:hover{border-color:#84ADFF;color:#1652D8;background:#F5F8FF;} .so2-ic.dev{color:#B54708;} .so2-ic.dev:hover{border-color:#FEC84B;background:#FFFAEB;color:#B54708;}
+.so2-ic.err{color:#B42318;} .so2-ic.err:hover{border-color:#FDA29B;background:#FEF3F2;color:#B42318;}
 .so2-mini{display:inline-block;font:700 9.5px Inter,sans-serif;text-transform:uppercase;letter-spacing:.04em;background:#EFF4FF;color:#1849A9;border-radius:999px;padding:1px 6px;margin-left:4px;vertical-align:1px;}
 .so2-sit{display:inline-block;font:700 11px Inter,sans-serif;border-radius:999px;padding:2px 8px;} .so2-sit.ok{background:#ECFDF3;color:#067647;} .so2-sit.parc{background:#FFFAEB;color:#B54708;}
 .so2-dev{font-size:12px;color:#475467;margin-top:5px;} .so2-dev:empty{display:none;}
@@ -19831,7 +19838,7 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
 .so2-tab td.ent{color:#067647;} .so2-tab td.sai{color:#B42318;}
 .so2-tipo{display:inline-flex;align-items:center;gap:6px;font:700 11.5px Inter,sans-serif;padding:3px 9px;border-radius:999px;}
 .so2-tipo.ent{background:#ECFDF3;color:#067647;} .so2-tipo.sai{background:#FEF3F2;color:#B42318;} .so2-tipo.dev{background:#FFFAEB;color:#B54708;}
-.so2-ac{display:flex;gap:5px;justify-content:flex-end;}
+.so2-ac{display:flex;gap:4px;justify-content:flex-end;}
 .so2-filtros{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0;}
 .so2-filtros select{border:1px solid #D0D5DD;border-radius:10px;padding:7px 10px;font:600 12.5px Inter,sans-serif;background:#fff;}
 .idle-ov{position:fixed;inset:0;z-index:2147483000;background:rgba(16,24,40,.55);display:none;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(3px);}
@@ -21289,13 +21296,16 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
           <select data-so2f="quem"><option value="">Todos os sócios</option>${[...new Set(L.map(x=>x.quem))].map(q=>`<option ${f.quem===q?'selected':''}>${fe(q)}</option>`).join('')}</select>
           <select data-so2f="tipo"><option value="">Entradas e saídas</option>${['Aporte','Retirada','Devolução de aporte'].map(t=>`<option ${f.tipo===t?'selected':''}>${t}</option>`).join('')}</select>
           <select data-so2f="ano"><option value="">Todos os anos</option>${anos.map(a=>`<option ${f.ano===String(a)?'selected':''}>${a}</option>`).join('')}</select></div>
-        ${vis.length?`<div class="gf-rolar"><table class="so2-tab so2-mov"><thead><tr><th>Data / período</th><th>Tipo</th><th>Sócio / investidor</th><th>Obra</th><th>Forma</th><th style="text-align:right">Valor</th><th>Situação</th><th>Observação</th><th></th></tr></thead><tbody>
-          ${vis.map((x,i)=>{const sd=!x.sai&&x.fonte==='ap'?saldoAporte(x,L):0,per=x.ini&&x.fim&&isoDe(x.ini)!==isoDe(x.fim)?`${brDe(x.ini).slice(0,5)} a ${brDe(x.fim)}`:x.data?brDe(x.data):'—';
-            const sit=x.sai||x.fonte!=='ap'?'':sd<=0.004?'<span class="so2-sit ok">devolvido</span>':sd<x.valor-0.004?`<span class="so2-sit parc">falta devolver ${fmt(sd)}</span>`:'';
-            return `<tr><td class="so2-dt">${per}</td><td><span class="so2-tipo ${!x.sai?'ent':x.dev?'dev':'sai'}"><i class="fas ${!x.sai?'fa-arrow-down':'fa-arrow-up'}"></i> ${x.tipo}</span></td><td><b>${fe(x.quem)}</b></td><td class="so2-ob" title="${fe(x.obra)}">${fe(x.obra)}${x.rateio?' <span class="so2-mini">rateio</span>':''}</td><td>${fe(x.forma||'—')}</td>
-            <td class="num ${x.sai?'sai':'ent'}">${x.sai?'−':'+'} ${fmt(x.valor)}</td><td>${sit}</td><td class="so2-obs" title="${fe(x.obs)}">${fe(x.obs)}</td>
-            <td><div class="so2-ac">${x.fonte==='ap'&&podeEd?`${!x.sai&&sd>0.004?`<button type="button" class="fin-bt mini" data-so2="devolver" data-i="${i}" title="Lançar a devolução (toda ou uma parte) deste aporte"><i class="fas fa-rotate-left"></i> Devolver</button>`:''}<button type="button" class="fin-bt mini" data-so2="editar" data-i="${i}" title="Editar"><i class="fas fa-pen"></i></button><button type="button" class="fin-bt mini err" data-so2="excluir" data-i="${i}" title="Excluir"><i class="fas fa-trash"></i></button>`:x.fonte==='cp'?'<span class="gf-pill">Contas a pagar</span>':''}</div></td></tr>`;}).join('')}
-          </tbody><tfoot><tr><td colspan="5" style="font-weight:800">Saldo do filtro</td><td class="num">${fmt(S(vis.filter(x=>!x.sai))-S(vis.filter(x=>x.sai)))}</td><td colspan="3" style="color:#667085;font-size:12px">entradas ${fmt(S(vis.filter(x=>!x.sai)))} · saídas ${fmt(S(vis.filter(x=>x.sai)))}</td></tr></tfoot></table></div>`:'<div class="gf-vazio"><i class="fas fa-piggy-bank"></i><p>Nenhum lançamento neste filtro.</p></div>'}</div>`;
+        ${vis.length?`<div class="gf-rolar"><table class="so2-tab so2-mov"><thead><tr><th>Data / período</th><th>Movimento</th><th>Sócio · obra</th><th style="text-align:right">Valor</th><th>Observação</th><th></th></tr></thead><tbody>
+          ${vis.map((x,i)=>{const sd=!x.sai&&x.fonte==='ap'?saldoAporte(x,L):0,per=x.ini&&x.fim&&isoDe(x.ini)!==isoDe(x.fim)?`${brDe(x.ini).slice(0,5)} a<br>${brDe(x.fim)}`:x.data?brDe(x.data):'—';
+            const sit=x.sai||x.fonte!=='ap'?'':sd<=0.004?'<span class="so2-sit ok">devolvido</span>':sd<x.valor-0.004?`<span class="so2-sit parc">falta ${fmt(sd)}</span>`:'';
+            return `<tr><td class="so2-dt" data-ord-valor="${x.data?brDe(x.data):''}">${per}</td>
+            <td><span class="so2-tipo ${!x.sai?'ent':x.dev?'dev':'sai'}"><i class="fas ${!x.sai?'fa-arrow-down':'fa-arrow-up'}"></i> ${x.dev?'Devolução':x.tipo}</span>${x.forma?`<small class="so2-l2">${fe(x.forma)}</small>`:''}</td>
+            <td class="so2-quem"><b>${fe(x.quem)}</b><small class="so2-l2" title="${fe(x.obra)}">${fe(x.obra)}${x.rateio?' <span class="so2-mini">rateio</span>':''}</small></td>
+            <td class="num ${x.sai?'sai':'ent'}" data-ord-valor="${x.sai?'-':''}${x.valor.toFixed(2).replace('.',',')}">${x.sai?'−':'+'} ${fmt(x.valor)}${sit?`<div>${sit}</div>`:''}</td>
+            <td class="so2-obs"><div title="${fe(x.obs)}">${fe(x.obs)}</div></td>
+            <td><div class="so2-ac">${x.fonte==='ap'&&podeEd?`${!x.sai&&sd>0.004?`<button type="button" class="so2-ic dev" data-so2="devolver" data-i="${i}" title="Devolver este aporte (todo ou uma parte)" aria-label="Devolver"><i class="fas fa-rotate-left"></i></button>`:''}<button type="button" class="so2-ic" data-so2="editar" data-i="${i}" title="Editar" aria-label="Editar"><i class="fas fa-pen"></i></button><button type="button" class="so2-ic err" data-so2="excluir" data-i="${i}" title="Excluir" aria-label="Excluir"><i class="fas fa-trash"></i></button>`:x.fonte==='cp'?'<span class="gf-pill" title="Lançada em Contas a pagar">contas</span>':''}</div></td></tr>`;}).join('')}
+          </tbody><tfoot><tr><td colspan="3" style="font-weight:800">Saldo do filtro</td><td class="num">${fmt(S(vis.filter(x=>!x.sai))-S(vis.filter(x=>x.sai)))}</td><td colspan="2" style="color:#667085;font-size:12px">entradas ${fmt(S(vis.filter(x=>!x.sai)))} · saídas ${fmt(S(vis.filter(x=>x.sai)))}</td></tr></tfoot></table></div>`:'<div class="gf-vazio"><i class="fas fa-piggy-bank"></i><p>Nenhum lançamento neste filtro.</p></div>'}</div>`;
     }else if(f.aba==='socio'){
       const g={};L.forEach(x=>{const k=x.quem;(g[k]=g[k]||{ap:0,ret:0,dev:0});if(!x.sai)g[k].ap+=x.valor;else if(x.dev)g[k].dev+=x.valor;else g[k].ret+=x.valor;});
       const linhas=Object.entries(g).sort((a,b)=>(b[1].ap-b[1].dev)-(a[1].ap-a[1].dev));
