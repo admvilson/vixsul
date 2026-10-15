@@ -9303,7 +9303,7 @@ const UI={
     else if(tab==='orcamentos')this._orcExportPDF();
     else if(tab==='etapas')this._etapasExportPDF();
     // aba Medição: medição aberta = boletim dela; lista = painel das medições da obra (ou o boletim da última)
-    else if(tab==='medicao'){const ME=Eng._ME,ob=App.state.obraHub.obraName;if(ME&&ME.edit&&ME.edit.reg)return Eng.pdfBoletim(ME.edit.reg);const pp=document.querySelector('#form-upsert [data-me="painel-pdf"]');if(pp)return pp.click();const ms=(Eng.medsDaObra?Eng.medsDaObra(ob):[]);if(ms.length)return Eng.pdfBoletim(ms[ms.length-1]);toast('Ainda não há medição desta obra para exportar.','error');}
+    else if(tab==='medicao'){const ME=Eng._ME,ob=App.state.obraHub.obraName;if(ME&&ME.edit&&ME.edit.reg)return Eng.pdfBoletim({...ME.edit.reg,itens:Object.entries(ME.edit.qtd).filter(e=>e[1]).map(([chave,qtd])=>({chave,qtd}))},{so:ME.edit.so,busca:ME.edit.busca});const pp=document.querySelector('#form-upsert [data-me="painel-pdf"]');if(pp)return pp.click();const ms=(Eng.medsDaObra?Eng.medsDaObra(ob):[]);if(ms.length)return Eng.pdfBoletim(ms[ms.length-1],{so:true});toast('Ainda não há medição desta obra para exportar.','error');}
     else toast('Esta aba não tem PDF.','error');
   },
   /* Botão Excluir (ícone): exclui a obra E todos os lançamentos dentro dela. */
@@ -12198,7 +12198,7 @@ const Eng=(function(){
       else if(a==='adt-editar'||a==='adt-excluir'){const ad=aditivosDaObra(ME.obra)[+b.dataset.a];if(ad)(a==='adt-editar'?Eng.editarAditivo(ad):Eng.excluirAditivo(ad));}
       else if(a==='novo')abrirEditor(ME.obra,null);
       else if(a==='abrir'&&m)abrirEditor(ME.obra,m);
-      else if(a==='pdf'&&m)pdfBoletim(m);
+      else if(a==='pdf'&&m)pdfBoletim(m,{so:true});
       else if(a==='faturar'&&m)dialogoFaturar(m);
       else if(a==='excluir'&&m){
         const depois=medsDaObra(ME.obra).filter(x=>(+x.numero||0)>(+m.numero||0)).length;
@@ -12271,7 +12271,7 @@ const Eng=(function(){
       <div class="fin-card med-desc"><div class="med-desc-cab"><b><i class="fas fa-scissors"></i> Descontos e abatimentos</b><small>Glosas, multas, retenções da fiscalização… saem do valor a faturar (as quantidades medidas não mudam).</small></div>
         <table data-sem-ordem><thead><tr><th>O que está sendo abatido</th><th style="width:170px">Valor (R$)</th><th style="width:40px"></th></tr></thead><tbody data-me-desc>${(E.desc||[]).map((x,i)=>linhaDesc(x,i)).join('')}</tbody></table>
         <button type="button" class="fin-bt mini" data-me="desc-add"><i class="fas fa-plus"></i> Desconto ou abatimento</button></div>
-      <div class="fin-rodape"><span data-me-tot style="flex:1"></span><button type="button" class="fin-bt" data-me="cancelar">Cancelar</button><button type="button" class="fin-bt pri" data-me="salvar">Salvar medição</button></div>
+      <div class="fin-rodape"><span data-me-tot style="flex:1"></span><button type="button" class="fin-bt" data-me="cancelar">Cancelar</button>${E.reg?'<button type="button" class="fin-bt" data-me="pdf-ed" title="PDF desta medição com os filtros da tela"><i class="fas fa-file-pdf"></i> PDF</button>':''}<button type="button" class="fin-bt pri" data-me="salvar">Salvar medição</button></div>
     </div>`;
     totaisEditor();
     const corpo=box.querySelector('[data-me-corpo]');
@@ -12306,6 +12306,7 @@ const Eng=(function(){
       const s=ev.target.closest('[data-saldo]');
       if(s){const x=E._itens[+s.dataset.saldo];const inp=corpo.querySelector(`input[data-q="${s.dataset.saldo}"]`);const falta=Math.max(0,Math.round((x.qtd_contrato-(E._ant[x.chave]||0))*10000)/10000);inp.value=fq(falta);ler(inp,true);return;}
       const b=ev.target.closest('button[data-me]');if(!b)return;
+      if(b.dataset.me==='pdf-ed'){pdfBoletim({...E.reg,itens:Object.entries(E.qtd).filter(e=>e[1]).map(([chave,qtd])=>({chave,qtd})),descontos:JSON.stringify(E.desc||[])},{so:E.so,busca:E.busca});return;}
       if(b.dataset.me==='desc-add'||b.dataset.me==='desc-x'){if(b.dataset.me==='desc-add')E.desc.push({desc:'',valor:0});else E.desc.splice(+b.dataset.i,1);
         const tbd=box.querySelector('[data-me-desc]');tbd.innerHTML=E.desc.map((x,i)=>linhaDesc(x,i)).join('');totaisEditor();if(b.dataset.me==='desc-add'){const ins=tbd.querySelectorAll('input[data-dsc="desc"]');ins[ins.length-1].focus();}return;}
       if(b.dataset.me==='cancelar'){
@@ -12383,12 +12384,13 @@ const Eng=(function(){
   }
 
   /* ───── PDF do boletim ───── */
-  function pdfBoletim(m){
-    const ob=m.titulo_obra,orc=orcDe(m.orcamento_rowid)||baseDaObra(ob);
+  function pdfBoletim(m,opc){
+    opc=opc||{};const ob=m.titulo_obra,orc=orcDe(m.orcamento_rowid)||baseDaObra(ob);
     const itens=itensDaObra(ob,orc),ant=acumulado(ob,+m.numero||0),nesta={};(m.itens||[]).forEach(it=>nesta[it.chave]=+it.qtd||0);
     const obra=(D().obras||[]).find(o=>nomeObra(o)===ob)||{};
     let tC=0,tA=0,tN=0;
     const rows=itens.map(x=>{const a=ant[x.chave]||0,q=nesta[x.chave]||0,ac=a+q,p=x.qtd_contrato?ac/x.qtd_contrato*100:0;tC+=r2(x.qtd_contrato*x.p_unit);tA+=r2(ac*x.p_unit);tN+=r2(q*x.p_unit);
+      if(opc.so&&!q)return '';if(opc.busca&&!cn([x.item,x.codigo,x.descricao].join(' ')).includes(cn(opc.busca)))return '';
       return `<tr${q?' style="background:#f0f6ff"':''}><td>${fe(x.item)}</td><td>${fe(x.codigo)}</td><td>${fe(x.descricao)}</td><td>${fe(x.unidade)}</td><td style="text-align:right">${fq(x.qtd_contrato)||'0'}</td><td style="text-align:right">${fq(a)||'—'}</td><td style="text-align:right;font-weight:700">${fq(q)||'—'}</td><td style="text-align:right">${fq(ac)||'—'}</td><td style="text-align:right">${pct(p,0)}</td><td style="text-align:right">${fmt(x.p_unit)}</td><td style="text-align:right;font-weight:700">${q?fmt(r2(q*x.p_unit)):'—'}</td></tr>`;});
     const info=(l,v)=>`<div style="flex:1;min-width:120px"><div style="font-size:8px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:#8a8a8e">${l}</div><div style="font-size:11px;font-weight:700;margin-top:2px">${v}</div></div>`;
     const pre=`<div style="display:flex;gap:12px;flex-wrap:wrap;border:1px solid #e5e5ea;border-radius:8px;padding:10px 12px;margin-bottom:10px">${info('Obra',fe(ob))}${info('Contrato nº',fe(getFuzzy(obra,['numero_contrato','num_contrato','n_contrato'])||'—'))}${info('Medição nº',fe(m.numero))}${info('Período',`${m.periodo_ini?brDe(dt(m.periodo_ini)):'—'} a ${m.periodo_fim?brDe(dt(m.periodo_fim)):'—'}`)}${info('Data da medição',brDe(dt(m.data_medicao)))}${info('Situação',fe(m.status||'—'))}</div>`;
@@ -12397,9 +12399,9 @@ const Eng=(function(){
     const adV=aditivosDaObra(ob).filter(a=>!a.data_emissao||!m.data_medicao||String(a.data_emissao)<=String(m.data_medicao)).reduce((s,a)=>s+val(a.aditivo_valor),0),tV=tC+adV;
     const pos=`<div style="display:flex;gap:24px;margin-top:12px;align-items:flex-start"><div style="flex:1;border:1px solid #e5e5ea;border-radius:8px;padding:10px 14px">${lin('Valor do contrato (orçamento)',fmt(tC))}${adV?lin('Aditivos de valor',fmt(adV))+lin('Contrato vigente',fmt(tV)):''}${lin('Acumulado anterior',fmt(tA-tN))}${lin('Acumulado até esta medição',fmt(tA)+' ('+pct(tV?tA/tV*100:0)+')')}${lin('Saldo do contrato',fmt(tV-tA))}${totDescMed(m)?lin('Valor medido nesta medição',fmt(tN))+descontosMed(m).map(x=>lin('(−) '+fe(x.desc),fmt(x.valor))).join('')+lin('Valor desta medição (com os descontos)',fmt(r2(tN-totDescMed(m))),true):lin('Valor desta medição',fmt(tN),true)}</div>
       <div style="flex:1;font-size:10px;color:#6e6e73">${m.observacao?`<b>Observação:</b> ${fe(m.observacao)}`:''}<div style="display:flex;gap:24px;margin-top:46px"><div style="flex:1;border-top:1px solid #1d1d1f;padding-top:4px;text-align:center">Vixsul Empreendimentos<br>Responsável técnico</div><div style="flex:1;border-top:1px solid #1d1d1f;padding-top:4px;text-align:center">Fiscalização do contratante</div></div></div></div>`;
-    App._relExportPaginado({titulo:'Boletim de Medição',subLinhas:[`${fe(ob)} · Medição nº ${fe(m.numero)}`],paisagem:true,preHtml:pre,
+    App._relExportPaginado({titulo:'Boletim de Medição',subLinhas:[`${fe(ob)} · Medição nº ${fe(m.numero)}`].concat(opc.so?['Só os itens desta medição']:[]).concat(opc.busca?['Busca: '+fe(opc.busca)]:[]),paisagem:true,preHtml:pre,
       theadHtml:'<tr><th style="width:4%">Item</th><th style="width:8%">Código</th><th style="width:30%">Descrição</th><th style="width:4%">Un.</th><th style="width:7%;text-align:right">Contrato</th><th style="width:7%;text-align:right">Acum. ant.</th><th style="width:7%;text-align:right">Nesta med.</th><th style="width:7%;text-align:right">Acum. atual</th><th style="width:5%;text-align:right">%</th><th style="width:9%;text-align:right">P. unit.</th><th style="width:12%;text-align:right">Valor nesta med.</th></tr>',
-      rowsArr:rows,posHtml:pos});
+      rowsArr:rows.filter(Boolean),posHtml:pos});
   }
 
   /* ═══════════════ números de obra usados por relatórios e alertas ═══════════════ */
