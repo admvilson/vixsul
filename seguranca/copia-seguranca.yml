@@ -1,0 +1,45 @@
+# Cópia de segurança diária do sistema Vixsul.
+# ESTE ARQUIVO VAI NO GITHUB EM: .github/workflows/copia-seguranca.yml (Add file → Create new file → colar)
+# Todo dia às 3h (horário de Brasília) lê o banco, compacta e CRIPTOGRAFA (AES-256) com a senha da cópia
+# e guarda o arquivo por 30 dias em Actions → Cópia de segurança diária → (execução) → Artifacts.
+# Precisa de 2 segredos no GitHub (Settings → Secrets and variables → Actions → New repository secret):
+#   SUPABASE_SERVICE_KEY = a mesma chave service_role que está na Vercel
+#   BACKUP_SENHA         = uma senha forte criada por você (sem ela a cópia não abre — guarde bem)
+name: Cópia de segurança diária
+on:
+  schedule:
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  copia:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: ferramentas
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Lê os dados do banco
+        env:
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: node ferramentas/copia-seguranca.js > copia.json
+      - name: Compacta e criptografa
+        env:
+          BACKUP_SENHA: ${{ secrets.BACKUP_SENHA }}
+        run: |
+          if [ -z "$BACKUP_SENHA" ]; then echo "Falta o segredo BACKUP_SENHA no GitHub."; exit 1; fi
+          gzip -9 copia.json
+          ARQ="vixsul-copia-$(TZ=America/Bahia date +%F).json.gz.enc"
+          openssl enc -aes-256-cbc -pbkdf2 -iter 200000 -salt -in copia.json.gz -out "$ARQ" -pass env:BACKUP_SENHA
+          rm -f copia.json.gz
+          ls -l "$ARQ"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vixsul-copia-${{ github.run_number }}
+          path: vixsul-copia-*.enc
+          retention-days: 30
+          if-no-files-found: error

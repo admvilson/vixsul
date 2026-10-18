@@ -33,4 +33,21 @@ COMO LIGAR (na ordem)
   Emergência (algo parou depois do passo 5): rodar seguranca/desfazer-trancamento.sql
 
 NUNCA envie o JWT Secret nem a service_role a ninguém, nem cole em conversa, e-mail ou no código.
-Elas ficam SÓ nas variáveis da Vercel.
+Elas ficam SÓ nas variáveis da Vercel (e a service_role também nos segredos do GitHub, para a cópia).
+
+PROTEÇÕES EXTRAS (tela Configurações › Usuários e permissões, parte "Segurança" — só o Administrador)
+  • Verificação em duas etapas: além da senha, o código do aplicativo autenticador do celular.
+    Antes, rodar no Supabase: seguranca/passo-3-duas-etapas.sql
+  • Auditoria: quem incluiu, alterou ou excluiu o quê e quando, com "Desfazer".
+  • Cópia de segurança: "Baixar cópia de segurança" (arquivo .json neste computador).
+  • Senha fraca: quem entrar com senha fraca é convidado a criar uma nova na hora.
+
+CÓPIA AUTOMÁTICA DIÁRIA (GitHub)
+  GitHub → repositório vixsul → Settings → Secrets and variables → Actions → New repository secret:
+     SUPABASE_SERVICE_KEY = a mesma service_role da Vercel
+     BACKUP_SENHA         = uma senha forte criada por você (anote em lugar seguro: sem ela a cópia não abre)
+  Para testar: Actions → "Cópia de segurança diária" → Run workflow.
+  As cópias ficam 30 dias em Actions → (a execução) → Artifacts, criptografadas (AES-256).
+  Para abrir uma cópia (quem tiver a senha):
+     openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -in vixsul-copia-AAAA-MM-DD.json.gz.enc -out copia.json.gz
+     gzip -d copia.json.gz

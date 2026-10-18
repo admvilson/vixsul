@@ -64,7 +64,32 @@ async function achar(modo, id) {
   return us.find(u => soDig(u.cpf) === id && (id === SUPER_ADMIN_CPF || String(u.tipo_usuario || 'interno').toLowerCase() !== 'externo')) || null;
 }
 const publico = u => ({ id: u.id, nome: u.nome, cpf: u.cpf, perfil: u.perfil, status: u.status, email: u.email || '', acessos: lista(u.acessos),
-  tipoUsuario: String(u.tipo_usuario || 'interno').toLowerCase() === 'externo' ? 'externo' : 'interno', obrasPermitidas: lista(u.obras_permitidas) || [] });
+  tipoUsuario: String(u.tipo_usuario || 'interno').toLowerCase() === 'externo' ? 'externo' : 'interno', obrasPermitidas: lista(u.obras_permitidas) || [], mfa: !!u.mfa_segredo });
+
+// ── verificação em duas etapas (TOTP: Google Authenticator, Microsoft Authenticator…) ──
+// O segredo fica na tabela usuarios (que só o servidor lê). Códigos de 30 s, aceita o anterior e o próximo
+// (relógio do celular um pouco adiantado/atrasado) e nunca o mesmo código duas vezes. 8 códigos reserva de uso único
+// para quando o celular não estiver à mão (guardados só como hash).
+const B32 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+function b32enc(buf) { let bits = ''; for (const b of buf) bits += b.toString(2).padStart(8, '0'); let o = ''; for (let i = 0; i < bits.length; i += 5) o += B32[parseInt(bits.slice(i, i + 5).padEnd(5, '0'), 2)]; return o; }
+function b32dec(s) { s = String(s || '').toUpperCase().replace(/[^A-Z2-7]/g, ''); let bits = ''; for (const ch of s) bits += B32.indexOf(ch).toString(2).padStart(5, '0'); const out = []; for (let i = 0; i + 8 <= bits.length; i += 8) out.push(parseInt(bits.slice(i, i + 8), 2)); return Buffer.from(out); }
+function totp(seg, passo) { const c = Buffer.alloc(8); c.writeBigUInt64BE(BigInt(passo)); const h = crypto.createHmac('sha1', b32dec(seg)).update(c).digest(), o = h[h.length - 1] & 15;
+  return String((((h[o] & 127) << 24) | (h[o + 1] << 16) | (h[o + 2] << 8) | h[o + 3]) % 1000000).padStart(6, '0'); }
+const passoAgora = () => Math.floor(Date.now() / 30000);
+// devolve o passo de tempo do código (ou 0 se não confere)
+function confereTotp(seg, cod, ultimo) { if (!seg || !/^\d{6}$/.test(cod)) return 0; const p0 = passoAgora();
+  for (const p of [p0, p0 - 1, p0 + 1]) { if (p <= (+ultimo || 0)) continue; const a = Buffer.from(totp(seg, p)), b = Buffer.from(cod); if (crypto.timingSafeEqual(a, b)) return p; } return 0; }
+const hashReserva = c => crypto.createHash('sha256').update('vx-reserva:' + String(c).toUpperCase().replace(/[^A-Z0-9]/g, '')).digest('hex');
+// confere o código do login (do aplicativo ou reserva) e grava o uso
+async function confereSegundoFator(u, cod) {
+  cod = String(cod || '').replace(/\s/g, '');
+  const p = confereTotp(u.mfa_segredo, cod, u.mfa_ultimo);
+  if (p) { await sb('usuarios?id=eq.' + u.id, { method: 'PATCH', prefer: 'return=minimal', body: { mfa_ultimo: p } }); return 'app'; }
+  const res = lista(u.mfa_reserva) || [], h = hashReserva(cod), i = res.indexOf(h);
+  if (cod.length >= 8 && i >= 0) { res.splice(i, 1); await sb('usuarios?id=eq.' + u.id, { method: 'PATCH', prefer: 'return=minimal', body: { mfa_reserva: JSON.stringify(res) } }); return 'reserva'; }
+  return '';
+}
+const faltaPasso3 = e => /mfa_|column|coluna/i.test(String(e && e.message || '')) ? 'Falta rodar o passo 3 da segurança no Supabase (seguranca/passo-3-duas-etapas.sql).' : 'Não foi possível concluir agora.';
 
 // nomes das obras que um usuário restrito pode ver (o banco filtra por eles)
 async function nomesObras(ids) {
@@ -150,9 +175,17 @@ A.entrar = async (b, req) => {
   const v = u ? confereSenha(senha, u.senha) : { ok: false };
   if (!u || !v.ok) { await registrar('login', chave, false, ip); return { ok: false, msg: modo === 'externo' ? 'E-mail ou senha incorretos.' : 'CPF ou senha incorretos.' }; }
   if (!sup && String(u.status || 'ativo').toLowerCase() !== 'ativo') return { ok: false, msg: 'Usuário inativo. Entre em contato com o administrador.' };
+  // verificação em duas etapas: com a senha certa, pede o código do aplicativo (sem ele, não há passe)
+  if (u.mfa_segredo) {
+    const cod = String(b.codigo2 || '').trim();
+    if (!cod) return { ok: false, precisaCodigo: true, msg: 'Digite o código de 6 dígitos do aplicativo autenticador.' };
+    const tipo2 = await confereSegundoFator(u, cod);
+    if (!tipo2) { await registrar('login', chave, false, ip, 'código 2 etapas'); return { ok: false, precisaCodigo: true, msg: 'Código do aplicativo incorreto (ou já usado). Confira e digite o código atual.' }; }
+    if (tipo2 === 'reserva') await registrar('reserva_usada', chave, true, ip);
+  }
   if (v.legado) { try { await sb('usuarios?id=eq.' + u.id, { method: 'PATCH', prefer: 'return=minimal', body: { senha: hashSenha(senha) } }); } catch (e) { } }
   await registrar('login', chave, true, ip);
-  return { ok: true, ...(await emitir(u, modo)) };
+  return { ok: true, senhaFraca: !!senhaFraca(senha), ...(await emitir(u, modo)) };
 };
 
 A.renovar = async (b, req) => {
@@ -196,6 +229,44 @@ A.usuarios_excluir = async (b, req) => {
   if (u && soDig(u.cpf) === SUPER_ADMIN_CPF) return { ok: false, msg: 'O administrador principal não pode ser excluído.' };
   if (+p.uidn === id) return { ok: false, msg: 'Você não pode excluir o seu próprio usuário.' };
   await sb('usuarios?id=eq.' + id, { method: 'DELETE', prefer: 'return=minimal' });
+  return { ok: true, usuarios: (await todosUsuarios()).map(publico) };
+};
+
+// ── verificação em duas etapas: ativar, confirmar, desligar ──
+async function eu(req) { const p = passe(req); if (!p) return null; const u = (await todosUsuarios()).find(x => +x.id === +p.uidn); return u ? { p, u } : null; }
+A.mfa_estado = async (b, req) => { const e = await eu(req); if (!e) return { ok: false, sair: true, msg: 'Entre de novo.' };
+  return { ok: true, ativo: !!e.u.mfa_segredo, reservas: (lista(e.u.mfa_reserva) || []).length, colunas: 'mfa_segredo' in e.u }; };
+A.mfa_iniciar = async (b, req) => {
+  const e = await eu(req); if (!e) return { ok: false, sair: true, msg: 'Entre de novo.' };
+  if (e.u.mfa_segredo) return { ok: false, msg: 'A verificação em duas etapas já está ligada.' };
+  const seg = b32enc(crypto.randomBytes(20)), conta = String(e.u.nome || e.p.app_uid).replace(/[:]/g, ' ');
+  try { await sb('usuarios?id=eq.' + e.u.id, { method: 'PATCH', prefer: 'return=minimal', body: { mfa_pendente: seg } }); } catch (x) { return { ok: false, msg: faltaPasso3(x) }; }
+  return { ok: true, segredo: seg.replace(/(.{4})/g, '$1 ').trim(), url: `otpauth://totp/${encodeURIComponent('Vixsul:' + conta)}?secret=${seg}&issuer=Vixsul&digits=6&period=30` };
+};
+A.mfa_confirmar = async (b, req) => {
+  const e = await eu(req); if (!e) return { ok: false, sair: true, msg: 'Entre de novo.' };
+  const p = confereTotp(e.u.mfa_pendente, String(b.codigo || '').replace(/\D/g, ''), 0);
+  if (!p) return { ok: false, msg: 'Código incorreto. Confira se o celular está com a hora certa e digite o código atual.' };
+  const reservas = Array.from({ length: 8 }, () => { const r = crypto.randomBytes(5).toString('hex').toUpperCase(); return r.slice(0, 5) + '-' + r.slice(5); });
+  try { await sb('usuarios?id=eq.' + e.u.id, { method: 'PATCH', prefer: 'return=minimal', body: { mfa_segredo: e.u.mfa_pendente, mfa_pendente: null, mfa_ultimo: p, mfa_reserva: JSON.stringify(reservas.map(hashReserva)) } }); }
+  catch (x) { return { ok: false, msg: faltaPasso3(x) }; }
+  await registrar('mfa_ligado', 'u:' + e.u.id, true, ipDe(req));
+  return { ok: true, reservas };
+};
+A.mfa_desligar = async (b, req) => {
+  const e = await eu(req); if (!e) return { ok: false, sair: true, msg: 'Entre de novo.' };
+  if (!e.u.mfa_segredo) return { ok: true };
+  if (!(await confereSegundoFator(e.u, b.codigo))) return { ok: false, msg: 'Para desligar, digite o código atual do aplicativo (ou um código reserva).' };
+  await sb('usuarios?id=eq.' + e.u.id, { method: 'PATCH', prefer: 'return=minimal', body: { mfa_segredo: null, mfa_pendente: null, mfa_reserva: null, mfa_ultimo: null } });
+  await registrar('mfa_desligado', 'u:' + e.u.id, true, ipDe(req));
+  return { ok: true };
+};
+// o Administrador desliga a verificação de OUTRO usuário (ex.: perdeu o celular e os códigos reserva)
+A.usuarios_mfa_desligar = async (b, req) => {
+  const p = soAdm(req); if (!p) return { ok: false, msg: 'Só o Administrador faz isso.' };
+  const id = Number(b.id); if (!id || id === +p.uidn) return { ok: false, msg: 'Para a sua própria conta, use "Desligar" com o código do aplicativo.' };
+  try { await sb('usuarios?id=eq.' + id, { method: 'PATCH', prefer: 'return=minimal', body: { mfa_segredo: null, mfa_pendente: null, mfa_reserva: null, mfa_ultimo: null } }); } catch (x) { return { ok: false, msg: faltaPasso3(x) }; }
+  await registrar('mfa_desligado', 'u:' + id, true, ipDe(req), 'pelo Administrador ' + p.app_uid);
   return { ok: true, usuarios: (await todosUsuarios()).map(publico) };
 };
 

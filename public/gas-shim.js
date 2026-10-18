@@ -335,17 +335,59 @@ async function _verificarSenha(senhaPlana, armazenada) {
 const _SUPER_ADMIN_CPF = '05582376577';
 
 function _aposEntrar(r) {
-  if (!r.ok) return { ok: false, msg: r.msg || 'Não foi possível entrar.' };
+  if (!r.ok) return { ok: false, msg: r.msg || 'Não foi possível entrar.', precisaCodigo: !!r.precisaCodigo };
   _guardarToken(r);
-  return Object.assign({ ok: true }, r.sessao);
+  return Object.assign({ ok: true, senhaFraca: !!r.senhaFraca }, r.sessao);
 }
-async function _login(cpf, senha) {
-  const r = await _api('entrar', { modo: 'interno', cpf, senha });
+// codigo2 = código do aplicativo autenticador (verificação em duas etapas), quando a conta tem
+async function _login(cpf, senha, codigo2) {
+  const r = await _api('entrar', { modo: 'interno', cpf, senha, codigo2: codigo2 || '' });
   return r ? _aposEntrar(r) : _loginLegado(cpf, senha);
 }
-async function _loginExterno(email, senha) {
-  const r = await _api('entrar', { modo: 'externo', email, senha });
+async function _loginExterno(email, senha, codigo2) {
+  const r = await _api('entrar', { modo: 'externo', email, senha, codigo2: codigo2 || '' });
   return r ? _aposEntrar(r) : _loginExternoLegado(email, senha);
+}
+// ─── Segurança (tela do Administrador) ───
+// ações do servidor de login (duas etapas, desligar de outro usuário)
+async function _seguranca(acao, dados) {
+  if (!/^(mfa_estado|mfa_iniciar|mfa_confirmar|mfa_desligar|usuarios_mfa_desligar)$/.test(String(acao))) return { ok: false, msg: 'Ação inválida.' };
+  const r = await _api(acao, dados); return r || { ok: false, msg: 'A segurança ainda não está ligada.' };
+}
+const _TAB_DADOS = () => _CHAVES.concat(['arquivos']);
+// auditoria: o banco só entrega ao Administrador
+async function _listarAuditoria(f) {
+  f = f || {};
+  let q = _sb.from('auditoria').select('id,quando,quem,quem_nome,tabela,acao,registro,antes,depois').order('quando', { ascending: false }).limit(Math.min(+f.limite || 400, 2000));
+  if (f.de) q = q.gte('quando', f.de); if (f.ate) q = q.lte('quando', f.ate);
+  if (f.tabela) q = q.eq('tabela', f.tabela); if (f.acao) q = q.eq('acao', f.acao); if (f.quem) q = q.eq('quem_nome', f.quem);
+  const { data, error } = await q;
+  if (error) return { ok: false, msg: /auditoria|relation|does not exist/i.test(error.message) ? 'A auditoria começa a funcionar depois do passo 2 da segurança.' : error.message };
+  return { ok: true, itens: data || [] };
+}
+// desfaz pela auditoria: exclusão → o registro volta; alteração → volta ao conteúdo de antes
+async function _restaurarAuditoria(id) {
+  const { data: a, error } = await _sb.from('auditoria').select('*').eq('id', Number(id)).maybeSingle();
+  if (error || !a) return { ok: false, msg: 'Registro da auditoria não encontrado.' };
+  if (!a.antes || a.antes._grande) return { ok: false, msg: 'Não ficou cópia do conteúdo anterior (registro muito grande).' };
+  if (!_TAB_DADOS().includes(a.tabela)) return { ok: false, msg: 'Esta tabela não pode ser restaurada por aqui.' };
+  let e;
+  if (a.acao === 'DELETE') ({ error: e } = await _sb.from(a.tabela).insert({ row_data: a.antes }));
+  else if (a.acao === 'UPDATE') ({ error: e } = await _sb.from(a.tabela).update({ row_data: a.antes }).eq('id', Number(a.registro)));
+  else return { ok: false, msg: 'Só dá para desfazer alterações e exclusões.' };
+  if (e) return { ok: false, msg: e.message };
+  return { ok: true };
+}
+// cópia de segurança: a tabela inteira, de 1000 em 1000 linhas
+async function _exportarTabela(chave) {
+  if (!_TAB_DADOS().includes(chave)) return { ok: false, msg: 'Tabela inválida.' };
+  const L = [];
+  for (let i = 0; ; i += 1000) {
+    const { data, error } = await _sb.from(chave).select('id,row_data').order('id', { ascending: true }).range(i, i + 999);
+    if (error) return { ok: false, msg: error.message };
+    L.push(...(data || [])); if (!data || data.length < 1000) break;
+  }
+  return { ok: true, linhas: L };
 }
 async function _loginLegado(cpf, senha) {
   const cpfNorm   = String(cpf   || '').replace(/[.\-\s]/g, '').trim();
@@ -638,8 +680,13 @@ const _FNS = {
   excluirRegistroLote:  (a,b)     => _excluirRegistroLote(a,b),
   salvarComposicaoCAP:  (a,b,c,d) => _salvarComposicaoCAP(a,b,c,d),
   excluirComposicaoCAP: (a,b)     => _excluirComposicaoCAP(a,b),
-  login:                (a,b)     => _login(a,b),
-  loginExterno:         (a,b)     => _loginExterno(a,b),
+  login:                (a,b,c)   => _login(a,b,c),
+  loginExterno:         (a,b,c)   => _loginExterno(a,b,c),
+  seguranca:            (a,b)     => _seguranca(a,b),
+  listarAuditoria:      (a)       => _listarAuditoria(a),
+  restaurarAuditoria:   (a)       => _restaurarAuditoria(a),
+  exportarTabela:       (a)       => _exportarTabela(a),
+  tabelasDados:         ()        => Promise.resolve(_TAB_DADOS()),
   listarUsuarios:       ()        => _listarUsuarios(),
   salvarUsuario:        (a,b)     => _salvarUsuario(a,b),
   excluirUsuario:       (a)       => _excluirUsuario(a),
