@@ -75,7 +75,7 @@ function _filtrarPorObras(pacote) {
   let s = null;
   try { s = JSON.parse(sessionStorage.getItem('vixsul_session') || 'null'); } catch (e) { s = null; }
   const ids = s && Array.isArray(s.obrasPermitidas) ? s.obrasPermitidas.map(String) : [];
-  if (!s || !ids.length || /admin/i.test(String(s.perfil || ''))) return;
+  if (!s || !ids.length || String(s.perfil || '').trim().toLowerCase().startsWith('admin')) return;
   const nomeObra = o => o.titulo_obra || o.nome_obra || o.titulo || '';
   pacote.obras = (pacote.obras || []).filter(o => ids.includes(String(o.rowid)));
   const nomes = new Set(pacote.obras.map(nomeObra).filter(Boolean));
@@ -93,15 +93,46 @@ function _filtrarPorObras(pacote) {
   pacote.lixeira = {};
 }
 
+// ─── Quem lançou: todo registro novo leva quem o criou (criado_por / criado_por_id). Só quem lançou — ou um
+// Administrador — pode excluir; registro antigo, sem dono, continua liberado. ───
+function _sessaoAtual() { try { return JSON.parse(sessionStorage.getItem('vixsul_session') || 'null'); } catch (e) { return null; } }
+const _euId = s => String((s && (s.cpf || s.email || s.nome)) || '');
+const _ehAdmin = s => !!s && String(s.perfil || '').trim().toLowerCase().startsWith('admin');
+function _carimbar(rowData) {
+  const s = _sessaoAtual(); if (!s) return rowData;
+  if (!rowData.criado_por_id) rowData.criado_por_id = _euId(s);
+  if (!rowData.criado_por) rowData.criado_por = s.nome || '';
+  return rowData;
+}
+async function _donoPermite(chave, rowId) {
+  const s = _sessaoAtual(); if (!s || _ehAdmin(s)) return true;
+  try {
+    const { data } = await _sb.from(chave).select('row_data').eq('id', Number(rowId)).maybeSingle();
+    const dono = data && data.row_data && data.row_data.criado_por_id;
+    return !dono || String(dono) === _euId(s);
+  } catch (e) { return true; }
+}
+// Ao editar, a tela às vezes manda a linha sem os campos de quem lançou: busca no banco para não perder o dono.
+async function _manterDono(chave, rowId, rowData) {
+  if (rowData.criado_por_id) return rowData;
+  try {
+    const { data } = await _sb.from(chave).select('row_data').eq('id', Number(rowId)).maybeSingle();
+    const rd = data && data.row_data;
+    if (rd && rd.criado_por_id) { rowData.criado_por_id = rd.criado_por_id; rowData.criado_por = rd.criado_por || ''; }
+  } catch (e) { /* sem dono: segue */ }
+  return rowData;
+}
+const _MSG_DONO = 'Só quem lançou (ou um Administrador) pode excluir.';
+
 async function _upsertRegistro(abaNome, dados, rowId) {
   const chave = _NOME_PARA_CHAVE[abaNome] || abaNome.toLowerCase();
   const { rowid, visualId, _aba, ...rowData } = dados;
 
   let error;
   if (rowId && Number(rowId) > 0) {
-    ({ error } = await _sb.from(chave).update({ row_data: rowData }).eq('id', Number(rowId)));
+    ({ error } = await _sb.from(chave).update({ row_data: await _manterDono(chave, rowId, rowData) }).eq('id', Number(rowId)));
   } else {
-    ({ error } = await _sb.from(chave).insert({ row_data: rowData }));
+    ({ error } = await _sb.from(chave).insert({ row_data: _carimbar(rowData) }));
   }
 
   if (error) return { ok: false, msg: error.message };
@@ -112,6 +143,7 @@ async function _upsertRegistro(abaNome, dados, rowId) {
 async function _excluirRegistro(abaNome, rowId) {
   if (!rowId || Number(rowId) <= 0) return { ok: false, msg: 'Registro inválido.' };
   const chave = _NOME_PARA_CHAVE[abaNome] || abaNome.toLowerCase();
+  if (!(await _donoPermite(chave, rowId))) return { ok: false, msg: _MSG_DONO };
   const { error } = await _sb.from(chave).delete().eq('id', Number(rowId));
   if (error) return { ok: false, msg: error.message };
   const data = await _getSistemaData();
@@ -129,9 +161,9 @@ async function _upsertRegistroLote(abaNome, dados, rowId) {
   const { rowid, visualId, _aba, ...rowData } = dados;
   let error;
   if (rowId && Number(rowId) > 0) {
-    ({ error } = await _sb.from(chave).update({ row_data: rowData }).eq('id', Number(rowId)));
+    ({ error } = await _sb.from(chave).update({ row_data: await _manterDono(chave, rowId, rowData) }).eq('id', Number(rowId)));
   } else {
-    ({ error } = await _sb.from(chave).insert({ row_data: rowData }));
+    ({ error } = await _sb.from(chave).insert({ row_data: chave === 'arquivos' && rowData.tipo === 'anexo_parte' ? rowData : _carimbar(rowData) }));
   }
   if (error) return { ok: false, msg: error.message };
   return { ok: true };
@@ -140,6 +172,7 @@ async function _upsertRegistroLote(abaNome, dados, rowId) {
 async function _excluirRegistroLote(abaNome, rowId) {
   if (!rowId || Number(rowId) <= 0) return { ok: false, msg: 'Registro inválido.' };
   const chave = _NOME_PARA_CHAVE[abaNome] || abaNome.toLowerCase();
+  if (!(await _donoPermite(chave, rowId))) return { ok: false, msg: _MSG_DONO };
   const { error } = await _sb.from(chave).delete().eq('id', Number(rowId));
   if (error) return { ok: false, msg: error.message };
   return { ok: true };
@@ -191,7 +224,7 @@ async function _salvarComposicaoCAP(dataLancamento, tituloObra, itens, isEdicao)
     // para que TODAS as linhas da composição fiquem com a MESMA data (a da composição). Se o
     // item trouxesse sua própria data por linha, cada linha viraria um "card" separado.
     const linhas = itens.map(item => ({
-      row_data: { ...item, data_lancamento: dataLancamento, titulo_obra: tituloObra }
+      row_data: _carimbar({ ...item, data_lancamento: dataLancamento, titulo_obra: tituloObra })
     }));
     const { error } = await _sb.from('cap').insert(linhas);
     if (error) return { ok: false, msg: error.message };
