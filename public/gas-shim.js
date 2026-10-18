@@ -109,7 +109,7 @@ async function _donoPermite(chave, rowId) {
   try {
     const { data } = await _sb.from(chave).select('row_data').eq('id', Number(rowId)).maybeSingle();
     const dono = data && data.row_data && data.row_data.criado_por_id;
-    return !dono || String(dono) === _euId(s);
+    return !dono || [s.cpf, s.email, s.nome].filter(Boolean).map(String).includes(String(dono));
   } catch (e) { return true; }
 }
 // Ao editar, a tela às vezes manda a linha sem os campos de quem lançou: busca no banco para não perder o dono.
