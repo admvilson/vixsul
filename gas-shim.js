@@ -9,7 +9,61 @@ const SUPABASE_URL      = 'https://sfnldcqwpwokqfjikxeu.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNmbmxkY3F3cHdva3FmamlreGV1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI4NzA2MjMsImV4cCI6MjA5ODQ0NjYyM30.HWMRAuhjEdBqS-3q-oIsRIhNaT5D6dcguT2YzSWnPvM';
 
 // ─── Cliente Supabase (carregado via CDN no index.html) ───────────────────────
-const _sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+// Com a segurança ligada, o banco só atende quem apresenta o "passe" de login (JWT emitido pela função
+// /api/sessao da Vercel, depois de conferir CPF/e-mail e senha no servidor). A chave pública sozinha não lê nada.
+const _API_SESSAO = 'https://vixsul.vercel.app/api/sessao';
+const _TOK_KEY = 'vixsul_token';
+function _lerToken() { try { return JSON.parse(sessionStorage.getItem(_TOK_KEY) || 'null'); } catch (e) { return null; } }
+function _tokenAtual() { const t = _lerToken(); return t && t.token && t.exp > Date.now() ? t : null; }
+// um cliente só: a cada pedido ele pega o passe atual (o renovado também) — sem passe, usa a chave pública
+const _sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { accessToken: async () => { const t = _tokenAtual(); return t ? t.token : null; } });
+function _usarToken(t) { try { _sb.realtime.setAuth(t ? t.token : null); } catch (e) { } }
+function _guardarToken(r) { const t = { token: r.token, exp: r.exp }; try { sessionStorage.setItem(_TOK_KEY, JSON.stringify(t)); } catch (e) { } _usarToken(t); try { localStorage.setItem('vx_seg', '1'); } catch (e) { } }
+function _segLigada() { try { return localStorage.getItem('vx_seg') === '1'; } catch (e) { return false; } }
+// sessão vencida (ou do modo antigo depois que a segurança foi ligada): volta para a tela de login
+function _encerrarSessao(recarregar) {
+  try { sessionStorage.removeItem(_TOK_KEY); sessionStorage.removeItem('vixsul_session'); } catch (e) { }
+  try { delete document.documentElement.dataset.authed; } catch (e) { }
+  _usarToken(null);
+  if (recarregar) location.reload();
+}
+(function () {
+  const t = _lerToken();
+  if (t && t.token) { if (t.exp > Date.now()) _usarToken(t); else _encerrarSessao(false); }
+  else if (_segLigada()) { try { if (sessionStorage.getItem('vixsul_session')) _encerrarSessao(false); } catch (e) { } }
+})();
+// chamada à função de sessão; null = segurança ainda não configurada na Vercel (segue o modo antigo)
+async function _api(acao, dados) {
+  const h = { 'Content-Type': 'application/json' }, t = _tokenAtual();
+  if (t) h.Authorization = 'Bearer ' + t.token;
+  let r;
+  try { r = await _fetch0(_API_SESSAO, { method: 'POST', headers: h, body: JSON.stringify(Object.assign({ acao }, dados || {})) }); }
+  catch (e) { if (_segLigada()) throw new Error('Sem conexão com o servidor de login. Confira a internet e tente de novo.'); return null; }
+  let j = null; try { j = await r.json(); } catch (e) { j = null; }
+  if (!j) { if (_segLigada()) throw new Error('O servidor de login não respondeu. Tente de novo em instantes.'); return null; }
+  if (j.semConfig) return null;
+  try { localStorage.setItem('vx_seg', '1'); } catch (e) { }
+  return j;
+}
+// as funções do sistema na Vercel (nota fiscal, leitura de documento) recebem o passe automaticamente
+const _fetch0 = window.fetch.bind(window);
+window.fetch = function (u, o) {
+  try {
+    const url = typeof u === 'string' ? u : (u && u.url) || '', t = _tokenAtual();
+    if (t && url.indexOf('https://vixsul.vercel.app/api/') === 0) { o = Object.assign({}, o || {}); const h = new Headers(o.headers || {}); if (!h.has('Authorization')) h.set('Authorization', 'Bearer ' + t.token); o.headers = h; }
+  } catch (e) { }
+  return _fetch0(u, o);
+};
+// o passe vale 12 h: é renovado sozinho enquanto o sistema está aberto
+setInterval(async () => {
+  const t = _tokenAtual(); if (!t || t.exp - Date.now() > 3 * 3600e3) return;
+  try { const r = await _api('renovar'); if (r && r.ok) _guardarToken(r); else if (r && r.sair) _encerrarSessao(true); } catch (e) { }
+}, 10 * 60e3);
+window.vxSeg = {
+  ligada: () => _segLigada() || !!_tokenAtual(),
+  enviarCodigo: (modo, id) => _api('codigo_enviar', { modo, id }),
+  conferirCodigo: (modo, id, codigo) => _api('codigo_conferir', { modo, id, codigo })
+};
 
 // ─── Mapeamento de abas ────────────────────────────────────────────────────────
 const _NOME_PARA_CHAVE = {
@@ -47,6 +101,8 @@ async function _getSistemaData() {
     _CHAVES.map(chave => _sb.from(chave).select('*').order('id', { ascending: true }))
   );
 
+  // passe vencido (ou sessão do modo antigo depois que a segurança foi ligada): volta para o login
+  if ((_segLigada() && !_tokenAtual()) || resultados.some(r => r.error && /jwt|token/i.test(String(r.error.message || '')))) { _encerrarSessao(true); return pacote; }
   _CHAVES.forEach((chave, idx) => {
     const { data, error } = resultados[idx];
     if (error || !data || data.length === 0) {
@@ -96,7 +152,7 @@ function _filtrarPorObras(pacote) {
 // ─── Quem lançou: todo registro novo leva quem o criou (criado_por / criado_por_id). Só quem lançou — ou um
 // Administrador — pode excluir; registro antigo, sem dono, continua liberado. ───
 function _sessaoAtual() { try { return JSON.parse(sessionStorage.getItem('vixsul_session') || 'null'); } catch (e) { return null; } }
-const _euId = s => String((s && (s.cpf || s.email || s.nome)) || '');
+const _euId = s => String((s && (s.uid || s.cpf || s.email || s.nome)) || '');
 const _ehAdmin = s => !!s && String(s.perfil || '').trim().toLowerCase().startsWith('admin');
 function _carimbar(rowData) {
   const s = _sessaoAtual(); if (!s) return rowData;
@@ -109,7 +165,7 @@ async function _donoPermite(chave, rowId) {
   try {
     const { data } = await _sb.from(chave).select('row_data').eq('id', Number(rowId)).maybeSingle();
     const dono = data && data.row_data && data.row_data.criado_por_id;
-    return !dono || [s.cpf, s.email, s.nome].filter(Boolean).map(String).includes(String(dono));
+    return !dono || [s.uid, s.cpf, s.email, s.nome].filter(Boolean).map(String).includes(String(dono));
   } catch (e) { return true; }
 }
 // Ao editar, a tela às vezes manda a linha sem os campos de quem lançou: busca no banco para não perder o dono.
@@ -278,7 +334,20 @@ async function _verificarSenha(senhaPlana, armazenada) {
 // contra edição acidental que tire o acesso desse usuário).
 const _SUPER_ADMIN_CPF = '05582376577';
 
+function _aposEntrar(r) {
+  if (!r.ok) return { ok: false, msg: r.msg || 'Não foi possível entrar.' };
+  _guardarToken(r);
+  return Object.assign({ ok: true }, r.sessao);
+}
 async function _login(cpf, senha) {
+  const r = await _api('entrar', { modo: 'interno', cpf, senha });
+  return r ? _aposEntrar(r) : _loginLegado(cpf, senha);
+}
+async function _loginExterno(email, senha) {
+  const r = await _api('entrar', { modo: 'externo', email, senha });
+  return r ? _aposEntrar(r) : _loginExternoLegado(email, senha);
+}
+async function _loginLegado(cpf, senha) {
   const cpfNorm   = String(cpf   || '').replace(/[.\-\s]/g, '').trim();
   const senhaTrim = String(senha  || '').trim();
   if (!cpfNorm || !senhaTrim) return { ok: false, msg: 'CPF e senha são obrigatórios.' };
@@ -314,7 +383,7 @@ async function _login(cpf, senha) {
 // de Obras, por sua vez, restringe ainda mais e mostra só a aba Avanço & Gantt (ver
 // UI._obraHubRenderTabs no index.html). Só loga quem estiver marcado tipo_usuario='externo',
 // pra não misturar com a conta interna da mesma pessoa (se ela tiver as duas).
-async function _loginExterno(email, senha) {
+async function _loginExternoLegado(email, senha) {
   const emailNorm = String(email || '').trim().toLowerCase();
   const senhaTrim = String(senha || '').trim();
   if (!emailNorm || !senhaTrim) return { ok: false, msg: 'E-mail e senha são obrigatórios.' };
@@ -351,6 +420,7 @@ function _parseAcessos(v){
 }
 
 async function _listarUsuarios() {
+  if (_tokenAtual()) { const r = await _api('usuarios_listar'); if (r) return r; }
   const { data, error } = await _sb.from('usuarios')
     .select('id,nome,cpf,perfil,status,email,acessos,tipo_usuario,obras_permitidas').order('id', { ascending: true });
   if (error) return { ok: false, msg: error.message };
@@ -364,6 +434,7 @@ async function _listarUsuarios() {
 }
 
 async function _salvarUsuario(dados, id) {
+  if (_tokenAtual()) { const r = await _api('usuarios_salvar', { dados, id }); if (r) return r; }
   let tipoUsuario = dados.tipoUsuario === 'externo' ? 'externo' : 'interno';
   let cpf = String(dados.cpf || '').replace(/[.\-\s]/g, '').trim();
   const email = String(dados.email || '').trim();
@@ -417,6 +488,7 @@ async function _salvarUsuario(dados, id) {
 }
 
 async function _excluirUsuario(id) {
+  if (_tokenAtual()) { const r = await _api('usuarios_excluir', { id }); if (r) return r; }
   if (!id || Number(id) <= 0) return { ok: false, msg: 'Usuário inválido.' };
   const { error } = await _sb.from('usuarios').delete().eq('id', Number(id));
   if (error) return { ok: false, msg: error.message };
@@ -438,6 +510,7 @@ async function _buscarUsuario(cpf) {
 }
 
 async function _buscarEmailPorCpf(cpf) {
+  { const r = await _api('email_cpf', { cpf }); if (r) return r; }
   const u = await _buscarUsuario(cpf);
   if (!u) return { ok: false, existe: false, msg: 'CPF não possui cadastro.' };
   const email = String(u.email || '').trim();
@@ -447,6 +520,7 @@ async function _buscarEmailPorCpf(cpf) {
 
 // "Alterar senha" (Interno): CPF + senha atual + nova senha.
 async function _alterarSenhaPorCpf(cpf, senhaAtual, senhaNova) {
+  { const r = await _api('senha_alterar', { modo: 'interno', id: cpf, atual: senhaAtual, nova: senhaNova }); if (r) return r; }
   const u = await _buscarUsuario(cpf);
   if (!u) return { ok: false, existe: false, msg: 'CPF não possui cadastro.' };
   const verif = await _verificarSenha(String(senhaAtual || '').trim(), u.senha);
@@ -461,7 +535,9 @@ async function _alterarSenhaPorCpf(cpf, senhaAtual, senhaNova) {
 }
 
 // Redefinição (Interno) após validar o código de 6 dígitos enviado por e-mail.
-async function _redefinirSenhaPorCpf(cpf, senhaNova) {
+async function _redefinirSenhaPorCpf(cpf, senhaNova, ticket) {
+  if (ticket) { const r = await _api('senha_redefinir', { ticket, nova: senhaNova }); if (r) return r; }
+  if (_segLigada()) return { ok: false, msg: 'Peça um novo código para trocar a senha.' };
   const u = await _buscarUsuario(cpf);
   if (!u) return { ok: false, existe: false, msg: 'CPF não possui cadastro.' };
   const nova = String(senhaNova || '').trim();
@@ -487,6 +563,7 @@ async function _buscarUsuarioPorEmail(email) {
 // "Esqueci a senha" (Externo): confirma que existe um cadastro de Usuário Externo
 // (tipo_usuario='externo') com esse e-mail antes de enviar o código.
 async function _buscarUsuarioExternoPorEmail(email) {
+  { const r = await _api('externo_existe', { email }); if (r) return r; }
   const u = await _buscarUsuarioPorEmail(email);
   if (!u || String(u.tipo_usuario || 'interno').toLowerCase() !== 'externo')
     return { ok: true, existe: false, msg: 'E-mail não possui cadastro de Usuário Externo.' };
@@ -495,6 +572,7 @@ async function _buscarUsuarioExternoPorEmail(email) {
 
 // "Alterar senha" (Externo): e-mail + senha atual + nova senha.
 async function _alterarSenhaPorEmail(email, senhaAtual, senhaNova) {
+  { const r = await _api('senha_alterar', { modo: 'externo', id: email, atual: senhaAtual, nova: senhaNova }); if (r) return r; }
   const u = await _buscarUsuarioPorEmail(email);
   if (!u) return { ok: false, existe: false, msg: 'E-mail não possui cadastro.' };
   const verif = await _verificarSenha(String(senhaAtual || '').trim(), u.senha);
@@ -509,7 +587,9 @@ async function _alterarSenhaPorEmail(email, senhaAtual, senhaNova) {
 }
 
 // Redefinição após validar o código de 6 dígitos enviado por e-mail (esqueci a senha).
-async function _redefinirSenhaPorEmail(email, senhaNova) {
+async function _redefinirSenhaPorEmail(email, senhaNova, ticket) {
+  if (ticket) { const r = await _api('senha_redefinir', { ticket, nova: senhaNova }); if (r) return r; }
+  if (_segLigada()) return { ok: false, msg: 'Peça um novo código para trocar a senha.' };
   const u = await _buscarUsuarioPorEmail(email);
   if (!u) return { ok: false, existe: false, msg: 'E-mail não possui cadastro.' };
   const nova = String(senhaNova || '').trim();
@@ -565,10 +645,10 @@ const _FNS = {
   excluirUsuario:       (a)       => _excluirUsuario(a),
   buscarEmailPorCpf:         (a)     => _buscarEmailPorCpf(a),
   alterarSenhaPorCpf:        (a,b,c) => _alterarSenhaPorCpf(a,b,c),
-  redefinirSenhaPorCpf:      (a,b)   => _redefinirSenhaPorCpf(a,b),
+  redefinirSenhaPorCpf:      (a,b,c) => _redefinirSenhaPorCpf(a,b,c),
   buscarUsuarioExternoPorEmail: (a)  => _buscarUsuarioExternoPorEmail(a),
   alterarSenhaPorEmail:      (a,b,c) => _alterarSenhaPorEmail(a,b,c),
-  redefinirSenhaPorEmail:    (a,b)   => _redefinirSenhaPorEmail(a,b)
+  redefinirSenhaPorEmail:    (a,b,c) => _redefinirSenhaPorEmail(a,b,c)
 };
 
 window.google = {

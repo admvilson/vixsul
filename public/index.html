@@ -3,6 +3,11 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
+<!-- segurança do navegador: não manda o endereço completo para outros sites, não aceita plugins nem troca da base
+     dos links, só envia formulários para o próprio sistema, e não deixa abrir o sistema dentro de outro site -->
+<meta name="referrer" content="strict-origin-when-cross-origin"/>
+<meta http-equiv="Content-Security-Policy" content="object-src 'none'; base-uri 'self'; form-action 'self'; upgrade-insecure-requests"/>
+<script>if(window.top!==window.self){try{window.top.location.replace(window.self.location.href);}catch(e){document.documentElement.style.display='none';}}</script>
 <title>Acesso</title>
   <link rel="icon" type="image/png" href="data:image/png;base64,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">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" integrity="sha512-iecdLmaskl7CVkqkXNQ/ZH/XLlvWZOJyj7Yy7tcenmpD1ypASozpmT/E0iPtmFIB46ZmdtAc9eNBvH0H/ZpiBw==" crossorigin="anonymous" referrerpolicy="no-referrer">
@@ -32,6 +37,11 @@ body{font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;background:
 .main-canvas{flex:1;display:flex;flex-direction:column;overflow:hidden;height:100vh;}
 .topbar{height:56px;background:rgba(245,245,247,.85);backdrop-filter:blur(20px) saturate(180%);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 32px;gap:16px;flex-shrink:0;z-index:40;}
 .topbar-title{font-size:11px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--text-3);flex:1;}
+input[data-maiusc]{text-transform:uppercase;} input[data-maiusc]::placeholder{text-transform:none;}
+.usr-tab.sem-nome th:first-child,.usr-tab.sem-nome td:first-child{display:none;} .usr-nome-bt{margin-left:auto;} .usr-card-cab{flex-wrap:wrap;}
+.vx-olho .vx-olho-f{display:none;} body.vx-oculto .vx-olho .vx-olho-a{display:none;} body.vx-oculto .vx-olho .vx-olho-f{display:block;} body.vx-oculto .vx-olho{color:var(--blue);background:rgba(0,113,227,.08);}
+body.vx-oculto .vx-money{filter:blur(7px);user-select:none;-webkit-user-select:none;}
+body.vx-oculto input[data-mask="moeda"]:not(:focus),body.vx-oculto input.lote-calc:not(:focus){color:transparent!important;text-shadow:0 0 9px rgba(16,24,40,.55);}
 .icon-btn{width:32px;height:32px;border-radius:8px;background:none;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text-2);transition:background .15s,color .15s;}
 .icon-btn:hover{background:rgba(0,0,0,.06);color:var(--text-1);}
 .icon-btn.loading svg{animation:spin 1s linear infinite;}
@@ -290,9 +300,13 @@ tbody tr:hover td{background:rgba(0,113,227,.02);}
 /* CONFIRM */
 .confirm-overlay{position:fixed;inset:0;z-index:500;background:rgba(0,0,0,.4);backdrop-filter:blur(16px);display:none;align-items:flex-start;justify-content:center;overflow-y:auto;padding:16px 12px;-webkit-overflow-scrolling:touch;}
 .confirm-overlay.open{display:flex;}
-.confirm-box{background:white;border-radius:22px;padding:36px 40px;max-width:420px;width:100%;text-align:center;box-shadow:0 40px 100px rgba(0,0,0,.2);animation:zoomIn .2s ease;margin:auto;flex-shrink:0;}
+.confirm-box{background:white;border-radius:22px;padding:36px 40px;max-width:420px;width:100%;text-align:center;box-shadow:0 40px 100px rgba(0,0,0,.2);animation:zoomIn .2s ease;margin:auto;flex-shrink:0;max-height:calc(100dvh - 24px);overflow-y:auto;overscroll-behavior:contain;}
 @media (max-width:520px){.confirm-box{padding:24px 18px;border-radius:18px;}}
 @media (max-width:440px){#modal-usuario .usr-par{flex-direction:column;} #usr-obras,#usr-acessos{grid-template-columns:1fr!important;}}
+/* o formulário de usuário rola por dentro (no celular a janela é mais alta que a tela): o X fica sempre no alto e o Salvar sempre embaixo */
+#modal-usuario .confirm-box{max-height:calc(100vh - 24px);max-height:calc(100dvh - 24px);overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;}
+#modal-usuario .usr-x{position:sticky!important;top:0!important;float:right;margin:-6px -6px 0 0;z-index:3;background:#fff;}
+#modal-usuario .usr-rodape{position:sticky;bottom:-24px;background:#fff;padding:12px 0 16px;margin-bottom:-24px;z-index:2;box-shadow:0 -10px 16px -12px rgba(0,0,0,.18);}
 .confirm-icon{width:52px;height:52px;background:rgba(255,59,48,.1);border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 20px;color:var(--red);}
 .confirm-title{font-size:16px;font-weight:700;color:var(--text-1);margin-bottom:8px;}
 .confirm-msg{font-size:13px;color:var(--text-2);font-weight:500;line-height:1.5;}
@@ -625,7 +639,7 @@ tbody tr:hover td{background:rgba(0,113,227,.02);}
     html:not([data-authed="1"]) #app-shell{display:none;}
     #app-shell.hidden{display:none!important;}
   </style>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script><script src="gas-shim.js?v=20261018b"></script><script src="https://accounts.google.com/gsi/client" async defer></script></head>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0/dist/umd/supabase.js" integrity="sha384-TcHRA3zBbn+Lexh5n+Oil4guNPOS3rjNDpGRAN46u/s/mB2IZ50ceC6TYDU2yvgK" crossorigin="anonymous"></script><script src="gas-shim.js?v=20261019a"></script><script src="https://accounts.google.com/gsi/client" async defer></script></head>
 <body>
 <div class="toast" id="toast"><span id="toast-icon"></span><span id="toast-msg">—</span></div>
 
@@ -801,6 +815,7 @@ tbody tr:hover td{background:rgba(0,113,227,.02);}
     </nav>
     <div class="vx-direita">
       <span id="sync-time" class="vx-sync">—</span>
+      <button class="icon-btn vx-olho" id="vx-olho" type="button" title="Esconder os valores" aria-pressed="false"><svg class="vx-olho-a" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg><svg class="vx-olho-f" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg></button>
       <button class="icon-btn" id="refresh-btn" onclick="App.init()" title="Atualizar os dados"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 2v6h-6M3 12a9 9 0 0 1 15-6.7L21 8M3 22v-6h6M21 12a9 9 0 0 1-15 6.7L3 16"/></svg></button>
       <div class="vx-eu-caixa">
         <button type="button" class="vx-eu" id="vx-eu" onclick="UI._euMenu()" aria-expanded="false" title="Minha conta">
@@ -1267,7 +1282,7 @@ tbody tr:hover td{background:rgba(0,113,227,.02);}
 <!-- MODAL USUÁRIO (Admin) -->
 <div class="confirm-overlay" id="modal-usuario">
   <div class="confirm-box" style="max-width:480px;text-align:left;padding:24px;position:relative">
-    <button class="close-btn" onclick="UI.closeUsuario()" title="Fechar" style="position:absolute;top:18px;right:18px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    <button class="close-btn usr-x" onclick="UI.closeUsuario()" title="Fechar" style="position:absolute;top:18px;right:18px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
     <div class="confirm-title" id="usr-modal-title" style="text-align:left;margin-bottom:4px;padding-right:34px">Novo Usuário</div>
     <div style="font-size:12px;color:var(--text-3);margin-bottom:16px">Defina os dados de acesso e o perfil. O que cada perfil pode ver e fazer fica em <b>Permissões de acesso</b>, nesta mesma tela.</div>
     <input type="hidden" id="usr-id">
@@ -1296,7 +1311,7 @@ tbody tr:hover td{background:rgba(0,113,227,.02);}
       <div id="usr-acessos-admin" style="display:none;font-size:12px;color:var(--text-3);background:rgba(0,113,227,.06);border:1px solid rgba(0,113,227,.18);border-radius:8px;padding:10px 12px">O Administrador tem acesso a <strong>todas as seções</strong> e à gestão de usuários.</div>
     </div>
     <div id="usr-err" style="display:none;color:var(--red);font-size:12px;font-weight:600;margin-top:12px"></div>
-    <div style="display:flex;gap:12px;margin-top:20px;align-items:center">
+    <div class="usr-rodape" style="display:flex;gap:12px;margin-top:20px;align-items:center">
       <button class="confirm-yes" style="flex:1;background:var(--blue)" onclick="UI.saveUsuario()">Salvar</button>
       <button id="usr-del-btn" type="button" onclick="UI.confirmDeleteUsuario()" style="display:none;flex-shrink:0;align-items:center;gap:6px;padding:0 16px;height:44px;border:1px solid rgba(255,59,48,.3);background:rgba(255,59,48,.06);color:var(--red);border-radius:10px;cursor:pointer;font-size:13px;font-weight:700"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"><path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2M19 6l-1 14a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1L5 6"/></svg> Excluir Usuário</button>
     </div>
@@ -4830,7 +4845,7 @@ const UI={
     const it=this._capInsRes&&this._capInsRes[idx], el=this._capInsInput;
     if(!it||!el)return;
     const tr=el.closest('tr'); if(!tr)return;
-    el.value=it.descricao||'';
+    el.value=GS.resumirInsumo(it.descricao||'');el.title=it.descricao||'';
     const und=tr.querySelector('.cap-und'); if(und)this._capSetSelect(und,this._capMapUnidade(it.unidade));
     const pu=tr.querySelector('.cap-punit'); if(pu)pu.value=fmt(it.preco);
     this._capTocaLinha(el);
@@ -4844,7 +4859,7 @@ const UI={
     const it=this._capInsRes&&this._capInsRes[idx], el=this._capInsInput;
     if(!it||!el)return;
     const tr=el.closest('tr'); if(!tr)return;
-    el.value=it.descricao||'';
+    el.value=GS.resumirInsumo(it.descricao||'');el.title=it.descricao||'';
     const fat=tr.querySelector('.gr-fator'); if(fat)this._capSetSelect(fat,this._capMapUnidade(it.unidade));
     const pu=tr.querySelector('.gr-punit'); if(pu)pu.value=fmt(it.preco);
     if(pu)this._grCustoCalc(pu);
@@ -8745,7 +8760,7 @@ const UI={
       const dados={
         titulo_obra:this._obraAtual,
         // quem anexou (só essa pessoa pode excluir a foto depois)
-        enviado_por:(Auth._session&&Auth._session.nome)||'',enviado_por_id:String((Auth._session&&(Auth._session.cpf||Auth._session.nome))||''),
+        enviado_por:(Auth._session&&Auth._session.nome)||'',enviado_por_id:String((Auth._session&&(Auth._session.uid||Auth._session.cpf||Auth._session.nome))||''),
         drive_file_id:arquivo.id,
         nome_arquivo:arquivo.name,
         etapa_obra:item.etapa,
@@ -8769,7 +8784,8 @@ const UI={
     _podeExcluirFoto(rowid){
       const f=(App.state.data.obra_imagens||[]).find(i=>String(i.rowid)===String(rowid));if(!f)return false;
       const eu=String((Auth._session&&(Auth._session.cpf||Auth._session.nome))||'');
-      return f.enviado_por_id?String(f.enviado_por_id)===eu:this._isAdmin;
+      // o Administrador exclui qualquer foto; os demais, só as que anexaram
+      return this._isAdmin||(GS.podeMexer?GS.podeMexer(f,f.enviado_por):!!f.enviado_por_id&&String(f.enviado_por_id)===eu);
     },
     excluirSelecionadas(){
       if(!this._selecionadas.size)return;
@@ -10005,7 +10021,7 @@ const Auth={
     try{sessionStorage.setItem('vixsul_session',JSON.stringify(this._session));}catch(e){}
   },
   _clearSession(){
-    try{sessionStorage.removeItem('vixsul_session');}catch(e){}
+    try{sessionStorage.removeItem('vixsul_session');sessionStorage.removeItem('vixsul_token');}catch(e){}
   },
   _loadSession(){
     try{const raw=sessionStorage.getItem('vixsul_session');return raw?JSON.parse(raw):null;}catch(e){return null;}
@@ -10069,7 +10085,7 @@ const Auth={
     const runner=google.script.run
       .withSuccessHandler(res=>{
         if(res.ok){
-          this._session={nome:res.nome,perfil:res.perfil,acessos:res.acessos||null,cpf:isExt?'':user,tipoUsuario:res.tipoUsuario||(isExt?'externo':'interno'),obrasPermitidas:res.obrasPermitidas||[]};
+          this._session={nome:res.nome,perfil:res.perfil,acessos:res.acessos||null,cpf:isExt?'':user,tipoUsuario:res.tipoUsuario||(isExt?'externo':'interno'),obrasPermitidas:res.obrasPermitidas||[],uid:res.uid||'',email:res.email||(isExt?user.toLowerCase():'')};
           this._saveSession();
           this._applySession();
           btn.innerHTML='<span class="btn-spin"></span> Carregando…';
@@ -10242,7 +10258,7 @@ const Auth={
       const email=document.getElementById('pw-email').value.trim();
       if(!email||!ant||!nova){this._pwFeedback('err','Preencha o e-mail, a senha anterior e a nova senha.');return;}
       if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){this._pwFeedback('err','Informe um e-mail válido.');return;}
-      if(nova.length<4){this._pwFeedback('err','A nova senha deve ter ao menos 4 caracteres.');return;}
+      if(nova.length<8||!/[A-Za-zÀ-ú]/.test(nova)||!/\d/.test(nova)){this._pwFeedback('err','A nova senha precisa ter pelo menos 8 caracteres, com letras e números.');return;}
       if(nova!==conf){this._pwFeedback('err','A confirmação da nova senha não confere.');return;}
       const btn=document.getElementById('pw-submit');if(btn){btn.disabled=true;btn.textContent='Alterando...';}
       google.script.run.withSuccessHandler(res=>{
@@ -10253,7 +10269,7 @@ const Auth={
     } else {
       const cpf=document.getElementById('pw-cpf').value.trim();
       if(!cpf||!ant||!nova){this._pwFeedback('err','Preencha o CPF, a senha anterior e a nova senha.');return;}
-      if(nova.length<4){this._pwFeedback('err','A nova senha deve ter ao menos 4 caracteres.');return;}
+      if(nova.length<8||!/[A-Za-zÀ-ú]/.test(nova)||!/\d/.test(nova)){this._pwFeedback('err','A nova senha precisa ter pelo menos 8 caracteres, com letras e números.');return;}
       if(nova!==conf){this._pwFeedback('err','A confirmação da nova senha não confere.');return;}
       const btn=document.getElementById('pw-submit');if(btn){btn.disabled=true;btn.textContent='Alterando...';}
       google.script.run.withSuccessHandler(res=>{
@@ -10293,6 +10309,19 @@ const Auth={
   },
   async _pwEnviarCodigo(){
     const p=this._pw;if(!p)return;
+    // segurança ligada: o servidor gera o código, manda o e-mail e confere (o navegador nunca vê o código)
+    if(window.vxSeg){
+      p.expirado=false;if(p.step!=='codigo'){p.step='codigo';this._pwRender();}
+      this._pwFeedback('info','Enviando o código para o seu e-mail...');
+      let r=null;try{r=await window.vxSeg.enviarCodigo(p.tipo==='externo'?'externo':'interno',p.tipo==='externo'?p.email:p.cpf);}
+      catch(e){this._pwFeedback('err',(e&&e.message)||'Não foi possível enviar o código agora.');return;}
+      if(r){p.servidor=true;
+        if(!r.ok){this._pwFeedback('err',r.msg||'Não foi possível enviar o código agora.');return;}
+        const fbEl=document.getElementById('pw-feedback');if(fbEl)fbEl.className='pw-msg';
+        p.validade=r.validade||600;this._pwStartTimer();
+        const hint=document.getElementById('pw-primeira-vez-hint');if(hint)hint.style.display='';
+        return;}
+    }
     p.code=String(Math.floor(100000+Math.random()*900000));
     p.expirado=false;
     if(p.step!=='codigo'){p.step='codigo';this._pwRender();}
@@ -10321,7 +10350,7 @@ const Auth={
   _pwStartTimer(){
     const p=this._pw;if(!p)return;
     if(p.timer)clearInterval(p.timer);
-    p.restante=120;p.expirado=false;
+    p.restante=p.validade||120;p.expirado=false;
     const upd=()=>{
       const el=document.getElementById('pw-timer');if(!el){clearInterval(p.timer);return;}
       if(p.restante<=0){
@@ -10341,6 +10370,13 @@ const Auth={
     const v=(inp?inp.value:'').replace(/\D/g,'');
     if(p.expirado){this._pwFeedback('err','O código expirou. Clique em "Enviar novo código".');return;}
     if(v.length!==6){this._pwFeedback('err','Digite os 6 dígitos do código.');return;}
+    if(p.servidor){
+      window.vxSeg.conferirCodigo(p.tipo==='externo'?'externo':'interno',p.tipo==='externo'?p.email:p.cpf,v).then(r=>{
+        if(!r||!r.ok){this._pwFeedback('err',(r&&r.msg)||'Código incorreto.');return;}
+        p.ticket=r.ticket;if(p.timer)clearInterval(p.timer);p.step='novaSenha';this._pwRender();
+      }).catch(e=>this._pwFeedback('err',(e&&e.message)||'Erro de conexão. Tente novamente.'));
+      return;
+    }
     if(v!==p.code){this._pwFeedback('err','Código incorreto. Confira os 6 dígitos enviados ao seu e-mail.');return;}
     if(p.timer)clearInterval(p.timer);
     p.step='novaSenha';this._pwRender();
@@ -10349,14 +10385,14 @@ const Auth={
     const p=this._pw;
     const n=document.getElementById('pw-senha-nova').value.trim();
     const c=document.getElementById('pw-senha-conf').value.trim();
-    if(n.length<4){this._pwFeedback('err','A nova senha deve ter ao menos 4 caracteres.');return;}
+    if(n.length<8||!/[A-Za-zÀ-ú]/.test(n)||!/\d/.test(n)){this._pwFeedback('err','A nova senha precisa ter pelo menos 8 caracteres, com letras e números.');return;}
     if(n!==c){this._pwFeedback('err','As senhas não conferem.');return;}
     const btn=document.getElementById('pw-submit');if(btn){btn.disabled=true;btn.textContent='Salvando...';}
     const runner=google.script.run.withSuccessHandler(res=>{
       if(res&&res.ok){this._pwFeedback('ok','Senha redefinida com sucesso! Você já pode entrar com a nova senha.');setTimeout(()=>this._pwClose(),2200);}
       else{this._pwFeedback('err',(res&&res.msg)||'Não foi possível redefinir a senha.');if(btn){btn.disabled=false;btn.textContent='Redefinir senha';}}
     }).withFailureHandler(()=>{this._pwFeedback('err','Erro de conexão. Tente novamente.');if(btn){btn.disabled=false;btn.textContent='Redefinir senha';}});
-    if(p.tipo==='externo')runner.redefinirSenhaPorEmail(p.email,n);else runner.redefinirSenhaPorCpf(p.cpf,n);
+    if(p.tipo==='externo')runner.redefinirSenhaPorEmail(p.email,n,p.ticket||'');else runner.redefinirSenhaPorCpf(p.cpf,n,p.ticket||'');
   },
 
   logout(idleExpired=false){
@@ -10711,12 +10747,12 @@ const Fin=(function(){
     botoes=(botoes||[]).filter(b=>b.acao||!/^(cancelar|fechar|agora não|não|voltar)$/i.test(String(b.html||"").replace(/<[^>]+>/g,"").trim()));
     const ov=document.getElementById('fin-ov'),j=document.getElementById('fin-jan');
     j.style.maxWidth=(larg||520)+'px';
-    j.onchange=null;j.oninput=null;
+    j.onchange=null;j.oninput=null;j._aoFechar=null;
     j.innerHTML=`<div class="fin-jan-cab"><b>${fe(titulo)}</b><button type="button" class="fin-x" data-fin-fechar aria-label="Fechar">×</button></div>
       <div class="fin-jan-corpo">${corpo}</div>
       <div class="fin-jan-pe"><span class="fin-jan-erro" data-fin-erro></span>${botoes.map((b,i)=>`<button type="button" class="fin-bt ${b.cls||''}" data-fin-bt="${i}">${b.html}</button>`).join('')}</div>`;
     ov.classList.add('open');
-    const fechar=()=>ov.classList.remove('open');
+    const fechar=()=>{ov.classList.remove('open');const volta=j._aoFechar;j._aoFechar=null;if(volta)setTimeout(volta,40);};
     j.onclick=async ev=>{
       if(ev.target.closest('[data-fin-fechar]')){if(!App.state._busy)fechar();return;}
       const b=ev.target.closest('[data-fin-bt]');if(!b)return;
@@ -11358,7 +11394,7 @@ const Fin=(function(){
       <div class="fin-linha">
         <div class="fin-fld" style="grid-column:1/-1"><label>Para onde vai o gasto <span class="obg">*</span></label>${GS.destino.html('data-k="centro"',C.podeEmpresa()?EMP:'',{rateio:false})}</div>
         <div class="fin-fld" style="grid-column:1/-1"><label>Categoria › Descrição <span class="obg">*</span></label>${GS.comboGasto.html('data-k="cat"','data-k="desc"','','')}</div>
-        <div class="fin-fld"><label>Fornecedor / favorecido</label><input data-k="forn" list="vx-forn-lista" autocomplete="off" placeholder="em branco: o nome que veio do banco"></div>
+        <div class="fin-fld"><label>Fornecedor / favorecido</label><input data-k="forn" data-maiusc list="vx-forn-lista" autocomplete="off" placeholder="em branco: o nome que veio do banco"></div>
         <div class="fin-fld"><label>Forma de pagamento</label><select data-k="forma"><option value="">Pelo texto do banco</option>${FORMAS_PAGAMENTO_DESPESA.map(x=>`<option>${fe(x)}</option>`).join('')}</select></div></div>
       <div class="fin-aviso"><div>Cada linha vira uma conta <b>paga na data do banco</b>, ligada ao extrato.</div></div>`,
       [{html:'<i class="fas fa-floppy-disk"></i> Lançar e conciliar',cls:'pri',acao:async jj=>{
@@ -11366,7 +11402,7 @@ const Fin=(function(){
         if(!centro)throw new Error('Escolha a obra ou Custo indireto (Empresa).');if(!cat||!desc)throw new Error('Escolha a categoria › descrição.');
         GS.comboGasto.registrar(centro===EMP,cat,desc);const ops=[],T0=Date.now().toString(36);
         lista.forEach((p,i)=>{const iso=isoDeBR(p.t.data),v=-p.t.valor;
-          const u={centro,tipo:'Real',venc:iso,pago:iso,total:dinheiro(v),forn:g('forn')||p.t.quem||'',cat,forma:g('forma')||formaDoExtrato(p.t.desc),desc,obs:'Lançada pela conciliação bancária',qtd:'',fator:'',pUnit:'',lanc:'',compra:'cb'+T0+'_'+i,dataCompra:iso};
+          const u={centro,tipo:'Real',venc:iso,pago:iso,total:dinheiro(v),forn:(g('forn')||p.t.quem||'').toLocaleUpperCase('pt-BR'),cat,forma:g('forma')||formaDoExtrato(p.t.desc),desc,obs:'Lançada pela conciliação bancária',qtd:'',fator:'',pUnit:'',lanc:'',compra:'cb'+T0+'_'+i,dataCompra:iso};
           C.finalizarConta(u);C.montarConta(u,null).forEach(op=>{Object.assign(op.dados,{conciliacao:p.t.id,conciliacao_baixa:p.t.id,extrato_desc:p.t.desc});ops.push(op);});});
         await executar(async()=>{for(const op of ops)await salvar(op.aba,op.dados,null);});
         lista.forEach(p=>CONC.selSem.delete(p.t.id));
@@ -11722,7 +11758,7 @@ const Eng=(function(){
     else if(c.tipo==='obra')inp=`<select data-f="${c.k}"><option value="">${fe(c.vazio||'Selecione a obra…')}</option>${obrasNomes().map(o=>`<option ${o===val0?'selected':''}>${fe(o)}</option>`).join('')}${val0&&!obrasNomes().includes(val0)?`<option selected>${fe(val0)}</option>`:''}</select>`;
     else if(c.tipo==='area')inp=`<textarea data-f="${c.k}" rows="${c.linhas||3}" placeholder="${fe(c.ph||'')}">${fe(val0)}</textarea>`;
     // dinheiro, CPF, CNPJ, telefone: com máscara (o global de máscaras formata enquanto digita)
-    else inp=`<input data-f="${c.k}" value="${fe(c.tipo==='moeda'&&val0!==''?fmt(parseStoredNumber(val0)):val0)}" placeholder="${fe(c.ph||'')}"${c.tipo==='num'?' inputmode="decimal"':''}${c.tipo==='moeda'?` data-mask="moeda"${c.neg?' data-neg="1"':' inputmode="numeric"'}`:''}${c.mask?` data-mask="${c.mask}" inputmode="numeric"`:''}${c.tipo==='url'?' type="url"':''}${c.lista?` list="${c.lista}"`:''}${trava}>`;
+    else inp=`<input data-f="${c.k}"${c.maiusc?' data-maiusc':''} value="${fe(c.tipo==='moeda'&&val0!==''?fmt(parseStoredNumber(val0)):val0)}" placeholder="${fe(c.ph||'')}"${c.tipo==='num'?' inputmode="decimal"':''}${c.tipo==='moeda'?` data-mask="moeda"${c.neg?' data-neg="1"':' inputmode="numeric"'}`:''}${c.mask?` data-mask="${c.mask}" inputmode="numeric"`:''}${c.tipo==='url'?' type="url"':''}${c.lista?` list="${c.lista}"`:''}${trava}>`;
     return `<div class="fin-fld"${c.inteira?' style="grid-column:1/-1"':''}>${lab}${inp}</div>`;
   }
   // cfg.extra(reg): HTML a mais no formulário · cfg.aoAbrir(j,reg): liga os eventos dele ·
@@ -11763,7 +11799,7 @@ const Eng=(function(){
   /* ═══════════════ FORNECEDORES ═══════════════ */
   const TIPOS_FORN=['Material de construção','Serviço / empreiteiro','Equipamento / locação','Mão de obra','Transporte / frete','Combustível','Escritório / administrativo','Outros'];
   const CFG_FORN={aba:'Fornecedores',nomeItem:'fornecedor',campos:[
-    {k:'nome',label:'Nome / razão social',obrig:true,inteira:true},
+    {k:'nome',label:'Nome / razão social',obrig:true,inteira:true,maiusc:true},
     {k:'documento',label:'CNPJ ou CPF',ph:'00.000.000/0000-00',mask:'cpfcnpj'},
     {k:'tipo',label:'Tipo',tipo:'sel',ops:TIPOS_FORN,obrig:true},
     {k:'contato',label:'Pessoa de contato'},
@@ -11876,9 +11912,9 @@ const Eng=(function(){
   const CONDICOES=['Praticável','Parcialmente praticável','Impraticável'];
   /* cada registro é de quem registrou (o usuário do sistema): só ele edita, exclui e põe fotos;
      registro antigo, sem autor, só o Administrador mexe */
-  const eu=()=>{const s=Auth._session||{};return {id:String(s.cpf||s.nome||''),nome:s.nome||''};};
+  const eu=()=>{const s=Auth._session||{};return {id:String(s.uid||s.cpf||s.nome||''),nome:s.nome||''};};
   const ehAdmRdo=()=>!!UI._ehAdmin((Auth._session||{}).perfil);
-  const meuRdo=r=>r&&r.criado_por_id?String(r.criado_por_id)===eu().id:ehAdmRdo();
+  const meuRdo=r=>ehAdmRdo()||!!(r&&r.criado_por_id&&GS.podeMexer(r));
   // fotos: todo usuário (interno ou externo) que vê o diário registra fotos — cada foto é de quem anexou
   const podeFotoRdo=()=>true;
   /* Equipe por função (contadores) e equipamentos com horímetro: o efetivo e as horas são calculados (travados).
@@ -11925,7 +11961,7 @@ const Eng=(function(){
   const CFG_RDO={aba:'Diário de obra',nomeItem:'registro do diário',larg:820,campos:[
     {k:'_s1',tipo:'sec',label:'<i class="fas fa-calendar-day"></i> O dia'},
     {k:'titulo_obra',label:'Obra',tipo:'obra',obrig:true,inteira:true},
-    {k:'data',label:'Data',tipo:'data',obrig:true,padrao:()=>isoDe(hoje0()),max:()=>isoDe(hoje0())},
+    {k:'data',label:'Data',tipo:'data',obrig:true,padrao:()=>isoDe(hoje0())},
     {k:'responsavel',label:'Responsável pelo registro',travado:true,padrao:()=>eu().nome},
     {k:'_copiar',tipo:'html',html:reg=>reg?'':'<button type="button" class="fin-bt mini" data-rdo-copiar><i class="fas fa-copy"></i> Copiar equipe e equipamentos do último dia desta obra</button>'},
     {k:'_s2',tipo:'sec',label:'<i class="fas fa-cloud-sun"></i> Tempo e condição de trabalho'},
@@ -11960,7 +11996,6 @@ const Eng=(function(){
     try{await prep;}catch(e){toast('Diário salvo, mas as fotos não foram enviadas: '+e.message+' Use o botão de fotos deste dia.','error');return;}
     await Eng.subirFotosDia(o.titulo_obra,o.data,j._fotos.map(f=>({file:f.file,descricao:(f.desc||'').trim(),previewUrl:f.url})));},
   validar:(o,reg)=>{
-    if(o.data>isoDe(hoje0()))return 'A data do diário não pode ser no futuro.';
     const eqs=jsonDe(o.equip_json)||[],ruim=eqs.find(x=>x.hor!==false&&ordemRuim(x));
     if(ruim)return `${ruim.eq||'Máquina'}: as leituras do horímetro têm que ir aumentando ao longo do dia (início ≤ meio-dia ≤ início da tarde ≤ fim).`;
     if(reg&&!meuRdo(reg))return 'Só quem registrou pode alterar este registro do diário.';
@@ -12071,7 +12106,7 @@ const Eng=(function(){
   function resumoMesHtml(lista,rotMes,pdf){
     const obras=[...new Set(lista.map(r=>r.titulo_obra))].sort((a,b)=>a.localeCompare(b,'pt-BR'));
     const bloco=ob=>{const R=resumoMes(lista.filter(r=>r.titulo_obra===ob)),th='text-align:left;padding:5px 7px;background:#F2F4F7;font-size:10.5px;text-transform:uppercase;color:#667085',td='padding:5px 7px;border-top:1px solid #EAECF0',tr='text-align:right';
-      const tab=(cab,linhas)=>linhas.length?`<table class="rdo-res-tab" data-sem-ordem style="width:100%;border-collapse:collapse;font-size:12px;margin:6px 0 10px"><tr>${cab.map((h,i)=>`<th style="${th};${i?tr:''}">${h}</th>`).join('')}</tr>${linhas.map(l=>`<tr>${l.map((v,i)=>`<td style="${td};${i?tr:''}">${v}</td>`).join('')}</tr>`).join('')}</table>`:'';
+      const tab=(cab,linhas)=>linhas.length?`<table class="rdo-res-tab" data-sem-ordem style="width:100%;border-collapse:collapse;font-size:12px;margin:6px 0 10px"${pdf?"":" data-cel-cartao"}><thead><tr>${cab.map((h,i)=>`<th style="${th};${i?tr:''}">${h}</th>`).join('')}</tr></thead><tbody>${linhas.map(l=>`<tr>${l.map((v,i)=>`<td style="${td};${i?tr:''}">${v}</td>`).join('')}</tr>`).join('')}</tbody></table>`:'';
       return `<div class="rdo-res-ob" style="margin-bottom:12px">${obras.length>1||pdf?`<h4 style="margin:4px 0 6px;font-size:13px">${fe(ob)}</h4>`:''}
         <div class="rdo-res-kpis" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px">${[['Dias registrados',R.dias],['Dias com chuva',R.chuva],['Impraticáveis',R.imp],['Parcialmente praticáveis',R.parc],['Homens-dia no mês',R.totEf],['Efetivo médio por dia',R.medEf?n1(R.medEf):'—'],['Maior efetivo num dia',R.maxEf||'—'],['Dias com ocorrência',R.oc],['Visitas / fiscalização',R.vis]].map(([k,v])=>`<span style="border:1px solid #E4E9F2;border-radius:10px;padding:5px 10px;font-size:11.5px;color:#475467">${k}<b style="display:block;font-size:14px;color:#101828">${v}</b></span>`).join('')}</div>
         ${tab(['Equipe (função)','Homens-dia no mês','Média por dia registrado','Dias com a função'],Object.entries(R.fun).sort((a,b)=>b[1].tot-a[1].tot).map(([k,v])=>[fe(k),v.tot,n1(v.tot/Math.max(1,R.dias)),v.dias]))}
@@ -13321,7 +13356,7 @@ const Eng=(function(){
     };
   }
   const CAMPOS_CT=[
-    {k:'contratante',label:'Contratante',padrao:'EMBASA'},{k:'cnpj_contratante',label:'CNPJ do contratante',ph:'00.000.000/0000-00',mask:'cnpj'},
+    {k:'contratante',label:'Contratante',padrao:'EMBASA',maiusc:true},{k:'cnpj_contratante',label:'CNPJ do contratante',ph:'00.000.000/0000-00',mask:'cnpj'},
     {k:'modalidade',label:'Modalidade da licitação',tipo:'sel',ops:['Licitação (Lei 13.303 — estatais)','Concorrência (Lei 14.133)','Pregão','Dispensa / contratação direta','Contrato privado']},
     {k:'numero_licitacao',label:'Nº da licitação / processo'},
     {k:'data_assinatura',label:'Data de assinatura',tipo:'data'},
@@ -15758,7 +15793,7 @@ const Mascara=(function(){
     if(pg&&pode('contas'))bts.push({html:'<i class="fas fa-rotate-left"></i> Desfazer pagamento',acao:()=>{setTimeout(()=>desfazerPagCompra(L),10);}});
     if(!pg&&pode('contas')&&(o.aprov!=='pendente'||souAdmin())&&o.tipo==='Real')bts.push({html:'<i class="fas fa-circle-check"></i> Registrar pagamento',cls:'pri',acao:()=>{setTimeout(()=>pagarCompra(L),10);}});
     janela((o.forn||'Compra')+' · '+L.length+' itens',corpo,bts,780);
-    jan().addEventListener('click',ev=>{const b=ev.target.closest('[data-compra-item]');if(b){const x=L[+b.dataset.compraItem];if(x)setTimeout(()=>fichaConta(x),10);}});
+    jan().addEventListener('click',ev=>{const b=ev.target.closest('[data-compra-item]');if(b){const x=L[+b.dataset.compraItem];if(x)setTimeout(()=>fichaConta(x,()=>{const n=L.map(y=>acharConta(idC(y))).filter(Boolean);if(n.length)fichaCompra(n);}),10);}});
   }
   function pagarCompra(L){
     if(!pode('contas'))return toast('Seu perfil não registra pagamentos.','error');
@@ -15955,8 +15990,9 @@ const Mascara=(function(){
     const fatores=typeof FATORES!=='undefined'?FATORES:['UN'];
     return `<div class="fin-linha">
       <div class="fin-fld" style="grid-column:1/-1"><label>Para onde vai o gasto <span class="obg">*</span></label>${htmlDestino('data-k="centro"',o.centro||'',{rateio:false})}</div>
+      <div class="fin-fld"><label>Compra/aquisição</label><input type="date" data-k="dataCompra" max="${isoDe(hoje0())}" value="${fe(o.dataCompra||(o.rowid?diaCompra(o):isoDe(hoje0())))}"></div>
       <div class="fin-fld"><label>Vencimento <span class="obg" data-obg-venc>*</span></label><input type="date" data-k="venc" value="${fe(o.venc||'')}"></div>
-      <div class="fin-fld" style="grid-column:1/-1"><label>Fornecedor / quem recebe</label><input data-k="forn" list="vx-forn-lista" autocomplete="off" value="${fe(o.forn||'')}" placeholder="Nome (os cadastrados aparecem na lista; um nome novo entra no cadastro)"></div>
+      <div class="fin-fld" style="grid-column:1/-1"><label>Fornecedor / quem recebe</label><input data-k="forn" data-maiusc list="vx-forn-lista" autocomplete="off" value="${fe(o.forn||'')}" placeholder="Nome (os cadastrados aparecem na lista; um nome novo entra no cadastro)"></div>
       <div class="fin-fld" style="grid-column:1/-1"><label>Categoria › Descrição <span class="obg">*</span></label>${GS.comboGasto.html('data-k="cat"','data-k="desc"',o.cat,o.desc)}</div>
       <div class="fin-fld" data-so-obra ${emp?'hidden':''}><label>Quantidade</label><input data-k="qtd" inputmode="decimal" value="${val(o.qtd)?n2(val(o.qtd)):''}" placeholder="opcional"></div>
       <div class="fin-fld" data-so-obra ${emp?'hidden':''}><label>Unidade</label><select data-k="fator"><option value="">—</option>${fatores.map(x=>`<option ${x===o.fator?'selected':''}>${fe(x)}</option>`).join('')}</select></div>
@@ -15997,7 +16033,8 @@ const Mascara=(function(){
     const v=k=>String((j.querySelector(`[data-k="${k}"]`)||{}).value||'').trim();
     // não existe mais "estimativa" lançada à mão (a previsão de custo vem do CAP): conta nova é conta de verdade;
     // a forma de pagamento é informada só ao registrar o pagamento
-    const u={...(o||{}),centro:v('centro'),tipo:o&&o.tipo==='Previsto'&&o.rowid?'Previsto':'Real',venc:v('venc'),total:dinheiro(num(v('total'))),forn:v('forn'),cat:v('cat'),forma:j.querySelector('[data-k="forma"]')?v('forma'):((o&&o.forma)||''),desc:v('desc'),obs:v('obs')};
+    const u={...(o||{}),centro:v('centro'),tipo:o&&o.tipo==='Previsto'&&o.rowid?'Previsto':'Real',venc:v('venc'),total:dinheiro(num(v('total'))),forn:v('forn').toLocaleUpperCase('pt-BR'),cat:v('cat'),forma:j.querySelector('[data-k="forma"]')?v('forma'):((o&&o.forma)||''),desc:v('desc'),obs:v('obs')};
+    if(j.querySelector('[data-k="dataCompra"]')){u.dataCompra=v('dataCompra');if(u.dataCompra&&u.dataCompra>isoDe(hoje0()))throw new Error('A data da compra/aquisição não pode ser depois de hoje.');}
     if(u.centro!==EMP){const q=Mascara.numero(v('qtd')),p=num(v('pUnit')),q0=val(o&&o.qtd),p0=val(o&&o.pUnit),igual=(a,b)=>a>0&&Math.abs(a-Math.round(b*100)/100)<0.005;
       u.qtd=q>0?(igual(q,q0)?String(o.qtd):dinheiro(q)):'';u.fator=v('fator');u.pUnit=p>0?(igual(p,p0)?String(o.pUnit):dinheiro(p)):'';if(q>0&&p>0)u.total=dinheiro(val(u.qtd)*val(u.pUnit)-val(u.desconto||0));}
     if(!u.centro)throw new Error('Escolha a obra (ou Empresa).');if(u.tipo==='Real'&&!u.venc)throw new Error('Informe o vencimento.');
@@ -16272,7 +16309,7 @@ const Mascara=(function(){
   const registroAporte=a=>({titulo_obra:a.obra,quem_aportou:a.quem,data_aporte:a.data,periodo_ini:a.ini||a.data,periodo_fim:a.fim||a.data,valor_aportado:dinheiro(a.valor),movimento:'Aporte',forma_aporte:a.forma||'',observacao:a.obs||'',origem_aporte:'contas',data_lancamento:todayDateTime()});
   GS.ehAdm=()=>{const s=Auth._session||{};return !!UI._ehAdmin(s.perfil);};
   // só quem lançou (ou o Administrador) edita/exclui qualquer lançamento; registro antigo, sem autor guardado, só o Administrador
-  GS.podeMexer=(r,nome)=>{if(GS.ehAdm())return true;r=r||{};const s=Auth._session||{},eu=[s.cpf,s.email,s.nome].filter(Boolean).map(String),dono=r.criado_por_id||r.enviado_por_id;
+  GS.podeMexer=(r,nome)=>{if(GS.ehAdm())return true;r=r||{};const s=Auth._session||{},eu=[s.uid,s.cpf,s.email,s.nome].filter(Boolean).map(String),dono=r.criado_por_id||r.enviado_por_id;
     if(dono)return eu.includes(String(dono));const quem=nome||r.lancado_por||r.criado_por||r.enviado_por||'';return quem?cn(quem)===cn(s.nome||''):false;};
   GS.MSG_DONO='Só quem lançou (ou um Administrador) pode editar ou excluir.';
   GS.rateio={valorOrcObra,partesRateio,htmlRateio,ligarRateio,socios,pctTxt};
@@ -16335,7 +16372,7 @@ const Mascara=(function(){
     todasContas().filter(o=>(o.centro===EMP)===!!emp).forEach(o=>add(o.cat,C.limparParc(o.desc)));
     if(emp)Object.entries(EMP_PADRAO).forEach(([c,l])=>l.forEach(d=>add(c,d)));
     // obra: a tabela SINAPI é a base padrão (cada insumo já na categoria certa)
-    if(!emp&&CATALOGO&&CATALOGO.length){if(!SIN_CAT)SIN_CAT=CATALOGO.filter(x=>x.f==='sinapi').map(x=>({cat:catSinapi(x.d,x.u),desc:String(x.d).replace(/\s+/g,' ').trim(),sinapi:x.cod,un:x.u}));SIN_CAT.forEach(x=>add(x.cat,x.desc,{sinapi:x.sinapi,un:x.un}));}
+    if(!emp&&CATALOGO&&CATALOGO.length){if(!SIN_CAT)SIN_CAT=CATALOGO.filter(x=>x.f==='sinapi').map(x=>({cat:catSinapi(x.d,x.u),desc:GS.resumirInsumo(x.d),sinapi:x.cod,un:x.u}));SIN_CAT.forEach(x=>add(x.cat,x.desc,{sinapi:x.sinapi,un:x.un}));}
     return [...m.values()].sort((a,b)=>a.cat.localeCompare(b.cat,'pt-BR')||a.desc.localeCompare(b.desc,'pt-BR'));
   }
   // descrição nova entra no cadastro (uma vez só)
@@ -16390,7 +16427,7 @@ const Mascara=(function(){
       <div class="fin-linha">
         <div class="fin-fld" style="grid-column:1/-1"><label>Para onde vai o gasto <span class="obg">*</span></label>${htmlDestino('data-l="centro"',pre.centro!=null?pre.centro:(QC.obra||''))}</div>
         <div style="grid-column:1/-1">${htmlRateio()}</div>
-        <div class="fin-fld"><label>Data da compra <span class="obg">*</span></label><input type="date" data-l="dcompra" max="${isoDe(hoje0())}" value="${fe(cc?cc.data:isoDe(hoje0()))}"></div>
+        <div class="fin-fld"><label>Compra/aquisição <span class="obg">*</span></label><input type="date" data-l="dcompra" max="${isoDe(hoje0())}" value="${fe(cc?cc.data:isoDe(hoje0()))}"></div>
         <div class="fin-fld"><label>Forma de pagamento</label><select data-l="forma"><option value="">—</option>${FORMAS.map(x=>`<option ${pre.forma===x?'selected':''}>${fe(x)}</option>`).join('')}</select></div>
         <div class="fin-fld" ${cc?'hidden':''}><label>Repete?</label><select data-l="rep"><option value="">Não — conta única</option><option value="parc">Compra parcelada (divide o valor)</option><option value="mes">Todo mês (conta fixa)</option></select></div>
         <div class="fin-fld" data-l="vezes-box" hidden><label>Quantas vezes</label><input type="number" data-l="vezes" min="2" max="60" value="3"></div></div>
@@ -16408,7 +16445,7 @@ const Mascara=(function(){
       const g=k=>(j.querySelector(`[data-l="${k}"]`).value||'').trim(),centro0=g('centro'),rat=centro0===RAT,rep=g('rep'),forma=g('forma');
       const socio=q('socio').checked,quem=g('quem'),pagoEm=g('pagoem'),obrasR=rat?RT.obras():[];
       if(!centro0)throw new Error('Escolha a obra (ou Custo indireto / Ratear).');if(rat&&obrasR.length<2)throw new Error('Marque pelo menos 2 obras para o rateio.');
-      const dCompra=g('dcompra');if(!dCompra)throw new Error('Informe a data da compra.');if(dCompra>isoDe(hoje0()))throw new Error('A data da compra não pode ser depois de hoje.');
+      const dCompra=g('dcompra');if(!dCompra)throw new Error('Informe a data da compra/aquisição.');if(dCompra>isoDe(hoje0()))throw new Error('A data da compra/aquisição não pode ser depois de hoje.');
       if(socio&&!quem)throw new Error('Informe o sócio que pagou.');if(socio&&(!pagoEm||pagoEm>isoDe(hoje0())))throw new Error('Informe a data em que o sócio pagou (até hoje).');
       const its=lerItens(j).filter(x=>x.desc||x.total);if(!its.length)throw new Error('Inclua pelo menos um item.');
       const ruim=its.findIndex(x=>!x.cat||!x.desc||!(x.total>0));if(ruim>=0)throw new Error(`Linha ${ruim+1}: escolha a categoria › descrição e informe o valor.`);
@@ -16455,7 +16492,7 @@ const Mascara=(function(){
     // linha nova repete fornecedor, nota e vencimento da linha de cima (na mesma compra quase sempre são iguais)
     const linha=(x={})=>{const tr=document.createElement('tr');if(x.conferir)tr.className='conferir';if(x.extra)tr.dataset.extra='1';if(x.pre)tr.dataset.pre='1';
       const ant=tb.lastElementChild,va=k=>ant?(ant.querySelector(`[data-i="${k}"]`)||{}).value||'':'';const forn=x.forn!=null?x.forn:va('forn'),nn=x.num!=null?x.num:va('num'),vc=x.venc!=null?x.venc:(va('venc')||(cc?cc.data:''));
-      tr.innerHTML=`<td><input data-i="forn" list="vx-forn-lista" autocomplete="off" value="${fe(forn)}" placeholder="fornecedor"><input type="hidden" data-i="num" value="${fe(nn)}"></td>
+      tr.innerHTML=`<td><input data-i="forn" data-maiusc list="vx-forn-lista" autocomplete="off" value="${fe(String(forn||'').toLocaleUpperCase('pt-BR'))}" placeholder="fornecedor"><input type="hidden" data-i="num" value="${fe(nn)}"></td>
         <td><input type="date" data-i="venc" value="${fe(vc)}"></td>
         <td>${htmlCG('data-i="cat"','data-i="desc"',x.cat,x.desc)}${x.lido?`<small title="Como está escrito no arquivo">no arquivo: ${fe(x.lido)}</small>`:''}${x.conferir?'<small class="lote-conf">quantidade × preço não bate com o valor — confira no arquivo</small>':''}</td>
         <td><input data-i="qtd" inputmode="decimal" value="${ptBR(x.qtd,0)}" ${emp()?'disabled':''}></td>
@@ -16464,7 +16501,7 @@ const Mascara=(function(){
         <td><input data-i="vt" data-mask="moeda" inputmode="numeric" value="${x.total?fmt(x.total):''}" ${emp()?'':'readonly tabindex="-1" class="lote-calc" title="Calculado: quantidade × preço unitário"'}></td>
         <td><button type="button" class="bt-tirar" data-i="tirar" title="Tirar o item" aria-label="Tirar o item"><i class="fas fa-trash-can"></i></button></td>`;tb.appendChild(tr);soma();};
     const nb=s=>Mascara.numero(s)||0;
-    const lerItens=jj=>[...tb.querySelectorAll('tr')].map(tr=>{const v=k=>(tr.querySelector(`[data-i="${k}"]`)||{}).value||'';return {forn:v('forn').trim(),num:v('num').trim(),venc:v('venc'),cat:v('cat'),desc:v('desc').trim(),qtd:nb(v('qtd')),un:v('un'),pUnit:nb(v('pu')),total:nb(v('vt')),extra:tr.dataset.extra==='1'};});
+    const lerItens=jj=>[...tb.querySelectorAll('tr')].map(tr=>{const v=k=>(tr.querySelector(`[data-i="${k}"]`)||{}).value||'';return {forn:v('forn').trim().toLocaleUpperCase('pt-BR'),num:v('num').trim(),venc:v('venc'),cat:v('cat'),desc:v('desc').trim(),qtd:nb(v('qtd')),un:v('un'),pUnit:nb(v('pu')),total:nb(v('vt')),extra:tr.dataset.extra==='1'};});
     const soma=()=>{const its=lerItens(j),t=its.reduce((a,x)=>a+(x.total||0),0),dn=nb(q('descnota').value);const dif=cc?Math.round((t-dn-cc.valor)*100)/100:0;q('tot').innerHTML=`${its.length} item(ns) · ${dn?`itens ${fmt(t)} − desconto ${fmt(dn)} = `:''}total <b>${fmt(t-dn)}</b>${cc?(Math.abs(dif)>0.009?` · <span class="t-err">banco ${fmt(cc.valor)} — ${dif<0?'faltam':'sobram'} ${fmt(Math.abs(dif))}</span>`:` · <span class="t-ok"><i class="fas fa-check"></i> fecha com o banco</span>`):''}`;if(RT)RT.pintar();};
     RT=ligarRateio(j.querySelector('[data-rat]'),()=>{const its=lerItens(j);return its.reduce((a,x)=>a+(x.total||0),0)-nb(q('descnota').value);});
     // "Repete?": parcelado/todo mês pede quantas vezes; "conforme a nota" usa as parcelas lidas
@@ -16491,8 +16528,8 @@ const Mascara=(function(){
         [...tb.querySelectorAll('tr')].forEach(tr=>{if(tr.dataset.pre==='1'||!tr.querySelector('[data-i="desc"]').value&&!tr.querySelector('[data-i="vt"]').value)tr.remove();});
         if(r.data&&r.data<=isoDe(hoje0()))q('dcompra').value=r.data;
         // números exatamente como no arquivo; só o nome é padronizado (o do arquivo fica embaixo)
-        r.itens.forEach(it=>{const p=emp()?null:padronizar(it.desc,cat),nome=p?p.d:it.desc;
-          linha({forn:fo,num:nn,venc,cat:categoriaDe(it.desc,fo,emp(),r.tipo),desc:nome,lido:p&&cn(p.d)!==cn(it.desc)?it.desc:'',qtd:it.qtd||1,un:unidade(it.un)||String(it.un||'').toUpperCase().slice(0,6),pUnit:it.pUnit,total:it.total,conferir:it.conferir});});
+        r.itens.forEach(it=>{const p=emp()?null:padronizar(it.desc,cat),nome=p?GS.resumirInsumo(p.d):it.desc;
+          linha({forn:fo,num:nn,venc,cat:categoriaDe(it.desc,fo,emp(),r.tipo),desc:nome,lido:p&&cn(nome)!==cn(it.desc)?it.desc:'',qtd:it.qtd||1,un:unidade(it.un)||String(it.un||'').toUpperCase().slice(0,6),pUnit:it.pUnit,total:it.total,conferir:it.conferir});});
         (r.linhasExtra||[]).forEach(it=>linha({forn:fo,num:nn,venc,cat:emp()?categoriaDe(it.desc,'',true):'Materiais',desc:it.desc,qtd:1,un:'VB',pUnit:it.total,total:it.total,extra:true}));
         if(r.desconto)q('descnota').value=fmt(nb(q('descnota').value)+r.desconto);soma();
         const t=Math.round((r.itens.concat(r.linhasExtra||[]).reduce((a,x)=>a+(x.total||0),0)-(r.desconto||0))*100)/100,nConf=r.itens.filter(x=>x.conferir).length;
@@ -16501,7 +16538,7 @@ const Mascara=(function(){
     if(cc)linha({pre:true,forn:pre.forn||'',venc:cc.data,cat:pre.cat||'',desc:pre.desc||'',qtd:1,un:'UN',pUnit:cc.valor,total:cc.valor});else linha({});
   }
   GS.lote=fichaLote;
-  function fichaConta(o){
+  function fichaConta(o,voltar){
     const col=colConta(o),cc=COLS_CP.find(c=>c.k===col),ed=podeEditarConta(o),s=C.sitP(o);
     const corpo=`<div class="vk-ficha-cab"><span class="vk-etq" style="--cor:${cc.cor}"><i class="fas ${cc.ico}"></i> ${cc.rot}</span>
         <div class="vk-num"><span>Valor</span><b>${fmt(val(o.total))}</b></div><div class="vk-num"><span>Situação</span><b>${pill(s[0],s[1]==='azul'?'info':s[1]==='cinza'?'':s[1])}</b></div></div>
@@ -16526,6 +16563,7 @@ const Mascara=(function(){
     if(ed)bts.push({html:'<i class="fas fa-floppy-disk"></i> Salvar',cls:'pri',acao:async j=>{const u=await lerCamposConta(j,o);C.finalizarConta(u);await gravarConta(u,o);toast('Conta atualizada.','success');}});
     else bts.push({html:'Fechar'});
     janela(o.forn||'Conta a pagar',corpo,bts,740);
+    if(voltar)jan()._aoFechar=voltar;
     if(ed)ligarCamposConta(jan());
   }
   // parcelas da mesma conta: o grupo gravado; nas antigas, mesmo centro, fornecedor, descrição e total de parcelas "(k/n)"
@@ -17513,7 +17551,7 @@ const Mascara=(function(){
     const corpo=`<div class="fin-linha">
       <div class="hc-sec">Identificação</div>
       ${fld('Nº do contrato'+est(nF>=2),inp('numero',g(['numero_contrato','num_contrato','n_contrato'])))}
-      ${fld('Contratante'+est(nF>=2),inp('contratante',c.contratante||(GS.docs?(GS.docs.contratantes().find(x=>GS.docs.ehEmbasa(x.nome))||{}).nome:'')||'EMBASA',' list="vx-contratantes" autocomplete="off" placeholder="Digite e escolha na lista"')+'<div class="capx-dica">Escolha na lista: o CPF/CNPJ vem junto. Contratante novo entra na lista ao salvar.</div>')}
+      ${fld('Contratante'+est(nF>=2),inp('contratante',c.contratante||(GS.docs?(GS.docs.contratantes().find(x=>GS.docs.ehEmbasa(x.nome))||{}).nome:'')||'EMBASA',' data-maiusc list="vx-contratantes" autocomplete="off" placeholder="Digite e escolha na lista"')+'<div class="capx-dica">Escolha na lista: o CPF/CNPJ vem junto. Contratante novo entra na lista ao salvar.</div>')}
       ${fld('Cidade da obra'+est(nF>=2),inp('cidade_obra',g(['cidade_obra'])||c.cidade_obra,' autocomplete="off" placeholder="Ex.: Itarantim, BA"')+'<div class="capx-dica">Comece a digitar e escolha na lista. É a cidade usada no preço médio de mercado do CAP.</div>')}
       ${fld('CPF ou CNPJ do contratante'+est(nF>=2),inp('cnpj_contratante',c.cnpj_contratante,' data-mask="cpfcnpj" inputmode="numeric" placeholder="000.000.000-00 ou 00.000.000/0000-00"'))}
       ${fld('Modalidade da licitação',sel('modalidade',MODAL,c.modalidade))}
@@ -18956,7 +18994,7 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
   }
   function preparar(S,chave){
     if(S._ok)return;S._ok=1;S.chave=chave;
-    S.I=new Map();S.ins.forEach(a=>S.I.set(a[0],{c:a[0],d:a[1],u:a[2],p:+a[3]||0,k:a[4],med:a[5]||0}));
+    S.I=new Map();S.ins.forEach(a=>S.I.set(a[0],{c:a[0],d:GS.resumirInsumo(a[1]),dl:a[1],u:a[2],p:+a[3]||0,k:a[4],med:a[5]||0}));
     S.C=new Map();S.comp.forEach(a=>S.C.set(a[0],{c:a[0],d:a[1],u:a[2],g:a[3],cu:+a[4]||0,it:a[5]}));
     S.gEq=new Set();S.gFora=new Set();S.grupos.forEach((g,i)=>{if(/Custos Hor/i.test(g))S.gEq.add(i);if(/Custos Hor|Deprecia|Livro SINAPI/i.test(g))S.gFora.add(i);});
   }
@@ -19822,7 +19860,7 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
   const LIMITE=10*1024*1024,PARTE=600000;            // até 10 MB por arquivo; partes de ~600 KB (base64)
   const ANX={cache:{},carregando:{},enviando:false};
   const run=(fn,...a)=>new Promise((ok,er)=>{try{google.script.run.withSuccessHandler(r=>r&&r.ok===false?er(new Error(r.msg||'Não foi possível concluir.')):ok(r)).withFailureHandler(e=>er(e instanceof Error?e:new Error(String((e&&e.message)||e))))[fn](...a);}catch(e){er(e);}});
-  const eu=()=>{const s=Auth._session||{};return {nome:s.nome||s.email||'Usuário',id:String(s.cpf||s.email||s.id||'')};};
+  const eu=()=>{const s=Auth._session||{};return {nome:s.nome||s.email||'Usuário',id:String(s.uid||s.cpf||s.email||s.id||'')};};
   const admin=()=>{try{return !!UI._ehAdmin(Auth._session&&Auth._session.perfil);}catch(e){return false;}};
   const tam=b=>b>=1048576?(b/1048576).toLocaleString('pt-BR',{maximumFractionDigits:1})+' MB':Math.max(1,Math.round(b/1024))+' KB';
   const tipoIc=(m,n)=>{n=String(n||'').toLowerCase();m=String(m||'');if(/pdf/.test(m)||/\.pdf$/.test(n))return ['pdf','fa-file-pdf'];if(/^image\//.test(m))return ['img','fa-file-image'];
@@ -19840,8 +19878,8 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
     if(!ANX.cache[ob])return '<div class="anx-vazio"><i class="fas fa-spinner fa-spin"></i> Carregando os anexos…</div>';
     const L=ANX.cache[ob].filter(a=>a.aba===aba).sort((a,b)=>String(b.enviado_em||'').localeCompare(String(a.enviado_em||'')));
     if(!L.length)return '<div class="anx-vazio">Nenhum documento anexado ainda.</div>';
-    const ad=admin(),me=eu().id;
-    return '<div class="anx-lista">'+L.map(a=>{const [c,ic]=tipoIc(a.mime,a.nome),pode=ad||!a.enviado_por_id||String(a.enviado_por_id)===me;
+    const ad=admin();
+    return '<div class="anx-lista">'+L.map(a=>{const [c,ic]=tipoIc(a.mime,a.nome),pode=ad||GS.podeMexer(a,a.enviado_por);
       return `<div class="anx-it" data-uid="${fe(a.uid)}"><span class="ic ${c}"><i class="fas ${ic}"></i></span><div class="nm"><b title="${fe(a.nome)}">${fe(a.nome)}</b><span>${tam(+a.tamanho||0)}${a.enviado_por?' · enviado por '+fe(a.enviado_por):''}${a.enviado_em?' em '+quando(a.enviado_em):''}</span></div>
         <div class="ac"><button type="button" class="fin-bt mini" data-anx="abrir" title="Abrir"><i class="fas fa-eye"></i> Abrir</button><button type="button" class="fin-bt mini" data-anx="baixar" title="Baixar"><i class="fas fa-download"></i></button>${pode?'<button type="button" class="fin-bt mini err" data-anx="excluir" title="Excluir"><i class="fas fa-trash"></i></button>':''}</div></div>`;}).join('')+'</div>';
   }
@@ -20190,11 +20228,16 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
     let lista=this._usuarios||[];
     if(q)lista=lista.filter(u=>(`${u.nome||''} ${u.cpf||''} ${u.email||''} ${u.perfil||''}`).toLowerCase().includes(q));
     const n=(this._usuarios||[]).length;
-    grid.innerHTML=`<div class="usr-card"><div class="usr-card-cab"><h3><i class="fas fa-users"></i>Usuários</h3><span>${n} cadastrado${n===1?'':'s'} · clique numa linha para editar</span></div>
-      <div class="usr-tab-wrap"><table class="usr-tab"><thead><tr><th>Nome</th><th>CPF</th><th>E-mail</th><th>Perfil</th><th>Tipo</th><th>Situação</th><th></th></tr></thead>
+    // a coluna "Nome" pode ficar escondida (ex.: ao mostrar a tela para alguém); a escolha fica neste aparelho
+    let semNome=false;try{semNome=localStorage.getItem('vx_usr_sem_nome')==='1';}catch(e){}
+    grid.innerHTML=`<div class="usr-card"><div class="usr-card-cab"><h3><i class="fas fa-users"></i>Usuários</h3><span>${n} cadastrado${n===1?'':'s'} · clique numa linha para editar</span>
+        <button type="button" class="fin-bt mini usr-nome-bt" data-usr-nome>${semNome?'<i class="fas fa-eye"></i> Mostrar a coluna Nome':'<i class="fas fa-eye-slash"></i> Ocultar a coluna Nome'}</button></div>
+      <div class="usr-tab-wrap"><table class="usr-tab${semNome?' sem-nome':''}"><thead><tr><th>Nome</th><th>CPF</th><th>E-mail</th><th>Perfil</th><th>Tipo</th><th>Situação</th><th></th></tr></thead>
       <tbody>${lista.length?lista.map(linhaUsuario).join(''):'<tr><td colspan="7" class="usr-vazio">Nenhum usuário encontrado.</td></tr>'}</tbody></table></div></div>
       ${ehAdm()?painelPermissoes():''}`;
-    grid.onclick=ev=>{const tr=ev.target.closest('tr[data-usr]');if(tr)UI.openUsuario(tr.dataset.usr);};
+    grid.onclick=ev=>{
+      if(ev.target.closest('[data-usr-nome]')){try{localStorage.setItem('vx_usr_sem_nome',semNome?'0':'1');}catch(e){}return UI.renderUsuarios();}
+      const tr=ev.target.closest('tr[data-usr]');if(tr)UI.openUsuario(tr.dataset.usr);};
     grid.onchange=ev=>{
       const card=ev.target.closest('.perm-card');if(!card)return;
       const s=ev.target.closest('select[data-tela]');
@@ -20417,7 +20460,7 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
   table.cel-cartao tbody{display:block;}
   table.cel-cartao tr{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 10px;padding:12px;border-top:1px solid #E4E9F2;position:relative;}
   table.cel-cartao tbody tr:first-child{border-top:0;}
-  table.cel-cartao td{display:block;width:auto!important;min-width:0!important;padding:0!important;border:0!important;}
+  table.cel-cartao td{display:block;width:auto!important;min-width:0!important;padding:0!important;border:0!important;text-align:left!important;}
   table.cel-cartao td[data-rot]:not([data-rot=""])::before{content:attr(data-rot);display:block;font:800 9.5px Inter,sans-serif;text-transform:uppercase;letter-spacing:.04em;color:#667085;margin-bottom:4px;}
   table.cel-cartao td.cel-largo{grid-column:1/-1;}
   table.cel-cartao td.cel-largo:first-child{padding-right:40px!important;}
@@ -20469,7 +20512,7 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
   const pode=v=>!UI._allowedViews||UI._allowedViews.includes(v);
   const run=(fn,...a)=>new Promise((ok,er)=>{try{google.script.run.withSuccessHandler(r=>r&&r.ok===false?er(new Error(r.msg||'Não foi possível concluir.')):ok(r)).withFailureHandler(e=>er(e instanceof Error?e:new Error(String((e&&e.message)||e))))[fn](...a);}catch(e){er(e);}});
   const PLAN=()=>D().planejamento||[];
-  const eu=()=>{const s=Auth._session||{};return {nome:s.nome||'Usuário',id:String(s.cpf||s.email||'')};};
+  const eu=()=>{const s=Auth._session||{};return {nome:s.nome||'Usuário',id:String(s.uid||s.cpf||s.email||'')};};
   const num=s=>Mascara.numero(s)||0;
   const limpo=o=>{const x={...o};delete x.rowid;delete x.visualId;delete x._aba;return x;};
   const ultimo=l=>l.slice().sort((a,b)=>(+b.rowid||0)-(+a.rowid||0))[0]||null;
@@ -21676,10 +21719,10 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
   function editarContratante(x){
     const e=endDoRow(x&&x.row)||(x&&String(x.doc||'').replace(/\D/g,'')==='13504675000110'?EMBASA_END:{})||{};
     const f=(k,l,v,extra,larga)=>`<div class="fin-fld"${larga?' style="grid-column:1/-1"':''}><label>${l}</label><input data-k="${k}" value="${fe(v||'')}" ${extra||''}></div>`;
-    janela(x?'Contratante':'Novo contratante',`<div class="fin-linha">${f('nome','Nome (como aparece no sistema) <span class="obg">*</span>',x?x.nome:'','',1)}
+    janela(x?'Contratante':'Novo contratante',`<div class="fin-linha">${f('nome','Nome (como aparece no sistema) <span class="obg">*</span>',x?x.nome:'','data-maiusc',1)}
       <div class="fin-fld"><label>CPF ou CNPJ</label><input data-k="doc" data-mask="cpfcnpj" inputmode="numeric" value="${fe(x?x.doc:'')}" placeholder="000.000.000-00 ou 00.000.000/0000-00"></div>
       <div class="fin-fld" style="align-self:end"><button type="button" class="fin-bt" data-ctb="cnpj"><i class="fas fa-magnifying-glass"></i> Buscar dados pelo CNPJ</button></div>
-      ${f('razao','Razão social (sai na nota fiscal)',e.razao,'',1)}</div>
+      ${f('razao','Razão social (sai na nota fiscal)',e.razao,'data-maiusc',1)}</div>
       <div class="nfa-obra" style="margin-top:8px"><b>Endereço</b> <small>— vai na nota fiscal (a Receita exige quando o ISS é retido)</small><div class="fin-linha">
       ${f('cep','CEP',e.cep?String(e.cep).replace(/^(\d{5})(\d{3})$/,'$1-$2'):'','inputmode="numeric" maxlength="9"')}${f('lgr','Rua / logradouro',e.xLgr)}${f('nro','Número',e.nro)}${f('cpl','Complemento',e.xCpl)}${f('bairro','Bairro',e.xBairro)}
       ${f('mun','Município',e.mun,'readonly placeholder="vem pelo CEP"')}${f('cmun','Código IBGE',e.cMun,'readonly placeholder="vem pelo CEP"')}</div><div class="nfa-cep" data-ct-st></div></div>`,
@@ -21988,10 +22031,66 @@ GS.fotoSis=(function(){
     const grande=await reduzir(item.file,1600,0.8),mini=await reduzir(item.file,360,0.72);
     await guardar(ob,grande,base+'g');await guardar(ob,mini,base+'m');
     const rot={inicio:'Início da Obra',durante:'Durante a Obra',fim:'Fim da Obra'}[item.etapa]||item.etapa||'',d=String(item.data||'').match(/^(\d{4})-(\d{2})-(\d{2})/);
-    await run('upsertRegistro','Imagens da Obra',{titulo_obra:ob,enviado_por:s.nome||'',enviado_por_id:String(s.cpf||s.nome||''),foto_uid:base+'g',thumb_uid:base+'m',origem:'sistema',
+    await run('upsertRegistro','Imagens da Obra',{titulo_obra:ob,enviado_por:s.nome||'',enviado_por_id:String(s.uid||s.cpf||s.nome||''),foto_uid:base+'g',thumb_uid:base+'m',origem:'sistema',
       nome_arquivo:item.file.name||'foto.jpg',etapa_obra:item.etapa||'durante',data_foto:item.data||'',descricao:[rot,d?`${d[3]}/${d[2]}/${d[1]}`:'',String(item.descricao||'').trim()].filter(Boolean).join(' • ')},null);}
   const apagar=f=>Promise.all([f.foto_uid,f.thumb_uid].filter(Boolean).map(uid=>run('excluirAnexo',uid,null).catch(()=>{})));
   return {PIX,url,ja,falta,prep,attrs,enviar,apagar};
+})();
+
+/* ═══════════════ DESCRIÇÃO RESUMIDA DOS ITENS DA SINAPI ═══════════════
+   A SINAPI descreve cada insumo com tudo (normas, explicações entre parênteses, códigos AF_…). Ao puxar um item, fica
+   só o essencial: o nome e as medidas (o que distingue um item do outro), até 64 letras, com só a 1ª letra maiúscula
+   (siglas e medidas continuam: CP II-32, PVC, DN 50, 25 mm, m²). O código SINAPI continua guardado com o item. */
+GS.resumirInsumo=function(d){
+  let t=String(d==null?'':d).replace(/\s+/g,' ').trim();if(!t)return t;
+  const curta=t.length<=48;
+  if(!curta){t=t.replace(/\bAF_\d{1,2}\/\d{4}\b/gi,'').replace(/\*/g,'');
+    for(let k=0;k<3;k++)t=t.replace(/\s*\([^()]*\)/g,'');
+    t=t.replace(/\s+/g,' ').replace(/\s+([,;.])/g,'$1').trim();
+    const seg=t.split(/\s*[;]\s*|,\s+|\s+-\s+/).map(x=>x.trim()).filter(Boolean);let r=seg[0]||t;
+    for(const sg of seg.slice(1)){if((r+', '+sg).length>64)break;if(/\d/.test(sg)||r.length<28)r+=', '+sg;}
+    if(r.length>64)r=r.slice(0,64).replace(/[\s,;-]+\S*$/,'');t=r.replace(/[\s,;-]+$/,'');}
+  if(t!==t.toUpperCase())return t;   // já está escrito do jeito certo (não é o "tudo maiúsculo" da SINAPI)
+  const SIG=/^(CP|CPV|CPII|PVC|CPVC|PPR|CA|DN|NBR|ABNT|EPI|PEAD|HDPE|PP|PE|MDF|LED|II|III|IV|VI|VII|UV|EVA|PU|GLP|ARI|SAE|BSP|NPT|TIG|MIG|AC|AC1|AC2|AC3|ACI|ACII|ACIII|CCA|JE|JEI|PBA|RJ|SP|DE\d+|CPIII|CPIV|ART|ANSI|ASTM|INOX|KVA|KW|CV|HP|RPM|PN|CL|SDR|CBUQ|PMF|RR|RL|CAP|CM30|MR|RS)$/;
+  const UN={MM:'mm',CM:'cm',M:'m',KM:'km',KG:'kg',G:'g',T:'t',L:'L',ML:'ml',M2:'m²','M²':'m²',M3:'m³','M³':'m³',H:'h',W:'W',V:'V',A:'A',MPA:'MPa',KN:'kN'};
+  const out=t.split(' ').map((w,i)=>{const lim=w.replace(/[,.;:]+$/,''),fim=w.slice(lim.length);
+    if(SIG.test(lim))return w;
+    let m=lim.match(/^(\d+(?:[.,]\d+)?)(MM|CM|M|KM|KG|G|T|L|ML|M2|M²|M3|M³|H|W|V|A|MPA|KN)$/);if(m)return m[1]+UN[m[2]]+fim;
+    if(UN[lim]&&i>0&&/\d$/.test(t.split(' ')[i-1]||''))return UN[lim]+fim;
+    if(/\d/.test(lim))return w;   // CA-50, II-32, DN100, 1/2"
+    return w.toLowerCase();}).join(' ');
+  return out.charAt(0).toUpperCase()+out.slice(1);
+};
+
+/* ═══════════════ FORNECEDOR E CONTRATANTE EM MAIÚSCULAS ═══════════════
+   Campo marcado com data-maiusc: o que se digita (ou se escolhe na lista) já fica em MAIÚSCULAS, e é assim que é gravado. */
+(function(){
+  const up=el=>{const v=el.value,u=v.toLocaleUpperCase('pt-BR');if(v===u)return;const a=el.selectionStart,b=el.selectionEnd;el.value=u;try{if(a!=null)el.setSelectionRange(a,b);}catch(e){}};
+  document.addEventListener('input',ev=>{const el=ev.target;if(el&&el.matches&&el.matches('input[data-maiusc]'))up(el);},true);
+  document.addEventListener('change',ev=>{const el=ev.target;if(el&&el.matches&&el.matches('input[data-maiusc]'))up(el);},true);
+})();
+
+/* ═══════════════ OLHO: esconder os valores ═══════════════
+   Como nos aplicativos de banco: o olho no alto da tela esconde todo valor em R$ (cartões, tabelas, quadros e campos de
+   valor) — para mostrar a tela a alguém sem expor os números. A escolha fica guardada neste aparelho. Os PDFs e as
+   planilhas exportadas continuam com os valores. */
+(function(){
+  const K='vx_ocultar_valores',RE=/(?:[−-]\s?)?R\$\s?[−-]?\s?\d{1,3}(?:\.\d{3})*(?:,\d{1,2})?(?:\s?(?:mil|mi|bi)\b)?/g,PULA='SCRIPT,STYLE,TEXTAREA,OPTION,SELECT,INPUT,TITLE,NOSCRIPT';
+  let on=false;try{on=localStorage.getItem(K)==='1';}catch(e){}
+  function marcar(raiz){if(!raiz)return;
+    if(raiz.nodeType===3){envolver(raiz);return;}
+    if(raiz.nodeType!==1||PULA.includes(raiz.tagName)||raiz.closest&&raiz.closest('.vx-money,#vx-olho'))return;
+    const w=document.createTreeWalker(raiz,NodeFilter.SHOW_TEXT,{acceptNode:n=>{const p=n.parentElement;if(!p||PULA.includes(p.tagName)||p.closest('.vx-money'))return NodeFilter.FILTER_REJECT;RE.lastIndex=0;return RE.test(n.nodeValue)?NodeFilter.FILTER_ACCEPT:NodeFilter.FILTER_SKIP;}});
+    const L=[];while(w.nextNode())L.push(w.currentNode);L.forEach(envolver);}
+  function envolver(n){const t=n.nodeValue,p=n.parentElement;if(!p||PULA.includes(p.tagName)||p.closest('.vx-money'))return;RE.lastIndex=0;if(!RE.test(t))return;
+    RE.lastIndex=0;const fr=document.createDocumentFragment();let i=0,m;
+    while((m=RE.exec(t))){if(m.index>i)fr.appendChild(document.createTextNode(t.slice(i,m.index)));const sp=document.createElement('span');sp.className='vx-money';sp.textContent=m[0];fr.appendChild(sp);i=m.index+m[0].length;}
+    if(i<t.length)fr.appendChild(document.createTextNode(t.slice(i)));n.replaceWith(fr);}
+  const obs=new MutationObserver(ms=>{if(!on)return;ms.forEach(m=>{if(m.type==='characterData')marcar(m.target);else m.addedNodes.forEach(marcar);});});
+  function aplicar(){document.body.classList.toggle('vx-oculto',on);const b=document.getElementById('vx-olho');if(b){b.setAttribute('aria-pressed',on?'true':'false');b.title=on?'Mostrar os valores':'Esconder os valores';}
+    if(on){marcar(document.body);obs.observe(document.body,{childList:true,subtree:true,characterData:true});}else obs.disconnect();}
+  document.addEventListener('click',ev=>{if(!ev.target.closest('#vx-olho'))return;on=!on;try{localStorage.setItem(K,on?'1':'0');}catch(e){}aplicar();});
+  aplicar();
 })();
 
 /* ═══════════════ CELULAR: tabelas de digitar viram cartões ═══════════════

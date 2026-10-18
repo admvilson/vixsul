@@ -7,15 +7,8 @@
 const https = require('https'), zlib = require('zlib');
 const core = require('./_nfse_core');
 const CNPJ_EMPRESA = '64518375000120';
-const ORIGENS = [/^https:\/\/gestao\.vixsulempreendimentos\.com\.br$/, /^https:\/\/vixsul(-[\w-]+)?\.vercel\.app$/, /^http:\/\/localhost(:\d+)?$/];
-
-function cors(req, res) {
-  const o = req.headers.origin || '';
-  if (ORIGENS.some(r => r.test(o))) { res.setHeader('Access-Control-Allow-Origin', o); res.setHeader('Vary', 'Origin'); }
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-  res.setHeader('Cache-Control', 'no-store');
-}
+// origens aceitas, cabeçalhos e o "passe" de login: ver _auth.js
+const { ORIGENS, cors, exigirLogin } = require('./_auth');
 // chamada à Receita com o certificado do cliente (TLS mútuo)
 function pedir(url, { metodo = 'GET', corpo = null, crt, aceitar = 'application/json' }) {
   return new Promise((ok, er) => {
@@ -52,6 +45,8 @@ module.exports = async (req, res) => {
   const responder = (st, o) => { res.statusCode = st; res.setHeader('Content-Type', 'application/json; charset=utf-8'); res.end(JSON.stringify(o)); };
   if (req.method === 'OPTIONS') { res.statusCode = 204; return res.end(); }
   if (req.method !== 'POST') return responder(405, { ok: false, msg: 'Use POST.' });
+  // só quem entrou no sistema usa (depois que a segurança estiver configurada na Vercel)
+  if (!exigirLogin(req).ok) return responder(401, { ok: false, sair: true, msg: 'A sessão terminou. Entre no sistema de novo.' });
   const b = (typeof req.body === 'string' ? (() => { try { return JSON.parse(req.body); } catch (e) { return {}; } })() : req.body) || {};
   try {
     if (b.acao === 'ping') return responder(200, { ok: true, leiaute: core.VERSAO });

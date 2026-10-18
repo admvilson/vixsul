@@ -1,0 +1,36 @@
+SEGURANÇA DO SISTEMA VIXSUL — o que foi feito e como ligar
+
+O PROBLEMA (antes)
+  O login e as permissões eram conferidos só no navegador, e o banco (Supabase) aceitava ler, alterar e
+  apagar tudo com a chave pública que fica no código do site. Quem soubesse disso conseguia ver e mexer
+  em todos os dados, inclusive na tabela de usuários.
+
+A SOLUÇÃO (agora)
+  1. Login no servidor (api/sessao.js, na Vercel): a senha é conferida lá, com bloqueio depois de 5 erros
+     em 15 minutos. Quem acerta recebe um "passe" assinado, que vale 12 horas e é renovado sozinho.
+  2. Recuperação de senha: o código de 6 dígitos é gerado, enviado e conferido no servidor (antes era no
+     navegador e dava para burlar). Senha nova: pelo menos 8 caracteres, com letras e números.
+  3. Banco trancado (passo 2): sem o passe, ninguém lê nem grava nada. O dono de cada lançamento é gravado
+     pelo próprio banco; excluir, só quem lançou ou o Administrador. Usuário externo e usuário com obras
+     marcadas só recebem as obras deles. A tabela de usuários fica fechada (só o servidor acessa).
+  4. Auditoria: toda inclusão, alteração e exclusão fica registrada (quem, quando, antes e depois).
+  5. Funções da Vercel (nota fiscal, leitura de documento) só atendem quem entrou no sistema.
+  6. Navegador: biblioteca do banco com versão fixa e conferência de integridade, o sistema não abre dentro
+     de outro site, e o endereço completo não é enviado a outros sites.
+
+COMO LIGAR (na ordem)
+  1. Supabase → SQL Editor → rodar seguranca/passo-1-eventos.sql
+  2. Supabase → Project Settings → API (ou "JWT Keys" / "API Keys"):
+       • copiar o "JWT Secret" (aba Legacy JWT Secret)
+       • copiar a chave "service_role" (aba Legacy API Keys) ou a "Secret key"
+  3. Vercel → projeto vixsul → Settings → Environment Variables → adicionar:
+       SUPABASE_JWT_SECRET  = (o JWT Secret)
+       SUPABASE_SERVICE_KEY = (a service_role / Secret key)
+     Depois: Deployments → no mais recente, "..." → Redeploy.
+  4. Sair do sistema e entrar de novo (o login passa a ser pelo servidor). Conferir se tudo abre.
+  5. Supabase → SQL Editor → rodar seguranca/passo-2-trancar-banco.sql
+  6. Sair e entrar de novo; conferir as telas.
+  Emergência (algo parou depois do passo 5): rodar seguranca/desfazer-trancamento.sql
+
+NUNCA envie o JWT Secret nem a service_role a ninguém, nem cole em conversa, e-mail ou no código.
+Elas ficam SÓ nas variáveis da Vercel.

@@ -5,15 +5,8 @@
      Só funciona com a chave ANTHROPIC_API_KEY configurada na Vercel (quem usa o sistema configura; cada leitura
      custa alguns centavos). Sem a chave, o sistema lê do jeito gratuito (texto do PDF / foto).
    - acao 'status': diz se a leitura inteligente está ligada. */
-const ORIGENS = [/^https:\/\/gestao\.vixsulempreendimentos\.com\.br$/, /^https:\/\/vixsul(-[\w-]+)?\.vercel\.app$/, /^http:\/\/localhost(:\d+)?$/];
-
-function cors(req, res) {
-  const o = req.headers.origin || '';
-  if (ORIGENS.some(r => r.test(o))) { res.setHeader('Access-Control-Allow-Origin', o); res.setHeader('Vary', 'Origin'); }
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-  res.setHeader('Cache-Control', 'no-store');
-}
+// origens aceitas, cabeçalhos e o "passe" de login: ver _auth.js
+const { ORIGENS, cors, exigirLogin } = require('./_auth');
 const permitido = u => { try { const x = new URL(u); return /^https?:$/.test(x.protocol) && /(^|\.)gov\.br$/i.test(x.hostname); } catch (e) { return false; } };
 const ent = s => String(s || '').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#(\d+);/g, (m, n) => String.fromCharCode(+n)).replace(/&[a-z]+;/gi, ' ');
 const limpo = s => ent(String(s || '').replace(/<[^>]+>/g, ' ')).replace(/\s+/g, ' ').trim();
@@ -95,6 +88,8 @@ module.exports = async (req, res) => {
   const responder = (st, o) => { res.statusCode = st; res.setHeader('Content-Type', 'application/json; charset=utf-8'); res.end(JSON.stringify(o)); };
   if (req.method === 'OPTIONS') { res.statusCode = 204; return res.end(); }
   if (req.method !== 'POST') return responder(405, { ok: false, msg: 'Use POST.' });
+  // só quem entrou no sistema usa (depois que a segurança estiver configurada na Vercel)
+  if (!exigirLogin(req).ok) return responder(401, { ok: false, sair: true, msg: 'A sessão terminou. Entre no sistema de novo.' });
   const b = (typeof req.body === 'string' ? (() => { try { return JSON.parse(req.body); } catch (e) { return {}; } })() : req.body) || {};
   if (b.acao === 'status') return responder(200, { ok: true, ia: !!process.env.ANTHROPIC_API_KEY });
   if (b.acao === 'ler') {
