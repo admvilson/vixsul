@@ -121,6 +121,24 @@ const idDe = b => b.modo === 'externo' ? String(b.id || b.email || '').trim().to
 // ── ações ──
 const A = {};
 A.status = async () => ({ ok: true, configurado: true });
+// conferência da configuração: devolve só certo/errado (nenhum dado) — a chave de serviço lê o banco? a tabela do
+// passo 1 existe? o banco aceita um passe assinado com o JWT Secret? o banco já está trancado (passo 2)?
+const ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNmbmxkY3F3cHdva3FmamlreGV1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI4NzA2MjMsImV4cCI6MjA5ODQ0NjYyM30.HWMRAuhjEdBqS-3q-oIsRIhNaT5D6dcguT2YzSWnPvM';
+A.diagnostico = async () => {
+  const r = { ok: true, configurado: true };
+  try { await sb('usuarios?select=id&limit=1'); r.chave = true; } catch (e) { r.chave = false; }
+  try { await sb('seguranca_eventos?select=id&limit=1'); r.passo1 = true; } catch (e) { r.passo1 = false; }
+  try {
+    const agora = Math.floor(Date.now() / 1000);
+    const tk = assinar({ iss: URL_SB + '/auth/v1', aud: 'authenticated', role: 'authenticated', sub: uuidDe('diagnostico'), iat: agora, exp: agora + 60, vx: 1,
+      app_uid: '', ids: [], nome: 'diagnostico', adm: false, tipo: 'interno', obras: [] }, SEGREDO);
+    const resp = await fetch(URL_SB + '/rest/v1/obras?select=id&limit=1', { headers: { apikey: ANON, Authorization: 'Bearer ' + tk } });
+    r.passe = resp.ok; if (!resp.ok) r.passeStatus = resp.status;
+  } catch (e) { r.passe = false; }
+  try { const resp = await fetch(URL_SB + '/rest/v1/obras?select=id&limit=1', { headers: { apikey: ANON, Authorization: 'Bearer ' + ANON } }); const j = await resp.json().catch(() => null);
+    r.trancado = !(resp.ok && Array.isArray(j) && j.length > 0); } catch (e) { r.trancado = null; }
+  return r;
+};
 
 A.entrar = async (b, req) => {
   const modo = b.modo === 'externo' ? 'externo' : 'interno', id = idDe({ ...b, modo }), senha = String(b.senha || '').trim();
