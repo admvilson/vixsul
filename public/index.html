@@ -13268,23 +13268,39 @@ const Eng=(function(){
   /* ═══════════════════════════ CONTRATOS ═══════════════════════════ */
   const contratoDe=ob=>(D().contratos||[]).find(c=>c.titulo_obra===ob)||null;
   const docsObra=(ob,re)=>(D().documentos||[]).filter(d=>d.titulo_obra===ob&&re.test(String(d.tipo||'')));
-  // O ciclo de vida do contrato. auto = o sistema reconhece pelo que já foi lançado.
-  const CICLO=[
-    {k:'proposta',rot:'Orçamento da proposta',dica:'Obras › abrir a obra › Orçamento',auto:x=>!!Eng.baseDaObra(x.ob)},
-    {k:'cap',rot:'Custo orçado (CAP) e margem prevista',dica:'Obras › abrir a obra › CAP',auto:x=>Eng.capInfo(x.ob).tem},
-    {k:'assinatura',rot:'Contrato assinado',dica:'Editar dados do contrato › data de assinatura',auto:x=>!!dt(x.c.data_assinatura)},
-    {k:'garantia',rot:'Garantia contratual entregue',mm:true,dica:'Documentos › Seguro-garantia (ou marque aqui)',auto:x=>docsObra(x.ob,/garantia/i).length>0||!!dt(x.c.garantia_validade)},
-    {k:'art',rot:'ART da obra registrada no CREA',mm:true,dica:'Documentos › ART / RRT (ou marque aqui)',auto:x=>docsObra(x.ob,/ART/).length>0},
-    {k:'os',rot:'Ordem de serviço recebida',dica:'Editar dados do contrato › data da OS',auto:x=>!!x.dO.ini},
-    {k:'planejamento',rot:'Planejamento da execução (etapas)',dica:'Engenharia › Planejamento › Gerar a partir do orçamento',auto:x=>Eng.fisico(x.ob,hoje0()).tem},
-    {k:'mobilizacao',rot:'Mobilização e diário de obra iniciado',mm:true,dica:'Engenharia › Diário de obra (ou marque aqui)',auto:x=>(D().diario_obra||[]).some(r=>r.titulo_obra===x.ob)},
-    {k:'medicao',rot:'Medições mensais em dia',dica:'Engenharia › Medições',auto:x=>x.rm.ms.length>0},
-    {k:'reajuste',rot:'Reajuste pedido (12 meses após a data-base)',dica:'Peça por ofício ao fiscal, com o índice do contrato',opcional:true},
-    {k:'asbuilt',rot:'Cadastro técnico / as built entregue',dica:'Exigido para o recebimento da obra'},
-    {k:'rec_prov',rot:'Termo de recebimento provisório',dica:'Emitido pela fiscalização ao fim da execução'},
-    {k:'rec_def',rot:'Termo de recebimento definitivo',dica:'Após o prazo de observação'},
-    {k:'encerramento',rot:'Garantia devolvida e contrato encerrado',dica:'Peça a liberação da garantia após o recebimento definitivo'}
-  ];
+  /* O ciclo de vida segue a ESTRUTURA de cada contrato (auto = o sistema reconhece pelo que já foi lançado):
+     • contrato ou pedido — pedido não tem assinatura de contrato (a data do pedido é a da OS), nem as built,
+       nem recebimento definitivo: o serviço é aceito e o pedido se encerra;
+     • garantia — apólice/caução/fiança: entregue no início e devolvida no fim; retenção na 1ª medição: retida
+       na medição e devolvida no fim; "Não exigida": não há passo de garantia; sem informação: pede para definir;
+     • reajuste — só aparece se o índice prevê reajuste e o contrato passa de 12 meses da data-base. */
+  const tipoGarantia=t=>{const s=String(t||'').trim();return !s?'indefinida':/^n[ãa]o exigida$/i.test(s)?'nenhuma':/^reten/i.test(s)?'retencao':'apolice';};
+  function cicloDe(x){
+    const c=x.c||{},ped=(c.instrumento||'Contrato')==='Pedido',gt=tipoGarantia(c.garantia_tipo);
+    const fimCt=x.vig||x.dO.fim||null,reajPossivel=c.indice_reajuste!=='Sem reajuste previsto'&&(!x.reaj||!fimCt||fimCt>x.reaj);
+    return [
+      {k:'proposta',rot:'Orçamento da proposta',dica:'Obras › abrir a obra › Orçamento',auto:y=>!!Eng.baseDaObra(y.ob)},
+      {k:'cap',rot:'Custo orçado (CAP) e margem prevista',dica:'Obras › abrir a obra › CAP',auto:y=>Eng.capInfo(y.ob).tem},
+      ped?{k:'assinatura',rot:'Pedido recebido',dica:'Editar dados do contrato › Data do pedido',auto:y=>!!dt(y.c.data_pedido)}
+        :{k:'assinatura',rot:'Contrato assinado',dica:'Editar dados do contrato › Assinatura do contrato',auto:y=>!!dt(y.c.data_assinatura)},
+      gt==='apolice'?{k:'garantia',rot:`Garantia entregue (${String(c.garantia_tipo).toLowerCase()})`,mm:true,dica:'Documentos › Seguro-garantia (ou marque aqui)',auto:y=>docsObra(y.ob,/garantia/i).length>0||!!dt(y.c.garantia_validade)}
+        :gt==='retencao'?{k:'garantia',rot:'Garantia retida na 1ª medição',dica:'Acontece na primeira medição (o sistema reconhece sozinho)',auto:y=>y.rm.ms.length>0}
+        :gt==='indefinida'?{k:'garantia',rot:'Garantia contratual definida',dica:'Editar dados do contrato › Garantia contratual (ou "Não exigida")',auto:y=>!!y.c.garantia_tipo}:null,
+      {k:'art',rot:'ART da obra registrada no CREA',mm:true,dica:'Documentos › ART / RRT (ou marque aqui)',auto:y=>docsObra(y.ob,/ART/).length>0},
+      ped?{k:'os',rot:'Ordem de serviço (= data do pedido)',dica:'É a data do pedido',auto:y=>!!y.dO.ini||!!dt(y.c.data_pedido)}
+        :{k:'os',rot:'Ordem de serviço recebida',dica:'Editar dados do contrato › data da OS',auto:y=>!!y.dO.ini},
+      {k:'planejamento',rot:'Planejamento da execução (etapas)',dica:'Engenharia › Planejamento › Gerar a partir do orçamento',auto:y=>Eng.fisico(y.ob,hoje0()).tem},
+      {k:'mobilizacao',rot:'Mobilização e diário de obra iniciado',mm:true,dica:'Engenharia › Diário de obra (ou marque aqui)',auto:y=>(D().diario_obra||[]).some(r=>r.titulo_obra===y.ob)},
+      {k:'medicao',rot:ped?'Medição do pedido':'Medições mensais em dia',dica:'Engenharia › Medições',auto:y=>y.rm.ms.length>0},
+      reajPossivel?{k:'reajuste',rot:'Reajuste solicitado (12 meses após a data-base)',dica:'Peça por ofício ao fiscal, com o índice do contrato',opcional:true}:null,
+      ped?null:{k:'asbuilt',rot:'Cadastro técnico / as built entregue',dica:'Exigido para o recebimento da obra'},
+      ped?{k:'rec_prov',rot:'Serviço aceito pela fiscalização',dica:'Aceite / recebimento do serviço do pedido'}
+        :{k:'rec_prov',rot:'Termo de recebimento provisório',dica:'Emitido pela fiscalização ao fim da execução'},
+      ped?null:{k:'rec_def',rot:'Termo de recebimento definitivo',dica:'Após o prazo de observação'},
+      {k:'encerramento',rot:gt==='apolice'?'Garantia devolvida e contrato encerrado':gt==='retencao'?'Retenção da garantia devolvida e contrato encerrado':ped?'Pedido encerrado (tudo faturado e recebido)':'Contrato encerrado',
+        dica:gt==='apolice'?'Peça a liberação da garantia após o recebimento definitivo':gt==='retencao'?'Peça a devolução do valor retido na 1ª medição':'Último faturamento recebido e nada pendente'}
+    ].filter(Boolean);
+  }
   function info(o){
     const ob=nomeObra(o),c=contratoDe(ob)||{},h=hoje0();
     const dO=Eng.datasObra(o),rm=Eng.resumoMedicoes(ob),ads=Eng.aditivosDaObra(ob);
@@ -13298,8 +13314,8 @@ const Eng=(function(){
     const sVig=!vig?'cinza':diasVig<=30?'vermelho':diasVig<=60?'amarelo':(dO.fim&&!finalizada(o)&&dias(dO.fim,vig)<30)?'amarelo':'verde';
     const sGar=!exigeGar?'cinza':!garVal?'amarelo':garVal<h?'vermelho':(vig&&garVal<vig)||dias(h,garVal)<=30?'amarelo':'verde';
     const reajDisp=!!(reaj&&h>=reaj&&!ck.reajuste&&c.indice_reajuste!=='Sem reajuste previsto');
-    const x={o,ob,c,dO,rm};
-    const ciclo=CICLO.map(p=>{const sis=p.auto?!!p.auto(x):false;return {...p,sis,feito:sis||!!ck[p.k],data:ck[p.k]||''};});
+    const x={o,ob,c,dO,rm,vig,reaj};
+    const ciclo=cicloDe(x).map(p=>{const sis=p.auto?!!p.auto(x):false;return {...p,sis,feito:sis||!!ck[p.k],data:ck[p.k]||''};});
     const obrig=ciclo.filter(p=>!p.opcional),feitos=obrig.filter(p=>p.feito).length;
     return {o,ob,c,tem:!!contratoDe(ob),dO,rm,ads,valorOrig,adV,adPct:valorOrig?adV/valorOrig*100:0,vigente:valorOrig+adV,vig,vigOrig,diasVig,garVal,exigeGar,dataBase,reaj,reajDisp,sVig,sGar,ciclo,feitos,total:obrig.length,prox:obrig.find(p=>!p.feito)||null};
   }
@@ -13333,7 +13349,8 @@ const Eng=(function(){
     const o=obraDe(ob),x=info(o),c=x.c,h=hoje0(),rm=x.rm;
     const numCt=getFuzzy(o,['numero_contrato','num_contrato','n_contrato']);
     // linha do tempo: assinatura → OS → término vigente → fim da vigência
-    const marcos=[[dt(c.data_assinatura),'Assinatura','azul'],[x.dO.ini,'Ordem de serviço','azul'],[x.dO.fim,'Término da execução',x.dO.fim&&x.dO.fim<h&&!finalizada(o)?'vermelho':'verde'],[x.vig,'Fim da vigência',x.sVig==='vermelho'?'vermelho':'azul']].filter(m=>m[0]);
+    const pedC=(c.instrumento||'Contrato')==='Pedido';
+    const marcos=(pedC?[[x.dO.ini||dt(c.data_pedido),'Pedido e ordem de serviço','azul']]:[[dt(c.data_assinatura),'Assinatura','azul'],[x.dO.ini,'Ordem de serviço','azul']]).concat([[x.dO.fim,'Término da execução',x.dO.fim&&x.dO.fim<h&&!finalizada(o)?'vermelho':'verde'],[x.vig,'Fim da vigência',x.sVig==='vermelho'?'vermelho':'azul']]).filter(m=>m[0]);
     let tl='';
     if(marcos.length>=2){
       const t0=Math.min(...marcos.map(m=>m[0].getTime()),h.getTime()),t1=Math.max(...marcos.map(m=>m[0].getTime()),h.getTime()),sp=Math.max(1,t1-t0),p=t=>((t-t0)/sp*94+3).toFixed(2);
@@ -13367,8 +13384,8 @@ const Eng=(function(){
       <div class="op-grade">
         <div class="op-card"><h4>Dados do contrato</h4>
           ${linha('Limite de entrega da proposta',brDe(dt(getFuzzy(o,['limite_proposta']))))}${linha('Proposta enviada em',brDe(dt(getFuzzy(o,['envio_proposta']))))}
-          ${linha('Contratante',fe(c.contratante||'—'))}${linha('Cidade da obra',fe(getFuzzy(o,['cidade_obra'])||c.cidade_obra||'—'))}${linha('Nº do contrato',fe(numCt||'—'))}${linha('Licitação',fe([c.modalidade,c.numero_licitacao].filter(Boolean).join(' · ')||'—'))}
-          ${linha('Assinatura',brDe(dt(c.data_assinatura)))}${linha('Ordem de serviço',brDe(x.dO.ini))}${linha('Prazo de execução',getFuzzy(o,['prazo_contratual'])?fe(getFuzzy(o,['prazo_contratual']))+' dias':'—')}
+          ${linha('Contratante',fe(c.contratante||'—'))}${linha('Cidade da obra',fe(getFuzzy(o,['cidade_obra'])||c.cidade_obra||'—'))}${linha('Tipo',pedC?'Pedido':'Contrato')}${linha(pedC?'Nº do pedido':'Nº do contrato',fe(numCt||'—'))}${linha('Licitação',fe([c.modalidade,c.numero_licitacao].filter(Boolean).join(' · ')||'—'))}
+          ${pedC?linha('Data do pedido (= ordem de serviço)',brDe(dt(c.data_pedido)||x.dO.ini)):linha('Assinatura',brDe(dt(c.data_assinatura)))+linha('Ordem de serviço',brDe(x.dO.ini))}${linha('Prazo de execução',getFuzzy(o,['prazo_contratual'])?fe(getFuzzy(o,['prazo_contratual']))+' dias':'—')}
           ${linha('Término da execução',brDe(x.dO.fim)+(x.dO.prorrogado?` <small style="color:var(--text-3)">(era ${brDe(x.dO.fimOriginal)})</small>`:''))}${linha('Fim da vigência',brDe(x.vig)+(x.vigOrig&&x.vig>x.vigOrig?` <small style="color:var(--text-3)">(era ${brDe(x.vigOrig)})</small>`:''))}
           ${linha('Fiscal',fe([c.fiscal,c.fiscal_contato].filter(Boolean).join(' · ')||'—'))}${linha('Responsável técnico',fe(c.responsavel_tecnico||'—'))}${linha('Preposto na obra',fe(c.preposto||'—'))}
         </div>
@@ -13389,67 +13406,13 @@ const Eng=(function(){
     box.onclick=ev=>{
       const b=ev.target.closest('[data-ct]');if(!b)return;const a=b.dataset.ct;
       if(a==='voltar'){CT.obra='';renderContratos();}
-      else if(a==='editar')editarContrato(ob);
+      else if(a==='editar')Eng.editarDadosObra(ob);   // o mesmo formulário da central da obra (uma regra só)
       else if(a==='aditivo')Eng.editarAditivo(null,ob);
       else if(a==='acao')novaAcao({titulo_obra:ob,tipo:'Pendência'});
       else if(a==='passo')marcarPasso(ob,b.dataset.k);
       else if(a==='painel')UI.openObraHub(o.rowid);
       else if(a==='planejamento'){PL.obra=ob;UI.nav('planejamento');}
     };
-  }
-  const CAMPOS_CT=[
-    {k:'contratante',label:'Contratante',padrao:'EMBASA',maiusc:true},{k:'cnpj_contratante',label:'CNPJ do contratante',ph:'00.000.000/0000-00',mask:'cnpj'},
-    {k:'modalidade',label:'Modalidade da licitação',tipo:'sel',ops:['Licitação (Lei 13.303 — estatais)','Concorrência (Lei 14.133)','Pregão','Dispensa / contratação direta','Contrato privado']},
-    {k:'numero_licitacao',label:'Nº da licitação / processo'},
-    {k:'data_assinatura',label:'Data de assinatura',tipo:'data'},
-    {k:'objeto',label:'Objeto do contrato',tipo:'area',inteira:true,linhas:2},
-    {k:'valor_contrato',label:'Valor assinado (R$)',tipo:'moeda'},
-    {k:'vigencia_fim',label:'Fim da vigência',tipo:'data'},
-    {k:'data_base',label:'Data-base do orçamento (reajuste)',tipo:'data'},
-    {k:'indice_reajuste',label:'Índice de reajuste',tipo:'sel',ops:['INCC-DI (FGV)','IPCA (IBGE)','Índice da contratante','Sem reajuste previsto']},
-    {k:'garantia_tipo',label:'Garantia contratual',tipo:'sel',ops:['Seguro-garantia','Caução em dinheiro','Fiança bancária','Retenção na 1ª medição','Não exigida']},
-    {k:'garantia_pct',label:'Garantia (% do contrato)',tipo:'num',ph:'Ex.: 5'},
-    {k:'garantia_validade',label:'Validade da garantia',tipo:'data'},
-    {k:'fiscal',label:'Fiscal do contrato'},
-    {k:'fiscal_contato',label:'Telefone do fiscal',ph:'(77) 99999-9999',mask:'tel'},
-    {k:'responsavel_tecnico',label:'Responsável técnico (Vixsul)'},
-    {k:'preposto',label:'Preposto / encarregado na obra'},
-    {k:'observacoes',label:'Observações',tipo:'area',inteira:true,linhas:2}
-  ];
-  function editarContrato(ob){
-    const o=obraDe(ob);if(!o)return;
-    const c=contratoDe(ob),rm=Eng.resumoMedicoes(ob);
-    const kNum=kRow(o,['numero_contrato','num_contrato','n_contrato'],'numero_contrato'),kIni=kRow(o,['inicio_obra','data_inicio'],'inicio_obra'),kPz=kRow(o,['prazo_contratual'],'prazo_contratual');
-    const orc=Eng.baseDaObra(ob);
-    const pad={valor_contrato:rm.base?n2(rm.base):'',data_base:orc?isoDe(dt(getFuzzy(orc,['data_lancamento']))||hoje0()):''};
-    const v=k=>c&&c[k]!=null&&c[k]!==''?(k==='valor_contrato'?n2(val(c[k])):c[k]):(pad[k]||'');
-    const termTxt=()=>{const j=document.getElementById('fin-jan');const os=j.querySelector('[data-f="os"]').value,pz=parseInt(j.querySelector('[data-f="prazo"]').value,10);const t=os&&pz>0?addD(dt(os),pz):null;j.querySelector('[data-term]').innerHTML=t?`Término da execução = OS + prazo = <b>${brDe(t)}</b>. Sugestão de fim de vigência (término + 90 dias para o recebimento): <b>${brDe(addD(t,90))}</b>.`:'Informe a OS e o prazo para o sistema calcular o término da execução.';};
-    const j=janela('Dados do contrato — '+ob,`<div class="fin-aviso"><div>Nº do contrato, ordem de serviço e prazo ficam gravados na própria obra (aparecem também no cartão e no formulário da obra).</div></div>
-      <div class="fin-linha">
-        <div class="fin-fld"><label>Nº do contrato</label><input data-f="numero" value="${fe(getFuzzy(o,['numero_contrato','num_contrato','n_contrato'])||'')}"></div>
-        <div class="fin-fld"><label>Ordem de serviço (início)</label><input type="date" data-f="os" value="${fe(dt(getFuzzy(o,['inicio_obra','data_inicio']))?isoDe(dt(getFuzzy(o,['inicio_obra','data_inicio']))):'')}"></div>
-        <div class="fin-fld"><label>Prazo de execução (dias)</label><input data-f="prazo" inputmode="numeric" value="${fe(String(getFuzzy(o,['prazo_contratual'])||'').replace(/\D/g,''))}"></div>
-      </div>
-      <div class="fin-resumo" data-term></div>
-      <div class="fin-linha">${CAMPOS_CT.map(f=>campoHtml(f,v(f.k))).join('')}</div>`,
-      [{html:'Cancelar'},{html:'Salvar',cls:'pri',acao:async j=>{
-        const g=k=>(j.querySelector(`[data-f="${k}"]`)?.value||'').trim();
-        const obj=c?{...c}:{titulo_obra:ob,data_lancamento:todayDateTime()};
-        CAMPOS_CT.forEach(f=>obj[f.k]=g(f.k));obj.titulo_obra=ob;
-        obj.valor_contrato=obj.valor_contrato?dinheiro(moeda(obj.valor_contrato)):'';
-        obj.garantia_pct=obj.garantia_pct?String(moeda(obj.garantia_pct)).replace('.',','):'';
-        if(obj.vigencia_fim&&obj.data_assinatura&&obj.vigencia_fim<obj.data_assinatura)throw new Error('O fim da vigência não pode ser antes da assinatura.');
-        const os=g('os'),pz=g('prazo').replace(/\D/g,''),num=g('numero');
-        const o2={...o};o2[kNum]=num;o2[kIni]=os;o2[kPz]=pz;
-        if(num)o2[kRow(o,['obra_com_ct','com_ct','possui_contrato'],'obra_com_ct')]='Sim';
-        // término previsto da obra = início + dias previstos (mesma regra do formulário da obra)
-        const kDur=kRow(o,['duracao_prevista','duracao'],'duracao_prevista');
-        if(!String(o2[kDur]||'').trim()&&pz)o2[kDur]=pz;
-        const dur=parseInt(o2[kDur],10);if(os&&dur>0)o2[kRow(o,['termino_previsto','data_termino_previsto'],'termino_previsto')]=isoDe(addD(dt(os),dur));
-        await executar(async()=>{await salvar('Obras',o2,o.rowid);await salvar('Contratos',obj,c?c.rowid:null);});
-        toast('Contrato salvo.','success');
-      }}],760);
-    termTxt();j.oninput=ev=>{if(ev.target.matches('[data-f="os"],[data-f="prazo"]'))termTxt();};j.onchange=j.oninput;
   }
   async function marcarPasso(ob,k){
     const c=contratoDe(ob),obj=c?{...c}:{titulo_obra:ob,data_lancamento:todayDateTime()};
@@ -17555,7 +17518,7 @@ const Mascara=(function(){
      • Objeto do contrato = "descrição da obra";
      • "Obra com contrato" sai da tela: é Sim quando há nº de contrato;
      • Término previsto não se digita: é OS + prazo (e aditivos de prazo prorrogam). */
-  const CT_CAMPOS=['contratante','cnpj_contratante','modalidade','numero_licitacao','data_assinatura','valor_contrato','vigencia_fim','data_base','indice_reajuste','garantia_tipo','garantia_pct','garantia_validade','fiscal','fiscal_contato','responsavel_tecnico','preposto','observacoes'];
+  const CT_CAMPOS=['instrumento','data_pedido','contratante','cnpj_contratante','modalidade','numero_licitacao','data_assinatura','valor_contrato','vigencia_fim','data_base','indice_reajuste','garantia_tipo','garantia_pct','garantia_validade','fiscal','fiscal_contato','responsavel_tecnico','preposto','observacoes'];
   const MODAL=['Licitação (Lei 13.303 — estatais)','Concorrência (Lei 14.133)','Pregão','Dispensa / contratação direta','Contrato privado'];
   const INDICES=['INCC-DI (FGV)','IPCA (IBGE)','Índice da contratante','Sem reajuste previsto'];
   const GARANTIAS=['Seguro-garantia','Caução em dinheiro','Fiança bancária','Retenção na 1ª medição','Não exigida'];
@@ -17567,19 +17530,26 @@ const Mascara=(function(){
   const ORD_FASE={proposta:0,aguardando:1,ganha:2,execucao:3,entregue:4,perdida:-1};
   const faseK=st=>{const s=cn(st);return s.includes('perdida')?'perdida':s.includes('finalizada')?'entregue':s.includes('andamento')?'execucao':s.includes('ganha')?'ganha':s.includes('nao enviada')?'proposta':(s.includes('aguardando')||s.includes('enviada'))?'aguardando':'proposta';};
   const semGarantia=t=>!t||/^n[ãa]o exigida$/i.test(String(t).trim());
+  // contrato: assinatura e fim da vigência; pedido: a data do pedido (que é a da ordem de serviço) — sem vigência obrigatória
   function pendenciasContrato(d,fk){
-    const f=[],n=ORD_FASE[fk]||0;
-    if(n>=2){if(!d.numero)f.push('Nº do contrato');if(!d.contratante)f.push('Contratante');if(String(d.cnpj||'').replace(/\D/g,'').length<11)f.push('CPF ou CNPJ do contratante');
-      if(!d.cidade)f.push('Cidade da obra');if(!d.objeto)f.push('Objeto do contrato');if(!(d.valor>0))f.push('Valor assinado');if(!d.assinatura)f.push('Assinatura do contrato');
-      if(!(+d.prazo>0))f.push('Prazo de execução (dias)');if(!d.vigencia)f.push('Fim da vigência do contrato');if(!d.garTipo)f.push('Garantia contratual (escolha "Não exigida" se não houver)');}
-    if(n>=3&&!d.os)f.push('Ordem de serviço (início)');
+    const f=[],n=ORD_FASE[fk]||0,ped=d.instrumento==='Pedido';
+    if(n>=2){if(!d.numero)f.push(ped?'Nº do pedido':'Nº do contrato');if(!d.contratante)f.push('Contratante');if(String(d.cnpj||'').replace(/\D/g,'').length<11)f.push('CPF ou CNPJ do contratante');
+      if(!d.cidade)f.push('Cidade da obra');if(!d.objeto)f.push(ped?'Objeto do pedido':'Objeto do contrato');if(!(d.valor>0))f.push(ped?'Valor do pedido':'Valor assinado');
+      if(ped){if(!d.pedido)f.push('Data do pedido');}else if(!d.assinatura)f.push('Assinatura do contrato');
+      if(!(+d.prazo>0))f.push('Prazo de execução (dias)');if(!ped&&!d.vigencia)f.push('Fim da vigência do contrato');if(!d.garTipo)f.push('Garantia contratual (escolha "Não exigida" se não houver)');}
+    if(n>=3&&!d.os&&!(ped&&d.pedido))f.push('Ordem de serviço (início)');
     if(!semGarantia(d.garTipo)&&!(d.garPct>0))f.push('Garantia (% do contrato)');
     return f;
   }
   function dadosCtSalvos(ob){const o=obraDe(ob)||{},c=(Eng.contratoDe&&Eng.contratoDe(ob))||{},g=k=>getFuzzy(o,k)||'';
     return {numero:g(['numero_contrato','num_contrato','n_contrato']),contratante:c.contratante||'',cnpj:c.cnpj_contratante||(GS.docs&&c.contratante?(GS.docs.contratanteDe(c.contratante)||{}).doc:'')||'',cidade:g(['cidade_obra'])||c.cidade_obra||'',objeto:g(['descricao'])||c.objeto||'',
-      valor:val(c.valor_contrato),assinatura:c.data_assinatura||'',prazo:String(g(['prazo_contratual','duracao_prevista'])).replace(/\D/g,''),vigencia:c.vigencia_fim||'',garTipo:c.garantia_tipo||'',garPct:Mascara.numero(c.garantia_pct)||0,os:g(['inicio_obra','data_inicio'])||g(['liberacao_obra'])};}
+      valor:val(c.valor_contrato),instrumento:c.instrumento||'Contrato',pedido:c.data_pedido||'',assinatura:c.data_assinatura||'',prazo:String(g(['prazo_contratual','duracao_prevista'])).replace(/\D/g,''),vigencia:c.vigencia_fim||'',garTipo:c.garantia_tipo||'',garPct:Mascara.numero(c.garantia_pct)||0,os:g(['inicio_obra','data_inicio'])||g(['liberacao_obra'])};}
   Eng.pendenciasContrato=(ob,fk)=>pendenciasContrato(dadosCtSalvos(ob),fk);
+  function fiscaisCadastrados(){const m=new Map();
+    (D().planejamento||[]).filter(p=>p&&p.tipo==='fiscal'&&p.nome).forEach(p=>m.set(cn(p.nome),{nome:p.nome,tel:p.telefone||'',row:p}));
+    (D().contratos||[]).forEach(c=>{if(c.fiscal&&!m.has(cn(c.fiscal)))m.set(cn(c.fiscal),{nome:c.fiscal,tel:c.fiscal_contato||'',row:null});});
+    return [...m.values()].sort((a,b)=>a.nome.localeCompare(b.nome,'pt-BR'));}
+  Eng.fiscaisCadastrados=fiscaisCadastrados;
   function editarDadosObra(ob){
     const o=obraDe(ob);if(!o)return toast('Obra não encontrada.','error');
     const c=(Eng.contratoDe&&Eng.contratoDe(ob))||{},rm=(()=>{try{return Eng.resumoMedicoes(ob);}catch(e){return {};}})(),orc=Eng.baseDaObra?Eng.baseDaObra(ob):null;
@@ -17589,10 +17559,11 @@ const Mascara=(function(){
     const fld=(rot,html,cl)=>`<div class="fin-fld"${cl?` style="grid-column:1/-1"`:''}><label>${rot}</label>${html}</div>`;
     const inp=(k,v,extra)=>`<input data-k="${k}" value="${fe(v||'')}"${extra||''}>`;
     const dat=(k,v)=>`<input type="date" data-k="${k}" value="${fe(iso(v))}">`;
-    const valorAss=val(c.valor_contrato)||rm.base||0;
+    const valorAss=val(c.valor_contrato)||rm.base||0,ped0=(c.instrumento||'Contrato')==='Pedido';
     const corpo=`<div class="fin-linha">
       <div class="hc-sec">Identificação</div>
-      ${fld('Nº do contrato'+est(nF>=2),inp('numero',g(['numero_contrato','num_contrato','n_contrato'])))}
+      ${fld('É contrato ou pedido?'+est(nF>=2),`<select data-k="instrumento"><option ${ped0?'':'selected'}>Contrato</option><option ${ped0?'selected':''}>Pedido</option></select><div class="capx-dica">Pedido: não tem assinatura de contrato — a data do pedido é a da ordem de serviço.</div>`)}
+      ${fld('<span data-rot-num>'+(ped0?'Nº do pedido':'Nº do contrato')+'</span>'+est(nF>=2),inp('numero',g(['numero_contrato','num_contrato','n_contrato'])))}
       ${fld('Contratante'+est(nF>=2),inp('contratante',c.contratante||(GS.docs?(GS.docs.contratantes().find(x=>GS.docs.ehEmbasa(x.nome))||{}).nome:'')||'EMBASA',' data-maiusc list="vx-contratantes" autocomplete="off" placeholder="Digite e escolha na lista"')+'<div class="capx-dica">Escolha na lista: o CPF/CNPJ vem junto. Contratante novo entra na lista ao salvar.</div>')}
       ${fld('Cidade da obra'+est(nF>=2),inp('cidade_obra',g(['cidade_obra'])||c.cidade_obra,' autocomplete="off" placeholder="Ex.: Itarantim, BA"')+'<div class="capx-dica">Comece a digitar e escolha na lista. É a cidade usada no preço médio de mercado do CAP.</div>')}
       ${fld('CPF ou CNPJ do contratante'+est(nF>=2),inp('cnpj_contratante',c.cnpj_contratante,' data-mask="cpfcnpj" inputmode="numeric" placeholder="000.000.000-00 ou 00.000.000/0000-00"'))}
@@ -17603,10 +17574,11 @@ const Mascara=(function(){
       ${fld('Limite de entrega da proposta',dat('limite',g(['limite_proposta'])))}
       ${fld('Proposta enviada em <small style="font-weight:600;color:var(--text-3)">(data-base do reajuste)</small>',dat('envio',g(['envio_proposta'])||c.data_base)+'<div class="capx-dica">É a data de apresentação da proposta: o reajuste conta 12 meses a partir dela.</div>')}
       <div class="hc-sec">Prazos</div>
-      ${fld('Assinatura do contrato'+est(nF>=2),dat('data_assinatura',c.data_assinatura))}
-      ${fld('Ordem de serviço (início)'+est(nF>=3),dat('os',g(['inicio_obra','data_inicio'])||g(['liberacao_obra'])))}
+      <div class="fin-fld" data-so-contrato ${ped0?'hidden':''}><label>Assinatura do contrato${est(nF>=2)}</label>${dat('data_assinatura',c.data_assinatura)}</div>
+      <div class="fin-fld" data-so-pedido ${ped0?'':'hidden'}><label>Data do pedido${est(nF>=2)}</label>${dat('data_pedido',c.data_pedido)}<div class="capx-dica">É também a data da ordem de serviço.</div></div>
+      ${fld('Ordem de serviço (início)'+est(nF>=3),dat('os',g(['inicio_obra','data_inicio'])||g(['liberacao_obra']))+'<div class="capx-dica" data-dica-os hidden>No pedido, a ordem de serviço é a data do pedido.</div>')}
       ${fld('Prazo de execução (dias)'+est(nF>=2),inp('prazo',pz,' inputmode="numeric" placeholder="Ex.: 240"'))}
-      ${fld('Fim da vigência do contrato'+est(nF>=2),dat('vigencia_fim',c.vigencia_fim))}
+      <div class="fin-fld"><label>Fim da vigência${ped0?'':est(nF>=2)}</label>${dat('vigencia_fim',c.vigencia_fim)}</div>
       ${/finalizada/i.test(st)?fld('Entrega da obra (término real)',dat('entrega',g(['termino_ocorrido','data_termino_ocorrido']))):''}
       <div class="hc-calc" data-calc></div>
       <div class="hc-sec">Valor, reajuste e garantia</div>
@@ -17616,7 +17588,7 @@ const Mascara=(function(){
       ${fld('Garantia (% do contrato)'+`<span class="obg" data-obg-gar style="${semGarantia(garantiaNorm(c.garantia_tipo))?'display:none':''}"> *</span>`,inp('garantia_pct',c.garantia_pct,' inputmode="decimal" placeholder="Ex.: 5"'))}
       ${fld('Validade da garantia',dat('garantia_validade',c.garantia_validade)+'<div class="capx-dica">Ou cadastre a apólice em Documentos › Seguro-garantia.</div>')}
       <div class="hc-sec">Equipe</div>
-      ${fld('Fiscal do contrato',inp('fiscal',c.fiscal))}
+      ${fld('Fiscal do contrato',inp('fiscal',c.fiscal,' list="vx-fiscais" autocomplete="off" placeholder="Escolha na lista ou digite um novo"')+'<datalist id="vx-fiscais">'+fiscaisCadastrados().map(x=>`<option value="${fe(x.nome)}">${fe(x.tel)}</option>`).join('')+'</datalist><div class="capx-dica">Fiscal novo entra no cadastro junto com o telefone.</div>')}
       ${fld('Telefone do fiscal',inp('fiscal_contato',c.fiscal_contato,' data-mask="tel" inputmode="tel" placeholder="(77) 99999-9999"'))}
       ${fld('Responsável técnico (Vixsul)',inp('responsavel_tecnico',c.responsavel_tecnico))}
       ${fld('Preposto / encarregado na obra',inp('preposto',c.preposto))}
@@ -17625,15 +17597,24 @@ const Mascara=(function(){
     // a fase não se escolhe aqui: ela muda arrastando o cartão no quadro de Contratos
     const j=janela('Dados do contrato — '+ob,corpo,[{html:'Cancelar'},{html:'<i class="fas fa-floppy-disk"></i> Salvar',cls:'pri',acao:async jj=>{
       const v=k=>String((jj.querySelector(`[data-k="${k}"]`)||{}).value||'').trim();
+      const ped=v('instrumento')==='Pedido';
+      // pedido: a ordem de serviço é a própria data do pedido
+      if(ped&&v('data_pedido')){const osIn=jj.querySelector('[data-k="os"]');if(osIn)osIn.value=v('data_pedido');}
       const fase=st,os=v('os'),pzN=v('prazo').replace(/\D/g,''),entrega=jj.querySelector('[data-k="entrega"]')?v('entrega'):g(['termino_ocorrido','data_termino_ocorrido']),num=v('numero');
       if(/andamento|finalizada/i.test(fase)&&!os)throw new Error('Obra em execução ou entregue precisa da data da ordem de serviço.');
       if(/finalizada/i.test(fase)&&!entrega)throw new Error('Informe a data de entrega da obra.');
       if(entrega&&os&&entrega<os)throw new Error('A entrega não pode ser antes da ordem de serviço.');
-      if(v('vigencia_fim')&&v('data_assinatura')&&v('vigencia_fim')<v('data_assinatura'))throw new Error('O fim da vigência não pode ser antes da assinatura.');
+      if(!ped&&v('vigencia_fim')&&v('data_assinatura')&&v('vigencia_fim')<v('data_assinatura'))throw new Error('O fim da vigência não pode ser antes da assinatura.');
+      if(ped&&v('vigencia_fim')&&v('data_pedido')&&v('vigencia_fim')<v('data_pedido'))throw new Error('O fim da vigência não pode ser antes da data do pedido.');
+      if(ped&&v('envio')&&v('data_pedido')&&v('data_pedido')<v('envio'))throw new Error('O pedido não pode ser antes do envio da proposta.');
+      // fiscal: o telefone é obrigatório (fiscal novo entra no cadastro com ele)
+      const fNome=v('fiscal'),fTel=v('fiscal_contato');
+      if(fNome&&!fTel)throw new Error('Informe o telefone do fiscal do contrato.');
+      if(fTel&&fTel.replace(/\D/g,'').length<10)throw new Error('O telefone do fiscal está incompleto (DDD + número).');
       if(v('envio')&&v('envio')>isoDe(hoje0()))throw new Error('A data de envio da proposta não pode ser no futuro.');
-      if(v('envio')&&v('data_assinatura')&&v('data_assinatura')<v('envio'))throw new Error('A assinatura do contrato não pode ser antes do envio da proposta.');
+      if(!ped&&v('envio')&&v('data_assinatura')&&v('data_assinatura')<v('envio'))throw new Error('A assinatura do contrato não pode ser antes do envio da proposta.');
       // campos obrigatórios conforme a fase do cartão (e a % sempre que houver garantia)
-      const dCt={numero:num,contratante:v('contratante'),cnpj:v('cnpj_contratante')||(GS.docs&&v('contratante')?(GS.docs.contratanteDe(v('contratante'))||{}).doc:'')||'',cidade:v('cidade_obra'),objeto:v('objeto'),valor:Mascara.numero(v('valor_contrato'))||0,assinatura:v('data_assinatura'),prazo:pzN,vigencia:v('vigencia_fim'),garTipo:v('garantia_tipo'),garPct:Mascara.numero(v('garantia_pct'))||0,os};
+      const dCt={numero:num,contratante:v('contratante'),cnpj:v('cnpj_contratante')||(GS.docs&&v('contratante')?(GS.docs.contratanteDe(v('contratante'))||{}).doc:'')||'',cidade:v('cidade_obra'),objeto:v('objeto'),valor:Mascara.numero(v('valor_contrato'))||0,instrumento:ped?'Pedido':'Contrato',pedido:v('data_pedido'),assinatura:v('data_assinatura'),prazo:pzN,vigencia:v('vigencia_fim'),garTipo:v('garantia_tipo'),garPct:Mascara.numero(v('garantia_pct'))||0,os};
       const falta=pendenciasContrato(dCt,faseK(fase));if(falta.length)throw new Error('Preencha: '+falta.join(' · ')+'.');
       if(dCt.garPct>100)throw new Error('A garantia (% do contrato) passa de 100% — confira.');
       // obra
@@ -17653,7 +17634,7 @@ const Mascara=(function(){
       const cid=GS.cidade?GS.cidade.normalizar(v('cidade_obra')):v('cidade_obra');o2[K(['cidade_obra'],'cidade_obra')]=cid;
       // contrato
       const temCt=!!c.rowid,ct={...c};delete ct.rowid;delete ct.visualId;delete ct._aba;
-      CT_CAMPOS.forEach(k=>ct[k]=v(k));if(!ct.cnpj_contratante&&dCt.cnpj)ct.cnpj_contratante=Mascara.F.cpfcnpj(dCt.cnpj);if(semGarantia(ct.garantia_tipo)&&ct.garantia_tipo)ct.garantia_pct='';ct.titulo_obra=ob;ct.objeto=v('objeto');ct.data_base=v('envio');ct.cidade_obra=cid;
+      CT_CAMPOS.forEach(k=>ct[k]=v(k));ct.instrumento=ped?'Pedido':'Contrato';if(ped)ct.data_assinatura='';else ct.data_pedido='';if(!ct.cnpj_contratante&&dCt.cnpj)ct.cnpj_contratante=Mascara.F.cpfcnpj(dCt.cnpj);if(semGarantia(ct.garantia_tipo)&&ct.garantia_tipo)ct.garantia_pct='';ct.titulo_obra=ob;ct.objeto=v('objeto');ct.data_base=v('envio');ct.cidade_obra=cid;
       ct.valor_contrato=ct.valor_contrato?dinheiro(Mascara.numero(ct.valor_contrato)||0):'';
       ct.garantia_pct=ct.garantia_pct?String(Mascara.numero(ct.garantia_pct)||'').replace('.',','):'';
       if(!temCt)ct.data_lancamento=todayDateTime();
@@ -17664,7 +17645,11 @@ const Mascara=(function(){
       const novoCt=GS.docs&&ct.contratante&&!GS.docs.contratantes().some(x=>x.rowid&&cn(x.nome)===cn(ct.contratante)&&(x.doc||'')===(ct.cnpj_contratante||''));
       // salvar aqui CRIA o contrato da obra (é a partir dele que a aba Medição aparece)
       await executar(async()=>{await salvar('Obras',o2,o.rowid);await salvar('Contratos',ct,temCt?c.rowid:null);
-        if(novoCt){const ex=GS.docs.contratanteDe(ct.contratante);await GS.docs.salvarContratante(ct.contratante,ct.cnpj_contratante||(ex&&ex.doc)||'',ex&&ex.rowid);}});
+        if(novoCt){const ex=GS.docs.contratanteDe(ct.contratante);await GS.docs.salvarContratante(ct.contratante,ct.cnpj_contratante||(ex&&ex.doc)||'',ex&&ex.rowid);}
+        // fiscal novo (ou com telefone novo) entra no cadastro de fiscais
+        const fx=fNome?fiscaisCadastrados().find(x=>cn(x.nome)===cn(fNome)):null;
+        if(fNome&&(!fx||!fx.row||(fx.tel||'')!==fTel)){const base=fx&&fx.row?{...fx.row}:{};delete base.rowid;delete base.visualId;delete base._aba;
+          await salvar('Planejamento',{...base,tipo:'fiscal',nome:fNome,telefone:fTel,contratante:ct.contratante||'',data_lancamento:base.data_lancamento||todayDateTime()},fx&&fx.row?fx.row.rowid:null);}});
       toast(temCt?'Dados do contrato salvos.':'Contrato criado — a aba Medição já está disponível.','success');
       if(novaRet&&GS.docs)setTimeout(()=>GS.docs.gerarSolicitacaoGarantia(ob).catch(e=>toast((e&&e.message)||String(e),'error')),80);}}],820);
     // contratante escolhido na lista: o CPF/CNPJ vem junto; "Retenção na 1ª medição" só aparece para a EMBASA
@@ -17679,7 +17664,14 @@ const Mascara=(function(){
     const atualiza=()=>{
       const os=j.querySelector('[data-k="os"]').value,p=+j.querySelector('[data-k="prazo"]').value.replace(/\D/g,'')||0,cc=j.querySelector('[data-calc]');
       cc.innerHTML=os&&p?`Término previsto = OS + prazo = <b>${brDe(addD(dt(os),p))}</b>${Eng.aditivosDaObra&&Eng.aditivosDaObra(ob).some(a=>a.novo_termino)?' · os aditivos de prazo prorrogam essa data':''}`:'O término previsto é calculado: ordem de serviço + prazo de execução.';};
-    j.oninput=atualiza;j.onchange=atualiza;atualiza();
+    const tipoCt=()=>{const pe=j.querySelector('[data-k="instrumento"]').value==='Pedido';
+      j.querySelector('[data-so-contrato]').hidden=pe;j.querySelector('[data-so-pedido]').hidden=!pe;j.querySelector('[data-dica-os]').hidden=!pe;
+      const r=j.querySelector('[data-rot-num]');if(r)r.textContent=pe?'Nº do pedido':'Nº do contrato';
+      const osIn=j.querySelector('[data-k="os"]'),dp=j.querySelector('[data-k="data_pedido"]').value;if(pe){osIn.readOnly=true;if(dp)osIn.value=dp;}else osIn.readOnly=false;};
+    const fiscalEscolhido=()=>{const fi=j.querySelector('[data-k="fiscal"]'),tel=j.querySelector('[data-k="fiscal_contato"]'),x=fiscaisCadastrados().find(y=>cn(y.nome)===cn(fi.value));if(x&&x.tel){tel.value=x.tel;tel.dispatchEvent(new Event('input',{bubbles:true}));}};
+    j.oninput=ev=>{atualiza();if(ev&&ev.target&&ev.target.matches('[data-k="data_pedido"]'))tipoCt();};
+    j.onchange=ev=>{atualiza();if(ev&&ev.target&&ev.target.matches('[data-k="instrumento"],[data-k="data_pedido"]'))tipoCt();if(ev&&ev.target&&ev.target.matches('[data-k="fiscal"]'))fiscalEscolhido();};
+    atualiza();tipoCt();
     try{GS.cidade&&GS.cidade.ligar(j.querySelector('[data-k="cidade_obra"]'));}catch(e){}
   }
   Eng.editarDadosObra=editarDadosObra;
