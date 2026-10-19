@@ -10769,7 +10769,11 @@ const Fin=(function(){
     const r=m.r,obj={...r};
     if(m.tipo==='custo'){obj[m.kTipo]='Real';obj[m.kData]=dataISO;}
     else if(m.tipo==='despesa'){obj[m.kSt]='Pago';obj[m.kPg]=dataISO;obj[m.kTipo]='Real';}
-    else if(m.tipo==='fat'){obj[m.kTipo]='Real';obj[m.kRec]=dataISO;if(extra.nf)obj[kRow(r,['n_nf'],'n_nf')]=extra.nf;}
+    else if(m.tipo==='fat'){obj[m.kTipo]='Real';obj[m.kRec]=dataISO;if(extra.nf)obj[kRow(r,['n_nf'],'n_nf')]=extra.nf;
+      // antecipada (Avançar Fornecedores): o desconto que vale é o que a EMBASA realmente descontou = líquido da nota − depósito
+      if(r.antecipada==='sim'&&extra.valor>0){const k=(kw,fb)=>kRow(r,kw,fb),kB=k(['faturamento_bruto','bruto'],'faturamento_bruto'),kA=k(['antecipacao_nf'],'antecipacao_nf'),kL=k(['faturamento_liquido','liquido'],'faturamento_liquido');
+        const vf=val(r[kB])-val(r[k(['imposto_inss','inss'],'imposto_inss')])-val(r[k(['imposto_irpf','irpf'],'imposto_irpf')])-val(r.iss_retido)-val(r[k(['seguro_contrato','seguro'],'seguro_contrato')]),desc=Math.round((vf-extra.valor)*100)/100;
+        if(desc>=0&&desc<vf){obj[kA]=dinheiro(desc);obj[kL]=dinheiro(vf-desc);obj.antec_depositado=dinheiro(extra.valor);}}}
     if(extra.conc){obj.conciliacao=juntarId(r.conciliacao,extra.conc);obj.conciliacao_baixa=juntarId(r.conciliacao_baixa,extra.conc);}
     if(extra.desc&&m.tipo!=='fat')obj.extrato_desc=extra.desc;
     return salvar(r._aba||ABA[m.tipo],obj,r.rowid);
@@ -11160,7 +11164,7 @@ const Fin=(function(){
           if(vistos.has(id))throw new Error('o mesmo lançamento do sistema foi escolhido para duas linhas do extrato');
           vistos.add(id);
           if(p.acao==='vincular')await salvar(m.r._aba||ABA[m.tipo],{...m.r,conciliacao:juntarId(m.r.conciliacao,p.t.id)},m.r.rowid);
-          else await baixar(m,isoDeBR(p.t.data),{conc:p.t.id,desc:p.t.desc});
+          else await baixar(m,isoDeBR(p.t.data),{conc:p.t.id,desc:p.t.desc,valor:p.alvos.length===1?Math.abs(p.t.valor):0});
         }
         ok++;
       }catch(e){falhas.push(`${p.t.data} ${fmt(p.t.valor)}: ${(e&&e.message)||e}`);}
@@ -12900,13 +12904,13 @@ const Eng=(function(){
     {k:'data_emissao',label:'Data de assinatura',tipo:'data',obrig:true},
     {k:'aditivo_valor',label:'Valor do aditivo (R$)',tipo:'moeda',neg:true,ph:'R$ 25.000,00 — supressão: digite o sinal de menos'},
     {k:'novo_termino',label:'Novo término da execução',tipo:'data'},
-    {k:'nova_vigencia',label:'Novo fim da vigência do contrato',tipo:'data'},
     {k:'descricao',label:'Motivo / objeto',tipo:'area',obrig:true,inteira:true,linhas:2,ph:'Ex.: acréscimo de 300 m de rede na Rua B; chuvas acima da média em agosto'},
     {k:'link',label:'Link do arquivo assinado',tipo:'url',inteira:true,ph:'https://…'}
   ],validar:o=>{
     o.tipo=TIPO_ADT;
     const v=moeda(o.aditivo_valor);o.aditivo_valor=v?dinheiro(v):'';
-    if(!v&&!o.novo_termino&&!o.nova_vigencia)return 'Informe o valor do aditivo, o novo término ou a nova vigência.';
+    o.nova_vigencia=o.novo_termino||'';   // a vigência acompanha o prazo
+    if(!v&&!o.novo_termino)return 'Informe o valor do aditivo ou o novo término.';
     return '';
   }};
   function editarAditivo(a,ob){
@@ -13305,13 +13309,14 @@ const Eng=(function(){
     const ob=nomeObra(o),c=contratoDe(ob)||{},h=hoje0();
     const dO=Eng.datasObra(o),rm=Eng.resumoMedicoes(ob),ads=Eng.aditivosDaObra(ob);
     const valorOrig=val(c.valor_contrato)||rm.base||0,adV=ads.reduce((s,a)=>s+val(a.aditivo_valor),0);
-    let vig=dt(c.vigencia_fim);const vigOrig=vig;ads.forEach(a=>{const n=dt(a.nova_vigencia);if(n&&(!vig||n>vig))vig=n;});
+    // fim da vigência = ordem de serviço + prazo de execução (os aditivos de prazo prorrogam junto); sem OS, o que estiver gravado
+    let vig=dO.fim||dt(c.vigencia_fim);const vigOrig=dO.fimOriginal||dt(c.vigencia_fim);ads.forEach(a=>{const n=dt(a.nova_vigencia);if(n&&(!vig||n>vig))vig=n;});
     let garVal=dt(c.garantia_validade);docsObra(ob,/garantia/i).forEach(d=>{const v=dt(d.data_validade);if(v&&(!garVal||v>garVal))garVal=v;});
     const exigeGar=c.garantia_tipo?!/^(não exigida|reten)/i.test(c.garantia_tipo):!!garVal;   // retida na medição: não há apólice a vencer
     // data-base do reajuste = data de apresentação (envio) da proposta
     const dataBase=dt(getFuzzy(o,['envio_proposta']))||dt(c.data_base),reaj=dataBase?addM(dataBase,12):null,ck=c.checklist||{};
     const diasVig=vig?dias(h,vig):null;
-    const sVig=!vig?'cinza':diasVig<=30?'vermelho':diasVig<=60?'amarelo':(dO.fim&&!finalizada(o)&&dias(dO.fim,vig)<30)?'amarelo':'verde';
+    const sVig=!vig?'cinza':diasVig<=30?'vermelho':diasVig<=60?'amarelo':'verde';
     const sGar=!exigeGar?'cinza':!garVal?'amarelo':garVal<h?'vermelho':(vig&&garVal<vig)||dias(h,garVal)<=30?'amarelo':'verde';
     const reajDisp=!!(reaj&&h>=reaj&&!ck.reajuste&&c.indice_reajuste!=='Sem reajuste previsto');
     const x={o,ob,c,dO,rm,vig,reaj};
@@ -13365,7 +13370,6 @@ const Eng=(function(){
     if(!x.tem)avisos.push('Cadastre a ficha do contrato (botão "Editar dados do contrato") para o sistema vigiar vigência, garantia e reajuste.');
     if(x.vig&&x.diasVig<0)avisos.push(`A VIGÊNCIA DO CONTRATO ACABOU em ${brDe(x.vig)}. Sem vigência não é possível aditivar nem receber por serviço novo — procure o jurídico/fiscal imediatamente.`);
     else if(x.vig&&x.diasVig<=60)avisos.push(`A vigência acaba em ${brDe(x.vig)} (${quando(x.diasVig)}). Se a obra não terminar e for recebida até lá, o aditivo de prazo precisa ser ASSINADO antes dessa data.`);
-    else if(x.vig&&x.dO.fim&&!finalizada(o)&&dias(x.dO.fim,x.vig)<30)avisos.push(`A vigência (${brDe(x.vig)}) termina menos de 30 dias depois do término da execução (${brDe(x.dO.fim)}): não sobra tempo para o recebimento. Peça a prorrogação da vigência junto com qualquer aditivo de prazo.`);
     if(x.dO.fim&&x.dO.fim<h&&!finalizada(o))avisos.push(`O prazo de execução terminou em ${brDe(x.dO.fim)} e a obra não está finalizada: registre o aditivo de prazo${x.vig&&x.diasVig>=0?` (antes do fim da vigência, ${brDe(x.vig)})`:''} ou finalize a obra.`);
     if(x.sGar==='vermelho')avisos.push(`A garantia contratual venceu em ${brDe(x.garVal)} — renove ou peça o endosso à seguradora.`);
     else if(x.sGar==='amarelo'&&x.garVal&&x.vig&&x.garVal<x.vig)avisos.push(`A garantia vale até ${brDe(x.garVal)}, antes do fim da vigência (${brDe(x.vig)}) — peça o endosso de prorrogação.`);
@@ -16749,18 +16753,26 @@ const Mascara=(function(){
     const K=KF(),ant=r.antecipada==='sim'&&!!dt(r.vencimento_original)&&GS.docs&&GS.docs.descontoAntecipacao;
     janela('Registrar recebimento',`<div class="fin-resumo"><b>${r[K.nf]?'NF '+fe(r[K.nf]):'Nota'}</b> · ${fe(r[K.obra]||'')}${ant?' · <b>antecipada</b> (Avançar Fornecedores)':''}<br>Líquido esperado: <b data-liq-rec>${fmt(liqF(r))}</b></div>
       <div class="fin-fld"><label>Data em que entrou na conta</label><input type="date" data-k="data" max="${isoDe(hoje0())}" value="${isoDe(hoje0())}"></div>
-      ${ant?'<div class="fin-fld"><label>Desconto da antecipação (R$)</label><input data-k="desc" data-mask="moeda" inputmode="numeric" value=""><div class="capx-dica" data-desc-dica></div></div>':''}`,
+      ${ant?'<div class="fin-fld"><label>Valor que entrou na conta (R$) <small style="font-weight:600;color:var(--text-3)">— do extrato</small></label><input data-k="dep" data-mask="moeda" inputmode="numeric" placeholder="R$ 0,00"><div class="capx-dica">Com o valor do extrato, o desconto real é calculado e comparado com a regra da EMBASA.</div></div><div class="fin-fld"><label>Desconto da antecipação (R$)</label><input data-k="desc" data-mask="moeda" inputmode="numeric" value=""><div class="capx-dica" data-desc-dica></div></div>':''}`,
       [{html:'Cancelar'},{html:'<i class="fas fa-circle-check"></i> Confirmar recebimento',cls:'pri',acao:async j=>{
         const d=j.querySelector('[data-k="data"]').value;if(!d)throw new Error('Informe a data.');if(d>isoDe(hoje0()))throw new Error('A data não pode ser depois de hoje.');
         const o=copiaF(r);o[K.rec]=d;
-        if(ant){o[K.antec]=dinheiro(Mascara.numero(j.querySelector('[data-k="desc"]').value)||0);o[K.liq]=dinheiro(val(o[K.bruto])-Fa.RET.reduce((s,k)=>s+val(o[K[k]]),0));if(val(o[K.liq])<0)throw new Error('O desconto passa do líquido da nota.');}
+        if(ant){o[K.antec]=dinheiro(Mascara.numero(j.querySelector('[data-k="desc"]').value)||0);const dep=Mascara.numero(j.querySelector('[data-k="dep"]').value)||0;if(dep>0)o.antec_depositado=dinheiro(dep);o[K.liq]=dinheiro(val(o[K.bruto])-Fa.RET.reduce((s,k)=>s+val(o[K[k]]),0));if(val(o[K.liq])<0)throw new Error('O desconto passa do líquido da nota.');}
         await executar(()=>salvar('Faturamentos',o,r.rowid));toast(ant?'Recebimento registrado — nota recebida por antecipação.':'Recebimento registrado.','success');}}],480);
     if(!ant)return;
     const j=jan(),dIn=j.querySelector('[data-k="data"]'),dsc=j.querySelector('[data-k="desc"]'),dica=j.querySelector('[data-desc-dica]'),lq=j.querySelector('[data-liq-rec]');
     const vf=val(r[K.bruto])-['inss','irpf','iss','seguro'].reduce((s,k)=>s+val(r[K[k]]),0),mostra=()=>{lq.textContent=fmt(vf-(Mascara.numero(dsc.value)||0));};
     const refaz=()=>{const c=GS.docs.descontoAntecipacao(r,K,dIn.value);if(!c)return;dsc.value=Mascara.brl(c.desc);
       dica.textContent=`Refeito pela data em que entrou: ${c.n} dia${c.n===1?'':'s'} antes do vencimento original (${brDe(dt(r.vencimento_original))}), a ${r.antec_taxa||'2,37%'} ao mês ÷ 30. Se a EMBASA descontou outro valor, corrija.`;mostra();};
-    dIn.addEventListener('change',refaz);dsc.addEventListener('input',mostra);refaz();
+    // com o valor do extrato: desconto real = líquido − depósito, e quantos dias de antecipação isso significa pela regra
+    const dep=j.querySelector('[data-k="dep"]'),taxa=parseFloat(String(r.antec_taxa||'2,37').replace(/[^\d,.]/g,'').replace(',','.'))||2.37,ded=val(r.antec_deducoes),venc=dt(r.vencimento_original);
+    const analisa=()=>{const dv=Mascara.numero(dep.value)||0;if(!(dv>0))return refaz();
+      const desc=Math.round((vf-dv)*100)/100;dsc.value=Mascara.brl(Math.max(0,desc));mostra();
+      if(desc<0){dica.innerHTML='<b style="color:#B42318">Entrou mais do que o líquido da nota — confira o valor.</b>';return;}
+      const base=vf-ded,T=taxa/100/30,nImp=base>0&&T>0?Math.max(0,desc-ded)/(base*T):0,c=GS.docs.descontoAntecipacao(r,K,dIn.value),d0=dt(dIn.value),vEmb=d0?addD(d0,Math.round(nImp)):null,dif=c?Math.round(nImp-c.n):0;
+      dica.innerHTML=`A EMBASA descontou <b>${fmt(desc)}</b>${ded?` (com ${fmt(ded)} de deduções)`:''}. Pela regra (${fe(r.antec_taxa||'2,37%')} ao mês ÷ 30), isso equivale a <b>${(Math.round(nImp*10)/10).toLocaleString('pt-BR')} dias</b> de antecipação${c?`; pela data do depósito até o vencimento original (${brDe(venc)}) seriam <b>${c.n} dias</b> = ${fmt(c.desc)}`:''}.`+
+        (c&&Math.abs(dif)>=1?` <b>Diferença de ${Math.abs(dif)} dia${Math.abs(dif)>1?'s':''}:</b> a EMBASA contou o vencimento em <b>${vEmb?brDe(vEmb):'—'}</b>${dif>0?' (depois do que está na nota)':' (antes do que está na nota)'} — confira o vencimento original nas próximas antecipações.`:' <b>Bate com a regra.</b>');};
+    dIn.addEventListener('change',()=>{(Mascara.numero(dep.value)||0)>0?analisa():refaz();});dsc.addEventListener('input',mostra);dep.addEventListener('input',analisa);refaz();
   }
   // desfaz a emissão da nota: o faturamento volta para "A faturar" (sem nº, emissão e recebimento) e,
   // se veio de uma medição, a medição volta a "Aprovada" — nada é excluído
@@ -17539,7 +17551,7 @@ const Mascara=(function(){
     if(n>=2){if(!d.numero)f.push(ped?'Nº do pedido':'Nº do contrato');if(!d.contratante)f.push('Contratante');if(String(d.cnpj||'').replace(/\D/g,'').length<11)f.push('CPF ou CNPJ do contratante');
       if(!d.cidade)f.push('Cidade da obra');if(!d.objeto)f.push(ped?'Objeto do pedido':'Objeto do contrato');if(!(d.valor>0))f.push(ped?'Valor do pedido':'Valor assinado');
       if(ped){if(!d.pedido)f.push('Data do pedido');}else if(!d.assinatura)f.push('Assinatura do contrato');
-      if(!(+d.prazo>0))f.push('Prazo de execução (dias)');if(!ped&&!d.vigencia)f.push('Fim da vigência do contrato');if(!d.garTipo)f.push('Garantia contratual (escolha "Não exigida" se não houver)');}
+      if(!(+d.prazo>0))f.push('Prazo de execução (dias)');if(!d.garTipo)f.push('Garantia contratual (escolha "Não exigida" se não houver)');}
     if(n>=3&&!d.os&&!(ped&&d.pedido))f.push('Ordem de serviço (início)');
     if(!semGarantia(d.garTipo)&&!(d.garPct>0))f.push('Garantia (% do contrato)');
     return f;
@@ -17581,7 +17593,7 @@ const Mascara=(function(){
       <div class="fin-fld" data-so-pedido ${ped0?'':'hidden'}><label>Data do pedido${est(nF>=2)}</label>${dat('data_pedido',c.data_pedido)}<div class="capx-dica">É também a data da ordem de serviço.</div></div>
       ${fld('Ordem de serviço (início)'+est(nF>=3),dat('os',g(['inicio_obra','data_inicio'])||g(['liberacao_obra']))+'<div class="capx-dica" data-dica-os hidden>No pedido, a ordem de serviço é a data do pedido.</div>')}
       ${fld('Prazo de execução (dias)'+est(nF>=2),inp('prazo',pz,' inputmode="numeric" placeholder="Ex.: 240"'))}
-      <div class="fin-fld"><label>Fim da vigência${ped0?'':est(nF>=2)}</label>${dat('vigencia_fim',c.vigencia_fim)}</div>
+      <div class="fin-fld"><label>Fim da vigência <small style="font-weight:600;color:var(--text-3)">(= OS + prazo)</small></label><input type="date" data-k="vigencia_fim" value="${fe(iso(c.vigencia_fim))}" readonly tabindex="-1" class="lote-calc" title="Calculado: ordem de serviço + prazo de execução"><div class="capx-dica">Não se digita: muda com a ordem de serviço, o prazo e os aditivos de prazo.</div></div>
       ${/finalizada/i.test(st)?fld('Entrega da obra (término real)',dat('entrega',g(['termino_ocorrido','data_termino_ocorrido']))):''}
       <div class="hc-calc" data-calc></div>
       <div class="hc-sec">Valor, reajuste e garantia</div>
@@ -17637,7 +17649,7 @@ const Mascara=(function(){
       const cid=GS.cidade?GS.cidade.normalizar(v('cidade_obra')):v('cidade_obra');o2[K(['cidade_obra'],'cidade_obra')]=cid;
       // contrato
       const temCt=!!c.rowid,ct={...c};delete ct.rowid;delete ct.visualId;delete ct._aba;
-      CT_CAMPOS.forEach(k=>ct[k]=v(k));ct.instrumento=ped?'Pedido':'Contrato';if(ped)ct.data_assinatura='';else ct.data_pedido='';if(!ct.cnpj_contratante&&dCt.cnpj)ct.cnpj_contratante=Mascara.F.cpfcnpj(dCt.cnpj);{const cg=camposGar(ct.garantia_tipo);if(!cg.pct)ct.garantia_pct='';if(!cg.val)ct.garantia_validade='';}ct.titulo_obra=ob;ct.objeto=v('objeto');ct.data_base=v('envio');ct.cidade_obra=cid;
+      CT_CAMPOS.forEach(k=>ct[k]=v(k));ct.instrumento=ped?'Pedido':'Contrato';ct.vigencia_fim=os&&pzN?isoDe(addD(dt(os),+pzN)):'';if(ped)ct.data_assinatura='';else ct.data_pedido='';if(!ct.cnpj_contratante&&dCt.cnpj)ct.cnpj_contratante=Mascara.F.cpfcnpj(dCt.cnpj);{const cg=camposGar(ct.garantia_tipo);if(!cg.pct)ct.garantia_pct='';if(!cg.val)ct.garantia_validade='';}ct.titulo_obra=ob;ct.objeto=v('objeto');ct.data_base=v('envio');ct.cidade_obra=cid;
       ct.valor_contrato=ct.valor_contrato?dinheiro(Mascara.numero(ct.valor_contrato)||0):'';
       ct.garantia_pct=ct.garantia_pct?String(Mascara.numero(ct.garantia_pct)||'').replace('.',','):'';
       if(!temCt)ct.data_lancamento=todayDateTime();
@@ -17666,7 +17678,8 @@ const Mascara=(function(){
     // término previsto calculado na hora
     const atualiza=()=>{
       const os=j.querySelector('[data-k="os"]').value,p=+j.querySelector('[data-k="prazo"]').value.replace(/\D/g,'')||0,cc=j.querySelector('[data-calc]');
-      cc.innerHTML=os&&p?`Término previsto = OS + prazo = <b>${brDe(addD(dt(os),p))}</b>${Eng.aditivosDaObra&&Eng.aditivosDaObra(ob).some(a=>a.novo_termino)?' · os aditivos de prazo prorrogam essa data':''}`:'O término previsto é calculado: ordem de serviço + prazo de execução.';};
+      const vg=j.querySelector('[data-k="vigencia_fim"]');if(vg)vg.value=os&&p?isoDe(addD(dt(os),p)):'';
+      cc.innerHTML=os&&p?`Término previsto e fim da vigência = OS + prazo = <b>${brDe(addD(dt(os),p))}</b>${Eng.aditivosDaObra&&Eng.aditivosDaObra(ob).some(a=>a.novo_termino)?' · os aditivos de prazo prorrogam essa data':''}`:'O término previsto é calculado: ordem de serviço + prazo de execução.';};
     const tipoCt=()=>{const pe=j.querySelector('[data-k="instrumento"]').value==='Pedido';
       j.querySelector('[data-so-contrato]').hidden=pe;j.querySelector('[data-so-pedido]').hidden=!pe;j.querySelector('[data-dica-os]').hidden=!pe;
       const r=j.querySelector('[data-rot-num]');if(r)r.textContent=pe?'Nº do pedido':'Nº do contrato';
@@ -18319,7 +18332,6 @@ const Mascara=(function(){
         <div class="fin-fld"><label>Identificação</label><input data-adq="numero" value="${g0('numero')}" placeholder="Ex.: 1º Termo Aditivo"></div>
         <div class="fin-fld"><label>Data de assinatura <span class="obg">*</span></label><input type="date" data-adq="data_emissao" value="${g0('data_emissao')}"></div>
         <div class="fin-fld"><label>Novo término da execução</label><input type="date" data-adq="novo_termino" value="${g0('novo_termino')}"></div>
-        <div class="fin-fld"><label>Novo fim da vigência</label><input type="date" data-adq="nova_vigencia" value="${g0('nova_vigencia')}"></div>
         <div class="fin-fld" style="grid-column:1/-1"><label>Motivo / objeto <span class="obg">*</span></label><textarea data-adq="descricao" rows="2" placeholder="Ex.: acréscimo de 300 m de rede na Rua B; supressão do saldo de pavimento">${g0('descricao')}</textarea></div>
         <div class="fin-fld" style="grid-column:1/-1"><label>Link do arquivo assinado</label><input data-adq="link" value="${g0('link')}" placeholder="https://…"></div>
       </div>
@@ -18350,9 +18362,9 @@ const Mascara=(function(){
         its.push({chave:x.chave,item:x.item,codigo:x.codigo,descricao:x.descricao,unidade:x.unidade,p_unit:x.p_unit,qtd:d});}
       S.novos.forEach((n,k)=>{if(!(n.qtd>0))throw new Error(`Item novo "${n.descricao}": informe a quantidade.`);
         its.push({chave:n.chave||('adt:'+cn(n.codigo)+'|'+cn(n.descricao)+'#'+Date.now().toString(36)+k),item:'Ad.',codigo:n.codigo,descricao:n.descricao,unidade:n.unidade,p_unit:n.p_unit,qtd:r4(n.qtd)});});
-      if(!its.length&&!g('novo_termino')&&!g('nova_vigencia')&&!legado)throw new Error('Lance as quantidades do aditivo, o novo término ou a nova vigência.');
+      if(!its.length&&!g('novo_termino')&&!legado)throw new Error('Lance as quantidades do aditivo ou o novo término.');
       const tot=r2(its.reduce((s,it)=>s+it.qtd*it.p_unit,0));
-      const o={...(a||{data_lancamento:todayDateTime()}),tipo:TIPO_ADT,titulo_obra:ob,numero:g('numero'),data_emissao:g('data_emissao'),novo_termino:g('novo_termino'),nova_vigencia:g('nova_vigencia'),descricao:g('descricao'),link:g('link'),itens_aditivo:its,aditivo_valor:its.length?dinheiro(tot):(legado?a.aditivo_valor:'')};
+      const o={...(a||{data_lancamento:todayDateTime()}),tipo:TIPO_ADT,titulo_obra:ob,numero:g('numero'),data_emissao:g('data_emissao'),novo_termino:g('novo_termino'),nova_vigencia:g('novo_termino'),descricao:g('descricao'),link:g('link'),itens_aditivo:its,aditivo_valor:its.length?dinheiro(tot):(legado?a.aditivo_valor:'')};
       await executar(()=>salvar('Documentos',o,a?a.rowid:null));
       toast(`${a?'Aditivo salvo':'Aditivo cadastrado'}${its.length?` — ${its.length} ite${its.length>1?'ns':'m'}, ${fmt(tot)}`:''}. A medição e o cronograma já contam com ele.`,'success');
     }}],1060);
@@ -21736,7 +21748,8 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
   const diasEntre=(a,b)=>Math.round((b-a)/864e5);
   function calcAvancar(o){   // o: {pedido, depois14, venc, vf, ded, taxa}
     const ini=diaUtil(o.pedido)&&!o.depois14?o.pedido:proxUtil(o.pedido);let pag=ini;for(let i=0;i<3;i++)pag=proxUtil(pag);
-    const n=o.venc?diasEntre(pag,o.venc):0;return {...o,ini,pag,n,desc:descAvancar(o.vf,o.ded,o.taxa,n)};
+    const n=o.venc?diasEntre(pag,o.venc):0,n0=o.venc?diasEntre(ini,o.venc):0;
+    return {...o,ini,pag,n,desc:descAvancar(o.vf,o.ded,o.taxa,n),n0,desc0:descAvancar(o.vf,o.ded,o.taxa,n0)};
   }
   // desconto refeito pela data em que o dinheiro entrou (em "Registrar recebimento"); inclui as deduções da EMBASA
   const descontoAntecipacao=(r,K,dataIso)=>{const v=dt(r.vencimento_original),d=dt(dataIso);if(!v||!d)return null;const n=Math.max(0,diasEntre(d,v)),ded=val(r.antec_deducoes);
@@ -21768,10 +21781,10 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
       const mesmo=isoDe(c.ini)===isoDe(c.pedido),td=(taxaNum(c.taxa)/30).toLocaleString('pt-BR',{maximumFractionDigits:4});
       box.innerHTML=`<b><i class="fas fa-calculator"></i> Regras do Avançar Fornecedores</b><ol>
         <li>Pedido ${arq?'enviado em <b>'+brDe(c.pedido)+'</b>':`<b>hoje, ${String(ag.hora).padStart(2,'0')}:${String(ag.min).padStart(2,'0')}</b> (Brasília)`}: ${mesmo?'até 14h de dia útil, o processo começa no mesmo dia':'depois das 14h ou em dia sem expediente, o processo começa no próximo dia útil'}, <b>${brDe(c.ini)}</b>.</li>
-        <li>A EMBASA (FAFP) tem até 3 dias úteis para processar: pagamento <b>até ${brDe(c.pag)}</b> — vira o novo "Recebimento combinado".</li>
+        <li>A EMBASA (FAFP) tem até 3 dias úteis para processar: pagamento <b>até ${brDe(c.pag)}</b> — vira o novo "Recebimento combinado". <b>Quanto antes ela pagar, maior o desconto</b> (mais dias até o vencimento).</li>
         <li>${c.venc?`Vencimento original ${brDe(c.venc)} → <b>n = ${c.n} dia${c.n===1?'':'s'} corrido${c.n===1?'':'s'}</b>.`:'<b>Informe o vencimento original da nota.</b>'}</li>
         <li>Desconto = (VF − D) × (T × n) = (${fmt(c.vf)} − ${fmt(c.ded)}) × (${td}% × ${c.n}) = <b>${fmt(c.desc)}</b></li></ol>
-        <div class="ant-res">${c.n>0?`Você recebe cerca de <b>${fmt(Math.max(0,c.vf-c.ded-c.desc))}</b> até ${brDe(c.pag)}`:'<b style="color:#B42318">O vencimento original não é depois do pagamento antecipado: não há o que antecipar.</b>'}<small>VF = líquido da nota (bruto − INSS − IRRF − ISS − garantia); T = ${fe(c.taxa)} ao mês ÷ 30 (juros simples). Se a EMBASA pagar antes, o desconto sobe um pouco — ele é refeito em "Registrar recebimento".</small></div>`;};
+        <div class="ant-res">${c.n>0?`Você recebe entre <b>${fmt(Math.max(0,c.vf-c.ded-c.desc0))}</b> (se a EMBASA pagar já em ${brDe(c.ini)}: ${c.n0} dias, desconto ${fmt(c.desc0)}) e <b>${fmt(Math.max(0,c.vf-c.ded-c.desc))}</b> (se pagar em ${brDe(c.pag)}: ${c.n} dias, desconto ${fmt(c.desc)})`:'<b style="color:#B42318">O vencimento original não é depois do pagamento antecipado: não há o que antecipar.</b>'}<small>VF = líquido da nota (bruto − INSS − IRRF − ISS − garantia); T = ${fe(c.taxa)} ao mês ÷ 30 (juros simples). Se a EMBASA pagar antes, o desconto sobe um pouco — ele é refeito em "Registrar recebimento".</small></div>`;};
     const bts=[{html:arq?'<i class="fas fa-floppy-disk"></i> Registrar a antecipação':ja?'<i class="fas fa-file-signature"></i> Gerar e substituir o formulário':'<i class="fas fa-file-signature"></i> Gerar o formulário',cls:'pri',acao:async j=>{
       const g=k=>((j.querySelector(`[data-k="${k}"]`)||{}).value||'').trim(),c=calc(j);
       if(!c)throw new Error('Informe a data em que o pedido foi enviado.');if(!c.venc)throw new Error('Informe o vencimento original da nota.');
