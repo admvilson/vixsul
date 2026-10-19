@@ -21769,28 +21769,30 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
       ${ja?`<div class="fin-aviso laranja"><div>Esta nota já tem um formulário de antecipação${forms[0]?' (gerado em '+brDe(new Date(forms[0].gerado_em))+')':''}. Só pode haver um por nota: o novo <b>substitui</b> o anterior.</div></div>`:''}
       <div class="fin-linha">${arq?`<div class="fin-fld"><label>Data em que o pedido foi enviado <span class="obg">*</span></label><input type="date" data-k="ped" max="${isoDe(hoje0())}" value="${isoDe(hoje0())}"></div>
         <label class="nfc-amb" style="align-self:end"><input type="checkbox" data-k="d14"><span>Enviado depois das 14h (ou em dia sem expediente)</span></label>`
-        :`<div class="fin-fld"><label>Nº do(s) contrato(s)</label><input data-k="ct" value="${fe(numCtDe(ob))}"></div><div class="fin-fld"><label>Nº da(s) nota(s) fiscal(is)</label><input data-k="nf" value="${fe(r[K.nf]||'')}"></div>
+        :`<div class="fin-fld"><label>Data da solicitação <span class="obg">*</span></label><input type="date" data-k="ped" value="${isoDe(ag.dia)}"></div>
+        <label class="nfc-amb" style="align-self:end"><input type="checkbox" data-k="d14" ${ag.hora>=14?'checked':''}><span>Solicitação depois das 14h (ou em dia sem expediente)</span></label>
+        <div class="fin-fld"><label>Nº do(s) contrato(s)</label><input data-k="ct" value="${fe(numCtDe(ob))}"></div><div class="fin-fld"><label>Nº da(s) nota(s) fiscal(is)</label><input data-k="nf" value="${fe(r[K.nf]||'')}"></div>
         <div class="fin-fld"><label>Valor bruto total (R$)</label><input data-k="v" data-mask="moeda" inputmode="numeric" value="${fmt(val(r[K.bruto]))}"></div>`}
         <div class="fin-fld"><label>Taxa de desconto (ao mês)</label><input data-k="tx" value="${fe(r.antec_taxa||TAXA_AF)}"></div>
         <div class="fin-fld"><label>Vencimento original da nota <span class="obg">*</span></label><input type="date" data-k="venc" value="${vOrig?isoDe(vOrig):''}"></div>
         <div class="fin-fld"><label>Deduções da EMBASA — multas, glosas (R$)</label><input data-k="ded" data-mask="moeda" inputmode="numeric" value="${fmt(val(r.antec_deducoes))}"></div></div>
       <div class="ant-calc" data-calc></div>`;
-    const calc=j=>{const g=k=>((j.querySelector(`[data-k="${k}"]`)||{}).value||'').trim(),pedido=arq?dt(g('ped')):ag.dia;
-      return pedido?calcAvancar({pedido,depois14:arq?!!(j.querySelector('[data-k="d14"]')||{}).checked:ag.hora>=14,venc:dt(g('venc')),vf,ded:num(g('ded')),taxa:g('tx')||TAXA_AF}):null;};
-    const pintar=j=>{const box=j.querySelector('[data-calc]'),c=calc(j);if(!box)return;if(!c){box.innerHTML='Informe a data em que o pedido foi enviado.';return;}
+    const calc=j=>{const g=k=>((j.querySelector(`[data-k="${k}"]`)||{}).value||'').trim(),pedido=dt(g('ped'));
+      return pedido?calcAvancar({pedido,depois14:!!(j.querySelector('[data-k="d14"]')||{}).checked,venc:dt(g('venc')),vf,ded:num(g('ded')),taxa:g('tx')||TAXA_AF}):null;};
+    const pintar=j=>{const box=j.querySelector('[data-calc]'),c=calc(j);if(!box)return;if(!c){box.innerHTML='Informe a data da solicitação.';return;}
       const mesmo=isoDe(c.ini)===isoDe(c.pedido),td=(taxaNum(c.taxa)/30).toLocaleString('pt-BR',{maximumFractionDigits:4});
       box.innerHTML=`<b><i class="fas fa-calculator"></i> Regras do Avançar Fornecedores</b><ol>
-        <li>Pedido ${arq?'enviado em <b>'+brDe(c.pedido)+'</b>':`<b>hoje, ${String(ag.hora).padStart(2,'0')}:${String(ag.min).padStart(2,'0')}</b> (Brasília)`}: ${mesmo?'até 14h de dia útil, o processo começa no mesmo dia':'depois das 14h ou em dia sem expediente, o processo começa no próximo dia útil'}, <b>${brDe(c.ini)}</b>.</li>
+        <li>Solicitação ${arq?'enviada':'feita'} em <b>${brDe(c.pedido)}</b>${(j.querySelector('[data-k="d14"]')||{}).checked?' (depois das 14h)':''}: ${mesmo?'até 14h de dia útil, o processo começa no mesmo dia':'depois das 14h ou em dia sem expediente, o processo começa no próximo dia útil'}, <b>${brDe(c.ini)}</b>.</li>
         <li>A EMBASA (FAFP) tem até 3 dias úteis para processar: pagamento <b>até ${brDe(c.pag)}</b> — vira o novo "Recebimento combinado". <b>Quanto antes ela pagar, maior o desconto</b> (mais dias até o vencimento).</li>
         <li>${c.venc?`Vencimento original ${brDe(c.venc)} → <b>n = ${c.n} dia${c.n===1?'':'s'} corrido${c.n===1?'':'s'}</b>.`:'<b>Informe o vencimento original da nota.</b>'}</li>
         <li>Desconto = (VF − D) × (T × n) = (${fmt(c.vf)} − ${fmt(c.ded)}) × (${td}% × ${c.n}) = <b>${fmt(c.desc)}</b></li></ol>
         <div class="ant-res">${c.n>0?`Você recebe entre <b>${fmt(Math.max(0,c.vf-c.ded-c.desc0))}</b> (se a EMBASA pagar já em ${brDe(c.ini)}: ${c.n0} dias, desconto ${fmt(c.desc0)}) e <b>${fmt(Math.max(0,c.vf-c.ded-c.desc))}</b> (se pagar em ${brDe(c.pag)}: ${c.n} dias, desconto ${fmt(c.desc)})`:'<b style="color:#B42318">O vencimento original não é depois do pagamento antecipado: não há o que antecipar.</b>'}<small>VF = líquido da nota (bruto − INSS − IRRF − ISS − garantia); T = ${fe(c.taxa)} ao mês ÷ 30 (juros simples). Se a EMBASA pagar antes, o desconto sobe um pouco — ele é refeito em "Registrar recebimento".</small></div>`;};
     const bts=[{html:arq?'<i class="fas fa-floppy-disk"></i> Registrar a antecipação':ja?'<i class="fas fa-file-signature"></i> Gerar e substituir o formulário':'<i class="fas fa-file-signature"></i> Gerar o formulário',cls:'pri',acao:async j=>{
       const g=k=>((j.querySelector(`[data-k="${k}"]`)||{}).value||'').trim(),c=calc(j);
-      if(!c)throw new Error('Informe a data em que o pedido foi enviado.');if(!c.venc)throw new Error('Informe o vencimento original da nota.');
+      if(!c)throw new Error('Informe a data da solicitação.');if(!c.venc)throw new Error('Informe o vencimento original da nota.');
       if(c.n<=0)throw new Error(`O vencimento original (${brDe(c.venc)}) não é depois do pagamento antecipado (${brDe(c.pag)}): não há o que antecipar.`);
       let dados=null;
-      if(!arq){dados={data:isoDe(hoje0()),contratos:g('ct'),notas:g('nf'),valor:num(g('v')),taxa:g('tx')||TAXA_AF};if(!dados.contratos||!dados.notas||!(dados.valor>0))throw new Error('Preencha contrato, nota e valor.');
+      if(!arq){dados={data:isoDe(c.pedido),contratos:g('ct'),notas:g('nf'),valor:num(g('v')),taxa:g('tx')||TAXA_AF};if(!dados.contratos||!dados.notas||!(dados.valor>0))throw new Error('Preencha contrato, nota e valor.');
         if(!imprimirDoc('antecipacao',dados,`Antecipação de pagamento EMBASA - NF ${dados.notas}`))return false;}
       const uid=r.fat_uid||('nf'+Date.now().toString(36));
       const o=refazLiq({...limpo(r),fat_uid:uid,[K.antecData]:isoDe(c.pedido),[K.rec]:isoDe(c.pag),[K.antec]:dinheiro(c.desc+c.ded),vencimento_original:isoDe(c.venc),antecipada:'sim',antec_previsto:isoDe(c.pag),antec_dias:String(c.n),antec_deducoes:c.ded?dinheiro(c.ded):'',antec_taxa:c.taxa},K);
