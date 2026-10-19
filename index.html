@@ -1454,6 +1454,15 @@ tbody tr:hover td{background:rgba(0,113,227,.02);}
      a operação. Fica em sincronia com UI._showBusy/_hideBusy. -->
 <div id="global-busy-block" style="display:none;position:fixed;inset:0;z-index:10000;cursor:not-allowed;background:transparent"></div>
 <script>
+/* Nota recebida de verdade: tem data de recebimento até hoje e — se foi antecipada (Avançar Fornecedores) — o
+   recebimento foi CONFIRMADO ("Registrar recebimento" ou baixa pela Conciliação). Pedir a antecipação não é receber:
+   a nota fica "a receber" com a etiqueta "antecipada" até a confirmação. */
+function antecPendente(i){return !!i&&i.antecipada==='sim'&&i.antec_recebida!=='sim'&&!i.antec_depositado;}
+function fatFoiRecebida(i,kRec){
+  const s=String((kRec?i[kRec]:(i.data_recebimento||i.recebimento))||'');let m=s.match(/^(\d{4})-(\d{2})-(\d{2})/),d=null;
+  if(m)d=new Date(+m[1],m[2]-1,+m[3]);else if((m=s.match(/^(\d{2})\/(\d{2})\/(\d{4})/)))d=new Date(+m[3],m[2]-1,+m[1]);
+  if(!d||antecPendente(i))return false;const h=new Date();h.setHours(0,0,0,0);return d<=h;
+}
 const APP_CONFIG={obras:'Obras',custos:'Custos',faturamentos:'Faturamentos',aportes:'Aportes financeiros',cap:'CAP',orcamentos:'Orçamentos',despesas:'Despesas'};
 const STATUS_OPTS=['Ganha - Em Andamento','Ganha - Finalizada','Ganha - Aguardando Liberação','Perdida - Cancelada','Perdida - Por Preço','Enviada - Aguardando Resultado','Não Enviada'];
 const QUEM_APORTOU=['Vixsul','Externo'];
@@ -1795,7 +1804,7 @@ const App={
       if(tp.toLowerCase()==='real'){
         totFatReal+=toN(getFuzzy(i,['faturamento_bruto','bruto','valor_bruto'])||i.valor||0);
         totFatRecLiqReal+=toN(getFuzzy(i,['faturamento_liquido','resultado_liquido','liquido','valor_liquido'])||0);
-        if(getFuzzy(i,['data_recebimento','recebimento'])||'')
+        if(fatFoiRecebida(i))
           totRecebido+=toN(getFuzzy(i,['faturamento_liquido','resultado_liquido','liquido','valor_liquido'])||0);
       } else if(tp.toLowerCase()==='previsto'){
         totFatPrev+=toN(getFuzzy(i,['faturamento_bruto','bruto','valor_bruto'])||i.valor||0);
@@ -2054,7 +2063,7 @@ const App={
       if(tp==='real'){
         const brut=toN(getFuzzy(i,['faturamento_bruto','bruto','valor_bruto'])||i.valor||0);
         meses[k].real+=brut;
-        if(getFuzzy(i,['data_recebimento','recebimento'])||'')
+        if(fatFoiRecebida(i))
           meses[k].recebido+=toN(getFuzzy(i,['faturamento_liquido','resultado_liquido','liquido','valor_liquido'])||0);
       }
     });
@@ -2292,7 +2301,7 @@ const App={
           const tipo=getFuzzy(i,['tipo_faturamento','tipo_fat','tipo'])||'';
           if(tipo&&!agr[nome].tipos.includes(tipo))agr[nome].tipos.push(tipo);
           const rec=getFuzzy(i,['data_recebimento','recebimento'])||'';
-          if(rec)agr[nome].recDatas.push(rec);
+          if(rec&&fatFoiRecebida(i))agr[nome].recDatas.push(rec);
         } else if(view==='aportes'){
           agr[nome].total+=parseFloat(i.valor_aportado||i.valor_aporte||i.valor||0);
         }
@@ -2804,7 +2813,7 @@ const App={
         const brut=toN(getFuzzy(i,['faturamento_bruto','bruto','valor_bruto'])||i.valor||0);
         totFatReal+=brut;
         totFatRecLiqReal+=toN(getFuzzy(i,['faturamento_liquido','resultado_liquido','liquido','valor_liquido'])||0);
-        if(getFuzzy(i,['data_recebimento','recebimento'])||'')
+        if(fatFoiRecebida(i))
           totRecebido+=toN(getFuzzy(i,['faturamento_liquido','resultado_liquido','liquido','valor_liquido'])||0);
       } else if(tp==='previsto'){
         totFatPrev+=toN(getFuzzy(i,['faturamento_bruto','bruto','valor_bruto'])||i.valor||0);
@@ -8995,16 +9004,60 @@ const UI={
     // Obra existente abre no Resumo (painel de decisão da obra); obra nova, nos Dados.
     // proposta abre no Orçamento; obra ganha (aguardando início, em execução, entregue) abre no Contrato
     const tabInicial=(Auth._session&&Auth._session.tipoUsuario==='externo'&&rowid)?'etapas':(rowid?(Eng.faseContratada&&Eng.faseContratada(obraName)?'contrato':'orcamentos'):'dados');
-    App.state.obraHub={rowid:rowid||null,obraName,tab:tabInicial,isNew:!rowid,nomeConfirmado:!!rowid,_dirtyTabs:new Set()};
+    App.state.obraHub={rowid:rowid||null,obraName,tab:tabInicial,isNew:!rowid,nomeConfirmado:!!rowid,_dirtyTabs:this._conjSujas()};
     // Detecta alterações não salvas (uma vez): qualquer digitação/mudança no formulário marca
     // a ABA ATIVA no momento como "suja" — cada aba tem seu próprio estado (a troca de aba
     // preserva tudo via cache, então "suja" precisa ser por aba, não um flag único).
     if(!this._obraHubDirtyBound){
       const form=document.getElementById('form-upsert');
-      if(form){['input','change'].forEach(ev=>form.addEventListener(ev,()=>{const h=App.state.obraHub;if(h)h._dirtyTabs.add(h.tab);}));this._obraHubDirtyBound=true;}
+      if(form){
+        // antes da 1ª mexida na aba, guarda como ela estava — no fechar, só pergunta se algo ficou DIFERENTE disso
+        const foto=ev=>{const h=App.state.obraHub;if(!h||UI._naoSuja(ev.target))return;h._snap=h._snap||{};if(!(h.tab in h._snap))h._snap[h.tab]=UI._assinaturaAba(form);};
+        form.addEventListener('focusin',foto,true);form.addEventListener('pointerdown',foto,true);
+        ['input','change'].forEach(ev=>form.addEventListener(ev,e=>{const h=App.state.obraHub;if(!h||UI._naoSuja(e.target))return;
+          if(['contrato','resumo'].includes(h.tab))return;   // Contrato grava em "Editar dados"/aditivos; Resumo só mostra
+          h._dirtyTabs._digitado(h.tab);}));
+        this._obraHubDirtyBound=true;}
     }
     document.getElementById('modal-editor').classList.add('open');
     this._obraHubTab(tabInicial);
+  },
+  /* Abas "sujas" da obra. Quem marca pelo código (.add: nome trocado, desconto do CAP levado ao orçamento,
+     "Atualizar preços"…) conta sempre; o que vem da DIGITAÇÃO só conta se o campo ficou diferente de como estava. */
+  _conjSujas(){
+    const s=new Set(),add=s.add.bind(s),del=s.delete.bind(s);s._prog=new Set();
+    s.add=t=>{s._prog.add(t);return add(t);};
+    s._digitado=t=>add(t);
+    s.delete=t=>{s._prog.delete(t);const h=App.state.obraHub;if(h&&h._snap)delete h._snap[t];return del(t);};
+    return s;
+  },
+  // campos que não são dado da obra: busca, filtros, ordenação, anexos (já sobem sozinhos), seleção de fotos/colunas
+  _naoSuja(el){
+    if(!el||!el.matches||!el.matches('input,select,textarea'))return true;
+    const t=(el.type||'').toLowerCase();if(['file','search','button','submit','reset','hidden'].includes(t))return true;
+    if(el.closest('[data-nao-suja],.anx,.cap-sticky-header,[class*="filtros"],.adq-filtro,.gf-combo-pop'))return true;
+    // pela marcação do campo (nunca pelo placeholder: "Buscar insumo ou digitar…" é a descrição de verdade do CAP)
+    const ds=el.dataset||{},id=[el.id,el.name,el.className,ds.k,ds.me,ds.fo,ds.taf,ds.vkf,ds.pl2f,ds.ccF].join(' ');
+    return /busca|pesquis|filtr|^find-|\bord\b/i.test(id);
+  },
+  _assinaturaAba(raiz){
+    if(!raiz||!raiz.querySelectorAll)return '';
+    const v=[];raiz.querySelectorAll('input,select,textarea').forEach(el=>{if(UI._naoSuja(el))return;
+      v.push(el.type==='checkbox'||el.type==='radio'?(el.checked?'1':'0'):String(el.value==null?'':el.value).trim());});
+    return v.length+'\u0002'+v.join('\u0001');
+  },
+  // abas que de fato têm o que salvar (tira as que voltaram a ficar iguais ao que estava)
+  _abasComMudanca(){
+    const h=App.state.obraHub;if(!h)return [];
+    return [...h._dirtyTabs].filter(t=>{
+      if(t==='medicao'){const E=Eng._ME&&Eng._ME.edit;return !!E&&Eng.medicaoMudou&&Eng.medicaoMudou();}
+      if(t==='contrato'||t==='resumo')return false;
+      if(h._dirtyTabs._prog&&h._dirtyTabs._prog.has(t))return true;
+      const ini=h._snap&&h._snap[t];if(ini==null)return true;
+      const raiz=t===h.tab?document.getElementById('form-upsert'):(this._obraHubCache&&this._obraHubCache[t]&&this._obraHubCache[t].frag);
+      if(!raiz)return true;
+      return UI._assinaturaAba(raiz)!==ini;
+    });
   },
   /* Fechar (X) do editor: se houver alterações não salvas em QUALQUER aba (ativa ou em cache), pede confirmação. */
   _fecharEditor(){
@@ -9013,7 +9066,11 @@ const UI={
     // "sair sem salvar?" pra ele, mesmo que alguma interação (ex.: marcar fotos pra baixar)
     // tenha disparado o alerta de "suja" internamente.
     const isExt=Auth._session&&Auth._session.tipoUsuario==='externo';
-    if(!isExt && App.state.obraHub && App.state.obraHub._dirtyTabs.size>0){
+    const sujas=!isExt&&App.state.obraHub?this._abasComMudanca():[];
+    if(sujas.length){
+      const nomes=sujas.map(t=>((this._OBRA_HUB_TABS||[]).find(x=>x[0]===t)||[])[1]||t).filter(Boolean);
+      const msg=document.querySelector('#confirm-sair-sem-salvar .confirm-msg');
+      if(msg)msg.innerHTML=`Há alterações ainda não salvas em <b>${nomes.join(', ')}</b>. Realmente deseja sair sem salvar?`;
       document.getElementById('confirm-sair-sem-salvar').classList.add('open');
       return;
     }
@@ -9294,6 +9351,7 @@ const UI={
     if(Auth._session&&Auth._session.tipoUsuario==='externo')return;
     const hub=App.state.obraHub;if(!hub)return;
     if(hub.isNew){ this._obraHubPreSaveIds=(App.state.data.obras||[]).map(r=>String(r.rowid)); App.save({preventDefault(){}}); return; }
+    const reais=new Set(this._abasComMudanca());[...hub._dirtyTabs].forEach(t=>{if(t!==hub.tab&&!reais.has(t))hub._dirtyTabs.delete(t);});
     const tabs=[hub.tab,...hub._dirtyTabs].filter((t,i,arr)=>t!=='resumo'&&t!=='contrato'&&arr.indexOf(t)===i);
     if(!tabs.length){toast('Nada para salvar: o Resumo só mostra a situação da obra. Edite nas outras abas.','info');return;}
     this._obraHubSalvarTudo(tabs,0,hub.tab);
@@ -10691,7 +10749,7 @@ const Fin=(function(){
       const h=hoje0(),um=addD(h,-365),g={};
       (d.faturamentos||[]).forEach(r=>{
         const kT=kRow(r,['tipo_faturamento','tipo_fat'],'tipo_faturamento'),em=dt(getFuzzy(r,['emissao_nf'])),rec=dt(getFuzzy(r,['data_recebimento']));
-        if(cn(r[kT])!=='real'||!em||!rec||rec>h||rec<um||rec<em)return;
+        if(cn(r[kT])!=='real'||antecPendente(r)||!em||!rec||rec>h||rec<um||rec<em)return;
         const ob=getFuzzy(r,['titulo_obra'])||'—';(g[ob]=g[ob]||[]).push(dias(em,rec));
       });
       const m={};Object.entries(g).forEach(([ob,a])=>{if(a.length>=2)m[ob]=Math.max(5,Math.min(120,Math.round(a.reduce((s,x)=>s+x,0)/a.length)));});
@@ -10722,7 +10780,7 @@ const Fin=(function(){
       const kTipo=kRow(r,['tipo_faturamento','tipo_fat'],null)||(Object.prototype.hasOwnProperty.call(r,'tipo')?'tipo':'tipo_faturamento');
       const kRec=kRow(r,['data_recebimento','recebimento'],'data_recebimento');
       const real=cn(r[kTipo])==='real',dRec=dt(r[kRec]);
-      const recebido=real&&!!dRec&&dRec<=h;
+      const recebido=real&&!!dRec&&dRec<=h&&!antecPendente(r);
       const liq=val(getFuzzy(r,['faturamento_liquido','resultado_liquido','valor_liquido','liquido'])),bruto=val(getFuzzy(r,['faturamento_bruto','valor_bruto','bruto']));
       const nf=getFuzzy(r,['n_nf']);
       // sem data de recebimento: nota emitida (Real) vence 30 dias depois da emissão (prazo usual
@@ -10769,7 +10827,7 @@ const Fin=(function(){
     const r=m.r,obj={...r};
     if(m.tipo==='custo'){obj[m.kTipo]='Real';obj[m.kData]=dataISO;}
     else if(m.tipo==='despesa'){obj[m.kSt]='Pago';obj[m.kPg]=dataISO;obj[m.kTipo]='Real';}
-    else if(m.tipo==='fat'){obj[m.kTipo]='Real';obj[m.kRec]=dataISO;if(extra.nf)obj[kRow(r,['n_nf'],'n_nf')]=extra.nf;
+    else if(m.tipo==='fat'){obj[m.kTipo]='Real';obj[m.kRec]=dataISO;if(r.antecipada==='sim')obj.antec_recebida='sim';if(extra.nf)obj[kRow(r,['n_nf'],'n_nf')]=extra.nf;
       // antecipada (Avançar Fornecedores): o desconto que vale é o que a EMBASA realmente descontou = líquido da nota − depósito
       if(r.antecipada==='sim'&&extra.valor>0){const k=(kw,fb)=>kRow(r,kw,fb),kB=k(['faturamento_bruto','bruto'],'faturamento_bruto'),kA=k(['antecipacao_nf'],'antecipacao_nf'),kL=k(['faturamento_liquido','liquido'],'faturamento_liquido');
         const vf=val(r[kB])-val(r[k(['imposto_inss','inss'],'imposto_inss')])-val(r[k(['imposto_irpf','irpf'],'imposto_irpf')])-val(r.iss_retido)-val(r[k(['seguro_contrato','seguro'],'seguro_contrato')]),desc=Math.round((vf-extra.valor)*100)/100;
@@ -11146,6 +11204,10 @@ const Fin=(function(){
         usados.add(idm(m));
         return props.push({t,st:liq(m)&&cands.length===1&&m.venc&&dist(m)<=20?'ok':'confira',acao:'baixar',alvos:[m],opcoes:cands.slice(0,8),nota:liq(m)?'':'bateu com o valor BRUTO da nota — confira as retenções'});
       }
+      // nota ANTECIPADA: o depósito quase nunca bate no centavo com a previsão — aceita até 3% de diferença e, na baixa, o desconto vira o real
+      const ant=abertosE.filter(m=>m.tipo==='fat'&&m.r.antecipada==='sim'&&!usados.has(idm(m))&&Math.abs(m.valor-v)<=Math.max(50,m.valor*0.03)&&(!m.venc||perto(m,-30,30))).sort((a,b)=>Math.abs(a.valor-v)-Math.abs(b.valor-v));
+      if(ant.length){const m=ant[0];usados.add(idm(m));
+        return props.push({t,st:'confira',acao:'baixar',alvos:[m],opcoes:ant.slice(0,8),nota:`nota ANTECIPADA — previsto ${fmt(m.valor)}, entrou ${fmt(v)}: ao dar baixa, o desconto da antecipação passa a ser o real`});}
       const jaR=ms.find(m=>m.tipo==='fat'&&m.pago&&!m.r.conciliacao&&!usados.has(idm(m))&&Math.abs(m.valor-v)<=0.01&&m.dataBaixa&&Math.abs(dias(m.dataBaixa,td))<=3);
       if(jaR){usados.add(idm(jaR));return props.push({t,st:'vincular',acao:'vincular',alvos:[jaR],nota:'recebimento já estava lançado'});}
       const ap=ms.find(m=>m.tipo==='aporte'&&!m.r.conciliacao&&!usados.has(idm(m))&&Math.abs(m.valor-v)<=0.01&&m.dataBaixa&&Math.abs(dias(m.dataBaixa,td))<=7);
@@ -11480,7 +11542,7 @@ const Fin=(function(){
             o.conciliacao_baixa=tirarId(m.r.conciliacao_baixa,id);
             if(m.tipo==='custo'){o[m.kTipo]='Previsto';o[m.kData]='';}
             else if(m.tipo==='despesa'){o[m.kSt]='Pendente';o[m.kPg]='';o[m.kTipo]='Prevista';}
-            else if(m.tipo==='fat'){o[m.kRec]='';}
+            else if(m.tipo==='fat'){o[m.kRec]=m.r.antecipada==='sim'&&m.r.antec_previsto?m.r.antec_previsto:'';o.antec_recebida='';o.antec_depositado='';}
           }
           await salvar(m.r._aba||ABA[m.tipo],o,m.r.rowid);
         }
@@ -12217,7 +12279,10 @@ const Eng=(function(){
   const dataOrc=o=>dt(getFuzzy(o,['data_lancamento']))||new Date(0);
   const orcsDaObra=ob=>(D().orcamentos||[]).filter(o=>cn(tituloOrc(o))===cn(ob)).sort((a,b)=>dataOrc(b)-dataOrc(a));
   const medsDaObra=ob=>(D().medicoes||[]).filter(m=>m.titulo_obra===ob).sort((a,b)=>(+a.numero||0)-(+b.numero||0));
-  const ME={obra:'',edit:null,base:{}};   // base: orçamento escolhido à mão para a obra (até a 1ª medição gravar)
+  const ME={obra:'',edit:null,base:{}};
+  // "retrato" da medição aberta: quantidades, descontos e campos — para saber se há o que salvar
+  const assMed=E=>JSON.stringify([Object.entries(E.qtd||{}).filter(e=>e[1]).sort(),(E.desc||[]).filter(x=>String(x.desc||'').trim()||+x.valor).map(x=>[String(x.desc||'').trim(),+x.valor||0]),E.campos||{}]);
+  Eng.medicaoMudou=()=>{const E=ME.edit;return !!E&&assMed(E)!==E._ini;};   // base: orçamento escolhido à mão para a obra (até a 1ª medição gravar)
   function baseDaObra(ob){
     const ms=medsDaObra(ob);
     for(let i=ms.length-1;i>=0;i--){const o=orcDe(ms[i].orcamento_rowid);if(o)return o;}
@@ -12372,6 +12437,7 @@ const Eng=(function(){
     const qtd={};(reg&&reg.itens||[]).forEach(it=>qtd[it.chave]=+it.qtd||0);
     ME.edit={reg,obra:ob,orcRowid:orc.rowid,numero,qtd,busca:'',so:!!reg,desc:reg?descontosMed(reg).map(x=>({desc:x.desc||'',valor:+x.valor||0})):[],
       campos:{periodo_ini:reg?reg.periodo_ini||'':iniPad,periodo_fim:reg?reg.periodo_fim||'':(iniPad&&iniPad>isoDe(hoje0())?'':isoDe(hoje0())),data_medicao:reg?reg.data_medicao||'':isoDe(hoje0()),status:reg?reg.status||'Em elaboração':'Em elaboração',observacao:reg?reg.observacao||'':''}};
+    ME.edit._ini=reg?assMed(ME.edit):assMed({qtd:{},desc:[],campos:ME.edit.campos});
     renderMedicoes();
     document.querySelector('#view-medicoes .cards-scroll')?.scrollTo(0,0);
   }
@@ -12458,8 +12524,7 @@ const Eng=(function(){
       if(b.dataset.me==='desc-add'||b.dataset.me==='desc-x'){if(b.dataset.me==='desc-add')E.desc.push({desc:'',valor:0});else E.desc.splice(+b.dataset.i,1);
         const tbd=box.querySelector('[data-me-desc]');tbd.innerHTML=E.desc.map((x,i)=>linhaDesc(x,i)).join('');totaisEditor();if(b.dataset.me==='desc-add'){const ins=tbd.querySelectorAll('input[data-dsc="desc"]');ins[ins.length-1].focus();}return;}
       if(b.dataset.me==='cancelar'){
-        const mudou=E.reg?JSON.stringify((E.reg.itens||[]).map(it=>[it.chave,+it.qtd]).sort())!==JSON.stringify(Object.entries(E.qtd).filter(e=>e[1]).sort()):Object.values(E.qtd).some(Boolean);
-        if(mudou&&!window.confirm('Sair sem salvar? As quantidades digitadas serão perdidas.'))return;
+        if(Eng.medicaoMudou()&&!window.confirm('Sair sem salvar? O que foi digitado nesta medição será perdido.'))return;
         ME.edit=null;renderMedicoes();
       }
       else if(b.dataset.me==='salvar')salvarMedicao(b);
@@ -13068,7 +13133,7 @@ const Eng=(function(){
       if(a==='foto')return verFoto(App._opFotos,+b.dataset.f);
       if(a==='aditivo')return Eng.editarAditivo(null,ob);
       const hub=App.state.obraHub;
-      if(hub&&hub._dirtyTabs&&hub._dirtyTabs.size)return toast('Há alterações não salvas em outra aba da obra — salve ou feche a obra antes.','error');
+      if(hub&&hub._dirtyTabs&&UI._abasComMudanca().length)return toast('Há alterações não salvas em outra aba da obra — salve ou feche a obra antes.','error');
       UI.closeModal('modal-editor');
       if(a==='medicoes'){Eng._ME.edit=null;Eng._ME.obra=ob;UI.nav('medicoes');}
       else if(a==='diario'){Eng._RD.obra=ob;Eng._RD.mes='__todos';UI.nav('diario');}
@@ -14356,7 +14421,7 @@ const GS=(function(){
     const fatL3=media3(k,x=>x.fatL),cus3=media3(k,x=>x.custos),des3=media3(k,x=>x.desp),res3=media3(k,x=>x.resultado);
     const margem=fatL3?res3/fatL3*100:null,mc=fatL3?1-cus3/fatL3:null,pe=mc>0?des3/mc:null;
     const sc=saldoCaixa(),gasto=cus3+des3,folego=sc&&gasto>0?sc.valor/gasto:null;
-    const recs=(D().faturamentos||[]).map(f=>({e:dt(getFuzzy(f,['emissao_nf'])),r:dt(getFuzzy(f,['data_recebimento']))})).filter(x=>x.e&&x.r&&x.r<=h&&x.r>=addD(h,-180)&&x.r>=x.e);
+    const recs=(D().faturamentos||[]).filter(f=>!antecPendente(f)).map(f=>({e:dt(getFuzzy(f,['emissao_nf'])),r:dt(getFuzzy(f,['data_recebimento']))})).filter(x=>x.e&&x.r&&x.r<=h&&x.r>=addD(h,-180)&&x.r>=x.e);
     const pmr=recs.length?recs.reduce((a,x)=>a+dias(x.e,x.r),0)/recs.length:null;
     const empatado=saudes.reduce((a,x)=>a+Math.min(0,x.caixa),0);
     const saude=`<div class="gf-saude">
@@ -15054,7 +15119,7 @@ const PL2=(function(){
   // a linha inteira: o registro original (campos que a planilha não mostra) + o que foi digitado
   function completa(T,tr){return Object.assign({},achar(T,tr.dataset.rowid)||T.novo(T.st),lerLinha(T,tr));}
   // redesenha uma linha mantendo o que foi digitado (ex.: trocar a obra pela Empresa muda as categorias)
-  function redesenharLinha(T,tr){const novo=tr.classList.contains('novo'),suja=tr.classList.contains('dirty');const tb=document.createElement('tbody');tb.innerHTML=linhaHtml(T,completa(T,tr),novo,suja?'dirty':'');const n=tb.firstElementChild;n.dataset.rowid=tr.dataset.rowid;tr.replaceWith(n);if(T.recalc)T.recalc(n,completa(T,n));return n;}
+  function redesenharLinha(T,tr){const novo=tr.classList.contains('novo'),suja=tr.classList.contains('dirty');const tb=document.createElement('tbody');tb.innerHTML=linhaHtml(T,completa(T,tr),novo,suja?'dirty':'');const n=tb.firstElementChild;n._orig=tr._orig;n.dataset.rowid=tr.dataset.rowid;tr.replaceWith(n);if(T.recalc)T.recalc(n,completa(T,n));return n;}
   function render(id){
     const T=telas[id];const box=document.getElementById(T.box);if(!box)return;atual=id;
     const st=T.st;if(T.abas&&!T.abas.some(a=>a.id===st.aba))st.aba=T.abaPadrao||T.abas[0].id;
@@ -15083,7 +15148,12 @@ const PL2=(function(){
     </div>`;
     const body=box.querySelector('[data-pl2-body]');
     aplicarFiltro(T,box);
-    const marcar=tr=>{if(!tr.classList.contains('novo'))tr.classList.add('dirty');T.recalc&&T.recalc(tr,completa(T,tr));contar(box);};
+    // a linha só fica "alterada" se ficou diferente de como estava (digitou e voltou ao valor = nada para salvar)
+    const marcar=tr=>{if(!tr.classList.contains('novo')){if(tr._orig&&JSON.stringify(lerLinha(T,tr))===tr._orig)tr.classList.remove('dirty');else tr.classList.add('dirty');}T.recalc&&T.recalc(tr,completa(T,tr));contar(box);};
+    if(!box._origPl2){box._origPl2=1;const foto=ev=>{const tr=ev.target.closest&&ev.target.closest('tr[data-rowid]');if(!tr||tr.classList.contains('novo')||tr._orig!==undefined||ev.target.closest('[data-pl2f]'))return;
+      tr._orig=tr.classList.contains('dirty')?null:JSON.stringify(lerLinha(telas[box._pl2id]||T,tr));};
+      box.addEventListener('focusin',foto,true);box.addEventListener('pointerdown',foto,true);}
+    box._pl2id=T.id;
     box.oninput=ev=>{
       const f=ev.target.closest('[data-pl2f]');if(f){T.st[f.dataset.pl2f]=f.value;aplicarFiltro(T,box);return;}
       const tr=ev.target.closest('tr[data-rowid]');if(tr){tr.querySelectorAll('.invalido').forEach(x=>x.classList.remove('invalido'));ev.target.classList.remove('falta');marcar(tr);}
@@ -15207,7 +15277,9 @@ const PL2=(function(){
     seguro:ch('faturamentos',c=>c.includes('seguro'),'seguro_contrato'),liq:ch('faturamentos',c=>c.includes('faturamento_liquido')||c.includes('resultado_liquido')||c.includes('liquido'),'faturamento_liquido'),antecData:ch('faturamentos',c=>c.includes('antecipacao')&&c.includes('data'),'data_antecipacao_nf'),rec:ch('faturamentos',c=>c.includes('recebimento'),'data_recebimento'),iss:'iss_retido'});
   const ehReal=(o,K)=>cn(o[K.tipo])==='real';
   // situação da nota: [texto, cor, ordem] — nota Real sem data de recebimento vence no prazo médio que a obra costuma pagar (30 dias, se ainda não há histórico)
-  function sitF(o,K){const h=h0();if(!ehReal(o,K))return ['Previsto','cinza',2];const r=dt(o[K.rec]);if(r&&r<=h)return ['Recebido','ok',3];
+  function sitF(o,K){const h=h0();if(!ehReal(o,K))return ['Previsto','cinza',2];const r=dt(o[K.rec]);
+    if(antecPendente(o))return r&&r<=h?['Antecipada · confirme o recebimento','warn',0]:['Antecipada · a receber'+(r?' até '+brDe(r).slice(0,5):''),'azul',1];
+    if(r&&r<=h)return ['Recebido','ok',3];
     const v=r||(dt(o[K.em])?addD(dt(o[K.em]),Fin.prazoReceb(o[K.obra]||'—')):null);if(v&&v<h)return [`Atrasado ${dias(v,h)} dia${dias(v,h)>1?'s':''}`,'err',0];return [v?'A receber até '+brDe(v).slice(0,5):'A receber','warn',1];}
   const vencF=(o,K)=>dt(o[K.rec])||(dt(o[K.em])?addD(dt(o[K.em]),Fin.prazoReceb(o[K.obra]||'—')):null);
   // percentuais de retenção da obra: os do último faturamento dela (ou o padrão do sistema)
@@ -15245,7 +15317,7 @@ const PL2=(function(){
     finalizar:o=>{const K=KF();if(temRet(o,K)||String(o[K.liq]==null?'':o[K.liq]).trim()===''){o[K.liq]=dinheiro(liqDe(o,K));RET.forEach(k=>{if(!String(o[K[k]]==null?'':o[K[k]]).trim())o[K[k]]='0.00';});}},
     validar:o=>{const K=KF();if(liqDe(o,K)<0)return 'As retenções passam do valor bruto — confira a linha.';if(dt(o[K.rec])&&!ehReal(o,K))return 'Nota com data de recebimento precisa ser do tipo Real.';return '';},
     kpis:l=>{const K=KF(),h=h0(),re=l.filter(o=>ehReal(o,K)),S=(a,f)=>a.reduce((s,o)=>s+f(o),0),L=o=>val(o[K.liq])||liqDe(o,K);
-      const bruto=S(re,o=>val(o[K.bruto])),liq=S(re,L),k=mesHoje(),recMes=re.filter(o=>{const r=dt(o[K.rec]);return r&&r<=h&&isoDe(r).slice(0,7)===k;});
+      const bruto=S(re,o=>val(o[K.bruto])),liq=S(re,L),k=mesHoje(),recMes=re.filter(o=>{const r=dt(o[K.rec]);return r&&r<=h&&!antecPendente(o)&&isoDe(r).slice(0,7)===k;});
       const aRec=re.filter(o=>sitF(o,K)[2]<=1),atr=aRec.filter(o=>sitF(o,K)[2]===0),prev=l.filter(o=>!ehReal(o,K));
       return kpiG(atr.length?'vermelho':'verde','fa-triangle-exclamation','Recebimento atrasado',Rk(S(atr,L)),atr.length?`${atr.length} nota(s) — cobrar ou dar baixa`:'nenhuma nota atrasada')
         +kpiG('laranja','fa-hourglass-half','A receber',Rk(S(aRec,L)),`${aRec.length} nota(s) emitida(s)`)
@@ -16597,7 +16669,7 @@ const Mascara=(function(){
   /* ═══════════════ FATURAMENTO E RECEBIMENTOS (ligado às medições) ═══════════════ */
   const COLS_F=[{k:'medicao',rot:'Medição em andamento',cor:'#7F56D9',ico:'fa-ruler-combined'},{k:'faturar',rot:'Aprovada · a faturar',cor:'#B54708',ico:'fa-file-pen'},{k:'receber',rot:'Nota emitida · a receber',cor:'#1652D8',ico:'fa-file-invoice-dollar'},{k:'recebida',rot:'Recebida',cor:'#067647',ico:'fa-circle-check'}];
   const KF=()=>Fa.KF();
-  const recebidaF=(r,K)=>{const d=dt(r[K.rec]);return !!(Fa.ehReal(r,K)&&d&&d<=hoje0());};
+  const recebidaF=(r,K)=>{const d=dt(r[K.rec]);return !!(Fa.ehReal(r,K)&&d&&d<=hoje0()&&!antecPendente(r));};
   const liqF=r=>{const K=KF();return val(r[K.liq])||Fa.liqDe(r,K);};
   const valorMed=m=>Eng.valorFaturar?Eng.valorFaturar(m):Eng.valorMed(m);
   const ehAprov=m=>/aprovad/i.test(m.status||''),ehFatMed=m=>/faturad/i.test(m.status||'');
@@ -16627,10 +16699,11 @@ const Mascara=(function(){
       </article>`;}
     const venc=Fa.vencF(r,K);
     return `<article class="vk-card" style="--cor:${cc.cor}" draggable="${pode('faturamento')?'true':'false'}" data-card="${x.id}" tabindex="0">
-      <div class="vk-top"><b>${r[K.nf]?'NF '+fe(r[K.nf]):r.medicao_numero?'Medição nº '+fe(r.medicao_numero):'Faturamento previsto'}</b>${r.antecipada==='sim'?pill('antecipada','info','fa-forward-fast'):''}${r.medicao_numero&&r[K.nf]?pill('med. '+fe(r.medicao_numero),''):''}</div>
+      <div class="vk-top"><b>${r[K.nf]?'NF '+fe(r[K.nf]):r.medicao_numero?'Medição nº '+fe(r.medicao_numero):'Faturamento previsto'}</b>${r.medicao_numero&&r[K.nf]?pill('med. '+fe(r.medicao_numero),''):''}</div>
       <div class="vk-obra" title="${fe(x.obra)}"><i class="fas fa-helmet-safety"></i>${fe(x.obra||'—')}</div>
+      ${r.antecipada==='sim'?`<div class="vk-sub">${pill('antecipada'+(x.col!=='recebida'&&dt(r.antec_previsto||r[K.rec])?' · previsto '+brDe(dt(r.antec_previsto||r[K.rec])).slice(0,5):''),'info','fa-forward-fast')}</div>`:''}
       <div class="vk-val"><span>bruto ${fmt(x.bruto)}</span><b>${fmt(x.liq)}</b></div>
-      <div class="vk-pe">${x.col==='faturar'?pill('emitir a nota','warn','fa-file-pen'):vencePill(venc?isoDe(venc):'',x.col==='recebida'?r[K.rec]:'','recebida')}</div>
+      <div class="vk-pe">${x.col==='faturar'?pill('emitir a nota','warn','fa-file-pen'):x.col==='receber'&&antecPendente(r)&&venc&&venc<=hoje0()?pill('confirme o recebimento','warn','fa-circle-question'):vencePill(venc?isoDe(venc):'',x.col==='recebida'?r[K.rec]:'','recebida')}</div>
     </article>`;
   }
   function filtrarFat(l){const f=QF,K=KF();return l.filter(x=>{
@@ -16756,7 +16829,7 @@ const Mascara=(function(){
       ${ant?'<div class="fin-fld"><label>Valor que entrou na conta (R$) <small style="font-weight:600;color:var(--text-3)">— do extrato</small></label><input data-k="dep" data-mask="moeda" inputmode="numeric" placeholder="R$ 0,00"><div class="capx-dica">Com o valor do extrato, o desconto real é calculado e comparado com a regra da EMBASA.</div></div><div class="fin-fld"><label>Desconto da antecipação (R$)</label><input data-k="desc" data-mask="moeda" inputmode="numeric" value=""><div class="capx-dica" data-desc-dica></div></div>':''}`,
       [{html:'Cancelar'},{html:'<i class="fas fa-circle-check"></i> Confirmar recebimento',cls:'pri',acao:async j=>{
         const d=j.querySelector('[data-k="data"]').value;if(!d)throw new Error('Informe a data.');if(d>isoDe(hoje0()))throw new Error('A data não pode ser depois de hoje.');
-        const o=copiaF(r);o[K.rec]=d;
+        const o=copiaF(r);o[K.rec]=d;if(r.antecipada==='sim')o.antec_recebida='sim';
         if(ant){o[K.antec]=dinheiro(Mascara.numero(j.querySelector('[data-k="desc"]').value)||0);const dep=Mascara.numero(j.querySelector('[data-k="dep"]').value)||0;if(dep>0)o.antec_depositado=dinheiro(dep);o[K.liq]=dinheiro(val(o[K.bruto])-Fa.RET.reduce((s,k)=>s+val(o[K[k]]),0));if(val(o[K.liq])<0)throw new Error('O desconto passa do líquido da nota.');}
         await executar(()=>salvar('Faturamentos',o,r.rowid));toast(ant?'Recebimento registrado — nota recebida por antecipação.':'Recebimento registrado.','success');}}],480);
     if(!ant)return;
@@ -16788,7 +16861,7 @@ const Mascara=(function(){
       await executar(async()=>{await salvar('Faturamentos',{...copiaF(r),_lixeira_em:new Date().toISOString(),_lixeira_obra_id:'avulso',_lixeira_motivo:'Faturamento desfeito (medição nº '+(m.numero||'')+' voltou para a fiscalização)'},r.rowid);
         await salvar('Medições',{...copiaF(m),status:'Enviada à fiscalização',faturado_em:''},m.rowid);});
       toast('Voltou para "Medição em andamento".','success');});}
-  function desfazerRecebimento(r){const K=KF();confirmar('Desfazer recebimento',`${r[K.nf]?'A NF '+fe(r[K.nf]):'A nota'} volta para "a receber".`,'Sim, desfazer',async()=>{const o=copiaF(r);o[K.rec]=r.antecipada==='sim'&&dt(r.antec_previsto)&&dt(r.antec_previsto)>hoje0()?r.antec_previsto:'';await executar(()=>salvar('Faturamentos',o,r.rowid));toast('Voltou para "a receber".','success');});}
+  function desfazerRecebimento(r){const K=KF();confirmar('Desfazer recebimento',`${r[K.nf]?'A NF '+fe(r[K.nf]):'A nota'} volta para "a receber".`,'Sim, desfazer',async()=>{const o=copiaF(r);o[K.rec]=r.antecipada==='sim'&&dt(r.antec_previsto)?r.antec_previsto:'';o.antec_recebida='';o.antec_depositado='';await executar(()=>salvar('Faturamentos',o,r.rowid));toast('Voltou para "a receber".','success');});}
   function fichaMedicao(x){
     const m=x.r,rm=Eng.resumoMedicoes(m.titulo_obra),cc=COLS_F.find(c=>c.k===x.col);
     const corpo=`<div class="vk-ficha-cab"><span class="vk-etq" style="--cor:${cc.cor}"><i class="fas ${cc.ico}"></i> ${cc.rot}</span>
@@ -17888,7 +17961,7 @@ const Mascara=(function(){
     if((D().obras||[]).some(o=>String(o.rowid)!==String(hub.rowid)&&cn(nome(o))===cn(novo))){toast('Já existe outra obra com esse nome.','error');return voltar();}
     if(hub.isNew||!hub.rowid){hub.obraName=novo;return voltar();}
     const ROTAB=Object.fromEntries(this._OBRA_HUB_TABS||[]);
-    const sujas=[...(hub._dirtyTabs||[])].filter(t=>!['contrato','resumo','dados'].includes(t));
+    const sujas=(UI._abasComMudanca?UI._abasComMudanca():[...(hub._dirtyTabs||[])]).filter(t=>!['contrato','resumo','dados'].includes(t));
     if(sujas.length){toast('Salve antes o que foi alterado em '+sujas.map(t=>ROTAB[t]||t).join(', ')+' e depois troque o nome.','error');return voltar();}
     if(tit)tit.textContent='Trocando o nome…';
     (async()=>{
@@ -18430,6 +18503,8 @@ const Mascara=(function(){
 .ohub-bt{display:flex;align-items:center;gap:7px;height:36px;padding:0 13px;border-radius:10px;border:1px solid #D7DEEA;background:#fff;color:#344054;font:600 12.5px Inter,sans-serif;cursor:pointer;transition:background .15s,border-color .15s;}
 .ohub-bt:hover{background:#F5F8FF;border-color:#B9C6DD;}
 .ohub-bt.ok{border-color:#A6E3BD;background:#ECFDF3;color:#067647;} .ohub-bt.ok:hover{background:#D9F7E6;}
+.ohub-bt.ok.pend{position:relative;background:#12B76A;border-color:#12B76A;color:#fff;} .ohub-bt.ok.pend:hover{background:#0E9F5C;}
+.ohub-bt.ok.pend::after{content:'';position:absolute;top:-4px;right:-4px;width:11px;height:11px;border-radius:50%;background:#F79009;border:2px solid #fff;}
 .ohub-bt.err{border-color:#FECDCA;background:#FEF3F2;color:#B42318;padding:0 11px;} .ohub-bt.err:hover{background:#FDE4E2;}
 @media (max-width:760px){.ohub-tab span:not(.n),.ohub-bt span{display:none;}.ohub-tab{padding:8px 11px;}#obra-hub-tabs.ohub-bar{padding:8px 10px;}}
 /* ═══ CAP mais moderno ═══ */
@@ -18494,7 +18569,7 @@ const Mascara=(function(){
   const ra=App.renderAll;
   App.renderAll=function(){
     ra.apply(this,arguments);
-    try{const hub=App.state.obraHub;if(hub&&hub.tab==='medicao'&&document.getElementById('modal-editor')?.classList.contains('open')&&document.querySelector('#form-upsert #eng-medicoes'))Eng.renderMedicoes();}catch(e){console.error(e);}
+    try{const hub=App.state.obraHub;if(hub&&hub.tab==='medicao'&&document.getElementById('modal-editor')?.classList.contains('open')&&document.querySelector('#form-upsert #eng-medicoes'))Eng.renderMedicoes();if(UI._obraHubBtSalvar)UI._obraHubBtSalvar();}catch(e){console.error(e);}
   };
   // "Medições" deixou de ser tela do menu: quem chama a medição vai para a aba Medição da obra
   function irParaMedicao(ob){
@@ -18519,11 +18594,29 @@ const Mascara=(function(){
     const lista=isExt?this._OBRA_HUB_TABS.filter(([k])=>k==='etapas'):hub.isNew?this._OBRA_HUB_TABS.filter(([k])=>k==='dados'):this._OBRA_HUB_TABS.filter(([k])=>!['etapas','resumo','dados'].includes(k)&&(k!=='medicao'||(Eng.temContrato&&Eng.temContrato(hub.obraName))));
     bar.removeAttribute('style');bar.className='ohub-bar';
     bar.innerHTML=`<nav class="ohub-tabs" role="tablist">${lista.map(([k,l],i)=>`<button type="button" role="tab" aria-selected="${hub.tab===k}" class="ohub-tab ${hub.tab===k?'on':''}" onclick="UI._obraHubTab('${k}')"><i class="fas ${ICO[k]||'fa-circle'}"></i><span>${l}</span></button>`).join('')}</nav>
-      <div class="ohub-acoes">${isExt?'':'<button type="button" class="ohub-bt ok" title="Salvar o que foi alterado nesta obra" onclick="UI._obraHubSalvar()"><i class="fas fa-floppy-disk"></i><span>Salvar</span></button>'}<button type="button" class="ohub-bt" title="Imprimir / exportar o PDF da aba aberta" onclick="UI._obraHubPDF()"><i class="fas fa-print"></i><span>PDF</span></button>${isExt?'':'<button type="button" class="ohub-bt err" title="Excluir a obra e tudo dentro dela (vai para a Lixeira)" onclick="UI._obraHubExcluirTudo()"><i class="fas fa-trash"></i></button>'}</div>`;
+      <div class="ohub-acoes">${isExt?'':'<button type="button" id="ohub-salvar" class="ohub-bt ok" title="Salvar o que foi alterado nesta obra" onclick="UI._obraHubSalvar()"><i class="fas fa-floppy-disk"></i><span>Salvar</span></button>'}<button type="button" class="ohub-bt" title="Imprimir / exportar o PDF da aba aberta" onclick="UI._obraHubPDF()"><i class="fas fa-print"></i><span>PDF</span></button>${isExt?'':'<button type="button" class="ohub-bt err" title="Excluir a obra e tudo dentro dela (vai para a Lixeira)" onclick="UI._obraHubExcluirTudo()"><i class="fas fa-trash"></i></button>'}</div>`;
     const ft=document.querySelector('#modal-editor-sheet .editor-footer');if(ft)ft.style.display='none';
     // a obra (orçamento, CAP, contrato, medição) é tabela larga: a janela usa quase a tela toda
     const sh=document.getElementById('modal-editor-sheet');if(sh&&!hub.isNew)sh.style.maxWidth='min(1180px,96vw)';
+    UI._obraHubBtSalvar();
   };
+  /* O Salvar da faixa só aparece onde salva alguma coisa: Orçamento, CAP, Obra e Cronograma sempre; na Medição,
+     com uma medição aberta; no Contrato/Resumo (que gravam pelas janelas), só se outra aba tiver alteração.
+     Com alteração pendente ele ganha um ponto laranja. */
+  UI._obraHubBtSalvar=function(){
+    const b=document.getElementById('ohub-salvar'),h=App.state.obraHub;if(!b||!h)return;
+    const med=h.tab==='medicao'&&!!(Eng._ME&&Eng._ME.edit),outras=[...h._dirtyTabs].some(t=>t!==h.tab&&!['contrato','resumo','medicao'].includes(t));
+    const ver=h.isNew||['orcamentos','cap','dados','etapas'].includes(h.tab)||med||outras;
+    b.style.display=ver?'':'none';
+    const sp=b.querySelector('span');if(sp)sp.textContent=med&&!outras?'Salvar medição':'Salvar';
+    b.classList.toggle('pend',h._dirtyTabs.size>0&&(h.tab!=='medicao'||!!(Eng.medicaoMudou&&Eng.medicaoMudou()))||outras);
+  };
+  // a Medição abre/fecha o editor com cliques dentro dela; a digitação acende o ponto de "há o que salvar"
+  document.addEventListener('click',ev=>{if(App.state.obraHub&&ev.target.closest&&ev.target.closest('#form-upsert'))setTimeout(()=>UI._obraHubBtSalvar(),0);});
+  document.addEventListener('input',ev=>{if(App.state.obraHub&&ev.target.closest&&ev.target.closest('#form-upsert'))UI._obraHubBtSalvar();});
+  // medição salva/cancelada (a aba se redesenha sem clique): o botão acompanha
+  const fu=document.getElementById('form-upsert');let agBt=false;
+  if(fu)new MutationObserver(()=>{const h=App.state.obraHub;if(!h||h.tab!=='medicao'||agBt)return;agBt=true;setTimeout(()=>{agBt=false;UI._obraHubBtSalvar();},60);}).observe(fu,{childList:true,subtree:true});
 })();
 </script>
 <!-- ═══════════════════ VIABILIDADE DO CONTRATO — AUTOMÁTICA (dados da obra, gráficos, sensibilidade, preço mínimo) ═══════════════════ -->
@@ -19384,7 +19477,7 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
     tbD.querySelectorAll('tr:not([data-auto])').forEach(tr=>{if(vazia(tr))tr.remove();});
     const frag=document.createDocumentFragment();[...res.lista.values()].sort((a,b)=>b.v-a.v).forEach(x=>frag.appendChild(linhaAuto(x)));tbD.insertBefore(frag,tbD.firstChild);
     if(tbC&&!tbC.querySelector('tr'))UI._capAddRow&&UI._capAddRow('C');
-    if(!ST.meta.aplicado){ST.meta.aplicado=true;sujar();}
+    if(!ST.meta.aplicado){ST.meta.aplicado=true;}
     try{UI._calcCAPAll();}catch(e){}
     pintarLegado();
     const depois=res.tM;if(ST.atualizou&&Math.abs(depois-antes)>.5&&antes>0){sujar();
@@ -21246,7 +21339,7 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
       hist.push({chave:r.nfse_chave||'',numero:num,em:new Date().toISOString(),motivo:mt.motivo+' — '+mt.just+(mt.fora?' (cancelada fora do sistema)':'')});
       Object.assign(o,{[K.tipo]:'Previsto',[K.nf]:'',[K.em]:'',[K.rec]:'',[K.antecData]:'',[K.antec]:dinheiro(0),[K.inss]:'',[K.irpf]:'',[K.iss]:'',[K.simples]:'',[K.liq]:'',
         nfse_chave:'',nfse_auto:'',nfse_amb:'',nfse_serie:'',nfse_ndps:'',nfse_id_dps:'',nfse_substituida:'',deducao_materiais:'',csll_retida:'',iss_aliquota:'',daps:'',declaracao_em:'',nfse_canceladas:JSON.stringify(hist),
-        vencimento_original:'',antecipada:'',antec_previsto:'',antec_dias:'',antec_deducoes:'',antec_taxa:''});
+        vencimento_original:'',antecipada:'',antec_recebida:'',antec_depositado:'',antec_previsto:'',antec_dias:'',antec_deducoes:'',antec_taxa:''});
       await executar(async()=>{
         // anexos da nota (PDF, XML, DANFSe, DAPS, declaração e antecipação anexadas) e os documentos gerados dela
         if(r.fat_uid){const L=(await listarArq(ob,true)).filter(a=>a.aba==='nf'&&a.fat_uid===r.fat_uid);for(const a of L)await run('excluirAnexo',a.uid,a.rowid);
@@ -21795,7 +21888,7 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
       if(!arq){dados={data:isoDe(c.pedido),contratos:g('ct'),notas:g('nf'),valor:num(g('v')),taxa:g('tx')||TAXA_AF};if(!dados.contratos||!dados.notas||!(dados.valor>0))throw new Error('Preencha contrato, nota e valor.');
         if(!imprimirDoc('antecipacao',dados,`Antecipação de pagamento EMBASA - NF ${dados.notas}`))return false;}
       const uid=r.fat_uid||('nf'+Date.now().toString(36));
-      const o=refazLiq({...limpo(r),fat_uid:uid,[K.antecData]:isoDe(c.pedido),[K.rec]:isoDe(c.pag),[K.antec]:dinheiro(c.desc+c.ded),vencimento_original:isoDe(c.venc),antecipada:'sim',antec_previsto:isoDe(c.pag),antec_dias:String(c.n),antec_deducoes:c.ded?dinheiro(c.ded):'',antec_taxa:c.taxa},K);
+      const o=refazLiq({...limpo(r),fat_uid:uid,[K.antecData]:isoDe(c.pedido),[K.rec]:isoDe(c.pag),[K.antec]:dinheiro(c.desc+c.ded),vencimento_original:isoDe(c.venc),antecipada:'sim',antec_recebida:'',antec_depositado:'',antec_previsto:isoDe(c.pag),antec_dias:String(c.n),antec_deducoes:c.ded?dinheiro(c.ded):'',antec_taxa:c.taxa},K);
       await executar(async()=>{await tirarFormsAntecipacao(r,K);await salvar('Faturamentos',o,r.rowid);
         if(dados)await salvar('Planejamento',docRegistro('antecipacao',dados,{titulo_obra:ob,fat_uid:uid}),null);
         if(arq)await enviarArq(ob,{aba:'nf',fat_uid:uid,doc:'antecipacao',nf:r[K.nf]||''},arq);});
