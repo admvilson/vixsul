@@ -153,6 +153,7 @@ A.diagnostico = async () => {
   const r = { ok: true, configurado: true };
   try { await sb('usuarios?select=id&limit=1'); r.chave = true; } catch (e) { r.chave = false; }
   try { await sb('seguranca_eventos?select=id&limit=1'); r.passo1 = true; } catch (e) { r.passo1 = false; }
+  try { await sb('usuarios?select=mfa_segredo,mfa_reserva,mfa_ultimo&limit=1'); r.passo3 = true; } catch (e) { r.passo3 = false; }
   try {
     const agora = Math.floor(Date.now() / 1000);
     const tk = assinar({ iss: URL_SB + '/auth/v1', aud: 'authenticated', role: 'authenticated', sub: uuidDe('diagnostico'), iat: agora, exp: agora + 60, vx: 1,
