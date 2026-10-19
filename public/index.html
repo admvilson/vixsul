@@ -13391,7 +13391,7 @@ const Eng=(function(){
         </div>
         <div class="op-card"><h4>Garantia e reajuste</h4>
           ${linha('Garantia',fe(/^reten/i.test(c.garantia_tipo||'')?'Retenção na 1ª medição':(c.garantia_tipo||'—'))+(c.garantia_pct?` · ${fe(c.garantia_pct)}%${x.vigente?' ('+fmt(x.vigente*moeda(c.garantia_pct)/100)+')':''}`:''))}
-          ${linha('Validade da garantia',x.garVal?sem(x.sGar,brDe(x.garVal)):'—')}
+          ${x.exigeGar?linha('Validade da garantia',x.garVal?sem(x.sGar,brDe(x.garVal)):'—'):''}
           ${linha('Data-base do reajuste <small style="color:var(--text-3)">(envio da proposta)</small>',brDe(x.dataBase))}${linha('Índice de reajuste',fe(c.indice_reajuste||'—'))}
           ${linha('Reajuste disponível a partir de',x.reaj?sem(x.reajDisp?'amarelo':'verde',brDe(x.reaj)):'—')}
           ${linha('Aditivos de valor',x.ads.length?`${fmt(x.adV)} · ${pct(x.adPct)} <small style="color:var(--text-3)">(limite 25%)</small>`:'nenhum')}
@@ -17530,6 +17530,9 @@ const Mascara=(function(){
   const ORD_FASE={proposta:0,aguardando:1,ganha:2,execucao:3,entregue:4,perdida:-1};
   const faseK=st=>{const s=cn(st);return s.includes('perdida')?'perdida':s.includes('finalizada')?'entregue':s.includes('andamento')?'execucao':s.includes('ganha')?'ganha':s.includes('nao enviada')?'proposta':(s.includes('aguardando')||s.includes('enviada'))?'aguardando':'proposta';};
   const semGarantia=t=>!t||/^n[ãa]o exigida$/i.test(String(t).trim());
+  // campos que cada garantia pede: sem garantia (ou ainda não escolhida) nenhum; retenção só a % (não tem validade);
+  // seguro-garantia, caução e fiança: % e validade
+  const camposGar=t=>semGarantia(t)?{pct:false,val:false}:/^reten/i.test(String(t))?{pct:true,val:false}:{pct:true,val:true};
   // contrato: assinatura e fim da vigência; pedido: a data do pedido (que é a da ordem de serviço) — sem vigência obrigatória
   function pendenciasContrato(d,fk){
     const f=[],n=ORD_FASE[fk]||0,ped=d.instrumento==='Pedido';
@@ -17585,8 +17588,8 @@ const Mascara=(function(){
       ${fld('Valor assinado (R$)'+est(nF>=2),`<input data-k="valor_contrato" data-mask="moeda" inputmode="numeric" value="${valorAss?fmt(valorAss):''}" placeholder="R$ 0,00">`+(rm.base&&!val(c.valor_contrato)?'<div class="capx-dica">Preenchido com o total do orçamento da obra.</div>':''))}
       ${fld('Índice de reajuste',sel('indice_reajuste',INDICES,c.indice_reajuste))}
       ${fld('Garantia contratual'+est(nF>=2),sel('garantia_tipo',garantiasPara(c.contratante||'EMBASA'),garantiaNorm(c.garantia_tipo))+'<div class="capx-dica" data-dica-ret>"Retenção na 1ª medição" (só EMBASA): ao salvar, o sistema gera a solicitação de abatimento da garantia na primeira medição, já assinada.</div>')}
-      ${fld('Garantia (% do contrato)'+`<span class="obg" data-obg-gar style="${semGarantia(garantiaNorm(c.garantia_tipo))?'display:none':''}"> *</span>`,inp('garantia_pct',c.garantia_pct,' inputmode="decimal" placeholder="Ex.: 5"'))}
-      ${fld('Validade da garantia',dat('garantia_validade',c.garantia_validade)+'<div class="capx-dica">Ou cadastre a apólice em Documentos › Seguro-garantia.</div>')}
+      <div class="fin-fld" data-gar-pct ${camposGar(garantiaNorm(c.garantia_tipo)).pct?'':'hidden'}><label>Garantia (% do contrato) <span class="obg">*</span></label>${inp('garantia_pct',c.garantia_pct,' inputmode="decimal" placeholder="Ex.: 5"')}</div>
+      <div class="fin-fld" data-gar-val ${camposGar(garantiaNorm(c.garantia_tipo)).val?'':'hidden'}><label>Validade da garantia</label>${dat('garantia_validade',c.garantia_validade)}<div class="capx-dica">Ou cadastre a apólice em Documentos › Seguro-garantia.</div></div>
       <div class="hc-sec">Equipe</div>
       ${fld('Fiscal do contrato',inp('fiscal',c.fiscal,' list="vx-fiscais" autocomplete="off" placeholder="Escolha na lista ou digite um novo"')+'<datalist id="vx-fiscais">'+fiscaisCadastrados().map(x=>`<option value="${fe(x.nome)}">${fe(x.tel)}</option>`).join('')+'</datalist><div class="capx-dica">Fiscal novo entra no cadastro junto com o telefone.</div>')}
       ${fld('Telefone do fiscal',inp('fiscal_contato',c.fiscal_contato,' data-mask="tel" inputmode="tel" placeholder="(77) 99999-9999"'))}
@@ -17634,7 +17637,7 @@ const Mascara=(function(){
       const cid=GS.cidade?GS.cidade.normalizar(v('cidade_obra')):v('cidade_obra');o2[K(['cidade_obra'],'cidade_obra')]=cid;
       // contrato
       const temCt=!!c.rowid,ct={...c};delete ct.rowid;delete ct.visualId;delete ct._aba;
-      CT_CAMPOS.forEach(k=>ct[k]=v(k));ct.instrumento=ped?'Pedido':'Contrato';if(ped)ct.data_assinatura='';else ct.data_pedido='';if(!ct.cnpj_contratante&&dCt.cnpj)ct.cnpj_contratante=Mascara.F.cpfcnpj(dCt.cnpj);if(semGarantia(ct.garantia_tipo)&&ct.garantia_tipo)ct.garantia_pct='';ct.titulo_obra=ob;ct.objeto=v('objeto');ct.data_base=v('envio');ct.cidade_obra=cid;
+      CT_CAMPOS.forEach(k=>ct[k]=v(k));ct.instrumento=ped?'Pedido':'Contrato';if(ped)ct.data_assinatura='';else ct.data_pedido='';if(!ct.cnpj_contratante&&dCt.cnpj)ct.cnpj_contratante=Mascara.F.cpfcnpj(dCt.cnpj);{const cg=camposGar(ct.garantia_tipo);if(!cg.pct)ct.garantia_pct='';if(!cg.val)ct.garantia_validade='';}ct.titulo_obra=ob;ct.objeto=v('objeto');ct.data_base=v('envio');ct.cidade_obra=cid;
       ct.valor_contrato=ct.valor_contrato?dinheiro(Mascara.numero(ct.valor_contrato)||0):'';
       ct.garantia_pct=ct.garantia_pct?String(Mascara.numero(ct.garantia_pct)||'').replace('.',','):'';
       if(!temCt)ct.data_lancamento=todayDateTime();
@@ -17656,7 +17659,7 @@ const Mascara=(function(){
     try{
       if(GS.docs)GS.docs.datalistContratantes();
       const ctIn=j.querySelector('[data-k="contratante"]'),docIn=j.querySelector('[data-k="cnpj_contratante"]'),gSel=j.querySelector('[data-k="garantia_tipo"]'),dica=j.querySelector('[data-dica-ret]');
-      const ajustaGar=()=>{const at=gSel.value,ops=garantiasPara(ctIn.value);gSel.innerHTML='<option value="">—</option>'+ops.map(x=>`<option ${x===at?'selected':''}>${fe(x)}</option>`).join('');if(at&&!ops.includes(at)){gSel.value='';toast('"Retenção na 1ª medição" é só para a EMBASA — escolha outra garantia.','info');}if(dica)dica.hidden=!ops.includes(RET1);const sg=j.querySelector('[data-obg-gar]');if(sg)sg.style.display=semGarantia(gSel.value)?'none':'';};gSel.addEventListener('change',ajustaGar);
+      const ajustaGar=()=>{const at=gSel.value,ops=garantiasPara(ctIn.value);gSel.innerHTML='<option value="">—</option>'+ops.map(x=>`<option ${x===at?'selected':''}>${fe(x)}</option>`).join('');if(at&&!ops.includes(at)){gSel.value='';toast('"Retenção na 1ª medição" é só para a EMBASA — escolha outra garantia.','info');}if(dica)dica.hidden=!ops.includes(RET1);const cg=camposGar(gSel.value);j.querySelector('[data-gar-pct]').hidden=!cg.pct;j.querySelector('[data-gar-val]').hidden=!cg.val;};gSel.addEventListener('change',ajustaGar);
       ctIn.addEventListener('change',()=>{const x=GS.docs&&GS.docs.contratanteDe(ctIn.value);if(x&&x.doc){docIn.value=Mascara.F.cpfcnpj(x.doc);}ajustaGar();});
       ajustaGar();
     }catch(e){console.error(e);}
