@@ -3,9 +3,11 @@
    memória desta execução: nada é gravado aqui. Só aceita certificado do CNPJ da Vixsul.
    Ações: ping · info (confere o certificado) · convenio (o município está no Emissor Nacional?) ·
    emitir (monta, assina e envia a DPS; devolve o XML da NFS-e e o PDF do DANFSe) · recuperar (pela chave
-   ou pelo Id da DPS, se a resposta da emissão se perdeu) · teste-assinatura (só monta e assina, sem enviar). */
+   ou pelo Id da DPS, se a resposta da emissão se perdeu) · teste-assinatura (só monta e assina, sem enviar) ·
+   assinar-pdf (assina um PDF do sistema — orçamento — com o certificado). */
 const https = require('https'), zlib = require('zlib');
 const core = require('./_nfse_core');
+const { assinarPdf } = require('./_pdf_assina');
 const CNPJ_EMPRESA = '64518375000120';
 // origens aceitas, cabeçalhos e o "passe" de login: ver _auth.js
 const { ORIGENS, cors, exigirLogin } = require('./_auth');
@@ -59,6 +61,8 @@ module.exports = async (req, res) => {
     if (crt.cnpj !== CNPJ_EMPRESA) return responder(403, { ok: false, info, msg: `Este certificado é de outro CNPJ (${crt.cnpj || 'sem CNPJ'}): use o certificado A1 da Vixsul.` });
     if (new Date(crt.validoAte) < new Date()) return responder(400, { ok: false, info, msg: 'O certificado venceu em ' + crt.validoAte.slice(0, 10).split('-').reverse().join('/') + '.' });
     if (b.acao === 'info') return responder(200, { ok: true, info });
+    // assina um PDF do sistema (ex.: orçamento) com o certificado A1 da empresa
+    if (b.acao === 'assinar-pdf') return responder(200, { ok: true, info, pdf: assinarPdf(b.pdf, crt) });
     const amb = core.AMB[+b.ambiente === 1 ? 1 : 2];
     if (b.acao === 'convenio') {
       const cm = String(b.cMun || '').replace(/\D/g, '');

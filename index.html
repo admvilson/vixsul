@@ -651,7 +651,7 @@ tbody tr:hover td{background:rgba(0,113,227,.02);}
     html:not([data-authed="1"]) #app-shell{display:none;}
     #app-shell.hidden{display:none!important;}
   </style>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0/dist/umd/supabase.js" integrity="sha384-TcHRA3zBbn+Lexh5n+Oil4guNPOS3rjNDpGRAN46u/s/mB2IZ50ceC6TYDU2yvgK" crossorigin="anonymous"></script><script src="gas-shim.js?v=20261019b"></script><script src="https://accounts.google.com/gsi/client" async defer></script></head>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0/dist/umd/supabase.js" integrity="sha384-TcHRA3zBbn+Lexh5n+Oil4guNPOS3rjNDpGRAN46u/s/mB2IZ50ceC6TYDU2yvgK" crossorigin="anonymous"></script><script src="gas-shim.js?v=20261020a"></script><script src="https://accounts.google.com/gsi/client" async defer></script></head>
 <body>
 <div class="toast" id="toast"><span id="toast-icon"></span><span id="toast-msg">—</span></div>
 
@@ -6990,8 +6990,44 @@ const UI={
   },
   /* Exporta o orçamento em PDF no padrão da planilha EMBASA (cabeçalho da empresa +
      parâmetros + tabela ITEM/CÓDIGO/ESPECIFICAÇÃO/UNID/QUANT/P.UNIT/P.TOTAL + total). */
+  /* Exportar PDF do orçamento: sem assinatura (impressão → "Salvar como PDF") ou com a assinatura digital
+     do certificado A1 da Vixsul (o mesmo da NFS-e, guardado neste computador) — o PDF assinado já é baixado. */
   _orcExportPDF(){
     const titEl=document.getElementById('orc-titulo');
+    if(!(titEl&&titEl.value.trim())){toast('Informe o título do orçamento antes de exportar.','error');return;}
+    if(!this._orcColetar().length){toast('Adicione ao menos um item antes de exportar.','error');return;}
+    const C=GS.cert,tem=!!(C&&C.tem()),ci=tem?C.info():null,guardada=tem&&C.senhaGuardada();
+    const esc=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    const j=Fin.util.janela('Exportar o orçamento em PDF',`
+      <label class="nfc-amb"><input type="radio" name="orc-pdf-ass" value="sem" ${tem?'':'checked'}><span><b>Sem assinatura</b> — abre a impressão; escolha <b>Salvar como PDF</b>.</span></label>
+      <label class="nfc-amb" ${tem?'':'style="opacity:.55;cursor:default"'}><input type="radio" name="orc-pdf-ass" value="com" ${tem?'checked':'disabled'}><span><b>Com assinatura digital</b> — assinado com o certificado digital A1 ${ci&&ci.nome?'de <b>'+esc(ci.nome)+'</b>':'da Vixsul'}; o PDF já é baixado pronto.${tem?'':'<br><small>Nenhum certificado neste computador: coloque em <b>Documentos e certidões › Empresa › Nota fiscal (NFS-e)</b>.</small>'}</span></label>
+      <div class="fin-fld" data-orc-senha ${tem&&!guardada?'':'hidden'} style="margin-top:8px"><label>Senha do certificado</label><input type="password" data-k="senha" autocomplete="off" placeholder="digite a senha do certificado"></div>`,
+      [{html:'<i class="fas fa-file-pdf"></i> Gerar o PDF',cls:'pri',acao:async jj=>{
+        const com=(jj.querySelector('[name="orc-pdf-ass"]:checked')||{}).value==='com';
+        if(!com){UI._orcPdfImprimir();return;}
+        const err=jj.querySelector('[data-fin-erro]');
+        try{await C.orcamentoAssinado(UI._orcDadosPdf(),((jj.querySelector('[data-k="senha"]')||{}).value||'').trim(),t=>{if(err)err.textContent=t;});}
+        catch(e){const s=jj.querySelector('[data-orc-senha]');if(s&&/senha/i.test(String(e&&e.message)))s.hidden=false;throw e;}
+        toast('PDF assinado digitalmente e baixado.','success');}}],560);
+    if(j)j.onchange=()=>{const com=(j.querySelector('[name="orc-pdf-ass"]:checked')||{}).value==='com',s=j.querySelector('[data-orc-senha]');if(s)s.hidden=!(com&&!C.senhaGuardada());};
+  },
+  // os dados do orçamento na tela, para o PDF assinado (o mesmo conteúdo do PDF da impressão)
+  _orcDadosPdf(){
+    const E=this._ORC_EMPRESA,emb=this._embasa||{},gv=id=>{const e=document.getElementById(id);return e?e.value:'';};
+    const pct=v=>{v=String(v||'').trim();return v?(v.replace('%','')+'%'):'-';},n2=v=>(+v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+    const itens=this._orcColetar(),total=itens.reduce((s,it)=>s+(it.p_total||0),0);
+    return {titulo:(gv('orc-titulo')||'').trim(),
+      emp:{razao:gv('orc-razao')||E.razao,cnpj:gv('orc-cnpj')||E.cnpj,telefone:gv('orc-telefone')||E.telefone,email:gv('orc-email')||E.email},
+      par:[['Sind.:',gv('orc-sindicato')],['Enc.:',gv('orc-encargos')],['H:',pct(gv('orc-leis-h'))],['M:',pct(gv('orc-leis-m'))],['% ISS:',pct(gv('orc-iss'))],
+        ['Obra:',gv('orc-tipo')],['Ritmo:',gv('orc-ritmo')],['% BDI:',pct(gv('orc-bdi'))],['% Desc.:',pct(gv('orc-desconto'))]],
+      base:'Base de preços: '+(emb.tabela||'')+' - '+(emb.base||'')+' · EMBASA',
+      linhas:this._orcEstrutura().map(x=>x.t==='s'?{t:'s',mc:x.it.mc,codigo:x.it.codigo,descricao:x.it.descricao,unidade:x.it.unidade,quant:n2(x.it.quant),punit:fmt(x.it.p_unit),ptotal:fmt(x.it.p_total)}
+        :x.t==='g'?{t:'g',nivel:x.nivel,mc:x.mc,codigo:x.codigo,descricao:x.descricao}:{t:'st',mc:x.mc,soma:fmt(x.soma)}),
+      total:fmt(total)};
+  },
+  _orcPdfImprimir(){
+    const titEl=document.getElementById('orc-titulo');
+
     const titulo=(titEl?titEl.value:'').trim();
     if(!titulo){toast('Informe o título do orçamento antes de exportar.','error');return;}
     const itens=this._orcColetar();
@@ -20420,7 +20456,7 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
   const NOMES_TAB={obras:'Obras',custos:'Contas das obras',despesas:'Contas da empresa',faturamentos:'Faturamento',aportes:'Sócios e aportes',cap:'CAP',orcamentos:'Orçamentos',etapas:'Planejamento (etapas)',obra_imagens:'Fotos',medicoes:'Medições',diario_obra:'Diário de obra',documentos:'Documentos',fornecedores:'Fornecedores',contratos:'Contratos',acoes:'Tarefas',reunioes:'Reuniões',planejamento:'Cadastros e configurações',arquivos:'Arquivos'};
   const ACOES={INSERT:['Incluiu','ok'],UPDATE:['Alterou','info'],DELETE:['Excluiu','err']};
   const CAMPOS_RES=['titulo_obra','fornecedor','fornecedor_beneficiario','descricao','nome','n_nf','numero','titulo','o_que','quem_aportou','p_total','valor','faturamento_bruto','valor_aportado','data','data_medicao'];
-  const resumoReg=r=>{if(!r)return '';if(r._grande)return '(registro grande)';return CAMPOS_RES.filter(k=>r[k]!=null&&String(r[k]).trim()!=='').slice(0,4).map(k=>String(r[k]).slice(0,60)).join(' · ');};
+  const resumoReg=r=>{if(!r)return '';if(r._id)r={...r._id,...r};else if(r._grande)return '(registro grande)';return CAMPOS_RES.filter(k=>r[k]!=null&&String(r[k]).trim()!=='').slice(0,4).map(k=>String(r[k]).slice(0,60)).join(' · ');};
   const IGN=/^(criado_por|criado_por_id|_)/;
   const ROT={titulo_obra:'Obra',nome_obra:'Obra',fornecedor:'Fornecedor',fornecedor_beneficiario:'Fornecedor',descricao:'Descrição',especificacao:'Categoria',categoria:'Categoria',tipo:'Tipo',p_total:'Valor',valor:'Valor',p_unit:'Preço unitário',qtd:'Quantidade',fator:'Unidade',vencimento:'Vencimento',data_despesa:'Vencimento',data_pgto:'Pago em',data_pagamento:'Pago em',status_pagamento:'Situação',tipo_de_custo:'Previsto/Real',forma_pagamento:'Forma de pagamento',aprovacao:'Aprovação',aprovado_por:'Aprovado por',n_nf:'Nº da nota',faturamento_bruto:'Valor bruto',faturamento_liquido:'Valor líquido',data_recebimento:'Recebido em',quem_aportou:'Sócio',valor_aportado:'Valor',data_aporte:'Data',movimento:'Movimento',data:'Data',observacao:'Observação',numero:'Número',status:'Situação',nome:'Nome',data_lancamento:'Lançado em',responsavel:'Responsável',o_que:'O quê',atividades:'Serviços executados'};
   const rotK=k=>ROT[k]||String(k).replace(/_/g,' ');
@@ -20449,7 +20485,7 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
     if(F.busca){const q=F.busca.toLowerCase();L=L.filter(x=>[x.quem_nome,NOMES_TAB[x.tabela],resumoReg(x.depois||x.antes)].join(' ').toLowerCase().includes(q));}
     const sel=(k,ops,v)=>`<select data-aud-f="${k}">${ops.map(([a,b])=>`<option value="${fe(a)}" ${String(v)===String(a)?'selected':''}>${fe(b)}</option>`).join('')}</select>`;
     return `<div class="seg-card seg-aud"><h4><i class="fas fa-clipboard-list"></i> Auditoria — quem mexeu em quê</h4>
-      <p class="seg-dica">Toda inclusão, alteração e exclusão fica registrada. Clique numa linha para ver o antes e o depois — e, se precisar, <b>desfazer</b>.</p>
+      <p class="seg-dica">Toda inclusão, alteração e exclusão fica registrada. Clique numa linha para ver o antes e o depois — e, se precisar, <b>desfazer</b>. Fica guardada por <b>90 dias</b> (a cópia diária guarda os dados).</p>
       <div class="seg-filtros">${sel('dias',[['1','Hoje e ontem'],['7','Últimos 7 dias'],['30','Últimos 30 dias'],['90','Últimos 90 dias'],['365','Último ano']],F.dias)}
         ${sel('tabela',[['','Todas as telas']].concat(Object.entries(NOMES_TAB)),F.tabela)}
         ${sel('acao',[['','Todas as ações'],['INSERT','Inclusões'],['UPDATE','Alterações'],['DELETE','Exclusões']],F.acao)}
@@ -20477,7 +20513,9 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
       box.addEventListener('change',ev=>{const s=ev.target.closest('select[data-aud-f]');if(!s)return;SEG.audF[s.dataset.audF]=s.value;if(s.dataset.audF==='dias'||s.dataset.audF==='tabela'||s.dataset.audF==='acao')carregarAud();else pintarSeg();});
       box.addEventListener('input',ev=>{const i=ev.target.closest('[data-aud-f="busca"]');if(!i)return;SEG.audF.busca=i.value;clearTimeout(SEG._t);SEG._t=setTimeout(pintarSeg,300);});}
   }
-  function verAud(id){const x=(SEG.aud||[]).find(y=>y.id===id);if(!x)return;const a=ACOES[x.acao]||[x.acao,''];
+  function verAud(id){let x=(SEG.aud||[]).find(y=>y.id===id);if(!x)return;const a=ACOES[x.acao]||[x.acao,''];
+    // auditoria enxuta: "_sem" = campos que não existiam daquele lado; "_id" = só identifica o registro
+    if(x.parcial){const tira=o=>{if(!o)return o;const {_sem,_id,...r}=o;(_sem||[]).forEach(k=>{r[k]='(não existia)';});return r;};x={...x,antes:tira(x.antes),depois:tira(x.depois)};}
     const ks=x.acao==='UPDATE'?mudou(x.antes,x.depois):Object.keys(x.depois||x.antes||{}).filter(k=>!IGN.test(k));
     const v=val=>{const t=val==null?'':typeof val==='object'?JSON.stringify(val):String(val);return t.length>160?fe(t.slice(0,160))+'…':fe(t)||'<i>(vazio)</i>';};
     const pode=(x.acao==='DELETE'||x.acao==='UPDATE')&&x.antes&&!x.antes._grande&&x.tabela!=='arquivos';
@@ -21244,7 +21282,102 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
     await carregarJs('https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js',()=>window.qrcode);
     return window.jspdf.jsPDF;
   }
+  /* ───── PDF ASSINADO com o certificado A1 (orçamento) ─────
+     O PDF é montado aqui (jsPDF + tabela), ganha o campo de assinatura (pdf-lib) e vai ao serviço da nota fiscal
+     (Vercel), que assina com o MESMO certificado da NFS-e (guardado neste navegador) e devolve o arquivo pronto. */
+  const URL_AT='https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js',URL_PL='https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js';
+  const SRI={[URL_AT]:'sha384-fCAW/rDWORTbQXSiB7mOg0QtQ5c+r0f544y6XoKjuVva0nMBlCpNUjiFeG5iMdS3',[URL_PL]:'sha384-weMABwrltA6jWR8DDe9Jp5blk+tZQh7ugpCsF3JwSA53WZM9/14PjS5LAJNHNjAI'};
+  const carregarSri=(url,pronto)=>LIBS[url]||(LIBS[url]=new Promise((ok,er)=>{if(pronto())return ok();const s=document.createElement('script');s.src=url;s.integrity=SRI[url];s.crossOrigin='anonymous';
+    s.onload=()=>ok();s.onerror=()=>{delete LIBS[url];er(new Error('Não consegui carregar um componente do sistema (PDF) — confira a internet.'));};document.head.appendChild(s);}));
+  async function libsAssinar(){
+    const jsPDF=await libsPdf();
+    await carregarSri(URL_AT,()=>!!(jsPDF.API&&jsPDF.API.autoTable));
+    await carregarSri(URL_PL,()=>!!window.PDFLib);
+    return jsPDF;
+  }
+  const SIG_HEX=24576;   // espaço da assinatura: 12 KB (certificado + cadeia ICP-Brasil cabem com folga)
+  async function prepararAssinatura(bytes,o){
+    const {PDFDocument,PDFName,PDFNumber,PDFHexString,PDFString,PDFArray}=window.PDFLib;
+    const pdf=await PDFDocument.load(bytes),ctx=pdf.context,pags=pdf.getPages(),pg=pags[pags.length-1];
+    const faixa=PDFArray.withContext(ctx);faixa.push(PDFNumber.of(0));for(let i=0;i<3;i++)faixa.push(PDFName.of('**********'));
+    const sig=ctx.register(ctx.obj({Type:'Sig',Filter:'Adobe.PPKLite',SubFilter:'adbe.pkcs7.detached',ByteRange:faixa,Contents:PDFHexString.of('0'.repeat(SIG_HEX)),
+      Reason:PDFHexString.fromText(o.motivo||'Documento assinado'),Name:PDFHexString.fromText(o.nome||''),Location:PDFHexString.fromText(o.local||''),M:PDFString.fromDate(new Date())}));
+    const wid=ctx.register(ctx.obj({Type:'Annot',Subtype:'Widget',FT:'Sig',Rect:[0,0,0,0],V:sig,T:PDFHexString.fromText('Assinatura Vixsul'),F:132,P:pg.ref}));
+    const an=pg.node.lookup(PDFName.of('Annots'));if(an instanceof PDFArray)an.push(wid);else pg.node.set(PDFName.of('Annots'),ctx.obj([wid]));
+    pdf.catalog.set(PDFName.of('AcroForm'),ctx.obj({SigFlags:3,Fields:[wid]}));
+    return await pdf.save({useObjectStreams:false});
+  }
+  const b64DeBytes=u=>{let s='';for(let i=0;i<u.length;i+=0x8000)s+=String.fromCharCode.apply(null,u.subarray(i,i+0x8000));return btoa(s);};
+  const horaBR=d=>d.toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}).replace(',','');
+  // d = {titulo, emp:{razao,cnpj,telefone,email}, par:[[rótulo,valor]…], base, linhas:[{t:'s'|'g'|'st',…}], total}
+  function desenharOrcamento(jsPDF,d,as){
+    const doc=new jsPDF({orientation:'landscape',unit:'mm',format:'a4',compress:true});
+    const W=297,H=210,M=14,CW=W-2*M,ESC=[29,29,31],CINZA=[110,110,115];
+    const T=s=>String(s==null?'':s).replace(/[—–]/g,'-').replace(/[“”]/g,'"').replace(/[‘’]/g,"'").replace(/•/g,'-').replace(/[^\x09\x0A\x0D\x20-\xFF]/g,'');
+    const f=(tam,neg,cor)=>{doc.setFont('helvetica',neg?'bold':'normal');doc.setFontSize(tam);doc.setTextColor(...(cor||ESC));};
+    try{doc.addImage(PDF_LOGO_FULL_B64,'PNG',M,11,41.6,17);}catch(e){}
+    f(15,true);doc.text('ORÇAMENTO',W-M,19,{align:'right'});
+    f(9,true,CINZA);doc.text(T(d.titulo),W-M,25,{align:'right'});
+    doc.setDrawColor(...ESC);doc.setLineWidth(.6);doc.line(M,31,W-M,31);
+    const caixa=(x,w,tit,campos,cols)=>{const y=34,hT=5,h=hT+3+Math.ceil(campos.length/cols)*4.6;
+      doc.setDrawColor(153,153,153);doc.setLineWidth(.25);doc.setFillColor(233,233,236);doc.rect(x,y,w,hT,'F');doc.rect(x,y,w,h,'S');doc.line(x,y+hT,x+w,y+hT);
+      f(6.8,true);doc.text(tit,x+2.5,y+3.4);
+      const cw=(w-5)/cols;campos.forEach(([k,v],i)=>{const cx=x+2.5+(i%cols)*cw,cy=y+hT+4.2+Math.floor(i/cols)*4.6;f(7,true);doc.text(T(k),cx,cy);const kw=doc.getTextWidth(T(k))+1.2;
+        f(7,false);let t=T(v)||'-';while(t.length>1&&doc.getTextWidth(t)>cw-kw-1)t=t.slice(0,-1);doc.text(t,cx+kw,cy);});
+      return y+h;};
+    const wB=(CW-6)/2;
+    const y1=caixa(M,wB,'DADOS DA EMPRESA',[['Razão Social:',d.emp.razao],['CNPJ:',d.emp.cnpj],['Telefone:',d.emp.telefone],['E-mail:',d.emp.email]],2);
+    const y2=caixa(M+wB+6,wB,'PARÂMETROS',d.par,5);
+    let y=Math.max(y1,y2)+4;
+    f(6.5,false,CINZA);doc.text(T(d.base),W-M,y,{align:'right'});y+=2.5;
+    const corG=n=>+n===1?[191,191,196]:[233,233,236],cel=(content,st)=>({content,styles:st});
+    const body=d.linhas.map(x=>x.t==='s'?[T(x.mc)||'-',T(x.codigo)||'-',T(x.descricao),T(x.unidade),x.quant,x.punit,x.ptotal]
+      :x.t==='g'?[cel(T(x.mc),{fillColor:corG(x.nivel),fontStyle:'bold'}),cel(T(x.codigo),{fillColor:corG(x.nivel),fontStyle:'bold'}),{content:T(String(x.descricao||'').toUpperCase()),colSpan:5,styles:{fillColor:corG(x.nivel),fontStyle:'bold'}}]
+      :[{content:'SUB-TOTAL ITEM '+T(x.mc),colSpan:6,styles:{halign:'right',fillColor:[217,217,222],fontStyle:'bold'}},cel(x.soma,{halign:'right',fillColor:[217,217,222],fontStyle:'bold'})]);
+    doc.autoTable({startY:y,margin:{left:M,right:M,top:M,bottom:20},head:[['ITEM','CÓDIGO','ESPECIFICAÇÃO','UNID.','QUANT.','P.UNIT.','P. TOTAL']],body,theme:'grid',showHead:'everyPage',
+      styles:{font:'helvetica',fontSize:7.6,cellPadding:1.3,lineColor:[187,187,187],lineWidth:.2,textColor:ESC,valign:'top',overflow:'linebreak'},
+      headStyles:{fillColor:[233,233,236],textColor:ESC,fontStyle:'bold',halign:'center'},
+      columnStyles:{0:{cellWidth:20,halign:'center'},1:{cellWidth:17,halign:'center'},3:{cellWidth:15,halign:'center'},4:{cellWidth:17,halign:'right'},5:{cellWidth:25,halign:'right'},6:{cellWidth:27,halign:'right'}}});
+    y=doc.lastAutoTable.finalY+4;
+    const cabe=h=>{if(y+h>H-20){doc.addPage();y=M;}};
+    cabe(10);doc.setFillColor(233,233,236);doc.setDrawColor(187,187,187);doc.setLineWidth(.2);doc.rect(M,y,CW,8,'FD');
+    f(9.5,true);doc.text('TOTAL DA OBRA - R$',W-M-46,y+5.4,{align:'right'});doc.text(T(d.total),W-M-3,y+5.4,{align:'right'});y+=13;
+    // selo visível da assinatura (a assinatura de verdade fica no arquivo: o Adobe Reader mostra no painel Assinaturas)
+    cabe(25);const sw=120;doc.setDrawColor(22,82,216);doc.setLineWidth(.5);doc.setFillColor(238,244,255);doc.roundedRect(M,y,sw,23,1.5,1.5,'FD');
+    f(8,true,[22,82,216]);doc.text('DOCUMENTO ASSINADO DIGITALMENTE',M+4,y+5.5);
+    f(7.6,true);doc.text(T(as.nome),M+4,y+10);
+    f(7,false);doc.text(T((as.cnpj?'CNPJ '+fmtDoc(as.cnpj)+' - ':'')+'certificado digital ICP-Brasil (A1)'),M+4,y+14);
+    doc.text(T('Data: '+horaBR(as.quando)+' (horário de Brasília)'),M+4,y+17.6);
+    f(6.3,false,CINZA);doc.text('Confira a assinatura no Adobe Reader (painel Assinaturas) ou em validar.iti.gov.br',M+4,y+21);
+    const n=doc.getNumberOfPages(),dh=horaBR(as.quando);
+    for(let i=1;i<=n;i++){doc.setPage(i);doc.setDrawColor(229,229,234);doc.setLineWidth(.2);doc.line(M,H-11,W-M,H-11);f(6.5,false,CINZA);
+      doc.text(dh,M,H-7.5);doc.text('Vixsul Empreendimentos - CNPJ 64.518.375/0001-20',W/2,H-7.5,{align:'center'});doc.text(`Página ${i} de ${n}`,W-M,H-7.5,{align:'right'});}
+    return doc;
+  }
+  async function orcamentoAssinado(d,senha,aviso){
+    aviso=aviso||(()=>{});
+    const cred=credenciais(senha);
+    let c=certLocal()||{};
+    if(!c.nome||!c.validoAte){aviso('Conferindo o certificado…');const r=await nfseApi({acao:'info',...cred});
+      if(!r||!r.ok){if(/senha/i.test((r&&r.msg)||''))esquecerSenha();throw new Error((r&&r.msg)||'Não consegui abrir o certificado.');}
+      guardarCert({...c,nome:r.info.nome,cnpj:r.info.cnpj,validoAte:r.info.validoAte});c=certLocal()||c;}
+    if(c.validoAte&&new Date(c.validoAte)<new Date())throw new Error('O certificado digital venceu em '+brDe(new Date(c.validoAte))+'.');
+    aviso('Montando o PDF…');
+    const jsPDF=await libsAssinar(),quando=new Date();
+    const doc=desenharOrcamento(jsPDF,d,{nome:c.nome||d.emp.razao||'',cnpj:c.cnpj||'',quando});
+    const pre=await prepararAssinatura(doc.output('arraybuffer'),{nome:c.nome||'',motivo:'Orçamento '+d.titulo,local:'Bahia, Brasil'});
+    aviso('Assinando com o certificado digital…');
+    const r=await nfseApi({acao:'assinar-pdf',pdf:b64DeBytes(pre),...cred});
+    if(!r||!r.ok){if(/senha/i.test((r&&r.msg)||''))esquecerSenha();throw new Error((r&&r.msg)||'Não foi possível assinar o PDF.');}
+    memorizar(cred.senha);
+    const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([bytesB64(r.pdf)],{type:'application/pdf'}));
+    a.download=('Orçamento - '+d.titulo+' - assinado').replace(/[\\/:*?"<>|]+/g,'-').slice(0,150)+'.pdf';
+    document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},2000);
+    return true;
+  }
+  GS.cert={tem:()=>{const c=certLocal();return !!(c&&c.b64);},info:certLocal,senhaGuardada:()=>!!senhaMem(),orcamentoAssinado,_desenhar:desenharOrcamento,_preparar:prepararAssinatura,_libs:libsAssinar};
   const URL_CONSULTA=ch=>'https://www.nfse.gov.br/ConsultaPublica/?tpc=1&chave='+ch;
+
   const fmtDoc=s=>{s=String(s||'').replace(/\D/g,'');return s.length===14?s.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/,'$1.$2.$3/$4-$5'):s.length===11?s.replace(/^(\d{3})(\d{3})(\d{3})(\d{2})$/,'$1.$2.$3-$4'):s;};
   const fmtCod=c=>{c=String(c||'');return c.length===6?`${c.slice(0,2)}.${c.slice(2,4)}.${c.slice(4)}`:c;};
   const dataHora=s=>{const m=String(s||'').match(/^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2}))?/);return m?`${m[3]}/${m[2]}/${m[1]}${m[4]?` ${m[4]}:${m[5]}`:''}`:'';};

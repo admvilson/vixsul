@@ -48,7 +48,7 @@
     const cnpj = (cn.match(/:(\d{14})\s*$/) || [])[1] || '';
     const der = c => forge.asn1.toDer(forge.pki.certificateToAsn1(c)).getBytes();
     return {
-      key, cert,
+      key, cert, cadeia,
       keyPem: forge.pki.privateKeyToPem(key),
       certPem: [cert].concat(cadeia).map(c => forge.pki.certificateToPem(c)).join('\n'),
       certB64: forge.util.encode64(der(cert)),

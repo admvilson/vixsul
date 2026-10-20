@@ -358,7 +358,7 @@ const _TAB_DADOS = () => _CHAVES.concat(['arquivos']);
 // auditoria: o banco só entrega ao Administrador
 async function _listarAuditoria(f) {
   f = f || {};
-  let q = _sb.from('auditoria').select('id,quando,quem,quem_nome,tabela,acao,registro,antes,depois').order('quando', { ascending: false }).limit(Math.min(+f.limite || 400, 2000));
+  let q = _sb.from('auditoria').select('*').order('quando', { ascending: false }).limit(Math.min(+f.limite || 400, 2000));
   if (f.de) q = q.gte('quando', f.de); if (f.ate) q = q.lte('quando', f.ate);
   if (f.tabela) q = q.eq('tabela', f.tabela); if (f.acao) q = q.eq('acao', f.acao); if (f.quem) q = q.eq('quem_nome', f.quem);
   const { data, error } = await q;
@@ -373,7 +373,18 @@ async function _restaurarAuditoria(id) {
   if (!_TAB_DADOS().includes(a.tabela)) return { ok: false, msg: 'Esta tabela não pode ser restaurada por aqui.' };
   let e;
   if (a.acao === 'DELETE') ({ error: e } = await _sb.from(a.tabela).insert({ row_data: a.antes }));
-  else if (a.acao === 'UPDATE') ({ error: e } = await _sb.from(a.tabela).update({ row_data: a.antes }).eq('id', Number(a.registro)));
+  else if (a.acao === 'UPDATE') {
+    let rd = a.antes;
+    // auditoria enxuta (passo 4): só ficaram os campos que mudaram — volta só eles, no registro como está hoje
+    if (a.parcial) {
+      const { data: cur, error: e1 } = await _sb.from(a.tabela).select('row_data').eq('id', Number(a.registro)).maybeSingle();
+      if (e1 || !cur) return { ok: false, msg: 'O registro não existe mais — desfaça antes a exclusão dele.' };
+      const { _sem, _id, ...velhos } = a.antes;
+      rd = { ...(cur.row_data || {}), ...velhos };
+      (_sem || []).forEach(k => { delete rd[k]; });
+    }
+    ({ error: e } = await _sb.from(a.tabela).update({ row_data: rd }).eq('id', Number(a.registro)));
+  }
   else return { ok: false, msg: 'Só dá para desfazer alterações e exclusões.' };
   if (e) return { ok: false, msg: e.message };
   return { ok: true };
