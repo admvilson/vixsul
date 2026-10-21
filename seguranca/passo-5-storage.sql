@@ -7,8 +7,8 @@
 --    guardados lá — o banco fica só com o cabeçalho (nome, tipo, quem enviou).
 --  • Pasta PRIVADA: só quem entrou no sistema (com o passe do login) lê e grava; os nomes dos
 --    arquivos são sorteados e só aparecem para quem tem acesso à obra.
---  • Cria o medidor de espaço que aparece em Usuários › Segurança (só o Administrador vê).
---  Depois de rodar: Usuários › Segurança › "Mover para o Storage" leva os arquivos que já existem.
+--  • Cria o medidor de espaço que aparece em Configurações › Segurança (só o Administrador vê).
+--  Depois de rodar: Configurações › Segurança › "Mover para o Storage" leva os arquivos que já existem.
 -- ═══════════════════════════════════════════════════════════════════════════════
 
 -- pasta privada "anexos", até 20 MB por arquivo

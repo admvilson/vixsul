@@ -829,6 +829,7 @@ tbody tr:hover td{background:rgba(0,113,227,.02);}
             <div class="vx-painel-itens">
               <button type="button" class="vx-item vx-alvo" id="nav-fornecedores" onclick="UI.nav('fornecedores')"><span class="vx-item-ico"><i class="fas fa-truck"></i></span><span class="vx-item-txt"><b>Fornecedores</b><small>Cadastro e quanto foi comprado de cada um</small></span></button>
               <button type="button" class="vx-item vx-alvo" id="nav-usuarios" style="display:none" onclick="UI.nav('usuarios')"><span class="vx-item-ico"><i class="fas fa-user-gear"></i></span><span class="vx-item-txt"><b>Usuários e permissões</b><small>Cadastro, senhas e o que cada pessoa vê</small></span></button>
+              <button type="button" class="vx-item vx-alvo" id="nav-seguranca" style="display:none" onclick="UI.nav('seguranca')"><span class="vx-item-ico"><i class="fas fa-shield-halved"></i></span><span class="vx-item-txt"><b>Segurança</b><small>Duas etapas, cópia dos dados, espaço e auditoria</small></span></button>
               <button type="button" class="vx-item vx-alvo" id="nav-lixeira" style="display:none" onclick="UI.nav('lixeira')"><span class="vx-item-ico"><i class="fas fa-trash-can"></i></span><span class="vx-item-txt"><b>Lixeira</b><small>Obras excluídas — dá para restaurar em até 15 dias</small></span><span id="nav-lixeira-badge" class="vx-badge" style="display:none">0</span></button>
             </div>
           </div>
@@ -1284,6 +1285,10 @@ tbody tr:hover td{background:rgba(0,113,227,.02);}
           </div>
         </div>
       </div>
+    </div>
+    <!-- SEGURANÇA (só o Administrador): duas etapas, cópia dos dados, espaço do banco e auditoria -->
+    <div class="view" id="view-seguranca">
+      <div class="cards-scroll"><div id="seg-painel"></div></div>
     </div>
     <div class="view" id="view-usuarios">
       <div class="view-toolbar">
@@ -4067,11 +4072,12 @@ const UI={
     const nEl=document.getElementById('nav-'+v);if(nEl)nEl.classList.add('active');
     this._navMarcar();
     this._navFecharPaineis();
-    const titles={inicio:'Início',faturamento:'Faturamento e recebimentos',reunioes:'Reuniões',socios:'Sócios e investimentos',orcamento:'Orçamento da empresa',projecao:'Fluxo de caixa projetado',dashboard:'Painel de indicadores',obras:'Contratos',custos:'Custos',faturamentos:'Faturamentos',aportes:'Aportes',cap:'CAP',orcamentos:'Orçamentos',usuarios:'Usuários e permissões',despesas:'Despesas da empresa',relatorios:'Relatórios',lixeira:'Lixeira',contas:'Contas a pagar',metas:'Metas e orçamento',conciliacao:'Conciliação bancária',medicoes:'Medições',diario:'Diário de obra',documentos:'Documentos e certidões',fornecedores:'Fornecedores',contratos:'Contratos',planejamento:'Planejamento e cronograma',acoes:'Tarefas e plano de ação',viabilidade:'Viabilidade do contrato'};
+    const titles={seguranca:'Segurança',inicio:'Início',faturamento:'Faturamento e recebimentos',reunioes:'Reuniões',socios:'Sócios e investimentos',orcamento:'Orçamento da empresa',projecao:'Fluxo de caixa projetado',dashboard:'Painel de indicadores',obras:'Contratos',custos:'Custos',faturamentos:'Faturamentos',aportes:'Aportes',cap:'CAP',orcamentos:'Orçamentos',usuarios:'Usuários e permissões',despesas:'Despesas da empresa',relatorios:'Relatórios',lixeira:'Lixeira',contas:'Contas a pagar',metas:'Metas e orçamento',conciliacao:'Conciliação bancária',medicoes:'Medições',diario:'Diário de obra',documentos:'Documentos e certidões',fornecedores:'Fornecedores',contratos:'Contratos',planejamento:'Planejamento e cronograma',acoes:'Tarefas e plano de ação',viabilidade:'Viabilidade do contrato'};
     const ttl=document.getElementById('view-title');if(ttl)ttl.textContent=titles[v]||v;
     document.title=titles[v]||v; // título da aba do navegador acompanha a seção clicada
     if(v==='dashboard'&&App.state.data)App.renderDashboard();
     if(v==='usuarios')this.carregarUsuarios();
+    if(v==='seguranca'&&this._abrirSeguranca)this._abrirSeguranca();
     if(v==='relatorios')App._relatorioObraOpcoes(); // funções de relatório vivem no App (junto do render), não no UI
     if(v==='lixeira')App._renderLixeira();
     if(v==='contas')App._renderContas();
@@ -10292,6 +10298,8 @@ const Auth={
     if(navU)navU.style.display=isAdmin?'':'none';
     if(navLbl)navLbl.style.display=isAdmin?'':'none';
     if(isAdmin)allowed.push('usuarios');
+    const navS=document.getElementById('nav-seguranca');if(navS)navS.style.display=isAdmin?'':'none';
+    if(isAdmin)allowed.push('seguranca');
     const navL=document.getElementById('nav-lixeira');
     if(navL)navL.style.display=isAdmin?'':'none';
     if(isAdmin){ allowed.push('lixeira'); App._lixeiraAtualizarBadge(); }
@@ -20507,7 +20515,7 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
     try{const s=Auth._session;if(!s||!UI._ehAdmin||!UI._ehAdmin(s.perfil))return;const hoje=new Date().toISOString().slice(0,10);
       if(localStorage.getItem('vx_esp_aviso')===hoje)return;const e=await run2('espacoUsado');if(!e||!e.ok)return;localStorage.setItem('vx_esp_aviso',hoje);
       const pb=(+e.banco||0)/LIM_BANCO,ps=(+e.storage||0)/LIM_ST;
-      if(pb>=AVISO||ps>=AVISO)toast(`Atenção ao espaço: ${pb>=AVISO?`o banco está com ${Math.round(pb*100)}% (${MB(e.banco)} de 500 MB)`:''}${pb>=AVISO&&ps>=AVISO?' e ':''}${ps>=AVISO?`os arquivos com ${Math.round(ps*100)}% (${MB(e.storage)} de 1 GB)`:''}. Veja em Usuários › Segurança.`,'error',false);
+      if(pb>=AVISO||ps>=AVISO)toast(`Atenção ao espaço: ${pb>=AVISO?`o banco está com ${Math.round(pb*100)}% (${MB(e.banco)} de 500 MB)`:''}${pb>=AVISO&&ps>=AVISO?' e ':''}${ps>=AVISO?`os arquivos com ${Math.round(ps*100)}% (${MB(e.storage)} de 1 GB)`:''}. Veja em Configurações › Segurança.`,'error',false);
     }catch(e){}}
   {const tAv=setInterval(()=>{if(!(Auth._session&&App.state&&App.state.data))return;clearInterval(tAv);setTimeout(avisoEspaco,4000);},5000);}
   function cartaoCopia(){let ult='';try{ult=localStorage.getItem('vx_ultima_copia')||'';}catch(e){}
@@ -20599,6 +20607,8 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
       try{localStorage.setItem('vx_ultima_copia',d.toISOString());}catch(e){}
       const n=Object.values(out.tabelas).reduce((s,l)=>s+l.length,0);toast(`Cópia baixada: ${n} registros (${(blob.size/1048576).toFixed(1)} MB).`,'success');pintarSeg();}
     catch(e){toast('A cópia não foi concluída: '+((e&&e.message)||e),'error');}finally{UI._hideBusy();}}
+  // tela Segurança (Configurações › Segurança): carrega a lista de usuários se ainda não veio e desenha o painel
+  UI._abrirSeguranca=function(){if(!ehAdm())return;if(!UI._usuarios)UI.carregarUsuarios();pintarSeg();};
   UI.renderUsuarios=function(){
     const grid=document.getElementById('grid-usuarios');if(!grid)return;
     grid.className='usr-pag';
@@ -20612,9 +20622,9 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
         <button type="button" class="fin-bt mini usr-nome-bt" data-usr-nome>${semNome?'<i class="fas fa-eye"></i> Mostrar a coluna Nome':'<i class="fas fa-eye-slash"></i> Ocultar a coluna Nome'}</button></div>
       <div class="usr-tab-wrap"><table class="usr-tab${semNome?' sem-nome':''}"><thead><tr><th>Nome</th><th>CPF</th><th>E-mail</th><th>Perfil</th><th>Tipo</th><th>Situação</th><th></th></tr></thead>
       <tbody>${lista.length?lista.map(linhaUsuario).join(''):'<tr><td colspan="7" class="usr-vazio">Nenhum usuário encontrado.</td></tr>'}</tbody></table></div></div>
-      ${ehAdm()?'<div id="seg-painel"></div>':''}
       ${ehAdm()?painelPermissoes():''}`;
-    if(ehAdm())pintarSeg();
+    // a lista de usuários também serve à Segurança (quem tem as duas etapas ligadas): se ela estiver aberta, redesenha
+    if(ehAdm()&&document.getElementById('view-seguranca')?.classList.contains('active'))pintarSeg();
     grid.onclick=ev=>{
       if(ev.target.closest('[data-seg],[data-aud]'))return;   // o painel de segurança cuida dos próprios cliques
       if(ev.target.closest('[data-usr-nome]')){try{localStorage.setItem('vx_usr_sem_nome',semNome?'0':'1');}catch(e){}return UI.renderUsuarios();}
