@@ -217,22 +217,139 @@ async function _upsertRegistroLote(abaNome, dados, rowId) {
   const { rowid, visualId, _aba, ...rowData } = dados;
   let error;
   if (rowId && Number(rowId) > 0) {
+    // desenho já no Storage: a tela devolve o conteúdo remontado — não grava de novo no banco
+    if (chave === 'arquivos' && rowData.conteudo_st && /^data:/.test(rowData.conteudo || '')) rowData.conteudo = '';
     ({ error } = await _sb.from(chave).update({ row_data: await _manterDono(chave, rowId, rowData) }).eq('id', Number(rowId)));
   } else {
+    // conteúdo pesado (parte de anexo, desenho do projeto) vai para o Storage; o banco fica só com o cabeçalho
+    if (chave === 'arquivos' && (await _arquivoParaStorage(rowData)) === 'ok') return { ok: true };
     ({ error } = await _sb.from(chave).insert({ row_data: chave === 'arquivos' && rowData.tipo === 'anexo_parte' ? rowData : _carimbar(rowData) }));
   }
   if (error) return { ok: false, msg: error.message };
   return { ok: true };
 }
 
+// ─── Storage do Supabase: o conteúdo pesado dos arquivos fica FORA do banco (passo 5 do SQL) ───
+// Partes dos anexos (documentos, notas, fotos do diário) → anexos/p/<anexo_uid>/<ordem> (binário);
+// desenhos do projeto → anexos/d/<nome>. A linha da tabela "arquivos" guarda só o cabeçalho.
+// Sem o Storage pronto, tudo continua no banco como antes; o que já está no banco continua sendo lido.
+const _BUCKET = 'anexos';
+let _stOk = null;
+const _B64 = /^[A-Za-z0-9+/]*={0,2}$/;
+const _stSeguro = s => String(s || '').replace(/[^A-Za-z0-9_-]/g, '_').slice(0, 120);
+const _stParte = (uid, ordem) => `p/${_stSeguro(uid)}/${String(+ordem || 0).padStart(4, '0')}`;
+function _b64ParaBytes(b64) { const s = atob(String(b64 || '')), u = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i); return u; }
+function _bytesParaB64(u) { let s = ''; for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000)); return btoa(s); }
+async function _storagePronto() {
+  if (_stOk !== null) return _stOk;
+  if (_segLigada() && !_tokenAtual()) return false;
+  try { const { error } = await _sb.storage.from(_BUCKET).list('', { limit: 1 }); _stOk = !error; } catch (e) { _stOk = false; }
+  return _stOk;
+}
+async function _stEnviar(caminho, bytes, tipo) {
+  try {
+    const t = tipo || 'application/octet-stream';
+    const { error } = await _sb.storage.from(_BUCKET).upload(caminho, new Blob([bytes], { type: t }), { upsert: true, contentType: t });
+    return !error;
+  } catch (e) { return false; }
+}
+async function _stBaixar(caminho) {
+  const { data, error } = await _sb.storage.from(_BUCKET).download(caminho);
+  if (error || !data) throw new Error('Não consegui ler o arquivo guardado (' + ((error && error.message) || 'sem conteúdo') + ').');
+  return new Uint8Array(await data.arrayBuffer());
+}
+async function _stListar(pasta) {
+  const L = [];
+  for (let off = 0; ; off += 1000) {
+    const { data, error } = await _sb.storage.from(_BUCKET).list(pasta, { limit: 1000, offset: off, sortBy: { column: 'name', order: 'asc' } });
+    if (error) throw new Error(error.message);
+    L.push(...(data || [])); if (!data || data.length < 1000) break;
+  }
+  return L;
+}
+async function _stApagar(caminhos) {
+  const c = (caminhos || []).filter(Boolean);
+  for (let i = 0; i < c.length; i += 100) { try { await _sb.storage.from(_BUCKET).remove(c.slice(i, i + 100)); } catch (e) { /* sobra no Storage não atrapalha */ } }
+}
+const _stNomeDesenho = mime => `d/${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}.${/png/i.test(mime) ? 'png' : 'jpg'}`;
+// 'ok' = parte guardada no Storage (nada vai para o banco); desenho: troca o conteúdo pelo caminho no Storage
+async function _arquivoParaStorage(d) {
+  if (!(await _storagePronto())) return '';
+  if (d.tipo === 'anexo_parte' && d.anexo_uid && _B64.test(d.conteudo || ''))
+    return (await _stEnviar(_stParte(d.anexo_uid, d.ordem), _b64ParaBytes(d.conteudo))) ? 'ok' : '';
+  const m = d.tipo === 'projeto' && String(d.conteudo || '').match(/^data:([^;,]+);base64,(.*)$/);
+  if (m && _B64.test(m[2])) { const cam = _stNomeDesenho(m[1]); if (await _stEnviar(cam, _b64ParaBytes(m[2]), m[1])) { d.conteudo_st = cam; d.conteudo = ''; } }
+  return '';
+}
+// leva para o Storage, aos poucos, o que ainda está dentro do banco (a tela chama de novo até zerar)
+async function _moverAnexosLote() {
+  if (!(await _storagePronto())) return { ok: false, msg: 'O Storage ainda não está pronto: rode o passo 5 no Supabase (seguranca/passo-5-storage.sql).' };
+  let movidos = 0;
+  const { data: ps, error: e1 } = await _sb.from('arquivos').select('id,row_data').eq('row_data->>tipo', 'anexo_parte').order('id', { ascending: true }).limit(6);
+  if (e1) return { ok: false, msg: e1.message };
+  for (const r of ps || []) {
+    const d = r.row_data || {};
+    if (!d.anexo_uid || !_B64.test(d.conteudo || '')) continue;
+    if (!(await _stEnviar(_stParte(d.anexo_uid, d.ordem), _b64ParaBytes(d.conteudo)))) return { ok: false, msg: 'Não consegui enviar um arquivo ao Storage. Tente de novo.' };
+    const { error } = await _sb.from('arquivos').delete().eq('id', r.id);
+    if (error) return { ok: false, msg: error.message };
+    movidos++;
+  }
+  if (!movidos) {
+    const { data: pj, error: e2 } = await _sb.from('arquivos').select('id,row_data').eq('row_data->>tipo', 'projeto').like('row_data->>conteudo', 'data:%').order('id', { ascending: true }).limit(4);
+    if (e2) return { ok: false, msg: e2.message };
+    for (const r of pj || []) {
+      const d = { ...(r.row_data || {}) }, m = String(d.conteudo || '').match(/^data:([^;,]+);base64,(.*)$/);
+      if (!m || !_B64.test(m[2])) continue;
+      const cam = _stNomeDesenho(m[1]);
+      if (!(await _stEnviar(cam, _b64ParaBytes(m[2]), m[1]))) return { ok: false, msg: 'Não consegui enviar um desenho ao Storage. Tente de novo.' };
+      d.conteudo_st = cam; d.conteudo = '';
+      const { error } = await _sb.from('arquivos').update({ row_data: d }).eq('id', r.id);
+      if (error) { await _stApagar([cam]); return { ok: false, msg: error.message }; }
+      movidos++;
+    }
+  }
+  return { ok: true, movidos, restam: await _pendentesStorage() };
+}
+async function _pendentesStorage() {
+  const a = await _sb.from('arquivos').select('id', { count: 'exact', head: true }).eq('row_data->>tipo', 'anexo_parte');
+  const b = await _sb.from('arquivos').select('id', { count: 'exact', head: true }).eq('row_data->>tipo', 'projeto').like('row_data->>conteudo', 'data:%');
+  return (a.count || 0) + (b.count || 0);
+}
+// espaço usado (só o Administrador): banco, tabela de arquivos, auditoria e Storage
+async function _espacoUsado() {
+  const { data, error } = await _sb.rpc('vx_espaco');
+  if (error) return { ok: false, msg: /vx_espaco|function|does not exist|schema cache/i.test(error.message) ? 'Rode o passo 5 no Supabase (seguranca/passo-5-storage.sql) para ver o espaço usado.' : error.message };
+  if (!data) return { ok: false, msg: 'Só o Administrador vê o espaço usado.' };
+  let pendentes = 0; try { pendentes = await _pendentesStorage(); } catch (e) { }
+  return { ok: true, ...data, pendentes, storagePronto: await _storagePronto() };
+}
+// cópia de segurança: os arquivos do Storage (caminho → conteúdo em base64)
+async function _exportarStorage() {
+  if (!(await _storagePronto())) return { ok: true, arquivos: {} };
+  try {
+    const cams = [], arq = o => o.id && o.name !== '.emptyFolderPlaceholder';
+    for (const p of (await _stListar('p')).filter(o => !o.id)) (await _stListar('p/' + p.name)).filter(arq).forEach(o => cams.push(`p/${p.name}/${o.name}`));
+    (await _stListar('d')).filter(arq).forEach(o => cams.push('d/' + o.name));
+    const out = {};
+    for (let i = 0; i < cams.length; i += 6) await Promise.all(cams.slice(i, i + 6).map(async c => { out[c] = _bytesParaB64(await _stBaixar(c)); }));
+    return { ok: true, arquivos: out };
+  } catch (e) { return { ok: false, msg: 'Arquivos do Storage: ' + e.message }; }
+}
+
+
 async function _excluirRegistroLote(abaNome, rowId) {
   if (!rowId || Number(rowId) <= 0) return { ok: false, msg: 'Registro inválido.' };
   const chave = _NOME_PARA_CHAVE[abaNome] || abaNome.toLowerCase();
   if (!(await _donoPermite(chave, rowId))) return { ok: false, msg: _MSG_DONO };
+  let st = '';
+  if (chave === 'arquivos') { try { const { data: r0 } = await _sb.from('arquivos').select('st:row_data->>conteudo_st').eq('id', Number(rowId)).maybeSingle(); st = (r0 && r0.st) || ''; } catch (e) { } }
   const { error } = await _sb.from(chave).delete().eq('id', Number(rowId));
   if (error) return { ok: false, msg: error.message };
+  if (st) await _stApagar([st]);
   return { ok: true };
 }
+
 
 // Arquivos (desenhos do projeto e as frentes marcadas neles): ficam fora do carregamento
 // geral do sistema — só são lidos, por obra, quando a tela de Planejamento abre.
@@ -241,8 +358,13 @@ async function _listarArquivos(obra) {
   const { data, error } = await _sb.from('arquivos').select('id,row_data').eq('row_data->>titulo_obra', String(obra || ''))
     .or('row_data->>tipo.is.null,row_data->>tipo.neq.anexo_parte').order('id', { ascending: true });
   if (error) return { ok: false, msg: error.message };
-  return { ok: true, itens: (data || []).map(r => ({ rowid: r.id, ...r.row_data })) };
+  const itens = (data || []).map(r => ({ rowid: r.id, ...r.row_data }));
+  await Promise.all(itens.filter(x => x.conteudo_st && !x.conteudo).map(async x => {
+    try { x.conteudo = `data:${x.mime || 'image/jpeg'};base64,` + _bytesParaB64(await _stBaixar(x.conteudo_st)); } catch (e) { x.erro_st = e.message; }
+  }));
+  return { ok: true, itens };
 }
+
 
 // Anexos das abas da obra (Orçamento, CAP, Contrato, Medição): o documento vai em partes (base64) na
 // tabela arquivos — linha 'anexo' = cabeçalho (nome, tipo, tamanho, quem enviou); linhas 'anexo_parte' =
@@ -257,12 +379,25 @@ async function _partesAnexo(uid) {
   const { data, error } = await _sb.from('arquivos').select('id,row_data').eq('row_data->>anexo_uid', String(uid || ''))
     .order('id', { ascending: true });
   if (error) return { ok: false, msg: error.message };
-  return { ok: true, partes: (data || []).map(r => ({ rowid: r.id, ordem: +r.row_data.ordem || 0, conteudo: r.row_data.conteudo || '' })).sort((a, b) => a.ordem - b.ordem) };
+  let partes = (data || []).map(r => ({ rowid: r.id, ordem: +r.row_data.ordem || 0, conteudo: r.row_data.conteudo || '' }));
+  if (uid && await _storagePronto()) {
+    try {
+      const pasta = 'p/' + _stSeguro(uid), objs = (await _stListar(pasta)).filter(o => o.id && /^\d+$/.test(o.name));
+      if (objs.length) {
+        const st = await Promise.all(objs.map(async o => ({ rowid: null, ordem: parseInt(o.name, 10), conteudo: _bytesParaB64(await _stBaixar(`${pasta}/${o.name}`)) })));
+        const tem = new Set(st.map(p => p.ordem)); partes = st.concat(partes.filter(p => !tem.has(p.ordem)));
+      }
+    } catch (e) { if (!partes.length) return { ok: false, msg: e.message }; }
+  }
+  return { ok: true, partes: partes.sort((a, b) => a.ordem - b.ordem) };
 }
+
 async function _excluirAnexo(uid, rowid) {
   if (!uid) return { ok: false, msg: 'Anexo inválido.' };
   let r = await _sb.from('arquivos').delete().eq('row_data->>anexo_uid', String(uid));
   if (r.error) return { ok: false, msg: r.error.message };
+  if (await _storagePronto()) { try { const pasta = 'p/' + _stSeguro(uid); await _stApagar((await _stListar(pasta)).filter(o => o.id).map(o => `${pasta}/${o.name}`)); } catch (e) { } }
+
   if (rowid) { r = await _sb.from('arquivos').delete().eq('id', Number(rowid)); if (r.error) return { ok: false, msg: r.error.message }; }
   return { ok: true };
 }
@@ -685,6 +820,10 @@ const _FNS = {
   listarAnexos:         (a)       => _listarAnexos(a),
   partesAnexo:          (a)       => _partesAnexo(a),
   excluirAnexo:         (a,b)     => _excluirAnexo(a,b),
+  moverAnexosLote:      ()        => _moverAnexosLote(),
+  espacoUsado:          ()        => _espacoUsado(),
+  exportarStorage:      ()        => _exportarStorage(),
+
   upsertRegistro:       (a,b,c)   => _upsertRegistro(a,b,c),
   excluirRegistro:      (a,b)     => _excluirRegistro(a,b),
   upsertRegistroLote:   (a,b,c)   => _upsertRegistroLote(a,b,c),

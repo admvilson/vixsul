@@ -40,6 +40,9 @@ body{font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;background:
 input[data-maiusc]{text-transform:uppercase;} input[data-maiusc]::placeholder{text-transform:none;}
 .seg-wrap{margin-top:18px;} .seg-tit h3{margin:0;font-size:17px;display:flex;gap:8px;align-items:center;} .seg-tit p{margin:2px 0 10px;color:#667085;font-size:13px;}
 .seg-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px;margin-bottom:14px;}
+.seg-esp{margin:10px 0 12px;} .seg-esp-l{display:flex;justify-content:space-between;gap:10px;font-size:12.5px;margin-bottom:5px;} .seg-esp-l span{color:#667085;font-weight:600;}
+.seg-esp-b{height:10px;border-radius:99px;background:#EEF1F6;overflow:hidden;} .seg-esp-b i{display:block;height:100%;border-radius:99px;background:#12B76A;} .seg-esp-b.warn i{background:#F79009;} .seg-esp-b.err i{background:#F04438;}
+
 .seg-card{background:#fff;border:1px solid #E4E9F2;border-radius:16px;padding:16px 18px;} .seg-card h4{margin:0 0 8px;font-size:14.5px;display:flex;gap:8px;align-items:center;} .seg-card p{font-size:13px;color:#344054;margin:0 0 10px;line-height:1.5;}
 .seg-st{display:inline-flex;gap:6px;align-items:center;font-weight:800;font-size:12px;border-radius:999px;padding:3px 10px;margin-right:6px;} .seg-st.ok{background:#ECFDF3;color:#067647;} .seg-st.nao{background:#FFFAEB;color:#B54708;}
 .seg-dica{font-size:12px!important;color:#667085!important;} .seg-bts{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:6px;} .seg-chk{display:flex;gap:8px;align-items:center;font-size:12.5px;color:#475467;margin-bottom:10px;}
@@ -651,7 +654,7 @@ tbody tr:hover td{background:rgba(0,113,227,.02);}
     html:not([data-authed="1"]) #app-shell{display:none;}
     #app-shell.hidden{display:none!important;}
   </style>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0/dist/umd/supabase.js" integrity="sha384-TcHRA3zBbn+Lexh5n+Oil4guNPOS3rjNDpGRAN46u/s/mB2IZ50ceC6TYDU2yvgK" crossorigin="anonymous"></script><script src="gas-shim.js?v=20261020a"></script><script src="https://accounts.google.com/gsi/client" async defer></script></head>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0/dist/umd/supabase.js" integrity="sha384-TcHRA3zBbn+Lexh5n+Oil4guNPOS3rjNDpGRAN46u/s/mB2IZ50ceC6TYDU2yvgK" crossorigin="anonymous"></script><script src="gas-shim.js?v=20261021a"></script><script src="https://accounts.google.com/gsi/client" async defer></script></head>
 <body>
 <div class="toast" id="toast"><span id="toast-icon"></span><span id="toast-msg">—</span></div>
 
@@ -20451,7 +20454,7 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
        Authenticator). Mesmo quem descobrir a senha não entra sem o celular. Códigos reserva para emergência.
      • Cópia de segurança: baixar agora todos os dados (arquivo .json); a cópia automática diária roda no GitHub.
      • Auditoria: quem incluiu, alterou ou excluiu o quê e quando — com "Desfazer" para exclusões e alterações. */
-  const SEG={mfa:null,aud:null,audErro:'',audF:{dias:'7',tabela:'',acao:'',quem:'',busca:''},carregando:false};
+  const SEG={mfa:null,aud:null,audErro:'',audF:{dias:'7',tabela:'',acao:'',quem:'',busca:''},carregando:false,esp:null,mov:''};
   const run2=(fn,...a)=>new Promise((ok,er)=>{try{google.script.run.withSuccessHandler(ok).withFailureHandler(e=>er(e instanceof Error?e:new Error(String((e&&e.message)||e))))[fn](...a);}catch(e){er(e);}});
   const NOMES_TAB={obras:'Obras',custos:'Contas das obras',despesas:'Contas da empresa',faturamentos:'Faturamento',aportes:'Sócios e aportes',cap:'CAP',orcamentos:'Orçamentos',etapas:'Planejamento (etapas)',obra_imagens:'Fotos',medicoes:'Medições',diario_obra:'Diário de obra',documentos:'Documentos',fornecedores:'Fornecedores',contratos:'Contratos',acoes:'Tarefas',reunioes:'Reuniões',planejamento:'Cadastros e configurações',arquivos:'Arquivos'};
   const ACOES={INSERT:['Incluiu','ok'],UPDATE:['Alterou','info'],DELETE:['Excluiu','err']};
@@ -20473,7 +20476,42 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
     const outros=us.filter(u=>String(u.cpf||'').replace(/\D/g,'')!==String(sess().uid||'').replace(/\D/g,''));
     return `<div class="seg-card"><h4><i class="fas fa-mobile-screen-button"></i> Verificação em duas etapas</h4>${st}
       ${outros.length?`<div class="seg-outros"><small>Ligada também para:</small>${outros.map(u=>`<span>${fe(u.nome)} <button type="button" class="fin-bt mini" data-seg="mfa-outro" data-id="${fe(u.id)}" title="Use se a pessoa perdeu o celular e os códigos reserva">Desligar</button></span>`).join('')}</div>`:''}</div>`;}
+  /* Espaço: o plano grátis do Supabase tem 500 MB de banco e 1 GB de arquivos (Storage). Anexos, fotos do diário e
+     desenhos do projeto ficam no Storage (passo 5 do SQL); o que ainda estiver no banco é levado pelo botão. */
+  const LIM_BANCO=500*1048576,LIM_ST=1024*1048576,AVISO=0.7;
+  const MB=b=>((+b||0)/1048576).toLocaleString('pt-BR',{maximumFractionDigits:1})+' MB';
+  async function carregarEsp(){try{SEG.esp=await run2('espacoUsado');}catch(e){SEG.esp={ok:false,msg:e.message};}pintarSeg();}
+  function cartaoEspaco(){const e=SEG.esp;
+    const barra=(v,lim,rot)=>{const p=Math.min(100,(+v||0)/lim*100),cl=p>=85?'err':p>=AVISO*100?'warn':'';
+      return `<div class="seg-esp"><div class="seg-esp-l"><b>${rot}</b><span>${MB(v)} de ${MB(lim)} · ${p.toLocaleString('pt-BR',{maximumFractionDigits:p<10?1:0})}%</span></div><div class="seg-esp-b ${cl}"><i style="width:${Math.max(1,p)}%"></i></div></div>`;};
+    const cab=`<h4><i class="fas fa-database"></i> Espaço do banco e dos arquivos</h4>`;
+    if(!e)return `<div class="seg-card">${cab}<p class="seg-dica"><i class="fas fa-spinner fa-spin"></i> Medindo…</p></div>`;
+    if(!e.ok)return `<div class="seg-card">${cab}<p class="seg-dica">${fe(e.msg||'Não consegui medir agora.')}</p><div class="seg-bts"><button type="button" class="fin-bt mini" data-seg="esp"><i class="fas fa-rotate"></i> Medir de novo</button></div></div>`;
+    return `<div class="seg-card">${cab}
+      ${barra(e.banco,LIM_BANCO,'Banco de dados')}${barra(e.storage,LIM_ST,'Arquivos (Storage)')}
+      <p class="seg-dica">Plano grátis do Supabase: 500 MB de banco e 1 GB de arquivos. Passando de 70%, o sistema avisa o Administrador ao entrar. Dentro do banco, a tabela de arquivos usa ${MB(e.arquivos)} e a auditoria ${MB(e.auditoria)}.</p>
+      ${!e.storagePronto?'<div class="fin-aviso laranja"><div>O Storage ainda não está pronto: rode o <b>passo 5</b> no Supabase (arquivo <b>seguranca/passo-5-storage.sql</b>).</div></div>'
+        :SEG.mov?`<p class="seg-dica"><i class="fas fa-spinner fa-spin"></i> ${fe(SEG.mov)}</p>`
+        :e.pendentes?`<div class="fin-aviso laranja"><div><b>${e.pendentes} parte(s) de arquivos</b> (anexos, fotos do diário, desenhos) ainda estão dentro do banco. Clique em <b>Mover para o Storage</b> — leva poucos minutos e dá para continuar usando o sistema depois.</div></div>
+          <div class="seg-bts"><button type="button" class="fin-bt pri" data-seg="mover"><i class="fas fa-truck-ramp-box"></i> Mover para o Storage</button></div>`
+        :`<p class="seg-dica"><i class="fas fa-circle-check" style="color:#12B76A"></i> Anexos, fotos do diário e desenhos estão no Storage (${(+e.storage_n||0).toLocaleString('pt-BR')} arquivo(s)).</p>`}</div>`;}
+  async function moverStorage(){
+    if(SEG.mov)return;let tot=0;SEG.mov='Movendo os arquivos para o Storage…';pintarSeg();
+    try{for(let i=0;i<2000;i++){const r=await run2('moverAnexosLote');if(!r||!r.ok)throw new Error((r&&r.msg)||'Não foi possível mover.');
+        tot+=r.movidos;SEG.mov=`Movendo os arquivos para o Storage… ${tot} feito(s), faltam ${r.restam}.`;pintarSeg();if(!r.restam||!r.movidos)break;}
+      toast(`Pronto: ${tot} parte(s) de arquivos foram para o Storage.`,'success');}
+    catch(e){toast(e.message,'error',false);}
+    finally{SEG.mov='';SEG.esp=null;carregarEsp();}}
+  // aviso automático ao Administrador (uma vez por dia): banco ou Storage passando de 70%
+  async function avisoEspaco(){
+    try{const s=Auth._session;if(!s||!UI._ehAdmin||!UI._ehAdmin(s.perfil))return;const hoje=new Date().toISOString().slice(0,10);
+      if(localStorage.getItem('vx_esp_aviso')===hoje)return;const e=await run2('espacoUsado');if(!e||!e.ok)return;localStorage.setItem('vx_esp_aviso',hoje);
+      const pb=(+e.banco||0)/LIM_BANCO,ps=(+e.storage||0)/LIM_ST;
+      if(pb>=AVISO||ps>=AVISO)toast(`Atenção ao espaço: ${pb>=AVISO?`o banco está com ${Math.round(pb*100)}% (${MB(e.banco)} de 500 MB)`:''}${pb>=AVISO&&ps>=AVISO?' e ':''}${ps>=AVISO?`os arquivos com ${Math.round(ps*100)}% (${MB(e.storage)} de 1 GB)`:''}. Veja em Usuários › Segurança.`,'error',false);
+    }catch(e){}}
+  {const tAv=setInterval(()=>{if(!(Auth._session&&App.state&&App.state.data))return;clearInterval(tAv);setTimeout(avisoEspaco,4000);},5000);}
   function cartaoCopia(){let ult='';try{ult=localStorage.getItem('vx_ultima_copia')||'';}catch(e){}
+
     return `<div class="seg-card"><h4><i class="fas fa-box-archive"></i> Cópia de segurança</h4>
       <p>Baixa agora, para este computador, todos os dados do sistema num arquivo. Guarde em lugar seguro (é o retrato completo da empresa).${ult?` Última cópia baixada aqui: <b>${fe(brHora(ult))}</b>.`:''}</p>
       <label class="seg-chk"><input type="checkbox" data-seg-arq> Incluir fotos e anexos (arquivo bem maior)</label>
@@ -20500,15 +20538,17 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
       </tbody></table></div>${L.length>400?`<p class="seg-dica">Mostrando as 400 mais recentes de ${L.length}. Use os filtros.</p>`:''}`}</div>`;}
   function pintarSeg(){const box=document.getElementById('seg-painel');if(!box)return;
     if(SEG.mfa===null){SEG.mfa=undefined;carregarMfa();}
+    if(SEG.esp===null){SEG.esp=undefined;carregarEsp();}
     if(SEG.aud===null&&!SEG.carregando){carregarAud();return;}
     const foco=document.activeElement&&document.activeElement.matches&&document.activeElement.matches('[data-aud-f="busca"]');
     box.innerHTML=`<div class="seg-wrap"><div class="seg-tit"><h3><i class="fas fa-lock"></i> Segurança</h3><p>Proteção do acesso, cópia dos dados e o registro de tudo o que foi mexido.</p></div>
-      <div class="seg-grid">${cartaoMfa()}${cartaoCopia()}</div>${cartaoAud()}</div>`;
+      <div class="seg-grid">${cartaoMfa()}${cartaoCopia()}${cartaoEspaco()}</div>${cartaoAud()}</div>`;
     if(foco){const i=box.querySelector('[data-aud-f="busca"]');if(i){i.focus();i.setSelectionRange(i.value.length,i.value.length);}}
     if(!box._ligado){box._ligado=1;
       box.addEventListener('click',ev=>{const b=ev.target.closest('[data-seg],[data-aud]');if(!b)return;const a=b.dataset.seg||b.dataset.aud;
         if(a==='mfa-ligar')return ligarMfa();if(a==='mfa-desligar')return desligarMfa();if(a==='mfa-outro')return desligarOutro(b.dataset.id);
         if(a==='copia')return baixarCopia(!!box.querySelector('[data-seg-arq]:checked'));if(a==='recarregar')return carregarAud();
+        if(a==='mover')return moverStorage();if(a==='esp'){SEG.esp=null;return pintarSeg();}
         if(a==='ver')return verAud(+b.dataset.id);});
       box.addEventListener('change',ev=>{const s=ev.target.closest('select[data-aud-f]');if(!s)return;SEG.audF[s.dataset.audF]=s.value;if(s.dataset.audF==='dias'||s.dataset.audF==='tabela'||s.dataset.audF==='acao')carregarAud();else pintarSeg();});
       box.addEventListener('input',ev=>{const i=ev.target.closest('[data-aud-f="busca"]');if(!i)return;SEG.audF.busca=i.value;clearTimeout(SEG._t);SEG._t=setTimeout(pintarSeg,300);});}
@@ -20552,6 +20592,8 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
   async function baixarCopia(comArq){
     try{const tabs=await run2('tabelasDados'),out={sistema:'Vixsul — gestão',gerado_em:new Date().toISOString(),por:sess().nome||'',tabelas:{}};
       for(const t of tabs){if(t==='arquivos'&&!comArq)continue;UI._showBusy(`Copiando: ${NOMES_TAB[t]||t}…`);const r=await run2('exportarTabela',t);if(!r||!r.ok)throw new Error(`${NOMES_TAB[t]||t}: ${(r&&r.msg)||'falhou'}`);out.tabelas[t]=r.linhas;}
+      // o conteúdo dos anexos, fotos do diário e desenhos fica no Storage: vai junto na cópia
+      if(comArq){UI._showBusy('Copiando: arquivos do Storage…');const st=await run2('exportarStorage');if(!st||!st.ok)throw new Error((st&&st.msg)||'Arquivos do Storage: falhou');out.storage=st.arquivos||{};}
       const blob=new Blob([JSON.stringify(out)],{type:'application/json'}),a=document.createElement('a'),d=new Date(),nome=`vixsul-copia-${d.toISOString().slice(0,10)}.json`;
       a.href=URL.createObjectURL(blob);a.download=nome;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},2000);
       try{localStorage.setItem('vx_ultima_copia',d.toISOString());}catch(e){}
