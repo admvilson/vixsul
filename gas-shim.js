@@ -73,7 +73,7 @@ const _NOME_PARA_CHAVE = {
   'Imagens da Obra':'obra_imagens',
   'Medições':'medicoes','Diário de obra':'diario_obra','Documentos':'documentos','Fornecedores':'fornecedores',
   'Contratos':'contratos','Plano de ação':'acoes','Reuniões':'reunioes','Planejamento':'planejamento',
-  'Arquivos':'arquivos'
+  'Arquivos':'arquivos','Pré-moldados':'premoldados'
 };
 const _ABA_NOME = {
   obras:'Obras', custos:'Custos',
@@ -82,12 +82,13 @@ const _ABA_NOME = {
   obra_imagens:'Imagens da Obra',
   medicoes:'Medições', diario_obra:'Diário de obra', documentos:'Documentos', fornecedores:'Fornecedores',
   contratos:'Contratos', acoes:'Plano de ação', reunioes:'Reuniões', planejamento:'Planejamento',
-  arquivos:'Arquivos'
+  arquivos:'Arquivos', premoldados:'Pré-moldados'
 };
 // Tabelas de engenharia (2026-10): ficam numa lista à parte porque dependem do SQL de
 // instalação (schema.sql) — enquanto ele não roda, a leitura delas volta vazia sem afetar
 // as outras, e o tempo real delas fica num canal separado (ver subscribeRealtime).
-const _CHAVES_ENG = ['medicoes','diario_obra','documentos','fornecedores','contratos','acoes','reunioes','planejamento'];
+// premoldados (2026-10-24): a fábrica de peças — tabela criada pelo passo 6 (seguranca/passo-6-premoldados.sql)
+const _CHAVES_ENG = ['medicoes','diario_obra','documentos','fornecedores','contratos','acoes','reunioes','planejamento','premoldados'];
 const _CHAVES = ['obras','custos','faturamentos','aportes','cap','orcamentos','despesas','etapas','obra_imagens'].concat(_CHAVES_ENG);
 
 // ─── Funções que espelham o Código.gs ─────────────────────────────────────────
@@ -137,7 +138,8 @@ function _filtrarPorObras(pacote) {
   const nomes = new Set(pacote.obras.map(nomeObra).filter(Boolean));
   const eu = String(s.nome || '').trim().toLowerCase();
   Object.keys(pacote).forEach(ch => {
-    if (['obras', 'metadata', 'lixeira', 'fornecedores'].includes(ch) || !Array.isArray(pacote[ch])) return;
+    // a fábrica de pré-moldados não pertence a obra nenhuma: quem tem acesso a ela vê tudo dela
+    if (['obras', 'metadata', 'lixeira', 'fornecedores', 'premoldados'].includes(ch) || !Array.isArray(pacote[ch])) return;
     pacote[ch] = pacote[ch].filter(r => {
       const ob = r.titulo_obra || r.obra || (ch === 'orcamentos' ? r.titulo : '') || '';
       if (ob) return nomes.has(ob);

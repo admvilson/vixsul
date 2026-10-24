@@ -8,7 +8,7 @@
 const URL_SB = process.env.SUPABASE_URL || 'https://sfnldcqwpwokqfjikxeu.supabase.co';
 const CHAVE = process.env.SUPABASE_SERVICE_KEY || '';
 const TABELAS = ['obras', 'custos', 'faturamentos', 'aportes', 'cap', 'orcamentos', 'despesas', 'etapas', 'obra_imagens', 'medicoes', 'diario_obra',
-  'documentos', 'fornecedores', 'contratos', 'acoes', 'reunioes', 'planejamento', 'arquivos', 'auditoria'];
+  'documentos', 'fornecedores', 'contratos', 'acoes', 'reunioes', 'planejamento', 'arquivos', 'auditoria', 'premoldados'];
 const CAMPOS_USUARIOS = 'id,nome,cpf,perfil,status,email,acessos,tipo_usuario,obras_permitidas';
 const BUCKET = 'anexos';
 

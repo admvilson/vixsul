@@ -654,7 +654,7 @@ tbody tr:hover td{background:rgba(0,113,227,.02);}
     html:not([data-authed="1"]) #app-shell{display:none;}
     #app-shell.hidden{display:none!important;}
   </style>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0/dist/umd/supabase.js" integrity="sha384-TcHRA3zBbn+Lexh5n+Oil4guNPOS3rjNDpGRAN46u/s/mB2IZ50ceC6TYDU2yvgK" crossorigin="anonymous"></script><script src="gas-shim.js?v=20261021a"></script><script src="https://accounts.google.com/gsi/client" async defer></script></head>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0/dist/umd/supabase.js" integrity="sha384-TcHRA3zBbn+Lexh5n+Oil4guNPOS3rjNDpGRAN46u/s/mB2IZ50ceC6TYDU2yvgK" crossorigin="anonymous"></script><script src="gas-shim.js?v=20261024a"></script><script src="https://accounts.google.com/gsi/client" async defer></script></head>
 <body>
 <div class="toast" id="toast"><span id="toast-icon"></span><span id="toast-msg">—</span></div>
 
@@ -20356,7 +20356,8 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
     ['documentos','Documentos e certidões','fa-file-shield'],['contas','Contas a pagar','fa-file-invoice-dollar'],['despesas','Despesas da empresa (em Contas a pagar)','fa-receipt'],
     ['faturamento','Faturamento e recebimentos','fa-file-invoice'],['conciliacao','Conciliação bancária','fa-building-columns'],['socios','Sócios e investimentos','fa-piggy-bank'],
     ['metas','Metas','fa-bullseye'],['orcamento','Orçamento da empresa','fa-calculator'],['projecao','Fluxo de caixa projetado','fa-chart-line'],
-    ['viabilidade','Viabilidade de contrato','fa-scale-balanced'],['relatorios','Relatórios','fa-chart-pie'],['fornecedores','Fornecedores','fa-truck']];
+    ['viabilidade','Viabilidade de contrato','fa-scale-balanced'],['relatorios','Relatórios','fa-chart-pie'],['fornecedores','Fornecedores','fa-truck'],
+    ['premoldados','Pré-moldados (fábrica: peças, produção, estoque, vendas)','fa-cubes']];
   const APROVA=['contas'];   // onde existe aprovação (como na VTC: só Contas a pagar)
   const NIVEIS=[['nenhum','Nenhum'],['ver','Ver'],['editar','Editar']];
   const sess=()=>Auth._session||{};
@@ -20464,7 +20465,7 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
      • Auditoria: quem incluiu, alterou ou excluiu o quê e quando — com "Desfazer" para exclusões e alterações. */
   const SEG={mfa:null,aud:null,audErro:'',audF:{dias:'7',tabela:'',acao:'',quem:'',busca:''},carregando:false,esp:null,mov:''};
   const run2=(fn,...a)=>new Promise((ok,er)=>{try{google.script.run.withSuccessHandler(ok).withFailureHandler(e=>er(e instanceof Error?e:new Error(String((e&&e.message)||e))))[fn](...a);}catch(e){er(e);}});
-  const NOMES_TAB={obras:'Obras',custos:'Contas das obras',despesas:'Contas da empresa',faturamentos:'Faturamento',aportes:'Sócios e aportes',cap:'CAP',orcamentos:'Orçamentos',etapas:'Planejamento (etapas)',obra_imagens:'Fotos',medicoes:'Medições',diario_obra:'Diário de obra',documentos:'Documentos',fornecedores:'Fornecedores',contratos:'Contratos',acoes:'Tarefas',reunioes:'Reuniões',planejamento:'Cadastros e configurações',arquivos:'Arquivos'};
+  const NOMES_TAB={obras:'Obras',custos:'Contas das obras',despesas:'Contas da empresa',faturamentos:'Faturamento',aportes:'Sócios e aportes',cap:'CAP',orcamentos:'Orçamentos',etapas:'Planejamento (etapas)',obra_imagens:'Fotos',medicoes:'Medições',diario_obra:'Diário de obra',documentos:'Documentos',fornecedores:'Fornecedores',contratos:'Contratos',acoes:'Tarefas',reunioes:'Reuniões',planejamento:'Cadastros e configurações',arquivos:'Arquivos',premoldados:'Pré-moldados'};
   const ACOES={INSERT:['Incluiu','ok'],UPDATE:['Alterou','info'],DELETE:['Excluiu','err']};
   const CAMPOS_RES=['titulo_obra','fornecedor','fornecedor_beneficiario','descricao','nome','n_nf','numero','titulo','o_que','quem_aportou','p_total','valor','faturamento_bruto','valor_aportado','data','data_medicao'];
   const resumoReg=r=>{if(!r)return '';if(r._id)r={...r._id,...r};else if(r._grande)return '(registro grande)';return CAMPOS_RES.filter(k=>r[k]!=null&&String(r[k]).trim()!=='').slice(0,4).map(k=>String(r[k]).slice(0,60)).join(' · ');};
@@ -22718,6 +22719,7 @@ input.gf-lista-campo{background-image:url("data:image/svg+xml;utf8,<svg xmlns='h
 .gf-lista-novo{border-top:1px dashed #D0D5DD;margin-top:6px;padding:8px 10px 4px;font-size:12.5px;color:#667085;}
 </style>
 <script src="listas.js?v=20261015"></script>
+<script src="premoldados.js?v=20261024a"></script>
 </body>
 </html>
 
