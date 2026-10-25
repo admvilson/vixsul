@@ -253,7 +253,7 @@ function faltaInsumo(ei,us){return INS.filter(i=>us.has(i.k)&&(ei[i.k].saldo<0||
 
 /* ═══════════════ TELA, MENU E ABAS ═══════════════ */
 const ABAS=[
-  {k:'painel',rot:'Painel',ico:'fa-gauge-high'},{k:'pecas',rot:'Peças e catálogo',curto:'Peças e catálogo',ico:'fa-cubes'},{k:'planejamento',rot:'Planejamento',ico:'fa-clipboard-list'},
+  {k:'painel',rot:'Painel',ico:'fa-gauge-high'},{k:'pecas',rot:'Peças e catálogo',curto:'Peças',ico:'fa-cubes'},{k:'planejamento',rot:'Planejamento',ico:'fa-clipboard-list'},
   {k:'producao',rot:'Diário de produção',curto:'Diário',ico:'fa-industry'},{k:'estoque',rot:'Estoque e avarias',curto:'Estoque',ico:'fa-warehouse'},{k:'vendas',rot:'Vendas',ico:'fa-truck-ramp-box'},
   {k:'caixa',rot:'Fluxo de caixa',curto:'Caixa',ico:'fa-sack-dollar'},{k:'relatorios',rot:'Relatórios',ico:'fa-chart-column'},{k:'parametros',rot:'Parâmetros',ico:'fa-sliders'}];
 const PM={aba:'painel',mes:mesHoje(),busca:'',cat:'',grupo:'',pecasVista:'minhas',rel:{tipo:'producao',de:isoDe(addD(hoje0(),-30)),ate:hojeISO()},cxMes:mesHoje()};
@@ -264,30 +264,23 @@ function estilo(){
   const s=document.createElement('style');s.id='pm-estilo';
   s.textContent=`
 #pm-app{display:flex;flex-direction:column;gap:16px;}
-.pm-topo{position:sticky;top:-24px;z-index:6;margin:-24px -32px 0;padding:18px 32px 12px;background:var(--bg,#F5F5F7);transition:box-shadow .2s;}
-.pm-topo.rolado{box-shadow:0 10px 24px -18px rgba(16,24,40,.45);}
-.pm-topo-in{display:flex;align-items:center;gap:14px;background:#fff;border:1px solid #E4E9F2;border-radius:18px;padding:10px 12px 0 14px;box-shadow:0 1px 2px rgba(16,24,40,.04);}
-.pm-marca{display:flex;align-items:center;gap:10px;flex:none;padding-bottom:10px;}
-.pm-marca .ic{width:38px;height:38px;border-radius:12px;display:grid;place-items:center;background:linear-gradient(135deg,#1652D8,#2E90FA);color:#fff;font-size:16px;box-shadow:0 6px 14px -8px rgba(22,82,216,.9);}
-.pm-marca b{display:block;font:800 14px Inter,sans-serif;color:var(--text-1);line-height:1.15;} .pm-marca small{display:block;font:600 11px Inter,sans-serif;color:#667085;}
-.pm-nav{display:flex;align-items:flex-end;gap:2px;overflow-x:auto;scrollbar-width:none;flex:1;min-width:0;}
+.pm-topo{position:sticky;top:-24px;z-index:6;margin:-24px -32px 0;padding:18px 32px 12px;background:var(--bg,#F5F5F7);}
+.pm-nav{display:flex;align-items:center;gap:4px;padding:6px;background:#fff;border:1px solid #E4E9F2;border-radius:18px;box-shadow:0 1px 3px rgba(16,24,40,.05);overflow-x:auto;scrollbar-width:none;transition:box-shadow .2s;}
 .pm-nav::-webkit-scrollbar{display:none;}
-.pm-grp{display:flex;align-items:flex-end;gap:2px;padding-left:10px;margin-left:6px;border-left:1px solid #EEF1F6;flex:none;position:relative;}
-.pm-grp:first-child{border-left:0;margin-left:0;padding-left:0;}
-.pm-grp>small{position:absolute;top:-2px;left:12px;font:800 9px Inter,sans-serif;letter-spacing:.08em;color:#98A2B3;text-transform:uppercase;}
-.pm-grp:first-child>small{left:2px;}
-.pm-tab{position:relative;display:flex;align-items:center;gap:7px;flex:none;border:0;background:transparent;padding:16px 11px 12px;font:600 13px Inter,sans-serif;color:#475467;cursor:pointer;white-space:nowrap;border-radius:10px 10px 0 0;transition:color .15s,background .15s;}
-.pm-tab i{font-size:13px;color:#98A2B3;transition:color .15s;}
-.pm-tab:hover{color:#1652D8;background:#F5F8FF;} .pm-tab:hover i{color:#1652D8;}
-.pm-tab.on{color:#1652D8;} .pm-tab.on i{color:#1652D8;}
-.pm-tab.on::after{content:'';position:absolute;left:10px;right:10px;bottom:0;height:3px;border-radius:3px 3px 0 0;background:#1652D8;}
-.pm-tab .bd{min-width:18px;height:18px;padding:0 5px;border-radius:99px;background:#F04438;color:#fff;font:800 10px Inter,sans-serif;display:inline-grid;place-items:center;}
-.pm-cfg{flex:none;width:38px;height:38px;margin-bottom:8px;border-radius:12px;border:1px solid #E4E9F2;background:#fff;color:#475467;cursor:pointer;display:grid;place-items:center;transition:all .15s;}
-.pm-cfg:hover,.pm-cfg.on{background:#1652D8;color:#fff;border-color:#1652D8;}
-.pm-faixa{height:1px;background:#E4E9F2;margin:0;border-left:1px solid #E4E9F2;border-right:1px solid #E4E9F2;}
-.pm-topo-pe{height:12px;background:#fff;border:1px solid #E4E9F2;border-top:0;border-radius:0 0 18px 18px;margin-bottom:4px;}
-@media (max-width:1240px){.pm-marca div{display:none;} .pm-tab{padding:16px 8px 12px;gap:6px;} .pm-grp{padding-left:6px;margin-left:4px;}}
-@media (max-width:900px){.pm-topo{top:-16px;margin:-16px -16px 0;padding:12px 16px 10px;} .pm-marca div{display:none;} .pm-grp>small{display:none;} .pm-tab span.lb{display:none;} .pm-tab{padding:12px 10px;}}
+.pm-topo.rolado .pm-nav{box-shadow:0 10px 24px -16px rgba(16,24,40,.45);}
+.pm-tab{position:relative;flex:1 1 0;min-width:max-content;display:flex;align-items:center;justify-content:center;gap:9px;border:0;background:transparent;padding:7px 12px 7px 7px;border-radius:13px;font:600 13px Inter,sans-serif;color:#475467;cursor:pointer;white-space:nowrap;transition:background .15s,color .15s,box-shadow .15s;}
+.pm-tab .ic{width:30px;height:30px;border-radius:10px;display:grid;place-items:center;background:#F2F4F7;color:#475467;font-size:13px;flex:none;transition:background .15s,color .15s;}
+.pm-tab:hover{background:#F5F8FF;color:#1652D8;} .pm-tab:hover .ic{background:#DBE7FF;color:#1652D8;}
+.pm-tab.on{background:linear-gradient(135deg,#1652D8 0%,#2E90FA 100%);color:#fff;box-shadow:0 8px 18px -10px rgba(22,82,216,.85);}
+.pm-tab.on .ic{background:rgba(255,255,255,.2);color:#fff;}
+.pm-tab .bd{min-width:19px;height:19px;padding:0 6px;border-radius:99px;background:#F04438;color:#fff;font:800 10.5px Inter,sans-serif;display:inline-grid;place-items:center;}
+.pm-tab.on .bd{background:#fff;color:#1652D8;}
+.pm-tab .lc{display:none;}
+.pm-sep{flex:none;width:1px;height:26px;background:#E4E9F2;margin:0 2px;}
+@media (max-width:1560px){.pm-tab .lb{display:none;} .pm-tab .lc{display:inline;} .pm-tab{padding:7px 10px 7px 7px;gap:8px;}}
+@media (max-width:1180px){.pm-tab{padding:6px 8px 6px 6px;gap:6px;font-size:12.5px;} .pm-tab .ic{width:26px;height:26px;border-radius:8px;font-size:12px;} .pm-sep{margin:0;} .pm-nav{gap:2px;padding:5px;}}
+@media (max-width:980px){.pm-tab .lc{display:none;} .pm-tab{padding:6px;}}
+@media (max-width:900px){.pm-topo{top:-16px;margin:-16px -16px 0;padding:12px 16px 10px;} .pm-tab{flex:none;}}
 .pm-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:12px;}
 .pm-card{background:#fff;border:1px solid #e8e8ed;border-left:4px solid var(--cor,#0071E3);border-radius:14px;padding:12px 14px;cursor:pointer;box-shadow:0 2px 6px rgba(20,20,60,.05);transition:transform .15s,box-shadow .15s;min-width:0;}
 .pm-card:hover{transform:translateY(-2px);box-shadow:0 10px 22px -12px rgba(20,20,60,.35);}
@@ -423,12 +416,10 @@ function render(){
   const box=document.getElementById('pm-app');if(!box)return;
   if(!pode()){box.innerHTML='<div class="gf-vazio"><i class="fas fa-lock"></i><p>Sem acesso aos pré-moldados.</p></div>';return;}
   const ab=ABAS.find(x=>x.k===PM.aba)||ABAS[0],bd=badges();
-  // cabeçalho da fábrica: abas agrupadas como a operação (produção → comercial → financeiro); parâmetros na engrenagem
-  const tabB=a=>`<button type="button" class="pm-tab ${a.k===ab.k?'on':''}" data-pm-aba="${a.k}" role="tab" aria-selected="${a.k===ab.k}" title="${a.rot}"><i class="fas ${a.ico}"></i><span class="lb">${a.curto||a.rot}</span>${bd[a.k]?`<span class="bd">${bd[a.k]}</span>`:''}</button>`;
-  const GRP=[['',['painel']],['Produção',['pecas','planejamento','producao']],['Comercial',['vendas','estoque']],['Financeiro',['caixa','relatorios']]];
-  const nav=`<div class="pm-topo"><div class="pm-topo-in"><div class="pm-marca"><span class="ic"><i class="fas fa-cubes"></i></span><div><b>Fábrica de pré-moldados</b><small>Vixsul Empreendimentos</small></div></div>
-    <nav class="pm-nav" role="tablist">${GRP.map(([g,ks])=>`<div class="pm-grp">${g?`<small>${g}</small>`:''}${ks.map(k=>tabB(ABAS.find(a=>a.k===k))).join('')}</div>`).join('')}</nav>
-    <button type="button" class="pm-cfg ${ab.k==='parametros'?'on':''}" data-pm-aba="parametros" title="Parâmetros da fábrica"><i class="fas fa-sliders"></i></button></div></div>`;
+  // faixa de abas: na ordem da operação, com divisória entre os blocos (produção · comercial · financeiro · parâmetros)
+  const tabB=a=>`<button type="button" class="pm-tab ${a.k===ab.k?'on':''}" data-pm-aba="${a.k}" role="tab" aria-selected="${a.k===ab.k}" title="${a.rot}"><span class="ic"><i class="fas ${a.ico}"></i></span><span class="lb">${a.rot}</span><span class="lc">${a.curto||a.rot}</span>${bd[a.k]?`<span class="bd">${bd[a.k]}</span>`:''}</button>`;
+  const GRP=[['painel'],['pecas','planejamento','producao'],['estoque','vendas'],['caixa','relatorios'],['parametros']];
+  const nav=`<div class="pm-topo"><nav class="pm-nav" role="tablist">${GRP.map(ks=>ks.map(k=>tabB(ABAS.find(a=>a.k===k))).join('')).join('<span class="pm-sep" aria-hidden="true"></span>')}</nav></div>`;
   let corpo='';
   try{corpo=({painel:telaPainel,pecas:telaPecas,planejamento:telaPlanejamento,producao:telaProducao,estoque:telaEstoque,vendas:telaVendas,caixa:telaCaixa,relatorios:telaRelatorios,parametros:telaParametros}[ab.k]||telaPainel)();}
   catch(e){console.error(e);corpo=`<div class="gf-aviso err"><i class="fas fa-triangle-exclamation"></i><div>Erro ao montar esta aba: ${fe(e.message)}</div></div>`;}
