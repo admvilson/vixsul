@@ -20364,7 +20364,11 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
   const ehAdm=()=>UI._ehAdmin(sess().perfil),ehExt=()=>sess().tipoUsuario==='externo';
   const perfilDe=p=>UI._usrPerfilValor(p);   // 'admin' | 'Sócio' | 'Gestão' | 'Usuário'
   const linhas=()=>((App.state.data&&App.state.data.planejamento)||[]).filter(p=>p&&p.tipo==='permissoes');
-  const cfgDe=p=>linhas().filter(x=>x.perfil===p).sort((a,b)=>(+b.rowid||0)-(+a.rowid||0))[0]||null;
+  const cfgDe=p=>linhas().filter(x=>x.perfil===p&&!x.usuario).sort((a,b)=>(+b.rowid||0)-(+a.rowid||0))[0]||null;
+  // permissões próprias de um usuário (valem no lugar das do perfil): chave = CPF (interno) ou e-mail (externo)
+  const chaveUsr=u=>{if(!u)return '';if(u.tipoUsuario==='externo'){const e=String(u.email||'').trim().toLowerCase();return e?'e:'+e:'';}const c=String(u.cpf||'').replace(/\D/g,'');return c?'c:'+c:'';};
+  const cfgUsrDe=u=>{const k=chaveUsr(u);if(!k)return null;return linhas().filter(x=>x.usuario===k).sort((a,b)=>(+b.rowid||0)-(+a.rowid||0))[0]||null;};
+  const cfgUsr=u=>{const r=cfgUsrDe(u);return r&&!r.desligado?r:null;};
   const herda=k=>[].concat(UI._HERDA[k]||[]);
   // nível de uma tela na configuração do perfil (tela nova herda a da tela parecida, como na VTC)
   const nivelCfg=(cfg,k)=>{const a=(cfg&&cfg.acessos)||{};if(a[k])return a[k];for(const h of herda(k))if(a[h])return a[h];return 'nenhum';};
@@ -20374,19 +20378,20 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
     return tem?'excluir':'nenhum';};
   UI.permNivel=function(k){
     const s=sess();if(!s||!s.perfil||ehAdm())return 'excluir';
+    const cu=cfgUsr(s);if(cu)return nivelCfg(cu,k);
     if(ehExt()){const ce=cfgDe('Externo');return ce?nivelCfg(ce,k):nivelAntigo(s.acessos,k);}
     const cfg=cfgDe(perfilDe(s.perfil));
     return cfg?nivelCfg(cfg,k):nivelAntigo(s.acessos,k);
   };
   UI.podeEditar=k=>['editar','excluir'].includes(UI.permNivel(k));
   UI.podeExcluir=k=>UI.permNivel(k)==='excluir';
-  UI.podeAprovar=k=>{if(ehAdm())return true;if(ehExt())return false;const cfg=cfgDe(perfilDe(sess().perfil));return !!(cfg&&cfg.aprovar&&cfg.aprovar[k]&&nivelCfg(cfg,k)!=='nenhum');};
-  UI.podeRelatorio=r=>{if(ehAdm())return true;const cfg=cfgDe(ehExt()?'Externo':perfilDe(sess().perfil));return !cfg||!cfg.relatorios||cfg.relatorios[r]!==false;};
+  UI.podeAprovar=k=>{if(ehAdm())return true;const cu=cfgUsr(sess());if(cu)return !!(cu.aprovar&&cu.aprovar[k]&&nivelCfg(cu,k)!=='nenhum');if(ehExt())return false;const cfg=cfgDe(perfilDe(sess().perfil));return !!(cfg&&cfg.aprovar&&cfg.aprovar[k]&&nivelCfg(cfg,k)!=='nenhum');};
+  UI.podeRelatorio=r=>{if(ehAdm())return true;const cfg=cfgUsr(sess())||cfgDe(ehExt()?'Externo':perfilDe(sess().perfil));return !cfg||!cfg.relatorios||cfg.relatorios[r]!==false;};
   UI.permPerfilConfigurado=p=>!!cfgDe(p);
 
-  /* ───── menu: o que o perfil vê ───── */
+  /* ───── menu: o que o perfil (ou o próprio usuário) vê ───── */
   UI._permAplicarMenu=function(navegar){
-    const s=Auth._session;if(!s||ehAdm()||(ehExt()&&!cfgDe('Externo')))return;
+    const s=Auth._session;if(!s||ehAdm()||(ehExt()&&!cfgDe('Externo')&&!cfgUsr(s)))return;
     const allowed=[];
     UI._MODULOS.forEach(([k])=>{const ok=UI.permNivel(k)!=='nenhum';const el=document.getElementById('nav-'+k);if(el)el.style.display=ok?'':'none';if(ok)allowed.push(k);});
     const antes=(UI._allowedViews||[]).join(',');
@@ -20425,7 +20430,43 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
     return `<tr data-usr="${fe(u.id)}"><td><b>${fe(u.nome||'—')}</b></td><td>${ext?'—':fe(cpfFmt(u.cpf))||'—'}</td><td>${fe(u.email||'—')}</td>
       <td><span class="usr-chip ${p==='admin'?'adm':ext?'ext':''}">${pf}</span></td><td>${ext?'Externo (entra com e-mail)':'Interno (entra com CPF)'}</td>
       <td><span class="usr-st ${ativo?'on':''}"><i></i>${ativo?'Ativo':'Inativo'}</span></td>
-      <td style="text-align:right"><button type="button" class="usr-bt" data-usr-ed="${fe(u.id)}"><i class="fas fa-pen"></i> Editar</button></td></tr>`;
+      <td>${p==='admin'?'<span class="usr-chip adm">Tudo</span>':cfgUsr(u)?'<span class="usr-chip" style="background:#FFFAEB;color:#B54708;border-color:#FEDF89"><i class="fas fa-user-gear"></i> Próprio</span>':`<span class="usr-chip">Segue o perfil</span>`}</td>
+      <td style="text-align:right;white-space:nowrap">${ehAdm()&&p!=='admin'?`<button type="button" class="usr-bt" data-usr-perm="${fe(u.id)}" title="Definir o que este usuário pode acessar"><i class="fas fa-user-shield"></i> Permissões</button> `:''}<button type="button" class="usr-bt" data-usr-ed="${fe(u.id)}"><i class="fas fa-pen"></i> Editar</button></td></tr>`;
+  }
+  /* ───── permissões de um usuário, independente do perfil ─────
+     Linha própria em "planejamento" ({tipo:'permissoes', usuario:'c:CPF'|'e:email', acessos, aprovar, relatorios}).
+     Enquanto existir, vale no lugar das do perfil. "Voltar a seguir o perfil" a desliga (fica guardada). */
+  function nivelEfetivo(u,k){const cu=cfgUsr(u);if(cu)return nivelCfg(cu,k);
+    if(u.tipoUsuario==='externo'){const ce=cfgDe('Externo');return ce?nivelCfg(ce,k):nivelAntigo(u.acessos,k);}
+    const cfg=cfgDe(perfilDe(u.perfil));return cfg?nivelCfg(cfg,k):nivelAntigo(u.acessos,k);}
+  function permissoesUsuario(id){
+    const u=(UI._usuarios||[]).find(x=>String(x.id)===String(id));if(!u||!ehAdm())return;
+    if(!chaveUsr(u))return toast(u.tipoUsuario==='externo'?'Cadastre o e-mail deste usuário antes.':'Cadastre o CPF deste usuário antes.','error');
+    const cu=cfgUsr(u),base=cu||(u.tipoUsuario==='externo'?cfgDe('Externo'):cfgDe(perfilDe(u.perfil))),rels=relatoriosLista();
+    const pf=u.tipoUsuario==='externo'?'Externo':perfilDe(u.perfil);
+    const itens=TELAS.map(([k,t,ic])=>{const nv=nivelEfetivo(u,k),cur=nv==='excluir'?'editar':nv,apOn=!!(base&&base.aprovar&&base.aprovar[k]);
+      return `<div class="perm-item"><span><i class="fas ${ic}"></i>${fe(t)}</span><div class="perm-ctrl">
+        <select data-tela="${k}" data-v="${cur}">${NIVEIS.map(([v,l])=>`<option value="${v}" ${cur===v?'selected':''}>${l}</option>`).join('')}</select>
+        <label class="perm-chk ${cur!=='editar'?'off':''}"><input type="checkbox" data-excluir="${k}" ${nv==='excluir'?'checked':''} ${cur!=='editar'?'disabled':''}> Excluir</label>
+        ${APROVA.includes(k)?`<label class="perm-chk ${cur==='nenhum'?'off':''}"><input type="checkbox" data-aprov="${k}" ${apOn&&cur!=='nenhum'?'checked':''} ${cur==='nenhum'?'disabled':''}> Aprovar</label>`:''}</div></div>`;}).join('');
+    const rel=rels.map(g=>`<div class="perm-relg"><small>${fe(g.grupo)}</small>${g.itens.map(([k,t])=>`<label class="perm-rel"><input type="checkbox" data-rel="${fe(k)}" ${!base||!base.relatorios||base.relatorios[k]!==false?'checked':''}> ${fe(t)}</label>`).join('')}</div>`).join('');
+    const gravarU=o=>new Promise((ok,er)=>google.script.run.withSuccessHandler(res=>{if(res&&res.ok){if(res.data){App.state.data=res.data;try{App.renderAll();}catch(e){console.error(e);}}try{UI.renderUsuarios();}catch(e){}ok(res);}else er(new Error((res&&res.msg)||'Não foi possível salvar.'));})
+      .withFailureHandler(e=>er(new Error('Erro de conexão ao salvar as permissões. Tente de novo.'))).upsertRegistro('Planejamento',o,o.rowid||null));
+    const j=Fin.util.janela(`Permissões de ${u.nome||'usuário'}`,`<div class="perm-st ${cu?'ok':'aviso'}" style="margin-bottom:10px"><i class="fas ${cu?'fa-user-gear':'fa-circle-info'}"></i> ${cu?`Este usuário tem <b>permissões próprias</b> (não segue o perfil ${fe(pf)})${cu.atualizado_por?' · última mudança por '+fe(cu.atualizado_por):''}${cu.atualizado_em?' em '+fe(cu.atualizado_em):''}.`:`Hoje segue o perfil <b>${fe(pf)}</b> (o que aparece abaixo). Ao salvar, passa a valer só para este usuário o que você marcar aqui — sem mexer no perfil.`}</div>
+      <div class="perm-card" style="border:0;padding:0;box-shadow:none"><div class="perm-sub">Telas · nível de acesso e ações</div><div class="perm-grid">${itens}</div>
+      <div class="perm-sub">Relatórios que pode abrir</div><div class="perm-rels">${rel}</div></div>`,
+      [...(cu?[{html:'<i class="fas fa-rotate-left"></i> Voltar a seguir o perfil',acao:async()=>{await gravarU({...cu,desligado:true,atualizado_por:sess().nome||'',atualizado_em:todayDateTime()});toast(`${u.nome||'Usuário'} volta a seguir o perfil ${pf}.`,'success');}}]:[]),
+       {html:'<i class="fas fa-floppy-disk"></i> Salvar permissões do usuário',cls:'pri',acao:async jj=>{
+        const acessos={},aprovar={},relatorios={};
+        jj.querySelectorAll('select[data-tela]').forEach(s=>{let v=s.value;const ex=jj.querySelector(`[data-excluir="${s.dataset.tela}"]`);if(v==='editar'&&ex&&ex.checked)v='excluir';acessos[s.dataset.tela]=v;});
+        jj.querySelectorAll('[data-aprov]').forEach(c=>aprovar[c.dataset.aprov]=c.checked);jj.querySelectorAll('[data-rel]').forEach(c=>relatorios[c.dataset.rel]=c.checked);
+        if(!Object.values(acessos).some(v=>v!=='nenhum'))throw new Error('Libere ao menos uma tela (com nada liberado o usuário não consegue usar o sistema).');
+        const r=cfgUsrDe(u),o={...(r||{}),tipo:'permissoes',usuario:chaveUsr(u),usuario_nome:u.nome||'',acessos,aprovar,relatorios,desligado:false,atualizado_por:sess().nome||'',atualizado_em:todayDateTime()};
+        if(!r)o.data_lancamento=todayDateTime();delete o.perfil;
+        await gravarU(o);toast(`Permissões de ${u.nome||'usuário'} salvas.`,'success');}}],920);
+    j.querySelector('.fin-jan-corpo').addEventListener('change',ev=>{const s=ev.target.closest('select[data-tela]');if(!s)return;s.dataset.v=s.value;const k=s.dataset.tela;
+      const ex=j.querySelector(`[data-excluir="${k}"]`);if(ex){const ok=s.value==='editar';ex.disabled=!ok;if(!ok)ex.checked=false;ex.closest('.perm-chk').classList.toggle('off',!ok);}
+      const ap=j.querySelector(`[data-aprov="${k}"]`);if(ap){const ok=s.value!=='nenhum';ap.disabled=!ok;if(!ok)ap.checked=false;ap.closest('.perm-chk').classList.toggle('off',!ok);}});
   }
   // o que o cartão mostra para um perfil ainda não configurado: as telas que os usuários dele já tinham
   function nivelInicial(p){
@@ -20447,14 +20488,15 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
     const rel=rels.map(g=>`<div class="perm-relg"><small>${fe(g.grupo)}</small>${g.itens.map(([k,t])=>`<label class="perm-rel"><input type="checkbox" data-rel="${fe(k)}" ${!cfg||!cfg.relatorios||cfg.relatorios[k]!==false?'checked':''}> ${fe(t)}</label>`).join('')}</div>`).join('');
     const st=cfg?`<div class="perm-st ok"><i class="fas fa-circle-check"></i> Configurado${cfg.atualizado_por?' · última mudança por '+fe(cfg.atualizado_por):''}${cfg.atualizado_em?' em '+fe(cfg.atualizado_em):''}</div>`
       :`<div class="perm-st aviso"><i class="fas fa-triangle-exclamation"></i> Ainda não configurado: ${n?'cada usuário deste perfil segue as telas que já tinha no cadastro':'quem entrar com este perfil vê todas as telas'}. Ao mudar qualquer opção, passa a valer o que está aqui.</div>`;
-    return `<div class="perm-card" data-perfil="${fe(p)}"><div class="perm-card-cab"><b>${fe(p)}</b><span>${n} usuário${n===1?'':'s'}</span></div>${st}
+    const np=doPerfil(p).filter(u=>cfgUsr(u)).length;
+    return `<div class="perm-card" data-perfil="${fe(p)}"><div class="perm-card-cab"><b>${fe(p)}</b><span>${n} usuário${n===1?'':'s'}${np?` · ${np} com permissões próprias`:''}</span></div>${st}
       <div class="perm-sub">Telas · nível de acesso e ações</div><div class="perm-grid">${itens}</div>
       <div class="perm-sub">Relatórios que pode abrir</div><div class="perm-rels">${rel}</div></div>`;
   }
   function painelPermissoes(){
     const rels=relatoriosLista();
     return `<div class="perm-wrap"><div class="perm-tit"><h3><i class="fas fa-user-shield"></i>Permissões de acesso</h3>
-      <p>O <b>Administrador</b> tem acesso total. Configure abaixo, por perfil, o que cada usuário pode fazer. Cada mudança é salva na hora; quem estiver usando o sistema passa a ver a mudança na próxima atualização da tela.</p></div>
+      <p>O <b>Administrador</b> tem acesso total. Configure abaixo, por perfil, o que cada usuário pode fazer. Para um usuário com acesso diferente do perfil dele, use o botão <b>Permissões</b> na linha do usuário, na lista acima. Cada mudança é salva na hora; quem estiver usando o sistema passa a ver a mudança na próxima atualização da tela.</p></div>
       <div class="perm-legenda"><span><b>Nenhum</b> — nem aparece no menu</span><span><b>Ver</b> — só consulta</span><span><b>Editar</b> — cria e altera</span><span><b>Excluir</b> — também pode excluir (só com Editar)</span><span><b>Aprovar</b> — aprova e desaprova contas a pagar</span></div>
       <div class="perm-cards">${PERFIS.map(p=>cartaoPerfil(p,rels)).join('')}</div></div>`;
   }
@@ -20621,14 +20663,15 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
     let semNome=false;try{semNome=localStorage.getItem('vx_usr_sem_nome')==='1';}catch(e){}
     grid.innerHTML=`<div class="usr-card"><div class="usr-card-cab"><h3><i class="fas fa-users"></i>Usuários</h3><span>${n} cadastrado${n===1?'':'s'} · clique numa linha para editar</span>
         <button type="button" class="fin-bt mini usr-nome-bt" data-usr-nome>${semNome?'<i class="fas fa-eye"></i> Mostrar a coluna Nome':'<i class="fas fa-eye-slash"></i> Ocultar a coluna Nome'}</button></div>
-      <div class="usr-tab-wrap"><table class="usr-tab${semNome?' sem-nome':''}"><thead><tr><th>Nome</th><th>CPF</th><th>E-mail</th><th>Perfil</th><th>Tipo</th><th>Situação</th><th></th></tr></thead>
-      <tbody>${lista.length?lista.map(linhaUsuario).join(''):'<tr><td colspan="7" class="usr-vazio">Nenhum usuário encontrado.</td></tr>'}</tbody></table></div></div>
+      <div class="usr-tab-wrap"><table class="usr-tab${semNome?' sem-nome':''}"><thead><tr><th>Nome</th><th>CPF</th><th>E-mail</th><th>Perfil</th><th>Tipo</th><th>Situação</th><th>Permissões</th><th></th></tr></thead>
+      <tbody>${lista.length?lista.map(linhaUsuario).join(''):'<tr><td colspan="8" class="usr-vazio">Nenhum usuário encontrado.</td></tr>'}</tbody></table></div></div>
       ${ehAdm()?painelPermissoes():''}`;
     // a lista de usuários também serve à Segurança (quem tem as duas etapas ligadas): se ela estiver aberta, redesenha
     if(ehAdm()&&document.getElementById('view-seguranca')?.classList.contains('active'))pintarSeg();
     grid.onclick=ev=>{
       if(ev.target.closest('[data-seg],[data-aud]'))return;   // o painel de segurança cuida dos próprios cliques
       if(ev.target.closest('[data-usr-nome]')){try{localStorage.setItem('vx_usr_sem_nome',semNome?'0':'1');}catch(e){}return UI.renderUsuarios();}
+      const pb=ev.target.closest('[data-usr-perm]');if(pb)return permissoesUsuario(pb.dataset.usrPerm);
       const tr=ev.target.closest('tr[data-usr]');if(tr)UI.openUsuario(tr.dataset.usr);};
     grid.onchange=ev=>{
       const card=ev.target.closest('.perm-card');if(!card)return;
@@ -20673,7 +20716,7 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
   const rotulo=el=>{const t=NORM(el.textContent);return t&&t.length<=48?t:NORM([el.getAttribute('title'),el.getAttribute('aria-label')].filter(Boolean).join(' '));};
   const iconeApaga=el=>!!(el.matches('.del')||el.querySelector('.fa-trash,.fa-trash-can,.fa-trash-alt'));
   const iconeMuda=el=>!!el.querySelector('.fa-plus,.fa-pen,.fa-pencil,.fa-floppy-disk,.fa-signature,.fa-upload,.fa-paperclip,.fa-copy,.fa-clone');
-  const restrito=()=>{const s=Auth._session;return !!(s&&s.perfil&&!UI._ehAdmin(s.perfil)&&s.tipoUsuario!=='externo');};
+  const restrito=()=>{const s=Auth._session;return !!(s&&s.perfil&&!UI._ehAdmin(s.perfil)&&(s.tipoUsuario!=='externo'||cfgUsr(s)));};
   const telaAtiva=()=>((document.querySelector('.view.active')||{}).id||'').replace(/^view-/,'');
   const hubAberto=()=>{const ed=document.getElementById('modal-editor');return ed&&ed.classList.contains('open')?App.state.obraHub:null;};
   // de que tela é o botão: central da obra (pela aba), atalhos do Início (pelo que abrem) ou a tela aberta
@@ -22719,7 +22762,8 @@ input.gf-lista-campo{background-image:url("data:image/svg+xml;utf8,<svg xmlns='h
 .gf-lista-novo{border-top:1px dashed #D0D5DD;margin-top:6px;padding:8px 10px 4px;font-size:12.5px;color:#667085;}
 </style>
 <script src="listas.js?v=20261015"></script>
-<script src="premoldados.js?v=20261024a"></script>
+<script src="pm-catalogo.js?v=20261025a"></script>
+<script src="premoldados.js?v=20261025a"></script>
 </body>
 </html>
 
