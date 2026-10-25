@@ -109,8 +109,26 @@ async function gravarVarios(ops){
   try{await executar(async()=>{for(const [o,id] of ops)await salvar(ABA,o,id||null);});}catch(e){throw traduzir(e);}
 }
 function traduzir(e){return /premoldados|pré-moldados|does not exist|schema cache|relation|could not find the table/i.test(String(e&&e.message))?new Error('A tabela da fábrica ainda não existe no banco: rode o passo 6 no Supabase (arquivo seguranca/passo-6-premoldados.sql).'):e;}
+// antes de excluir: o que depende deste registro (se houver, a exclusão é bloqueada e a lista aparece)
+function depsExcluir(reg){
+  const id=String(reg.rowid),E=estoque(),d=[];
+  if(reg.tipo==='peca'){const nP=T('producao').filter(r=>itensProd(r).some(it=>String(it.peca)===id)).length,nV=vendas().filter(v=>(v.itens||[]).some(it=>String(it.peca)===id)).length,nO=ordens().filter(o=>String(o.peca)===id).length,nA=T('avaria').filter(a=>String(a.peca)===id).length+T('ajuste').filter(a=>a.item==='peca:'+id).length;
+    if(nP)d.push({ok:false,txt:`${nP} dia(s) de produção com esta peça`});if(nV)d.push({ok:false,txt:`${nV} venda(s) com esta peça`});if(nO)d.push({ok:false,txt:`${nO} ordem(ns) de produção`});if(nA)d.push({ok:false,txt:`${nA} avaria(s) ou acerto(s) de estoque`});
+    if(d.length)d.push({ok:true,txt:'A peça tem histórico: em vez de excluir, edite (mude o nome ou o preço) — o histórico de custos e vendas continua certo.'});}
+  if(reg.tipo==='producao'){const h=hoje0(),ls=lotes().filter(l=>String(l.r.rowid)===id);
+    ls.forEach(l=>{const ne=ensaiosDe(l.lote).length;if(ne)d.push({ok:false,txt:`Lote ${l.lote} tem ${ne} ensaio(s) registrado(s)`});
+      const p=pecaDe(l.peca),lib=addD(dt(l.data)||h,num(p&&p.cura!=null&&p.cura!==''?p.cura:tipoDePeca(p||{}).cura||7))<=h,x=E.P[l.peca]||{disp:0,res:0};
+      if(lib&&x.disp-l.qtd<0)d.push({ok:false,txt:`${fe(nomePeca(l.peca))}: as ${nf(l.qtd,0)} peças deste dia já saíram em vendas — excluir deixaria o estoque negativo`});
+      else if(lib&&x.disp-l.qtd<x.res)d.push({ok:false,txt:`${fe(nomePeca(l.peca))}: as peças deste dia estão reservadas para vendas`});});}
+  if(reg.tipo==='compra'){const ei=estoqueInsumos(),x=ei[reg.insumo];if(x&&x.saldo-num(reg.qtd)<-1e-6)d.push({ok:false,txt:`${fe(insDe(reg.insumo).nome)}: esta compra já foi consumida pela produção (saldo ficaria ${nf(x.saldo-num(reg.qtd),2)} ${insDe(reg.insumo).un})`});}
+  if(reg.tipo==='ajuste'&&num(reg.qtd)>0){const it=String(reg.item||'');if(it.startsWith('peca:')){const x=E.P[it.slice(5)]||{disp:0};if(x.disp-num(reg.qtd)<0)d.push({ok:false,txt:'As peças deste acerto já saíram do estoque'});}
+    else{const x=estoqueInsumos()[it.slice(7)];if(x&&x.saldo-num(reg.qtd)<-1e-6)d.push({ok:false,txt:'O insumo deste acerto já foi consumido pela produção'});}}
+  if(reg.tipo==='cliente'){const ab=vendas().filter(v=>String(v.cliente||'').trim().toLowerCase()===String(reg.nome||'').trim().toLowerCase()&&['aguardando_sinal','reservado'].includes(v.status)).length;if(ab)d.push({ok:false,txt:`${ab} venda(s) em aberto deste cliente`});}
+  return d.some(x=>!x.ok)?d:null;
+}
 async function apagarReg(reg,rotulo,depois){
   if(GS.podeMexer&&!GS.podeMexer(reg))return toast(GS.MSG_DONO,'error');
+  const dp=depsExcluir(reg);if(dp)return trava(`Não dá para excluir: ${rotulo}`,dp);
   confirmar('Excluir?',`<b>${fe(rotulo)}</b> será excluído de vez. Não tem como desfazer.`,'Sim, excluir',async()=>{await executar(()=>excluir(ABA,reg.rowid));toast('Excluído.','success');if(depois)depois();});
 }
 const proxNum=(tipo,campo)=>T(tipo).reduce((m,r)=>Math.max(m,parseInt(String(r[campo]||'').replace(/\D/g,''),10)||0),0)+1;
@@ -192,7 +210,7 @@ function estoque(){
   vs.forEach(v=>{if(v.status==='cancelada')return;(v.itens||[]).forEach(it=>{const x=g(String(it.peca)),q=num(it.qtd);if(v.status==='entregue'||v.status==='devolvida')x.ent+=q;else if(v.status==='reservado')x.res+=q;});
     (v.devolucoes||[]).forEach(dv=>(dv.itens||[]).forEach(it=>{if(it.destino==='estoque')g(String(it.peca)).dev+=num(it.qtd);}));});
   T('ajuste').forEach(a=>{if(String(a.item||'').startsWith('peca:'))g(a.item.slice(5)).aj+=num(a.qtd);});
-  T('avaria').forEach(a=>{if(AV_ESTOQUE.includes(a.origem))g(String(a.peca)).av+=num(a.qtd);});
+  T('avaria').forEach(a=>{if(avariaTiraEstoque(a))g(String(a.peca)).av+=num(a.qtd);});
   ordens().forEach(o=>{if(o.status==='planejada'||o.status==='producao')g(String(o.peca)).emProd+=Math.max(0,num(o.qtd)-prodDaOrdem(o.rowid));});
   Object.entries(P).forEach(([id,x])=>{x.disp=x.lib-x.ent+x.dev+x.aj-x.av;x.livre=x.disp-x.res;const p=pecaDe(id);
     const cc=p?calc(p,1):null;x.custoUn=x.prod>0?x.custo/x.prod:(cc?cc.un:0);x.custoMatUn=x.prod>0&&x.custoMat>0?x.custoMat/x.prod:(cc?cc.custo.mat:0);});
@@ -235,9 +253,9 @@ function faltaInsumo(ei,us){return INS.filter(i=>us.has(i.k)&&(ei[i.k].saldo<0||
 
 /* ═══════════════ TELA, MENU E ABAS ═══════════════ */
 const ABAS=[
-  {k:'painel',rot:'Painel',ico:'fa-gauge-high'},{k:'pecas',rot:'Peças e catálogo',ico:'fa-cubes'},{k:'planejamento',rot:'Planejamento',ico:'fa-clipboard-list'},
-  {k:'producao',rot:'Diário de produção',ico:'fa-industry'},{k:'estoque',rot:'Estoque e avarias',ico:'fa-warehouse'},{k:'vendas',rot:'Vendas',ico:'fa-truck-ramp-box'},
-  {k:'caixa',rot:'Fluxo de caixa',ico:'fa-sack-dollar'},{k:'relatorios',rot:'Relatórios',ico:'fa-chart-column'},{k:'parametros',rot:'Parâmetros',ico:'fa-sliders'}];
+  {k:'painel',rot:'Painel',ico:'fa-gauge-high'},{k:'pecas',rot:'Peças e catálogo',curto:'Peças e catálogo',ico:'fa-cubes'},{k:'planejamento',rot:'Planejamento',ico:'fa-clipboard-list'},
+  {k:'producao',rot:'Diário de produção',curto:'Diário',ico:'fa-industry'},{k:'estoque',rot:'Estoque e avarias',curto:'Estoque',ico:'fa-warehouse'},{k:'vendas',rot:'Vendas',ico:'fa-truck-ramp-box'},
+  {k:'caixa',rot:'Fluxo de caixa',curto:'Caixa',ico:'fa-sack-dollar'},{k:'relatorios',rot:'Relatórios',ico:'fa-chart-column'},{k:'parametros',rot:'Parâmetros',ico:'fa-sliders'}];
 const PM={aba:'painel',mes:mesHoje(),busca:'',cat:'',grupo:'',pecasVista:'minhas',rel:{tipo:'producao',de:isoDe(addD(hoje0(),-30)),ate:hojeISO()},cxMes:mesHoje()};
 let grafico=null;
 const ativa=()=>!!document.getElementById('view-premoldados')?.classList.contains('active');
@@ -246,16 +264,30 @@ function estilo(){
   const s=document.createElement('style');s.id='pm-estilo';
   s.textContent=`
 #pm-app{display:flex;flex-direction:column;gap:16px;}
-.pm-nav{position:sticky;top:0;z-index:5;display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding:8px;background:linear-gradient(180deg,#fff 0%,#F8FAFF 100%);border:1px solid #E4E9F2;border-radius:20px;box-shadow:0 6px 24px -14px rgba(16,24,40,.35);}
+.pm-topo{position:sticky;top:-24px;z-index:6;margin:-24px -32px 0;padding:18px 32px 12px;background:var(--bg,#F5F5F7);transition:box-shadow .2s;}
+.pm-topo.rolado{box-shadow:0 10px 24px -18px rgba(16,24,40,.45);}
+.pm-topo-in{display:flex;align-items:center;gap:14px;background:#fff;border:1px solid #E4E9F2;border-radius:18px;padding:10px 12px 0 14px;box-shadow:0 1px 2px rgba(16,24,40,.04);}
+.pm-marca{display:flex;align-items:center;gap:10px;flex:none;padding-bottom:10px;}
+.pm-marca .ic{width:38px;height:38px;border-radius:12px;display:grid;place-items:center;background:linear-gradient(135deg,#1652D8,#2E90FA);color:#fff;font-size:16px;box-shadow:0 6px 14px -8px rgba(22,82,216,.9);}
+.pm-marca b{display:block;font:800 14px Inter,sans-serif;color:var(--text-1);line-height:1.15;} .pm-marca small{display:block;font:600 11px Inter,sans-serif;color:#667085;}
+.pm-nav{display:flex;align-items:flex-end;gap:2px;overflow-x:auto;scrollbar-width:none;flex:1;min-width:0;}
 .pm-nav::-webkit-scrollbar{display:none;}
-.pm-tab{position:relative;display:flex;align-items:center;gap:9px;flex:none;border:0;background:transparent;padding:8px 14px 8px 8px;border-radius:14px;font:600 13px Inter,sans-serif;color:#475467;cursor:pointer;white-space:nowrap;transition:background .15s,color .15s,box-shadow .15s,transform .15s;}
-.pm-tab:hover{background:#EEF4FF;color:#1652D8;}
-.pm-tab .ic{width:30px;height:30px;border-radius:10px;display:grid;place-items:center;background:#F2F4F7;color:#475467;font-size:13px;transition:background .15s,color .15s;}
-.pm-tab:hover .ic{background:#DBE7FF;color:#1652D8;}
-.pm-tab.on{background:linear-gradient(135deg,#1652D8 0%,#2E90FA 100%);color:#fff;box-shadow:0 8px 20px -10px rgba(22,82,216,.8);}
-.pm-tab.on .ic{background:rgba(255,255,255,.2);color:#fff;}
-.pm-tab .bd{min-width:19px;height:19px;padding:0 6px;border-radius:99px;background:#F04438;color:#fff;font:800 10.5px Inter,sans-serif;display:inline-grid;place-items:center;}
-.pm-tab.on .bd{background:#fff;color:#1652D8;}
+.pm-grp{display:flex;align-items:flex-end;gap:2px;padding-left:10px;margin-left:6px;border-left:1px solid #EEF1F6;flex:none;position:relative;}
+.pm-grp:first-child{border-left:0;margin-left:0;padding-left:0;}
+.pm-grp>small{position:absolute;top:-2px;left:12px;font:800 9px Inter,sans-serif;letter-spacing:.08em;color:#98A2B3;text-transform:uppercase;}
+.pm-grp:first-child>small{left:2px;}
+.pm-tab{position:relative;display:flex;align-items:center;gap:7px;flex:none;border:0;background:transparent;padding:16px 11px 12px;font:600 13px Inter,sans-serif;color:#475467;cursor:pointer;white-space:nowrap;border-radius:10px 10px 0 0;transition:color .15s,background .15s;}
+.pm-tab i{font-size:13px;color:#98A2B3;transition:color .15s;}
+.pm-tab:hover{color:#1652D8;background:#F5F8FF;} .pm-tab:hover i{color:#1652D8;}
+.pm-tab.on{color:#1652D8;} .pm-tab.on i{color:#1652D8;}
+.pm-tab.on::after{content:'';position:absolute;left:10px;right:10px;bottom:0;height:3px;border-radius:3px 3px 0 0;background:#1652D8;}
+.pm-tab .bd{min-width:18px;height:18px;padding:0 5px;border-radius:99px;background:#F04438;color:#fff;font:800 10px Inter,sans-serif;display:inline-grid;place-items:center;}
+.pm-cfg{flex:none;width:38px;height:38px;margin-bottom:8px;border-radius:12px;border:1px solid #E4E9F2;background:#fff;color:#475467;cursor:pointer;display:grid;place-items:center;transition:all .15s;}
+.pm-cfg:hover,.pm-cfg.on{background:#1652D8;color:#fff;border-color:#1652D8;}
+.pm-faixa{height:1px;background:#E4E9F2;margin:0;border-left:1px solid #E4E9F2;border-right:1px solid #E4E9F2;}
+.pm-topo-pe{height:12px;background:#fff;border:1px solid #E4E9F2;border-top:0;border-radius:0 0 18px 18px;margin-bottom:4px;}
+@media (max-width:1240px){.pm-marca div{display:none;} .pm-tab{padding:16px 8px 12px;gap:6px;} .pm-grp{padding-left:6px;margin-left:4px;}}
+@media (max-width:900px){.pm-topo{top:-16px;margin:-16px -16px 0;padding:12px 16px 10px;} .pm-marca div{display:none;} .pm-grp>small{display:none;} .pm-tab span.lb{display:none;} .pm-tab{padding:12px 10px;}}
 .pm-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:12px;}
 .pm-card{background:#fff;border:1px solid #e8e8ed;border-left:4px solid var(--cor,#0071E3);border-radius:14px;padding:12px 14px;cursor:pointer;box-shadow:0 2px 6px rgba(20,20,60,.05);transition:transform .15s,box-shadow .15s;min-width:0;}
 .pm-card:hover{transform:translateY(-2px);box-shadow:0 10px 22px -12px rgba(20,20,60,.35);}
@@ -330,8 +362,15 @@ function estilo(){
 .pm-ent b{font-size:12px;} .pm-ent:hover{box-shadow:0 6px 14px -10px rgba(16,24,40,.5);}
 .pm-cam{font:800 10.5px Inter,sans-serif;color:#475467;text-transform:uppercase;letter-spacing:.04em;margin:6px 0 4px;display:flex;justify-content:space-between;gap:6px;}
 .pm-cam.exc{color:#B42318;}
+.pm-gchips{display:flex;gap:6px;flex-wrap:wrap;}
+.pm-gchip{display:inline-flex;align-items:center;gap:7px;border:1px solid #E4E9F2;background:#fff;border-radius:99px;padding:7px 12px;font:600 12.5px Inter,sans-serif;color:#344054;cursor:pointer;transition:all .15s;}
+.pm-gchip i{color:var(--cor);} .pm-gchip b{font:800 11px Inter,sans-serif;background:#F2F4F7;color:#475467;border-radius:99px;padding:1px 7px;}
+.pm-gchip:hover{border-color:var(--cor);} .pm-gchip.on{background:var(--cor);border-color:var(--cor);color:#fff;} .pm-gchip.on i{color:#fff;} .pm-gchip.on b{background:rgba(255,255,255,.25);color:#fff;}
+.pm-prod .pm-svgbox{margin:0 0 8px;background:linear-gradient(180deg,#F8FAFC 0%,#EEF2F7 100%);}
+.pm-tams{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px;} .pm-tams span{font:700 10.5px Inter,sans-serif;background:#EEF4FF;color:#1652D8;border-radius:6px;padding:2px 6px;} .pm-tams span.mais{background:#F2F4F7;color:#475467;}
+.pm-info{display:flex;flex-wrap:wrap;gap:10px;font:600 11px Inter,sans-serif;color:#667085;border-top:1px solid #F2F4F7;padding-top:6px;} .pm-info i{margin-right:4px;color:#98A2B3;}
 .pm-ponto td{vertical-align:middle;} .pm-ponto input[type=time]{min-width:92px;}
-@media (max-width:900px){.pm-form{grid-template-columns:1fr;} .pm-res{position:static;} .pm-tab span.lb{display:none;} .pm-tab{padding:8px;}}
+@media (max-width:900px){.pm-form{grid-template-columns:1fr;} .pm-res{position:static;}}
 `;
   document.head.appendChild(s);
 }
@@ -384,7 +423,12 @@ function render(){
   const box=document.getElementById('pm-app');if(!box)return;
   if(!pode()){box.innerHTML='<div class="gf-vazio"><i class="fas fa-lock"></i><p>Sem acesso aos pré-moldados.</p></div>';return;}
   const ab=ABAS.find(x=>x.k===PM.aba)||ABAS[0],bd=badges();
-  const nav=`<nav class="pm-nav" role="tablist">${ABAS.map(a=>`<button type="button" class="pm-tab ${a.k===ab.k?'on':''}" data-pm-aba="${a.k}" role="tab" aria-selected="${a.k===ab.k}"><span class="ic"><i class="fas ${a.ico}"></i></span><span class="lb">${a.rot}</span>${bd[a.k]?`<span class="bd">${bd[a.k]}</span>`:''}</button>`).join('')}</nav>`;
+  // cabeçalho da fábrica: abas agrupadas como a operação (produção → comercial → financeiro); parâmetros na engrenagem
+  const tabB=a=>`<button type="button" class="pm-tab ${a.k===ab.k?'on':''}" data-pm-aba="${a.k}" role="tab" aria-selected="${a.k===ab.k}" title="${a.rot}"><i class="fas ${a.ico}"></i><span class="lb">${a.curto||a.rot}</span>${bd[a.k]?`<span class="bd">${bd[a.k]}</span>`:''}</button>`;
+  const GRP=[['',['painel']],['Produção',['pecas','planejamento','producao']],['Comercial',['vendas','estoque']],['Financeiro',['caixa','relatorios']]];
+  const nav=`<div class="pm-topo"><div class="pm-topo-in"><div class="pm-marca"><span class="ic"><i class="fas fa-cubes"></i></span><div><b>Fábrica de pré-moldados</b><small>Vixsul Empreendimentos</small></div></div>
+    <nav class="pm-nav" role="tablist">${GRP.map(([g,ks])=>`<div class="pm-grp">${g?`<small>${g}</small>`:''}${ks.map(k=>tabB(ABAS.find(a=>a.k===k))).join('')}</div>`).join('')}</nav>
+    <button type="button" class="pm-cfg ${ab.k==='parametros'?'on':''}" data-pm-aba="parametros" title="Parâmetros da fábrica"><i class="fas fa-sliders"></i></button></div></div>`;
   let corpo='';
   try{corpo=({painel:telaPainel,pecas:telaPecas,planejamento:telaPlanejamento,producao:telaProducao,estoque:telaEstoque,vendas:telaVendas,caixa:telaCaixa,relatorios:telaRelatorios,parametros:telaParametros}[ab.k]||telaPainel)();}
   catch(e){console.error(e);corpo=`<div class="gf-aviso err"><i class="fas fa-triangle-exclamation"></i><div>Erro ao montar esta aba: ${fe(e.message)}</div></div>`;}
@@ -393,7 +437,11 @@ function render(){
   box.innerHTML=nav+corpo;if(rol)rol.scrollTop=y;
   const on=box.querySelector('.pm-tab.on');if(on&&on.scrollIntoView)try{on.scrollIntoView({block:'nearest',inline:'nearest'});}catch(e){}
   if(ab.k==='painel')desenharGrafico();
+  if(ab.k==='parametros'){box.querySelectorAll('[data-end]').forEach(ligarEndereco);ligarCidadesFrete(box);}
   pintarFotos(box);
+  // sombra do cabeçalho só quando a tela rola (o conteúdo passa por baixo, sem aparecer pelas bordas)
+  if(rol&&!rol._pmSc){rol._pmSc=1;rol.addEventListener('scroll',()=>{const t=document.querySelector('#pm-app .pm-topo');if(t)t.classList.toggle('rolado',rol.scrollTop>6);},{passive:true});}
+  const tp=box.querySelector('.pm-topo');if(tp&&rol)tp.classList.toggle('rolado',rol.scrollTop>6);
   if(!box._ligado){box._ligado=1;box.addEventListener('click',clique);box.addEventListener('change',mudou);box.addEventListener('input',digitou);}
 }
 function digitou(ev){
@@ -405,6 +453,7 @@ function mudou(ev){
   if(t.matches('[data-pm-mes]')){PM.mes=t.value;render();}
   else if(t.matches('[data-pm-cat]')){PM.cat=t.value;render();}
   else if(t.matches('[data-pm-grupo]')){PM.grupo=t.value;render();}
+  else if(t.matches('[data-pm-catsit]')){PM.catSit=t.value;render();}
   else if(t.matches('[data-pm-cxmes]')){PM.cxMes=t.value;render();}
   else if(t.matches('[data-pm-rel]')){PM.rel[t.dataset.pmRel]=t.value;render();}
 }
@@ -413,7 +462,7 @@ function clique(ev){
   const cx=ev.target.closest('[data-pm-cxsel]');if(cx){PM.cxMes=cx.dataset.pmCxsel;return render();}
   const b=ev.target.closest('[data-pm]');if(!b)return;const x=b.dataset.pm,id=b.dataset.id;
   const acoes={
-    'nova-peca':()=>escolherTipo(t=>formPeca(null,{tipo_k:t.k})),'peca':()=>fichaPeca(pecaDe(id)),'vista':()=>{PM.pecasVista=b.dataset.v;render();},
+    'nova-peca':()=>escolherTipo(t=>formPeca(null,{tipo_k:t.k})),'cat-grupo':()=>{PM.grupo=b.dataset.g;render();},'cat-pdf':()=>catalogoPDF(b.dataset.modo),'peca':()=>fichaPeca(pecaDe(id)),'vista':()=>{PM.pecasVista=b.dataset.v;render();},
     'tipo':()=>fichaTipo(tipoK(b.dataset.k)),'tipo-novo':()=>formTipo(null),'traco-novo':()=>formTraco(null),'traco':()=>formTraco(tracoDe(id)),
     'ordem-nova':()=>formOrdem(null),'ordem':()=>formOrdem(T('ordem').find(o=>String(o.rowid)===id)),'fichas-abertas':()=>imprimirFichas(ordens().filter(o=>o.status==='planejada'||o.status==='producao')),
     'prod-nova':()=>formProducao(null),'lote':()=>fichaLote(b.dataset.lote),'prod':()=>formProducao(T('producao').find(o=>String(o.rowid)===id)),
@@ -534,27 +583,43 @@ function telaPecas(){
         :`<div><small>Sugerido</small><b style="color:#1652D8">${R(x.sug)}</b></div><div><small>Margem</small><b style="color:#98A2B3">sem preço</b></div>`}</div>
       <div class="vk-sub" style="margin:8px 0 0">${pill(`${nf(Math.max(0,e.disp||0),0)} prontas`,'ok','fa-check')}${e.cura?pill(`${nf(e.cura,0)} em cura`,'info','fa-hourglass-half'):''}${e.res?pill(`${nf(e.res,0)} reservadas`,'warn','fa-bookmark'):''}</div></article>`;};
   return cabG('Peças e catálogo','Cada peça da fábrica nasce de um tipo do catálogo: informe só as medidas — volume, peso, armadura, forma, traço, materiais e custo saem prontos e vão para a ficha de produção.',
-      `<button type="button" class="gf-bt pri" data-pm="nova-peca"><i class="fas fa-plus"></i> Nova peça</button>`)+sub+
+      `<button type="button" class="gf-bt" data-pm="cat-pdf" data-modo="precos"><i class="fas fa-file-pdf"></i> Catálogo de preços (PDF)</button><button type="button" class="gf-bt pri" data-pm="nova-peca"><i class="fas fa-plus"></i> Nova peça</button>`)+sub+
     `<div class="pm-filtros"><input type="search" data-pm-busca placeholder="Buscar peça (nome, código)…" value="${fe(PM.busca)}" style="min-width:240px">
       <select data-pm-grupo><option value="">Todos os grupos</option>${CAT.GRUPOS.map(g=>`<option value="${g.k}" ${g.k===PM.grupo?'selected':''}>${g.rot}</option>`).join('')}</select><span class="pm-mini">${L.length} peça(s)</span></div>
     ${L.length?`<div class="pm-grid">${L.map(cartao).join('')}</div>`:`<div class="gf-sec"><div class="gf-vazio"><i class="fas fa-cubes"></i><p>${pecas().length?'Nenhuma peça neste filtro.':'Nenhuma peça cadastrada ainda. Escolha um tipo do catálogo e informe as medidas.'}</p><button type="button" class="gf-bt pri" data-pm="nova-peca"><i class="fas fa-plus"></i> Nova peça</button></div></div>`}`;
 }
 function telaCatalogo(sub){
-  const c=CFG(),q=String(PM.busca||'').toLowerCase();
-  const L=tiposTodos().filter(t=>(!PM.grupo||t.g===PM.grupo)&&(!q||[t.nome,t.uso].join(' ').toLowerCase().includes(q)));
-  const nAt=tiposTodos().filter(t=>statusTipo(t.k,c)==='ativo').length;
-  const card=t=>{const st=statusTipo(t.k,c),arm=CAT.armadura(t,t.d,t.arm!=='nenhuma'&&t.armPad!==false),g=CAT.geo(t,t.d);
-    return `<article class="pm-card ${st}" style="--cor:${grupoDe(t.g).cor}" data-pm="tipo" data-k="${t.k}">
-      <div class="vk-top"><h4>${fe(t.nome)}</h4>${st==='ativo'?pill('trabalhamos','ok','fa-check'):st==='oculto'?pill('oculto','','fa-eye-slash'):pill('excluído','err','fa-ban')}</div>
+  const c=CFG(),q=String(PM.busca||'').toLowerCase(),todos=tiposTodos(),st0=PM.catSit||'';
+  const L=todos.filter(t=>(!PM.grupo||t.g===PM.grupo)&&(!st0||statusTipo(t.k,c)===st0)&&(!q||[t.nome,t.uso,(t.tam||[]).map(x=>x[0]).join(' ')].join(' ').toLowerCase().includes(q)));
+  const nAt=todos.filter(t=>statusTipo(t.k,c)==='ativo').length,nG=k=>todos.filter(t=>t.g===k).length;
+  const card=t=>{const st=statusTipo(t.k,c),g=CAT.geo(t,t.d),tm=(t.tam||[]).map(x=>x[0]);
+    return `<article class="pm-card pm-prod ${st}" style="--cor:${grupoDe(t.g).cor}" data-pm="tipo" data-k="${t.k}">
       <div class="pm-svgbox">${ilu(t,t.d)}</div>
-      <div class="pm-dim">${fe(grupoDe(t.g).rot)} · ${fe(g.desc)}${t.tam.length?` · ${t.tam.length} tamanho(s) de mercado`:''}</div>
-      <div class="pm-mini">${fe(t.uso||'')}</div></article>`;};
+      <div class="vk-top" style="margin-top:2px"><h4>${fe(t.nome)}</h4>${st==='ativo'?pill('trabalhamos','ok','fa-check'):st==='oculto'?pill('oculto','','fa-eye-slash'):pill('excluído','err','fa-ban')}</div>
+      <div class="pm-mini" style="margin:2px 0 6px">${fe(t.uso||'')}</div>
+      <div class="pm-tams">${tm.length?tm.slice(0,3).map(x=>`<span>${fe(x)}</span>`).join('')+(tm.length>3?`<span class="mais">+${tm.length-3}</span>`:''):`<span>${fe(g.desc)}</span>`}</div>
+      <div class="pm-info"><span><i class="fas fa-layer-group"></i>${fe((CAT.TR[t.tr]||{}).fck||'')}</span><span><i class="fas fa-hourglass-half"></i>${t.cura} dias</span>${t.arm!=='nenhuma'?`<span><i class="fas fa-grip-lines"></i>armada</span>`:''}${t.norma?`<span><i class="fas fa-certificate"></i>${fe(t.norma.split(' ')[0]+' '+(t.norma.split(' ')[1]||''))}</span>`:''}</div></article>`;};
   const grupos=CAT.GRUPOS.filter(g=>L.some(t=>t.g===g.k));
-  return cabG('Catálogo de tipos','Todos os pré-moldados que a fábrica pode produzir, dos catálogos de referência (ABCP, Civil, Machado). Marque o que a Vixsul trabalha; oculte ou exclua o que não vai fazer — os ocultos e excluídos não aparecem ao cadastrar peças.',
-      `<button type="button" class="gf-bt" data-pm="tipo-novo"><i class="fas fa-plus"></i> Novo tipo</button>`)+sub+
-    `<div class="pm-filtros"><input type="search" data-pm-busca placeholder="Buscar tipo (nome, uso)…" value="${fe(PM.busca)}" style="min-width:240px">
-      <select data-pm-grupo><option value="">Todos os grupos</option>${CAT.GRUPOS.map(g=>`<option value="${g.k}" ${g.k===PM.grupo?'selected':''}>${g.rot}</option>`).join('')}</select><span class="pm-mini">${nAt} de ${tiposTodos().length} tipos marcados como "trabalhamos"</span></div>
+  const chip=(k,rot,ico,cor,n)=>`<button type="button" class="pm-gchip ${PM.grupo===k?'on':''}" data-pm="cat-grupo" data-g="${k}" style="--cor:${cor}"><i class="fas ${ico}"></i>${rot}<b>${n}</b></button>`;
+  return cabG('Catálogo de tipos',`${todos.length} tipos de pré-moldados, com desenho, medidas de mercado, traço, cura e armadura. Marque o que a fábrica trabalha — só esses aparecem ao cadastrar peças e no catálogo em PDF para o cliente.`,
+      `<button type="button" class="gf-bt" data-pm="cat-pdf" data-modo="tipos"><i class="fas fa-file-pdf"></i> Catálogo em PDF</button><button type="button" class="gf-bt" data-pm="tipo-novo"><i class="fas fa-plus"></i> Novo tipo</button>`)+sub+
+    `<div class="pm-gchips">${chip('','Todos','fa-border-all','#1652D8',todos.length)}${CAT.GRUPOS.map(g=>chip(g.k,g.rot.split(/[,(]/)[0].trim(),g.ico,g.cor,nG(g.k))).join('')}</div>
+    <div class="pm-filtros"><input type="search" data-pm-busca placeholder="Buscar tipo (nome, uso, tamanho)…" value="${fe(PM.busca)}" style="min-width:260px">
+      <select data-pm-catsit><option value="">Todas as situações</option><option value="ativo" ${st0==='ativo'?'selected':''}>Só os que trabalhamos (${nAt})</option><option value="oculto" ${st0==='oculto'?'selected':''}>Ocultos</option><option value="excluido" ${st0==='excluido'?'selected':''}>Excluídos</option></select>
+      <span class="pm-mini">${L.length} tipo(s) na tela</span></div>
     ${grupos.map(g=>`<section class="gf-sec"><div class="gf-sec-cab"><div><h3><i class="fas ${g.ico}" style="color:${g.cor}"></i> ${g.rot}</h3><p>${L.filter(t=>t.g===g.k).length} tipo(s)</p></div></div><div class="pm-grid">${L.filter(t=>t.g===g.k).map(card).join('')}</div></section>`).join('')||'<div class="gf-vazio"><p>Nenhum tipo neste filtro.</p></div>'}`;
+}
+// catálogo em PDF para o cliente: tipos que a fábrica trabalha (sem preço) ou as peças cadastradas com foto e preço
+async function catalogoPDF(modo){
+  const c=CFG();let itens;
+  if(modo==='precos'){const ps=pecas();if(!ps.length)return toast('Cadastre as peças primeiro.','error');UI._showBusy('Montando o catálogo…');let fotos=[];try{fotos=await Promise.all(ps.map(p=>fotoUrl(p.rowid).catch(()=>'')));}finally{UI._hideBusy();}
+    itens=ps.map((p,i)=>{const x=calc(p,1);return {g:x.t.g,img:fotos[i]?`<img src="${fotos[i]}" style="width:100%;height:170px;object-fit:cover;border-radius:8px;display:block">`:iluPeca(p,{w:380,h:210,cotas:true,detalhe:true}),tit:p.nome,cod:p.codigo,linhas:[x.g.desc+' · '+nf(x.peso,1)+' kg',x.t.uso],preco:x.preco||r2(x.sug),at:num(p.preco_atacado),atMin:num(p.atacado_min)};});}
+  else{itens=tiposTodos().filter(t=>statusTipo(t.k,c)==='ativo').map(t=>({g:t.g,img:ilu(t,t.d,{w:380,h:210,cotas:true}),tit:t.nome,linhas:[(t.tam||[]).length?'Tamanhos: '+t.tam.map(x=>x[0]).join(' · '):CAT.geo(t,t.d).desc,t.uso,t.norma||'']}));if(!itens.length)return toast('Marque os tipos que a fábrica trabalha.','error');}
+  const card=it=>`<div style="flex:1;min-width:0;border:1px solid #e5e5ea;border-radius:12px;padding:8px;background:#fff"><div style="background:#FAFAFB;border-radius:8px">${it.img}</div><div style="font-size:12.5px;font-weight:800;margin-top:5px">${fe(it.tit)}${it.cod?` <span style="color:#6e6e73;font-weight:600">· ${fe(it.cod)}</span>`:''}</div>${it.linhas.filter(Boolean).map(l=>`<div style="font-size:9.5px;color:#6e6e73;line-height:1.35">${fe(l)}</div>`).join('')}${it.preco!=null?`<div style="margin-top:5px;font-size:11.5px"><b style="color:#0071E3;font-size:13px">${R(it.preco)}</b> varejo${it.at?` · <b>${R(it.at)}</b> atacado${it.atMin?' (a partir de '+nf(it.atMin,0)+' pç)':''}`:''}</div>`:''}</div>`;
+  const par=(a,b)=>`<div style="display:flex;gap:10px;margin-bottom:2px">${card(a)}${b?card(b):'<div style="flex:1"></div>'}</div>`,blocos=[];
+  CAT.GRUPOS.forEach(g=>{const L=itens.filter(x=>x.g===g.k);for(let i=0;i<L.length;i+=2)blocos.push((i?'':`<div style="font-size:15px;font-weight:800;border-left:5px solid ${g.cor};padding:5px 10px;background:#F5F5F7;border-radius:8px;margin:4px 0 8px">${fe(g.rot)}</div>`)+par(L[i],L[i+1]));});
+  App._relExportPaginado({titulo:modo==='precos'?'Catálogo de produtos e preços':'Catálogo de produtos',subLinhas:[`Fábrica de pré-moldados · ${new Date().toLocaleDateString('pt-BR')}`],blocosArr:blocos,
+    posHtml:`<p style="font-size:10px;color:#6e6e73;margin-top:8px">${modo==='precos'?`Preços sujeitos a alteração. Encomendas reservadas com ${nf(num(c.sinal),0)}% de sinal; entrega com as peças curadas e o pagamento completo. `:''}Medidas em centímetros; desenhos ilustrativos. Consulte outras medidas sob encomenda.</p>`});
 }
 function fichaTipo(t){
   if(!t)return;const c=CFG(),st=statusTipo(t.k,c),arm=CAT.armadura(t,t.d,t.arm!=='nenhuma'&&t.armPad!==false),tr=tracoDe('p:'+t.tr);
@@ -695,7 +760,7 @@ function formPeca(reg,opts){
       <div class="fin-fld" style="grid-column:span 2"><label>Nome da peça <span class="obg">*</span></label><input data-k="nome" value="${fe(base.nome||'')}" placeholder="${fe(t.nome)}"></div>
       <div class="fin-fld"><label>Preço de varejo (R$)</label><input data-k="preco" value="${base.preco?fe(String(base.preco)):''}" placeholder="vazio = sugerido"></div>
       <div class="fin-fld"><label>Preço de atacado (R$)</label><input data-k="preco_atacado" value="${base.preco_atacado?fe(String(base.preco_atacado)):''}"></div>
-      <div class="fin-fld"><label>Atacado a partir de (peças)</label><input data-k="atacado_min" inputmode="numeric" value="${fe(String(base.atacado_min||''))}" placeholder="ex.: 100"></div></div></div>
+      <div class="fin-fld"><label>Atacado a partir de (peças)</label><input data-k="atacado_min" inputmode="numeric" value="${fe(String(base.atacado_min||''))}" placeholder="ex.: 100"></div><div class="fin-fld"><label>NCM (nota fiscal)</label><input data-k="ncm" value="${fe(base.ncm||'')}" placeholder="${CAT.ncmDe?CAT.ncmDe(t):''}"></div></div></div>
     <div class="pm-bloco"><h5><i class="fas fa-industry"></i> Produção</h5><div class="fin-linha">
       <div class="fin-fld" style="grid-column:span 2"><label>Traço</label><select data-k="traco">${tracos().map(x=>`<option value="${x.id}" ${x.id===(LEGADO_TR[base.traco]||base.traco)?'selected':''}>${fe(x.nome)}</option>`).join('')}</select></div>
       <div class="fin-fld"><label>Dias de cura até liberar</label><input data-k="cura" inputmode="numeric" value="${fe(String(base.cura!=null?base.cura:t.cura))}"></div>
@@ -729,7 +794,7 @@ function formPeca(reg,opts){
 }
 function lerPeca(j,o){
   const v=k=>{const e=j.querySelector(`[data-k="${k}"]`);return e?(e.type==='checkbox'?e.checked:String(e.value||'').trim()):'';};
-  ['codigo','nome','obs'].forEach(k=>o[k]=v(k));o.traco=v('traco')||o.traco;
+  ['codigo','nome','obs','ncm'].forEach(k=>o[k]=v(k));o.traco=v('traco')||o.traco;
   const ar=j.querySelector('[data-k="armadura"]');if(ar)o.armadura=ar.checked;
   o.preco=v('preco')?r2(num(v('preco'))):'';o.preco_atacado=v('preco_atacado')?r2(num(v('preco_atacado'))):'';o.atacado_min=v('atacado_min')?num(v('atacado_min')):'';
   o.cura=v('cura')!==''?num(v('cura')):o.cura;o.minimo=v('minimo')?num(v('minimo')):'';o.perda=v('perda')!==''?num(v('perda')):'';o.formas=Math.max(1,num(v('formas'))||1);o.ciclo=Math.max(1,num(v('ciclo'))||1);
@@ -889,8 +954,32 @@ function telaPlanejamento(){
         ${nec.lin.map(x=>`<tr><td>${fe(x.i.nome)}</td><td class="n">${nf(x.prec,2)} ${x.i.un}</td><td class="n">${nf(x.saldo,2)} ${x.i.un}</td><td class="n" style="${x.comprar>0?'color:#B42318;font-weight:800':''}">${x.comprar>0?nf(x.comprar,2)+' '+x.i.un:'—'}</td><td class="n">${x.comprar>0?R(x.custo):'—'}</td></tr>`).join('')}
         <tr class="t"><td colspan="4">Total a comprar</td><td class="n">${R(nec.custo)}</td></tr></tbody></table></div>`:'<div class="gf-vazio ok"><i class="fas fa-circle-check"></i><p>Nenhuma ordem aberta pedindo material.</p></div>'}</section>`;
 }
+/* ═══ TRAVAS DE FLUXO: o que cada mudança exige (mostra a lista com o que já está ok e o que falta) ═══ */
+function trava(titulo,deps,ir){
+  sobre(`<div class="pm-pop-box" style="max-width:560px"><div class="pm-pop-cab"><b><i class="fas fa-lock" style="color:#B42318"></i> ${fe(titulo)}</b><button type="button" class="pm-x" data-pop-x><i class="fas fa-xmark"></i></button></div>
+    <div style="padding:14px 16px 16px"><p class="pm-mini" style="margin:0 0 8px">Não foi feito. Esta mudança depende de:</p><ul class="pm-arml">${deps.map(d=>`<li style="${d.ok?'':'background:#FEF3F2;border-color:#FECDCA'}"><i class="fas ${d.ok?'fa-circle-check':'fa-circle-xmark'}" style="color:${d.ok?'#067647':'#B42318'}"></i><span>${d.txt}</span></li>`).join('')}</ul>
+    ${ir?`<div style="display:flex;justify-content:flex-end;margin-top:12px"><button type="button" class="gf-bt pri" data-pop-ir><i class="fas fa-arrow-right"></i> ${fe(ir.rot)}</button></div>`:''}</div></div>`,(ev,fechar)=>{if(ev.target.closest('[data-pop-ir]')){fechar();ir.f();}});
+  return false;
+}
+// insumos que faltam para produzir uma lista de {peca, qtd} (soma boas + refugo); "devolve" = consumo já lançado que volta (edição)
+function faltaInsumos(itens,devolve){
+  const ei=estoqueInsumos(),tot={};itens.forEach(it=>{const p=pecaDe(it.peca);if(!p)return;const x=calc(p,num(it.qtd)+num(it.refugo));Object.entries(x.est).forEach(([k,q])=>tot[k]=(tot[k]||0)+q);});
+  return INS.filter(i=>tot[i.k]>1e-6).map(i=>{const tem=ei[i.k].saldo+num((devolve||{})[i.k]);return {i,prec:tot[i.k],tem,falta:tot[i.k]-tem};});
+}
+const depsInsumos=L=>L.map(x=>({ok:x.falta<=1e-6,txt:`${fe(x.i.nome)}: precisa ${nf(x.prec,2)} ${x.i.un} — tem ${nf(Math.max(0,x.tem),2)} ${x.i.un}${x.falta>1e-6?` · <b>faltam ${nf(x.falta,2)} ${x.i.un}</b>`:''}`}));
+// regras das ordens de produção ao mudar de coluna (ou de situação na ficha)
+function depsOrdem(o,col){
+  const feito=prodDaOrdem(o.rowid),tot=num(o.qtd),p=pecaDe(o.peca),d=[];
+  if(col==='producao'&&o.status==='planejada'){const fl=faltaInsumos([{peca:o.peca,qtd:Math.max(0,tot-feito)}]);d.push({ok:!!p,txt:'Peça cadastrada'},...depsInsumos(fl));}
+  if(col==='concluida')d.push({ok:feito>=tot,txt:`Produção registrada no Diário: ${nf(feito,0)} de ${nf(tot,0)} peças${feito<tot?` — <b>faltam ${nf(tot-feito,0)}</b>`:''}`});
+  if(col==='planejada'&&o.status!=='planejada')d.push({ok:feito===0,txt:feito?`Nenhuma peça registrada nesta ordem (já tem ${nf(feito,0)} no Diário)`:'Nenhuma peça registrada nesta ordem'});
+  if(col==='producao'&&o.status==='concluida')d.push({ok:feito<tot,txt:feito>=tot?'A ordem já está completa — para fazer mais, crie outra ordem':'Ainda faltam peças nesta ordem'});
+  if(col==='cancelada')d.push({ok:feito===0,txt:feito?`Nenhuma peça produzida (já tem ${nf(feito,0)}) — conclua a ordem com o que foi feito`:'Nenhuma peça produzida'},{ok:!o.venda||!!(vendaDe(o.venda)&&vendaDe(o.venda).status==='cancelada'),txt:o.venda?'Ordem de uma venda: cancele ou edite pela venda':'Ordem sem venda ligada'});
+  return d;
+}
 async function moverOrdem(id,col){
   const o=ordens().find(x=>String(x.rowid)===String(id));if(!o||!col||o.status===col)return;
+  const d=depsOrdem(o,col);if(d.some(x=>!x.ok)){render();return trava(`OP nº ${o.numero}: não pode ir para "${(COLS_OP.find(c=>c.k===col)||{rot:col}).rot}"`,d,col==='concluida'?{rot:'Registrar a produção',f:()=>formProducao(null,{peca:o.peca,ordem:o.rowid})}:col==='producao'&&o.status==='planejada'?{rot:'Lançar entrada de insumo',f:()=>formCompra(null)}:null);}
   try{await gravar({...o,status:col,...(col==='producao'&&!o.inicio?{inicio:hojeISO()}:{}),...(col==='concluida'?{concluida_em:hojeISO()}:{})},o.rowid);toast(`OP nº ${o.numero}: ${COLS_OP.find(c=>c.k===col).rot.toLowerCase()}.`,'success');}catch(e){toast(e.message,'error');}
 }
 function imprimirNecessidade(){
@@ -920,7 +1009,10 @@ function formOrdem(reg,pre){
      {html:`<i class="fas fa-floppy-disk"></i> ${reg?'Salvar':'Criar e imprimir a ficha'}`,cls:'pri',acao:async jj=>{
       if(reg&&GS.podeMexer&&!GS.podeMexer(reg)&&!vend)throw new Error(GS.MSG_DONO);
       const g=k=>jj.querySelector(`[data-k="${k}"]`).value.trim(),o=reg?{...reg}:{tipo:'ordem',numero:proxNum('ordem','numero'),data_lancamento:todayDateTime()};
-      if(!vend){o.peca=g('peca');o.qtd=num(g('qtd'));o.cliente=g('cliente');}o.status=g('status');o.inicio=g('inicio');o.fim=g('fim');o.obs=g('obs');
+      if(!vend){o.peca=g('peca');o.qtd=num(g('qtd'));o.cliente=g('cliente');}o.status=g('status');
+      if(reg&&o.status!==reg.status){const d=depsOrdem(reg,o.status);if(d.some(x=>!x.ok))return trava(`OP nº ${reg.numero}: não pode mudar para "${(COLS_OP.find(c=>c.k===o.status)||{rot:'Cancelada'}).rot}"`,d);}
+      if(reg&&num(o.qtd)<prodDaOrdem(reg.rowid))return trava(`OP nº ${reg.numero}: quantidade menor do que já foi feito`,[{ok:false,txt:`A ordem já tem ${nf(prodDaOrdem(reg.rowid),0)} peças registradas no Diário — a quantidade não pode ser menor que isso`}]);
+      if(!reg&&o.status!=='planejada')return trava('Ordem nova começa como Planejada',[{ok:false,txt:'Crie a ordem como Planejada e mude a situação depois, conforme a produção acontece'}]);o.inicio=g('inicio');o.fim=g('fim');o.obs=g('obs');
       if(!(num(o.qtd)>0))throw new Error('Informe a quantidade de peças.');if(o.fim&&o.inicio&&o.fim<o.inicio)throw new Error('O prazo não pode ser antes do início.');
       if(!reg){const p=pecaDe(o.peca);if(p)imprimirFichaDoc([fichaHtml(p,num(o.qtd),o)],'Ficha de produção — OP nº '+o.numero,p.nome);}
       await gravar(o,reg?reg.rowid:null);toast(reg?'Ordem salva.':`Ordem de produção nº ${o.numero} criada.`,'success');}}],900);
@@ -989,7 +1081,7 @@ function formEnsaio(cod,reg){
     [...(reg?[{html:'<i class="fas fa-trash"></i> Excluir',acao:async()=>{setTimeout(()=>apagarReg(reg,`Ensaio de ${reg.idade} dias do lote ${cod}`),60);}}]:[]),
      {html:'<i class="fas fa-floppy-disk"></i> Salvar ensaio',cls:'pri',acao:async jj=>{
       if(reg&&GS.podeMexer&&!GS.podeMexer(reg))throw new Error(GS.MSG_DONO);
-      const r=ler(jj);if(!r.data)throw new Error('Informe a data do ensaio.');if(r.data>hojeISO())throw new Error('A data do ensaio não pode ser no futuro: registre no dia em que o laboratório romper os corpos de prova.');if(!r.valores.length)throw new Error('Informe o resultado de ao menos um corpo de prova.');if(!(r.fck>0))throw new Error('Informe o fck exigido.');
+      const r=ler(jj);if(!r.data)throw new Error('Informe a data do ensaio.');if(r.data>hojeISO())throw new Error('A data do ensaio não pode ser no futuro: registre no dia em que o laboratório romper os corpos de prova.');if(!r.valores.length)throw new Error('Informe o resultado de ao menos um corpo de prova.');if(!(r.fck>0))throw new Error('Informe o fck exigido.');if(r.valores.some(x=>x>120)||r.fck>120)throw new Error('Resistência acima de 120 MPa: confira o valor (em MPa, não em kgf).');
       await gravar({...(reg||{tipo:'ensaio',data_lancamento:todayDateTime()}),lote:cod,peca:l.peca,data_moldagem:l.data,...r},reg?reg.rowid:null);
       toast(r.situacao==='reprovado'?'Ensaio registrado: lote REPROVADO — separe as peças e avalie com o responsável técnico.':'Ensaio registrado.',r.situacao==='reprovado'?'error':'success');}}],640);
   function ler(jj){const g=k=>String(jj.querySelector(`[data-k="${k}"]`).value||'').trim(),pf=s=>{const n=parseFloat(String(s).replace(',','.'));return isFinite(n)?n:0;};
@@ -1113,12 +1205,21 @@ function formProducao(reg,pre){
       o.ponto=lerPonto(jj);o.equipe=o.ponto.map(x=>x.nome);
       if(!o.data)throw new Error('Informe a data.');if(o.data>hojeISO())throw new Error('A data não pode ser no futuro.');
       const its=lerItensProd(jj);if(!its.length)throw new Error('Informe ao menos uma peça com quantidade.');
+      // não se produz sem material: o consumo do dia tem de caber no estoque de insumos (na edição, o consumo antigo volta)
+      const devolve={};if(reg)itensProd(reg).forEach(it=>Object.entries(it.consumo||{}).forEach(([k,q])=>devolve[k]=(devolve[k]||0)+num(q)));
+      const fl=faltaInsumos(its,devolve);
+      if(fl.some(x=>x.falta>1e-6))return trava('Faltam insumos para registrar esta produção',depsInsumos(fl).concat([{ok:true,txt:'Lance as compras em <b>Estoque › Entrada de insumo</b>. Material que já estava no pátio antes do sistema: lance o estoque inicial em <b>Estoque › Acerto de inventário</b>.'}]));
+      // ordem de produção: não passa da quantidade pedida
+      const porOP={};its.forEach(it=>{if(it.ordem)porOP[it.ordem]=(porOP[it.ordem]||0)+it.qtd;});
+      for(const [id,q] of Object.entries(porOP)){const op=ordens().find(z=>String(z.rowid)===String(id));if(!op)continue;const ja=prodDaOrdem(op.rowid)-(reg?itensProd(reg).filter(it=>String(it.ordem)===String(id)).reduce((s,it)=>s+num(it.qtd),0):0);
+        if(ja+q>num(op.qtd))return trava(`OP nº ${op.numero}: passou da quantidade pedida`,[{ok:false,txt:`A ordem pede ${nf(num(op.qtd),0)} peças; já tem ${nf(ja,0)} registradas; este registro soma ${nf(q,0)} — <b>${nf(ja+q-num(op.qtd),0)} a mais</b>. Registre o excedente na mesma peça como "sem ordem (estoque)".`}]);}
       // lote de cada peça: o que já tinha fica; peça nova ganha o próximo número do dia
       const base='L'+ymd(o.data),usados=new Set(lotes().map(l=>l.lote));let seq=0;const prox=()=>{let c2;do{seq++;c2=`${base}-${String(seq).padStart(2,'0')}`;}while(usados.has(c2));usados.add(c2);return c2;};
       // retrato do dia: consumo (boas + refugo) e custo por peça
       o.itens=its.map(it=>{const p=pecaDe(it.peca),x=calc(p,it.qtd+it.refugo),u=calc(p,1),cons={};Object.entries(x.est).forEach(([k,q])=>cons[k]=Math.round(q*10000)/10000);
         return {...it,lote:it.lote||prox(),consumo:cons,custo_un:r2(u.un),custo_mat_un:r2(u.custo.mat),m3:Math.round(x.Vt*10000)/10000};});
       ['peca','ordem','qtd','refugo','consumo','custo_un','custo_mat_un','m3'].forEach(k=>delete o[k]);
+      PM.mes=mesKey(dt(o.data));   // a lista do diário passa a mostrar o mês do dia registrado
       await gravar(o,reg?reg.rowid:null);
       const mud=[];new Set(o.itens.map(it=>it.ordem).filter(Boolean)).forEach(id=>{const op=ordens().find(z=>String(z.rowid)===String(id));if(!op)return;
         if(op.status!=='concluida'&&prodDaOrdem(op.rowid)>=num(op.qtd))mud.push([{...op,status:'concluida',concluida_em:o.data},op.rowid]);else if(op.status==='planejada')mud.push([{...op,status:'producao',inicio:op.inicio||o.data},op.rowid]);});
@@ -1179,26 +1280,40 @@ function telaEstoque(){
           const pc=String(r.item||'').startsWith('peca:'),nm=pc?nomePeca(r.item.slice(5)):insDe(String(r.item).slice(7)).nome;return `<tr class="pm-lin" data-pm="ajuste" data-id="${r.rowid}"><td>${fe(brDe(dt(r.data)))}</td><td>${pill('acerto','info','fa-scale-balanced')}</td><td>${fe(nm)}<small>${fe(r.motivo||'')}</small></td><td class="n">${num(r.qtd)>0?'+':''}${nf(num(r.qtd),2)}</td><td class="n">—</td><td>—</td></tr>`;}).join('')}</tbody></table></div>`
       :'<div class="gf-vazio"><i class="fas fa-cart-flatbed"></i><p>Nenhuma compra lançada. Lance as entradas para o estoque e o custo médio ficarem certos.</p></div>'}</section>`;
 }
-function formAvaria(reg,pecaPre){
-  if(!pecas().length)return toast('Cadastre as peças primeiro.','error');
-  const b=reg||{data:hojeISO(),peca:pecaPre||pecas()[0].rowid,origem:'patio',qtd:''};
+// peça quebrada sai do estoque — menos quando foi numa entrega já feita (a peça já tinha saído com a venda)
+const vendaEntregue=id=>{const v=id?vendaDe(id):null;return !!v&&(v.status==='entregue'||v.status==='devolvida');};
+function avariaTiraEstoque(a){return AV_ESTOQUE.includes(a.origem)&&!vendaEntregue(a.venda);}
+function formAvaria(reg,pecaPre,pre){
+  if(!pecas().length)return toast('Cadastre as peças primeiro.','error');pre=pre||{};
+  const b=reg||{data:hojeISO(),peca:pecaPre||pecas()[0].rowid,origem:pre.origem||'patio',qtd:'',venda:pre.venda||''};
   const j=janela(reg?'Editar avaria':'Registrar avaria (peça quebrada)',`<div class="fin-linha">
       <div class="fin-fld"><label>Data <span class="obg">*</span></label><input type="date" data-k="data" value="${fe(b.data||'')}" max="${hojeISO()}"></div>
       <div class="fin-fld" style="grid-column:span 2"><label>Peça <span class="obg">*</span></label><select data-k="peca">${pecas().map(p=>`<option value="${p.rowid}" ${String(p.rowid)===String(b.peca)?'selected':''}>${fe(p.nome)}</option>`).join('')}</select></div>
       <div class="fin-fld"><label>Quantidade <span class="obg">*</span></label><input data-k="qtd" inputmode="numeric" value="${fe(String(b.qtd||''))}"></div>
       <div class="fin-fld" style="grid-column:span 2"><label>Onde quebrou</label><select data-k="origem">${Object.entries(ORIG_AV).filter(([k])=>k!=='cliente'||b.origem==='cliente').map(([k,l])=>`<option value="${k}" ${k===b.origem?'selected':''}>${l}</option>`).join('')}</select></div>
       <div class="fin-fld" style="grid-column:1/-1"><label>Causa</label><input data-k="causa" value="${fe(b.causa||'')}" placeholder="Ex.: queda da empilhadeira, desforma antes da hora, estrada ruim"></div>
-      <div class="fin-fld" style="grid-column:1/-1"><label>Venda (se aconteceu numa entrega)</label><select data-k="venda"><option value="">—</option>${vendas().filter(v=>v.status!=='cancelada').slice(-60).reverse().map(v=>`<option value="${v.rowid}" ${String(v.rowid)===String(b.venda||'')?'selected':''}>Venda nº ${v.numero} — ${fe(v.cliente||'')}</option>`).join('')}</select></div></div>
+      <div class="fin-fld" style="grid-column:1/-1"><label>Venda (se aconteceu numa entrega)</label><select data-k="venda"><option value="">—</option>${vendas().filter(v=>v.status!=='cancelada').slice(-60).reverse().map(v=>`<option value="${v.rowid}" ${String(v.rowid)===String(b.venda||'')?'selected':''}>Venda nº ${v.numero} — ${fe(v.cliente||'')}</option>`).join('')}</select></div>
+      ${reg?'':`<label class="nfc-amb" data-av-repor hidden style="grid-column:1/-1"><input type="checkbox" data-k="repor" checked><span><b>Repor as peças ao cliente</b> — sai do estoque a mesma quantidade (peças novas no lugar das quebradas)</span></label>`}</div>
       <div class="fin-aviso" style="margin-top:8px"><div data-av-prev></div></div>`,
     [...(reg?[{html:'<i class="fas fa-trash"></i> Excluir',acao:async()=>{setTimeout(()=>apagarReg(reg,'Avaria'),60);}}]:[]),
      {html:'<i class="fas fa-floppy-disk"></i> Registrar',cls:'pri',acao:async jj=>{
       if(reg&&GS.podeMexer&&!GS.podeMexer(reg))throw new Error(GS.MSG_DONO);
-      const g=k=>String(jj.querySelector(`[data-k="${k}"]`).value||'').trim(),o=reg?{...reg}:{tipo:'avaria',data_lancamento:todayDateTime()};
+      const g=k=>String((jj.querySelector(`[data-k="${k}"]`)||{}).value||'').trim(),o=reg?{...reg}:{tipo:'avaria',data_lancamento:todayDateTime()};
       ['data','peca','origem','causa','venda'].forEach(k=>o[k]=g(k));o.qtd=num(g('qtd'));if(!o.data)throw new Error('Informe a data.');if(!(o.qtd>0))throw new Error('Informe a quantidade.');
-      const x=estoque().P[String(o.peca)];o.custo_un=r2(x?x.custoUn:calc(pecaDe(o.peca),1).un);
-      await gravar(o,reg?reg.rowid:null);toast('Avaria registrada.','success');}}],640);
-  const at=()=>{const p=pecaDe(j.querySelector('[data-k="peca"]').value),q=num(j.querySelector('[data-k="qtd"]').value),og=j.querySelector('[data-k="origem"]').value,x=estoque().P[String(p&&p.rowid)],cu=x?x.custoUn:(p?calc(p,1).un:0);
-    j.querySelector('[data-av-prev]').innerHTML=q?`Perda de <b>${R(cu*q)}</b> (custo ${R(cu)} por peça).${AV_ESTOQUE.includes(og)?' As peças saem do estoque.':''}`:'Informe a quantidade.';};
+      const E=estoque(),x=E.P[String(o.peca)]||{disp:0},v=o.venda?vendaDe(o.venda):null,repor=!reg&&vendaEntregue(o.venda)&&!!(jj.querySelector('[data-k="repor"]')||{}).checked;
+      if(v&&dt(v.data)&&o.data<v.data)throw new Error('A data da avaria não pode ser antes do pedido.');
+      // não quebra mais do que existe: no estoque (pátio/desforma/carregamento) ou na entrega (o que foi entregue dessa peça)
+      if(avariaTiraEstoque(o)){const tem=x.disp+(reg&&avariaTiraEstoque(reg)&&String(reg.peca)===String(o.peca)?num(reg.qtd):0);
+        if(o.qtd>tem)return trava('Avaria maior do que o estoque',[{ok:false,txt:`Há ${nf(Math.max(0,tem),0)} peça(s) de ${fe(nomePeca(o.peca))} prontas no pátio — a avaria não pode passar disso.`},{ok:true,txt:'Peça que quebrou ainda em cura: registre como refugo no dia de produção.'}]);}
+      if(vendaEntregue(o.venda)){const ent=(v.itens||[]).filter(it=>String(it.peca)===String(o.peca)).reduce((s,it)=>s+num(it.qtd),0),ja=T('avaria').filter(a=>String(a.venda)===String(o.venda)&&String(a.peca)===String(o.peca)&&(!reg||String(a.rowid)!==String(reg.rowid))).reduce((s,a)=>s+num(a.qtd),0);
+        if(o.qtd>ent-ja)return trava('Avaria maior do que foi entregue',[{ok:ent>0,txt:`A venda nº ${v.numero} entregou ${nf(ent,0)} peça(s) de ${fe(nomePeca(o.peca))}`},{ok:false,txt:`Já há ${nf(ja,0)} avariada(s) nessa entrega — dá para registrar no máximo ${nf(Math.max(0,ent-ja),0)}`}]);
+        if(repor&&o.qtd>x.disp)return trava('Sem peças para repor',[{ok:false,txt:`Repor ${nf(o.qtd,0)} peça(s) exige estoque pronto — há ${nf(Math.max(0,x.disp),0)}. Desmarque "Repor" e reponha depois, quando houver peça.`}]);}
+      o.custo_un=r2(x.custoUn||calc(pecaDe(o.peca),1).un);
+      const ops=[[o,reg?reg.rowid:null]];if(repor)ops.push([{tipo:'ajuste',data:o.data,item:'peca:'+o.peca,qtd:-o.qtd,motivo:`reposição de avaria — venda nº ${v.numero}`,data_lancamento:todayDateTime()},null]);
+      await gravarVarios(ops);toast(repor?'Avaria registrada e peças repostas ao cliente (saíram do estoque).':'Avaria registrada.','success');}}],640);
+  const at=()=>{const p=pecaDe(j.querySelector('[data-k="peca"]').value),q=num(j.querySelector('[data-k="qtd"]').value),og=j.querySelector('[data-k="origem"]').value,vd=j.querySelector('[data-k="venda"]').value,x=estoque().P[String(p&&p.rowid)],cu=x?x.custoUn:(p?calc(p,1).un:0),ent=vendaEntregue(vd);
+    const rp=j.querySelector('[data-av-repor]');if(rp)rp.hidden=!ent;
+    j.querySelector('[data-av-prev]').innerHTML=q?`Perda de <b>${R(cu*q)}</b> (custo ${R(cu)} por peça).${ent?' A peça já tinha saído com a entrega: a perda entra no resultado sem baixar o estoque de novo.':AV_ESTOQUE.includes(og)?` As peças saem do estoque (há ${nf(Math.max(0,(x||{}).disp||0),0)} prontas).`:''}`:'Informe a quantidade.';};
   const corpo=j.querySelector('.fin-jan-corpo');corpo.addEventListener('input',at);corpo.addEventListener('change',at);at();
 }
 function formCompra(reg,insPre){
@@ -1307,6 +1422,9 @@ function formAgenda(v){
     [...(a.data?[{html:'<i class="fas fa-calendar-xmark"></i> Tirar da agenda',acao:async()=>{await gravar({...vendaBruta(v),agenda:null},v.rowid);toast('Entrega tirada da agenda.','success');}}]:[]),
      {html:'<i class="fas fa-calendar-check"></i> Agendar',cls:'pri',acao:async j=>{const g=k=>String(j.querySelector(`[data-k="${k}"]`).value||'').trim();if(!g('data'))throw new Error('Informe a data da entrega.');
       if(g('data')<hojeISO())throw new Error('A data não pode ser no passado.');
+      // carga do caminhão no dia não pode passar da capacidade
+      const cam=(c.caminhoes||[]).find(x=>x.nome===g('caminhao'));if(cam&&num(cam.cap_kg)>0){const outras=vendas().filter(x=>String(x.rowid)!==String(v.rowid)&&x.status!=='cancelada'&&x.agenda&&x.agenda.data===g('data')&&x.agenda.caminhao===cam.nome),pesoDia=outras.reduce((s,x)=>s+pesoVenda(x),0)+pesoVenda(v);
+        if(pesoDia>num(cam.cap_kg))return trava(`${cam.nome}: carga passa da capacidade em ${brDe(dt(g('data')))}`,[{ok:true,txt:`Capacidade: ${nf(num(cam.cap_kg),0)} kg`},{ok:true,txt:`Já agendado no dia: ${nf(pesoDia-pesoVenda(v),0)} kg (${outras.length} entrega(s))`},{ok:false,txt:`Esta venda: ${nf(pesoVenda(v),0)} kg — total ${nf(pesoDia,0)} kg. Escolha outro dia, outro caminhão ou divida a entrega.`}]);}
       await gravar({...vendaBruta(v),agenda:{data:g('data'),periodo:g('periodo'),caminhao:g('caminhao'),obs:g('obs')},prazo_entrega:g('data')},v.rowid);toast(`Entrega agendada para ${brDe(dt(g('data')))}.`,'success');}}],620);
 }
 function romaneio(dia){
@@ -1344,7 +1462,7 @@ function formCliente(reg){
       <div class="fin-fld"><label>Desconto padrão (%)</label><input data-k="desconto_pct" value="${num(b.desconto_pct)?fe(String(b.desconto_pct)):''}"></div>
       <div class="fin-fld"><label>CEP</label><input data-k="cep" value="${fe(e.cep||'')}"></div><div class="fin-fld" style="grid-column:span 2"><label>Endereço (rua)</label><input data-k="logradouro" value="${fe(e.logradouro||'')}" autocomplete="off" placeholder="digite a rua: o sistema sugere o endereço com o CEP"></div>
       <div class="fin-fld"><label>Número</label><input data-k="numero" value="${fe(e.numero||'')}"></div><div class="fin-fld"><label>Complemento</label><input data-k="complemento" value="${fe(e.complemento||'')}"></div>
-      <div class="fin-fld"><label>Bairro</label><input data-k="bairro" value="${fe(e.bairro||'')}"></div><div class="fin-fld"><label>Cidade</label><input data-k="cidade" value="${fe(e.cidade||'')}"></div><div class="fin-fld"><label>UF</label><input data-k="uf" value="${fe(e.uf||'')}" maxlength="2"></div></div>
+      <div class="fin-fld"><label>Bairro</label><input data-k="bairro" value="${fe(e.bairro||'')}"></div><div class="fin-fld"><label>Cidade</label><input data-k="cidade" value="${fe(cidUF(e.cidade,e.uf))}" placeholder="Ex.: Itarantim, BA"></div><div class="fin-fld"><label>UF</label><input data-k="uf" value="${fe(e.uf||'')}" maxlength="2"></div></div>
     <div class="pm-bloco" style="margin-top:10px"><h5><i class="fas fa-tags"></i> Tabela de preços deste cliente</h5><p class="pm-mini" style="margin:-4px 0 6px">Preço combinado com o cliente: vale no lugar do varejo/atacado quando ele compra.</p>
       <div class="pm-rolar"><table class="pm-itens"><thead><tr><th></th><th>Peça</th><th style="width:140px">Preço (R$)</th><th>Referência</th><th></th></tr></thead><tbody data-precos>${(b.precos||[]).map(linP).join('')}</tbody></table></div>
       <button type="button" class="gf-bt mini" data-pmf="pr-add" style="margin-top:6px"><i class="fas fa-plus"></i> Preço</button></div>
@@ -1391,34 +1509,48 @@ async function salvarVendedores(){const box=document.querySelector('#pm-app [dat
 function pagarComissao(nome){const k=PM.mes,x=comissoesMes(k)[nome];if(!x||!(x.aPagar>0))return;
   confirmar('Pagar comissão?',`Lançar o pagamento de <b>${R(x.aPagar)}</b> a <b>${fe(nome)}</b> (comissão de ${fe(mesNome(k))}) no caixa da fábrica, com data de hoje?`,'Sim, pagar',async()=>{
     await gravar({tipo:'custo',categoria:'Comissões de vendedores',vendedor:nome,mes_ref:k,valor:x.aPagar,descricao:`Comissão de ${nome} — ${mesNome(k)}`,data:hojeISO(),pago_em:hojeISO(),data_lancamento:todayDateTime()},null);toast('Comissão paga e lançada no caixa.','success');});}
+// o que a venda precisa para estar em cada fase (sinal → produção → pagamento → liberada → entregue)
+function depsVenda(v,E){
+  E=E||estoque();const c=CFG(),tot=totalVenda(v),pago=pagoDe(v),a=E.aloc[v.rowid]||{},ped=(v.itens||[]).reduce((s,it)=>s+num(it.qtd),0),pr=(v.itens||[]).reduce((s,it,i)=>s+Math.min(num(it.qtd),a[i]||0),0),sin=r2(tot*num(c.sinal)/100);
+  return [v.tipo_venda==='pronta'?{ok:pago>=tot-0.009,txt:`Pronta entrega: pagamento completo (${R(pago)} de ${R(tot)})`}:{ok:pago>=sin-0.009,txt:`Sinal de ${nf(num(c.sinal),0)}% pago para reservar: ${R(Math.min(pago,sin))} de ${R(sin)}`},
+    {ok:v.status!=='aguardando_sinal'&&pr>=ped,txt:`Peças prontas (curadas) e reservadas: ${nf(v.status==='aguardando_sinal'?0:pr,0)} de ${nf(ped,0)}${pr<ped?' — a produção e a cura liberam o restante':''}`},
+    {ok:pago>=tot-0.009,txt:`Pagamento completo: ${R(pago)} de ${R(tot)}${pago<tot-0.009?` — <b>faltam ${R(tot-pago)}</b>`:''}`}];
+}
 async function moverVenda(id,col){
   const v=vendaDe(id);if(!v)return;const f=faseVenda(v);
   if(col==='entregue'&&f==='liberado')return entregar(v);
-  toast(col==='entregue'?(f==='pagamento'?'Falta o pagamento completo para entregar.':'As peças ainda não estão todas prontas.'):'A fase da venda muda pelos pagamentos e pela produção — abra o cartão.','error');
+  render();if(col==='entregue')return trava(`Venda nº ${v.numero}: ainda não pode ser entregue`,depsVenda(v),f==='pagamento'||f==='sinal'?{rot:'Registrar pagamento',f:()=>registrarPagamento(v)}:null);
+  trava(`Venda nº ${v.numero}: o cartão muda de coluna sozinho`,[{ok:true,txt:'Aguardando sinal → Reservado: quando o sinal é pago (Registrar pagamento)'},{ok:true,txt:'Em produção → Pronto: quando as peças da venda terminam a cura'},{ok:true,txt:'Pronto → Liberado: quando o pagamento fica completo'},{ok:true,txt:'Liberado → Entregue: arraste para Entregue ou use o botão Entregar'}].concat(depsVenda(v)));
 }
 // ── endereço: CEP (ViaCEP) e sugestão pelo nome da rua (ViaCEP pela cidade, ou OpenStreetMap) ──
 const CEPS={};
 async function viaCep(cep){cep=String(cep||'').replace(/\D/g,'');if(cep.length!==8)return null;if(CEPS[cep]!==undefined)return CEPS[cep];
   try{const j=await(await fetch(`https://viacep.com.br/ws/${cep}/json/`)).json();return CEPS[cep]=j&&!j.erro?j:null;}catch(e){return null;}}
+// cidade sempre no formato do IBGE "Itarantim, BA" (a UF sai da própria cidade)
+const partesCid=(cidade,uf)=>{const s=String(cidade||'').trim(),m=s.match(/^(.*?)\s*[,-]\s*([A-Za-z]{2})\s*$/);return m?[m[1].trim(),m[2].toUpperCase()]:[s,String(uf||'').toUpperCase()];};
+const cidUF=(c,uf)=>{const [n,u]=partesCid(c,uf);return n?(u?`${n}, ${u}`:n):'';};
 async function sugerirEnderecos(rua,cidade,uf){
-  rua=String(rua||'').trim();if(rua.length<3)return [];const out=[];
-  if(cidade&&uf){try{const L=await(await fetch(`https://viacep.com.br/ws/${encodeURIComponent(uf)}/${encodeURIComponent(cidade)}/${encodeURIComponent(rua)}/json/`)).json();
-    (Array.isArray(L)?L:[]).slice(0,8).forEach(x=>out.push({logradouro:x.logradouro,bairro:x.bairro,cidade:x.localidade,uf:x.uf,cep:x.cep,txt:`${x.logradouro}${x.complemento?' ('+x.complemento+')':''}`,sub:`${x.bairro?x.bairro+' · ':''}${x.localidade} - ${x.uf}, Brasil · CEP ${x.cep}`}));}catch(e){}}
-  if(!out.length){try{const L=await(await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&countrycodes=br&limit=6&q=${encodeURIComponent([rua,cidade,uf].filter(Boolean).join(', '))}`,{headers:{'Accept-Language':'pt-BR'}})).json();
-    (Array.isArray(L)?L:[]).forEach(x=>{const a=x.address||{},cid=a.city||a.town||a.village||a.municipality||'',est=(a['ISO3166-2-lvl4']||'').replace('BR-','')||a.state||'';
-      out.push({logradouro:a.road||rua,bairro:a.suburb||a.neighbourhood||'',cidade:cid,uf:est,cep:(a.postcode||'').replace(/\D/g,'').replace(/^(\d{5})(\d{3})$/,'$1-$2'),txt:a.road||x.display_name.split(',')[0],sub:`${a.suburb||a.neighbourhood?((a.suburb||a.neighbourhood)+' · '):''}${cid} - ${est}, Brasil${a.postcode?' · CEP '+a.postcode:''}`});});}catch(e){}}
+  rua=String(rua||'').trim();if(rua.length<3)return [];const out=[],[cid,u]=partesCid(cidade,uf);
+  if(cid&&u){try{const L=await(await fetch(`https://viacep.com.br/ws/${encodeURIComponent(u)}/${encodeURIComponent(cid)}/${encodeURIComponent(rua)}/json/`)).json();
+    (Array.isArray(L)?L:[]).slice(0,8).forEach(x=>out.push({logradouro:x.logradouro,bairro:x.bairro,cidade:`${x.localidade}, ${x.uf}`,uf:x.uf,cep:x.cep,txt:`${x.logradouro}${x.complemento?' ('+x.complemento+')':''}`,sub:`${x.bairro?x.bairro+' · ':''}${x.localidade}, ${x.uf} · CEP ${x.cep}`}));}catch(e){}}
+  if(!out.length){try{const L=await(await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&countrycodes=br&limit=6&q=${encodeURIComponent([rua,cid,u].filter(Boolean).join(', '))}`,{headers:{'Accept-Language':'pt-BR'}})).json();
+    (Array.isArray(L)?L:[]).forEach(x=>{const a=x.address||{},c2=a.city||a.town||a.village||a.municipality||'',est=(a['ISO3166-2-lvl4']||'').replace('BR-','')||'';
+      out.push({logradouro:a.road||rua,bairro:a.suburb||a.neighbourhood||'',cidade:cidUF(c2,est),uf:est,cep:(a.postcode||'').replace(/\D/g,'').replace(/^(\d{5})(\d{3})$/,'$1-$2'),txt:a.road||x.display_name.split(',')[0],sub:`${a.suburb||a.neighbourhood?((a.suburb||a.neighbourhood)+' · '):''}${cidUF(c2,est)}${a.postcode?' · CEP '+a.postcode:''}`});});}catch(e){}}
   return out;
 }
+// CEP → endereço; rua digitada → sugestões com o CEP; cidade → lista do IBGE com a UF (em qualquer formulário com data-k)
 function ligarEndereco(j){
   const q=k=>j.querySelector(`[data-k="${k}"]`),set=(k,v)=>{const e=q(k);if(e&&v!=null&&v!=='')e.value=v;};
-  const cep=q('cep'),rua=q('logradouro');if(!cep||!rua)return;
-  cep.addEventListener('input',async()=>{const d=cep.value.replace(/\D/g,'');if(d.length===8){const x=await viaCep(d);if(x){set('logradouro',x.logradouro);set('bairro',x.bairro);set('cidade',x.localidade);set('uf',x.uf);const n=q('numero');if(n)n.focus();}else toast('CEP não encontrado.','error');}});
+  const cep=q('cep'),rua=q('logradouro'),cid=q('cidade');
+  if(cid){if(GS.cidade&&GS.cidade.ligar)GS.cidade.ligar(cid);const poeUF=()=>{const [,u]=partesCid(cid.value);if(u)set('uf',u);};cid.addEventListener('change',poeUF);cid.addEventListener('blur',()=>setTimeout(poeUF,250));}
+  if(cep)cep.addEventListener('input',async()=>{const d=cep.value.replace(/\D/g,'');if(d.length===8){const x=await viaCep(d);if(x){set('logradouro',x.logradouro);set('bairro',x.bairro);set('cidade',`${x.localidade}, ${x.uf}`);set('uf',x.uf);const n=q('numero');if(n)n.focus();}else toast('CEP não encontrado.','error');}});
+  if(!rua)return;
   const caixa=document.createElement('div');caixa.className='pm-sug';caixa.style.display='none';rua.parentNode.style.position='relative';rua.parentNode.appendChild(caixa);let t,ult=[];
-  rua.addEventListener('input',()=>{clearTimeout(t);t=setTimeout(async()=>{ult=await sugerirEnderecos(rua.value,q('cidade').value,q('uf').value);
-    caixa.innerHTML=ult.map((x,i)=>`<div data-sg="${i}"><b>${fe(x.txt)}</b><small>${fe(x.sub)}</small></div>`).join('');caixa.style.display=ult.length?'':'none';},500);});
+  rua.addEventListener('input',()=>{clearTimeout(t);t=setTimeout(async()=>{ult=await sugerirEnderecos(rua.value,(q('cidade')||{}).value,(q('uf')||{}).value);
+    caixa.innerHTML=ult.length?ult.map((x,i)=>`<div data-sg="${i}"><b>${fe(x.txt)}</b><small>${fe(x.sub)}</small></div>`).join(''):'';caixa.style.display=ult.length?'':'none';},450);});
   caixa.addEventListener('mousedown',async ev=>{const d=ev.target.closest('[data-sg]');if(!d)return;ev.preventDefault();const x=ult[+d.dataset.sg];caixa.style.display='none';
     set('logradouro',x.logradouro);set('bairro',x.bairro);set('cidade',x.cidade);set('uf',x.uf);
-    if(x.cep)set('cep',x.cep);else{try{const L=await(await fetch(`https://viacep.com.br/ws/${encodeURIComponent(x.uf)}/${encodeURIComponent(x.cidade)}/${encodeURIComponent(x.logradouro)}/json/`)).json();if(Array.isArray(L)&&L[0])set('cep',L[0].cep);}catch(e){}}
+    if(x.cep)set('cep',x.cep);else{const [c2,u2]=partesCid(x.cidade,x.uf);try{const L=await(await fetch(`https://viacep.com.br/ws/${encodeURIComponent(u2)}/${encodeURIComponent(c2)}/${encodeURIComponent(x.logradouro)}/json/`)).json();if(Array.isArray(L)&&L[0])set('cep',L[0].cep);}catch(e){}}
     const n=q('numero');if(n)n.focus();});
   rua.addEventListener('blur',()=>setTimeout(()=>caixa.style.display='none',200));
 }
@@ -1467,7 +1599,7 @@ function formVenda(reg){
       <div class="fin-fld"><label>CEP</label><input data-k="cep" value="${fe(e.cep||'')}" placeholder="00000-000"></div>
       <div class="fin-fld" style="grid-column:span 2"><label>Endereço de entrega (rua)</label><input data-k="logradouro" value="${fe(e.logradouro||'')}" placeholder="digite a rua: o sistema sugere o endereço com o CEP" autocomplete="off"></div>
       <div class="fin-fld"><label>Número</label><input data-k="numero" value="${fe(e.numero||'')}"></div><div class="fin-fld"><label>Complemento</label><input data-k="complemento" value="${fe(e.complemento||'')}"></div>
-      <div class="fin-fld"><label>Bairro</label><input data-k="bairro" value="${fe(e.bairro||'')}"></div><div class="fin-fld"><label>Cidade</label><input data-k="cidade" value="${fe(e.cidade||'')}"></div><div class="fin-fld"><label>UF</label><input data-k="uf" value="${fe(e.uf||'')}" maxlength="2"></div></div>
+      <div class="fin-fld"><label>Bairro</label><input data-k="bairro" value="${fe(e.bairro||'')}"></div><div class="fin-fld"><label>Cidade</label><input data-k="cidade" value="${fe(cidUF(e.cidade,e.uf))}" placeholder="Ex.: Itarantim, BA"></div><div class="fin-fld"><label>UF</label><input data-k="uf" value="${fe(e.uf||'')}" maxlength="2"></div></div>
       <p class="pm-mini" data-cli-info style="margin:6px 0 0"></p></div>
     <datalist id="pm-clientes">${clientes.map(x=>`<option value="${fe(x.nome)}">`).join('')}</datalist>
     <div class="pm-bloco"><h5><i class="fas fa-cubes"></i> Itens</h5><div class="pm-rolar"><table class="pm-itens"><thead><tr><th></th><th>Peça</th><th style="width:80px">Quant.</th><th style="width:130px">Preço unit. (R$)</th><th>Estoque e preço</th><th style="width:100px;text-align:right">Total</th><th></th></tr></thead><tbody data-itens>${(b.itens||[]).map(itemLin).join('')}</tbody></table></div>
@@ -1491,6 +1623,9 @@ function formVenda(reg){
       if(!travarItens){o.itens=lerItens(jj);o.desconto_pct=num(g('desconto_pct'));o.frete=r2(num(g('frete')));o.frete_info=(jj.querySelector('[data-frete-info]')||{}).textContent||'';if(/^Calculando/.test(o.frete_info))throw new Error('Espere o cálculo do frete terminar.');delete o.desconto;}
       if(!o.cliente)throw new Error('Informe o cliente.');if(!o.data)throw new Error('Informe a data do pedido.');if(!(o.itens||[]).length)throw new Error('Inclua ao menos um item com quantidade.');
       if(o.desconto_pct<0||o.desconto_pct>=100)throw new Error('O desconto deve ficar entre 0% e 99%.');
+      if(o.comissao_pct<0||o.comissao_pct>30)throw new Error('A comissão deve ficar entre 0% e 30%.');
+      if((o.itens||[]).some(it=>!(it.preco>0)))throw new Error('Todo item precisa de preço.');
+      if(!reg&&r2(num(g('pg_valor')))>r2(totalVenda(o))+0.009)return trava('Pagamento maior que a venda',[{ok:false,txt:`Valor recebido ${R(num(g('pg_valor')))} — a venda é de ${R(totalVenda(o))}. Troco não entra no sistema: informe só o valor da venda.`}]);
       o.total=totalVenda(o);const tot=o.total;
       if(!reg){const pv=r2(num(g('pg_valor')));if(pv>0)o.pagamentos=[{data:hojeISO(),valor:pv,forma:g('pg_forma'),tipo:o.tipo_venda==='pronta'?'pagamento':'sinal',por:eu()}];}
       const pago=pagoDe(o),sinalMin=r2(tot*num(c.sinal)/100);
@@ -1565,12 +1700,13 @@ const vendaBruta=v=>{const r=T('venda').find(x=>String(x.rowid)===String(v.rowid
 function fichaVenda(v){
   if(!v)return;const E=estoque(),f=faseVenda(v,E),tot=totalVenda(v),pago=pagoDe(v),c=CFG(),ops=opsDaVenda(v),iniciada=ops.some(opIniciada),a=E.aloc[v.rowid]||{};
   const bts=[];
-  bts.push({html:'<i class="fas fa-print"></i> Imprimir pedido',acao:async()=>{imprimirVenda(v);return false;}});
+  bts.push({html:`<i class="fas fa-print"></i> ${f==='entregue'||pago>=tot-0.009?'Comprovante':'Imprimir pedido'}`,acao:async()=>{imprimirVenda(v);return false;}});
+  if(v.status!=='cancelada'&&((v.nf||{}).quer||f==='entregue'))bts.push({html:'<i class="fas fa-file-invoice"></i> Anexar nota fiscal',acao:async()=>{anexarNota(v);return false;}});
   if(['sinal','producao','pagamento','liberado'].includes(f)&&pago<tot-0.009)bts.push({html:'<i class="fas fa-hand-holding-dollar"></i> Registrar pagamento',acao:async()=>{setTimeout(()=>registrarPagamento(v),60);}});
   // cancelar: só o Administrador e só enquanto a produção da venda não começou
   if(['sinal','producao','pagamento','liberado'].includes(f)&&ehAdm()&&!iniciada)bts.push({html:'<i class="fas fa-ban"></i> Cancelar venda',acao:async()=>{setTimeout(()=>cancelarVenda(v),60);}});
   if(f==='entregue')bts.push({html:'<i class="fas fa-rotate-left"></i> Devolução / estorno',acao:async()=>{setTimeout(()=>devolver(v),60);}});
-  if(f==='entregue')bts.push({html:'<i class="fas fa-heart-crack"></i> Avaria na entrega',acao:async()=>{setTimeout(()=>formAvaria(null,(v.itens||[])[0]&&v.itens[0].peca),60);}});
+  if(f==='entregue')bts.push({html:'<i class="fas fa-heart-crack"></i> Avaria na entrega',acao:async()=>{setTimeout(()=>formAvaria(null,(v.itens||[])[0]&&v.itens[0].peca,{venda:v.rowid,origem:'transporte'}),60);}});
   if(!['entregue','devolvida','cancelada'].includes(v.status))bts.push({html:'<i class="fas fa-calendar-days"></i> Agendar entrega',acao:async()=>{setTimeout(()=>formAgenda(v),60);}});
   if(!['entregue','devolvida','cancelada'].includes(v.status))bts.push({html:'<i class="fas fa-pen"></i> Editar',acao:async()=>{setTimeout(()=>formVenda(v),60);}});
   if(f==='liberado')bts.push({html:'<i class="fas fa-truck"></i> Entregar',cls:'pri',acao:async()=>{setTimeout(()=>entregar(v),60);}});
@@ -1587,7 +1723,11 @@ function fichaVenda(v){
     ${descontoVenda(v)?`<tr><td colspan="4">Desconto${v.desconto_pct?' ('+nf(num(v.desconto_pct),1)+'%)':''}</td><td class="n">${R(-descontoVenda(v))}</td></tr>`:''}${num(v.frete)?`<tr><td colspan="4">Frete</td><td class="n">${R(num(v.frete))}</td></tr>`:''}
     <tr class="t"><td colspan="4">Total</td><td class="n">${R(tot)}</td></tr><tr><td colspan="4">Pago</td><td class="n" style="color:#067647">${R(pago)}</td></tr><tr><td colspan="4"><b>Saldo</b></td><td class="n"><b>${R(Math.max(0,tot-pago))}</b></td></tr></tbody></table>
     ${(v.pagamentos||[]).length?`<h5 style="margin:10px 0 4px;font:800 12px Inter">Pagamentos</h5><ul class="pm-arml">${(v.pagamentos||[]).map(p=>`<li${p.tipo==='estorno'?' style="background:#FEF3F2"':''}><i class="fas ${p.tipo==='estorno'?'fa-rotate-left':'fa-circle-dollar-to-slot'}" style="color:${p.tipo==='estorno'?'#B42318':'#067647'}"></i><span>${fe(brDe(dt(p.data)))} · <b>${p.tipo==='estorno'?'estorno −':''}${R(num(p.valor))}</b> · ${fe(p.forma||'')} · ${fe(p.tipo||'')}${p.obs?' · '+fe(p.obs):''}</span></li>`).join('')}</ul>`:''}
-    ${endTxt(v.end)?`<p class="pm-mini" style="margin:8px 0 0"><i class="fas fa-location-dot"></i> ${fe(endTxt(v.end))}</p>`:''}${(v.nf||{}).quer?`<p class="pm-mini" style="margin:4px 0 0"><i class="fas fa-file-invoice"></i> Cliente quer nota fiscal${(v.nf||{}).numero?' — NF nº '+fe(v.nf.numero):' (ainda sem número)'}.</p>`:''}${v.obs?`<p class="pm-mini" style="margin:4px 0 0">${fe(v.obs)}</p>`:''}${extra}`,bts,820);
+    ${endTxt(v.end)?`<p class="pm-mini" style="margin:8px 0 0"><i class="fas fa-location-dot"></i> ${fe(endTxt(v.end))}</p>`:''}${(v.nf||{}).quer?`<p class="pm-mini" style="margin:4px 0 0"><i class="fas fa-file-invoice"></i> Cliente quer nota fiscal${(v.nf||{}).numero?' — NF nº '+fe(v.nf.numero):' (ainda sem número)'}.</p>`:''}${v.obs?`<p class="pm-mini" style="margin:4px 0 0">${fe(v.obs)}</p>`:''}${extra}<div data-nf-arqs style="margin-top:6px"></div>`,bts,820);
+  // arquivos da nota fiscal anexada (XML / PDF)
+  arquivosNota(v).then(L=>{const box=document.querySelector('#fin-jan [data-nf-arqs]');if(!box||!L.length)return;
+    box.innerHTML=`<div class="pm-at az" style="white-space:normal"><i class="fas fa-file-invoice"></i> Nota fiscal${(v.nf||{}).numero?' nº '+fe(v.nf.numero):''}: ${L.map((a,i)=>`<a href="#" data-nfa="${i}" style="color:#1652D8;font-weight:800">${a.doc==='xml'?'XML':'PDF'}</a>`).join(' · ')}</div>`;
+    box.addEventListener('click',ev=>{const a=ev.target.closest('[data-nfa]');if(!a)return;ev.preventDefault();GS.docs.baixarArq(L[+a.dataset.nfa],true);});});
 }
 function registrarPagamento(v){
   const c=CFG(),tot=totalVenda(v),pago=pagoDe(v),sinalFalta=r2(Math.max(0,tot*num(c.sinal)/100-pago)),saldo=r2(tot-pago);
@@ -1613,6 +1753,7 @@ function entregar(v){
     <div class="fin-fld" style="grid-column:1/-1"><label>Quem recebeu</label><input data-k="recebedor" placeholder="nome de quem recebeu as peças"></div></div>
     <p class="pm-mini">Peça quebrada no caminho: registre depois em <b>Avaria na entrega</b>.</p>`,
     [{html:'<i class="fas fa-truck"></i> Confirmar entrega',cls:'pri',acao:async j=>{const e=j.querySelector('[data-k="entrega"]').value;if(!e)throw new Error('Informe a data da entrega.');
+      if(v.data&&e<v.data)throw new Error('A entrega não pode ser antes da data do pedido.');
       const o=vendaBruta(v);o.status='entregue';o.entrega=e;o.caminhao=j.querySelector('[data-k="caminhao"]').value;o.recebedor=j.querySelector('[data-k="recebedor"]').value.trim();if(j.querySelector('[data-k="nf"]'))o.nf={...(o.nf||{}),numero:j.querySelector('[data-k="nf"]').value.trim()};
       await gravar(o,v.rowid);toast(`Venda nº ${v.numero} entregue: peças baixadas do estoque.`,'success');}}],560);
 }
@@ -1636,6 +1777,9 @@ function devolver(v){
     [{html:'<i class="fas fa-rotate-left"></i> Registrar devolução',cls:'pri',acao:async jj=>{
       const its=[...jj.querySelectorAll('[data-dv]')].map(tr=>{const it=v.itens[+tr.dataset.dv],q=num(tr.querySelector('[data-d="qtd"]').value),max=num(tr.querySelector('[data-d="qtd"]').dataset.max);if(q>max)throw new Error(`${nomePeca(it.peca)}: máximo ${max}.`);return {peca:it.peca,qtd:q,destino:tr.querySelector('[data-d="destino"]').value,preco:num(it.preco)};}).filter(x=>x.qtd>0);
       if(!its.length)throw new Error('Informe as peças devolvidas.');const g=k=>jj.querySelector(`[data-k="${k}"]`).value.trim(),est=r2(num(g('estorno')));if(!g('motivo'))throw new Error('Informe o motivo.');
+      // estorno nunca maior que o valor das peças devolvidas, nem que o pago
+      const valDev=r2(its.reduce((s,x)=>s+x.qtd*x.preco,0)*(1-num(v.desconto_pct)/100)),pg=pagoDe(v);
+      if(est>valDev+0.009||est>pg+0.009)return trava('Estorno maior do que pode',[{ok:est<=valDev+0.009,txt:`Valor das peças devolvidas (com o desconto da venda): ${R(valDev)}`},{ok:est<=pg+0.009,txt:`Valor pago pelo cliente até agora: ${R(pg)}`},{ok:false,txt:`Estorno informado: ${R(est)} — no máximo ${R(Math.min(valDev,pg))}`}]);
       const o=vendaBruta(v),dv={data:hojeISO(),itens:its,estorno:est,motivo:g('motivo'),por:eu()};o.devolucoes=(o.devolucoes||[]).concat([dv]);if(est>0)o.pagamentos=(o.pagamentos||[]).concat([{data:hojeISO(),valor:est,forma:g('forma'),tipo:'estorno',obs:'devolução: '+g('motivo'),por:eu()}]);
       const totDev={};o.devolucoes.forEach(d=>d.itens.forEach(it=>totDev[it.peca]=(totDev[it.peca]||0)+num(it.qtd)));if((o.itens||[]).every(it=>(totDev[it.peca]||0)>=num(it.qtd)))o.status='devolvida';
       const E=estoque(),mud=[[o,v.rowid]];its.filter(x=>x.destino==='avaria').forEach(x=>{const e=E.P[String(x.peca)];mud.push([{tipo:'avaria',data:hojeISO(),peca:x.peca,qtd:x.qtd,origem:'cliente',causa:'devolução: '+g('motivo'),venda:String(v.rowid),custo_un:r2(e?e.custoUn:0),data_lancamento:todayDateTime()},null]);});
@@ -1643,16 +1787,43 @@ function devolver(v){
   const at=()=>{const tot=[...j.querySelectorAll('[data-dv]')].reduce((s,tr)=>s+num(tr.querySelector('[data-d="qtd"]').value)*num(v.itens[+tr.dataset.dv].preco),0)*(1-num(v.desconto_pct)/100);const e=j.querySelector('[data-k="estorno"]');if(e&&!e.dataset.mexeu)e.value=R(tot);};
   j.querySelector('.fin-jan-corpo').addEventListener('input',ev=>{if(ev.target.matches('[data-k="estorno"]'))ev.target.dataset.mexeu='1';else at();});
 }
+/* ── documento da venda (pedido / comprovante) com a marca da empresa, e a nota fiscal anexada ──
+   A NF-e de produto só vale emitida pela SEFAZ (com Inscrição Estadual). Até o sistema emitir sozinho, a nota emitida
+   no emissor do contador/SEFAZ é anexada aqui (XML e PDF): o número e a chave entram sozinhos e saem no comprovante. */
+const empresaDados=()=>{try{return GS.docs&&GS.docs.empresa?GS.docs.empresa():{};}catch(e){return {};}};
 function imprimirVenda(v){
-  const tot=totalVenda(v),pago=pagoDe(v),c=CFG();
-  App._relExportPaginado({titulo:`Pedido de venda nº ${v.numero}`,subLinhas:[`Cliente: ${v.cliente||''}${v.doc?' · '+v.doc:''}${v.telefone?' · '+v.telefone:''}`,`${endTxt(v.end)?'Entrega: '+endTxt(v.end)+' · ':''}Pedido em ${brDe(dt(v.data))}${v.prazo_entrega?' · entrega prevista '+brDe(dt(v.prazo_entrega)):''} · ${v.tipo_venda==='pronta'?'pronta entrega':'encomenda'} (${v.canal==='atacado'?'atacado':'varejo'})`],
-    theadHtml:'<tr><th>Peça</th><th style="text-align:right">Quantidade</th><th style="text-align:right">Preço unitário</th><th style="text-align:right">Total</th></tr>',
-    rowsArr:(v.itens||[]).map(it=>`<tr><td>${fe(nomePeca(it.peca))}</td><td style="text-align:right">${nf(num(it.qtd),0)}</td><td style="text-align:right">${R(num(it.preco))}</td><td style="text-align:right">${R(num(it.qtd)*num(it.preco))}</td></tr>`)
-      .concat(descontoVenda(v)?[`<tr><td colspan="3">Desconto${v.desconto_pct?' ('+nf(num(v.desconto_pct),1)+'%)':''}</td><td style="text-align:right">${R(-descontoVenda(v))}</td></tr>`]:[]).concat(num(v.frete)?[`<tr><td colspan="3">Frete</td><td style="text-align:right">${R(num(v.frete))}</td></tr>`]:[]),
-    posHtml:`<p style="text-align:right;font-size:14px;font-weight:800">Total: ${R(tot)} · Pago: ${R(pago)} · Saldo: ${R(Math.max(0,tot-pago))}</p>
-      <p style="font-size:11px">Condições: encomendas são reservadas com ${nf(num(c.sinal),0)}% de sinal; a entrega é feita com o pagamento completo e as peças prontas (cura de 7 a 28 dias conforme a peça).${v.obs?' Obs.: '+fe(v.obs):''}</p>
-      <p style="margin-top:28px;font-size:12px">______________________________ &nbsp; Cliente &nbsp;&nbsp;&nbsp;&nbsp; ______________________________ &nbsp; Vixsul</p>`});
+  const tot=totalVenda(v),pago=pagoDe(v),c=CFG(),fis=c.fiscal||{},em=empresaDados(),cli=cliDe(v.cliente)||{},f=faseVenda(v),comp=f==='entregue'||pago>=tot-0.009;
+  const lts=(rastreio().porVenda[v.rowid]||[]),nfx=v.nf||{};
+  const caixa=(tit,linhas)=>`<div style="flex:1;min-width:0;border:1px solid #e5e5ea;border-radius:10px;padding:8px 10px"><div style="font-size:8.5px;font-weight:800;letter-spacing:.08em;color:#0071E3;margin-bottom:3px">${tit}</div>${linhas.filter(Boolean).map(l=>`<div style="font-size:10.5px;line-height:1.45">${l}</div>`).join('')}</div>`;
+  const pre=`<div style="display:flex;gap:10px;margin-bottom:10px">${caixa('EMITENTE',[`<b>${fe(em.razao||'Vixsul Empreendimentos')}</b>`,`CNPJ ${fe(em.cnpj||'')}${fis.ie?' · IE '+fe(fis.ie):''}`,fe(em.endereco||''),[em.telefone,em.email].filter(Boolean).map(fe).join(' · ')])}
+    ${caixa('CLIENTE',[`<b>${fe(v.cliente||'')}</b>`,v.doc?'CPF/CNPJ '+fe(v.doc):'',fe(endTxt(v.end)),fe(v.telefone||cli.telefone||'')])}</div>
+    <div style="display:flex;gap:10px;margin-bottom:10px">${caixa('PEDIDO',[`Nº <b>${fe(String(v.numero))}</b> · ${fe(brDe(dt(v.data)))}`,`${v.tipo_venda==='pronta'?'Pronta entrega':'Encomenda'} · ${v.canal==='atacado'?'atacado':'varejo'}${v.vendedor?' · vendedor '+fe(v.vendedor):''}`])}
+    ${caixa('ENTREGA',[v.entrega?`Entregue em <b>${fe(brDe(dt(v.entrega)))}</b>${v.recebedor?' — recebido por '+fe(v.recebedor):''}`:v.agenda&&v.agenda.data?`Agendada para <b>${fe(brDe(dt(v.agenda.data)))}</b> (${fe(v.agenda.periodo||'')})`:v.prazo_entrega?`Prevista para ${fe(brDe(dt(v.prazo_entrega)))}`:'A combinar',v.frete_info?'Frete: '+fe(v.frete_info):''])}
+    ${caixa('NOTA FISCAL',[nfx.numero?`NF-e nº <b>${fe(nfx.numero)}</b>${nfx.serie?' série '+fe(nfx.serie):''}`:nfx.quer?'Será emitida (NF-e)':'Não solicitada',nfx.chave?`<span style="font-size:8.5px;letter-spacing:.02em">Chave ${fe(nfx.chave.replace(/(\d{4})(?=\d)/g,'$1 '))}</span>`:''])}</div>`;
+  const rows=(v.itens||[]).map(it=>{const p=pecaDe(it.peca),t=tipoDePeca(p||{}),ncm=(p&&p.ncm)||CAT.ncmDe(t);
+    return `<tr><td>${fe(p&&p.codigo||'')}</td><td>${fe(nomePeca(it.peca))}<br><small style="color:#6e6e73">${fe(p?geoPeca(p).desc:'')}${lts.filter(x=>String(x.peca)===String(it.peca)).length?' · lote '+lts.filter(x=>String(x.peca)===String(it.peca)).map(x=>fe(x.lote)).join(', '):''}</small></td><td>${fe(ncm)}</td><td style="text-align:right">${nf(num(it.qtd),0)} pç</td><td style="text-align:right">${R(num(it.preco))}</td><td style="text-align:right">${R(num(it.qtd)*num(it.preco))}</td></tr>`;});
+  const pags=(v.pagamentos||[]).map(p=>`${fe(brDe(dt(p.data)))} · ${p.tipo==='estorno'?'estorno −':''}${R(num(p.valor))} · ${fe(p.forma||'')}`).join('<br>');
+  App._relExportPaginado({titulo:`${comp?'Comprovante de venda':'Pedido de venda'} nº ${v.numero}`,subLinhas:[`${fe(v.cliente||'')} · ${fe(brDe(dt(v.data)))}`],preHtml:pre,
+    theadHtml:'<tr><th style="width:9%">Código</th><th style="width:43%">Peça</th><th style="width:12%">NCM</th><th style="width:10%;text-align:right">Quant.</th><th style="width:12%;text-align:right">Unitário</th><th style="width:14%;text-align:right">Total</th></tr>',rowsArr:rows,
+    posHtml:`<div style="display:flex;gap:12px;margin-top:10px;align-items:flex-start"><div style="flex:1;font-size:10.5px;line-height:1.5">${pags?`<b>Pagamentos</b><br>${pags}`:''}${v.obs?`<br><b>Observações:</b> ${fe(v.obs)}`:''}${fis.obs?`<br>${fe(fis.obs)}`:''}</div>
+      <table style="width:42%;font-size:11px">${[['Peças',R(brutoVenda(v))],descontoVenda(v)?[`Desconto${v.desconto_pct?' ('+nf(num(v.desconto_pct),1)+'%)':''}`,R(-descontoVenda(v))]:null,num(v.frete)?['Frete',R(num(v.frete))]:null,['<b>Total</b>',`<b>${R(tot)}</b>`],['Pago',R(pago)],['<b>Saldo</b>',`<b>${R(Math.max(0,tot-pago))}</b>`]].filter(Boolean).map(([a,b])=>`<tr><td>${a}</td><td style="text-align:right">${b}</td></tr>`).join('')}</table></div>
+      <p style="font-size:9.5px;color:#6e6e73;margin-top:10px">${comp?'Comprovante de venda — documento sem valor fiscal.':'Pedido de venda — encomendas são reservadas com '+nf(num(c.sinal),0)+'% de sinal; a entrega sai com as peças prontas (cura de 7 a 28 dias conforme a peça) e o pagamento completo.'} ${nfx.numero?'A nota fiscal (NF-e nº '+fe(nfx.numero)+') acompanha este documento.':'A nota fiscal, quando pedida, é emitida à parte (NF-e).'}</p>
+      <div style="display:flex;justify-content:space-between;gap:30px;margin-top:34px;font-size:11px"><div style="flex:1;border-top:1px solid #1d1d1f;padding-top:4px;text-align:center">${fe(v.cliente||'Cliente')}</div><div style="flex:1;border-top:1px solid #1d1d1f;padding-top:4px;text-align:center">${fe(em.razao||'Vixsul Empreendimentos')}</div></div>`});
 }
+// nota fiscal emitida fora (XML/PDF): anexa à venda e lê número, série e chave do XML
+function lerXmlNfe(txt){const tag=t=>{const m=txt.match(new RegExp(`<${t}>([^<]+)</${t}>`));return m?m[1].trim():'';};const ch=(txt.match(/Id="NFe(\d{44})"/)||[])[1]||tag('chNFe');
+  return {numero:tag('nNF'),serie:tag('serie'),chave:ch||'',valor:num(tag('vNF')),emissao:(tag('dhEmi')||tag('dEmi')).slice(0,10),dest:tag('xNome')};}
+function anexarNota(v){
+  if(!GS.docs||!GS.docs.enviarArq)return toast('Envio de arquivos indisponível.','error');
+  const inp=document.createElement('input');inp.type='file';inp.accept='.xml,.pdf,application/pdf,text/xml';inp.multiple=true;inp.onchange=async()=>{const fs=[...inp.files];if(!fs.length)return;
+    try{UI._showBusy('Guardando a nota…');let info=null;
+      for(const f of fs){const ehXml=/xml/i.test(f.type)||/\.xml$/i.test(f.name);if(ehXml){info=lerXmlNfe(await f.text());if(!info.numero)throw new Error(`"${f.name}" não parece um XML de NF-e (sem número da nota).`);}
+        await GS.docs.enviarArq(OB_FAB,{aba:'pm_nf',venda:String(v.rowid),doc:ehXml?'xml':'pdf'},f);}
+      const o=vendaBruta(v);o.nf={...(o.nf||{}),quer:true,...(info?{numero:info.numero,serie:info.serie,chave:info.chave,emissao:info.emissao,valor:info.valor}:{})};
+      if(info&&info.valor&&Math.abs(info.valor-totalVenda(v))>0.05)toast(`Atenção: a nota é de ${R(info.valor)} e a venda de ${R(totalVenda(v))}.`,'error');
+      await gravar(o,v.rowid);toast(info?`Nota nº ${info.numero} anexada à venda.`:'Arquivo da nota anexado.','success');}catch(e){toast(e.message||String(e),'error');}finally{UI._hideBusy();}};inp.click();
+}
+async function arquivosNota(v){if(!GS.docs||!GS.docs.listarArq)return [];try{return (await GS.docs.listarArq(OB_FAB,true)).filter(a=>a.aba==='pm_nf'&&String(a.venda)===String(v.rowid));}catch(e){return [];}}
 
 /* ═══════════════ FLUXO DE CAIXA ═══════════════ */
 const CAT_CUSTO=['Mão de obra (salários e encargos)','Energia elétrica','Água','Betoneira / equipamentos','Aluguel','Manutenção de formas','Combustível / frete','Comissões de vendedores','Impostos','Outros'];
@@ -1766,8 +1937,8 @@ function telaParametros(){
   const mo=(cam,l,v)=>`<div class="fin-fld"><label>${l} (R$)</label><input data-cfg="${cam}" data-mask="moeda" value="${fe(R(num(v)))}"></div>`;
   const linFixo=x=>`<div class="fin-linha" data-lin="fixos" style="margin-bottom:6px;grid-template-columns:1fr 160px 36px"><div class="fin-fld"><input data-fx="nome" value="${fe(x.nome||'')}" placeholder="Descrição"></div><div class="fin-fld"><input data-fx="valor" data-mask="moeda" value="${x.valor!=null&&x.valor!==''?fe(R(num(x.valor))):''}" placeholder="R$ 0,00"></div><button type="button" class="pm-x" data-pm="cfg-x"><i class="fas fa-xmark"></i></button></div>`;
   const linEq=x=>`<div class="fin-linha" data-lin="equipe" style="margin-bottom:6px;grid-template-columns:1fr 190px 36px"><div class="fin-fld"><input data-eqn value="${fe(x.nome||'')}" placeholder="Nome"></div><div class="fin-fld"><select data-eqf>${FUNCOES.map(fn=>`<option ${fn===x.funcao?'selected':''}>${fn}</option>`).join('')}</select></div><button type="button" class="pm-x" data-pm="cfg-x"><i class="fas fa-xmark"></i></button></div>`;
-  const fr={origem:{},cidades:[],...(c.frete||{})};fr.origem=fr.origem||{};
-  const linCid=x=>`<div class="fin-linha" data-lin="cid" style="margin-bottom:6px;grid-template-columns:1fr 70px 150px 36px"><div class="fin-fld"><input data-cn value="${fe(x.cidade||'')}" placeholder="Cidade"></div><div class="fin-fld"><input data-cu value="${fe(x.uf||'')}" placeholder="UF" maxlength="2"></div><div class="fin-fld"><input data-cv data-mask="moeda" value="${x.valor?fe(R(num(x.valor))):''}" placeholder="R$ 0,00"></div><button type="button" class="pm-x" data-pm="cfg-x"><i class="fas fa-xmark"></i></button></div>`;
+  const fr={origem:{},cidades:[],...(c.frete||{})},fis=c.fiscal||{};fr.origem=fr.origem||{};
+  const linCid=x=>`<div class="fin-linha" data-lin="cid" style="margin-bottom:6px;grid-template-columns:1fr 70px 150px 36px"><div class="fin-fld"><input data-cn value="${fe(cidUF(x.cidade,x.uf))}" placeholder="Cidade (ex.: Potiraguá, BA)" autocomplete="off"></div><div class="fin-fld"><input data-cu value="${fe(x.uf||'')}" placeholder="UF" maxlength="2" readonly tabindex="-1" style="background:#F8FAFC"></div><div class="fin-fld"><input data-cv data-mask="moeda" value="${x.valor?fe(R(num(x.valor))):''}" placeholder="R$ 0,00"></div><button type="button" class="pm-x" data-pm="cfg-x"><i class="fas fa-xmark"></i></button></div>`;
   const linCam=x=>`<div class="fin-linha" data-lin="cam" style="margin-bottom:6px;grid-template-columns:1fr 130px 1fr 36px"><div class="fin-fld"><input data-kn value="${fe(x.nome||'')}" placeholder="Ex.: Munck ABC-1234"></div><div class="fin-fld"><input data-kc inputmode="numeric" data-sem-mascara="1" value="${x.cap_kg?fe(String(x.cap_kg)):''}" placeholder="Carga (kg)"></div><div class="fin-fld"><input data-km value="${fe(x.motorista||'')}" placeholder="Motorista"></div><button type="button" class="pm-x" data-pm="cfg-x"><i class="fas fa-xmark"></i></button></div>`;
   PM._linFixo=linFixo;PM._linEq=linEq;PM._linCid=linCid;PM._linCam=linCam;
   return cabG('Parâmetros e preços','A base de todos os cálculos: preço dos insumos, características dos materiais, equipe, betoneira, custos rateados por m³ e as regras de venda.',`<button type="button" class="gf-bt pri" data-pm="cfg-salvar"><i class="fas fa-floppy-disk"></i> Salvar parâmetros</button>`)+
@@ -1785,17 +1956,23 @@ function telaParametros(){
        <p class="pm-mini" style="margin:10px 0 4px"><b>Jornada padrão</b> (já vem preenchida no ponto do diário):</p><div class="fin-linha">
        <div class="fin-fld"><label>Entrada</label><input type="time" data-cfg="jornada.entrada" value="${fe((c.jornada||{}).entrada||'07:00')}"></div><div class="fin-fld"><label>Saída</label><input type="time" data-cfg="jornada.saida" value="${fe((c.jornada||{}).saida||'17:00')}"></div>
        ${f('jornada.intervalo','Intervalo (minutos)',(c.jornada||{}).intervalo!=null?c.jornada.intervalo:60,'inputmode="numeric" data-sem-mascara="1"')}</div></section>
-     <section class="gf-sec"><div class="gf-sec-cab"><div><h3>Vendas e endereços</h3><p>Regras de venda e a cidade padrão para sugerir endereços.</p></div></div><div class="fin-linha">
+     <section class="gf-sec"><div class="gf-sec-cab"><div><h3>Vendas e endereços</h3><p>Regras de venda e a cidade padrão para sugerir endereços.</p></div></div><div class="fin-linha" data-end>
        ${f('sinal','Sinal mínimo para reservar encomenda (%)',c.sinal)}${f('impostos','Impostos sobre a venda (%)',c.impostos)}${f('margem','Margem desejada (%)',c.margem)}
-       ${f('cidade','Cidade padrão dos clientes',c.cidade)}${f('uf','UF padrão',c.uf,'maxlength="2"')}${f('lata','Lata usada na produção (litros)',c.lata,'inputmode="numeric"')}</div></section></div>
+       ${f('cidade','Cidade padrão dos clientes',cidUF(c.cidade,c.uf),'data-k="cidade" placeholder="Ex.: Itarantim, BA"')}${f('uf','UF padrão',c.uf,'maxlength="2" data-k="uf"')}${f('lata','Lata usada na produção (litros)',c.lata,'inputmode="numeric"')}</div></section></div>
     <div class="gf-duas">
-     <section class="gf-sec"><div class="gf-sec-cab"><div><h3>Entregas e frete</h3><p>Frete por km (distância pelo mapa até o endereço do cliente) ou valor fixo por cidade — a tabela de cidades vale primeiro.</p></div></div><div class="fin-linha">
-       ${f('frete.origem.logradouro','Endereço da fábrica (rua)',fr.origem.logradouro||'')}${f('frete.origem.numero','Número',fr.origem.numero||'')}${f('frete.origem.cidade','Cidade da fábrica',fr.origem.cidade||c.cidade||'')}${f('frete.origem.uf','UF',fr.origem.uf||c.uf||'','maxlength="2"')}
+     <section class="gf-sec"><div class="gf-sec-cab"><div><h3>Entregas e frete</h3><p>Frete por km (distância pelo mapa até o endereço do cliente) ou valor fixo por cidade — a tabela de cidades vale primeiro.</p></div></div><div class="fin-linha" data-end>
+       ${f('frete.origem.cep','CEP da fábrica',fr.origem.cep||'','data-k="cep"')}${f('frete.origem.logradouro','Endereço da fábrica (rua)',fr.origem.logradouro||'','data-k="logradouro" autocomplete="off" placeholder="digite a rua: o sistema sugere"')}${f('frete.origem.numero','Número',fr.origem.numero||'','data-k="numero"')}
+       ${f('frete.origem.bairro','Bairro',fr.origem.bairro||'','data-k="bairro"')}${f('frete.origem.cidade','Cidade da fábrica',cidUF(fr.origem.cidade||c.cidade||'',fr.origem.uf||c.uf||''),'data-k="cidade" placeholder="Ex.: Itarantim, BA"')}${f('frete.origem.uf','UF',fr.origem.uf||c.uf||'','maxlength="2" data-k="uf"')}
        ${mo('frete.rs_km','Valor por km rodado',fr.rs_km)}${f('frete.km_min','Km mínimo cobrado',fr.km_min,'inputmode="numeric" data-sem-mascara="1"')}
        <label class="nfc-amb" style="grid-column:1/-1"><input type="checkbox" data-cfg-ck="frete.ida_volta" ${fr.ida_volta!==false?'checked':''}><span>Cobrar ida e volta (o caminhão volta vazio)</span></label></div>
        <p class="pm-mini" style="margin:10px 0 4px"><b>Valor fixo por cidade</b></p><div data-cids>${(fr.cidades||[]).map(linCid).join('')}</div><button type="button" class="gf-bt mini" data-pm="cfg-cid-add"><i class="fas fa-plus"></i> Cidade</button></section>
      <section class="gf-sec"><div class="gf-sec-cab"><div><h3>Caminhões</h3><p>Para a agenda de entregas: a carga de cada dia é conferida com a capacidade.</p></div><button type="button" class="gf-bt mini" data-pm="cfg-cam-add"><i class="fas fa-plus"></i> Caminhão</button></div>
        <div data-cams>${(c.caminhoes||[]).map(linCam).join('')||'<p class="pm-mini" data-vazio>Nenhum caminhão cadastrado.</p>'}</div></section></div>
+    <section class="gf-sec"><div class="gf-sec-cab"><div><h3>Nota fiscal das vendas de peças</h3><p>Venda de peça é venda de <b>produto</b>: a nota é a NF-e, autorizada pela SEFAZ-BA (não é a nota de serviço da prefeitura).</p></div></div>
+      <div class="fin-aviso" style="margin-bottom:10px"><div>Para o sistema emitir a NF-e sozinho são necessários: <b>Inscrição Estadual</b> da empresa na SEFAZ-BA, o <b>certificado A1</b> (o mesmo já usado nas assinaturas) e a confirmação do contador sobre o regime e o CFOP.
+        Enquanto isso, emita a nota no emissor do contador (ou a NFA-e, nota avulsa da SEFAZ-BA) e use <b>Anexar nota fiscal</b> na venda: o número e a chave entram sozinhos no comprovante. O NCM de cada peça já sai preenchido pelo tipo (pode mudar no cadastro da peça).</div></div>
+      <div class="fin-linha">${f('fiscal.ie','Inscrição Estadual (IE)',fis.ie||'','placeholder="ainda não tem"')}${f('fiscal.regime','Regime tributário',fis.regime||'Simples Nacional')}${f('fiscal.cfop_dentro','CFOP — venda na Bahia',fis.cfop_dentro||'5101','inputmode="numeric"')}${f('fiscal.cfop_fora','CFOP — venda para outro estado',fis.cfop_fora||'6101','inputmode="numeric"')}
+        <div class="fin-fld" style="grid-column:1/-1"><label>Observação no comprovante de venda</label><input data-cfg="fiscal.obs" value="${fe(fis.obs||'')}" placeholder="Ex.: garantia de 5 anos contra defeito de fabricação"></div></div></section>
     <div class="gf-duas">
      <section class="gf-sec"><div class="gf-sec-cab"><div><h3>Betoneira e vibrador</h3><p>Energia por m³ = potência × tempo das traçadas; depreciação pela vida útil.</p></div></div><div class="fin-linha">
        ${f('betoneira.cap','Capacidade da betoneira (litros)',c.betoneira.cap,'inputmode="numeric"')}${f('betoneira.util','Aproveitamento por traçada (%)',c.betoneira.util)}${f('betoneira.kw','Potência da betoneira (kW)',c.betoneira.kw,'inputmode="decimal"')}${f('betoneira.min','Minutos por traçada',c.betoneira.min,'inputmode="decimal"')}
@@ -1815,15 +1992,18 @@ function telaParametros(){
        ${mo('saldo_inicial','Saldo inicial do caixa',c.saldo_inicial)}<div class="fin-fld"><label>Data do saldo inicial</label><input type="date" data-cfg="saldo_data" value="${fe(c.saldo_data||'')}"></div></div></section></div>
     <div style="display:flex;justify-content:flex-end"><button type="button" class="gf-bt pri" data-pm="cfg-salvar"><i class="fas fa-floppy-disk"></i> Salvar parâmetros</button></div>`;
 }
+// tabela de frete por cidade: lista do IBGE em cada linha, UF preenchida sozinha
+function ligarCidadesFrete(box){box.querySelectorAll('[data-cn]').forEach(inp=>{if(inp.dataset.pmCid)return;inp.dataset.pmCid='1';if(GS.cidade&&GS.cidade.ligar)GS.cidade.ligar(inp);
+  const poe=()=>{const u=partesCid(inp.value)[1],e=inp.closest('[data-lin]').querySelector('[data-cu]');if(e&&u)e.value=u;};inp.addEventListener('change',poe);inp.addEventListener('blur',()=>setTimeout(poe,250));});}
 function addLinha(qual){const box=document.querySelector(`#pm-app [data-${{fixos:'fixos',equipe:'equipe',cid:'cids',cam:'cams'}[qual]}]`);if(!box)return;const v=box.querySelector('[data-vazio]');if(v)v.remove();
-  box.insertAdjacentHTML('beforeend',qual==='fixos'?PM._linFixo({nome:'',valor:''}):qual==='cid'?PM._linCid({cidade:'',uf:CFG().uf||''}):qual==='cam'?PM._linCam({}):PM._linEq({nome:'',funcao:FUNCOES[1]}));}
+  box.insertAdjacentHTML('beforeend',qual==='fixos'?PM._linFixo({nome:'',valor:''}):qual==='cid'?PM._linCid({cidade:'',uf:''}):qual==='cam'?PM._linCam({}):PM._linEq({nome:'',funcao:FUNCOES[1]}));if(qual==='cid')ligarCidadesFrete(box);}
 async function salvarParametros(){
   const box=document.getElementById('pm-app'),c=JSON.parse(JSON.stringify(CFG()));
-  box.querySelectorAll('[data-cfg]').forEach(e=>{const path=e.dataset.cfg.split('.'),txt=['cidade','uf','saldo_data','jornada.entrada','jornada.saida'].includes(e.dataset.cfg)||e.dataset.cfg.startsWith('frete.origem.'),v=txt?String(e.value||'').trim():(e.dataset.cfg==='jornada.intervalo'||e.dataset.cfg==='frete.km_min'?(parseFloat(String(e.value).replace(',','.'))||0):num(e.value));let o=c;for(let i=0;i<path.length-1;i++){o[path[i]]=o[path[i]]||{};o=o[path[i]];}o[path[path.length-1]]=e.dataset.cfg==='uf'?String(v).toUpperCase():v;});
+  box.querySelectorAll('[data-cfg]').forEach(e=>{const path=e.dataset.cfg.split('.'),txt=['cidade','uf','saldo_data','jornada.entrada','jornada.saida'].includes(e.dataset.cfg)||e.dataset.cfg.startsWith('frete.origem.')||e.dataset.cfg.startsWith('fiscal.'),v=txt?String(e.value||'').trim():(e.dataset.cfg==='jornada.intervalo'||e.dataset.cfg==='frete.km_min'?(parseFloat(String(e.value).replace(',','.'))||0):num(e.value));let o=c;for(let i=0;i<path.length-1;i++){o[path[i]]=o[path[i]]||{};o=o[path[i]];}o[path[path.length-1]]=e.dataset.cfg==='uf'?String(v).toUpperCase():v;});
   c.fixos=[...box.querySelectorAll('[data-lin="fixos"]')].map(d=>({nome:d.querySelector('[data-fx="nome"]').value.trim(),valor:r2(num(d.querySelector('[data-fx="valor"]').value))})).filter(x=>x.nome||x.valor);
   c.equipe_lista=[...box.querySelectorAll('[data-lin="equipe"]')].map(d=>({nome:d.querySelector('[data-eqn]').value.trim(),funcao:d.querySelector('[data-eqf]').value})).filter(x=>x.nome);
   c.frete=c.frete||{};const ck=box.querySelector('[data-cfg-ck="frete.ida_volta"]');if(ck)c.frete.ida_volta=ck.checked;if(c.frete.origem&&c.frete.origem.uf)c.frete.origem.uf=String(c.frete.origem.uf).toUpperCase();
-  c.frete.cidades=[...box.querySelectorAll('[data-lin="cid"]')].map(d=>({cidade:d.querySelector('[data-cn]').value.trim(),uf:d.querySelector('[data-cu]').value.trim().toUpperCase(),valor:r2(num(d.querySelector('[data-cv]').value))})).filter(x=>x.cidade&&x.valor>0);
+  c.frete.cidades=[...box.querySelectorAll('[data-lin="cid"]')].map(d=>({cidade:cidUF(d.querySelector('[data-cn]').value),uf:partesCid(d.querySelector('[data-cn]').value)[1]||d.querySelector('[data-cu]').value.trim().toUpperCase(),valor:r2(num(d.querySelector('[data-cv]').value))})).filter(x=>x.cidade&&x.valor>0);
   c.caminhoes=[...box.querySelectorAll('[data-lin="cam"]')].map(d=>({nome:d.querySelector('[data-kn]').value.trim(),cap_kg:parseFloat(String(d.querySelector('[data-kc]').value).replace(',','.'))||0,motorista:d.querySelector('[data-km]').value.trim()})).filter(x=>x.nome);
   if(!(num(c.prod_m3)>0))return toast('Informe a produção prevista por mês (m³): é a base do rateio.','error');
   if(!(num(c.sinal)>=0&&num(c.sinal)<=100))return toast('O sinal deve ficar entre 0% e 100%.','error');
@@ -1831,5 +2011,5 @@ async function salvarParametros(){
   try{await gravar(r?{...r,cfg:{...((r&&r.cfg)||{}),...c}}:{tipo:'config',cfg:c,data_lancamento:todayDateTime()},r?r.rowid:null);toast('Parâmetros salvos: os custos das peças foram recalculados.','success');}catch(e){toast(e.message,'error',false);}
 }
 
-window.PM_FABRICA={lotes,rastreio,comissoesMes,precoPara,calcularFrete,situacaoLote,pesoVenda,romaneio,imprimirEtiquetas,escolherPeca,calc,receita,traco1m3,rateio,estoque,estoqueInsumos,CFG,render,irAba,resumoMes,necessidade,caixaMes,faseVenda,totalVenda,pagoDe,reposicao,fichaHtml,tiposTodos,armPeca};
+window.PM_FABRICA={depsVenda,depsOrdem,faltaInsumos,lerXmlNfe,catalogoPDF,imprimirVenda,depsExcluir,lotes,rastreio,comissoesMes,precoPara,calcularFrete,situacaoLote,pesoVenda,romaneio,imprimirEtiquetas,escolherPeca,calc,receita,traco1m3,rateio,estoque,estoqueInsumos,CFG,render,irAba,resumoMes,necessidade,caixaMes,faseVenda,totalVenda,pagoDe,reposicao,fichaHtml,tiposTodos,armPeca};
 })();
