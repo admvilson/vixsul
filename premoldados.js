@@ -304,6 +304,33 @@ function estilo(){
 .pm-tipos{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px;max-height:62vh;overflow:auto;padding:2px;}
 .pm-tipo{border:1px solid #E4E9F2;border-radius:12px;padding:8px 10px;cursor:pointer;background:#fff;transition:border-color .15s,box-shadow .15s;}
 .pm-tipo:hover{border-color:#1652D8;box-shadow:0 6px 16px -10px rgba(22,82,216,.6);} .pm-tipo b{display:block;font-size:12.5px;line-height:1.3;} .pm-tipo small{display:block;font-size:11px;color:#667085;}
+.pm-th{width:58px;height:44px;border-radius:9px;background:#F2F4F7;border:1px solid #E4E9F2;display:grid;place-items:center;overflow:hidden;cursor:pointer;padding:0;flex:none;}
+.pm-th img{width:100%;height:100%;object-fit:cover;} .pm-th svg{width:100%;height:100%;}
+.pm-svgbox img{width:100%;height:150px;object-fit:cover;border-radius:8px;display:block;}
+.pm-pop{position:fixed;inset:0;z-index:10050;background:rgba(16,24,40,.5);display:grid;place-items:center;padding:16px;}
+.pm-pop-box{background:#fff;border-radius:18px;max-width:1000px;width:100%;max-height:88vh;display:flex;flex-direction:column;box-shadow:0 24px 60px -20px rgba(16,24,40,.5);}
+.pm-pop-cab{display:flex;gap:8px;align-items:center;padding:12px 14px;border-bottom:1px solid #EEF1F6;flex-wrap:wrap;}
+.pm-pop-cab b{font:800 15px Inter,sans-serif;margin-right:auto;}
+.pm-pop-grid{overflow:auto;padding:14px;display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px;}
+.pm-pk{position:relative;border:1px solid #E4E9F2;border-radius:12px;overflow:hidden;cursor:pointer;background:#fff;transition:border-color .15s,box-shadow .15s;}
+.pm-pk:hover,.pm-pk.on{border-color:#1652D8;box-shadow:0 6px 16px -10px rgba(22,82,216,.6);}
+.pm-pk .im{height:120px;background:#F8FAFC;display:grid;place-items:center;} .pm-pk .im img{width:100%;height:100%;object-fit:cover;} .pm-pk .im svg{width:100%;height:100%;}
+.pm-pk .tx{padding:7px 9px;font-size:11.5px;color:#667085;} .pm-pk .tx b{display:block;font-size:12.5px;color:var(--text-1);line-height:1.25;}
+.pm-pk .zb{position:absolute;top:6px;right:6px;width:28px;height:28px;border-radius:99px;border:0;background:rgba(255,255,255,.92);color:#344054;cursor:zoom-in;box-shadow:0 2px 6px rgba(0,0,0,.15);}
+.pm-zoom{max-width:min(92vw,960px);max-height:86vh;border-radius:16px;background:#fff;padding:8px;} .pm-zoom img,.pm-zoom svg{max-width:100%;max-height:80vh;display:block;margin:auto;border-radius:10px;}
+.pm-at{display:inline-flex;align-items:center;gap:6px;margin-top:3px;background:#ECFDF3;color:#067647;border:1px solid #ABEFC6;border-radius:99px;padding:2px 9px;font-weight:700;font-size:11px;white-space:nowrap;}
+.pm-at button{border:0;background:#067647;color:#fff;border-radius:99px;padding:2px 9px;font:700 11px Inter,sans-serif;cursor:pointer;}
+.pm-at.az{background:#EEF4FF;color:#1652D8;border-color:#C7D7FE;}
+.pm-sem{display:grid;grid-template-columns:repeat(7,minmax(160px,1fr));gap:8px;overflow-x:auto;padding-bottom:4px;}
+.pm-dia{background:#F8FAFC;border:1px solid #E4E9F2;border-radius:14px;padding:8px;min-height:170px;min-width:0;}
+.pm-dia.hoje{border-color:#1652D8;box-shadow:inset 0 0 0 1px #1652D8;}
+.pm-dia h6{margin:0 0 6px;font:800 12px Inter,sans-serif;color:#344054;display:flex;justify-content:space-between;align-items:center;gap:6px;}
+.pm-dia h6 small{font-weight:600;color:#667085;}
+.pm-ent{background:#fff;border:1px solid #E4E9F2;border-left:4px solid var(--cor,#1652D8);border-radius:10px;padding:6px 8px;margin-bottom:6px;font-size:11.5px;cursor:pointer;line-height:1.35;}
+.pm-ent b{font-size:12px;} .pm-ent:hover{box-shadow:0 6px 14px -10px rgba(16,24,40,.5);}
+.pm-cam{font:800 10.5px Inter,sans-serif;color:#475467;text-transform:uppercase;letter-spacing:.04em;margin:6px 0 4px;display:flex;justify-content:space-between;gap:6px;}
+.pm-cam.exc{color:#B42318;}
+.pm-ponto td{vertical-align:middle;} .pm-ponto input[type=time]{min-width:92px;}
 @media (max-width:900px){.pm-form{grid-template-columns:1fr;} .pm-res{position:static;} .pm-tab span.lb{display:none;} .pm-tab{padding:8px;}}
 `;
   document.head.appendChild(s);
@@ -366,6 +393,7 @@ function render(){
   box.innerHTML=nav+corpo;if(rol)rol.scrollTop=y;
   const on=box.querySelector('.pm-tab.on');if(on&&on.scrollIntoView)try{on.scrollIntoView({block:'nearest',inline:'nearest'});}catch(e){}
   if(ab.k==='painel')desenharGrafico();
+  pintarFotos(box);
   if(!box._ligado){box._ligado=1;box.addEventListener('click',clique);box.addEventListener('change',mudou);box.addEventListener('input',digitou);}
 }
 function digitou(ev){
@@ -388,13 +416,17 @@ function clique(ev){
     'nova-peca':()=>escolherTipo(t=>formPeca(null,{tipo_k:t.k})),'peca':()=>fichaPeca(pecaDe(id)),'vista':()=>{PM.pecasVista=b.dataset.v;render();},
     'tipo':()=>fichaTipo(tipoK(b.dataset.k)),'tipo-novo':()=>formTipo(null),'traco-novo':()=>formTraco(null),'traco':()=>formTraco(tracoDe(id)),
     'ordem-nova':()=>formOrdem(null),'ordem':()=>formOrdem(T('ordem').find(o=>String(o.rowid)===id)),'fichas-abertas':()=>imprimirFichas(ordens().filter(o=>o.status==='planejada'||o.status==='producao')),
-    'prod-nova':()=>formProducao(null),'prod':()=>formProducao(T('producao').find(o=>String(o.rowid)===id)),
+    'prod-nova':()=>formProducao(null),'lote':()=>fichaLote(b.dataset.lote),'prod':()=>formProducao(T('producao').find(o=>String(o.rowid)===id)),
     'compra-nova':()=>formCompra(null,b.dataset.ins),'compra':()=>formCompra(T('compra').find(o=>String(o.rowid)===id)),
     'ajuste-novo':()=>formAjuste(null,b.dataset.item),'ajuste':()=>formAjuste(T('ajuste').find(o=>String(o.rowid)===id)),
     'avaria-nova':()=>formAvaria(null,b.dataset.peca),'avaria':()=>formAvaria(T('avaria').find(o=>String(o.rowid)===id)),
     'venda-nova':()=>formVenda(null),'venda':()=>fichaVenda(vendaDe(id)),
+    'vvista':()=>{PM.vendasVista=b.dataset.v;PM.busca='';render();},'sem':()=>{const d=num(b.dataset.d);PM.semana=isoDe(d?addD(dt(PM.semana)||segunda(hoje0()),d):segunda(hoje0()));render();},
+    'romaneio':()=>romaneio(b.dataset.d),'cli-novo':()=>formCliente(null),'cli':()=>formCliente(T('cliente').find(o=>String(o.rowid)===id)),
+    'vend-add':()=>{const box=document.querySelector('#pm-app [data-vends]');if(!box)return;const v=box.querySelector('[data-vazio]');if(v)v.remove();box.insertAdjacentHTML('beforeend',PM._linVend({nome:'',pct:5}));},
+    'vend-salvar':()=>salvarVendedores(),'com-pagar':()=>pagarComissao(b.dataset.nome),
     'custo-novo':()=>formCusto(null),'custo':()=>formCusto(T('custo').find(o=>String(o.rowid)===id)),
-    'ir':()=>irAba(b.dataset.aba),'cfg-salvar':()=>salvarParametros(),'cfg-fixo-add':()=>addLinha('fixos'),'cfg-equipe-add':()=>addLinha('equipe'),'cfg-x':()=>{const d=b.closest('[data-lin]');if(d)d.remove();},
+    'ir':()=>irAba(b.dataset.aba),'cfg-salvar':()=>salvarParametros(),'cfg-fixo-add':()=>addLinha('fixos'),'cfg-equipe-add':()=>addLinha('equipe'),'cfg-cid-add':()=>addLinha('cid'),'cfg-cam-add':()=>addLinha('cam'),'cfg-x':()=>{const d=b.closest('[data-lin]');if(d)d.remove();},
     'rel-excel':()=>relatorio(true,false),'rel-pdf':()=>relatorio(false,true),'compras-pdf':()=>imprimirNecessidade(),
     'gerar-op':()=>formOrdem(null,{peca:b.dataset.peca,qtd:b.dataset.qtd})};
   if(acoes[x])acoes[x]();
@@ -415,10 +447,10 @@ function resumoMes(k){
   let cmv=0;const porPeca={};
   vend.forEach(v=>(v.itens||[]).forEach(it=>{const x=E.P[String(it.peca)],q=num(it.qtd);cmv+=q*(x?x.custoMatUn:0);const y=porPeca[it.peca]=porPeca[it.peca]||{q:0,v:0};y.q+=q;y.v+=q*num(it.preco);}));
   const impostos=receita*num(c.impostos)/100,mc=receita-impostos-cmv,perdas=perdaRefugo+perdaAv;
-  const custos=T('custo').filter(x=>noM(dt(x.data))).reduce((s,x)=>s+num(x.valor),0);
-  const resultado=mc-perdas-custos,custoM3=m3>0?(matCons+custos)/m3:null;
+  const custos=T('custo').filter(x=>noM(dt(x.data))&&x.categoria!=='Comissões de vendedores').reduce((s,x)=>s+num(x.valor),0),comissoes=Object.values(comissoesMes(k)).reduce((s,x)=>s+x.com,0);
+  const resultado=mc-perdas-comissoes-custos,custoM3=m3>0?(matCons+custos)/m3:null;
   const recebido=vendas().reduce((s,v)=>s+(v.pagamentos||[]).filter(p=>p.tipo!=='estorno'&&noM(dt(p.data))).reduce((a,p)=>a+num(p.valor),0),0);
-  return {k,prod,its,pecasProd,refugo,m3,matCons,vend,receita,impostos,cmv,mc,perdas,perdaAv,perdaRefugo,custos,resultado,custoM3,porPeca,recebido,av};
+  return {k,prod,its,pecasProd,refugo,m3,matCons,vend,receita,impostos,cmv,mc,perdas,perdaAv,perdaRefugo,custos,comissoes,resultado,custoM3,porPeca,recebido,av};
 }
 function alertas(){
   const out=[],h=hoje0(),ei=estoqueInsumos(),E=estoque(),us=insumosUsados(),c=CFG();
@@ -431,6 +463,10 @@ function alertas(){
     if(f==='pagamento')out.push({tom:'warn',ico:'fa-hand-holding-dollar',t:`Venda nº ${v.numero} pronta — falta pagar ${R(totalVenda(v)-pagoDe(v))}`,s:`${v.cliente||''}: as peças estão prontas; a entrega só sai com o pagamento completo.`,go:'vendas'});
     if(f==='liberado')out.push({tom:'info',ico:'fa-truck-ramp-box',t:`Venda nº ${v.numero} liberada para entrega`,s:`${v.cliente||''} — paga e com as peças prontas.`,go:'vendas'});});
   pecas().forEach(p=>{const r=reposicao(p,E.P[String(p.rowid)]);if(r.k!=='ok')out.push({tom:r.k==='critico'?'err':'warn',ico:'fa-cubes',t:`${p.nome}: ${r.k==='critico'?'falta peça para pedidos':'hora de produzir'}`,s:`Sugestão: produzir ${nf(r.sug,0)} peça(s).`,go:'estoque'});});
+  // ensaios dos corpos de prova e entregas do dia
+  lotes().filter(l=>l.cp>0).forEach(l=>{const st=situacaoLote(l);if(st&&(st.k==='reprovado'||st.k==='atrasado'||st.k==='atencao'))out.push({tom:st.k==='atencao'?'warn':'err',ico:'fa-flask',t:`Lote ${l.lote}: ${st.rot.toLowerCase()}`,s:`${nomePeca(l.peca)} fabricado em ${brDe(dt(l.data))}.${st.k==='reprovado'?' Separe as peças do lote e avalie com o responsável técnico.':''}`,go:'producao'});});
+  const hj=vendas().filter(v=>v.agenda&&v.agenda.data===isoDe(h)&&!['entregue','devolvida','cancelada'].includes(v.status));
+  if(hj.length)out.push({tom:hj.some(v=>faseVenda(v,E)!=='liberado')?'warn':'info',ico:'fa-truck',t:`${hj.length} entrega(s) agendada(s) para hoje`,s:hj.some(v=>faseVenda(v,E)!=='liberado')?'Há pedido agendado que ainda não está pronto ou pago.':'Tudo liberado — imprima o romaneio em Vendas › Entregas.',go:'vendas'});
   return out;
 }
 function telaPainel(){
@@ -467,6 +503,7 @@ function telaPainel(){
           <tr><td>(−) Materiais das peças vendidas</td><td class="n">${R(-r.cmv)}</td></tr>
           <tr class="t"><td>= Margem de contribuição</td><td class="n">${R(r.mc)}</td></tr>
           <tr><td>(−) Perdas: refugo e avarias</td><td class="n">${R(-r.perdas)}</td></tr>
+          ${r.comissoes?`<tr><td>(−) Comissões de vendas</td><td class="n">${R(-r.comissoes)}</td></tr>`:''}
           <tr><td>(−) Custos da fábrica lançados no mês<small>mão de obra, energia, água, aluguel, manutenção…</small></td><td class="n">${R(-r.custos)}</td></tr>
           <tr class="t"><td>= Resultado</td><td class="n" style="color:${r.resultado>=0?'#067647':'#B42318'}">${R(r.resultado)}</td></tr>
         </tbody></table></section>
@@ -491,7 +528,7 @@ function telaPecas(){
   const cartao=p=>{const x=calc(p,1,c),e=E.P[String(p.rowid)]||{},mg=x.margem,rp=reposicao(p,e);
     return `<article class="pm-card" style="--cor:${grupoDe(x.t.g).cor}" data-pm="peca" data-id="${p.rowid}">
       <div class="vk-top"><div><span class="pm-cod">${fe(p.codigo||'')}</span><h4>${fe(p.nome)}</h4></div>${pill(rp.rot,rp.cor)}</div>
-      <div class="pm-svgbox">${CAT.desenho(x.t,p.dims||{},x.arm)}</div>
+      <div class="pm-svgbox" data-th="${p.rowid}">${iluPeca(p)}</div>
       <div class="pm-dim">${fe(x.g.desc)} · ${nf(x.V,4)} m³ · ${nf(x.peso,1)} kg</div>
       <div class="pm-nums"><div><small>Custo</small><b>${R(x.un)}</b></div>${x.preco?`<div><small>Varejo</small><b>${R(x.preco)}</b></div><div><small>Margem</small><b>${nf(mg,1)}%</b></div>`
         :`<div><small>Sugerido</small><b style="color:#1652D8">${R(x.sug)}</b></div><div><small>Margem</small><b style="color:#98A2B3">sem preço</b></div>`}</div>
@@ -509,7 +546,7 @@ function telaCatalogo(sub){
   const card=t=>{const st=statusTipo(t.k,c),arm=CAT.armadura(t,t.d,t.arm!=='nenhuma'&&t.armPad!==false),g=CAT.geo(t,t.d);
     return `<article class="pm-card ${st}" style="--cor:${grupoDe(t.g).cor}" data-pm="tipo" data-k="${t.k}">
       <div class="vk-top"><h4>${fe(t.nome)}</h4>${st==='ativo'?pill('trabalhamos','ok','fa-check'):st==='oculto'?pill('oculto','','fa-eye-slash'):pill('excluído','err','fa-ban')}</div>
-      <div class="pm-svgbox">${CAT.desenho(t,t.d,arm)}</div>
+      <div class="pm-svgbox">${ilu(t,t.d)}</div>
       <div class="pm-dim">${fe(grupoDe(t.g).rot)} · ${fe(g.desc)}${t.tam.length?` · ${t.tam.length} tamanho(s) de mercado`:''}</div>
       <div class="pm-mini">${fe(t.uso||'')}</div></article>`;};
   const grupos=CAT.GRUPOS.filter(g=>L.some(t=>t.g===g.k));
@@ -528,7 +565,7 @@ function fichaTipo(t){
   if(st!=='excluido')bts.push({html:'<i class="fas fa-ban"></i> Excluir do catálogo',acao:async()=>{if(pecas().some(p=>p.tipo_k===t.k))throw new Error('Há peças cadastradas deste tipo: exclua-as antes ou apenas oculte o tipo.');await mudar('excluido')();}});
   if(t.custom)bts.push({html:'<i class="fas fa-pen"></i> Editar tipo',acao:async()=>{setTimeout(()=>formTipo(t),60);}});
   if(st==='ativo')bts.push({html:'<i class="fas fa-plus"></i> Cadastrar peça deste tipo',cls:'pri',acao:async()=>{setTimeout(()=>formPeca(null,{tipo_k:t.k}),60);}});
-  janela(t.nome,`<div class="pm-form"><div><div class="pm-svgbox" style="background:#F8FAFC;border-radius:12px;padding:6px">${CAT.desenho(t,t.d,arm)}</div>
+  janela(t.nome,`<div class="pm-form"><div><div style="background:#F8FAFC;border-radius:12px;padding:6px">${ilu(t,t.d,{cotas:true})}</div><div style="background:#fff;border:1px solid #EEF1F6;border-radius:12px;padding:4px;margin-top:8px">${CAT.desenho(t,t.d,arm)}</div>
       <p class="pm-mini" style="margin:8px 0 0">${fe(t.uso||'')}${t.norma?` · ${fe(t.norma)}`:''}</p></div>
     <div data-sem-ordem><table class="pm-tab2"><tbody><tr><td>Grupo</td><td>${fe(grupoDe(t.g).rot)}</td></tr><tr><td>Forma (família)</td><td>${fe((CAT.FAM[t.f]||{}).rot||t.f)}</td></tr>
       <tr><td>Armadura</td><td>${t.arm==='nenhuma'?'Sem armadura':fe(armTxt(t.arm))}${t.armPad===false?' <small>(começa desligada; liga na peça)</small>':''}</td></tr>
@@ -586,7 +623,7 @@ function formTraco(t){
 function escolherTipo(cb){
   const c=CFG(),ts=tiposTodos().filter(t=>statusTipo(t.k,c)==='ativo');
   const grade=(q,g)=>{const L=ts.filter(t=>(!g||t.g===g)&&(!q||t.nome.toLowerCase().includes(q.toLowerCase())));
-    return L.length?L.map(t=>`<div class="pm-tipo" data-tk="${t.k}" style="border-left:4px solid ${grupoDe(t.g).cor}">${CAT.desenho(t,t.d,CAT.armadura(t,t.d,t.arm!=='nenhuma'&&t.armPad!==false))}<b>${fe(t.nome)}</b><small>${fe(grupoDe(t.g).rot)}</small></div>`).join(''):'<p class="pm-mini">Nenhum tipo. Ative tipos em Peças e catálogo › Catálogo de tipos.</p>';};
+    return L.length?L.map(t=>`<div class="pm-tipo" data-tk="${t.k}" style="border-left:4px solid ${grupoDe(t.g).cor}">${ilu(t,t.d,{grao:false})}<b>${fe(t.nome)}</b><small>${fe(grupoDe(t.g).rot)}</small></div>`).join(''):'<p class="pm-mini">Nenhum tipo. Ative tipos em Peças e catálogo › Catálogo de tipos.</p>';};
   const j=janela('Nova peça — escolha o tipo',`<div class="pm-filtros" style="margin-bottom:10px"><input type="search" data-tk-busca placeholder="Buscar tipo…" style="flex:1;min-width:180px">
     <select data-tk-grupo><option value="">Todos os grupos</option>${CAT.GRUPOS.map(g=>`<option value="${g.k}">${g.rot}</option>`).join('')}</select></div><div class="pm-tipos" data-tk-grade>${grade('','')}</div>`,[],980);
   const at=()=>{j.querySelector('[data-tk-grade]').innerHTML=grade(j.querySelector('[data-tk-busca]').value,j.querySelector('[data-tk-grupo]').value);};
@@ -595,7 +632,7 @@ function escolherTipo(cb){
 }
 function fichaPeca(p){
   if(!p)return;const x=calc(p,1),e=estoque().P[String(p.rowid)]||{},rc=receita(x.tr);
-  janela(`${p.codigo?p.codigo+' · ':''}${p.nome}`,`<div class="pm-form"><div><div style="background:#F8FAFC;border-radius:12px;padding:6px">${CAT.desenho(x.t,p.dims||{},x.arm)}</div>
+  janela(`${p.codigo?p.codigo+' · ':''}${p.nome}`,`<div class="pm-form"><div><div style="background:#F8FAFC;border-radius:12px;padding:6px">${iluPeca(p,{cotas:true})}</div><div style="background:#fff;border:1px solid #EEF1F6;border-radius:12px;padding:4px;margin-top:8px">${CAT.desenho(x.t,p.dims||{},x.arm)}</div>
       <div class="pm-nums" style="grid-template-columns:repeat(4,minmax(0,1fr));margin:10px 0"><div><small>Prontas</small><b>${nf(Math.max(0,e.disp||0),0)}</b></div><div><small>Em cura</small><b>${nf(e.cura||0,0)}</b></div><div><small>Reservadas</small><b>${nf(e.res||0,0)}</b></div><div><small>Em produção</small><b>${nf(e.emProd||0,0)}</b></div></div>
       ${armHtml(x)}${rc?`<div class="fin-aviso" style="margin-top:8px"><div><b>Traço:</b> ${fe(x.tr.nome)} — ${receitaTxt(rc)}.</div></div>`:''}
       <div data-pm-foto style="margin-top:8px"></div></div>
@@ -680,7 +717,7 @@ function formPeca(reg,opts){
   // tamanho de mercado com peso de catálogo: o volume é ajustado para bater com o peso real da peça (furos, frisos, rebaixos)
   j._ajuste=num(base.ajuste)||'';
   const atualizar=()=>{const o=lerPeca(j,{tipo_k:t.k}),n=Math.max(1,num((j.querySelector('[data-pmf="lote"]')||{}).value)||1),ok=geoPeca(o).V>0,x=ok?calc(o,1):null;
-    j.querySelector('[data-pm-desenho]').innerHTML=CAT.desenho(t,o.dims,x?x.arm:{barras:[]});
+    j.querySelector('[data-pm-desenho]').innerHTML=(ok?`<div style="background:#F8FAFC;border-radius:10px">${ilu(t,o.dims,{cotas:true})}</div>`:'')+CAT.desenho(t,o.dims,x?x.arm:{barras:[]});
     j.querySelector('[data-pm-arm]').innerHTML=x?armHtml(x):'';
     j.querySelector('[data-pm-res]').innerHTML=ok?resumoHtml(o,n):'<div class="gf-vazio"><i class="fas fa-ruler-combined"></i><p>Informe as medidas para ver os materiais e o custo.</p></div>';
     const nm=j.querySelector('[data-k="nome"]');if(nm&&!nm.value.trim())nm.placeholder=`${t.nome} ${CAT.geo(t,o.dims).desc}`;};
@@ -713,92 +750,114 @@ async function lerFoto(f){
 function fotoEnviar(p){
   if(!GS.docs||!GS.docs.enviarArq)return toast('Envio de fotos indisponível.','error');
   const inp=document.createElement('input');inp.type='file';inp.accept='image/*';inp.onchange=async()=>{const f=inp.files[0];if(!f)return;
-    try{UI._showBusy('Enviando a foto…');const fx=await lerFoto(f);await GS.docs.enviarArq(OB_FAB,{aba:'pm_foto',peca:String(p.rowid)},fx);toast('Foto guardada.','success');fotoMostrar(p,true);}catch(e){toast(e.message||String(e),'error');}finally{UI._hideBusy();}};inp.click();
+    try{UI._showBusy('Enviando a foto…');const fx=await lerFoto(f);await GS.docs.enviarArq(OB_FAB,{aba:'pm_foto',peca:String(p.rowid)},fx);FOTOS.lista=null;delete FOTOS.url[String(p.rowid)];toast('Foto guardada.','success');fotoMostrar(p);}catch(e){toast(e.message||String(e),'error');}finally{UI._hideBusy();}};inp.click();
 }
-async function fotoMostrar(p,forcar){
-  const box=document.querySelector('#fin-jan [data-pm-foto]');if(!box||!GS.docs||!GS.docs.listarArq)return;
-  try{const L=(await GS.docs.listarArq(OB_FAB,forcar)).filter(a=>a.aba==='pm_foto'&&String(a.peca)===String(p.rowid));if(!L.length){box.innerHTML='';return;}
-    const a=L[L.length-1];const r=await new Promise((ok,er)=>google.script.run.withSuccessHandler(ok).withFailureHandler(er).partesAnexo(a.uid));
-    const ps=((r&&r.partes)||[]).slice().sort((x,y)=>x.ordem-y.ordem);if(!ps.length)return;
-    box.innerHTML=`<img src="data:${a.mime||'image/jpeg'};base64,${ps.map(x=>x.conteudo).join('')}" alt="Foto da peça" style="width:100%;border-radius:12px;border:1px solid #E4E9F2">`;}catch(e){console.error(e);}
+// fotos das peças: lista lida uma vez; cada foto baixada uma vez (fica guardada enquanto a tela está aberta)
+const FOTOS={lista:null,url:{}};
+function listaFotos(){if(!GS.docs||!GS.docs.listarArq)return Promise.resolve([]);if(!FOTOS.lista)FOTOS.lista=GS.docs.listarArq(OB_FAB,true).then(L=>(L||[]).filter(a=>a.aba==='pm_foto')).catch(()=>[]);return FOTOS.lista;}
+function fotoUrl(pid){pid=String(pid||'');if(!pid)return Promise.resolve('');if(FOTOS.url[pid])return FOTOS.url[pid];
+  return FOTOS.url[pid]=listaFotos().then(L=>{const a=L.filter(x=>String(x.peca)===pid).sort((x,y)=>String(y.enviado_em||'').localeCompare(String(x.enviado_em||'')))[0];if(!a)return '';
+    return new Promise(ok=>google.script.run.withSuccessHandler(r=>{const ps=((r&&r.partes)||[]).slice().sort((x,y)=>x.ordem-y.ordem);ok(ps.length?`data:${a.mime||'image/jpeg'};base64,${ps.map(x=>x.conteudo).join('')}`:'');}).withFailureHandler(()=>ok('')).partesAnexo(a.uid));});}
+// troca a ilustração pela foto real onde houver [data-th="id da peça"]
+function pintarFotos(root){if(!root)return;root.querySelectorAll('[data-th]').forEach(el=>{const pid=el.dataset.th;if(!pid||el.dataset.thOk===pid)return;el.dataset.thOk=pid;
+  fotoUrl(pid).then(u=>{if(u&&el.dataset.th===pid)el.innerHTML=`<img src="${u}" alt="Foto da peça">`;});});}
+async function fotoMostrar(p){const box=document.querySelector('#fin-jan [data-pm-foto]');if(!box)return;const u=await fotoUrl(p.rowid);
+  box.innerHTML=u?`<img src="${u}" alt="Foto da peça" style="width:100%;border-radius:12px;border:1px solid #E4E9F2">`:'';}
+// ilustração 3D da peça (do catálogo, nas medidas dela)
+const ilu=(t,d,o)=>CAT.ilustracao?CAT.ilustracao(t,d||{},o):CAT.desenho(t,d||{},{barras:[]});
+const iluPeca=(p,o)=>p?ilu(tipoDePeca(p),p.dims,o):'';
+const miniPeca=p=>iluPeca(p,{w:150,h:110,grao:false});
+// janela de cima (não fecha a que está aberta): escolher a peça vendo a foto, ou ampliar uma foto
+function sobre(html,ao){const d=document.createElement('div');d.className='pm-pop';d.innerHTML=html;document.body.appendChild(d);
+  const fechar=()=>{d.remove();document.removeEventListener('keydown',esc,true);},esc=ev=>{if(ev.key==='Escape'){ev.stopPropagation();fechar();}};
+  document.addEventListener('keydown',esc,true);d.addEventListener('click',ev=>{if(ev.target===d||ev.target.closest('[data-pop-x]'))return fechar();if(ao)ao(ev,fechar);});return {d,fechar};}
+function ampliar(pid){const p=pecaDe(pid);if(!p)return;const o=sobre(`<div class="pm-zoom"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:4px 6px 8px"><b style="font:800 14px Inter">${fe(p.codigo?p.codigo+' · ':'')}${fe(p.nome)}</b><button type="button" class="pm-x" data-pop-x><i class="fas fa-xmark"></i></button></div><div data-th="${p.rowid}">${iluPeca(p,{w:760,h:420,cotas:true})}</div></div>`);pintarFotos(o.d);}
+function escolherPeca(atual,cb){
+  const E=estoque(),L=pecas();
+  const card=p=>{const x=E.P[String(p.rowid)]||{livre:0};return `<div class="pm-pk ${String(p.rowid)===String(atual)?'on':''}" data-pk="${p.rowid}" data-busca="${fe([p.nome,p.codigo].join(' ').toLowerCase())}"><div class="im" data-th="${p.rowid}">${miniPeca(p)}</div>
+    <button type="button" class="zb" data-zoom="${p.rowid}" title="Ampliar"><i class="fas fa-magnifying-glass-plus"></i></button><div class="tx"><b>${fe(p.nome)}</b>${fe(p.codigo||'')} · ${nf(Math.max(0,x.livre),0)} livres</div></div>`;};
+  const o=sobre(`<div class="pm-pop-box"><div class="pm-pop-cab"><b>Escolha a peça</b><input type="search" data-pk-busca placeholder="Buscar…" style="padding:8px 12px;border:1px solid #D0D5DD;border-radius:10px;font:13px Inter;min-width:200px"><button type="button" class="pm-x" data-pop-x><i class="fas fa-xmark"></i></button></div>
+    <div class="pm-pop-grid">${L.map(card).join('')}</div></div>`,(ev,fechar)=>{const z=ev.target.closest('[data-zoom]');if(z)return ampliar(z.dataset.zoom);const c=ev.target.closest('[data-pk]');if(c){fechar();cb(c.dataset.pk);}});
+  const bx=o.d.querySelector('[data-pk-busca]');bx.addEventListener('input',()=>{const q=bx.value.toLowerCase().trim();o.d.querySelectorAll('[data-pk]').forEach(c=>c.style.display=!q||c.dataset.busca.includes(q)?'':'none');});
+  setTimeout(()=>bx.focus(),50);pintarFotos(o.d);
 }
+// miniatura clicável ao lado da lista de peças (abre a escolha com fotos)
+const thumbBt=pid=>{const p=pecaDe(pid);return `<button type="button" class="pm-th" data-pmf="pick" data-th="${p?p.rowid:''}" title="Ver as peças com foto">${p?miniPeca(p):''}</button>`;};
+function trocarThumb(tr,pid){const b=tr.querySelector('[data-pmf="pick"]');if(!b)return;const p=pecaDe(pid);b.dataset.th=p?p.rowid:'';delete b.dataset.thOk;b.innerHTML=p?miniPeca(p):'';pintarFotos(tr);}
 
 /* ═══════════════ FICHA DE PRODUÇÃO (para quem confecciona — leitura fácil) ═══════════════ */
 const icSaco=n=>`<svg width="34" height="42" viewBox="0 0 34 42"><rect x="2" y="4" width="30" height="36" rx="5" fill="#D0D5DD" stroke="#475467" stroke-width="2"/><text x="17" y="27" text-anchor="middle" font-size="10" font-weight="800" fill="#344054">50kg</text></svg>`;
 const icLata=(cor,meia)=>`<svg width="30" height="38" viewBox="0 0 30 38"><path d="M4 8 L26 8 L23 36 L7 36 Z" fill="${meia?'#fff':cor}" stroke="#344054" stroke-width="2"/>${meia?`<path d="M5.6 22 L24.4 22 L23 36 L7 36 Z" fill="${cor}"/>`:''}<path d="M4 8 Q15 0 26 8" fill="none" stroke="#344054" stroke-width="2"/></svg>`;
 const repetir=(n,f)=>{const i=Math.floor(n),m=n-i>=0.5;if(i>10)return `${f(false)}<b style="font-size:22px"> × ${fracao(n)}</b>`;let s='';for(let k=0;k<i;k++)s+=f(false);if(m)s+=f(true);return s||'—';};
-function fichaHtml(p,qtd,op){p=pecaN(p);
-  const c=CFG(),x=calc(p,qtd),rc=receita(x.tr,c),dataP=new Date().toLocaleDateString('pt-BR'),cura=num(p.cura!=null&&p.cura!==''?p.cura:x.t.cura);
-  const sacos=x.est.cimento||0,bet=rc?Math.max(1,Math.ceil(sacos/rc.sacosBet-1e-9)):0,porBet=rc&&qtd>0?qtd/bet:0;
-  const latasTot=k=>rc?rc.latas[k]*sacos:0,lin=(ic,rot,val,det)=>`<tr><td class="ic">${ic}</td><td><b>${rot}</b>${det?`<small>${det}</small>`:''}</td><td class="v">${val}</td></tr>`;
+// peças que pedem corpo de prova por lote (estruturais, drenagem, postes, tampas, lajes, barreiras)
+function pedeCP(t){return !!t&&(!!t.estr||t.arm==='projeto'||['dren','estr'].includes(t.g)||/poste|cruzeta|tampa|tampao|grelha|laje|jersey|guarda/.test(String(t.k)));}
+// a ficha sai no padrão das exportações do sistema (logo, título, rodapé com página) — em blocos, letra grande para a produção
+const SEC=(n,tit)=>`<div style="display:flex;align-items:center;gap:10px;background:#F5F5F7;border-left:5px solid #0071E3;border-radius:8px;padding:7px 12px;margin:4px 0 8px"><span style="display:inline-grid;place-items:center;width:26px;height:26px;border-radius:99px;background:#0071E3;color:#fff;font:800 14px Arial">${n}</span><b style="font-size:16px;letter-spacing:.02em">${tit}</b></div>`;
+function fichaHtml(p,qtd,op,quebra){p=pecaN(p);
+  const c=CFG(),x=calc(p,qtd),rc=receita(x.tr,c),cura=num(p.cura!=null&&p.cura!==''?p.cura:x.t.cura),inicio=op&&dt(op.inicio)?dt(op.inicio):hoje0();
+  const sacos=x.est.cimento||0,bet=rc?Math.max(1,Math.ceil(sacos/rc.sacosBet-1e-9)):0,porBet=rc&&qtd>0?qtd/bet:0,latasTot=k=>rc?rc.latas[k]*sacos:0,latasBet=k=>rc?rc.latas[k]*rc.sacosBet:0;
+  const lin=(ic,rot,val,det)=>`<tr><td style="width:52px;text-align:center;border-bottom:1px solid #e5e5ea;padding:6px">${ic}</td><td style="border-bottom:1px solid #e5e5ea;padding:6px;font-size:15px"><b>${rot}</b>${det?`<div style="font-size:11px;color:#6e6e73">${det}</div>`:''}</td><td style="border-bottom:1px solid #e5e5ea;padding:6px;text-align:right;font-size:19px;font-weight:800;white-space:nowrap">${val}</td></tr>`;
   const mats=[];
   if(sacos)mats.push(lin(icSaco(),'Cimento',`${fracao(Math.ceil(sacos*2)/2)} sacos`,`${nf(x.kg.cimento,0)} kg`));
   if(x.est.areia)mats.push(lin(icLata('#F4C27A'),'Areia',`${nf(Math.ceil(latasTot('areia')),0)} latas`,`${nf(x.est.areia,2)} m³`));
   if(x.est.po)mats.push(lin(icLata('#C7CDD6'),'Pó de pedra',`${nf(Math.ceil(latasTot('po')),0)} latas`,`${nf(x.est.po,2)} m³`));
   if(x.est.brita)mats.push(lin(icLata('#98A2B3'),'Brita',`${nf(Math.ceil(latasTot('brita')),0)} latas`,`${nf(x.est.brita,2)} m³`));
   mats.push(lin(icLata('#84CAFF'),'Água',`${nf(x.aguaL,0)} litros`,`≈ ${nf(x.aguaL/(rc?rc.lata:18),0)} latas`));
-  if(x.est.aditivo)mats.push(lin('🧴','Aditivo',`${nf(x.est.aditivo,2)} kg`,''));
+  if(x.est.aditivo)mats.push(lin('<span style="font-size:22px">🧴</span>','Aditivo',`${nf(x.est.aditivo,2)} kg`,''));
   Object.values(x.porBitola).forEach(b=>mats.push(lin('<span style="font-size:26px;color:#D92D20">═</span>',b.trelica?'Treliça TR 8644':`Ferro Ø ${nf(b.d,1)} mm`,`${b.barras} barras de 12 m`,`${nf(b.kg,1)} kg`)));
   if(x.est.malha)mats.push(lin('<span style="font-size:24px;color:#7A2FE0">▦</span>','Malha POP',`${Math.ceil(x.est.malha)} painéis`,`${nf(x.malhaM2,1)} m² (painel 2 × 3 m)`));
-  if(x.est.arame)mats.push(lin('➰','Arame recozido',`${nf(x.est.arame,1)} kg`,''));
-  if(x.est.desmoldante)mats.push(lin('🛢','Desmoldante',`${nf(x.est.desmoldante,1)} litros`,''));
+  if(x.est.arame)mats.push(lin('<span style="font-size:22px">➰</span>','Arame recozido',`${nf(x.est.arame,1)} kg`,''));
+  if(x.est.desmoldante)mats.push(lin('<span style="font-size:22px">🛢</span>','Desmoldante',`${nf(x.est.desmoldante,1)} litros`,''));
   const ferro=[];
-  x.arm.barras.forEach(b=>{if(b.t==='e')ferro.push(`<li><b>Faça ${nf(b.q*qtd,0)} estribos</b> (${nf(b.q,0)} por peça) com ferro Ø ${nf(b.d,1)} mm: corte pedaços de <b>${nf(b.l,0)} cm</b> e dobre em retângulo${b.dob?` de <b>${fe(b.dob)}</b>`:''}.</li>`);
-    else if(b.t==='r')ferro.push(`<li><b>Faça ${nf(b.q*qtd,0)} anéis</b> (${nf(b.q,0)} por peça) com ferro Ø ${nf(b.d,1)} mm: corte pedaços de <b>${nf(b.l,0)} cm</b> e feche em ${fe(b.dob||'anel')}.</li>`);
-    else if(b.t==='t')ferro.push(`<li><b>Corte ${nf(b.q*qtd,0)} pedaços de treliça</b> com <b>${nf(b.l/100,2)} m</b>.</li>`);
-    else ferro.push(`<li><b>Corte ${nf(b.q*qtd,0)} pedaços</b> (${nf(b.q,0)} por peça) de ferro Ø ${nf(b.d,1)} mm com <b>${nf(b.l/100,2)} m</b>.</li>`);});
-  if(x.arm.malha)ferro.push(`<li><b>Malha POP:</b> corte pedaços do tamanho da peça (menos ${nf(x.arm.cob*2,0)} cm) — ${nf(x.arm.malha.m2,2)} m² por peça, ${x.arm.malha.camadas===2?'duas camadas':'uma camada'}.</li>`);
-  if(x.arm.cob)ferro.push(`<li>Use <b>espaçador de ${nf(x.arm.cob,1)} cm</b> para o ferro não encostar na forma.</li>`);
-  if(x.arm.obs)ferro.push(`<li style="color:#B42318"><b>Atenção:</b> ${fe(x.arm.obs)}</li>`);
-  const latasBet=k=>rc?rc.latas[k]*rc.sacosBet:0;
-  const passos=[`Passe <b>desmoldante</b> em todas as formas antes de começar.`,
-    x.arm.barras.length||x.arm.malha?`Coloque a <b>armadura</b> nas formas com os espaçadores.`:null,
-    rc&&!rc.seco?`Na betoneira: ponha <b>metade da água</b>, depois a <b>brita</b>, o <b>cimento</b>, a <b>areia${x.tr.po?' e o pó de pedra':''}</b> e o <b>resto da água</b> aos poucos. Bata de <b>3 a 5 minutos</b>.`:`Concreto seco: misture bem os secos e coloque a água <b>aos poucos</b> até a massa ficar úmida, sem escorrer (ao apertar na mão, forma bola sem molhar a mão).`,
-    `Encha a forma e <b>vibre ou bata</b> bem para tirar o ar (até parar de sair bolha).`,`Acerte a superfície e deixe na sombra.`,
-    `Desforme no dia seguinte (mínimo 18 horas) com cuidado.`,`<b>Molhe as peças 3 vezes por dia durante 7 dias</b> (cura).`,`Peças liberadas para venda em <b>${cura} dias</b>${op&&op.inicio?` — a partir de ${brDe(addD(dt(op.inicio)||hoje0(),cura))}`:''}.`].filter(Boolean);
-  return `<section class="fp">
-    <header><div><div class="eti">FICHA DE PRODUÇÃO${op?` · OP Nº ${fe(String(op.numero))}`:''}</div><h1>${fe(p.nome)}</h1><div class="sub">${fe(x.g.desc)} · ${nf(x.peso,1)} kg cada · ${fe(x.tr.nome)}</div></div>
-      <div class="qtd"><span>FAZER</span><b>${nf(qtd,0)}</b><span>peças</span></div></header>
-    <div class="info">${op&&op.fim?`<span>Prazo: <b>${brDe(dt(op.fim))}</b></span>`:''}${op&&op.cliente?`<span>Para: <b>${fe(op.cliente)}</b></span>`:''}<span>Concreto total: <b>${nf(x.Vc,2)} m³</b></span><span>Impresso em ${dataP}</span></div>
-    <div class="des">${CAT.desenho(x.t,p.dims||{},x.arm)}</div>
-    <h2>1 · SEPARE O MATERIAL</h2><table class="mat">${mats.join('')}</table>
-    ${ferro.length?`<h2>2 · PREPARE O FERRO</h2><ol class="li">${ferro.join('')}</ol>`:''}
-    ${rc?`<h2>${ferro.length?3:2} · RECEITA DO CONCRETO (cada betonada)</h2>
-      <div class="rec"><div class="it">${repetir(rc.sacosBet,()=>icSaco())}<b>${fracao(rc.sacosBet)} saco${rc.sacosBet>1?'s':''} de cimento</b></div>
-      ${rc.latas.areia?`<div class="it">${repetir(latasBet('areia'),m=>icLata('#F4C27A',m))}<b>${fracao(latasBet('areia'))} lata${latasBet('areia')>1?'s':''} de areia</b></div>`:''}
-      ${rc.latas.po?`<div class="it">${repetir(latasBet('po'),m=>icLata('#C7CDD6',m))}<b>${fracao(latasBet('po'))} lata${latasBet('po')>1?'s':''} de pó de pedra</b></div>`:''}
-      ${rc.latas.brita?`<div class="it">${repetir(latasBet('brita'),m=>icLata('#98A2B3',m))}<b>${fracao(latasBet('brita'))} lata${latasBet('brita')>1?'s':''} de brita</b></div>`:''}
-      <div class="it">${repetir(Math.max(0.5,latasBet('agua')),m=>icLata('#84CAFF',m))}<b>${nf(rc.porSaco.agua*rc.sacosBet,0)} litros de água</b></div>
-      ${rc.porSaco.aditivo?`<div class="it"><b>+ ${nf(rc.porSaco.aditivo*rc.sacosBet*1000,0)} g de aditivo</b></div>`:''}</div>
-      <p class="tot">Fazer <b>${bet} betonada${bet>1?'s':''}</b> no total${porBet?` · cada betonada rende cerca de <b>${nf(porBet,porBet<10?1:0)} peça${porBet>=2?'s':''}</b>`:''}. Lata = balde de ${nf(rc.lata,0)} litros. Areia molhada: use um pouco menos de água.</p>`:''}
-    <h2>${(ferro.length?3:2)+(rc?1:0)} · PASSO A PASSO</h2><ol class="li passo">${passos.map(s=>`<li>${s}</li>`).join('')}</ol>
-    <div class="ass"><span>Responsável: ______________________</span><span>Início: ___/___ &nbsp; Fim: ___/___</span><span>Peças boas: _____ &nbsp; Quebradas: _____</span></div>
-  </section>`;
+  x.arm.barras.forEach(b=>{if(b.t==='e')ferro.push(`<b>Faça ${nf(b.q*qtd,0)} estribos</b> (${nf(b.q,0)} por peça) com ferro Ø ${nf(b.d,1)} mm: corte pedaços de <b>${nf(b.l,0)} cm</b> e dobre em retângulo${b.dob?` de <b>${fe(b.dob)}</b>`:''}.`);
+    else if(b.t==='r')ferro.push(`<b>Faça ${nf(b.q*qtd,0)} anéis</b> (${nf(b.q,0)} por peça) com ferro Ø ${nf(b.d,1)} mm: corte pedaços de <b>${nf(b.l,0)} cm</b> e feche em ${fe(b.dob||'anel')}.`);
+    else if(b.t==='t')ferro.push(`<b>Corte ${nf(b.q*qtd,0)} pedaços de treliça</b> com <b>${nf(b.l/100,2)} m</b>.`);
+    else ferro.push(`<b>Corte ${nf(b.q*qtd,0)} pedaços</b> (${nf(b.q,0)} por peça) de ferro Ø ${nf(b.d,1)} mm com <b>${nf(b.l/100,2)} m</b>.`);});
+  if(x.arm.malha)ferro.push(`<b>Malha POP:</b> corte pedaços do tamanho da peça (menos ${nf(x.arm.cob*2,0)} cm) — ${nf(x.arm.malha.m2,2)} m² por peça, ${x.arm.malha.camadas===2?'duas camadas':'uma camada'}.`);
+  if(x.arm.cob)ferro.push(`Use <b>espaçador de ${nf(x.arm.cob,1)} cm</b> para o ferro não encostar na forma.`);
+  if(x.arm.obs)ferro.push(`<span style="color:#B42318"><b>Atenção:</b> ${fe(x.arm.obs)}</span>`);
+  const cp=pedeCP(x.t);
+  const passos=[`Passe <b>desmoldante</b> em todas as formas antes de começar.`,x.arm.barras.length||x.arm.malha?`Coloque a <b>armadura</b> nas formas com os espaçadores.`:null,
+    rc&&!rc.seco?`Na betoneira: ponha <b>metade da água</b>, depois a <b>brita</b>, o <b>cimento</b>, a <b>areia${x.tr.po?' e o pó de pedra':''}</b> e o <b>resto da água</b> aos poucos. Bata de <b>3 a 5 minutos</b>.`:`Concreto seco: misture bem os secos e coloque a água <b>aos poucos</b> até a massa ficar úmida, sem escorrer (apertada na mão, forma bola sem molhar a mão).`,
+    cp?`<b>Molde 2 corpos de prova</b> (cilindros de 10 × 20 cm) com o concreto desta produção e anote o número do lote neles.`:null,
+    `Encha a forma e <b>vibre ou bata</b> bem para tirar o ar (até parar de sair bolha).`,`Acerte a superfície e deixe na sombra.`,`Desforme no dia seguinte (mínimo 18 horas) com cuidado.`,
+    `<b>Molhe as peças 3 vezes por dia durante 7 dias</b> (cura).`,`Peças liberadas para venda em <b>${cura} dias</b> — a partir de <b>${brDe(addD(inicio,cura))}</b>.`].filter(Boolean);
+  const li=a=>`<ol style="font-size:15px;line-height:1.55;margin:2px 0 4px 22px;padding:0">${a.map(s=>`<li style="margin-bottom:3px">${s}</li>`).join('')}</ol>`;
+  let n=0;const B=[];
+  B.push(`<div ${quebra?'data-pdf-quebra="1"':''} style="display:flex;justify-content:space-between;align-items:center;gap:14px;border:1px solid #e5e5ea;border-radius:12px;padding:12px 16px">
+    <div style="min-width:0"><div style="font-size:10px;font-weight:800;letter-spacing:.1em;color:#0071E3">FICHA DE PRODUÇÃO${op?` · OP Nº ${fe(String(op.numero))}`:''}</div>
+      <div style="font-size:22px;font-weight:800;margin:2px 0">${fe(p.nome)}</div><div style="font-size:12px;color:#6e6e73">${fe(p.codigo||'')}${p.codigo?' · ':''}${fe(x.g.desc)} · ${nf(x.peso,1)} kg cada · ${fe(x.tr.nome)}</div>
+      <div style="font-size:12.5px;margin-top:6px;display:flex;flex-wrap:wrap;gap:14px">${op&&op.fim?`<span>Prazo: <b>${brDe(dt(op.fim))}</b></span>`:''}${op&&op.cliente?`<span>Para: <b>${fe(op.cliente)}</b></span>`:''}<span>Concreto total: <b>${nf(x.Vc,2)} m³</b></span>${rc?`<span>Betonadas: <b>${bet}</b></span>`:''}</div></div>
+    <div style="text-align:center;border:3px solid #1d1d1f;border-radius:14px;padding:6px 18px;flex:none"><div style="font-size:10px;font-weight:800">FAZER</div><div style="font-size:42px;font-weight:800;line-height:1">${nf(qtd,0)}</div><div style="font-size:10px;font-weight:800">PEÇAS</div></div></div>`);
+  B.push(`<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><div style="border:1px solid #e5e5ea;border-radius:12px;background:#FAFAFB;padding:4px">${iluPeca(p,{cotas:true,w:380,h:230})}</div><div style="border:1px solid #e5e5ea;border-radius:12px;padding:4px">${CAT.desenho(x.t,p.dims||{},x.arm)}</div></div>`);
+  B.push(SEC(++n,'SEPARE O MATERIAL')+`<table style="width:100%;border-collapse:collapse;table-layout:auto">${mats.join('')}</table>`);
+  if(ferro.length)B.push(SEC(++n,'PREPARE O FERRO')+li(ferro));
+  if(rc)B.push(SEC(++n,'RECEITA DO CONCRETO — CADA BETONADA')+`<div style="display:flex;flex-wrap:wrap;gap:10px 22px;align-items:flex-end;padding:10px;border:2px dashed #AEAEB2;border-radius:12px">
+      <div style="display:flex;align-items:flex-end;gap:2px;flex-wrap:wrap">${repetir(rc.sacosBet,()=>icSaco())}<b style="font-size:16px;margin-left:6px">${fracao(rc.sacosBet)} saco${rc.sacosBet>1?'s':''} de cimento</b></div>
+      ${rc.latas.areia?`<div style="display:flex;align-items:flex-end;gap:2px;flex-wrap:wrap">${repetir(latasBet('areia'),m=>icLata('#F4C27A',m))}<b style="font-size:16px;margin-left:6px">${fracao(latasBet('areia'))} lata${latasBet('areia')>1?'s':''} de areia</b></div>`:''}
+      ${rc.latas.po?`<div style="display:flex;align-items:flex-end;gap:2px;flex-wrap:wrap">${repetir(latasBet('po'),m=>icLata('#C7CDD6',m))}<b style="font-size:16px;margin-left:6px">${fracao(latasBet('po'))} lata${latasBet('po')>1?'s':''} de pó de pedra</b></div>`:''}
+      ${rc.latas.brita?`<div style="display:flex;align-items:flex-end;gap:2px;flex-wrap:wrap">${repetir(latasBet('brita'),m=>icLata('#98A2B3',m))}<b style="font-size:16px;margin-left:6px">${fracao(latasBet('brita'))} lata${latasBet('brita')>1?'s':''} de brita</b></div>`:''}
+      <div style="display:flex;align-items:flex-end;gap:2px;flex-wrap:wrap">${repetir(Math.max(0.5,latasBet('agua')),m=>icLata('#84CAFF',m))}<b style="font-size:16px;margin-left:6px">${nf(rc.porSaco.agua*rc.sacosBet,0)} litros de água</b></div>
+      ${rc.porSaco.aditivo?`<b style="font-size:16px">+ ${nf(rc.porSaco.aditivo*rc.sacosBet*1000,0)} g de aditivo</b>`:''}</div>
+    <p style="font-size:14px;margin:8px 0 2px">Fazer <b>${bet} betonada${bet>1?'s':''}</b> no total${porBet?` · cada betonada rende cerca de <b>${nf(porBet,porBet<10?1:0)} peça${porBet>=2?'s':''}</b>`:''}. Lata = balde de ${nf(rc.lata,0)} litros. Areia molhada: use um pouco menos de água.</p>`);
+  B.push(SEC(++n,'PASSO A PASSO')+li(passos));
+  B.push(`<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px 18px;font-size:13px;border-top:2px solid #1d1d1f;padding-top:10px;margin-top:4px">
+    <span>Lote: ____________________</span><span>Responsável: ____________________</span><span>Início: ___/___ &nbsp;&nbsp; Fim: ___/___</span><span>Peças boas: _______ &nbsp; Quebradas: _______</span>${cp?'<span>Corpos de prova moldados: _______</span>':''}</div>`);
+  return B;
 }
-function imprimirFichaDoc(secoes,titulo){
-  const w=window.open('','_blank');if(!w)return toast('Permita pop-ups deste site para imprimir.','error');
-  w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${fe(titulo)}</title><style>
-    @page{size:A4;margin:12mm;} *{box-sizing:border-box;} body{font-family:Arial,Helvetica,sans-serif;color:#101828;margin:0;}
-    .fp{page-break-after:always;} .fp:last-child{page-break-after:auto;}
-    header{display:flex;justify-content:space-between;gap:12px;align-items:center;border-bottom:4px solid #101828;padding-bottom:8px;}
-    .eti{font-size:13px;font-weight:800;letter-spacing:.08em;color:#1652D8;} h1{font-size:26px;margin:2px 0;} .sub{font-size:14px;color:#475467;}
-    .qtd{text-align:center;border:4px solid #101828;border-radius:14px;padding:6px 16px;} .qtd span{display:block;font-size:12px;font-weight:800;} .qtd b{font-size:44px;line-height:1;}
-    .info{display:flex;flex-wrap:wrap;gap:14px;font-size:14px;margin:8px 0;} .des{border:2px solid #D0D5DD;border-radius:12px;padding:4px;margin:6px 0;} .des svg{width:100%;height:auto;max-height:230px;}
-    h2{font-size:18px;background:#101828;color:#fff;padding:6px 10px;border-radius:8px;margin:12px 0 6px;}
-    table.mat{width:100%;border-collapse:collapse;font-size:17px;} .mat td{border-bottom:1px solid #D0D5DD;padding:5px 6px;vertical-align:middle;} .mat td.ic{width:50px;text-align:center;} .mat td.v{text-align:right;font-weight:800;font-size:20px;white-space:nowrap;} .mat small{display:block;font-size:12px;color:#667085;}
-    ol.li{font-size:16px;line-height:1.5;margin:4px 0 4px 22px;padding:0;} ol.passo li{margin-bottom:3px;}
-    .rec{display:flex;flex-wrap:wrap;gap:10px 22px;align-items:flex-end;padding:8px;border:2px dashed #98A2B3;border-radius:12px;} .rec .it{display:flex;align-items:flex-end;gap:2px;flex-wrap:wrap;} .rec .it b{font-size:17px;margin-left:6px;}
-    .tot{font-size:16px;margin:6px 0;} .ass{display:flex;flex-wrap:wrap;gap:18px;font-size:14px;margin-top:14px;border-top:2px solid #101828;padding-top:10px;}
-  </style></head><body>${secoes.join('')}<script>window.onload=()=>setTimeout(()=>window.print(),300);<\/script></body></html>`);
-  w.document.close();
+// várias fichas num PDF só: cada ordem começa numa folha nova
+function imprimirFichaDoc(fichas,titulo,sub){
+  if(!fichas.length)return toast('Nada para imprimir.','error');
+  const blocos=[];fichas.forEach((f,i)=>{const b=Array.isArray(f)?f.slice():[String(f)];if(i)b[0]=b[0].replace('<div ','<div data-pdf-quebra="1" ');blocos.push(...b);});
+  App._relExportPaginado({titulo:titulo||'Ficha de produção',subLinhas:[sub||'Vixsul Empreendimentos · fábrica de pré-moldados'],blocosArr:blocos});
 }
 function abrirQtdFicha(p){
-  janela('Ficha técnica — quantas peças?',`<div class="fin-fld"><label>Quantidade a produzir</label><input data-k="q" inputmode="numeric" value="10"></div><p class="pm-mini">A ficha sai com o material, o ferro e a receita do concreto para essa quantidade — em letra grande, para a equipe da produção.</p>`,
-    [{html:'<i class="fas fa-print"></i> Imprimir ficha',cls:'pri',acao:async j=>{const q=num(j.querySelector('[data-k="q"]').value);if(!(q>0))throw new Error('Informe a quantidade.');imprimirFichaDoc([fichaHtml(p,q,null)],'Ficha — '+p.nome);}}],420);
+  janela('Ficha técnica — quantas peças?',`<div class="fin-fld"><label>Quantidade a produzir</label><input data-k="q" inputmode="numeric" value="10"></div><p class="pm-mini">A ficha sai com o desenho, o material, o ferro e a receita do concreto para essa quantidade — em letra grande, para a equipe da produção.</p>`,
+    [{html:'<i class="fas fa-print"></i> Imprimir ficha',cls:'pri',acao:async j=>{const q=num(j.querySelector('[data-k="q"]').value);if(!(q>0))throw new Error('Informe a quantidade.');imprimirFichaDoc([fichaHtml(p,q,null)],'Ficha de produção',`${p.nome} · ${nf(q,0)} peças`);}}],420);
 }
 function imprimirFichas(L){
   const ok=L.filter(o=>pecaDe(o.peca));if(!ok.length)return toast('Nenhuma ordem aberta para imprimir.','error');
-  imprimirFichaDoc(ok.map(o=>fichaHtml(pecaDe(o.peca),Math.max(1,num(o.qtd)-prodDaOrdem(o.rowid)),o)),'Fichas de produção');
+  imprimirFichaDoc(ok.map(o=>fichaHtml(pecaDe(o.peca),Math.max(1,num(o.qtd)-prodDaOrdem(o.rowid)),o)),ok.length>1?'Fichas de produção':`Ficha de produção — OP nº ${ok[0].numero}`,`${ok.length} ordem(ns) de produção`);
 }
 
 /* ═══════════════ PLANEJAMENTO (ordens de produção) ═══════════════ */
@@ -857,13 +916,13 @@ function formOrdem(reg,pre){
       <div class="pm-res"><div data-op-des></div><div data-op-prev></div></div></div>`,
     [...(reg?[{html:'<i class="fas fa-trash"></i> Excluir',acao:async()=>{if(vend)throw new Error('Ordem de uma venda: cancele ou edite pela venda.');if(feito>0)throw new Error('Esta ordem já tem produção registrada.');setTimeout(()=>apagarReg(reg,`OP nº ${reg.numero}`),60);}},
       {html:'<i class="fas fa-industry"></i> Registrar produção',acao:async()=>{setTimeout(()=>formProducao(null,{peca:reg.peca,ordem:reg.rowid}),60);}},
-      {html:'<i class="fas fa-print"></i> Ficha de produção',acao:async()=>{const p=pecaDe(reg.peca);if(p)imprimirFichaDoc([fichaHtml(p,Math.max(1,num(reg.qtd)-feito),reg)],'OP '+reg.numero);return false;}}]:[]),
+      {html:'<i class="fas fa-print"></i> Ficha de produção',acao:async()=>{const p=pecaDe(reg.peca);if(p)imprimirFichaDoc([fichaHtml(p,Math.max(1,num(reg.qtd)-feito),reg)],'Ficha de produção — OP nº '+reg.numero,p.nome);return false;}}]:[]),
      {html:`<i class="fas fa-floppy-disk"></i> ${reg?'Salvar':'Criar e imprimir a ficha'}`,cls:'pri',acao:async jj=>{
       if(reg&&GS.podeMexer&&!GS.podeMexer(reg)&&!vend)throw new Error(GS.MSG_DONO);
       const g=k=>jj.querySelector(`[data-k="${k}"]`).value.trim(),o=reg?{...reg}:{tipo:'ordem',numero:proxNum('ordem','numero'),data_lancamento:todayDateTime()};
       if(!vend){o.peca=g('peca');o.qtd=num(g('qtd'));o.cliente=g('cliente');}o.status=g('status');o.inicio=g('inicio');o.fim=g('fim');o.obs=g('obs');
       if(!(num(o.qtd)>0))throw new Error('Informe a quantidade de peças.');if(o.fim&&o.inicio&&o.fim<o.inicio)throw new Error('O prazo não pode ser antes do início.');
-      if(!reg){const p=pecaDe(o.peca);if(p)imprimirFichaDoc([fichaHtml(p,num(o.qtd),o)],'OP '+o.numero);}
+      if(!reg){const p=pecaDe(o.peca);if(p)imprimirFichaDoc([fichaHtml(p,num(o.qtd),o)],'Ficha de produção — OP nº '+o.numero,p.nome);}
       await gravar(o,reg?reg.rowid:null);toast(reg?'Ordem salva.':`Ordem de produção nº ${o.numero} criada.`,'success');}}],900);
   const at=()=>{const p=pecaDe(j.querySelector('[data-k="peca"]').value),q=num(j.querySelector('[data-k="qtd"]').value),e=j.querySelector('[data-op-prev]'),d=j.querySelector('[data-op-des]');if(!e)return;
     if(!p){e.innerHTML='';return;}const x=calc(p,Math.max(1,q||1));d.innerHTML=CAT.desenho(x.t,p.dims||{},x.arm);
@@ -872,42 +931,178 @@ function formOrdem(reg,pre){
   const corpo=j.querySelector('.fin-jan-corpo');corpo.addEventListener('input',()=>{clearTimeout(j._pmT);j._pmT=setTimeout(at,150);});corpo.addEventListener('change',at);at();
 }
 
+/* ═══════════════ LOTES: CORPOS DE PROVA, ENSAIOS, RASTREIO E ETIQUETAS ═══════════════
+   Cada peça produzida num dia é um lote (L + aammdd + nº). Corpos de prova (CP) moldados no lote; ensaio de
+   compressão aos 7 e 28 dias: resultado do exemplar = o maior dos CPs da mesma idade (NBR 5738/5739/12655);
+   aos 28 dias tem de atingir o fck do traço; antes disso, a referência é a evolução típica (7 d ≈ 65%).
+   Rastreio: as entregas consomem os lotes pela ordem de fabricação (o mais antigo sai primeiro). */
+const ymd=d=>{d=d instanceof Date?d:dt(d);return d?String(d.getFullYear()).slice(2)+String(d.getMonth()+1).padStart(2,'0')+String(d.getDate()).padStart(2,'0'):'000000';};
+const loteDe=(r,it,i)=>it.lote||`L${ymd(r.data)}-R${r.rowid}${i?'.'+(i+1):''}`;
+function lotes(){const o=[];T('producao').forEach(r=>itensProd(r).forEach((it,i)=>o.push({lote:loteDe(r,it,i),r,it,i,peca:String(it.peca),data:r.data,qtd:num(it.qtd),refugo:num(it.refugo),cp:num(it.cp)})));
+  return o.sort((a,b)=>String(a.data).localeCompare(String(b.data))||a.lote.localeCompare(b.lote));}
+const loteInfo=cod=>lotes().find(l=>l.lote===cod)||null;
+const ensaiosDe=cod=>T('ensaio').filter(e=>e.lote===cod).sort((a,b)=>num(a.idade)-num(b.idade)||String(a.data).localeCompare(String(b.data)));
+const fckDe=tr=>{const m=String(tr&&tr.fck||'').match(/(\d+(?:[.,]\d+)?)/);return m?parseFloat(m[1].replace(',','.')):0;};
+const FAT_IDADE={3:0.45,7:0.65,14:0.85,28:1,63:1};
+function situacaoLote(l){
+  if(!l||!l.cp)return null;const es=ensaiosDe(l.lote),h=hoje0(),f28=addD(dt(l.data)||h,28),e28=es.filter(e=>num(e.idade)>=28),ult=es[es.length-1];
+  if(e28.length){const ok=e28.every(e=>e.situacao==='aprovado');return {k:ok?'aprovado':'reprovado',rot:ok?'Aprovado aos 28 dias':'Reprovado aos 28 dias',cor:ok?'ok':'err',es,f28};}
+  if(ult&&ult.situacao==='abaixo')return {k:'atencao',rot:`Abaixo do esperado aos ${ult.idade} dias`,cor:'warn',es,f28};
+  if(h>addD(f28,3))return {k:'atrasado',rot:'Ensaio de 28 dias atrasado',cor:'err',es,f28};
+  return {k:'pendente',rot:`Ensaio de 28 dias em ${brDe(f28).slice(0,5)}`,cor:'info',es,f28};
+}
+function rastreio(){
+  const porVenda={},porLote={},fila={};lotes().forEach(l=>(fila[l.peca]=fila[l.peca]||[]).push({lote:l.lote,resta:l.qtd}));
+  vendas().filter(v=>(v.status==='entregue'||v.status==='devolvida')&&v.entrega).sort((a,b)=>String(a.entrega).localeCompare(String(b.entrega))||num(a.numero)-num(b.numero)).forEach(v=>
+    (v.itens||[]).forEach(it=>{let q=num(it.qtd);for(const x of (fila[String(it.peca)]||[])){if(q<=0)break;if(x.resta<=0)continue;const u=Math.min(q,x.resta);x.resta-=u;q-=u;
+      (porVenda[v.rowid]=porVenda[v.rowid]||[]).push({lote:x.lote,peca:it.peca,qtd:u});(porLote[x.lote]=porLote[x.lote]||[]).push({venda:v.rowid,numero:v.numero,cliente:v.cliente,data:v.entrega,qtd:u});}}));
+  return {porVenda,porLote};
+}
+function fichaLote(cod){
+  const l=loteInfo(cod);if(!l)return toast('Lote não encontrado.','error');const p=pecaDe(l.peca),t=tipoDePeca(p||{}),tr=p?tracoDaPeca(p):null,st=situacaoLote(l),es=ensaiosDe(cod),rs=(rastreio().porLote[cod]||[]);
+  const lib=addD(dt(l.data)||hoje0(),num(p&&p.cura!=null&&p.cura!==''?p.cura:t.cura||7)),op=l.it.ordem?ordens().find(o=>String(o.rowid)===String(l.it.ordem)):null;
+  janela(`Lote ${cod}`,`<div class="pm-form"><div><div data-th="${p?p.rowid:''}" class="pm-svgbox" style="background:#F8FAFC;border-radius:12px">${iluPeca(p)}</div>
+      <table class="pm-tab2" data-sem-ordem style="margin-top:8px"><tbody><tr><td>Peça</td><td><b>${fe(p?p.nome:'(excluída)')}</b> <small>${fe(p&&p.codigo||'')}</small></td></tr>
+      <tr><td>Fabricação</td><td>${fe(brDe(dt(l.data)))}${l.r.turno?' · '+fe(l.r.turno):''}</td></tr><tr><td>Quantidade</td><td>${nf(l.qtd,0)} boas${l.refugo?` · ${nf(l.refugo,0)} refugo`:''}</td></tr>
+      <tr><td>Traço</td><td>${fe(tr?tr.nome:'')} <small>${fe(tr&&tr.fck||'')}</small></td></tr><tr><td>Liberação</td><td>${fe(brDe(lib))}</td></tr>
+      ${op?`<tr><td>Ordem</td><td>OP nº ${fe(String(op.numero))}${op.cliente?' · '+fe(op.cliente):''}</td></tr>`:''}${eqLista(l.r).length?`<tr><td>Equipe</td><td>${fe(eqLista(l.r).join(', '))}</td></tr>`:''}</tbody></table></div>
+    <div><div class="pm-bloco"><h5><i class="fas fa-flask"></i> Corpos de prova e ensaios</h5>
+      ${l.cp?`<p class="pm-mini" style="margin:0 0 6px">${nf(l.cp,0)} corpo(s) de prova moldado(s). ${st?pill(st.rot,st.cor):''}</p>`:'<p class="pm-mini" style="margin:0 0 6px">Nenhum corpo de prova registrado neste lote.</p>'}
+      ${es.length?`<table class="pm-tab2" data-sem-ordem><thead><tr><th>Idade</th><th>Data</th><th class="n">Resultado</th><th class="n">Esperado</th><th>Situação</th></tr></thead><tbody>${es.map(e=>`<tr class="pm-lin" data-ens="${e.rowid}"><td>${nf(num(e.idade),0)} dias</td><td>${fe(brDe(dt(e.data)))}</td><td class="n"><b>${nf(num(e.resultado),1)} MPa</b><small>${(e.valores||[]).map(v=>nf(v,1)).join(' · ')}</small></td><td class="n">${nf(num(e.esperado),1)} MPa</td><td>${pill(e.situacao==='aprovado'?'aprovado':e.situacao==='parcial'?'dentro do esperado':e.situacao==='abaixo'?'abaixo do esperado':'reprovado',e.situacao==='aprovado'||e.situacao==='parcial'?'ok':e.situacao==='abaixo'?'warn':'err')}</td></tr>`).join('')}</tbody></table>`:''}</div>
+      <div class="pm-bloco"><h5><i class="fas fa-route"></i> Para quem foi (rastreio)</h5>
+      ${rs.length?`<ul class="pm-arml">${rs.map(x=>`<li><i class="fas fa-truck" style="color:#1652D8"></i><span>${fe(brDe(dt(x.data)))} · venda nº ${fe(String(x.numero))} · <b>${fe(x.cliente||'')}</b> · ${nf(x.qtd,0)} peça(s)</span></li>`).join('')}</ul><p class="pm-mini" style="margin:6px 0 0">Estimado pela ordem de saída: o lote mais antigo sai primeiro.</p>`:'<p class="pm-mini" style="margin:0">Nenhuma entrega usou este lote ainda.</p>'}</div></div></div>`,
+    [{html:'<i class="fas fa-qrcode"></i> Etiquetas',acao:async()=>{setTimeout(()=>formEtiquetas(cod),60);}},
+     {html:'<i class="fas fa-flask"></i> Registrar ensaio',cls:'pri',acao:async()=>{setTimeout(()=>formEnsaio(cod,null),60);}}],900);
+  const jb=document.querySelector('#fin-jan .fin-jan-corpo');if(jb){pintarFotos(jb);jb.addEventListener('click',ev=>{const r=ev.target.closest('[data-ens]');if(r){const e=T('ensaio').find(x=>String(x.rowid)===r.dataset.ens);document.getElementById('fin-ov').classList.remove('open');setTimeout(()=>formEnsaio(cod,e),60);}});}
+}
+function formEnsaio(cod,reg){
+  const l=loteInfo(cod);if(!l)return toast('Lote não encontrado.','error');const p=pecaDe(l.peca),tr=p?tracoDaPeca(p):null,d0=dt(l.data)||hoje0();
+  const ateHoje=d=>isoDe(d>hoje0()?hoje0():d),b=reg||{idade:28,data:ateHoje(addD(d0,28)),valores:Array(Math.max(1,Math.min(6,l.cp||2))).fill(''),fck:fckDe(tr)||'',laboratorio:''};
+  const cpIn=(v,i)=>`<div class="fin-fld"><label>CP ${i+1} (MPa)</label><input data-cpv inputmode="decimal" data-sem-mascara="1" value="${v!==''&&v!=null?fe(String(v).replace('.',',')):''}" placeholder="0,0"></div>`;
+  const j=janela(reg?`Ensaio do lote ${cod}`:`Registrar ensaio — lote ${cod}`,`<div class="fin-resumo">${fe(p?p.nome:'')} · fabricado em ${fe(brDe(d0))} · ${fe(tr?tr.nome:'')}</div>
+    <div class="fin-linha" style="margin-top:8px"><div class="fin-fld"><label>Idade do ensaio</label><select data-k="idade">${[3,7,14,28,63].map(x=>`<option value="${x}" ${x===num(b.idade)?'selected':''}>${x} dias</option>`).join('')}</select></div>
+      <div class="fin-fld"><label>Data do ensaio <span class="obg">*</span></label><input type="date" data-k="data" value="${fe(b.data||'')}"></div>
+      <div class="fin-fld"><label>fck exigido (MPa) <span class="obg">*</span></label><input data-k="fck" inputmode="decimal" data-sem-mascara="1" value="${b.fck!==''?fe(String(b.fck).replace('.',',')):''}"></div>
+      <div class="fin-fld"><label>Laboratório</label><input data-k="laboratorio" value="${fe(b.laboratorio||'')}" placeholder="Ex.: próprio, laboratório da cidade"></div></div>
+    <div class="fin-linha" data-cps style="margin-top:6px">${(b.valores||['']).map(cpIn).join('')}</div><button type="button" class="gf-bt mini" data-pmf="cp-add" style="margin-top:6px"><i class="fas fa-plus"></i> Corpo de prova</button>
+    <div class="fin-fld" style="margin-top:8px"><label>Observações</label><input data-k="obs" value="${fe(b.obs||'')}"></div><div class="fin-aviso" style="margin-top:8px"><div data-en-prev></div></div>`,
+    [...(reg?[{html:'<i class="fas fa-trash"></i> Excluir',acao:async()=>{setTimeout(()=>apagarReg(reg,`Ensaio de ${reg.idade} dias do lote ${cod}`),60);}}]:[]),
+     {html:'<i class="fas fa-floppy-disk"></i> Salvar ensaio',cls:'pri',acao:async jj=>{
+      if(reg&&GS.podeMexer&&!GS.podeMexer(reg))throw new Error(GS.MSG_DONO);
+      const r=ler(jj);if(!r.data)throw new Error('Informe a data do ensaio.');if(r.data>hojeISO())throw new Error('A data do ensaio não pode ser no futuro: registre no dia em que o laboratório romper os corpos de prova.');if(!r.valores.length)throw new Error('Informe o resultado de ao menos um corpo de prova.');if(!(r.fck>0))throw new Error('Informe o fck exigido.');
+      await gravar({...(reg||{tipo:'ensaio',data_lancamento:todayDateTime()}),lote:cod,peca:l.peca,data_moldagem:l.data,...r},reg?reg.rowid:null);
+      toast(r.situacao==='reprovado'?'Ensaio registrado: lote REPROVADO — separe as peças e avalie com o responsável técnico.':'Ensaio registrado.',r.situacao==='reprovado'?'error':'success');}}],640);
+  function ler(jj){const g=k=>String(jj.querySelector(`[data-k="${k}"]`).value||'').trim(),pf=s=>{const n=parseFloat(String(s).replace(',','.'));return isFinite(n)?n:0;};
+    const idade=num(g('idade')),valores=[...jj.querySelectorAll('[data-cpv]')].map(e=>pf(e.value)).filter(v=>v>0),fck=pf(g('fck')),resultado=valores.length?Math.max(...valores):0,esperado=r2(fck*(FAT_IDADE[idade]||1));
+    const situacao=resultado>=esperado-1e-9?(idade>=28?'aprovado':'parcial'):(idade>=28?'reprovado':'abaixo');return {idade,data:g('data'),valores,fck,resultado,esperado,situacao,laboratorio:g('laboratorio'),obs:g('obs')};}
+  const at=()=>{const r=ler(j),e=j.querySelector('[data-en-prev]');if(!e)return;e.innerHTML=!r.valores.length?`Informe a resistência de cada corpo de prova. Aos ${r.idade} dias o esperado é <b>${nf(r.esperado,1)} MPa</b>${r.idade<28?` (${nf((FAT_IDADE[r.idade]||1)*100,0)}% do fck)`:''}.`
+      :`Resultado do exemplar (o maior): <b>${nf(r.resultado,1)} MPa</b> · esperado ${nf(r.esperado,1)} MPa → <b style="color:${r.situacao==='aprovado'||r.situacao==='parcial'?'#067647':'#B42318'}">${r.situacao==='aprovado'?'APROVADO':r.situacao==='parcial'?'dentro do esperado':r.situacao==='abaixo'?'abaixo do esperado — acompanhe o de 28 dias':'REPROVADO'}</b>.`;};
+  const corpo=j.querySelector('.fin-jan-corpo');corpo.addEventListener('input',at);
+  corpo.addEventListener('change',ev=>{if(ev.target.matches('[data-k="idade"]')&&!reg)j.querySelector('[data-k="data"]').value=ateHoje(addD(d0,num(ev.target.value)));at();});
+  corpo.addEventListener('click',ev=>{if(ev.target.closest('[data-pmf="cp-add"]')){const box=j.querySelector('[data-cps]');box.insertAdjacentHTML('beforeend',cpIn('',box.children.length));}});at();
+}
+/* etiquetas com QR Code (texto sem acentos: qualquer celular lê, mesmo sem internet) */
+let QRP=null;
+function carregarQR(){if(window.qrcode)return Promise.resolve();if(QRP)return QRP;return QRP=new Promise((ok,er)=>{const s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js';
+  s.onload=()=>ok();s.onerror=()=>{QRP=null;er(new Error('Não consegui carregar o gerador de QR Code. Confira a internet e tente de novo.'));};document.head.appendChild(s);});}
+const ascii=s=>String(s==null?'':s).normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^\x20-\x7E\n]/g,'');
+function qrSvg(txt){const qr=window.qrcode(0,'M');qr.addData(ascii(txt));qr.make();const n=qr.getModuleCount();let d='';for(let r=0;r<n;r++)for(let c=0;c<n;c++)if(qr.isDark(r,c))d+=`M${c} ${r}h1v1h-1z`;
+  return `<svg viewBox="-2 -2 ${n+4} ${n+4}" xmlns="http://www.w3.org/2000/svg" shape-rendering="crispEdges" style="width:100%;height:100%;display:block"><rect x="-2" y="-2" width="${n+4}" height="${n+4}" fill="#fff"/><path d="${d}" fill="#000"/></svg>`;}
+const ETQ={p:{rot:'Pequena — 63,5 × 38,1 mm (21 por folha A4, tipo Pimaco A4356 / 6180)',w:63.5,h:38.1,cols:3,rows:7,mt:15.15,ml:7.2,gx:2.54,gy:0,qr:27},
+  g:{rot:'Grande — 99,1 × 67,7 mm (8 por folha A4, tipo Pimaco A4363 / 6183)',w:99.1,h:67.7,cols:2,rows:4,mt:13.1,ml:4.65,gx:2.5,gy:0,qr:44}};
+function formEtiquetas(cod){
+  const l=loteInfo(cod);if(!l)return toast('Lote não encontrado.','error');
+  janela(`Etiquetas — lote ${cod}`,`<div class="fin-linha"><div class="fin-fld"><label>Quantidade de etiquetas</label><input data-k="q" inputmode="numeric" value="${Math.max(1,l.qtd)}"></div>
+      <div class="fin-fld" style="grid-column:span 2"><label>Modelo da folha</label><select data-k="m">${Object.entries(ETQ).map(([k,x])=>`<option value="${k}">${x.rot}</option>`).join('')}</select></div>
+      <div class="fin-fld"><label>Começar na etiqueta nº</label><input data-k="ini" inputmode="numeric" value="1" title="Para aproveitar uma folha já usada"></div></div>
+    <p class="pm-mini">Cada etiqueta leva o logo, a peça, o lote, as datas de fabricação e de liberação, o traço e um QR Code com esses dados — para garantia e rastreio. Imprima em folha adesiva A4 ou em papel comum e recorte.</p>`,
+    [{html:'<i class="fas fa-print"></i> Imprimir etiquetas',cls:'pri',acao:async j=>{const q=Math.min(500,Math.max(1,num(j.querySelector('[data-k="q"]').value))),m=j.querySelector('[data-k="m"]').value,ini=Math.max(1,num(j.querySelector('[data-k="ini"]').value)||1);
+      await imprimirEtiquetas(cod,q,m,ini);}}],620);
+}
+async function imprimirEtiquetas(cod,q,mk,ini){
+  const l=loteInfo(cod),p=pecaDe(l.peca),t=tipoDePeca(p||{}),tr=p?tracoDaPeca(p):null,M=ETQ[mk]||ETQ.p,porFolha=M.cols*M.rows;
+  const lib=addD(dt(l.data)||hoje0(),num(p&&p.cura!=null&&p.cura!==''?p.cura:t.cura||7));
+  const w=window.open('','_blank');if(!w)return toast('Permita pop-ups deste site para imprimir as etiquetas.','error');
+  w.document.write('<p style="font:14px Arial;padding:20px">Montando as etiquetas…</p>');
+  try{await carregarQR();}catch(e){w.close();throw e;}
+  const txt=`VIXSUL PRE-MOLDADOS\nPeca: ${p?(p.codigo?p.codigo+' ':'')+p.nome:''}\nLote: ${cod}\nFabricacao: ${brDe(dt(l.data))}\nLiberacao: ${brDe(lib)}\nTraco: ${tr?tr.nome:''}${tr&&tr.fck?' ('+tr.fck+')':''}\nVixsul Empreendimentos - CNPJ 64.518.375/0001-20`,qr=qrSvg(txt);
+  const etq=`<div class="e"><div class="tx"><img src="${typeof PDF_LOGO_FULL_B64!=='undefined'?PDF_LOGO_FULL_B64:''}" class="lg" alt=""><b class="nm">${fe(p?p.nome:'')}</b><div class="ln" style="font-size:1.12em"><b>Lote ${fe(cod)}</b>${p&&p.codigo?' · '+fe(p.codigo):''}</div>
+    <div class="ln">Fabricação: ${fe(brDe(dt(l.data)))}</div><div class="ln">Liberação: ${fe(brDe(lib))}</div><div class="ln">${fe(tr?tr.nome.split(' — ')[0]:'')}${tr&&tr.fck?' · '+fe(tr.fck):''}</div></div><div class="qr">${qr}</div></div>`;
+  const tot=q+ini-1,folhas=Math.ceil(tot/porFolha);let h='';
+  for(let f=0;f<folhas;f++){h+='<section class="fl">';for(let i=0;i<porFolha;i++){const k=f*porFolha+i;h+=k<ini-1||k>=tot?'<div class="e v"></div>':etq;}h+='</section>';}
+  w.document.open();w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Etiquetas ${fe(cod)}</title><style>
+    @page{size:A4;margin:0;} *{box-sizing:border-box;} body{margin:0;font-family:Arial,Helvetica,sans-serif;color:#1d1d1f;}
+    .fl{width:210mm;height:297mm;padding:${M.mt}mm 0 0 ${M.ml}mm;display:grid;grid-template-columns:repeat(${M.cols},${M.w}mm);grid-auto-rows:${M.h}mm;column-gap:${M.gx}mm;row-gap:${M.gy}mm;page-break-after:always;}
+    .fl:last-child{page-break-after:auto;}
+    .e{display:flex;gap:2mm;align-items:center;padding:2.2mm 2.6mm;overflow:hidden;border:0.2mm dashed #d0d5dd;border-radius:2mm;} .e.v{border-color:transparent;}
+    .tx{flex:1;min-width:0;font-size:${mk==='g'?9.5:7}pt;line-height:1.25;} .lg{height:${mk==='g'?9:5.5}mm;display:block;margin-bottom:1mm;}
+    .nm{display:block;font-size:${mk==='g'?11:8}pt;line-height:1.15;margin-bottom:.6mm;max-height:2.4em;overflow:hidden;} .ln{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    .qr{width:${M.qr}mm;height:${M.qr}mm;flex:none;} @media print{.e{border-color:transparent;}}
+  </style></head><body>${h}<script>window.onload=()=>setTimeout(()=>window.print(),400);<\/script></body></html>`);w.document.close();
+}
+
 /* ═══════════════ DIÁRIO DE PRODUÇÃO ═══════════════ */
+// ponto: horas de cada pessoa no dia (saída − entrada − intervalo; virada da meia-noite conta)
+const minDe=t=>{const [h,m]=String(t||'').split(':').map(Number);return isFinite(h)?h*60+(m||0):NaN;};
+const horasDe=(e,s,i)=>{let a=minDe(e),b=minDe(s);if(!isFinite(a)||!isFinite(b))return 0;if(b<a)b+=1440;return Math.max(0,(b-a-num(i))/60);};
+const pontoDe=r=>Array.isArray(r.ponto)&&r.ponto.length?r.ponto:eqLista(r).map(nome=>({nome}));
 function telaProducao(){
   const k=PM.mes,L=T('producao').filter(r=>{const d=dt(r.data);return d&&mesKey(d)===k;}).sort((a,b)=>String(b.data).localeCompare(String(a.data))||(+b.rowid-+a.rowid));
   const h=hoje0(),its=L.flatMap(itensProd),tot=its.reduce((s,it)=>s+num(it.qtd),0),ref=its.reduce((s,it)=>s+num(it.refugo),0);
   const m3=its.reduce((s,it)=>{const p=pecaDe(it.peca);return s+(p?geoPeca(p).V*(num(it.qtd)+num(it.refugo)):0);},0),custo=its.reduce((s,it)=>s+num(it.custo_un)*num(it.qtd),0);
-  const nDias=new Set(L.map(r=>r.data)).size,pres=L.reduce((s,r)=>s+eqLista(r).length,0);
-  return cabG('Diário de produção','O dia de produção: turno, clima, equipe presente, betonadas, ocorrências e as peças feitas. Cada registro baixa os insumos do estoque e põe as peças em cura.',
+  const nDias=new Set(L.map(r=>r.data)).size,horas=L.reduce((s,r)=>s+pontoDe(r).reduce((a,x)=>a+num(x.horas),0),0);
+  const lts=lotes(),comCP=lts.filter(l=>l.cp>0).map(l=>({l,st:situacaoLote(l)})),pend=comCP.filter(x=>x.st&&x.st.k!=='aprovado'),lim=addD(h,-45);
+  const cpLista=comCP.filter(x=>x.st&&(x.st.k!=='aprovado'||dt(x.l.data)>=lim)).sort((a,b)=>String(b.l.data).localeCompare(String(a.l.data))).slice(0,30);
+  const loteCel=(r,it,i)=>{const cod=loteDe(r,it,i),l=lts.find(x=>x.lote===cod),st=situacaoLote(l);return `<button type="button" class="gf-bt mini" data-pm="lote" data-lote="${fe(cod)}" title="Ensaios, rastreio e etiquetas"><i class="fas fa-tag"></i> ${fe(cod)}</button>${st?' '+pill(st.rot,st.cor,'fa-flask'):''}`;};
+  return cabG('Diário de produção','O dia de produção: turno, clima, ponto da equipe, betonadas, ocorrências e as peças feitas. Cada peça do dia vira um lote (com ensaio dos corpos de prova, rastreio e etiqueta com QR Code). Cada registro baixa os insumos e põe as peças em cura.',
       `${GS.selMes(k,'data-pm-mes',12,0)}<button type="button" class="gf-bt pri" data-pm="prod-nova"><i class="fas fa-plus"></i> Registrar o dia</button>`)+
     `<div class="gf-kpis">${kpiG('','fa-cubes','Peças produzidas',nf(tot,0),`${nDias} dia(s) de produção no mês`)}${kpiG('','fa-fill-drip','Concreto',nf(m3,2)+' m³',nDias?`média ${nf(m3/nDias,2)} m³ por dia`:'—')}
-      ${kpiG(ref&&ref/(tot+ref)>0.03?'vermelho':'verde','fa-heart-crack','Refugo',nf(ref,0)+' peças',tot+ref?`${nf(ref/(tot+ref)*100,1)}% da produção`:'—')}${kpiG('roxo','fa-people-group','Presenças',nf(pres,0),nDias?`média ${nf(pres/nDias,1)} pessoa(s) por dia`:'—')}${kpiG('laranja','fa-money-bill-wave','Custo produzido',R(custo),tot?`média ${R(custo/tot)} por peça`:'—')}</div>
-    <section class="gf-sec">${L.length?L.map(r=>{const d=dt(r.data);return `<div class="pm-lin" data-pm="prod" data-id="${r.rowid}" style="cursor:pointer;border:1px solid #EEF1F6;border-radius:14px;padding:10px 12px;margin-bottom:10px">
-        <div class="gf-dia-cab"><i class="fas fa-calendar-day" style="color:#1652D8"></i>${fe(brDe(d))}<span>${cap(GS.SEMANA[d.getDay()])}${r.turno?' · '+fe(r.turno):''}${r.clima?' · '+fe(r.clima):''}${num(r.betonadas)?' · '+nf(num(r.betonadas),0)+' betonada(s)':''}</span></div>
-        <div class="vk-sub" style="margin:4px 0">${eqLista(r).length?pill(`${eqLista(r).length} presente(s): ${fe(eqLista(r).join(', '))}`,'info','fa-people-group'):''}${r.ocorrencia&&r.ocorrencia!=='Nenhuma'?pill(fe(r.ocorrencia),'warn','fa-triangle-exclamation'):''}</div>
-        <div class="pm-rolar"><table class="pm-tab2" data-sem-ordem><thead><tr><th>Peça</th><th class="n">Boas</th><th class="n">Refugo</th><th>Ordem</th><th>Cura</th><th class="n">Custo/peça</th></tr></thead><tbody>
-        ${itensProd(r).map(it=>{const p=pecaDe(it.peca),lib=addD(d,num(p&&p.cura!=null&&p.cura!==''?p.cura:tipoDePeca(p||{}).cura||7)),o=ordens().find(x=>String(x.rowid)===String(it.ordem||''));
-          return `<tr><td><b>${fe(p?p.nome:'(peça excluída)')}</b></td><td class="n">${nf(num(it.qtd),0)}</td><td class="n">${num(it.refugo)?nf(num(it.refugo),0):'—'}</td><td>${o?'OP nº '+fe(String(o.numero)):'—'}</td><td>${lib>h?pill('em cura até '+brDe(lib).slice(0,5),'info','fa-hourglass-half'):pill('liberada','ok','fa-check')}</td><td class="n">${R(num(it.custo_un))}</td></tr>`;}).join('')}</tbody></table></div>
+      ${kpiG(ref&&ref/(tot+ref)>0.03?'vermelho':'verde','fa-heart-crack','Refugo',nf(ref,0)+' peças',tot+ref?`${nf(ref/(tot+ref)*100,1)}% da produção`:'—')}
+      ${kpiG('roxo','fa-user-clock','Horas trabalhadas',nf(horas,1)+' h',horas?`${nf(tot/horas,1)} peças por hora · ${nf(m3/horas*1000,0)} L de concreto por hora`:'marque o ponto da equipe no registro do dia')}
+      ${kpiG(pend.some(x=>x.st.cor==='err')?'vermelho':pend.length?'laranja':'verde','fa-flask','Ensaios pendentes',nf(pend.length,0),pend.some(x=>x.st.cor==='err')?'há lote atrasado ou reprovado':'corpos de prova aguardando ensaio')}
+      ${kpiG('laranja','fa-money-bill-wave','Custo produzido',R(custo),tot?`média ${R(custo/tot)} por peça`:'—')}</div>
+    ${cpLista.length?`<section class="gf-sec"><div class="gf-sec-cab"><div><h3><i class="fas fa-flask" style="color:#7A2FE0"></i> Corpos de prova e ensaios</h3><p>Rompimento aos 7 dias (opcional, esperado ≈ 65% do fck) e aos 28 dias (tem de atingir o fck do traço). Clique no lote para registrar o ensaio.</p></div></div>
+      <div class="pm-rolar"><table class="pm-tab2"><thead><tr><th>Lote</th><th>Peça</th><th>Moldagem</th><th class="n">CPs</th><th>7 dias</th><th>28 dias</th><th>Situação</th></tr></thead><tbody>
+      ${cpLista.map(({l,st})=>{const e7=st.es.filter(e=>num(e.idade)<28).slice(-1)[0],e28=st.es.filter(e=>num(e.idade)>=28).slice(-1)[0],d=dt(l.data);
+        return `<tr class="pm-lin" data-pm="lote" data-lote="${fe(l.lote)}"><td><b>${fe(l.lote)}</b></td><td>${fe(nomePeca(l.peca))}</td><td>${fe(brDe(d))}</td><td class="n">${nf(l.cp,0)}</td>
+          <td>${e7?`${nf(num(e7.resultado),1)} MPa`:`<small>${fe(brDe(addD(d,7)).slice(0,5))}</small>`}</td><td>${e28?`<b>${nf(num(e28.resultado),1)} MPa</b>`:`<small>${fe(brDe(addD(d,28)).slice(0,5))}</small>`}</td><td>${pill(st.rot,st.cor)}</td></tr>`;}).join('')}</tbody></table></div></section>`:''}
+    <section class="gf-sec">${L.length?L.map(r=>{const d=dt(r.data),pt=pontoDe(r);return `<div style="border:1px solid #EEF1F6;border-radius:14px;padding:10px 12px;margin-bottom:10px">
+        <div class="gf-dia-cab" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><i class="fas fa-calendar-day" style="color:#1652D8"></i><b>${fe(brDe(d))}</b><span>${cap(GS.SEMANA[d.getDay()])}${r.turno?' · '+fe(r.turno):''}${r.clima?' · '+fe(r.clima):''}${num(r.betonadas)?' · '+nf(num(r.betonadas),0)+' betonada(s)':''}</span>
+          <button type="button" class="gf-bt mini" data-pm="prod" data-id="${r.rowid}" style="margin-left:auto"><i class="fas fa-pen"></i> Abrir o dia</button></div>
+        <div class="vk-sub" style="margin:6px 0;display:flex;flex-wrap:wrap;gap:4px">${pt.map(x=>pill(`${fe(x.nome)}${x.entrada?` ${fe(x.entrada)}–${fe(x.saida||'')} (${nf(num(x.horas),1)} h)`:''}`,'info','fa-user-clock')).join('')}${r.ocorrencia&&r.ocorrencia!=='Nenhuma'?pill(fe(r.ocorrencia),'warn','fa-triangle-exclamation'):''}</div>
+        <div class="pm-rolar"><table class="pm-tab2" data-sem-ordem><thead><tr><th></th><th>Peça</th><th>Lote</th><th class="n">Boas</th><th class="n">Refugo</th><th>Ordem</th><th>Cura</th><th class="n">Custo/peça</th></tr></thead><tbody>
+        ${itensProd(r).map((it,i)=>{const p=pecaDe(it.peca),lib=addD(d,num(p&&p.cura!=null&&p.cura!==''?p.cura:tipoDePeca(p||{}).cura||7)),o=ordens().find(x=>String(x.rowid)===String(it.ordem||''));
+          return `<tr><td style="width:64px"><span class="pm-th" data-th="${p?p.rowid:''}" style="cursor:default">${p?miniPeca(p):''}</span></td><td><b>${fe(p?p.nome:'(peça excluída)')}</b>${num(it.cp)?`<small>${nf(num(it.cp),0)} corpo(s) de prova</small>`:''}</td><td style="white-space:nowrap">${loteCel(r,it,i)}</td><td class="n">${nf(num(it.qtd),0)}</td><td class="n">${num(it.refugo)?nf(num(it.refugo),0):'—'}</td><td>${o?'OP nº '+fe(String(o.numero)):'—'}</td>
+            <td>${lib>h?pill('em cura até '+brDe(lib).slice(0,5),'info','fa-hourglass-half'):pill('liberada','ok','fa-check')}</td><td class="n">${R(num(it.custo_un))}</td></tr>`;}).join('')}</tbody></table></div>
         ${r.obs?`<p class="pm-mini" style="margin:6px 0 0">${fe(r.obs)}</p>`:''}</div>`;}).join('')
       :'<div class="gf-vazio"><i class="fas fa-industry"></i><p>Nenhuma produção registrada neste mês.</p></div>'}</section>`;
 }
 function formProducao(reg,pre){
   pre=pre||{};if(!pecas().length)return toast('Cadastre as peças primeiro (Peças e catálogo).','error');
-  const c=CFG(),equipe=(c.equipe_lista||[]).filter(x=>x&&x.nome),b=reg?{...reg,itens:itensProd(reg)}:{data:hojeISO(),turno:'Dia inteiro',clima:'Sol',ocorrencia:'Nenhuma',equipe:[],itens:[{peca:pre.peca||pecas()[0].rowid,ordem:pre.ordem||'',qtd:'',refugo:''}]};
+  const c=CFG(),jor={entrada:'07:00',saida:'17:00',intervalo:60,...(c.jornada||{})},equipe=(c.equipe_lista||[]).filter(x=>x&&x.nome);
+  const b=reg?{...reg,itens:itensProd(reg)}:{data:hojeISO(),turno:'Dia inteiro',clima:'Sol',ocorrencia:'Nenhuma',ponto:[],itens:[{peca:pre.peca||pecas()[0].rowid,ordem:pre.ordem||'',qtd:'',refugo:''}]};
+  const pts=pontoDe(b),ptDe=n=>pts.find(x=>x.nome===n),avulsos=pts.filter(x=>!equipe.some(e=>e.nome===x.nome));
   const opsOrd=(pid,sel)=>`<option value="">— sem ordem (estoque) —</option>`+ordens().filter(o=>String(o.peca)===String(pid)&&(o.status==='planejada'||o.status==='producao'||String(o.rowid)===String(sel))).map(o=>`<option value="${o.rowid}" ${String(o.rowid)===String(sel)?'selected':''}>OP nº ${o.numero} — ${nf(prodDaOrdem(o.rowid),0)} de ${nf(num(o.qtd),0)}</option>`).join('');
-  const linIt=it=>`<tr data-item><td><select data-i="peca">${pecas().map(p=>`<option value="${p.rowid}" ${String(p.rowid)===String(it.peca)?'selected':''}>${fe(p.nome)}</option>`).join('')}</select></td><td><select data-i="ordem">${opsOrd(it.peca,it.ordem)}</select></td>
-    <td><input data-i="qtd" inputmode="numeric" value="${fe(String(it.qtd||''))}" placeholder="0"></td><td><input data-i="refugo" inputmode="numeric" value="${fe(String(it.refugo||''))}" placeholder="0"></td><td><button type="button" class="pm-x" data-pmf="it-x"><i class="fas fa-xmark"></i></button></td></tr>`;
+  const cpPad=pid=>pedeCP(tipoDePeca(pecaDe(pid)||{}))?2:'';
+  const linIt=it=>`<tr data-item ${it.lote?`data-lote="${fe(it.lote)}"`:''}><td style="width:66px">${thumbBt(it.peca)}</td><td><select data-i="peca">${pecas().map(p=>`<option value="${p.rowid}" ${String(p.rowid)===String(it.peca)?'selected':''}>${fe(p.nome)}</option>`).join('')}</select>${it.lote?`<small class="pm-mini">lote ${fe(it.lote)}</small>`:''}</td>
+    <td><select data-i="ordem">${opsOrd(it.peca,it.ordem)}</select></td><td><input data-i="qtd" inputmode="numeric" value="${fe(String(it.qtd||''))}" placeholder="0"></td><td><input data-i="refugo" inputmode="numeric" value="${fe(String(it.refugo||''))}" placeholder="0"></td>
+    <td><input data-i="cp" inputmode="numeric" data-sem-mascara="1" value="${fe(String(it.cp!=null&&it.cp!==''?it.cp:(it.lote?'':cpPad(it.peca))))}" placeholder="0" title="Corpos de prova moldados com o concreto desta peça"></td><td><button type="button" class="pm-x" data-pmf="it-x"><i class="fas fa-xmark"></i></button></td></tr>`;
+  const linP=(x,avulso)=>{const pt=ptDe(x.nome)||{},on=avulso||!!ptDe(x.nome);return `<tr data-p ${avulso?'data-avulso="1"':''} data-nome="${fe(x.nome||'')}" data-funcao="${fe(x.funcao||'')}">
+    <td style="width:34px">${avulso?'':`<input type="checkbox" data-pc ${on?'checked':''} style="width:18px;height:18px">`}</td><td>${avulso?`<input data-pn value="${fe(x.nome||'')}" placeholder="Nome (diarista, visitante)">`:`<b>${fe(x.nome)}</b><small class="pm-mini" style="display:block">${fe(x.funcao||'')}</small>`}</td>
+    <td><input type="time" data-pe value="${fe(pt.entrada||jor.entrada)}"></td><td><input type="time" data-ps value="${fe(pt.saida||jor.saida)}"></td><td><input data-pi inputmode="numeric" data-sem-mascara="1" value="${fe(String(pt.intervalo!=null?pt.intervalo:jor.intervalo))}" style="max-width:80px"></td>
+    <td data-ph style="white-space:nowrap;font-weight:700"></td><td>${avulso?'<button type="button" class="pm-x" data-pmf="p-x"><i class="fas fa-xmark"></i></button>':''}</td></tr>`;};
   const sel=(k,ops,v)=>`<select data-k="${k}">${ops.map(x=>`<option ${x===v?'selected':''}>${x}</option>`).join('')}</select>`;
   const j=janela(reg?'Editar o dia de produção':'Registrar o dia de produção',`<div class="fin-linha">
       <div class="fin-fld"><label>Data <span class="obg">*</span></label><input type="date" data-k="data" value="${fe(b.data||'')}" max="${hojeISO()}"></div>
       <div class="fin-fld"><label>Turno</label>${sel('turno',TURNOS,b.turno||'Dia inteiro')}</div><div class="fin-fld"><label>Clima</label>${sel('clima',CLIMAS,b.clima||'Sol')}</div>
       <div class="fin-fld"><label>Betonadas feitas</label><input data-k="betonadas" inputmode="numeric" value="${fe(String(b.betonadas||''))}" placeholder="0"></div>
       <div class="fin-fld" style="grid-column:span 2"><label>Ocorrência</label>${sel('ocorrencia',OCORR,b.ocorrencia||'Nenhuma')}</div></div>
-    <div class="pm-bloco" style="margin-top:10px"><h5><i class="fas fa-people-group"></i> Equipe presente</h5>
-      ${equipe.length?`<div class="pm-chips">${equipe.map(x=>`<label class="pm-chip ${eqLista(b).includes(x.nome)?'on':''}"><input type="checkbox" data-eq value="${fe(x.nome)}" ${eqLista(b).includes(x.nome)?'checked':''}><i class="fas fa-user"></i>${fe(x.nome)}<small style="color:#98A2B3">${fe(x.funcao||'')}</small></label>`).join('')}</div>`:'<p class="pm-mini" style="margin:0">Cadastre a equipe da fábrica em <b>Parâmetros › Equipe da fábrica</b> para marcar quem veio.</p>'}
-      <div class="fin-fld" style="margin-top:8px"><label>Outras pessoas (diaristas, visitantes)</label><input data-k="outros" value="${fe(eqLista(b).filter(n=>!equipe.some(x=>x.nome===n)).join(', '))}" placeholder="nomes separados por vírgula"></div></div>
-    <div class="pm-bloco"><h5><i class="fas fa-cubes"></i> Peças produzidas</h5><div class="pm-rolar"><table class="pm-itens"><thead><tr><th>Peça</th><th>Ordem de produção</th><th style="width:80px">Boas</th><th style="width:80px">Refugo</th><th></th></tr></thead><tbody data-itens>${(b.itens||[]).map(linIt).join('')}</tbody></table></div>
-      <button type="button" class="gf-bt mini" data-pmf="it-add" style="margin-top:6px"><i class="fas fa-plus"></i> Outra peça</button></div>
+    <div class="pm-bloco" style="margin-top:10px"><h5><i class="fas fa-user-clock"></i> Equipe presente — ponto do dia</h5>
+      ${equipe.length?'':'<p class="pm-mini" style="margin:0 0 6px">Cadastre a equipe da fábrica em <b>Parâmetros › Equipe da fábrica</b> para marcar quem veio com um clique.</p>'}
+      <div class="pm-rolar"><table class="pm-itens pm-ponto"><thead><tr><th></th><th>Pessoa</th><th>Entrada</th><th>Saída</th><th>Intervalo (min)</th><th>Horas</th><th></th></tr></thead><tbody data-ponto>${equipe.map(x=>linP(x,false)).join('')}${avulsos.map(x=>linP(x,true)).join('')}</tbody></table></div>
+      <div style="display:flex;gap:8px;align-items:center;margin-top:6px;flex-wrap:wrap"><button type="button" class="gf-bt mini" data-pmf="p-add"><i class="fas fa-plus"></i> Pessoa avulsa</button><span class="pm-mini" data-p-tot></span></div></div>
+    <div class="pm-bloco"><h5><i class="fas fa-cubes"></i> Peças produzidas</h5><div class="pm-rolar"><table class="pm-itens"><thead><tr><th></th><th>Peça</th><th>Ordem de produção</th><th style="width:78px">Boas</th><th style="width:78px">Refugo</th><th style="width:70px" title="Corpos de prova">CPs</th><th></th></tr></thead><tbody data-itens>${(b.itens||[]).map(linIt).join('')}</tbody></table></div>
+      <button type="button" class="gf-bt mini" data-pmf="it-add" style="margin-top:6px"><i class="fas fa-plus"></i> Outra peça</button><p class="pm-mini" style="margin:6px 0 0">Cada peça do dia vira um lote. <b>CPs</b> = corpos de prova moldados (sugestão: 2 para tubos, postes, tampas, lajes e peças estruturais).</p></div>
     <div class="fin-fld"><label>Observações</label><input data-k="obs" value="${fe(b.obs||'')}" placeholder="Ex.: forma 3 trincada, faltou brita à tarde"></div>
     <div class="fin-aviso" style="margin-top:8px"><div data-pr-prev></div></div>`,
     [...(reg?[{html:'<i class="fas fa-trash"></i> Excluir',acao:async()=>{setTimeout(()=>apagarReg(reg,`Produção de ${brDe(dt(reg.data))}`),60);}}]:[]),
@@ -915,28 +1110,39 @@ function formProducao(reg,pre){
       if(reg&&GS.podeMexer&&!GS.podeMexer(reg))throw new Error(GS.MSG_DONO);
       const g=k=>String(jj.querySelector(`[data-k="${k}"]`).value||'').trim(),o=reg?{...reg}:{tipo:'producao',data_lancamento:todayDateTime()};
       ['data','turno','clima','ocorrencia','obs'].forEach(k=>o[k]=g(k));o.betonadas=num(g('betonadas'));
-      o.equipe=[...jj.querySelectorAll('[data-eq]:checked')].map(e=>e.value).concat(g('outros').split(',').map(s=>s.trim()).filter(Boolean));
+      o.ponto=lerPonto(jj);o.equipe=o.ponto.map(x=>x.nome);
       if(!o.data)throw new Error('Informe a data.');if(o.data>hojeISO())throw new Error('A data não pode ser no futuro.');
       const its=lerItensProd(jj);if(!its.length)throw new Error('Informe ao menos uma peça com quantidade.');
+      // lote de cada peça: o que já tinha fica; peça nova ganha o próximo número do dia
+      const base='L'+ymd(o.data),usados=new Set(lotes().map(l=>l.lote));let seq=0;const prox=()=>{let c2;do{seq++;c2=`${base}-${String(seq).padStart(2,'0')}`;}while(usados.has(c2));usados.add(c2);return c2;};
       // retrato do dia: consumo (boas + refugo) e custo por peça
       o.itens=its.map(it=>{const p=pecaDe(it.peca),x=calc(p,it.qtd+it.refugo),u=calc(p,1),cons={};Object.entries(x.est).forEach(([k,q])=>cons[k]=Math.round(q*10000)/10000);
-        return {...it,consumo:cons,custo_un:r2(u.un),custo_mat_un:r2(u.custo.mat),m3:Math.round(x.Vt*10000)/10000};});
+        return {...it,lote:it.lote||prox(),consumo:cons,custo_un:r2(u.un),custo_mat_un:r2(u.custo.mat),m3:Math.round(x.Vt*10000)/10000};});
       ['peca','ordem','qtd','refugo','consumo','custo_un','custo_mat_un','m3'].forEach(k=>delete o[k]);
       await gravar(o,reg?reg.rowid:null);
       const mud=[];new Set(o.itens.map(it=>it.ordem).filter(Boolean)).forEach(id=>{const op=ordens().find(z=>String(z.rowid)===String(id));if(!op)return;
         if(op.status!=='concluida'&&prodDaOrdem(op.rowid)>=num(op.qtd))mud.push([{...op,status:'concluida',concluida_em:o.data},op.rowid]);else if(op.status==='planejada')mud.push([{...op,status:'producao',inicio:op.inicio||o.data},op.rowid]);});
       if(mud.length)await gravarVarios(mud);
-      toast('Dia de produção registrado: insumos baixados e peças em cura.','success');}}],940);
-  const at=()=>{const its=lerItensProd(j),e=j.querySelector('[data-pr-prev]');if(!e)return;if(!its.length){e.innerHTML='Informe as peças feitas para ver o que sai do estoque de insumos.';return;}
+      toast(`Dia registrado: ${o.itens.length} lote(s) — ${o.itens.map(it=>it.lote).join(', ')}.`,'success');}}],1000);
+  const atPonto=()=>{let t=0,n=0;j.querySelectorAll('[data-p]').forEach(tr=>{const on=tr.dataset.avulso?!!String((tr.querySelector('[data-pn]')||{}).value||'').trim():tr.querySelector('[data-pc]').checked;
+      const hh=horasDe(tr.querySelector('[data-pe]').value,tr.querySelector('[data-ps]').value,tr.querySelector('[data-pi]').value);tr.querySelector('[data-ph]').textContent=on?nf(hh,1)+' h':'—';tr.style.opacity=on?1:0.55;if(on){t+=hh;n++;}});
+    const e=j.querySelector('[data-p-tot]');if(e)e.textContent=n?`${n} presente(s) · ${nf(t,1)} horas no dia`:'';};
+  const at=()=>{atPonto();const its=lerItensProd(j),e=j.querySelector('[data-pr-prev]');if(!e)return;if(!its.length){e.innerHTML='Informe as peças feitas para ver o que sai do estoque de insumos.';return;}
     const tot={};its.forEach(it=>{const x=calc(pecaDe(it.peca),it.qtd+it.refugo);Object.entries(x.est).forEach(([k,q])=>tot[k]=(tot[k]||0)+q);});const ei=estoqueInsumos();
     e.innerHTML='Sai do estoque: '+INS.filter(i=>tot[i.k]).map(i=>{const f=ei[i.k].saldo<tot[i.k];return `<span style="${f?'color:#B42318;font-weight:700':''}">${i.nome.split(' (')[0].toLowerCase()} ${nf(tot[i.k],2)} ${i.un}${f?' (estoque insuficiente)':''}</span>`;}).join(' · ')+'.';};
   const corpo=j.querySelector('.fin-jan-corpo');
-  corpo.addEventListener('change',ev=>{const t=ev.target;if(t.matches('[data-i="peca"]'))t.closest('tr').querySelector('[data-i="ordem"]').innerHTML=opsOrd(t.value,'');if(t.matches('[data-eq]'))t.closest('.pm-chip').classList.toggle('on',t.checked);at();});
-  corpo.addEventListener('input',()=>{clearTimeout(j._pmT);j._pmT=setTimeout(at,150);});
-  corpo.addEventListener('click',ev=>{const b2=ev.target.closest('[data-pmf]');if(!b2)return;if(b2.dataset.pmf==='it-add')j.querySelector('[data-itens]').insertAdjacentHTML('beforeend',linIt({peca:pecas()[0].rowid,ordem:'',qtd:'',refugo:''}));else if(b2.dataset.pmf==='it-x')b2.closest('tr').remove();at();});
-  at();
+  corpo.addEventListener('change',ev=>{const t=ev.target;if(t.matches('[data-i="peca"]')){const tr=t.closest('tr');tr.querySelector('[data-i="ordem"]').innerHTML=opsOrd(t.value,'');trocarThumb(tr,t.value);const cp=tr.querySelector('[data-i="cp"]');if(cp&&!cp.dataset.mexeu)cp.value=cpPad(t.value);}at();});
+  corpo.addEventListener('input',ev=>{if(ev.target.matches('[data-i="cp"]'))ev.target.dataset.mexeu='1';clearTimeout(j._pmT);j._pmT=setTimeout(at,150);});
+  corpo.addEventListener('click',ev=>{const b2=ev.target.closest('[data-pmf]');if(!b2)return;const f=b2.dataset.pmf;
+    if(f==='pick'){const tr=b2.closest('tr'),s=tr.querySelector('[data-i="peca"]');return escolherPeca(s.value,pid=>{s.value=pid;s.dispatchEvent(new Event('change',{bubbles:true}));});}
+    if(f==='it-add'){j.querySelector('[data-itens]').insertAdjacentHTML('beforeend',linIt({peca:pecas()[0].rowid,ordem:'',qtd:'',refugo:''}));pintarFotos(j);}
+    else if(f==='it-x')b2.closest('tr').remove();else if(f==='p-add')j.querySelector('[data-ponto]').insertAdjacentHTML('beforeend',linP({nome:'',funcao:''},true));else if(f==='p-x')b2.closest('tr').remove();at();});
+  pintarFotos(j);at();
 }
-function lerItensProd(j){return [...j.querySelectorAll('[data-item]')].map(tr=>({peca:tr.querySelector('[data-i="peca"]').value,ordem:tr.querySelector('[data-i="ordem"]').value,qtd:num(tr.querySelector('[data-i="qtd"]').value),refugo:num(tr.querySelector('[data-i="refugo"]').value)})).filter(it=>pecaDe(it.peca)&&(it.qtd>0||it.refugo>0));}
+function lerPonto(j){return [...j.querySelectorAll('[data-p]')].map(tr=>{const av=!!tr.dataset.avulso,nome=av?String((tr.querySelector('[data-pn]')||{}).value||'').trim():tr.dataset.nome;
+  if(!nome||(!av&&!tr.querySelector('[data-pc]').checked))return null;const entrada=tr.querySelector('[data-pe]').value,saida=tr.querySelector('[data-ps]').value,intervalo=num(tr.querySelector('[data-pi]').value);
+  return {nome,funcao:av?'Avulso':tr.dataset.funcao,entrada,saida,intervalo,horas:Math.round(horasDe(entrada,saida,intervalo)*100)/100};}).filter(Boolean);}
+function lerItensProd(j){return [...j.querySelectorAll('[data-item]')].map(tr=>({peca:tr.querySelector('[data-i="peca"]').value,ordem:tr.querySelector('[data-i="ordem"]').value,qtd:num(tr.querySelector('[data-i="qtd"]').value),refugo:num(tr.querySelector('[data-i="refugo"]').value),cp:num((tr.querySelector('[data-i="cp"]')||{}).value),lote:tr.dataset.lote||''})).filter(it=>pecaDe(it.peca)&&(it.qtd>0||it.refugo>0));}
 
 /* ═══════════════ ESTOQUE E AVARIAS ═══════════════ */
 function telaEstoque(){
@@ -1047,23 +1253,144 @@ function formAjuste(reg,itemPre){
 }
 
 /* ═══════════════ VENDAS ═══════════════ */
+const VVISTAS=[['pedidos','fa-columns','Pedidos'],['entregas','fa-truck','Entregas'],['clientes','fa-address-book','Clientes'],['vendedores','fa-user-tie','Vendedores']];
 function telaVendas(){
+  const v=PM.vendasVista||'pedidos',sub=`<div class="pm-sub">${VVISTAS.map(([k,ic,l])=>`<button type="button" class="gf-bt ${v===k?'pri':''}" data-pm="vvista" data-v="${k}"><i class="fas ${ic}"></i> ${l}</button>`).join('')}</div>`;
+  if(v==='entregas')return telaEntregas(sub);if(v==='clientes')return telaClientes(sub);if(v==='vendedores')return telaVendedores(sub);
   const E=estoque(),h=hoje0(),q=String(PM.busca||'').toLowerCase(),lim=addD(h,-60),c=CFG();
   const L=vendas().filter(v=>v.status!=='cancelada'&&(!q||[v.cliente,v.numero,(v.itens||[]).map(it=>nomePeca(it.peca)).join(' ')].join(' ').toLowerCase().includes(q)));
-  const card=v=>{const f=faseVenda(v,E),tot=totalVenda(v),pago=pagoDe(v),pz=dt(v.prazo_entrega),pc=tot?Math.min(100,pago/tot*100):0,a=E.aloc[v.rowid]||{};
+  const card=v=>{const f=faseVenda(v,E),tot=totalVenda(v),pago=pagoDe(v),pz=dt(v.prazo_entrega),ag=v.agenda&&dt(v.agenda.data),pc=tot?Math.min(100,pago/tot*100):0,a=E.aloc[v.rowid]||{};
     return `<article class="vk-card" style="--cor:${(FASES_V.find(x=>x.k===f)||FASES_V[4]).cor}" data-pm="venda" data-id="${v.rowid}" draggable="${f==='liberado'?'true':'false'}" data-card="${v.rowid}">
       <div class="vk-top"><b>Venda nº ${fe(String(v.numero||''))}</b>${pill(v.tipo_venda==='pronta'?'pronta entrega':'encomenda',v.tipo_venda==='pronta'?'ok':'info')}</div>
       <div class="vk-obra"><i class="fas fa-user"></i>${fe(v.cliente||'—')}${v.canal==='atacado'?' · atacado':''}</div>
       <ul class="vk-itens">${(v.itens||[]).slice(0,3).map((it,i)=>`<li><span>${nf(num(it.qtd),0)} × ${fe(nomePeca(it.peca))}${f==='producao'?` <small>(${nf(a[i]||0,0)} prontas)</small>`:''}</span><b>${R(num(it.qtd)*num(it.preco))}</b></li>`).join('')}${(v.itens||[]).length>3?`<li class="mais">+ ${(v.itens||[]).length-3} item(ns)</li>`:''}</ul>
-      <div class="vk-val"><span>pago ${R(pago)}${pz&&f!=='entregue'?' · entrega '+brDe(pz).slice(0,5):''}${v.status==='devolvida'?' · devolvida':''}</span><b>${R(tot)}</b></div><div class="pm-barra ${pc>=100?'ok':''}"><i style="width:${pc}%"></i></div></article>`;};
+      ${ag&&f!=='entregue'?`<div class="vk-sub">${pill('entrega agendada '+brDe(ag).slice(0,5)+(v.agenda.caminhao?' · '+fe(v.agenda.caminhao):''),'info','fa-truck')}</div>`:''}
+      <div class="vk-val"><span>pago ${R(pago)}${pz&&!ag&&f!=='entregue'?' · prevista '+brDe(pz).slice(0,5):''}${v.status==='devolvida'?' · devolvida':''}</span><b>${R(tot)}</b></div><div class="pm-barra ${pc>=100?'ok':''}"><i style="width:${pc}%"></i></div></article>`;};
   const cols=FASES_V.map(fc=>{let itens=L.filter(v=>{const f=faseVenda(v,E);return f===fc.k||(fc.k==='entregue'&&f==='devolvida');});if(fc.k==='entregue')itens=itens.filter(v=>!dt(v.entrega)||dt(v.entrega)>=lim);
     itens.sort((a,b)=>String(b.data||'').localeCompare(String(a.data||'')));return {c:fc,itens,total:itens.reduce((s,v)=>s+totalVenda(v),0)};});
   setTimeout(()=>{const w=document.querySelector('#pm-app .vk-quadro');if(w&&!w._lig){w._lig=1;GS.ligarArraste(w,moverVenda);}},0);
   return cabG('Vendas','Pronta entrega (peça pronta, pagamento completo) ou encomenda (reserva com '+nf(num(c.sinal),0)+'% de sinal; sem peça pronta, a ordem de produção sai sozinha). A entrega só sai pronta e paga. Devolução com estorno; avaria na entrega vira perda.',
-      `<button type="button" class="gf-bt pri" data-pm="venda-nova"><i class="fas fa-plus"></i> Nova venda</button>`)+
+      `<button type="button" class="gf-bt pri" data-pm="venda-nova"><i class="fas fa-plus"></i> Nova venda</button>`)+sub+
     `<div class="pm-filtros"><input type="search" data-pm-busca placeholder="Buscar cliente, nº ou peça…" value="${fe(PM.busca)}" style="min-width:260px"><span class="pm-mini">Entregues: últimos 60 dias (as anteriores ficam nos Relatórios).</span></div>`+
     GS.colunasHtml(cols,card,{sinal:'Nenhuma encomenda esperando sinal',producao:'Nada em produção para venda',pagamento:'Nenhum pedido pronto esperando pagamento',liberado:'Nada liberado para entrega',entregue:'Entregas aparecem aqui'});
 }
+/* ── entregas: agenda da semana por caminhão ── */
+const segunda=d=>{d=new Date(d);d.setHours(0,0,0,0);d.setDate(d.getDate()-((d.getDay()+6)%7));return d;};
+function pesoVenda(v){return (v.itens||[]).reduce((s,it)=>{const p=pecaDe(it.peca);return s+(p?calc(p,1).peso*num(it.qtd):0);},0);}
+const PERIODOS=['Manhã','Tarde','Dia todo'];
+function telaEntregas(sub){
+  const c=CFG(),E=estoque(),h=hoje0(),ini=dt(PM.semana)||segunda(h),dias7=[...Array(7)].map((_,i)=>addD(ini,i)),cams=(c.caminhoes||[]).filter(x=>x&&x.nome);
+  const vs=vendas().filter(v=>v.status!=='cancelada'),doDia=d=>vs.filter(v=>v.agenda&&v.agenda.data===isoDe(d));
+  const semData=vs.filter(v=>['aguardando_sinal','reservado'].includes(v.status)&&!(v.agenda&&v.agenda.data)).sort((a,b)=>String(a.prazo_entrega||'9').localeCompare(String(b.prazo_entrega||'9')));
+  const cartao=v=>{const f=faseVenda(v,E),fs=FASES_V.find(x=>x.k===f)||FASES_V[4],e=v.end||{};
+    return `<div class="pm-ent" style="--cor:${fs.cor}" data-pm="venda" data-id="${v.rowid}"><b>Nº ${fe(String(v.numero))} · ${fe(v.cliente||'')}</b><div>${fe([e.bairro,e.cidade].filter(Boolean).join(' · ')||'sem endereço')}${v.agenda&&v.agenda.periodo?' · '+fe(v.agenda.periodo):''}</div>
+      <div class="pm-mini">${(v.itens||[]).map(it=>`${nf(num(it.qtd),0)} × ${fe(nomePeca(it.peca))}`).join(' · ')} · ${nf(pesoVenda(v),0)} kg</div><div style="margin-top:3px">${pill(f==='entregue'?'entregue':fs.rot,f==='liberado'||f==='entregue'?'ok':'warn')}</div></div>`;};
+  const col=d=>{const L=doDia(d),grupos=[...cams.map(x=>x.nome),''].map(nm=>({nm,L:L.filter(v=>(v.agenda.caminhao||'')===nm)})).filter(g=>g.L.length);
+    return `<div class="pm-dia ${isoDe(d)===isoDe(h)?'hoje':''}"><h6><span>${cap(GS.SEMANA[d.getDay()]).slice(0,3)} ${fe(brDe(d).slice(0,5))}</span>${L.length?`<button type="button" class="gf-bt mini" data-pm="romaneio" data-d="${isoDe(d)}" title="Romaneio do dia (PDF)"><i class="fas fa-print"></i></button>`:''}</h6>
+      ${grupos.map(g=>{const cam=cams.find(x=>x.nome===g.nm),peso=g.L.reduce((s,v)=>s+pesoVenda(v),0),exc=cam&&num(cam.cap_kg)>0&&peso>num(cam.cap_kg);
+        return `<div class="pm-cam ${exc?'exc':''}"><span><i class="fas fa-truck"></i> ${fe(g.nm||'Sem caminhão')}</span><span>${nf(peso,0)}${cam&&num(cam.cap_kg)?' / '+nf(num(cam.cap_kg),0):''} kg</span></div>${g.L.map(cartao).join('')}`;}).join('')||'<p class="pm-mini" style="margin:6px 2px">Nenhuma entrega.</p>'}</div>`;};
+  return cabG('Entregas','Agenda da semana por caminhão: o que sai em cada dia, o peso da carga e o romaneio para o motorista. A entrega só sai com as peças prontas e o pedido pago.',
+      `<button type="button" class="gf-bt" data-pm="sem" data-d="-7"><i class="fas fa-chevron-left"></i></button><button type="button" class="gf-bt" data-pm="sem" data-d="0">Esta semana</button><button type="button" class="gf-bt" data-pm="sem" data-d="7"><i class="fas fa-chevron-right"></i></button>`)+sub+
+    (cams.length?'':'<div class="gf-aviso warn"><i class="fas fa-circle-info"></i><div>Cadastre os caminhões em <b>Parâmetros › Entregas e frete</b> para separar a carga de cada um.</div></div>')+
+    `<section class="gf-sec"><div class="gf-sec-cab"><div><h3>Semana de ${fe(brDe(ini))} a ${fe(brDe(addD(ini,6)))}</h3><p>Clique num pedido para abrir; o botão de impressora gera o romaneio do dia.</p></div></div><div class="pm-sem">${dias7.map(col).join('')}</div></section>
+    <section class="gf-sec"><div class="gf-sec-cab"><div><h3>Pedidos sem data de entrega</h3><p>Abra o pedido e use <b>Agendar entrega</b>.</p></div></div>
+      ${semData.length?`<div class="pm-grid">${semData.map(cartao).join('')}</div>`:'<div class="gf-vazio ok"><i class="fas fa-circle-check"></i><p>Todos os pedidos abertos têm data de entrega.</p></div>'}</section>`;
+}
+function formAgenda(v){
+  const c=CFG(),cams=(c.caminhoes||[]).filter(x=>x&&x.nome),a=v.agenda||{},f=faseVenda(v);
+  janela(`Agendar a entrega — venda nº ${v.numero}`,`<div class="fin-resumo">${fe(v.cliente||'')} · ${(v.itens||[]).map(it=>`${nf(num(it.qtd),0)} × ${fe(nomePeca(it.peca))}`).join(' · ')} · ${nf(pesoVenda(v),0)} kg<br>${fe(endTxt(v.end)||'sem endereço de entrega')}</div>
+    ${f!=='liberado'?`<div class="fin-aviso laranja" style="margin-top:8px"><div>Para sair nessa data, as peças precisam estar <b>prontas</b> e o pedido <b>pago</b> até lá (hoje: ${fe((FASES_V.find(x=>x.k===f)||{rot:f}).rot.toLowerCase())}).</div></div>`:''}
+    <div class="fin-linha" style="margin-top:8px"><div class="fin-fld"><label>Data <span class="obg">*</span></label><input type="date" data-k="data" value="${fe(a.data||v.prazo_entrega||'')}"></div>
+      <div class="fin-fld"><label>Período</label><select data-k="periodo">${PERIODOS.map(x=>`<option ${x===(a.periodo||'Manhã')?'selected':''}>${x}</option>`).join('')}</select></div>
+      <div class="fin-fld"><label>Caminhão</label><select data-k="caminhao"><option value="">—</option>${cams.map(x=>`<option ${x.nome===a.caminhao?'selected':''}>${fe(x.nome)}</option>`).join('')}</select></div>
+      <div class="fin-fld" style="grid-column:1/-1"><label>Observação para o motorista</label><input data-k="obs" value="${fe(a.obs||'')}" placeholder="Ex.: descarregar no fundo do terreno, ligar antes"></div></div>`,
+    [...(a.data?[{html:'<i class="fas fa-calendar-xmark"></i> Tirar da agenda',acao:async()=>{await gravar({...vendaBruta(v),agenda:null},v.rowid);toast('Entrega tirada da agenda.','success');}}]:[]),
+     {html:'<i class="fas fa-calendar-check"></i> Agendar',cls:'pri',acao:async j=>{const g=k=>String(j.querySelector(`[data-k="${k}"]`).value||'').trim();if(!g('data'))throw new Error('Informe a data da entrega.');
+      if(g('data')<hojeISO())throw new Error('A data não pode ser no passado.');
+      await gravar({...vendaBruta(v),agenda:{data:g('data'),periodo:g('periodo'),caminhao:g('caminhao'),obs:g('obs')},prazo_entrega:g('data')},v.rowid);toast(`Entrega agendada para ${brDe(dt(g('data')))}.`,'success');}}],620);
+}
+function romaneio(dia){
+  const c=CFG(),L=vendas().filter(v=>v.status!=='cancelada'&&v.agenda&&v.agenda.data===dia),cams=[...new Set(L.map(v=>v.agenda.caminhao||''))];
+  if(!L.length)return toast('Nenhuma entrega neste dia.','error');
+  App._relExportPaginado({titulo:'Romaneio de entregas',subLinhas:[`${cap(GS.SEMANA[dt(dia).getDay()])}, ${brDe(dt(dia))}`,...cams.map(nm=>{const cam=(c.caminhoes||[]).find(x=>x.nome===nm);return `${nm||'Sem caminhão'}${cam&&cam.motorista?' · '+cam.motorista:''}: ${nf(L.filter(v=>(v.agenda.caminhao||'')===nm).reduce((s,v)=>s+pesoVenda(v),0),0)} kg`;})],
+    theadHtml:'<tr><th style="width:9%">Nº</th><th style="width:30%">Cliente e endereço</th><th style="width:27%">Peças</th><th style="width:9%;text-align:right">Peso</th><th style="width:10%">Situação</th><th style="width:15%">Recebido por</th></tr>',
+    rowsArr:L.sort((a,b)=>String(a.agenda.caminhao||'').localeCompare(String(b.agenda.caminhao||''))||String(a.agenda.periodo).localeCompare(String(b.agenda.periodo))).map(v=>{const f=faseVenda(v);
+      return `<tr><td><b>${fe(String(v.numero))}</b><br>${fe(v.agenda.periodo||'')}<br><small>${fe(v.agenda.caminhao||'')}</small></td><td><b>${fe(v.cliente||'')}</b>${v.telefone?'<br>'+fe(v.telefone):''}<br>${fe(endTxt(v.end))}${v.agenda.obs?'<br><i>'+fe(v.agenda.obs)+'</i>':''}</td>
+        <td>${(v.itens||[]).map(it=>`${nf(num(it.qtd),0)} × ${fe(nomePeca(it.peca))}`).join('<br>')}</td><td style="text-align:right">${nf(pesoVenda(v),0)} kg</td><td>${f==='liberado'?'Liberado':f==='entregue'?'Entregue':'<b style="color:#B42318">NÃO LIBERADO</b>'}</td><td></td></tr>`;}),
+    posHtml:'<p style="font-size:11px;margin-top:10px">Conferir as peças na carga e na descarga. Peça quebrada: anotar e avisar a fábrica (registrar como avaria no transporte).</p><p style="margin-top:28px;font-size:12px">______________________________ &nbsp; Motorista &nbsp;&nbsp;&nbsp;&nbsp; ______________________________ &nbsp; Conferente</p>'});
+}
+/* ── clientes (com tabela de preços própria) ── */
+const cliDe=nome=>{const n=String(nome||'').trim().toLowerCase();return n?T('cliente').find(c=>String(c.nome||'').trim().toLowerCase()===n)||null:null;};
+function telaClientes(sub){
+  const q=String(PM.busca||'').toLowerCase(),vs=vendas().filter(v=>v.status==='entregue'||v.status==='devolvida');
+  const L=T('cliente').filter(c=>!q||[c.nome,c.doc,c.telefone,(c.end||{}).cidade].join(' ').toLowerCase().includes(q)).sort((a,b)=>String(a.nome||'').localeCompare(String(b.nome||''),'pt-BR'));
+  const tot=c=>{const m=vs.filter(v=>String(v.cliente||'').trim().toLowerCase()===String(c.nome||'').trim().toLowerCase());return {v:m.reduce((s,v)=>s+totalVenda(v),0),n:m.length,ult:m.map(v=>v.entrega).sort().slice(-1)[0]};};
+  return cabG('Clientes','Cadastro dos clientes, com canal (varejo ou atacado), vendedor, desconto padrão e tabela de preços própria. Ao escolher o cliente na venda, tudo isso entra sozinho.',`<button type="button" class="gf-bt pri" data-pm="cli-novo"><i class="fas fa-plus"></i> Novo cliente</button>`)+sub+
+    `<div class="pm-filtros"><input type="search" data-pm-busca placeholder="Buscar nome, documento, telefone, cidade…" value="${fe(PM.busca)}" style="min-width:260px"><span class="pm-mini">${L.length} cliente(s) · clientes novos das vendas entram no cadastro sozinhos</span></div>
+    <section class="gf-sec">${L.length?`<div class="pm-rolar"><table class="pm-tab2"><thead><tr><th>Cliente</th><th>Contato</th><th>Cidade</th><th>Canal</th><th>Tabela própria</th><th>Vendedor</th><th class="n">Comprou</th><th>Última entrega</th></tr></thead><tbody>
+      ${L.map(c=>{const t=tot(c);return `<tr class="pm-lin" data-pm="cli" data-id="${c.rowid}"><td><b>${fe(c.nome||'')}</b><small>${fe(c.doc||'')}</small></td><td>${fe(c.telefone||'')}</td><td>${fe([(c.end||{}).cidade,(c.end||{}).uf].filter(Boolean).join(' - '))}</td><td>${pill(c.canal==='atacado'?'atacado':'varejo',c.canal==='atacado'?'info':'')}</td>
+        <td>${(c.precos||[]).length?pill(`${(c.precos||[]).length} preço(s)`,'ok','fa-tags'):'—'}${num(c.desconto_pct)?` <small>desconto ${nf(num(c.desconto_pct),1)}%</small>`:''}</td><td>${fe(c.vendedor||'—')}</td><td class="n">${R(t.v)}<small>${t.n} entrega(s)</small></td><td>${t.ult?fe(brDe(dt(t.ult))):'—'}</td></tr>`;}).join('')}</tbody></table></div>`
+      :'<div class="gf-vazio"><i class="fas fa-address-book"></i><p>Nenhum cliente cadastrado.</p></div>'}</section>`;
+}
+function formCliente(reg){
+  const c=CFG(),b=reg?JSON.parse(JSON.stringify(reg)):{canal:'varejo',end:{cidade:c.cidade||'',uf:c.uf||'BA'},precos:[]},e=b.end||{},vends=(c.vendedores||[]).filter(x=>x&&x.nome);
+  const linP=x=>`<tr data-pr><td style="width:66px">${thumbBt(x.peca)}</td><td><select data-pp>${pecas().map(p=>`<option value="${p.rowid}" ${String(p.rowid)===String(x.peca)?'selected':''}>${fe(p.nome)}</option>`).join('')}</select></td><td><input data-pv data-mask="moeda" value="${x.preco?fe(R(num(x.preco))):''}" placeholder="R$ 0,00"></td><td class="pm-mini" data-pref></td><td><button type="button" class="pm-x" data-pmf="pr-x"><i class="fas fa-xmark"></i></button></td></tr>`;
+  const j=janela(reg?`Cliente — ${b.nome}`:'Novo cliente',`<div class="fin-linha">
+      <div class="fin-fld" style="grid-column:span 2"><label>Nome / razão social <span class="obg">*</span></label><input data-k="nome" value="${fe(b.nome||'')}"></div>
+      <div class="fin-fld"><label>CPF / CNPJ</label><input data-k="doc" value="${fe(b.doc||'')}"></div><div class="fin-fld"><label>Telefone / WhatsApp</label><input data-k="telefone" value="${fe(b.telefone||'')}"></div>
+      <div class="fin-fld"><label>E-mail</label><input data-k="email" value="${fe(b.email||'')}"></div>
+      <div class="fin-fld"><label>Canal</label><select data-k="canal"><option value="varejo" ${b.canal!=='atacado'?'selected':''}>Varejo</option><option value="atacado" ${b.canal==='atacado'?'selected':''}>Atacado</option></select></div>
+      <div class="fin-fld"><label>Vendedor</label><select data-k="vendedor"><option value="">—</option>${vends.map(x=>`<option ${x.nome===b.vendedor?'selected':''}>${fe(x.nome)}</option>`).join('')}</select></div>
+      <div class="fin-fld"><label>Desconto padrão (%)</label><input data-k="desconto_pct" value="${num(b.desconto_pct)?fe(String(b.desconto_pct)):''}"></div>
+      <div class="fin-fld"><label>CEP</label><input data-k="cep" value="${fe(e.cep||'')}"></div><div class="fin-fld" style="grid-column:span 2"><label>Endereço (rua)</label><input data-k="logradouro" value="${fe(e.logradouro||'')}" autocomplete="off" placeholder="digite a rua: o sistema sugere o endereço com o CEP"></div>
+      <div class="fin-fld"><label>Número</label><input data-k="numero" value="${fe(e.numero||'')}"></div><div class="fin-fld"><label>Complemento</label><input data-k="complemento" value="${fe(e.complemento||'')}"></div>
+      <div class="fin-fld"><label>Bairro</label><input data-k="bairro" value="${fe(e.bairro||'')}"></div><div class="fin-fld"><label>Cidade</label><input data-k="cidade" value="${fe(e.cidade||'')}"></div><div class="fin-fld"><label>UF</label><input data-k="uf" value="${fe(e.uf||'')}" maxlength="2"></div></div>
+    <div class="pm-bloco" style="margin-top:10px"><h5><i class="fas fa-tags"></i> Tabela de preços deste cliente</h5><p class="pm-mini" style="margin:-4px 0 6px">Preço combinado com o cliente: vale no lugar do varejo/atacado quando ele compra.</p>
+      <div class="pm-rolar"><table class="pm-itens"><thead><tr><th></th><th>Peça</th><th style="width:140px">Preço (R$)</th><th>Referência</th><th></th></tr></thead><tbody data-precos>${(b.precos||[]).map(linP).join('')}</tbody></table></div>
+      <button type="button" class="gf-bt mini" data-pmf="pr-add" style="margin-top:6px"><i class="fas fa-plus"></i> Preço</button></div>
+    <div class="fin-fld"><label>Observações</label><input data-k="obs" value="${fe(b.obs||'')}"></div>`,
+    [...(reg?[{html:'<i class="fas fa-trash"></i> Excluir',acao:async()=>{setTimeout(()=>apagarReg(reg,reg.nome),60);}}]:[]),
+     {html:'<i class="fas fa-floppy-disk"></i> Salvar cliente',cls:'pri',acao:async jj=>{const g=k=>String((jj.querySelector(`[data-k="${k}"]`)||{}).value||'').trim(),o=reg?{...reg}:{tipo:'cliente',data_lancamento:todayDateTime()};
+      ['nome','doc','telefone','email','canal','vendedor','obs'].forEach(k=>o[k]=g(k));o.desconto_pct=num(g('desconto_pct'));o.end={cep:g('cep'),logradouro:g('logradouro'),numero:g('numero'),complemento:g('complemento'),bairro:g('bairro'),cidade:g('cidade'),uf:g('uf').toUpperCase()};
+      o.precos=[...jj.querySelectorAll('[data-pr]')].map(tr=>({peca:tr.querySelector('[data-pp]').value,preco:r2(num(tr.querySelector('[data-pv]').value))})).filter(x=>x.preco>0);
+      if(!o.nome)throw new Error('Informe o nome do cliente.');const dup=cliDe(o.nome);if(dup&&(!reg||String(dup.rowid)!==String(reg.rowid)))throw new Error('Já existe um cliente com esse nome.');
+      await gravar(o,reg?reg.rowid:null);toast('Cliente salvo.','success');}}],940);
+  const at=()=>j.querySelectorAll('[data-pr]').forEach(tr=>{const p=pecaDe(tr.querySelector('[data-pp]').value);if(!p)return;const x=calc(p,1);tr.querySelector('[data-pref]').textContent=`varejo ${R(x.preco||x.sug)}${num(p.preco_atacado)?` · atacado ${R(num(p.preco_atacado))}`:''} · custo ${R(x.un)}`;});
+  const corpo=j.querySelector('.fin-jan-corpo');
+  corpo.addEventListener('click',ev=>{const b2=ev.target.closest('[data-pmf]');if(!b2)return;const f=b2.dataset.pmf;
+    if(f==='pick'){const tr=b2.closest('tr'),s=tr.querySelector('[data-pp]');return escolherPeca(s.value,pid=>{s.value=pid;s.dispatchEvent(new Event('change',{bubbles:true}));});}
+    if(f==='pr-add'){j.querySelector('[data-precos]').insertAdjacentHTML('beforeend',linP({peca:pecas()[0].rowid,preco:''}));pintarFotos(j);}else if(f==='pr-x')b2.closest('tr').remove();at();});
+  corpo.addEventListener('change',ev=>{if(ev.target.matches('[data-pp]'))trocarThumb(ev.target.closest('tr'),ev.target.value);at();});
+  ligarEndereco(j);pintarFotos(j);at();
+}
+/* ── vendedores e comissões (sobre o valor das peças entregues, sem o frete, menos devoluções) ── */
+function baseComissao(v){return Math.max(0,totalVenda(v)-num(v.frete)-(v.devolucoes||[]).reduce((s,d)=>s+num(d.estorno),0));}
+function comissoesMes(k){
+  const o={};vendas().filter(v=>(v.status==='entregue'||v.status==='devolvida')&&v.vendedor&&dt(v.entrega)&&mesKey(dt(v.entrega))===k).forEach(v=>{const x=o[v.vendedor]=o[v.vendedor]||{vendas:[],base:0,com:0,pago:0};
+    const b=baseComissao(v);x.vendas.push(v);x.base+=b;x.com+=b*num(v.comissao_pct)/100;});
+  T('custo').filter(c=>c.categoria==='Comissões de vendedores'&&c.mes_ref===k&&c.vendedor).forEach(c=>{const x=o[c.vendedor]=o[c.vendedor]||{vendas:[],base:0,com:0,pago:0};x.pago+=num(c.valor);});
+  Object.values(o).forEach(x=>{x.com=r2(x.com);x.aPagar=r2(Math.max(0,x.com-x.pago));});return o;
+}
+function telaVendedores(sub){
+  const c=CFG(),k=PM.mes,cm=comissoesMes(k),vends=c.vendedores||[];
+  const linV=x=>`<div class="fin-linha" data-lin="vend" style="margin-bottom:6px;grid-template-columns:1fr 140px 170px 36px"><div class="fin-fld"><input data-vn value="${fe(x.nome||'')}" placeholder="Nome"></div><div class="fin-fld"><input data-vp value="${x.pct!=null&&x.pct!==''?fe(String(x.pct).replace('.',',')):''}" placeholder="Comissão %" data-sem-mascara="1" inputmode="decimal"></div><div class="fin-fld"><input data-vt value="${fe(x.telefone||'')}" placeholder="Telefone"></div><button type="button" class="pm-x" data-pm="cfg-x"><i class="fas fa-xmark"></i></button></div>`;
+  PM._linVend=linV;
+  const nomes=[...new Set(vends.map(x=>x.nome).filter(Boolean).concat(Object.keys(cm)))];
+  return cabG('Vendedores e comissões','A comissão é calculada sobre o valor das peças entregues no mês (sem o frete e descontadas as devoluções), pelo percentual gravado em cada venda. Ao pagar, o valor sai no fluxo de caixa.',GS.selMes(k,'data-pm-mes',12,0))+sub+
+    `<section class="gf-sec"><div class="gf-sec-cab"><div><h3>Comissões de ${fe(mesNome(k))}</h3><p>Clique em <b>Pagar</b> para lançar o pagamento no caixa da fábrica.</p></div></div>
+      ${nomes.length?`<div class="pm-rolar"><table class="pm-tab2"><thead><tr><th>Vendedor</th><th class="n">Entregas</th><th class="n">Base</th><th class="n">Comissão</th><th class="n">Pago</th><th class="n">A pagar</th><th></th></tr></thead><tbody>
+      ${nomes.map(n=>{const x=cm[n]||{vendas:[],base:0,com:0,pago:0,aPagar:0};return `<tr><td><b>${fe(n)}</b><small>${fe(((vends.find(v=>v.nome===n)||{}).pct!=null?nf(num((vends.find(v=>v.nome===n)||{}).pct),1)+'% padrão':''))}</small></td><td class="n">${x.vendas.length}</td><td class="n">${R(x.base)}</td><td class="n">${R(x.com)}</td><td class="n">${R(x.pago)}</td><td class="n" style="${x.aPagar>0?'color:#B54708;font-weight:800':''}">${R(x.aPagar)}</td>
+        <td>${x.aPagar>0?`<button type="button" class="gf-bt mini pri" data-pm="com-pagar" data-nome="${fe(n)}"><i class="fas fa-hand-holding-dollar"></i> Pagar</button>`:''}</td></tr>`;}).join('')}</tbody></table></div>`:'<div class="gf-vazio"><i class="fas fa-user-tie"></i><p>Cadastre os vendedores abaixo.</p></div>'}</section>
+    <section class="gf-sec"><div class="gf-sec-cab"><div><h3>Cadastro de vendedores</h3><p>Percentual padrão de comissão de cada um (pode ser mudado em cada venda).</p></div><button type="button" class="gf-bt mini" data-pm="vend-add"><i class="fas fa-plus"></i> Vendedor</button></div>
+      <div data-vends>${vends.map(linV).join('')||'<p class="pm-mini" data-vazio>Ninguém cadastrado.</p>'}</div>
+      <div style="display:flex;justify-content:flex-end;margin-top:8px"><button type="button" class="gf-bt pri" data-pm="vend-salvar"><i class="fas fa-floppy-disk"></i> Salvar vendedores</button></div></section>`;
+}
+async function salvarVendedores(){const box=document.querySelector('#pm-app [data-vends]');if(!box)return;
+  const L=[...box.querySelectorAll('[data-lin="vend"]')].map(d=>({nome:d.querySelector('[data-vn]').value.trim(),pct:parseFloat(String(d.querySelector('[data-vp]').value).replace(',','.'))||0,telefone:d.querySelector('[data-vt]').value.trim()})).filter(x=>x.nome);
+  try{await salvarCfg(c=>{c.vendedores=L;});toast('Vendedores salvos.','success');}catch(e){toast(e.message,'error');}}
+function pagarComissao(nome){const k=PM.mes,x=comissoesMes(k)[nome];if(!x||!(x.aPagar>0))return;
+  confirmar('Pagar comissão?',`Lançar o pagamento de <b>${R(x.aPagar)}</b> a <b>${fe(nome)}</b> (comissão de ${fe(mesNome(k))}) no caixa da fábrica, com data de hoje?`,'Sim, pagar',async()=>{
+    await gravar({tipo:'custo',categoria:'Comissões de vendedores',vendedor:nome,mes_ref:k,valor:x.aPagar,descricao:`Comissão de ${nome} — ${mesNome(k)}`,data:hojeISO(),pago_em:hojeISO(),data_lancamento:todayDateTime()},null);toast('Comissão paga e lançada no caixa.','success');});}
 async function moverVenda(id,col){
   const v=vendaDe(id);if(!v)return;const f=faseVenda(v);
   if(col==='entregue'&&f==='liberado')return entregar(v);
@@ -1095,35 +1422,58 @@ function ligarEndereco(j){
     const n=q('numero');if(n)n.focus();});
   rua.addEventListener('blur',()=>setTimeout(()=>caixa.style.display='none',200));
 }
-const endTxt=e=>e?[e.logradouro?(e.logradouro+(e.numero?', '+e.numero:'')+(e.complemento?' ('+e.complemento+')':'')):'',e.bairro,[e.cidade,e.uf].filter(Boolean).join(' - '),e.cep?'CEP '+e.cep:''].filter(Boolean).join(' · '):'';
-function precoPara(p,canal,qtd){const x=calc(p,1),var_=x.preco||r2(x.sug),at=num(p.preco_atacado),min=num(p.atacado_min);return at&&(canal==='atacado'||(min&&qtd>=min))?at:var_;}
+const endTxt=e=>e?[e.logradouro?(e.logradouro+(e.numero?', '+e.numero:'')+(e.complemento?' ('+e.complemento+')':'')):'',e.bairro,[e.cidade,/[,-]\s*[A-Za-z]{2}\s*$/.test(e.cidade||'')?'':e.uf].filter(Boolean).join(' - '),e.cep?'CEP '+e.cep:''].filter(Boolean).join(' · '):'';
+// preço de cada peça: tabela do cliente > atacado (canal atacado) > varejo (ou o sugerido)
+function precoPara(p,canal,cli){const tb=cli&&(cli.precos||[]).find(x=>String(x.peca)===String(p.rowid));if(tb&&num(tb.preco)>0)return {v:num(tb.preco),orig:'cliente'};
+  const x=calc(p,1),at=num(p.preco_atacado);if(canal==='atacado'&&at)return {v:at,orig:'atacado'};return {v:x.preco||r2(x.sug),orig:x.preco?'varejo':'sugerido'};}
+/* frete: tabela por cidade ou por km (distância pelo mapa aberto OpenStreetMap; sem rota, linha reta × 1,3) */
+const normTx=s=>String(s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').trim().toLowerCase();
+// "Potiraguá, BA" (cidade do campo com sugestão do IBGE) e "Potiraguá" valem a mesma cidade
+const cidN=s=>normTx(String(s||'').replace(/\s*[,-]\s*[A-Za-z]{2}\s*$/,''));
+async function geocod(e){const q=[e.logradouro?(e.logradouro+(e.numero?', '+e.numero:'')):'',String(e.cidade||'').replace(/\s*[,-]\s*[A-Za-z]{2}\s*$/,''),e.uf,'Brasil'].filter(Boolean).join(', ');
+  const r=await(await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=br&q=${encodeURIComponent(q)}`,{headers:{'Accept-Language':'pt-BR'}})).json();
+  if(!r||!r[0]){if(e.logradouro)return geocod({cidade:e.cidade,uf:e.uf});throw new Error('Não achei no mapa: '+q);}return [+r[0].lat,+r[0].lon];}
+async function distanciaKm(a,b){const A=await geocod(a),B=await geocod(b);
+  try{const j=await(await fetch(`https://router.project-osrm.org/route/v1/driving/${A[1]},${A[0]};${B[1]},${B[0]}?overview=false`)).json();if(j&&j.routes&&j.routes[0])return {km:j.routes[0].distance/1000,rota:true};}catch(e){}
+  const rad=Math.PI/180,dLa=(B[0]-A[0])*rad,dLo=(B[1]-A[1])*rad,h=Math.sin(dLa/2)**2+Math.cos(A[0]*rad)*Math.cos(B[0]*rad)*Math.sin(dLo/2)**2;return {km:2*6371*Math.asin(Math.sqrt(h))*1.3,rota:false};}
+async function calcularFrete(end){
+  const c=CFG(),F=c.frete||{},tab=(F.cidades||[]).find(x=>cidN(x.cidade)===cidN(end.cidade)&&(!x.uf||!end.uf||normTx(x.uf)===normTx(end.uf)));
+  if(tab&&num(tab.valor)>0)return {valor:r2(num(tab.valor)),info:`tabela por cidade (${tab.cidade})`};
+  if(!end.cidade)throw new Error('Informe a cidade do endereço de entrega.');if(!(num(F.rs_km)>0))throw new Error('Cadastre o valor por km (ou a tabela de cidades) em Parâmetros › Entregas e frete.');
+  const o=F.origem&&F.origem.cidade?F.origem:{cidade:c.cidade,uf:c.uf};if(!o.cidade)throw new Error('Informe o endereço da fábrica em Parâmetros › Entregas e frete.');
+  const {km,rota}=await distanciaKm(o,end),iv=F.ida_volta!==false,kmC=Math.max(num(F.km_min),km*(iv?2:1));
+  return {valor:r2(kmC*num(F.rs_km)),km,info:`${nf(km,0)} km${rota?'':' (aprox.)'}${iv?` · ida e volta ${nf(km*2,0)} km`:''}${kmC>km*(iv?2:1)?` · mínimo ${nf(num(F.km_min),0)} km`:''} × ${R(num(F.rs_km))}/km`};
+}
 function formVenda(reg){
   if(!pecas().length)return toast('Cadastre as peças primeiro (Peças e catálogo).','error');
   const c=CFG(),E=estoque(),b=reg?JSON.parse(JSON.stringify(reg)):{data:hojeISO(),tipo_venda:'encomenda',canal:'varejo',itens:[{peca:pecas()[0].rowid,qtd:'',preco:''}],end:{cidade:c.cidade||'',uf:c.uf||'BA'},nf:{quer:false}};
   const ops=reg?opsDaVenda(reg):[],iniciada=ops.some(opIniciada),travarItens=!!reg&&(iniciada||['entregue','devolvida','cancelada'].includes(reg.status)||(reg.status==='reservado'&&reg.tipo_venda==='pronta'&&pagoDe(reg)>0));
-  const clientes=T('cliente');
-  const itemLin=it=>`<tr data-item><td><select data-i="peca" ${travarItens?'disabled':''}>${pecas().map(p=>`<option value="${p.rowid}" ${String(p.rowid)===String(it.peca)?'selected':''}>${fe(p.nome)}</option>`).join('')}</select></td>
+  const clientes=T('cliente'),vends=(c.vendedores||[]).filter(x=>x&&x.nome);
+  const itemLin=it=>`<tr data-item><td style="width:66px">${thumbBt(it.peca)}</td><td><select data-i="peca" ${travarItens?'disabled':''}>${pecas().map(p=>`<option value="${p.rowid}" ${String(p.rowid)===String(it.peca)?'selected':''}>${fe(p.nome)}</option>`).join('')}</select></td>
     <td><input data-i="qtd" inputmode="numeric" value="${fe(String(it.qtd||''))}" placeholder="0" ${travarItens?'readonly':''}></td><td><input data-i="preco" data-mask="moeda" value="${it.preco!==''&&it.preco!=null?fe(R(num(it.preco))):''}" ${travarItens?'readonly':''}></td>
-    <td data-i="disp" class="pm-mini" style="white-space:nowrap"></td><td class="n" data-i="tot" style="white-space:nowrap;text-align:right"></td><td>${travarItens?'':'<button type="button" class="pm-x" data-pmf="item-x"><i class="fas fa-xmark"></i></button>'}</td></tr>`;
+    <td data-i="disp" class="pm-mini" style="min-width:150px"></td><td class="n" data-i="tot" style="white-space:nowrap;text-align:right"></td><td>${travarItens?'':'<button type="button" class="pm-x" data-pmf="item-x"><i class="fas fa-xmark"></i></button>'}</td></tr>`;
   const e=b.end||{},sel=(k,ops2,v)=>`<select data-k="${k}">${ops2.map(([a,l])=>`<option value="${a}" ${a===v?'selected':''}>${l}</option>`).join('')}</select>`;
   const j=janela(reg?`Editar venda nº ${reg.numero}`:'Nova venda',`${travarItens&&reg?`<div class="fin-aviso laranja"><div>${iniciada?'A produção desta venda <b>já começou</b>: os itens não podem mais ser mudados (só contato, endereço, prazo e observações).':'Os itens desta venda não podem mais ser mudados.'}</div></div>`:''}
     <div class="fin-linha" style="margin-top:6px">
       <div class="fin-fld"><label>Tipo de venda</label>${sel('tipo_venda',[['encomenda','Encomenda (reserva com sinal)'],['pronta','Pronta entrega (peça pronta)']],b.tipo_venda||'encomenda')}</div>
       <div class="fin-fld"><label>Canal / tabela de preço</label>${sel('canal',[['varejo','Varejo'],['atacado','Atacado']],b.canal||'varejo')}</div>
       <div class="fin-fld"><label>Data do pedido <span class="obg">*</span></label><input type="date" data-k="data" value="${fe(b.data||'')}"></div>
-      <div class="fin-fld"><label>Entrega prevista</label><input type="date" data-k="prazo_entrega" value="${fe(b.prazo_entrega||'')}"></div></div>
+      <div class="fin-fld"><label>Entrega prevista</label><input type="date" data-k="prazo_entrega" value="${fe(b.prazo_entrega||'')}"></div>
+      <div class="fin-fld"><label>Vendedor</label><select data-k="vendedor"><option value="">— sem vendedor —</option>${vends.concat(b.vendedor&&!vends.some(x=>x.nome===b.vendedor)?[{nome:b.vendedor}]:[]).map(x=>`<option ${x.nome===b.vendedor?'selected':''}>${fe(x.nome)}</option>`).join('')}</select></div>
+      <div class="fin-fld"><label>Comissão (%)</label><input data-k="comissao_pct" value="${b.comissao_pct!=null&&b.comissao_pct!==''?fe(String(b.comissao_pct)):''}"></div></div>
     <div class="pm-bloco" style="margin-top:10px"><h5><i class="fas fa-user"></i> Cliente</h5><div class="fin-linha">
-      <div class="fin-fld" style="grid-column:span 2"><label>Nome / razão social <span class="obg">*</span></label><input data-k="cliente" value="${fe(b.cliente||'')}" list="pm-clientes"></div>
+      <div class="fin-fld" style="grid-column:span 2"><label>Nome / razão social <span class="obg">*</span></label><input data-k="cliente" value="${fe(b.cliente||'')}" list="pm-clientes" placeholder="cliente do cadastro ou novo"></div>
       <div class="fin-fld"><label>CPF / CNPJ</label><input data-k="doc" value="${fe(b.doc||'')}"></div><div class="fin-fld"><label>Telefone / WhatsApp</label><input data-k="telefone" value="${fe(b.telefone||'')}"></div>
       <div class="fin-fld"><label>CEP</label><input data-k="cep" value="${fe(e.cep||'')}" placeholder="00000-000"></div>
       <div class="fin-fld" style="grid-column:span 2"><label>Endereço de entrega (rua)</label><input data-k="logradouro" value="${fe(e.logradouro||'')}" placeholder="digite a rua: o sistema sugere o endereço com o CEP" autocomplete="off"></div>
       <div class="fin-fld"><label>Número</label><input data-k="numero" value="${fe(e.numero||'')}"></div><div class="fin-fld"><label>Complemento</label><input data-k="complemento" value="${fe(e.complemento||'')}"></div>
-      <div class="fin-fld"><label>Bairro</label><input data-k="bairro" value="${fe(e.bairro||'')}"></div><div class="fin-fld"><label>Cidade</label><input data-k="cidade" value="${fe(e.cidade||'')}"></div><div class="fin-fld"><label>UF</label><input data-k="uf" value="${fe(e.uf||'')}" maxlength="2"></div></div></div>
+      <div class="fin-fld"><label>Bairro</label><input data-k="bairro" value="${fe(e.bairro||'')}"></div><div class="fin-fld"><label>Cidade</label><input data-k="cidade" value="${fe(e.cidade||'')}"></div><div class="fin-fld"><label>UF</label><input data-k="uf" value="${fe(e.uf||'')}" maxlength="2"></div></div>
+      <p class="pm-mini" data-cli-info style="margin:6px 0 0"></p></div>
     <datalist id="pm-clientes">${clientes.map(x=>`<option value="${fe(x.nome)}">`).join('')}</datalist>
-    <div class="pm-bloco"><h5><i class="fas fa-cubes"></i> Itens</h5><div class="pm-rolar"><table class="pm-itens"><thead><tr><th>Peça</th><th style="width:80px">Quant.</th><th style="width:130px">Preço unit. (R$)</th><th>Estoque</th><th style="width:100px;text-align:right">Total</th><th></th></tr></thead><tbody data-itens>${(b.itens||[]).map(itemLin).join('')}</tbody></table></div>
+    <div class="pm-bloco"><h5><i class="fas fa-cubes"></i> Itens</h5><div class="pm-rolar"><table class="pm-itens"><thead><tr><th></th><th>Peça</th><th style="width:80px">Quant.</th><th style="width:130px">Preço unit. (R$)</th><th>Estoque e preço</th><th style="width:100px;text-align:right">Total</th><th></th></tr></thead><tbody data-itens>${(b.itens||[]).map(itemLin).join('')}</tbody></table></div>
       ${travarItens?'':'<button type="button" class="gf-bt mini" data-pmf="item-add" style="margin-top:6px"><i class="fas fa-plus"></i> Item</button>'}</div>
     <div class="fin-linha"><div class="fin-fld"><label>Desconto (%)</label><input data-k="desconto_pct" value="${b.desconto_pct?fe(String(b.desconto_pct)):''}" ${travarItens?'readonly':''}></div><div class="fin-fld"><label>Desconto em reais</label><input data-k="desc_rs" readonly></div>
-      <div class="fin-fld"><label>Frete (R$)</label><input data-k="frete" value="${num(b.frete)?fe(R(num(b.frete))):''}" ${travarItens?'readonly':''}></div>
+      <div class="fin-fld"><label>Frete (R$)</label><div style="display:flex;gap:6px"><input data-k="frete" value="${num(b.frete)?fe(R(num(b.frete))):''}" ${travarItens?'readonly':''} style="flex:1;min-width:0">${travarItens?'':'<button type="button" class="gf-bt mini" data-pmf="frete" title="Calcular pelo endereço"><i class="fas fa-route"></i> Calcular</button>'}</div><small class="pm-mini" data-frete-info>${fe(b.frete_info||'')}</small></div>
       <div class="fin-fld"><label>Cliente quer nota fiscal?</label><select data-k="nf_quer"><option value="nao" ${!(b.nf||{}).quer?'selected':''}>Não</option><option value="sim" ${(b.nf||{}).quer?'selected':''}>Sim</option></select></div>
       <div class="fin-fld" data-nf-num ${(b.nf||{}).quer?'':'hidden'}><label>Nº da nota fiscal</label><input data-k="nf_numero" value="${fe((b.nf||{}).numero||'')}" placeholder="preencher ao emitir"></div>
       <div class="fin-fld" style="grid-column:1/-1"><label>Observações</label><input data-k="obs" value="${fe(b.obs||'')}"></div></div>
@@ -1135,53 +1485,71 @@ function formVenda(reg){
      {html:'<i class="fas fa-floppy-disk"></i> Salvar e ver o pedido',cls:'pri',acao:async jj=>{
       if(reg&&GS.podeMexer&&!GS.podeMexer(reg)&&!ehAdm())throw new Error(GS.MSG_DONO);
       const g=k=>String((jj.querySelector(`[data-k="${k}"]`)||{}).value||'').trim(),o=reg?{...reg}:{tipo:'venda',numero:proxNum('venda','numero'),pagamentos:[],data_lancamento:todayDateTime()};
-      ['cliente','doc','telefone','data','prazo_entrega','obs','tipo_venda','canal'].forEach(k=>o[k]=g(k));
+      ['cliente','doc','telefone','data','prazo_entrega','obs','tipo_venda','canal','vendedor'].forEach(k=>o[k]=g(k));o.comissao_pct=o.vendedor?num(g('comissao_pct')):0;
       o.end={cep:g('cep'),logradouro:g('logradouro'),numero:g('numero'),complemento:g('complemento'),bairro:g('bairro'),cidade:g('cidade'),uf:g('uf').toUpperCase()};
       o.nf={quer:g('nf_quer')==='sim',numero:g('nf_numero')};
-      if(!travarItens){o.itens=lerItens(jj);o.desconto_pct=num(g('desconto_pct'));o.frete=r2(num(g('frete')));delete o.desconto;}
+      if(!travarItens){o.itens=lerItens(jj);o.desconto_pct=num(g('desconto_pct'));o.frete=r2(num(g('frete')));o.frete_info=(jj.querySelector('[data-frete-info]')||{}).textContent||'';if(/^Calculando/.test(o.frete_info))throw new Error('Espere o cálculo do frete terminar.');delete o.desconto;}
       if(!o.cliente)throw new Error('Informe o cliente.');if(!o.data)throw new Error('Informe a data do pedido.');if(!(o.itens||[]).length)throw new Error('Inclua ao menos um item com quantidade.');
       if(o.desconto_pct<0||o.desconto_pct>=100)throw new Error('O desconto deve ficar entre 0% e 99%.');
       o.total=totalVenda(o);const tot=o.total;
-      // pagamento na criação
       if(!reg){const pv=r2(num(g('pg_valor')));if(pv>0)o.pagamentos=[{data:hojeISO(),valor:pv,forma:g('pg_forma'),tipo:o.tipo_venda==='pronta'?'pagamento':'sinal',por:eu()}];}
       const pago=pagoDe(o),sinalMin=r2(tot*num(c.sinal)/100);
       if(o.tipo_venda==='pronta'){
-        // pronta entrega: peça livre e pagamento completo
         const falta=(o.itens||[]).filter(it=>{const x=E.P[String(it.peca)]||{livre:0},minha=reg&&reg.status==='reservado'?(reg.itens||[]).filter(z=>String(z.peca)===String(it.peca)).reduce((s,z)=>s+num(z.qtd),0):0;return num(it.qtd)>x.livre+minha;});
         if(falta.length&&!travarItens)throw new Error(`Sem peça pronta livre para: ${falta.map(it=>nomePeca(it.peca)).join(', ')}. Mude para Encomenda (reserva com sinal).`);
         if(!reg&&pago<tot-0.009)throw new Error(`Pronta entrega precisa estar paga: informe o pagamento de ${R(tot)}.`);
         if(!reg)o.status=jj.querySelector('[data-k="levou"]')&&jj.querySelector('[data-k="levou"]').checked?'entregue':'reservado';
         if(o.status==='entregue'&&!o.entrega)o.entrega=hojeISO();
       }else if(!reg){o.status=pago>=sinalMin-0.009?'reservado':'aguardando_sinal';}
-      // salvar e, se reservou agora, gerar a produção do que falta (uma vez); edição sem produção iniciada atualiza as ordens
       const mud=[[o,reg?reg.rowid:null]];
       if(reg&&!travarItens&&ops.length){ops.forEach(op=>mud.push([{...op,status:'cancelada',obs:(op.obs?op.obs+' · ':'')+'refeita pela edição da venda'},op.rowid]));o.ops_geradas=false;}
+      // cliente novo entra no cadastro sozinho
+      if(!cliDe(o.cliente))mud.push([{tipo:'cliente',nome:o.cliente,doc:o.doc,telefone:o.telefone,canal:o.canal,vendedor:o.vendedor,end:o.end,precos:[],data_lancamento:todayDateTime()},null]);
       await gravarVarios(mud);
       let v=vendas().find(x=>num(x.numero)===num(o.numero)&&x.tipo==='venda');
       if(v&&v.status==='reservado'&&v.tipo_venda!=='pronta'&&!v.ops_geradas)await gerarProducaoVenda(v);
       v=vendas().find(x=>num(x.numero)===num(o.numero));
       toast(reg?'Venda salva.':`Venda nº ${o.numero} criada${o.status==='aguardando_sinal'?' — aguardando o sinal para reservar':o.status==='entregue'?' e entregue':''}.`,'success');
-      if(v)setTimeout(()=>fichaVenda(v),120);}}],980);
+      if(v)setTimeout(()=>fichaVenda(v),120);}}],1040);
+  const cliAtual=()=>cliDe((j.querySelector('[data-k="cliente"]')||{}).value),canalAtual=()=>(j.querySelector('[data-k="canal"]')||{}).value||'varejo';
   const atVis=()=>{const tp=j.querySelector('[data-k="tipo_venda"]').value,pg=j.querySelector('[data-pg]');if(pg){j.querySelector('[data-pg-tit]').textContent=tp==='pronta'?'Pagamento (pronta entrega: tem que estar pago)':`Sinal recebido agora (mínimo ${nf(num(c.sinal),0)}% para reservar)`;j.querySelector('[data-pg-levou]').hidden=tp!=='pronta';}
     j.querySelector('[data-nf-num]').hidden=j.querySelector('[data-k="nf_quer"]').value!=='sim';};
-  const at=()=>{const its=lerItens(j),canal=j.querySelector('[data-k="canal"]').value;
+  const at=()=>{if(!j.isConnected||!j.querySelector('[data-v-tot]'))return;const its=lerItens(j),cli=cliAtual(),canal=canalAtual();
     j.querySelectorAll('[data-item]').forEach(tr=>{const p=pecaDe(tr.querySelector('[data-i="peca"]').value),q=num(tr.querySelector('[data-i="qtd"]').value),pr=num(tr.querySelector('[data-i="preco"]').value),x=E.P[String(p&&p.rowid)]||{livre:0,emProd:0};
-      tr.querySelector('[data-i="tot"]').textContent=q?R(q*pr):'';tr.querySelector('[data-i="disp"]').innerHTML=`${nf(Math.max(0,x.livre),0)} livres${x.emProd?` · ${nf(x.emProd,0)} em produção`:''}`;});
+      tr.querySelector('[data-i="tot"]').textContent=q?R(q*pr):'';if(!p)return;
+      const base=precoPara(p,canal,cli),at2=num(p.preco_atacado),min=num(p.atacado_min);let h=`${nf(Math.max(0,x.livre),0)} livres${x.emProd?` · ${nf(x.emProd,0)} em produção`:''}`;
+      if(base.orig==='cliente')h+=`<br><span class="pm-at az"><i class="fas fa-tags"></i> tabela do cliente</span>`;
+      else if(at2&&Math.abs(pr-at2)<0.009)h+=`<br><span class="pm-at"><i class="fas fa-tags"></i> preço de atacado</span>`;
+      else if(at2&&min&&q>=min)h+=`<br><span class="pm-at"><i class="fas fa-tags"></i> ${nf(q,0)} pç: pode usar atacado ${R(at2)} <button type="button" data-pmf="usar-at" data-v="${at2}">usar</button></span>`;
+      else if(at2&&min)h+=`<br><small>atacado a partir de ${nf(min,0)} pç: ${R(at2)}</small>`;
+      else if(at2)h+=`<br><small>atacado: ${R(at2)}</small>`;
+      tr.querySelector('[data-i="disp"]').innerHTML=h;});
     const dp=num(j.querySelector('[data-k="desconto_pct"]').value),bruto=its.reduce((s,it)=>s+it.qtd*it.preco,0);j.querySelector('[data-k="desc_rs"]').value=R(bruto*dp/100);
     const tot=r2(bruto-r2(bruto*dp/100)+num(j.querySelector('[data-k="frete"]').value));j.querySelector('[data-v-tot]').textContent=R(tot);
     const falta=its.filter(it=>{const x=E.P[String(it.peca)]||{livre:0};const minha=reg&&reg.status==='reservado'?(reg.itens||[]).filter(z=>String(z.peca)===String(it.peca)).reduce((s,z)=>s+num(z.qtd),0):0;return it.qtd>x.livre+minha;});
     j.querySelector('[data-v-est]').innerHTML=falta.length?`<span style="color:#B54708"><i class="fas fa-industry"></i> sem peça livre: ${falta.map(it=>fe(nomePeca(it.peca))).join(', ')} — vira encomenda e a produção sai sozinha</span>`:'<span style="color:#067647"><i class="fas fa-check"></i> tudo pronto no estoque</span>';
     const dica=j.querySelector('[data-pg-dica]');if(dica){const tp=j.querySelector('[data-k="tipo_venda"]').value;dica.innerHTML=tp==='pronta'?`Valor a receber: <b>${R(tot)}</b>.`:`Sinal mínimo (${nf(num(c.sinal),0)}%): <b>${R(tot*num(c.sinal)/100)}</b>. Sem o sinal, o pedido fica "aguardando sinal" e não reserva peça nem gera produção.`;}
-    void canal;};
+    const ci=j.querySelector('[data-cli-info]');if(ci)ci.innerHTML=cli?`<i class="fas fa-address-book"></i> Cliente do cadastro${cli.canal==='atacado'?' · atacado':''}${(cli.precos||[]).length?` · ${(cli.precos||[]).length} preço(s) próprio(s)`:''}${num(cli.desconto_pct)?` · desconto padrão ${nf(num(cli.desconto_pct),1)}%`:''}`:(j.querySelector('[data-k="cliente"]').value.trim()?'<i class="fas fa-user-plus"></i> Cliente novo: entra no cadastro ao salvar.':'');};
+  const reprecificar=tr0=>{if(travarItens)return;const cli=cliAtual(),canal=canalAtual();j.querySelectorAll('[data-item]').forEach(tr=>{if(tr0&&tr!==tr0)return;const p=pecaDe(tr.querySelector('[data-i="peca"]').value);if(p)tr.querySelector('[data-i="preco"]').value=R(precoPara(p,canal,cli).v);});};
   const corpo=j.querySelector('.fin-jan-corpo');
-  corpo.addEventListener('input',()=>{clearTimeout(j._pmT);j._pmT=setTimeout(at,100);});
+  corpo.addEventListener('input',ev=>{if(ev.target.matches('[data-k="frete"]')){const fi=j.querySelector('[data-frete-info]');if(fi)fi.textContent='';}clearTimeout(j._pmT);j._pmT=setTimeout(at,100);});
   corpo.addEventListener('change',ev=>{const t=ev.target;
-    if(t.matches('[data-i="peca"]')||t.matches('[data-k="canal"]')||t.matches('[data-i="qtd"]')){const canal=j.querySelector('[data-k="canal"]').value;j.querySelectorAll('[data-item]').forEach(tr=>{if(t.matches('[data-i]')&&tr!==t.closest('tr'))return;const p=pecaDe(tr.querySelector('[data-i="peca"]').value);if(p)tr.querySelector('[data-i="preco"]').value=R(precoPara(p,canal,num(tr.querySelector('[data-i="qtd"]').value)));});}
-    if(t.matches('[data-k="cliente"]')){const cl=clientes.find(x=>x.nome===t.value);if(cl){const s=(k,v)=>{const e2=j.querySelector(`[data-k="${k}"]`);if(e2&&v&&!e2.value)e2.value=v;};s('doc',cl.doc);s('telefone',cl.telefone);const en=cl.end||{};['cep','logradouro','numero','complemento','bairro','cidade','uf'].forEach(k=>s(k,en[k]));if(cl.canal){j.querySelector('[data-k="canal"]').value=cl.canal;}}}
+    if(t.matches('[data-i="peca"]')){const tr=t.closest('tr');trocarThumb(tr,t.value);reprecificar(tr);}
+    if(t.matches('[data-k="canal"]'))reprecificar(null);
+    if(t.matches('[data-k="vendedor"]')){const vd=vends.find(x=>x.nome===t.value),ce=j.querySelector('[data-k="comissao_pct"]');if(ce)ce.value=vd&&vd.pct!=null?nf(num(vd.pct),2):'';}
+    if(t.matches('[data-k="cliente"]')){const cl=cliDe(t.value);if(cl){const s=(k,v)=>{const e2=j.querySelector(`[data-k="${k}"]`);if(e2&&v!=null&&v!==''&&!e2.value)e2.value=v;};s('doc',cl.doc);s('telefone',cl.telefone);const en=cl.end||{};['cep','logradouro','numero','complemento','bairro','cidade','uf'].forEach(k=>s(k,en[k]));
+      if(cl.canal)j.querySelector('[data-k="canal"]').value=cl.canal;if(cl.vendedor&&!j.querySelector('[data-k="vendedor"]').value){j.querySelector('[data-k="vendedor"]').value=cl.vendedor;const vd=vends.find(x=>x.nome===cl.vendedor),ce=j.querySelector('[data-k="comissao_pct"]');if(vd&&ce)ce.value=nf(num(vd.pct),2);}
+      if(num(cl.desconto_pct)&&!j.querySelector('[data-k="desconto_pct"]').value)j.querySelector('[data-k="desconto_pct"]').value=nf(num(cl.desconto_pct),2);reprecificar(null);}}
     atVis();at();});
-  corpo.addEventListener('click',ev=>{const b2=ev.target.closest('[data-pmf]');if(!b2)return;if(b2.dataset.pmf==='item-add'){const p0=pecas()[0];j.querySelector('[data-itens]').insertAdjacentHTML('beforeend',itemLin({peca:p0.rowid,qtd:'',preco:precoPara(p0,j.querySelector('[data-k="canal"]').value,0)}));}else if(b2.dataset.pmf==='item-x'){b2.closest('tr').remove();}at();});
-  if(!reg)j.querySelectorAll('[data-item]').forEach(tr=>{const p=pecaDe(tr.querySelector('[data-i="peca"]').value);const pr=tr.querySelector('[data-i="preco"]');if(p&&!pr.value)pr.value=R(precoPara(p,'varejo',0));});
-  ligarEndereco(j);atVis();at();
+  corpo.addEventListener('click',async ev=>{const b2=ev.target.closest('[data-pmf]');if(!b2)return;const f=b2.dataset.pmf;
+    if(f==='pick'){if(travarItens)return ampliar(b2.dataset.th);const tr=b2.closest('tr'),s=tr.querySelector('[data-i="peca"]');return escolherPeca(s.value,pid=>{s.value=pid;s.dispatchEvent(new Event('change',{bubbles:true}));});}
+    if(f==='usar-at'){const tr=b2.closest('tr');tr.querySelector('[data-i="preco"]').value=R(num(b2.dataset.v));}
+    if(f==='frete'){const gv=k=>String(j.querySelector(`[data-k="${k}"]`).value||'').trim(),fi=j.querySelector('[data-frete-info]');b2.disabled=true;fi.textContent='Calculando a distância…';
+      try{const r=await calcularFrete({logradouro:gv('logradouro'),numero:gv('numero'),bairro:gv('bairro'),cidade:gv('cidade'),uf:gv('uf')});if(!fi.isConnected)return;j.querySelector('[data-k="frete"]').value=R(r.valor);fi.textContent=r.info;}catch(e2){fi.textContent='';if(fi.isConnected)toast(e2.message||String(e2),'error');}finally{b2.disabled=false;}}
+    if(f==='item-add'){const p0=pecas()[0];j.querySelector('[data-itens]').insertAdjacentHTML('beforeend',itemLin({peca:p0.rowid,qtd:'',preco:precoPara(p0,canalAtual(),cliAtual()).v}));pintarFotos(j);}
+    else if(f==='item-x')b2.closest('tr').remove();at();});
+  if(!reg)j.querySelectorAll('[data-item]').forEach(tr=>{const p=pecaDe(tr.querySelector('[data-i="peca"]').value);const pr=tr.querySelector('[data-i="preco"]');if(p&&!pr.value)pr.value=R(precoPara(p,'varejo',null).v);});
+  ligarEndereco(j);pintarFotos(j);atVis();at();
 }
 function lerItens(j){return [...j.querySelectorAll('[data-item]')].map(tr=>({peca:tr.querySelector('[data-i="peca"]').value,qtd:num(tr.querySelector('[data-i="qtd"]').value),preco:r2(num(tr.querySelector('[data-i="preco"]').value))})).filter(it=>it.qtd>0);}
 // produção do que falta para a venda reservada (uma vez só: a venda fica marcada)
@@ -1203,8 +1571,14 @@ function fichaVenda(v){
   if(['sinal','producao','pagamento','liberado'].includes(f)&&ehAdm()&&!iniciada)bts.push({html:'<i class="fas fa-ban"></i> Cancelar venda',acao:async()=>{setTimeout(()=>cancelarVenda(v),60);}});
   if(f==='entregue')bts.push({html:'<i class="fas fa-rotate-left"></i> Devolução / estorno',acao:async()=>{setTimeout(()=>devolver(v),60);}});
   if(f==='entregue')bts.push({html:'<i class="fas fa-heart-crack"></i> Avaria na entrega',acao:async()=>{setTimeout(()=>formAvaria(null,(v.itens||[])[0]&&v.itens[0].peca),60);}});
+  if(!['entregue','devolvida','cancelada'].includes(v.status))bts.push({html:'<i class="fas fa-calendar-days"></i> Agendar entrega',acao:async()=>{setTimeout(()=>formAgenda(v),60);}});
   if(!['entregue','devolvida','cancelada'].includes(v.status))bts.push({html:'<i class="fas fa-pen"></i> Editar',acao:async()=>{setTimeout(()=>formVenda(v),60);}});
   if(f==='liberado')bts.push({html:'<i class="fas fa-truck"></i> Entregar',cls:'pri',acao:async()=>{setTimeout(()=>entregar(v),60);}});
+  const lts=(f==='entregue'||v.status==='devolvida')?(rastreio().porVenda[v.rowid]||[]):[];
+  const extra=`${v.agenda&&v.agenda.data&&f!=='entregue'?`<p class="pm-mini" style="margin:8px 0 0"><i class="fas fa-calendar-check"></i> Entrega agendada: <b>${fe(brDe(dt(v.agenda.data)))}</b>${v.agenda.periodo?' · '+fe(v.agenda.periodo):''}${v.agenda.caminhao?' · '+fe(v.agenda.caminhao):''}${v.agenda.obs?' · '+fe(v.agenda.obs):''}</p>`:''}
+    ${v.vendedor?`<p class="pm-mini" style="margin:4px 0 0"><i class="fas fa-user-tie"></i> Vendedor: ${fe(v.vendedor)}${num(v.comissao_pct)?` · comissão ${nf(num(v.comissao_pct),1)}% = ${R(baseComissao(v)*num(v.comissao_pct)/100)}`:''}</p>`:''}
+    ${v.frete_info?`<p class="pm-mini" style="margin:4px 0 0"><i class="fas fa-route"></i> Frete: ${fe(v.frete_info)}</p>`:''}
+    ${lts.length?`<p class="pm-mini" style="margin:4px 0 0"><i class="fas fa-tag"></i> Lotes entregues (pela ordem de saída): ${lts.map(x=>`${fe(x.lote)} (${nf(x.qtd,0)} × ${fe(nomePeca(x.peca))})`).join(' · ')}</p>`:''}`;
   const pend=f==='sinal'?`Falta o sinal de <b>${R(Math.max(0,tot*num(c.sinal)/100-pago))}</b> (${nf(num(c.sinal),0)}%) para reservar as peças e começar a produção.`:f==='producao'?`Peças em produção: ${ops.length?ops.map(o=>`OP nº ${o.numero} (${nf(prodDaOrdem(o.rowid),0)}/${nf(num(o.qtd),0)})`).join(', '):'aguardando peça pronta do estoque'}.`:f==='pagamento'?`Peças prontas. Falta receber <b>${R(tot-pago)}</b> para liberar a entrega.`:f==='liberado'?'Pago e com as peças prontas: <b>pode entregar</b>.':'';
   janela(`Venda nº ${v.numero}`,`<div class="fin-resumo"><b>${fe(v.cliente||'')}</b>${v.telefone?' · '+fe(v.telefone):''}${v.doc?' · '+fe(v.doc):''} · ${v.tipo_venda==='pronta'?'pronta entrega':'encomenda'} · ${v.canal==='atacado'?'atacado':'varejo'}<br>${fe((FASES_V.find(x=>x.k===f)||{rot:v.status}).rot)}${v.data?' · pedido em '+brDe(dt(v.data)):''}${v.prazo_entrega?' · entrega prevista '+brDe(dt(v.prazo_entrega)):''}${v.entrega?' · entregue em '+brDe(dt(v.entrega)):''}</div>
     ${pend?`<div class="fin-aviso ${f==='liberado'?'':'laranja'}" style="margin-top:8px"><div>${pend}</div></div>`:''}
@@ -1213,7 +1587,7 @@ function fichaVenda(v){
     ${descontoVenda(v)?`<tr><td colspan="4">Desconto${v.desconto_pct?' ('+nf(num(v.desconto_pct),1)+'%)':''}</td><td class="n">${R(-descontoVenda(v))}</td></tr>`:''}${num(v.frete)?`<tr><td colspan="4">Frete</td><td class="n">${R(num(v.frete))}</td></tr>`:''}
     <tr class="t"><td colspan="4">Total</td><td class="n">${R(tot)}</td></tr><tr><td colspan="4">Pago</td><td class="n" style="color:#067647">${R(pago)}</td></tr><tr><td colspan="4"><b>Saldo</b></td><td class="n"><b>${R(Math.max(0,tot-pago))}</b></td></tr></tbody></table>
     ${(v.pagamentos||[]).length?`<h5 style="margin:10px 0 4px;font:800 12px Inter">Pagamentos</h5><ul class="pm-arml">${(v.pagamentos||[]).map(p=>`<li${p.tipo==='estorno'?' style="background:#FEF3F2"':''}><i class="fas ${p.tipo==='estorno'?'fa-rotate-left':'fa-circle-dollar-to-slot'}" style="color:${p.tipo==='estorno'?'#B42318':'#067647'}"></i><span>${fe(brDe(dt(p.data)))} · <b>${p.tipo==='estorno'?'estorno −':''}${R(num(p.valor))}</b> · ${fe(p.forma||'')} · ${fe(p.tipo||'')}${p.obs?' · '+fe(p.obs):''}</span></li>`).join('')}</ul>`:''}
-    ${endTxt(v.end)?`<p class="pm-mini" style="margin:8px 0 0"><i class="fas fa-location-dot"></i> ${fe(endTxt(v.end))}</p>`:''}${(v.nf||{}).quer?`<p class="pm-mini" style="margin:4px 0 0"><i class="fas fa-file-invoice"></i> Cliente quer nota fiscal${(v.nf||{}).numero?' — NF nº '+fe(v.nf.numero):' (ainda sem número)'}.</p>`:''}${v.obs?`<p class="pm-mini" style="margin:4px 0 0">${fe(v.obs)}</p>`:''}`,bts,780);
+    ${endTxt(v.end)?`<p class="pm-mini" style="margin:8px 0 0"><i class="fas fa-location-dot"></i> ${fe(endTxt(v.end))}</p>`:''}${(v.nf||{}).quer?`<p class="pm-mini" style="margin:4px 0 0"><i class="fas fa-file-invoice"></i> Cliente quer nota fiscal${(v.nf||{}).numero?' — NF nº '+fe(v.nf.numero):' (ainda sem número)'}.</p>`:''}${v.obs?`<p class="pm-mini" style="margin:4px 0 0">${fe(v.obs)}</p>`:''}${extra}`,bts,820);
 }
 function registrarPagamento(v){
   const c=CFG(),tot=totalVenda(v),pago=pagoDe(v),sinalFalta=r2(Math.max(0,tot*num(c.sinal)/100-pago)),saldo=r2(tot-pago);
@@ -1235,10 +1609,11 @@ function entregar(v){
   janela(`Entregar a venda nº ${v.numero}`,`<div class="fin-resumo">${fe(v.cliente||'')} · ${(v.itens||[]).map(it=>`${nf(num(it.qtd),0)} × ${fe(nomePeca(it.peca))}`).join(' · ')}</div>
     <div class="fin-linha" style="margin-top:8px"><div class="fin-fld"><label>Data da entrega <span class="obg">*</span></label><input type="date" data-k="entrega" value="${hojeISO()}" max="${hojeISO()}"></div>
     ${(v.nf||{}).quer?`<div class="fin-fld"><label>Nº da nota fiscal</label><input data-k="nf" value="${fe((v.nf||{}).numero||'')}"></div>`:''}
+    <div class="fin-fld"><label>Caminhão</label><select data-k="caminhao"><option value="">—</option>${(CFG().caminhoes||[]).filter(x=>x&&x.nome).map(x=>`<option ${v.agenda&&v.agenda.caminhao===x.nome?'selected':''}>${fe(x.nome)}</option>`).join('')}</select></div>
     <div class="fin-fld" style="grid-column:1/-1"><label>Quem recebeu</label><input data-k="recebedor" placeholder="nome de quem recebeu as peças"></div></div>
     <p class="pm-mini">Peça quebrada no caminho: registre depois em <b>Avaria na entrega</b>.</p>`,
     [{html:'<i class="fas fa-truck"></i> Confirmar entrega',cls:'pri',acao:async j=>{const e=j.querySelector('[data-k="entrega"]').value;if(!e)throw new Error('Informe a data da entrega.');
-      const o=vendaBruta(v);o.status='entregue';o.entrega=e;o.recebedor=j.querySelector('[data-k="recebedor"]').value.trim();if(j.querySelector('[data-k="nf"]'))o.nf={...(o.nf||{}),numero:j.querySelector('[data-k="nf"]').value.trim()};
+      const o=vendaBruta(v);o.status='entregue';o.entrega=e;o.caminhao=j.querySelector('[data-k="caminhao"]').value;o.recebedor=j.querySelector('[data-k="recebedor"]').value.trim();if(j.querySelector('[data-k="nf"]'))o.nf={...(o.nf||{}),numero:j.querySelector('[data-k="nf"]').value.trim()};
       await gravar(o,v.rowid);toast(`Venda nº ${v.numero} entregue: peças baixadas do estoque.`,'success');}}],560);
 }
 function cancelarVenda(v){
@@ -1280,7 +1655,7 @@ function imprimirVenda(v){
 }
 
 /* ═══════════════ FLUXO DE CAIXA ═══════════════ */
-const CAT_CUSTO=['Mão de obra (salários e encargos)','Energia elétrica','Água','Betoneira / equipamentos','Aluguel','Manutenção de formas','Combustível / frete','Impostos','Outros'];
+const CAT_CUSTO=['Mão de obra (salários e encargos)','Energia elétrica','Água','Betoneira / equipamentos','Aluguel','Manutenção de formas','Combustível / frete','Comissões de vendedores','Impostos','Outros'];
 function caixaMes(k){
   const noM=d=>!!d&&mesKey(d)===k,o={entR:0,entP:0,saiR:0,saiP:0,mov:[]};
   vendas().forEach(v=>{if(v.status==='cancelada'&&!(v.pagamentos||[]).length)return;
@@ -1327,7 +1702,7 @@ function formCusto(reg){
 }
 
 /* ═══════════════ RELATÓRIOS ═══════════════ */
-const RELS={producao:'Produção por período',vendas:'Vendas por período',consumo:'Consumo de materiais',estoque:'Posição do estoque',avarias:'Avarias e perdas',resultado:'Resultado mês a mês (DRE)'};
+const RELS={producao:'Produção por período',vendas:'Vendas por período',consumo:'Consumo de materiais',estoque:'Posição do estoque',avarias:'Avarias e perdas',ensaios:'Ensaios dos corpos de prova',ponto:'Ponto da equipe',comissoes:'Comissões de vendedores',entregas:'Entregas e frete',resultado:'Resultado mês a mês (DRE)'};
 function dadosRel(){
   const {tipo,de,ate}=PM.rel,dD=dt(de),dA=dt(ate),dentro=s=>{const d=dt(s);return !!d&&(!dD||d>=dD)&&(!dA||d<=dA);};
   if(tipo==='producao'){const L=T('producao').filter(r=>dentro(r.data)).sort((a,b)=>String(a.data).localeCompare(String(b.data))).flatMap(r=>itensProd(r).map(it=>({r,it})));
@@ -1348,10 +1723,25 @@ function dadosRel(){
   if(tipo==='avarias'){const L=T('avaria').filter(a=>dentro(a.data)).sort((a,b)=>String(a.data).localeCompare(String(b.data)));const ref=T('producao').filter(r=>dentro(r.data)).flatMap(r=>itensProd(r).filter(it=>num(it.refugo)>0).map(it=>({data:r.data,peca:it.peca,qtd:it.refugo,origem:'refugo',causa:'refugo na produção',custo_un:it.custo_un})));
     const tudo=L.concat(ref).sort((a,b)=>String(a.data).localeCompare(String(b.data)));const cab=[{l:'Data'},{l:'Peça'},{l:'Quant.',d:1},{l:'Onde'},{l:'Causa'},{l:'Perda',d:1}];
     return {cab,lin:tudo.map(a=>[brDe(dt(a.data)),nomePeca(a.peca),nf(num(a.qtd),0),a.origem==='refugo'?'Produção (refugo)':(ORIG_AV[a.origem]||a.origem),a.causa||'',R(num(a.custo_un)*num(a.qtd))]),tot:['Total','',nf(tudo.reduce((s,a)=>s+num(a.qtd),0),0),'','',R(tudo.reduce((s,a)=>s+num(a.custo_un)*num(a.qtd),0))]};}
+  if(tipo==='ensaios'){const L=T('ensaio').filter(e=>dentro(e.data)).sort((a,b)=>String(a.data).localeCompare(String(b.data)));
+    const cab=[{l:'Data'},{l:'Lote'},{l:'Peça'},{l:'Idade'},{l:'CPs (MPa)'},{l:'Resultado',d:1},{l:'Exigido',d:1},{l:'Situação'},{l:'Laboratório'}];
+    return {cab,lin:L.map(e=>[brDe(dt(e.data)),e.lote,nomePeca(e.peca),nf(num(e.idade),0)+' dias',(e.valores||[]).map(v=>nf(v,1)).join(' · '),nf(num(e.resultado),1),nf(num(e.esperado),1),{aprovado:'Aprovado',parcial:'Dentro do esperado',abaixo:'Abaixo do esperado',reprovado:'Reprovado'}[e.situacao]||e.situacao||'',e.laboratorio||'']),tot:null};}
+  if(tipo==='ponto'){const L=T('producao').filter(r=>dentro(r.data)).sort((a,b)=>String(a.data).localeCompare(String(b.data))).flatMap(r=>pontoDe(r).map(x=>({r,x})));
+    const cab=[{l:'Data'},{l:'Pessoa'},{l:'Função'},{l:'Entrada'},{l:'Saída'},{l:'Intervalo (min)',d:1},{l:'Horas',d:1}],porP={};L.forEach(({x})=>porP[x.nome]=(porP[x.nome]||0)+num(x.horas));
+    return {cab,lin:L.map(({r,x})=>[brDe(dt(r.data)),x.nome,x.funcao||'',x.entrada||'',x.saida||'',x.intervalo!=null?nf(num(x.intervalo),0):'',nf(num(x.horas),2)]).concat(Object.entries(porP).sort().map(([n,hh])=>['Total',n,'','','','',nf(hh,2)])),
+      tot:['Total geral','','','','','',nf(L.reduce((s,{x})=>s+num(x.horas),0),2)]};}
+  if(tipo==='comissoes'){const L=vendas().filter(v=>(v.status==='entregue'||v.status==='devolvida')&&v.vendedor&&dentro(v.entrega)).sort((a,b)=>String(a.entrega).localeCompare(String(b.entrega)));
+    const cab=[{l:'Entrega'},{l:'Venda'},{l:'Cliente'},{l:'Vendedor'},{l:'Base',d:1},{l:'%',d:1},{l:'Comissão',d:1}];
+    return {cab,lin:L.map(v=>[brDe(dt(v.entrega)),String(v.numero),v.cliente||'',v.vendedor,R(baseComissao(v)),nf(num(v.comissao_pct),1),R(baseComissao(v)*num(v.comissao_pct)/100)]),
+      tot:['Total','','','',R(L.reduce((s,v)=>s+baseComissao(v),0)),'',R(L.reduce((s,v)=>s+baseComissao(v)*num(v.comissao_pct)/100,0))]};}
+  if(tipo==='entregas'){const L=vendas().filter(v=>v.status!=='cancelada'&&dentro(v.entrega||(v.agenda&&v.agenda.data))).sort((a,b)=>String(a.entrega||a.agenda.data).localeCompare(String(b.entrega||b.agenda.data)));
+    const cab=[{l:'Data'},{l:'Venda'},{l:'Cliente'},{l:'Cidade'},{l:'Caminhão'},{l:'Peso (kg)',d:1},{l:'Frete',d:1},{l:'Situação'}];
+    return {cab,lin:L.map(v=>[brDe(dt(v.entrega||v.agenda.data)),String(v.numero),v.cliente||'',[(v.end||{}).cidade,(v.end||{}).uf].filter(Boolean).join(' - '),v.caminhao||(v.agenda||{}).caminhao||'',nf(pesoVenda(v),0),R(num(v.frete)),v.status==='entregue'||v.status==='devolvida'?'Entregue':'Agendada']),
+      tot:['Total','','','','',nf(L.reduce((s,v)=>s+pesoVenda(v),0),0),R(L.reduce((s,v)=>s+num(v.frete),0)),'']};}
   const ks=[];let k=mesKey(dD||hoje0());const kf=mesKey(dA||hoje0());for(let i=0;i<36&&k<=kf;i++){ks.push(k);k=mesDesloc(k,1);}
-  const cab=[{l:'Mês'},{l:'Receita',d:1},{l:'Impostos',d:1},{l:'Materiais vendidos',d:1},{l:'Margem de contribuição',d:1},{l:'Perdas',d:1},{l:'Custos da fábrica',d:1},{l:'Resultado',d:1},{l:'Produção (m³)',d:1}];
-  const rs=ks.map(resumoMes);const lin=rs.map(r=>[cap(mesNome(r.k)),R(r.receita),R(-r.impostos),R(-r.cmv),R(r.mc),R(-r.perdas),R(-r.custos),R(r.resultado),nf(r.m3,2)]);
-  const s=f=>rs.reduce((a,r)=>a+f(r),0);return {cab,lin,tot:['Total',R(s(r=>r.receita)),R(-s(r=>r.impostos)),R(-s(r=>r.cmv)),R(s(r=>r.mc)),R(-s(r=>r.perdas)),R(-s(r=>r.custos)),R(s(r=>r.resultado)),nf(s(r=>r.m3),2)]};
+  const cab=[{l:'Mês'},{l:'Receita',d:1},{l:'Impostos',d:1},{l:'Materiais vendidos',d:1},{l:'Margem de contribuição',d:1},{l:'Perdas',d:1},{l:'Comissões',d:1},{l:'Custos da fábrica',d:1},{l:'Resultado',d:1},{l:'Produção (m³)',d:1}];
+  const rs=ks.map(resumoMes);const lin=rs.map(r=>[cap(mesNome(r.k)),R(r.receita),R(-r.impostos),R(-r.cmv),R(r.mc),R(-r.perdas),R(-r.comissoes),R(-r.custos),R(r.resultado),nf(r.m3,2)]);
+  const s=f=>rs.reduce((a,r)=>a+f(r),0);return {cab,lin,tot:['Total',R(s(r=>r.receita)),R(-s(r=>r.impostos)),R(-s(r=>r.cmv)),R(s(r=>r.mc)),R(-s(r=>r.perdas)),R(-s(r=>r.comissoes)),R(-s(r=>r.custos)),R(s(r=>r.resultado)),nf(s(r=>r.m3),2)]};
 }
 function telaRelatorios(){
   const d=dadosRel(),r=PM.rel;
@@ -1376,7 +1766,10 @@ function telaParametros(){
   const mo=(cam,l,v)=>`<div class="fin-fld"><label>${l} (R$)</label><input data-cfg="${cam}" data-mask="moeda" value="${fe(R(num(v)))}"></div>`;
   const linFixo=x=>`<div class="fin-linha" data-lin="fixos" style="margin-bottom:6px;grid-template-columns:1fr 160px 36px"><div class="fin-fld"><input data-fx="nome" value="${fe(x.nome||'')}" placeholder="Descrição"></div><div class="fin-fld"><input data-fx="valor" data-mask="moeda" value="${x.valor!=null&&x.valor!==''?fe(R(num(x.valor))):''}" placeholder="R$ 0,00"></div><button type="button" class="pm-x" data-pm="cfg-x"><i class="fas fa-xmark"></i></button></div>`;
   const linEq=x=>`<div class="fin-linha" data-lin="equipe" style="margin-bottom:6px;grid-template-columns:1fr 190px 36px"><div class="fin-fld"><input data-eqn value="${fe(x.nome||'')}" placeholder="Nome"></div><div class="fin-fld"><select data-eqf>${FUNCOES.map(fn=>`<option ${fn===x.funcao?'selected':''}>${fn}</option>`).join('')}</select></div><button type="button" class="pm-x" data-pm="cfg-x"><i class="fas fa-xmark"></i></button></div>`;
-  PM._linFixo=linFixo;PM._linEq=linEq;
+  const fr={origem:{},cidades:[],...(c.frete||{})};fr.origem=fr.origem||{};
+  const linCid=x=>`<div class="fin-linha" data-lin="cid" style="margin-bottom:6px;grid-template-columns:1fr 70px 150px 36px"><div class="fin-fld"><input data-cn value="${fe(x.cidade||'')}" placeholder="Cidade"></div><div class="fin-fld"><input data-cu value="${fe(x.uf||'')}" placeholder="UF" maxlength="2"></div><div class="fin-fld"><input data-cv data-mask="moeda" value="${x.valor?fe(R(num(x.valor))):''}" placeholder="R$ 0,00"></div><button type="button" class="pm-x" data-pm="cfg-x"><i class="fas fa-xmark"></i></button></div>`;
+  const linCam=x=>`<div class="fin-linha" data-lin="cam" style="margin-bottom:6px;grid-template-columns:1fr 130px 1fr 36px"><div class="fin-fld"><input data-kn value="${fe(x.nome||'')}" placeholder="Ex.: Munck ABC-1234"></div><div class="fin-fld"><input data-kc inputmode="numeric" data-sem-mascara="1" value="${x.cap_kg?fe(String(x.cap_kg)):''}" placeholder="Carga (kg)"></div><div class="fin-fld"><input data-km value="${fe(x.motorista||'')}" placeholder="Motorista"></div><button type="button" class="pm-x" data-pm="cfg-x"><i class="fas fa-xmark"></i></button></div>`;
+  PM._linFixo=linFixo;PM._linEq=linEq;PM._linCid=linCid;PM._linCam=linCam;
   return cabG('Parâmetros e preços','A base de todos os cálculos: preço dos insumos, características dos materiais, equipe, betoneira, custos rateados por m³ e as regras de venda.',`<button type="button" class="gf-bt pri" data-pm="cfg-salvar"><i class="fas fa-floppy-disk"></i> Salvar parâmetros</button>`)+
     `<div class="gf-duas">
      <section class="gf-sec"><div class="gf-sec-cab"><div><h3>Preços dos insumos</h3><p>Atualizados também pelas compras (Estoque › Entrada de insumo).</p></div></div><div class="fin-linha">
@@ -1388,10 +1781,21 @@ function telaParametros(){
        <div class="fin-linha" style="margin-top:12px">${f('prod_m3','Produção prevista por mês (m³)',c.prod_m3,'inputmode="decimal"')}${f('equipe.pessoas','Pessoas na produção',c.equipe.pessoas,'inputmode="numeric"')}${mo('equipe.custo','Custo mensal por pessoa (com encargos)',c.equipe.custo)}</div></section></div>
     <div class="gf-duas">
      <section class="gf-sec"><div class="gf-sec-cab"><div><h3>Equipe da fábrica</h3><p>Aparece no diário de produção para marcar quem esteve presente.</p></div><button type="button" class="gf-bt mini" data-pm="cfg-equipe-add"><i class="fas fa-plus"></i> Pessoa</button></div>
-       <div data-equipe>${(c.equipe_lista||[]).map(linEq).join('')||'<p class="pm-mini" data-vazio>Ninguém cadastrado.</p>'}</div></section>
+       <div data-equipe>${(c.equipe_lista||[]).map(linEq).join('')||'<p class="pm-mini" data-vazio>Ninguém cadastrado.</p>'}</div>
+       <p class="pm-mini" style="margin:10px 0 4px"><b>Jornada padrão</b> (já vem preenchida no ponto do diário):</p><div class="fin-linha">
+       <div class="fin-fld"><label>Entrada</label><input type="time" data-cfg="jornada.entrada" value="${fe((c.jornada||{}).entrada||'07:00')}"></div><div class="fin-fld"><label>Saída</label><input type="time" data-cfg="jornada.saida" value="${fe((c.jornada||{}).saida||'17:00')}"></div>
+       ${f('jornada.intervalo','Intervalo (minutos)',(c.jornada||{}).intervalo!=null?c.jornada.intervalo:60,'inputmode="numeric" data-sem-mascara="1"')}</div></section>
      <section class="gf-sec"><div class="gf-sec-cab"><div><h3>Vendas e endereços</h3><p>Regras de venda e a cidade padrão para sugerir endereços.</p></div></div><div class="fin-linha">
        ${f('sinal','Sinal mínimo para reservar encomenda (%)',c.sinal)}${f('impostos','Impostos sobre a venda (%)',c.impostos)}${f('margem','Margem desejada (%)',c.margem)}
        ${f('cidade','Cidade padrão dos clientes',c.cidade)}${f('uf','UF padrão',c.uf,'maxlength="2"')}${f('lata','Lata usada na produção (litros)',c.lata,'inputmode="numeric"')}</div></section></div>
+    <div class="gf-duas">
+     <section class="gf-sec"><div class="gf-sec-cab"><div><h3>Entregas e frete</h3><p>Frete por km (distância pelo mapa até o endereço do cliente) ou valor fixo por cidade — a tabela de cidades vale primeiro.</p></div></div><div class="fin-linha">
+       ${f('frete.origem.logradouro','Endereço da fábrica (rua)',fr.origem.logradouro||'')}${f('frete.origem.numero','Número',fr.origem.numero||'')}${f('frete.origem.cidade','Cidade da fábrica',fr.origem.cidade||c.cidade||'')}${f('frete.origem.uf','UF',fr.origem.uf||c.uf||'','maxlength="2"')}
+       ${mo('frete.rs_km','Valor por km rodado',fr.rs_km)}${f('frete.km_min','Km mínimo cobrado',fr.km_min,'inputmode="numeric" data-sem-mascara="1"')}
+       <label class="nfc-amb" style="grid-column:1/-1"><input type="checkbox" data-cfg-ck="frete.ida_volta" ${fr.ida_volta!==false?'checked':''}><span>Cobrar ida e volta (o caminhão volta vazio)</span></label></div>
+       <p class="pm-mini" style="margin:10px 0 4px"><b>Valor fixo por cidade</b></p><div data-cids>${(fr.cidades||[]).map(linCid).join('')}</div><button type="button" class="gf-bt mini" data-pm="cfg-cid-add"><i class="fas fa-plus"></i> Cidade</button></section>
+     <section class="gf-sec"><div class="gf-sec-cab"><div><h3>Caminhões</h3><p>Para a agenda de entregas: a carga de cada dia é conferida com a capacidade.</p></div><button type="button" class="gf-bt mini" data-pm="cfg-cam-add"><i class="fas fa-plus"></i> Caminhão</button></div>
+       <div data-cams>${(c.caminhoes||[]).map(linCam).join('')||'<p class="pm-mini" data-vazio>Nenhum caminhão cadastrado.</p>'}</div></section></div>
     <div class="gf-duas">
      <section class="gf-sec"><div class="gf-sec-cab"><div><h3>Betoneira e vibrador</h3><p>Energia por m³ = potência × tempo das traçadas; depreciação pela vida útil.</p></div></div><div class="fin-linha">
        ${f('betoneira.cap','Capacidade da betoneira (litros)',c.betoneira.cap,'inputmode="numeric"')}${f('betoneira.util','Aproveitamento por traçada (%)',c.betoneira.util)}${f('betoneira.kw','Potência da betoneira (kW)',c.betoneira.kw,'inputmode="decimal"')}${f('betoneira.min','Minutos por traçada',c.betoneira.min,'inputmode="decimal"')}
@@ -1411,18 +1815,21 @@ function telaParametros(){
        ${mo('saldo_inicial','Saldo inicial do caixa',c.saldo_inicial)}<div class="fin-fld"><label>Data do saldo inicial</label><input type="date" data-cfg="saldo_data" value="${fe(c.saldo_data||'')}"></div></div></section></div>
     <div style="display:flex;justify-content:flex-end"><button type="button" class="gf-bt pri" data-pm="cfg-salvar"><i class="fas fa-floppy-disk"></i> Salvar parâmetros</button></div>`;
 }
-function addLinha(qual){const box=document.querySelector(`#pm-app [data-${qual==='fixos'?'fixos':'equipe'}]`);if(!box)return;const v=box.querySelector('[data-vazio]');if(v)v.remove();
-  box.insertAdjacentHTML('beforeend',qual==='fixos'?PM._linFixo({nome:'',valor:''}):PM._linEq({nome:'',funcao:FUNCOES[1]}));}
+function addLinha(qual){const box=document.querySelector(`#pm-app [data-${{fixos:'fixos',equipe:'equipe',cid:'cids',cam:'cams'}[qual]}]`);if(!box)return;const v=box.querySelector('[data-vazio]');if(v)v.remove();
+  box.insertAdjacentHTML('beforeend',qual==='fixos'?PM._linFixo({nome:'',valor:''}):qual==='cid'?PM._linCid({cidade:'',uf:CFG().uf||''}):qual==='cam'?PM._linCam({}):PM._linEq({nome:'',funcao:FUNCOES[1]}));}
 async function salvarParametros(){
   const box=document.getElementById('pm-app'),c=JSON.parse(JSON.stringify(CFG()));
-  box.querySelectorAll('[data-cfg]').forEach(e=>{const path=e.dataset.cfg.split('.'),txt=['cidade','uf','saldo_data'].includes(e.dataset.cfg),v=txt?String(e.value||'').trim():num(e.value);let o=c;for(let i=0;i<path.length-1;i++){o[path[i]]=o[path[i]]||{};o=o[path[i]];}o[path[path.length-1]]=e.dataset.cfg==='uf'?String(v).toUpperCase():v;});
+  box.querySelectorAll('[data-cfg]').forEach(e=>{const path=e.dataset.cfg.split('.'),txt=['cidade','uf','saldo_data','jornada.entrada','jornada.saida'].includes(e.dataset.cfg)||e.dataset.cfg.startsWith('frete.origem.'),v=txt?String(e.value||'').trim():(e.dataset.cfg==='jornada.intervalo'||e.dataset.cfg==='frete.km_min'?(parseFloat(String(e.value).replace(',','.'))||0):num(e.value));let o=c;for(let i=0;i<path.length-1;i++){o[path[i]]=o[path[i]]||{};o=o[path[i]];}o[path[path.length-1]]=e.dataset.cfg==='uf'?String(v).toUpperCase():v;});
   c.fixos=[...box.querySelectorAll('[data-lin="fixos"]')].map(d=>({nome:d.querySelector('[data-fx="nome"]').value.trim(),valor:r2(num(d.querySelector('[data-fx="valor"]').value))})).filter(x=>x.nome||x.valor);
   c.equipe_lista=[...box.querySelectorAll('[data-lin="equipe"]')].map(d=>({nome:d.querySelector('[data-eqn]').value.trim(),funcao:d.querySelector('[data-eqf]').value})).filter(x=>x.nome);
+  c.frete=c.frete||{};const ck=box.querySelector('[data-cfg-ck="frete.ida_volta"]');if(ck)c.frete.ida_volta=ck.checked;if(c.frete.origem&&c.frete.origem.uf)c.frete.origem.uf=String(c.frete.origem.uf).toUpperCase();
+  c.frete.cidades=[...box.querySelectorAll('[data-lin="cid"]')].map(d=>({cidade:d.querySelector('[data-cn]').value.trim(),uf:d.querySelector('[data-cu]').value.trim().toUpperCase(),valor:r2(num(d.querySelector('[data-cv]').value))})).filter(x=>x.cidade&&x.valor>0);
+  c.caminhoes=[...box.querySelectorAll('[data-lin="cam"]')].map(d=>({nome:d.querySelector('[data-kn]').value.trim(),cap_kg:parseFloat(String(d.querySelector('[data-kc]').value).replace(',','.'))||0,motorista:d.querySelector('[data-km]').value.trim()})).filter(x=>x.nome);
   if(!(num(c.prod_m3)>0))return toast('Informe a produção prevista por mês (m³): é a base do rateio.','error');
   if(!(num(c.sinal)>=0&&num(c.sinal)<=100))return toast('O sinal deve ficar entre 0% e 100%.','error');
   const r=cfgRow();
   try{await gravar(r?{...r,cfg:{...((r&&r.cfg)||{}),...c}}:{tipo:'config',cfg:c,data_lancamento:todayDateTime()},r?r.rowid:null);toast('Parâmetros salvos: os custos das peças foram recalculados.','success');}catch(e){toast(e.message,'error',false);}
 }
 
-window.PM_FABRICA={calc,receita,traco1m3,rateio,estoque,estoqueInsumos,CFG,render,irAba,resumoMes,necessidade,caixaMes,faseVenda,totalVenda,pagoDe,reposicao,fichaHtml,tiposTodos,armPeca};
+window.PM_FABRICA={lotes,rastreio,comissoesMes,precoPara,calcularFrete,situacaoLote,pesoVenda,romaneio,imprimirEtiquetas,escolherPeca,calc,receita,traco1m3,rateio,estoque,estoqueInsumos,CFG,render,irAba,resumoMes,necessidade,caixaMes,faseVenda,totalVenda,pagoDe,reposicao,fichaHtml,tiposTodos,armPeca};
 })();

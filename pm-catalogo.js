@@ -280,7 +280,7 @@ function desenho(t,d,arm){
       if(temA&&A.barras.length){const c=Math.max(4,Math.min(sw,sh)*0.18);b+=`<rect x="${sx+c}" y="${sy+c}" width="${sw-2*c}" height="${sh-2*c}" fill="none" stroke="${COR.a}" stroke-width="1.6"/>`;
         const nb=(A.barras.find(x=>x.t==='b')||{q:4}).q;const pts=[[sx+c,sy+c],[sx+sw-c,sy+c],[sx+c,sy+sh-c],[sx+sw-c,sy+sh-c]];if(nb>=6)pts.push([sx+sw/2,sy+c],[sx+sw/2,sy+sh-c]);if(nb>=8)pts.push([sx+c,sy+sh/2],[sx+sw-c,sy+sh/2]);
         pts.forEach(([x,y])=>b+=`<circle cx="${x}" cy="${y}" r="3.2" fill="${COR.a}"/>`);}
-      const ex=150,ey=70,ew=210,eh=Math.max(22,Math.min(70,ew*a/Math.max(L,1)*1.8));
+      const ex=146,ey=70,ew=192,eh=Math.max(22,Math.min(70,ew*a/Math.max(L,1)*1.8));
       b+=tit(ex,24,'VISTA LATERAL')+`<rect x="${ex}" y="${ey}" width="${ew}" height="${eh}" fill="${COR.c}" stroke="${COR.cl}" stroke-width="1.5"/>`;
       b+=cotaH(ex,ex+ew,ey+eh+18,nf(L)+' cm')+cotaV(ex+ew+8,ey,ey+eh,nf(a),'d');
       if(temA&&A.barras.length){const c=5;b+=`<line x1="${ex+c}" y1="${ey+c}" x2="${ex+ew-c}" y2="${ey+c}" stroke="${COR.a}" stroke-width="1.6"/><line x1="${ex+c}" y1="${ey+eh-c}" x2="${ex+ew-c}" y2="${ey+eh-c}" stroke="${COR.a}" stroke-width="1.6"/>`;
@@ -352,5 +352,228 @@ function desenho(t,d,arm){
   return svg(W,H,b,'desenho esquemático · medidas em cm');
 }
 
-window.PM_CAT={GRUPOS,TR,FAM,TIPOS,tipoDe,geo,armadura,desenho,n1};
+/* ═══════ ilustração 3D (para o cliente ver a peça como ela é) ═══════
+   Malha de faces em centímetros (x = comprimento, y = largura, z = altura), vista em perspectiva de cima e
+   de frente, luz difusa, sombra no chão e textura de concreto. Desenhada nas medidas da peça. */
+const ILU=(function(){
+  const RAD=PI/180,AX=20*RAD,AY=38*RAD,KX0=Math.cos(AX),KX1=Math.sin(AX),KY0=Math.cos(AY),KY1=Math.sin(AY);
+  const nrm=v=>{const m=Math.hypot(v[0],v[1],v[2])||1;return [v[0]/m,v[1]/m,v[2]/m];};
+  const VW=nrm([KY0,KX0,Math.sin(AX+AY)]),LUZ=nrm([0.3,0.55,0.9]);
+  const pj=p=>[p[0]*KX0-p[1]*KY0,p[0]*KX1+p[1]*KY1-p[2]];
+  const dot=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2];
+  const Fc=(p,n,o)=>Object.assign({p,n:nrm(n),ly:1},o||{});
+  const ar2=r=>{let s=0;for(let i=0;i<r.length;i++){const a=r[i],b=r[(i+1)%r.length];s+=a[0]*b[1]-b[0]*a[1];}return s;};
+  const ccw=r=>ar2(r)<0?r.slice().reverse():r;
+  const circ=(cx,cy,R,N,a0)=>{const o=[];for(let i=0;i<N;i++){const a=(a0||0)+2*PI*i/N;o.push([cx+R*Math.cos(a),cy+R*Math.sin(a)]);}return o;};
+  const ret=(x,y,w,h)=>[[x,y],[x+w,y],[x+w,y+h],[x,y+h]];
+  const retR=(x,y,w,h,r)=>{r=Math.min(r,w/2,h/2);if(r<=0.05)return ret(x,y,w,h);const o=[],cs=[[x+w-r,y+r,-90],[x+w-r,y+h-r,0],[x+r,y+h-r,90],[x+r,y+r,180]];
+    cs.forEach(([cx,cy,a0])=>{for(let i=0;i<=4;i++){const a=(a0+22.5*i)*RAD;o.push([cx+r*Math.cos(a),cy+r*Math.sin(a)]);}});return o;};
+  const COR={conc:[196,193,186],poroso:[160,156,146],grama:[92,148,58],madeira:[168,122,80],telha:[180,96,70],claro:[226,222,212],agua:[126,186,226],escuro:[58,56,52],aco:[132,138,148]};
+  // extrusão ao longo de x (perfil no plano y-z), ao longo de z (perfil no plano x-y) e sólido de revolução (perfil r-z)
+  function extrX(ext,L,furos,o){o=o||{};const fs=[],x0=o.x0||0,x1=x0+L;
+    const lados=(ring,dentro)=>{ring=ccw(ring);const n=ring.length;for(let i=0;i<n;i++){const a=ring[i],b=ring[(i+1)%n],dy=b[0]-a[0],dz=b[1]-a[1];
+      fs.push(Fc([[x0,a[0],a[1]],[x1,a[0],a[1]],[x1,b[0],b[1]],[x0,b[0],b[1]]],dentro?[0,-dz,dy]:[0,dz,-dy],{ly:dentro?0:1,liso:o.liso}));}};
+    lados(ext,false);(furos||[]).forEach(h=>lados(h,true));
+    fs.push(Fc(ext.map(q=>[x1,q[0],q[1]]),[1,0,0],{furos:(furos||[]).map(h=>h.map(q=>[x1,q[0],q[1]])),cor:o.corTampa}));
+    return fs;}
+  function extrZ(ext,H,furos,o){o=o||{};const fs=[],z0=o.z0||0,z1=z0+H,zf=z0+(o.fundo||0);
+    const lados=(ring,dentro)=>{ring=ccw(ring);const n=ring.length,za=dentro?zf:z0;for(let i=0;i<n;i++){const a=ring[i],b=ring[(i+1)%n],dx=b[0]-a[0],dy=b[1]-a[1];
+      fs.push(Fc([[a[0],a[1],za],[b[0],b[1],za],[b[0],b[1],z1],[a[0],a[1],z1]],dentro?[-dy,dx,0]:[dy,-dx,0],{ly:dentro?0:1,liso:o.liso}));}};
+    lados(ext,false);(furos||[]).forEach(h=>{lados(h,true);if(o.fundo||o.corFundo)fs.push(Fc(h.map(q=>[q[0],q[1],zf]),[0,0,1],{ly:-1,cor:o.corFundo}));});
+    fs.push(Fc(ext.map(q=>[q[0],q[1],z1]),[0,0,1],{furos:(furos||[]).map(h=>h.map(q=>[q[0],q[1],z1])),cor:o.corTampa}));
+    return fs;}
+  function revol(prof,N,o){o=o||{};const fs=[],ly=o.ly||{},z0=o.z0||0,cx=o.cx||0,cy=o.cy||0;
+    for(let i=0;i<prof.length;i++){const a=prof[i],b=prof[(i+1)%prof.length];if(a[0]<1e-9&&b[0]<1e-9)continue;const dr=b[0]-a[0],dz=b[1]-a[1];
+      for(let k=0;k<N;k++){const f0=2*PI*k/N,f1=2*PI*(k+1)/N,fm=(f0+f1)/2,P=(q,f)=>[cx+q[0]*Math.cos(f),cy+q[0]*Math.sin(f),z0+q[1]];
+        fs.push(Fc([P(a,f0),P(b,f0),P(b,f1),P(a,f1)],[dz*Math.cos(fm),dz*Math.sin(fm),-dr],{ly:ly[i]!=null?ly[i]:(dz<-1e-9?0:1),liso:true,cor:o.cor}));}}
+    return fs;}
+  function piramide(x0,y0,w,h,z0,alt){const A=[x0+w/2,y0+h/2,z0+alt],B=[[x0,y0,z0],[x0+w,y0,z0],[x0+w,y0+h,z0],[x0,y0+h,z0]],fs=[];
+    for(let i=0;i<4;i++){const a=B[i],b=B[(i+1)%4],u=[b[0]-a[0],b[1]-a[1],b[2]-a[2]],v=[A[0]-a[0],A[1]-a[1],A[2]-a[2]];fs.push(Fc([a,b,A],[u[1]*v[2]-u[2]*v[1],u[2]*v[0]-u[0]*v[2],u[0]*v[1]-u[1]*v[0]]));}return fs;}
+  const mapear=(fs,lin,t)=>{t=t||[0,0,0];const P=p=>{const q=lin(p);return [q[0]+t[0],q[1]+t[1],q[2]+t[2]];};
+    return fs.map(f=>Object.assign({},f,{p:f.p.map(P),n:nrm(lin(f.n)),furos:f.furos&&f.furos.map(h=>h.map(P))}));};
+  // detalhes desenhados sobre as faces visíveis (furos de arame, botões do piso tátil, veios…)
+  const circ3=(c,r,plano,N)=>{N=N||14;const o=[];for(let i=0;i<N;i++){const a=2*PI*i/N,u=r*Math.cos(a),v=r*Math.sin(a);o.push(plano==='z'?[c[0]+u,c[1]+v,c[2]]:plano==='y'?[c[0]+u,c[1],c[2]+v]:[c[0],c[1]+u,c[2]+v]);}return o;};
+  const rgb=(c,k)=>`rgb(${c.map(v=>Math.max(0,Math.min(255,Math.round(v*k)))).join(',')})`;
+  const DEF={prisma:{c:100,l:15,a:15},placa:{c:50,l:50,e:5},bloco:{c:39,l:14,a:19,vz:50},hexagono:{d:25,e:6},disco:{d:60,e:5},esfera:{d:40},tubo:{di:40,esp:5,comp:100},calha:{di:40,esp:5,comp:100},
+    trapezio:{B:15,b:12,h:30,comp:100},canaleta:{li:30,hi:30,e:6,comp:100},caixa:{c:40,l:40,a:40,e:5},pote:{d:40,a:40,e:4},aduela:{li:100,hi:100,e:15,comp:100},manual:{v:0.05}};
+  function furosBloco(c,l,vz,nf){if(!(vz>0))return [];const n=nf||(c>=29?2:1),alvo=vz/100*c*l;let lo=0,hi=Math.min(l/2,c/(n+1))-0.05;
+    for(let i=0;i<40;i++){const t=(lo+hi)/2,ar=n*(l-2*t)*((c-(n+1)*t)/n);if(ar>alvo)lo=t;else hi=t;}
+    const t=(lo+hi)/2,hw=l-2*t,hl=(c-(n+1)*t)/n,o=[];for(let i=0;i<n;i++)o.push(retR(t+i*(hl+t),t,hl,hw,Math.min(hl,hw)*0.18));return o;}
+  function gradeFuros(c,l,nx,ny,frac,forma){const cx=c/nx,cy=l/ny,s=Math.min(Math.sqrt(frac*c*l/(nx*ny)),0.82*Math.min(cx,cy)),o=[];
+    for(let i=0;i<nx;i++)for(let j=0;j<ny;j++){const x=cx*(i+0.5),y=cy*(j+0.5);o.push(forma==='circ'?circ(x,y,s/2,18):retR(x-s/2,y-s/2,s,s,s*0.2));}return o;}
+  const trelica=(m,L,y,z0,alt)=>{const n=Math.max(2,Math.round(L/20)),top=[],zz=[];for(let i=0;i<=n;i++){const x=L*i/n;top.push([x,y,z0+alt]);zz.push([x,y+(i%2?2:-2),i%2?z0+alt:z0+0.6]);}
+    m.decor.push({p:zz,aberto:1,stroke:'#7A808A',w:1.1},{p:top,aberto:1,stroke:'#7A808A',w:1.6},{p:[[0,y-2,z0+0.6],[L,y-2,z0+0.6]],aberto:1,stroke:'#7A808A',w:1.2});};
+  function modelo(t,d){
+    const F0=DEF[t.f]||DEF.manual,dd=Object.assign({},F0,t.d||{});Object.keys(d||{}).forEach(k=>{const v=d[k];if(v!==''&&v!=null&&isFinite(+v)&&(+v>0||k==='vz'))dd[k]=+v;});
+    const g=k=>Math.max(0,+dd[k]||0),k=t.k,m={meshes:[],decor:[],cotas:[],cor:null};
+    const cm=v=>`${n1(v)} cm`,cotaBox=(L,W,A,tx,ty,tz)=>{m.cotas.push({a:[0,W,0],b:[L,W,0],txt:tx},{a:[L,0,0],b:[L,W,0],txt:ty},{a:[L,0,0],b:[L,0,A],txt:tz});};
+    // peça muito comprida: vista interrompida (como no desenho técnico) — a medida escrita é a real
+    const longo=(L,sec)=>Math.min(L,12*Math.max(1,sec)),cmL=L=>L>=300?`${n1(L/100,2)} m`:cm(L);
+    const quebra=(xm,W,A)=>{const z=[[xm-1.2,0,A],[xm+1.2,W*0.25,A],[xm-1.2,W*0.5,A],[xm+1.2,W*0.75,A],[xm-1.2,W,A],[xm+1.2,W,A*0.66],[xm-1.2,W,A*0.33],[xm+1.2,W,0]];
+      m.decor.push({p:z,aberto:1,stroke:'#fff',w:4},{p:z,aberto:1,stroke:'#475467',w:1.2});};
+    if(['paver_dren','placa_dren','sextavado_dren','dreno_poroso','junta_larga'].includes(k))m.cor=COR.poroso;
+    if(['deck','placa_madeira'].includes(k))m.cor=COR.madeira;if(k==='telha')m.cor=COR.telha;if(k==='atermico')m.cor=COR.claro;
+    // ── formas próprias de cada peça ──
+    switch(k){
+      case 'mourao':case 'esticador':case 'esteio':case 'mourao_curvo':{const Lr=g('c'),W=g('l'),A=g('a'),L=longo(Lr,Math.max(W,A)),ponta=k==='mourao_curvo'?Math.min(45,L*0.16):0;
+        m.meshes.push(extrX(ret(0,0,W,A),L-ponta));
+        if(ponta){const c45=Math.cos(PI/4),s45=Math.sin(PI/4);m.meshes.push(mapear(extrX(ret(0,0,W,A),ponta),p=>[p[0]*c45-p[2]*s45,p[1],p[0]*s45+p[2]*c45],[L-ponta,0,0]));}
+        const nf=Math.max(3,Math.floor((L-ponta)/24));for(let i=0;i<nf;i++){const x=(L-ponta)*(i+0.6)/(nf+0.2);if(L<Lr&&Math.abs(x-(L-ponta)/2)<A)continue;m.decor.push({p:circ3([x,W,A/2],Math.min(1.1,A*0.11),'y'),fill:'#4A4844'});}
+        if(L<Lr)quebra((L-ponta)/2,W,A);cotaBox(L,W,A,cmL(Lr),cm(W),cm(A));return m;}
+      case 'pilar_muro':{const Lr=g('c'),W=g('l'),A=g('a'),L=longo(Lr,Math.max(W,A)),s=Math.min(4,A*0.35),p=Math.min(3,W*0.25);
+        m.meshes.push(extrX([[0,0],[W,0],[W,A/2-s/2],[W-p,A/2-s/2],[W-p,A/2+s/2],[W,A/2+s/2],[W,A],[0,A],[0,A/2+s/2],[p,A/2+s/2],[p,A/2-s/2],[0,A/2-s/2]],L));if(L<Lr)quebra(L/2,W,A);cotaBox(L,W,A,cmL(Lr),cm(W),cm(A));return m;}
+      case 'poste_dt':{const Lr=g('c'),W=g('l'),A=g('a'),L=longo(Lr,Math.max(W,A)),tf=A*0.2,w=W*0.4;
+        m.meshes.push(extrX([[0,0],[W,0],[W,tf],[(W+w)/2,tf],[(W+w)/2,A-tf],[W,A-tf],[W,A],[0,A],[0,A-tf],[(W-w)/2,A-tf],[(W-w)/2,tf],[0,tf]],L));if(L<Lr)quebra(L/2,W,A);cotaBox(L,W,A,cmL(Lr),cm(W),cm(A));return m;}
+      case 'jersey':case 'jersey_dupla':{const L=g('c'),B=g('l'),A=g('a');
+        const pr=k==='jersey_dupla'?[[0,0],[B,0],[B,0.09*A],[B*0.8,0.31*A],[B*0.62,A],[B*0.38,A],[B*0.2,0.31*A],[0,0.09*A]]:[[0,0],[B,0],[B,0.09*A],[B*0.66,0.31*A],[B*0.42,A],[0,A]];
+        m.meshes.push(extrX(pr,L));cotaBox(L,B,A,cm(L),cm(B),cm(A));return m;}
+      case 'gelo_baiano':{const L=g('c'),B=g('l'),A=g('a');m.meshes.push(extrX([[0,0],[B,0],[B*0.68,A],[B*0.32,A]],L));cotaBox(L,B,A,cm(L),cm(B),cm(A));return m;}
+      case 'placa_muro':case 'placa_muro_est':case 'guarda_corpo':{const L=g('c'),A=g('l'),E=g('e');m.meshes.push(extrX(ret(0,0,E,A),L));
+        if(k==='placa_muro_est'){const nl=6,h=A/nl;for(let i=1;i<nl;i++)m.decor.push({p:[[0.3,E,h*i],[L-0.3,E,h*i]],aberto:1,stroke:'rgba(0,0,0,.28)',w:.8});
+          for(let i=0;i<nl;i++){const of=i%2?0:L/24;for(let x=of+L/12;x<L-1;x+=L/12)m.decor.push({p:[[x,E,h*i+0.3],[x,E,h*(i+1)-0.3]],aberto:1,stroke:'rgba(0,0,0,.28)',w:.8});}}
+        m.cotas.push({a:[0,E,0],b:[L,E,0],txt:cm(L)},{a:[L,0,0],b:[L,0,A],txt:cm(A)});return m;}
+      case 'pingadeira_capa':{const L=g('c'),W=g('l'),E=g('e');m.meshes.push(extrX([[0,0],[W,0],[W,E*0.55],[W/2,E],[0,E*0.55]],L));cotaBox(L,W,E,cm(L),cm(W),cm(E));return m;}
+      case 'chapeu':{const c=g('c'),l=g('l'),e=g('e');m.meshes.push(extrZ(ret(0,0,c,l),e*0.45),piramide(0,0,c,l,e*0.45,Math.max(e*0.9,c*0.22)));cotaBox(c,l,e,cm(c),cm(l),'');m.cotas.pop();return m;}
+      case 'meiofio_vazado':{const B=g('B'),b=g('b'),h=g('h'),L=g('comp');m.meshes.push(extrX([[0,0],[B,0],[(B+b)/2,h],[(B-b)/2,h]],L));
+        const n=Math.max(2,Math.round(L/30));for(let i=0;i<n;i++){const xa=L*(i+0.2)/n,xb=L*(i+0.8)/n,P=(x,s)=>[x,B-s*(B-b)/2,s*h];m.decor.push({p:[P(xa,0.25),P(xb,0.25),P(xb,0.7),P(xa,0.7)],fill:'#4A4844'});}
+        cotaBox(L,B,h,cm(L),cm(B),cm(h));return m;}
+      case 'paver':case 'paver_dren':case 'junta_larga':case 'tijolao':case 'confinamento':{const c=g('c'),l=g('l'),e=g('e'),ch=Math.min(c,l)*0.07;m.meshes.push(extrZ(ret(0,0,c,l),e));
+        m.decor.push({p:[[ch,ch,e],[c-ch,ch,e],[c-ch,l-ch,e],[ch,l-ch,e]],fill:'rgba(255,255,255,.08)',stroke:'rgba(0,0,0,.16)',w:.8});
+        if(k==='tijolao')[1/3,2/3].forEach(f=>m.decor.push({p:[[c*f,ch,e],[c*f,l-ch,e]],aberto:1,stroke:'rgba(0,0,0,.3)',w:1.2}));
+        cotaBox(c,l,e,cm(c),cm(l),cm(e));return m;}
+      case 'paver_16f':{const c=g('c'),l=g('l'),e=g('e'),n=4,a=0.13*l,pts=[];for(let i=0;i<=2*n;i++)pts.push([c*i/(2*n),i%2?0:a]);for(let i=2*n;i>=0;i--)pts.push([c*i/(2*n),i%2?l:l-a]);
+        m.meshes.push(extrZ(pts,e));cotaBox(c,l,e,cm(c),cm(l),cm(e));return m;}
+      case 'paver_diamante':{const c=g('c'),l=g('l')*0.62,e=g('e');m.meshes.push(extrZ([[c/2,0],[c,l/2],[c/2,l],[0,l/2]],e));cotaBox(c,l,e,cm(c),cm(l),cm(e));return m;}
+      case 'unigrama':case 'concregrama':{const c=g('c'),l=g('l'),e=g('e'),[nx,ny]=k==='unigrama'?[2,1]:(c>=40&&l>=40?[3,3]:[3,2]);
+        m.meshes.push(extrZ(ret(0,0,c,l),e,gradeFuros(c,l,nx,ny,0.45),{corFundo:COR.grama}));cotaBox(c,l,e,cm(c),cm(l),cm(e));return m;}
+      case 'tatil':{const c=g('c'),l=g('l'),e=g('e'),n=Math.max(4,Math.round(c/5.5)),ny=Math.max(4,Math.round(l/5.5));m.meshes.push(extrZ(ret(0,0,c,l),e));
+        for(let i=0;i<n;i++)for(let j=0;j<ny;j++){const x=c*(i+0.5)/n,y=l*(j+0.5)/ny,r=Math.min(c/n,l/ny)*0.3;m.decor.push({p:circ3([x,y,e],r,'z'),fill:'rgb(214,211,203)',stroke:'rgba(0,0,0,.25)',w:.6},{p:circ3([x-r*0.25,y-r*0.25,e],r*0.4,'z',10),fill:'rgba(255,255,255,.55)'});}
+        cotaBox(c,l,e,cm(c),cm(l),cm(e));return m;}
+      case 'placa_rampa':case 'placa_deco':case 'ladrilho':case 'marmorizada':case 'deck':case 'placa_madeira':case 'ladrilho_hidr':case 'atermico':case 'pisadeira':{
+        const c=g('c'),l=g('l'),e=g('e');m.meshes.push(extrZ(ret(0,0,c,l),e));const L=(a,b,st,w)=>m.decor.push({p:[[a[0],a[1],e],[b[0],b[1],e]],aberto:1,stroke:st,w:w||.8});
+        if(k==='placa_rampa'){const s=Math.max(2.2,Math.min(c,l)/7);for(let q=-l+s/2;q<c;q+=s){let x1=Math.max(0,q),y1=x1-q,x2=Math.min(c,q+l),y2=x2-q;if(y1<0){y1=0;x1=q;}if(y2>l){y2=l;x2=q+l;}if(x2>x1)L([x1,y1],[x2,y2],'rgba(0,0,0,.28)',1);}}
+        if(k==='placa_deco'||k==='pisadeira'){const n=k==='pisadeira'?2:4;for(let i=1;i<n;i++){L([c*i/n,0.4],[c*i/n,l-0.4],'rgba(0,0,0,.25)');L([0.4,l*i/n],[c-0.4,l*i/n],'rgba(0,0,0,.25)');}}
+        if(k==='deck'||k==='placa_madeira'){const n=Math.max(3,Math.round(l/4));for(let i=1;i<n;i++){const y=l*i/n,pts=[];for(let s=0;s<=10;s++)pts.push([c*s/10,y+Math.sin(s*1.3+i)*l*0.012,e]);m.decor.push({p:pts,aberto:1,stroke:'rgba(70,40,15,.38)',w:.8});}}
+        if(k==='marmorizada'){[[0.1,0.2,0.9,0.7],[0.2,0.9,0.7,0.1],[0.05,0.55,0.6,0.95]].forEach(([a,b,cc,dd2],i)=>{const pts=[];for(let s=0;s<=12;s++){const f=s/12;pts.push([c*(a+(cc-a)*f)+Math.sin(f*7+i)*c*0.03,l*(b+(dd2-b)*f)+Math.cos(f*5+i)*l*0.03,e]);}m.decor.push({p:pts,aberto:1,stroke:'rgba(255,255,255,.65)',w:1});});}
+        if(k==='ladrilho_hidr'){m.decor.push({p:[[c/2,l*0.08,e],[c*0.92,l/2,e],[c/2,l*0.92,e],[c*0.08,l/2,e]],fill:'rgb(176,82,58)'},{p:circ3([c/2,l/2,e],Math.min(c,l)*0.2,'z',24),fill:'rgb(46,86,146)'},{p:circ3([c/2,l/2,e],Math.min(c,l)*0.08,'z',16),fill:'rgb(236,226,200)'});
+          [[0,0],[c,0],[c,l],[0,l]].forEach(([x,y])=>{const a0=Math.atan2(l/2-y,c/2-x)-PI/4,pts=[[x,y,e]];for(let s=0;s<=6;s++){const a=a0+s/6*PI/2;pts.push([x+Math.cos(a)*c*0.16,y+Math.sin(a)*l*0.16,e]);}m.decor.push({p:pts,fill:'rgb(46,86,146)'});});}
+        cotaBox(c,l,e,cm(c),cm(l),cm(e));return m;}
+      case 'placa_3d':{const c=g('c'),l=g('l'),e=g('e'),b=e*0.35,n=3,pir=[];m.meshes.push(extrZ(ret(0,0,c,l),b));for(let i=0;i<n;i++)for(let j=0;j<n;j++)pir.push(...piramide(c*i/n,l*j/n,c/n,l/n,b,e-b));m.meshes.push(pir);cotaBox(c,l,e,cm(c),cm(l),cm(e));return m;}
+      case 'telha':{const c=g('c'),l=g('l'),e=g('e'),A=Math.max(2.5,l*0.1),N=24,top=[],bot=[];for(let i=0;i<=N;i++){const y=l*i/N,z=e+A*(0.5-0.5*Math.cos(2*PI*y/(l/2)));top.push([y,z]);bot.push([y,z-e]);}
+        m.meshes.push(extrX(top.concat(bot.reverse()),c,[],{liso:true}));m.cotas.push({a:[0,l,0],b:[c,l,0],txt:cm(c)},{a:[c,0,0],b:[c,l,0],txt:cm(l)});return m;}
+      case 'grelha':case 'guia_vazada':case 'tampa_ret':{const c=g('c'),l=g('l'),e=g('e');let fur=[];
+        if(k==='grelha'){const n=Math.max(4,Math.round(c/11));for(let i=0;i<n;i++){const w=c/n*0.42;fur.push(retR(c*(i+0.5)/n-w/2,l*0.12,w,l*0.76,w*0.4));}}
+        if(k==='guia_vazada'){const n=3;for(let i=0;i<n;i++){const w=c/n*0.45;fur.push(retR(c*(i+0.5)/n-w/2,l*0.18,w,l*0.64,w*0.3));}}
+        m.meshes.push(extrZ(ret(0,0,c,l),e,fur));
+        if(k==='tampa_ret')[[0.5,0.12],[0.5,0.88]].forEach(([fx,fy])=>m.decor.push({p:[[c*fx-c*0.08,l*fy-1.2,e],[c*fx+c*0.08,l*fy-1.2,e],[c*fx+c*0.08,l*fy+1.2,e],[c*fx-c*0.08,l*fy+1.2,e]],fill:'#4A4844'}));
+        cotaBox(c,l,e,cm(c),cm(l),cm(e));return m;}
+      case 'tampa_circ':case 'tampao':case 'bolacha':{const R=g('d')/2,e=g('e');m.meshes.push(revol([[0,0],[R,0],[R,e],[0,e]],56));
+        if(k==='tampao')m.meshes.push(revol([[0,0],[R*0.72,0],[R*0.72,e*0.6],[0,e*0.6]],56,{z0:e}));
+        if(k!=='bolacha'){const z=k==='tampao'?e*1.6:e;[-1,1].forEach(s=>m.decor.push({p:[[s*R*0.5-R*0.1,-R*0.03,z],[s*R*0.5+R*0.1,-R*0.03,z],[s*R*0.5+R*0.1,R*0.03,z],[s*R*0.5-R*0.1,R*0.03,z]],fill:'#4A4844'}));}
+        m.cotas.push({a:[-R,R,0],b:[R,R,0],txt:'Ø '+cm(2*R)});return m;}
+      case 'laje_reducao':{const R=g('d')/2,e=g('e');m.meshes.push(extrZ(circ(0,0,R,64),e,[circ(R*0.22,0,R*0.42,40)],{liso:true}));m.cotas.push({a:[-R,R,0],b:[R,R,0],txt:'Ø '+cm(2*R)});return m;}
+      case 'anel_pv':case 'gola':case 'cone_pv':{const ri=g('di')/2,es=g('esp'),h=g('comp'),R=ri+es;
+        if(k==='cone_pv'){const rt=Math.max(30,ri*0.6);m.meshes.push(revol([[ri,0],[R,0],[rt+es,h],[rt,h]],56));}else m.meshes.push(revol([[ri,0],[R,0],[R,h],[ri,h]],56));
+        m.cotas.push({a:[-R,R,0],b:[R,R,0],txt:'Ø int. '+cm(2*ri)},{a:[R,0,0],b:[R,0,h],txt:cm(h)});return m;}
+      case 'tubo_pb':case 'tubo_mf':case 'dreno_perf':case 'dreno_poroso':case 'poste_cr':{const r=g('di')/2,es=g('esp'),Lr=g('comp'),R=r+es,L=k==='poste_cr'?longo(Lr,2*R):Lr,Rb=R+es*0.9,C=k==='tubo_pb'?Rb:R;
+        if(k==='tubo_pb'){const lb=Math.min(L*0.14,18);m.meshes.push(extrX(circ(C,C,Rb,48),lb,[circ(C,C,r,48)],{liso:true}),extrX(circ(C,C,R,48),L-lb,[circ(C,C,r,48)],{liso:true,x0:lb}));}
+        else if(k==='tubo_mf'){const s=Math.min(6,L*0.06);m.meshes.push(extrX(circ(C,C,R,48),L-s,[circ(C,C,r,48)],{liso:true}),extrX(circ(C,C,R-es*0.45,48),s,[circ(C,C,r,48)],{liso:true,x0:L-s}));}
+        else m.meshes.push(extrX(circ(C,C,R,48),L,[circ(C,C,r,48)],{liso:true}));
+        if(k==='dreno_perf'){const na=10,nx=Math.max(3,Math.round(L/16));for(let i=0;i<na;i++){const f=2*PI*i/na,nn=[0,Math.cos(f),Math.sin(f)];if(dot(nn,VW)<0.25)continue;
+          for(let j=0;j<nx;j++){const x=L*(j+0.5)/nx,c0=[x,C+R*Math.cos(f),C+R*Math.sin(f)],rr=Math.min(1.4,R*0.08),pts=[];for(let s=0;s<12;s++){const a=2*PI*s/12;pts.push([c0[0]+rr*Math.cos(a),c0[1]-rr*Math.sin(a)*Math.sin(f),c0[2]+rr*Math.sin(a)*Math.cos(f)]);}m.decor.push({p:pts,fill:'#4A4844'});}}}
+        m.cotas.push({a:[0,2*C,C*0.15],b:[L,2*C,C*0.15],txt:k==='poste_cr'?cmL(Lr):cm(L)},{a:[L,C-r,C],b:[L,C+r,C],txt:'Ø '+cm(2*r),dentro:1});return m;}
+      case 'canaleta_grelha':{const li=g('li'),hi=g('hi'),e=g('e'),L=g('comp'),W=li+2*e,H=hi+e,n=Math.max(3,Math.round(L/9)),fur=[];
+        m.meshes.push(extrX([[0,0],[W,0],[W,H],[W-e,H],[W-e,e],[e,e],[e,H],[0,H]],L));for(let i=0;i<n;i++){const w=L/n*0.45;fur.push(retR(L*(i+0.5)/n-w/2,e+li*0.08,w,li*0.84,w*0.3));}
+        m.meshes.push(extrZ(ret(0,0,L,W),3,fur,{z0:H}));cotaBox(L,W,H+3,cm(L),cm(W),cm(H+3));return m;}
+      case 'quadro_bl':case 'suporte_grelha':{const c=g('c'),l=g('l'),a=g('a'),b=Math.min(c,l)*0.16;m.meshes.push(extrZ(ret(0,0,c,l),a,[ret(b,b,c-2*b,l-2*b)]));cotaBox(c,l,a,cm(c),cm(l),cm(a));return m;}
+      case 'cantoneira_bl':{const L=g('c'),W=g('l'),A=g('a'),tt=Math.min(W,A)*0.45;m.meshes.push(extrX([[0,0],[W,0],[W,tt],[tt,tt],[tt,A],[0,A]],L));cotaBox(L,W,A,cm(L),cm(W),cm(A));return m;}
+      case 'bloco_h':{const c=g('c'),l=g('l'),a=g('a'),tt=c*0.22,w=l*0.4;m.meshes.push(extrZ([[0,0],[tt,0],[tt,(l-w)/2],[c-tt,(l-w)/2],[c-tt,0],[c,0],[c,l],[c-tt,l],[c-tt,(l+w)/2],[tt,(l+w)/2],[tt,l],[0,l]],a));cotaBox(c,l,a,cm(c),cm(l),cm(a));return m;}
+      case 'canaleta_bloco':{const c=g('c'),l=g('l'),a=g('a'),e=Math.min(2.5,l*0.2);m.meshes.push(extrX([[0,0],[l,0],[l,a],[l-e,a],[l-e,e*1.4],[e,e*1.4],[e,a],[0,a]],c));cotaBox(c,l,a,cm(c),cm(l),cm(a));return m;}
+      case 'bloco_jardim':{const c=g('c'),l=g('l'),a=g('a');m.meshes.push(extrZ(ret(0,0,c,l),a,furosBloco(c,l,g('vz')||45,1)));cotaBox(c,l,a,cm(c),cm(l),cm(a));return m;}
+      case 'cobogo':{const c=g('c'),es=g('l'),a=g('a'),n=c>=35?4:3,cel=c/n,rr=Math.min(cel*0.4,cel*Math.sqrt((g('vz')||55)/100/PI)),fur=[];
+        for(let i=0;i<n;i++)for(let j=0;j<Math.max(1,Math.round(a/cel));j++)fur.push(circ(cel*(i+0.5),a/Math.max(1,Math.round(a/cel))*(j+0.5),rr,20));
+        m.meshes.push(mapear(extrX(ret(0,0,c,a),es,fur),p=>[p[1],p[0],p[2]]));m.cotas.push({a:[0,es,0],b:[c,es,0],txt:cm(c)},{a:[c,0,0],b:[c,0,a],txt:cm(a)});return m;}
+      case 'vigota':case 'verga':{const Lr=g('c'),W=g('l'),A=g('a'),L=longo(Lr,Math.max(W,A+(k==='vigota'?8:0)));m.meshes.push(extrX(ret(0,0,W,A),L));if(k==='vigota')trelica(m,L,W/2,A,8);if(L<Lr)quebra(L/2,W,A);cotaBox(L,W,A,cmL(Lr),cm(W),cm(A));return m;}
+      case 'minipainel':{const L=g('c'),W=g('l'),E=g('e');m.meshes.push(extrZ(ret(0,0,L,W),E));[W*0.3,W*0.7].forEach(y=>trelica(m,L,y,E,8));cotaBox(L,W,E,`${n1(L/100,2)} m`,cm(W),cm(E));return m;}
+      case 'balaustre':{const H=g('c'),w=g('l'),pr=[[0,0],[0.5,0],[0.5,0.07],[0.34,0.1],[0.3,0.18],[0.44,0.36],[0.46,0.48],[0.36,0.62],[0.22,0.76],[0.3,0.84],[0.5,0.88],[0.5,1],[0,1]].map(([r,z])=>[r*w,z*H]);
+        m.meshes.push(revol(pr,36));m.cotas.push({a:[w/2,0,0],b:[w/2,0,H],txt:cm(H)});return m;}
+      case 'balizador':case 'ponteira':{const R=g('d')/2,b=k==='ponteira'?Math.max(4,R*0.25):0,pr=[];for(let i=0;i<=18;i++){const a=-PI/2+PI*i/18;pr.push([R*Math.cos(a),R+R*Math.sin(a)]);}
+        if(b)m.meshes.push(extrZ(ret(-R*0.55,-R*0.55,R*1.1,R*1.1),b));m.meshes.push(revol(pr,40,{z0:b}));m.cotas.push({a:[-R,R,0],b:[R,R,0],txt:'Ø '+cm(2*R)});return m;}
+      case 'lixeira':case 'vaso':case 'caixa_gord_circ':{const R=g('d')/2,a=g('a'),e=g('e'),ri=R-e,k1=k==='caixa_gord_circ'?1:0.8;
+        m.meshes.push(revol([[0,0],[R*k1,0],[R,a],[ri,a],[ri*k1,e],[0,e]],56,{ly:{4:-1}}));m.cotas.push({a:[-R,R,0],b:[R,R,0],txt:'Ø '+cm(2*R)},{a:[R,0,0],b:[R,0,a],txt:cm(a)});return m;}
+      case 'bandeja':{const c=g('c'),l=g('l'),e=g('e'),w=Math.min(1.5,e*0.5);m.meshes.push(extrZ(ret(0,0,c,l),e,[retR(w,w,c-2*w,l-2*w,2)],{fundo:Math.min(1,e*0.35)}));cotaBox(c,l,e,cm(c),cm(l),cm(e));return m;}
+      case 'banco':{m.meshes.push(extrZ(ret(18,2,16,46),40),extrZ(ret(216,2,16,46),40),extrZ(ret(0,0,250,50),9,[],{z0:40}));cotaBox(250,50,49,'250 cm','50 cm','');m.cotas.pop();return m;}
+      case 'degrau':{m.meshes.push(extrX([[0,0],[28,0],[28,17],[-3,17],[-3,14],[0,14]],100));cotaBox(100,28,17,'100 cm','28 cm','17 cm');return m;}
+      case 'sapata':{m.meshes.push(extrZ(ret(0,0,100,100),25),extrZ(ret(32,32,36,36),45,[],{z0:25}));cotaBox(100,100,70,'100 cm','100 cm','70 cm');return m;}
+      case 'laje_alveolar':{const fur=[];for(let i=0;i<6;i++)fur.push(circ(10+20*i,10,6.6,22));m.meshes.push(extrX(ret(0,0,120,20),300,fur));cotaBox(300,120,20,'até 15 m','120 cm','20 cm');return m;}
+      case 'mata_burro':{m.meshes.push(extrX(ret(8,0,16,20),300),extrX(ret(176,0,16,20),300));const bars=[];for(let x=6;x<300;x+=22)bars.push(...extrZ(ret(x,0,9,200),10,[],{z0:20}));m.meshes.push(bars);cotaBox(300,200,30,'300 cm','200 cm','');m.cotas.pop();return m;}
+      case 'chafariz':{m.meshes.push(revol([[0,0],[16,0],[11,10],[11,42],[16,46],[0,46]],32),revol([[0,0],[40,0],[55,22],[51,22],[37,4],[0,4]],56,{z0:44,ly:{4:-1}}));
+        m.decor.push({p:circ3([0,0,63],49,'z',40),fill:'rgba(126,186,226,.85)'});m.cotas.push({a:[-55,55,0],b:[55,55,0],txt:'Ø 110 cm'});return m;}
+      case 'ecofogao':{m.meshes.push(extrZ(ret(0,0,90,60),70),extrZ(ret(6,6,14,14),70,[],{z0:70}));m.decor.push({p:[[30,60,10],[60,60,10],[60,60,32],[30,60,32]],fill:'#3E3B37'},{p:circ3([45,30,70],9,'z',20),fill:'#3E3B37'},{p:circ3([72,30,70],7,'z',18),fill:'#3E3B37'});cotaBox(90,60,70,'90 cm','60 cm','70 cm');return m;}
+      case 'lareira':{m.meshes.push(extrZ(ret(0,0,120,47),75));const pts=[[30,47,8],[90,47,8],[90,47,45]];for(let s=0;s<=10;s++){const a=PI*s/10;pts.push([60+30*Math.cos(a),47,45+14*Math.sin(a)]);}pts.push([30,47,45]);m.decor.push({p:pts,fill:'#2E2B28'});cotaBox(120,47,75,'120 cm','47 cm','75 cm');return m;}
+      case 'caixa_sao':{m.meshes.push(extrZ(ret(0,0,150,80),80,[ret(8,8,62,64),ret(78,8,64,64)],{fundo:8}));cotaBox(150,80,80,'150 cm','80 cm','80 cm');return m;}
+    }
+    // ── formas da família ──
+    switch(t.f){
+      case 'prisma':{const Lr=g('c'),W=g('l'),A=g('a'),L=longo(Lr,Math.max(W,A));m.meshes.push(extrX(ret(0,0,W,A),L));if(L<Lr)quebra(L/2,W,A);cotaBox(L,W,A,cmL(Lr),cm(W),cm(A));break;}
+      case 'placa':{const c=g('c'),l=g('l'),e=g('e');m.meshes.push(extrZ(ret(0,0,c,l),e));cotaBox(c,l,e,cm(c),cm(l),cm(e));break;}
+      case 'bloco':{const c=g('c'),l=g('l'),a=g('a');m.meshes.push(extrZ(ret(0,0,c,l),a,furosBloco(c,l,g('vz'))));cotaBox(c,l,a,cm(c),cm(l),cm(a));break;}
+      case 'hexagono':{const D=g('d'),e=g('e'),R=D/Math.sqrt(3);m.meshes.push(extrZ(circ(0,0,R,6,PI/6),e));m.cotas.push({a:[-R,D/2,0],b:[R,D/2,0],txt:cm(D)},{a:[R,0,0],b:[R,0,e],txt:cm(e)});break;}
+      case 'disco':{const R=g('d')/2,e=g('e');m.meshes.push(revol([[0,0],[R,0],[R,e],[0,e]],56));m.cotas.push({a:[-R,R,0],b:[R,R,0],txt:'Ø '+cm(2*R)});break;}
+      case 'esfera':{const R=g('d')/2,pr=[];for(let i=0;i<=18;i++){const a=-PI/2+PI*i/18;pr.push([R*Math.cos(a),R+R*Math.sin(a)]);}m.meshes.push(revol(pr,40));m.cotas.push({a:[-R,R,0],b:[R,R,0],txt:'Ø '+cm(2*R)});break;}
+      case 'tubo':{const r=g('di')/2,R=r+g('esp'),L=g('comp');m.meshes.push(extrX(circ(R,R,R,48),L,[circ(R,R,r,48)],{liso:true}));m.cotas.push({a:[0,2*R,R*0.15],b:[L,2*R,R*0.15],txt:cm(L)},{a:[L,R-r,R],b:[L,R+r,R],txt:'Ø '+cm(2*r),dentro:1});break;}
+      case 'calha':{const r=g('di')/2,R=r+g('esp'),L=g('comp'),N=24,pr=[];for(let i=0;i<=N;i++){const a=PI+PI*i/N;pr.push([R+R*Math.cos(a),R+R*Math.sin(a)]);}for(let i=N;i>=0;i--){const a=PI+PI*i/N;pr.push([R+r*Math.cos(a),R+r*Math.sin(a)]);}
+        m.meshes.push(extrX(pr,L,[],{liso:true}));m.cotas.push({a:[0,2*R,R*0.5],b:[L,2*R,R*0.5],txt:cm(L)});break;}
+      case 'trapezio':{const B=g('B'),b=g('b'),h=g('h'),L=g('comp');m.meshes.push(extrX([[0,0],[B,0],[(B+b)/2,h],[(B-b)/2,h]],L));cotaBox(L,B,h,cm(L),cm(B),cm(h));break;}
+      case 'canaleta':{const li=g('li'),hi=g('hi'),e=g('e'),L=g('comp'),W=li+2*e,H=hi+e;m.meshes.push(extrX([[0,0],[W,0],[W,H],[W-e,H],[W-e,e],[e,e],[e,H],[0,H]],L));cotaBox(L,W,H,cm(L),cm(W),cm(H));break;}
+      case 'caixa':{const c=g('c'),l=g('l'),a=g('a'),e=g('e');m.meshes.push(extrZ(ret(0,0,c,l),a,[retR(e,e,c-2*e,l-2*e,Math.min(2,e*0.3))],{fundo:e}));cotaBox(c,l,a,cm(c),cm(l),cm(a));break;}
+      case 'pote':{const R=g('d')/2,a=g('a'),e=g('e'),ri=R-e;m.meshes.push(revol([[0,0],[R,0],[R,a],[ri,a],[ri,e],[0,e]],56,{ly:{4:-1}}));m.cotas.push({a:[-R,R,0],b:[R,R,0],txt:'Ø '+cm(2*R)},{a:[R,0,0],b:[R,0,a],txt:cm(a)});break;}
+      case 'aduela':{const li=g('li'),hi=g('hi'),e=g('e'),L=g('comp'),W=li+2*e,H=hi+2*e;m.meshes.push(extrX(ret(0,0,W,H),L,[ret(e,e,li,hi)]));cotaBox(L,W,H,cm(L),cm(W),cm(H));break;}
+      default:{const s=Math.max(10,Math.cbrt(Math.max(0.001,g('v')))*100);m.meshes.push(extrZ(retR(0,0,s*1.3,s,s*0.08),s*0.75));m.cor=m.cor||COR.claro;}
+    }
+    return m;
+  }
+  function hull(P){const p=P.slice().sort((a,b)=>a[0]-b[0]||a[1]-b[1]);if(p.length<3)return p;const cr=(o,a,b)=>(a[0]-o[0])*(b[1]-o[1])-(a[1]-o[1])*(b[0]-o[0]),lo=[],up=[];
+    for(const q of p){while(lo.length>=2&&cr(lo[lo.length-2],lo[lo.length-1],q)<=0)lo.pop();lo.push(q);}
+    for(let i=p.length-1;i>=0;i--){const q=p[i];while(up.length>=2&&cr(up[up.length-2],up[up.length-1],q)<=0)up.pop();up.push(q);}
+    up.pop();lo.pop();return lo.concat(up);}
+  let SEQ=0;
+  function ilustracao(t,d,o){
+    o=o||{};const W=o.w||380,H=o.h||210,id='pm3d'+(++SEQ),m=modelo(t,d||{}),base=m.cor||COR.conc,todas=m.meshes.flat();
+    if(!todas.length)return '';
+    let zmin=Infinity;todas.forEach(f=>f.p.forEach(p=>{if(p[2]<zmin)zmin=p[2];}));
+    const pts=[];todas.forEach(f=>f.p.forEach(p=>pts.push(pj(p))));m.decor.forEach(dc=>dc.p.forEach(p=>pts.push(pj(p))));
+    const cx3=todas.reduce((s,f)=>s+f.p[0][0],0)/todas.length,cy3=todas.reduce((s,f)=>s+f.p[0][1],0)/todas.length;
+    const somb=hull(todas.flatMap(f=>f.p.map(p=>{const q=[cx3+(p[0]-cx3)*1.05,cy3+(p[1]-cy3)*1.05,zmin];return pj(q);})));somb.forEach(q=>pts.push(q));
+    let x0=Infinity,y0=Infinity,x1=-Infinity,y1=-Infinity;pts.forEach(([x,y])=>{if(x<x0)x0=x;if(x>x1)x1=x;if(y<y0)y0=y;if(y>y1)y1=y;});
+    const pad=o.cotas?40:10,s=Math.min((W-2*pad)/Math.max(1e-6,x1-x0),(H-2*pad)/Math.max(1e-6,y1-y0)),ox=(W-(x1-x0)*s)/2,oy=(H-(y1-y0)*s)/2;
+    const T=q=>[(q[0]-x0)*s+ox,(q[1]-y0)*s+oy],P=p=>T(pj(p)),f2=v=>Math.round(v*10)/10,cam=a=>a.map(p=>{const q=P(p);return f2(q[0])+' '+f2(q[1]);});
+    const caminho=(ps,aberto)=>'M'+cam(ps).join('L')+(aberto?'':'Z');
+    let faces='';
+    m.meshes.forEach(fs=>{fs.filter(f=>dot(f.n,VW)>1e-6).map(f=>{const c=f.p.reduce((a,p)=>[a[0]+p[0],a[1]+p[1],a[2]+p[2]],[0,0,0]).map(v=>v/f.p.length);return {f,dp:dot(c,VW)};})
+      .sort((a,b)=>(a.f.ly-b.f.ly)||(a.dp-b.dp)).forEach(({f})=>{const c=f.cor||base,lam=dot(f.n,LUZ);let k=0.55+0.5*Math.max(-0.2,lam);if(f.ly<=0&&!f.cor)k*=0.52;
+        const fill=rgb(c,k),d=caminho(f.p)+(f.furos||[]).map(h=>caminho(h)).join('');
+        faces+=`<path d="${d}" fill="${fill}" fill-rule="evenodd" stroke="${f.liso?fill:rgb(c,k*0.8)}" stroke-width="${f.liso?0.6:0.8}" stroke-linejoin="round"/>`;});});
+    const dec=m.decor.map(dc=>`<path d="${caminho(dc.p,dc.aberto)}" fill="${dc.aberto?'none':(dc.fill||'none')}" stroke="${dc.stroke||'none'}" stroke-width="${dc.w||0.8}" stroke-linejoin="round" stroke-linecap="round"/>`).join('');
+    let cot='';
+    if(o.cotas){const cen=T([(x0+x1)/2,(y0+y1)/2]);m.cotas.forEach(ct=>{if(!ct.txt)return;const a=P(ct.a),b=P(ct.b),dx=b[0]-a[0],dy=b[1]-a[1],L=Math.hypot(dx,dy);if(L<6)return;
+      let nx=-dy/L,ny=dx/L;const mid=[(a[0]+b[0])/2,(a[1]+b[1])/2];if(!ct.dentro&&((mid[0]-cen[0])*nx+(mid[1]-cen[1])*ny)<0){nx=-nx;ny=-ny;}
+      const off=ct.dentro?0:9,A=[a[0]+nx*off,a[1]+ny*off],B=[b[0]+nx*off,b[1]+ny*off],tk=4,tx=mid[0]+nx*(off+(ct.dentro?-6:11)),ty=mid[1]+ny*(off+(ct.dentro?-6:11))+4;
+      cot+=`<g stroke="#475467" stroke-width="1"><line x1="${f2(A[0])}" y1="${f2(A[1])}" x2="${f2(B[0])}" y2="${f2(B[1])}"/><line x1="${f2(A[0]-nx*tk)}" y1="${f2(A[1]-ny*tk)}" x2="${f2(A[0]+nx*tk)}" y2="${f2(A[1]+ny*tk)}"/><line x1="${f2(B[0]-nx*tk)}" y1="${f2(B[1]-ny*tk)}" x2="${f2(B[0]+nx*tk)}" y2="${f2(B[1]+ny*tk)}"/></g>`+
+        `<text x="${f2(tx)}" y="${f2(ty)}" text-anchor="middle" font-size="10.5" font-weight="700" fill="#1D2939" paint-order="stroke" stroke="#fff" stroke-width="3">${ct.txt}</text>`;});}
+    const grao=o.grao!==false;
+    return `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" class="pm-svg pm-3d" font-family="Inter,Arial,sans-serif" role="img" aria-label="${String(t.nome||'').replace(/"/g,'')}"><defs>
+      <filter id="${id}s" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="${Math.max(2,s*1.5)}"/></filter>
+      ${grao?`<filter id="${id}g"><feTurbulence type="fractalNoise" baseFrequency="${m.cor===COR.poroso?1.4:0.9}" numOctaves="2" seed="5" result="t"/>
+        <feColorMatrix in="t" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  ${m.cor===COR.poroso?'1.3 0 0 0 -.45':'.9 0 0 0 -.33'}" result="e"/>
+        <feColorMatrix in="t" type="matrix" values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 .8 0 0 -.4" result="c"/>
+        <feComposite in="e" in2="SourceAlpha" operator="in" result="e2"/><feComposite in="c" in2="SourceAlpha" operator="in" result="c2"/>
+        <feMerge><feMergeNode in="SourceGraphic"/><feMergeNode in="e2"/><feMergeNode in="c2"/></feMerge></filter>`:''}</defs>
+      <path d="M${somb.map(q=>{const r=T(q);return f2(r[0])+' '+f2(r[1]);}).join('L')}Z" fill="rgba(16,24,40,.2)" filter="url(#${id}s)"/>
+      <g ${grao?`filter="url(#${id}g)"`:''}>${faces}</g>${dec}${cot}</svg>`;
+  }
+  return {ilustracao,modelo};
+})();
+
+window.PM_CAT={GRUPOS,TR,FAM,TIPOS,tipoDe,geo,armadura,desenho,n1,ilustracao:ILU.ilustracao};
 })();
