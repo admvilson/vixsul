@@ -57,8 +57,16 @@ const BITOLAS=[4.2,5.0,6.0,6.3,8.0,10.0,12.5,16.0];
 const kgm=d=>0.006165*d*d;
 const ehCA60=d=>+d<6.3;
 const FASES_V=[{k:'sinal',rot:'Aguardando sinal',cor:'#B54708',ico:'fa-hourglass-start'},{k:'producao',rot:'Reservado · em produção',cor:'#7F56D9',ico:'fa-industry'},
-  {k:'pagamento',rot:'Pronto · falta pagar',cor:'#DC6803',ico:'fa-hand-holding-dollar'},{k:'liberado',rot:'Pago · liberado para entrega',cor:'#1652D8',ico:'fa-truck-ramp-box'},
-  {k:'entregue',rot:'Entregue',cor:'#067647',ico:'fa-circle-check'}];
+  {k:'pagamento',rot:'Pronto · falta receber',cor:'#DC6803',ico:'fa-hand-holding-dollar'},{k:'liberado',rot:'Pago · liberado para entrega',cor:'#1652D8',ico:'fa-truck-ramp-box'},
+  {k:'entregue',rot:'Entregue',cor:'#067647',ico:'fa-circle-check'},{k:'cancelada',rot:'Cancelados · devolvidos',cor:'#B42318',ico:'fa-ban'}];
+// pedido encerrado sem venda: cancelado (antes ou depois da entrega) ou devolvido por inteiro
+const encerrada=v=>v.status==='cancelada'||v.status==='devolvida';
+const rotFase=(v,f)=>v.status==='devolvida'?'Devolvida pelo cliente (pedido encerrado)':v.status==='cancelada'?'Cancelada (pedido encerrado)':(FASES_V.find(x=>x.k===f)||{rot:f}).rot;
+const dataFim=v=>v.cancelada_em||((v.devolucoes||[]).slice(-1)[0]||{}).data||v.entrega||v.data;
+const motivoFim=v=>v.motivo_cancelamento||((v.devolucoes||[]).slice(-1)[0]||{}).motivo||'';
+// o que voltou do cliente: peças boas (estoque) e avariadas (perda)
+function devolvidoDe(v){const r={estoque:0,avaria:0,estorno:0};(v.devolucoes||[]).forEach(d=>{(d.itens||[]).forEach(it=>r[it.destino==='avaria'?'avaria':'estoque']+=num(it.qtd));});
+  (v.pagamentos||[]).forEach(p=>{if(p.tipo==='estorno')r.estorno+=num(p.valor);});return r;}
 const ORIG_AV={patio:'Pátio / estoque',desforma:'Na desforma',carregamento:'No carregamento',transporte:'No transporte / entrega',cliente:'Devolvida avariada pelo cliente',outra:'Outra'};
 const AV_ESTOQUE=['patio','desforma','carregamento','transporte','outra'];
 const TURNOS=['Dia inteiro','Manhã','Tarde','Noite'],CLIMAS=['Sol','Nublado','Chuva fraca','Chuva forte'];
@@ -212,6 +220,25 @@ const eqLista=r=>Array.isArray(r.equipe)?r.equipe:(r.equipe?String(r.equipe).spl
 const prodDaOrdem=id=>T('producao').reduce((s,r)=>s+itensProd(r).filter(it=>String(it.ordem||'')===String(id)).reduce((a,it)=>a+num(it.qtd),0),0);
 const opIniciada=o=>o.status==='producao'||o.status==='concluida'||prodDaOrdem(o.rowid)>0;
 const opsDaVenda=v=>ordens().filter(o=>String(o.venda||'')===String(v.rowid)&&o.status!=='cancelada');
+// andamento de uma OP: peças feitas, em cura (até quando) e o que falta fazer
+function andamentoOP(o){const h=hoje0();let feito=0,cura=0,ate=null;
+  T('producao').forEach(r=>itensProd(r).forEach(it=>{if(String(it.ordem||'')!==String(o.rowid))return;const q=num(it.qtd),p=pecaDe(it.peca);feito+=q;
+    const lib=addD(dt(r.data)||h,num(p&&p.cura!=null&&p.cura!==''?p.cura:tipoDePeca(p||{}).cura||7));if(lib>h){cura+=q;if(!ate||lib>ate)ate=lib;}}));
+  return {feito,cura,ate,falta:o.status==='planejada'||o.status==='producao'?Math.max(0,num(o.qtd)-feito):0};}
+// peças reservadas que não estão prontas, nem em cura, nem numa ordem aberta: precisam de ordem de produção.
+// A peça pronta vai para o pedido mais antigo; a falta fica com os pedidos mais novos.
+function pendenciasProducao(E){
+  E=E||estoque();const fg={},out=[];Object.entries(E.P).forEach(([id,x])=>{const f=Math.ceil(-(x.livre+x.cura+x.emProd)-1e-9);if(f>0&&pecaDe(id))fg[id]=f;});
+  vendas().filter(v=>v.status==='reservado').sort((a,b)=>String(b.data||'').localeCompare(String(a.data||''))||num(b.numero)-num(a.numero)).forEach(v=>{
+    const a=E.aloc[v.rowid]||{},its=[];(v.itens||[]).forEach((it,i)=>{const id=String(it.peca),q=Math.min(Math.max(0,num(it.qtd)-(a[i]||0)),fg[id]||0);if(q>0){its.push({peca:id,qtd:q});fg[id]-=q;}});
+    if(its.length)out.push({v,its});});
+  return out;}
+async function mandarProducao(lista){
+  let n=proxNum('ordem','numero');const mud=[];
+  lista.forEach(({v,its})=>its.forEach(it=>{const p=pecaDe(it.peca),cura=num(p&&p.cura!=null&&p.cura!==''?p.cura:7),pz=dt(v.prazo_entrega),fim=pz?isoDe(addD(pz,-cura)):'';
+    mud.push([{tipo:'ordem',numero:n++,peca:it.peca,qtd:it.qtd,status:'planejada',inicio:hojeISO(),fim:fim&&fim>=hojeISO()?fim:'',venda:String(v.rowid),cliente:`Venda nº ${v.numero} — ${v.cliente||''}`,data_lancamento:todayDateTime()},null]);}));
+  if(!mud.length)return toast('Nada a mandar para a produção: tudo já está pronto, em cura ou numa ordem.','success');
+  await gravarVarios(mud);toast(`${mud.length} ordem(ns) de produção criada(s) — já aparecem no Planejamento.`,'success');}
 function brutoVenda(v){return (v.itens||[]).reduce((s,it)=>s+num(it.qtd)*num(it.preco),0);}
 function descontoVenda(v){return v.desconto_pct!=null&&v.desconto_pct!==''?r2(brutoVenda(v)*num(v.desconto_pct)/100):num(v.desconto);}
 function totalVenda(v){return r2(brutoVenda(v)-descontoVenda(v)+num(v.frete));}
@@ -315,6 +342,12 @@ function estilo(){
 .pm-fx{position:absolute;top:5px;right:5px;width:26px;height:26px;border-radius:8px;border:0;background:rgba(255,255,255,.92);color:#B42318;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,.18);} .pm-fprin{position:absolute;left:5px;bottom:5px;font:800 10px Inter,sans-serif;background:#1652D8;color:#fff;border-radius:6px;padding:1px 6px;}
 .pm-arqs{display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-size:12px;background:#EEF4FF;border:1px solid #D1E0FF;border-radius:10px;padding:6px 8px;} .pm-arqs>b{color:#1652D8;margin-right:4px;}
 .pm-arq{display:inline-flex;align-items:center;gap:4px;background:#fff;border:1px solid #D1E0FF;border-radius:8px;padding:2px 4px 2px 8px;} .pm-arq a{color:#1652D8;font-weight:700;text-decoration:none;} .pm-arq button{border:0;background:#FEF3F2;color:#B42318;border-radius:6px;width:20px;height:20px;cursor:pointer;}
+.fin-aviso.vermelho{background:#FEF3F2;border-color:#FECDCA;color:#7A271A;}
+.pm-seg{display:flex;gap:4px;background:#F2F4F7;border-radius:10px;padding:3px;} .pm-seg button{flex:1;border:0;background:transparent;border-radius:8px;padding:8px 10px;font:600 13px Inter,system-ui,sans-serif;color:#475467;cursor:pointer;} .pm-seg button.on{background:#fff;color:#1652D8;box-shadow:0 1px 3px rgba(16,24,40,.12);}
+#pm-app .vk-card.vk-fim{background:#FFFBFA;} #pm-app .vk-card.vk-fim .vk-itens li span{text-decoration:line-through;text-decoration-color:rgba(180,35,24,.35);}
+#pm-app .vk-motivo{background:#FEF3F2;border-radius:8px;padding:5px 8px;color:#7A271A;font-size:11.5px;line-height:1.4;}
+#pm-app .vk-quadro{overflow-x:auto;padding-bottom:6px;grid-template-columns:repeat(var(--n),minmax(196px,1fr))!important;gap:10px;}
+#pm-app .vk-top{flex-wrap:wrap;gap:4px 6px;} #pm-app .vk-top b{white-space:nowrap;}
 @media (max-width:1560px){.pm-tab .lb{display:none;} .pm-tab .lc{display:inline;} .pm-tab{padding:7px 10px 7px 7px;gap:8px;}}
 @media (max-width:1180px){.pm-tab{padding:6px 8px 6px 6px;gap:6px;font-size:12.5px;} .pm-tab .ic{width:26px;height:26px;border-radius:8px;font-size:12px;} .pm-sep{margin:0;} .pm-nav{gap:2px;padding:5px;}}
 @media (max-width:980px){.pm-tab .lc{display:none;} .pm-tab{padding:6px;}}
@@ -499,6 +532,8 @@ function clique(ev){
     'ajuste-novo':()=>formAjuste(null,b.dataset.item),'ajuste':()=>formAjuste(T('ajuste').find(o=>String(o.rowid)===id)),
     'avaria-nova':()=>formAvaria(null,b.dataset.peca),'avaria':()=>formAvaria(T('avaria').find(o=>String(o.rowid)===id)),
     'venda-nova':()=>formVenda(null),'venda':()=>fichaVenda(vendaDe(id)),
+    'mandar-prod':()=>{const L=pendenciasProducao();if(!L.length)return toast('Nada a mandar para a produção.','success');
+      confirmar('Mandar para a produção?',`Criar ordem de produção para:<ul style="margin:8px 0 0 18px">${L.map(x=>`<li>Venda nº ${fe(String(x.v.numero))} (${fe(x.v.cliente||'')}): ${x.its.map(it=>`${nf(it.qtd,0)} × ${fe(nomePeca(it.peca))}`).join(', ')}</li>`).join('')}</ul>`,'Sim, criar as ordens',async()=>{await mandarProducao(L);});},
     'vvista':()=>{PM.vendasVista=b.dataset.v;PM.busca='';render();},'sem':()=>{const d=num(b.dataset.d);PM.semana=isoDe(d?addD(dt(PM.semana)||segunda(hoje0()),d):segunda(hoje0()));render();},
     'romaneio':()=>romaneio(b.dataset.d),'cli-novo':()=>formCliente(null),'cli':()=>formCliente(T('cliente').find(o=>String(o.rowid)===id)),
     'vend-add':()=>{const box=document.querySelector('#pm-app [data-vends]');if(!box)return;const v=box.querySelector('[data-vazio]');if(v)v.remove();box.insertAdjacentHTML('beforeend',PM._linVend({nome:'',pct:5}));},
@@ -988,10 +1023,12 @@ function telaPlanejamento(){
       ${v?`<div class="vk-sub">${pill('venda nº '+v.numero,'warn','fa-cart-shopping')} ${fe(v.cliente||'')}</div>`:o.cliente?`<div class="vk-sub">para ${fe(o.cliente)}</div>`:''}
       <div class="vk-val"><span>${nf(feito,0)} de ${nf(tot,0)} peças</span><b>${nf(pc,0)}%</b></div><div class="pm-barra ${pc>=100?'ok':''}"><i style="width:${pc}%"></i></div></article>`;};
   const cols=COLS_OP.map(c=>{const itens=L.filter(o=>(o.status||'planejada')===c.k).sort((a,b)=>String(a.fim||'9').localeCompare(String(b.fim||'9')));return {c,itens,sub:`${itens.length} ordem(ns) · ${nf(itens.reduce((s,o)=>s+num(o.qtd),0),0)} peças`};});
-  const nec=necessidade();
+  const nec=necessidade(),pen=pendenciasProducao(),espera=vendas().filter(v=>v.status==='aguardando_sinal');
   setTimeout(()=>{const w=document.querySelector('#pm-app .vk-quadro');if(w&&!w._lig){w._lig=1;GS.ligarArraste(w,moverOrdem);}},0);
   return cabG('Planejamento da produção','Ordens de produção (OP): o que fazer, quanto e até quando. Cada ordem imprime a sua ficha de produção com o material, o ferro e a receita do concreto. Pedidos de venda sem peça pronta geram a ordem sozinhos.',
       `<button type="button" class="gf-bt" data-pm="fichas-abertas"><i class="fas fa-print"></i> Fichas das ordens abertas</button><button type="button" class="gf-bt pri" data-pm="ordem-nova"><i class="fas fa-plus"></i> Nova ordem de produção</button>`)+
+    (pen.length?`<div class="fin-aviso laranja" style="margin:0 0 10px"><div><b>Vendas com peça reservada sem ordem:</b> ${pen.map(x=>`venda nº ${fe(String(x.v.numero))} (${x.its.map(it=>`${nf(it.qtd,0)} × ${fe(nomePeca(it.peca))}`).join(', ')})`).join(' · ')}. <button type="button" class="gf-bt mini pri" data-pm="mandar-prod" style="margin-left:6px"><i class="fas fa-industry"></i> Criar as ordens</button></div></div>`:'')+
+    (espera.length?`<div class="fin-aviso" style="margin:0 0 10px"><div><i class="fas fa-hourglass-start"></i> <b>${espera.length} pedido(s) aguardando o sinal</b> — ainda não produzir: ${espera.slice(0,6).map(v=>`venda nº ${fe(String(v.numero))} (${(v.itens||[]).map(it=>`${nf(num(it.qtd),0)} × ${fe(nomePeca(it.peca))}`).join(', ')})`).join(' · ')}${espera.length>6?' …':''}. A ordem sai sozinha quando o sinal for pago.</div></div>`:'')+
     GS.colunasHtml(cols,card,{planejada:'Nenhuma ordem planejada',producao:'Nenhuma ordem em produção',concluida:'Ordens concluídas aparecem aqui'})+
     `<section class="gf-sec"><div class="gf-sec-cab"><div><h3>Materiais para as ordens abertas</h3><p>Falta produzir ${nf(nec.m3,2)} m³ de concreto${nec.diasProd!=null?` — cerca de ${nec.diasProd} dia(s) no ritmo previsto${nec.diasF?`, e ${nec.diasF} dia(s) pelas formas disponíveis`:''}`:''}.</p></div>
       ${nec.lin.length?'<button type="button" class="gf-bt mini" data-pm="compras-pdf"><i class="fas fa-print"></i> Lista de compras (PDF)</button>':''}</div>
@@ -1480,21 +1517,32 @@ function telaVendas(){
   const v=PM.vendasVista||'pedidos',sub=`<div class="pm-sub">${VVISTAS.map(([k,ic,l])=>`<button type="button" class="gf-bt ${v===k?'pri':''}" data-pm="vvista" data-v="${k}"><i class="fas ${ic}"></i> ${l}</button>`).join('')}</div>`;
   if(v==='entregas')return telaEntregas(sub);if(v==='clientes')return telaClientes(sub);if(v==='vendedores')return telaVendedores(sub);
   const E=estoque(),h=hoje0(),q=String(PM.busca||'').toLowerCase(),lim=addD(h,-60),c=CFG();
-  const L=vendas().filter(v=>v.status!=='cancelada'&&(!q||[v.cliente,v.numero,(v.itens||[]).map(it=>nomePeca(it.peca)).join(' ')].join(' ').toLowerCase().includes(q)));
-  const card=v=>{const f=faseVenda(v,E),tot=totalVenda(v),pago=pagoDe(v),pz=dt(v.prazo_entrega),ag=v.agenda&&dt(v.agenda.data),pc=tot?Math.min(100,pago/tot*100):0,a=E.aloc[v.rowid]||{};
-    return `<article class="vk-card" style="--cor:${(FASES_V.find(x=>x.k===f)||FASES_V[4]).cor}" data-pm="venda" data-id="${v.rowid}" draggable="${f==='liberado'?'true':'false'}" data-card="${v.rowid}">
-      <div class="vk-top"><b>Venda nº ${fe(String(v.numero||''))}</b>${pill(v.tipo_venda==='pronta'?'pronta entrega':'encomenda',v.tipo_venda==='pronta'?'ok':'info')}</div>
+  const L=vendas().filter(v=>!q||[v.cliente,v.numero,(v.itens||[]).map(it=>nomePeca(it.peca)).join(' ')].join(' ').toLowerCase().includes(q));
+  const PEN={};pendenciasProducao(E).forEach(x=>PEN[x.v.rowid]=x.its);
+  const card=v=>{const f=faseVenda(v,E),fim=encerrada(v),tot=totalVenda(v),pago=pagoDe(v),pz=dt(v.prazo_entrega),ag=v.agenda&&dt(v.agenda.data),pc=tot?Math.min(100,pago/tot*100):0,a=E.aloc[v.rowid]||{};
+    const fc=fim?FASES_V[5]:(FASES_V.find(x=>x.k===f)||FASES_V[4]),dv=fim?devolvidoDe(v):null,pen=PEN[v.rowid]||[];
+    // em produção: o andamento de cada ordem (a fazer · em cura até)
+    const andam=f==='producao'?opsDaVenda(v).map(o=>{const x=andamentoOP(o),t=[x.falta?`${nf(x.falta,0)} a fazer`:'',x.cura?`${nf(x.cura,0)} em cura até ${brDe(x.ate).slice(0,5)}`:''].filter(Boolean).join(' · ');return t?`<li class="mais"><i class="fas fa-industry"></i> OP nº ${fe(String(o.numero))}: ${t}</li>`:'';}).join(''):'';
+    return `<article class="vk-card${fim?' vk-fim':''}" style="--cor:${fc.cor}" data-pm="venda" data-id="${v.rowid}" draggable="${fim?'false':'true'}" data-card="${v.rowid}">
+      <div class="vk-top"><b>Venda nº ${fe(String(v.numero||''))}</b>${fim?pill(v.status==='devolvida'?'devolvida':'cancelada','err',v.status==='devolvida'?'fa-rotate-left':'fa-ban'):pill(v.tipo_venda==='pronta'?'pronta entrega':'encomenda',v.tipo_venda==='pronta'?'ok':'info')}</div>
       <div class="vk-obra"><i class="fas fa-user"></i>${fe(v.cliente||'—')}${v.canal==='atacado'?' · atacado':''}</div>
-      <ul class="vk-itens">${(v.itens||[]).slice(0,3).map((it,i)=>`<li><span>${nf(num(it.qtd),0)} × ${fe(nomePeca(it.peca))}${f==='producao'?` <small>(${nf(a[i]||0,0)} prontas)</small>`:''}</span><b>${R(num(it.qtd)*num(it.preco))}</b></li>`).join('')}${(v.itens||[]).length>3?`<li class="mais">+ ${(v.itens||[]).length-3} item(ns)</li>`:''}</ul>
-      ${ag&&f!=='entregue'?`<div class="vk-sub">${pill('entrega agendada '+brDe(ag).slice(0,5)+(v.agenda.caminhao?' · '+fe(v.agenda.caminhao):''),'info','fa-truck')}</div>`:''}
-      <div class="vk-val"><span>pago ${R(pago)}${pz&&!ag&&f!=='entregue'?' · prevista '+brDe(pz).slice(0,5):''}${v.status==='devolvida'?' · devolvida':''}</span><b>${R(tot)}</b></div><div class="pm-barra ${pc>=100?'ok':''}"><i style="width:${pc}%"></i></div></article>`;};
-  const cols=FASES_V.map(fc=>{let itens=L.filter(v=>{const f=faseVenda(v,E);return f===fc.k||(fc.k==='entregue'&&f==='devolvida');});if(fc.k==='entregue')itens=itens.filter(v=>!dt(v.entrega)||dt(v.entrega)>=lim);
-    itens.sort((a,b)=>String(b.data||'').localeCompare(String(a.data||'')));return {c:fc,itens,total:itens.reduce((s,v)=>s+totalVenda(v),0)};});
+      <ul class="vk-itens">${(v.itens||[]).slice(0,3).map((it,i)=>`<li><span>${nf(num(it.qtd),0)} × ${fe(nomePeca(it.peca))}${f==='producao'?` <small>(${nf(a[i]||0,0)} prontas)</small>`:''}</span><b>${R(num(it.qtd)*num(it.preco))}</b></li>`).join('')}${(v.itens||[]).length>3?`<li class="mais">+ ${(v.itens||[]).length-3} item(ns)</li>`:''}${andam}</ul>
+      ${pen.length?`<div class="vk-sub">${pill(`sem ordem de produção: ${pen.map(x=>nf(x.qtd,0)+' pç').join(', ')}`,'err','fa-triangle-exclamation')}</div>`:''}
+      ${ag&&!fim&&f!=='entregue'?`<div class="vk-sub">${pill('entrega agendada '+brDe(ag).slice(0,5)+(v.agenda.caminhao?' · '+fe(v.agenda.caminhao):''),'info','fa-truck')}</div>`:''}
+      ${fim?`<div class="vk-sub vk-motivo"><i class="fas fa-comment-dots"></i> ${fe(motivoFim(v)||'sem motivo informado')}${dv.avaria?` · ${nf(dv.avaria,0)} avariada(s)`:''}${dv.estoque?` · ${nf(dv.estoque,0)} de volta ao estoque`:''}</div>
+      <div class="vk-val"><span>${fe(brDe(dt(dataFim(v))))} · estorno ${R(dv.estorno)}</span><b>${pago>0.009?'ficou '+R(pago):R(0)}</b></div>`
+      :`<div class="vk-val"><span>pago ${R(pago)}${pz&&!ag&&f!=='entregue'?' · prevista '+brDe(pz).slice(0,5):''}</span><b>${R(tot)}</b></div><div class="pm-barra ${pc>=100?'ok':''}"><i style="width:${pc}%"></i></div>`}</article>`;};
+  const cols=FASES_V.map(fc=>{let itens=fc.k==='cancelada'?L.filter(v=>encerrada(v)&&(!dt(dataFim(v))||dt(dataFim(v))>=lim)):L.filter(v=>!encerrada(v)&&faseVenda(v,E)===fc.k);
+    if(fc.k==='entregue')itens=itens.filter(v=>!dt(v.entrega)||dt(v.entrega)>=lim);
+    itens.sort((a,b)=>String(fc.k==='cancelada'?dataFim(b):b.data||'').localeCompare(String(fc.k==='cancelada'?dataFim(a):a.data||'')));
+    return fc.k==='cancelada'?{c:fc,itens,sub:`${itens.length} · ficou ${R(itens.reduce((s,v)=>s+Math.max(0,pagoDe(v)),0))}`}:{c:fc,itens,total:itens.reduce((s,v)=>s+totalVenda(v),0)};});
   setTimeout(()=>{const w=document.querySelector('#pm-app .vk-quadro');if(w&&!w._lig){w._lig=1;GS.ligarArraste(w,moverVenda);}},0);
-  return cabG('Vendas','Pronta entrega (peça pronta, pagamento completo) ou encomenda (reserva com '+nf(num(c.sinal),0)+'% de sinal; sem peça pronta, a ordem de produção sai sozinha). A entrega só sai pronta e paga. Devolução com estorno; avaria na entrega vira perda.',
+  const nPen=Object.keys(PEN).length;
+  return cabG('Vendas','Pronta entrega (peça pronta, pagamento completo) ou encomenda (reserva com '+nf(num(c.sinal),0)+'% de sinal; sem peça pronta, a ordem de produção sai sozinha). O cartão anda sozinho: sinal pago → produção → curada → pronto. O saldo pode ser pago antes ou na entrega. Cancelados e devolvidos ficam na última coluna.',
       `<button type="button" class="gf-bt pri" data-pm="venda-nova"><i class="fas fa-plus"></i> Nova venda</button>`)+sub+
-    `<div class="pm-filtros"><input type="search" data-pm-busca placeholder="Buscar cliente, nº ou peça…" value="${fe(PM.busca)}" style="min-width:260px"><span class="pm-mini">Entregues: últimos 60 dias (as anteriores ficam nos Relatórios).</span></div>`+
-    GS.colunasHtml(cols,card,{sinal:'Nenhuma encomenda esperando sinal',producao:'Nada em produção para venda',pagamento:'Nenhum pedido pronto esperando pagamento',liberado:'Nada liberado para entrega',entregue:'Entregas aparecem aqui'});
+    (nPen?`<div class="fin-aviso laranja" style="margin:0 0 10px"><div><b>${nPen} venda(s)</b> com peças reservadas sem ordem de produção (o estoque não cobre). <button type="button" class="gf-bt mini pri" data-pm="mandar-prod" style="margin-left:6px"><i class="fas fa-industry"></i> Mandar para a produção</button></div></div>`:'')+
+    `<div class="pm-filtros"><input type="search" data-pm-busca placeholder="Buscar cliente, nº ou peça…" value="${fe(PM.busca)}" style="min-width:260px"><span class="pm-mini">Entregues, cancelados e devolvidos: últimos 60 dias (os anteriores ficam nos Relatórios).</span></div>`+
+    GS.colunasHtml(cols,card,{sinal:'Nenhuma encomenda esperando sinal',producao:'Nada em produção para venda',pagamento:'Nenhum pedido pronto esperando pagamento',liberado:'Nada liberado para entrega',entregue:'Entregas aparecem aqui',cancelada:'Pedidos cancelados ou devolvidos aparecem aqui'});
 }
 /* ── entregas: agenda da semana por caminhão ── */
 const segunda=d=>{d=new Date(d);d.setHours(0,0,0,0);d.setDate(d.getDate()-((d.getDay()+6)%7));return d;};
@@ -1559,7 +1607,7 @@ function telaClientes(sub){
 }
 function formCliente(reg){
   const c=CFG(),b=reg?JSON.parse(JSON.stringify(reg)):{canal:'varejo',end:{cidade:c.cidade||'',uf:c.uf||'BA'},precos:[]},e=b.end||{},vends=(c.vendedores||[]).filter(x=>x&&x.nome);
-  const linP=x=>`<tr data-pr><td style="width:66px">${thumbBt(x.peca)}</td><td><select data-pp>${pecas().map(p=>`<option value="${p.rowid}" ${String(p.rowid)===String(x.peca)?'selected':''}>${fe(p.nome)}</option>`).join('')}</select></td><td><input data-pv data-mask="moeda" value="${x.preco?fe(R(num(x.preco))):''}" placeholder="R$ 0,00"></td><td class="pm-mini" data-pref></td><td><button type="button" class="pm-x" data-pmf="pr-x"><i class="fas fa-xmark"></i></button></td></tr>`;
+  const linP=x=>`<tr data-pr><td style="width:66px">${thumbBt(x.peca)}</td><td><select data-pp data-prev="${fe(String(x.peca))}">${pecas().map(p=>`<option value="${p.rowid}" ${String(p.rowid)===String(x.peca)?'selected':''}>${fe(p.nome)}</option>`).join('')}</select></td><td><input data-pv data-mask="moeda" value="${x.preco?fe(R(num(x.preco))):''}" placeholder="R$ 0,00"></td><td class="pm-mini" data-pref></td><td><button type="button" class="pm-x" data-pmf="pr-x"><i class="fas fa-xmark"></i></button></td></tr>`;
   const j=janela(reg?`Cliente — ${b.nome}`:'Novo cliente',`<div class="fin-linha">
       <div class="fin-fld" style="grid-column:span 2"><label>Nome / razão social <span class="obg">*</span></label><input data-k="nome" value="${fe(b.nome||'')}"></div>
       <div class="fin-fld"><label>CPF / CNPJ</label><input data-k="doc" value="${fe(b.doc||'')}"></div><div class="fin-fld"><label>Telefone / WhatsApp</label><input data-k="telefone" value="${fe(b.telefone||'')}"></div>
@@ -1578,14 +1626,17 @@ function formCliente(reg){
      {html:'<i class="fas fa-floppy-disk"></i> Salvar cliente',cls:'pri',acao:async jj=>{const g=k=>String((jj.querySelector(`[data-k="${k}"]`)||{}).value||'').trim(),o=reg?{...reg}:{tipo:'cliente',data_lancamento:todayDateTime()};
       ['nome','doc','telefone','email','canal','vendedor','obs'].forEach(k=>o[k]=g(k));o.desconto_pct=num(g('desconto_pct'));o.end={cep:g('cep'),logradouro:g('logradouro'),numero:g('numero'),complemento:g('complemento'),bairro:g('bairro'),cidade:g('cidade'),uf:g('uf').toUpperCase()};
       o.precos=[...jj.querySelectorAll('[data-pr]')].map(tr=>({peca:tr.querySelector('[data-pp]').value,preco:r2(num(tr.querySelector('[data-pv]').value))})).filter(x=>x.preco>0);
-      if(!o.nome)throw new Error('Informe o nome do cliente.');const dup=cliDe(o.nome);if(dup&&(!reg||String(dup.rowid)!==String(reg.rowid)))throw new Error('Já existe um cliente com esse nome.');
+      if(!o.nome)throw new Error('Informe o nome do cliente.');if(new Set(o.precos.map(x=>String(x.peca))).size<o.precos.length)throw new Error('A mesma peça está duas vezes na tabela de preços: deixe uma linha só.');const dup=cliDe(o.nome);if(dup&&(!reg||String(dup.rowid)!==String(reg.rowid)))throw new Error('Já existe um cliente com esse nome.');
       await gravar(o,reg?reg.rowid:null);toast('Cliente salvo.','success');}}],940);
   const at=()=>j.querySelectorAll('[data-pr]').forEach(tr=>{const p=pecaDe(tr.querySelector('[data-pp]').value);if(!p)return;const x=calc(p,1);tr.querySelector('[data-pref]').textContent=`varejo ${R(x.preco||x.sug)}${num(p.preco_atacado)?` · atacado ${R(num(p.preco_atacado))}`:''} · custo ${R(x.un)}`;});
   const corpo=j.querySelector('.fin-jan-corpo');
   corpo.addEventListener('click',ev=>{const b2=ev.target.closest('[data-pmf]');if(!b2)return;const f=b2.dataset.pmf;
     if(f==='pick'){const tr=b2.closest('tr'),s=tr.querySelector('[data-pp]');return escolherPeca(s.value,pid=>{s.value=pid;s.dispatchEvent(new Event('change',{bubbles:true}));});}
-    if(f==='pr-add'){j.querySelector('[data-precos]').insertAdjacentHTML('beforeend',linP({peca:pecas()[0].rowid,preco:''}));pintarFotos(j);}else if(f==='pr-x')b2.closest('tr').remove();at();});
-  corpo.addEventListener('change',ev=>{if(ev.target.matches('[data-pp]'))trocarThumb(ev.target.closest('tr'),ev.target.value);at();});
+    if(f==='pr-add'){const usadas=new Set([...j.querySelectorAll('[data-pp]')].map(s=>s.value)),p0=pecas().find(p=>!usadas.has(String(p.rowid)));if(!p0)return toast('Todas as peças já têm preço para este cliente.','error');
+      j.querySelector('[data-precos]').insertAdjacentHTML('beforeend',linP({peca:p0.rowid,preco:''}));pintarFotos(j);}else if(f==='pr-x')b2.closest('tr').remove();at();});
+  corpo.addEventListener('change',ev=>{const t=ev.target;if(t.matches('[data-pp]')){
+      if([...j.querySelectorAll('[data-pp]')].some(s=>s!==t&&s.value===t.value)){const nova=t.value;t.value=t.dataset.prev||'';toast(`"${nomePeca(nova)}" já tem preço nesta tabela.`,'error');}else t.dataset.prev=t.value;
+      trocarThumb(t.closest('tr'),t.value);}at();});
   ligarEndereco(j);pintarFotos(j);at();
 }
 /* ── vendedores e comissões (sobre o valor das peças entregues, sem o frete, menos devoluções) ── */
@@ -1621,13 +1672,20 @@ function depsVenda(v,E){
   E=E||estoque();const c=CFG(),tot=totalVenda(v),pago=pagoDe(v),a=E.aloc[v.rowid]||{},ped=(v.itens||[]).reduce((s,it)=>s+num(it.qtd),0),pr=(v.itens||[]).reduce((s,it,i)=>s+Math.min(num(it.qtd),a[i]||0),0),sin=r2(tot*num(c.sinal)/100);
   return [v.tipo_venda==='pronta'?{ok:pago>=tot-0.009,txt:`Pronta entrega: pagamento completo (${R(pago)} de ${R(tot)})`}:{ok:pago>=sin-0.009,txt:`Sinal de ${nf(num(c.sinal),0)}% pago para reservar: ${R(Math.min(pago,sin))} de ${R(sin)}`},
     {ok:v.status!=='aguardando_sinal'&&pr>=ped,txt:`Peças prontas (curadas) e reservadas: ${nf(v.status==='aguardando_sinal'?0:pr,0)} de ${nf(ped,0)}${pr<ped?' — a produção e a cura liberam o restante':''}`},
-    {ok:pago>=tot-0.009,txt:`Pagamento completo: ${R(pago)} de ${R(tot)}${pago<tot-0.009?` — <b>faltam ${R(tot-pago)}</b>`:''}`}];
+    {ok:pago>=tot-0.009,txt:`Pagamento completo — antes ou na hora da entrega: ${R(pago)} de ${R(tot)}${pago<tot-0.009?` — <b>faltam ${R(tot-pago)}</b>`:''}`}];
 }
+// quem pode cancelar: o Administrador sempre; os demais só pedido sem dinheiro recebido e sem produção começada
+const podeCancelar=v=>!encerrada(v)&&(ehAdm()||(pagoDe(v)<=0.009&&!opsDaVenda(v).some(opIniciada)&&v.status!=='entregue'));
 async function moverVenda(id,col){
-  const v=vendaDe(id);if(!v)return;const f=faseVenda(v);
-  if(col==='entregue'&&f==='liberado')return entregar(v);
-  render();if(col==='entregue')return trava(`Venda nº ${v.numero}: ainda não pode ser entregue`,depsVenda(v),f==='pagamento'||f==='sinal'?{rot:'Registrar pagamento',f:()=>registrarPagamento(v)}:null);
-  trava(`Venda nº ${v.numero}: o cartão muda de coluna sozinho`,[{ok:true,txt:'Aguardando sinal → Reservado: quando o sinal é pago (Registrar pagamento)'},{ok:true,txt:'Em produção → Pronto: quando as peças da venda terminam a cura'},{ok:true,txt:'Pronto → Liberado: quando o pagamento fica completo'},{ok:true,txt:'Liberado → Entregue: arraste para Entregue ou use o botão Entregar'}].concat(depsVenda(v)));
+  const v=vendaDe(id);if(!v||!col)return;const f=faseVenda(v);if(col===f||(col==='cancelada'&&encerrada(v)))return;render();
+  if(encerrada(v))return trava(`Venda nº ${v.numero}: pedido encerrado`,[{ok:false,txt:v.status==='devolvida'?'Esta venda foi devolvida por inteiro: o pedido está encerrado e não volta para outra fase.':'Esta venda foi cancelada: o pedido está encerrado. Para vender de novo, crie uma nova venda.'}]);
+  if(col==='cancelada')return podeCancelar(v)?cancelarVenda(v):trava(`Venda nº ${v.numero}: não pode ser cancelada por você`,[{ok:false,txt:'Pedido com dinheiro recebido, produção começada ou já entregue: só o Administrador cancela (o estorno e o destino das peças precisam ser conferidos).'}]);
+  if(f==='entregue')return trava(`Venda nº ${v.numero}: já foi entregue`,[{ok:false,txt:'Venda entregue não volta de fase. Use <b>Devolução / estorno</b> na ficha da venda, ou arraste para <b>Cancelados</b> (Administrador) para devolver tudo.'}]);
+  if(col==='entregue'&&(f==='liberado'||f==='pagamento'))return entregar(v);
+  if(col==='entregue')return trava(`Venda nº ${v.numero}: ainda não pode ser entregue`,depsVenda(v),f==='sinal'?{rot:'Receber o sinal',f:()=>registrarPagamento(v)}:null);
+  if(f==='sinal'&&col!=='sinal')return trava(`Venda nº ${v.numero}: falta o sinal`,depsVenda(v).slice(0,1),{rot:'Receber o sinal',f:()=>registrarPagamento(v)});
+  if(col==='liberado'&&f==='pagamento')return registrarPagamento(v);
+  trava(`Venda nº ${v.numero}: o cartão muda de coluna sozinho`,[{ok:true,txt:'Aguardando sinal → Reservado: quando o sinal é pago (Receber o sinal)'},{ok:true,txt:'Em produção → Pronto: quando as peças da venda terminam a cura'},{ok:true,txt:'Pronto → Liberado: quando o pagamento fica completo (ou arraste direto para Entregue e receba na entrega)'},{ok:true,txt:'→ Entregue: arraste para Entregue ou use o botão Entregar'},{ok:true,txt:'→ Cancelados: arraste para Cancelados ou use Cancelar venda'}].concat(depsVenda(v)));
 }
 // ── endereço: CEP (ViaCEP) e sugestão pelo nome da rua (ViaCEP pela cidade, ou OpenStreetMap) ──
 const CEPS={};
@@ -1688,7 +1746,7 @@ function formVenda(reg){
   const c=CFG(),E=estoque(),b=reg?JSON.parse(JSON.stringify(reg)):{data:hojeISO(),tipo_venda:'encomenda',canal:'varejo',itens:[{peca:pecas()[0].rowid,qtd:'',preco:''}],end:{cidade:c.cidade||'',uf:c.uf||'BA'},nf:{quer:false}};
   const ops=reg?opsDaVenda(reg):[],iniciada=ops.some(opIniciada),travarItens=!!reg&&(iniciada||['entregue','devolvida','cancelada'].includes(reg.status)||(reg.status==='reservado'&&reg.tipo_venda==='pronta'&&pagoDe(reg)>0));
   const clientes=T('cliente'),vends=(c.vendedores||[]).filter(x=>x&&x.nome);
-  const itemLin=it=>`<tr data-item><td style="width:66px">${thumbBt(it.peca)}</td><td><select data-i="peca" ${travarItens?'disabled':''}>${pecas().map(p=>`<option value="${p.rowid}" ${String(p.rowid)===String(it.peca)?'selected':''}>${fe(p.nome)}</option>`).join('')}</select></td>
+  const itemLin=it=>`<tr data-item><td style="width:66px">${thumbBt(it.peca)}</td><td><select data-i="peca" data-prev="${fe(String(it.peca))}" ${travarItens?'disabled':''}>${pecas().map(p=>`<option value="${p.rowid}" ${String(p.rowid)===String(it.peca)?'selected':''}>${fe(p.nome)}</option>`).join('')}</select></td>
     <td><input data-i="qtd" inputmode="numeric" value="${fe(String(it.qtd||''))}" placeholder="0" ${travarItens?'readonly':''}></td><td><input data-i="preco" data-mask="moeda" value="${it.preco!==''&&it.preco!=null?fe(R(num(it.preco))):''}" ${travarItens?'readonly':''}></td>
     <td data-i="disp" class="pm-mini" style="min-width:150px"></td><td class="n" data-i="tot" style="white-space:nowrap;text-align:right"></td><td>${travarItens?'':'<button type="button" class="pm-x" data-pmf="item-x"><i class="fas fa-xmark"></i></button>'}</td></tr>`;
   const e=b.end||{},sel=(k,ops2,v)=>`<select data-k="${k}">${ops2.map(([a,l])=>`<option value="${a}" ${a===v?'selected':''}>${l}</option>`).join('')}</select>`;
@@ -1717,10 +1775,11 @@ function formVenda(reg){
       <div class="fin-fld" data-nf-num ${(b.nf||{}).quer?'':'hidden'}><label>Nº da nota fiscal</label><input data-k="nf_numero" value="${fe((b.nf||{}).numero||'')}" placeholder="preencher ao emitir"></div>
       <div class="fin-fld" style="grid-column:1/-1"><label>Observações</label><input data-k="obs" value="${fe(b.obs||'')}"></div></div>
     ${reg?'':`<div class="pm-bloco" data-pg><h5><i class="fas fa-hand-holding-dollar"></i> <span data-pg-tit>Sinal recebido agora</span></h5><div class="fin-linha">
-      <div class="fin-fld"><label>Valor recebido (R$)</label><input data-k="pg_valor" placeholder="R$ 0,00"></div><div class="fin-fld"><label>Forma</label><select data-k="pg_forma">${FORMAS_PG.map(x=>`<option>${x}</option>`).join('')}</select></div>
+      <div class="fin-fld"><label>O cliente pagou agora</label><select data-k="pg_modo"><option value="sinal">Só o sinal</option><option value="tudo">Tudo (pagamento completo)</option><option value="nada">Nada ainda</option><option value="outro">Outro valor</option></select></div>
+      <div class="fin-fld"><label>Valor recebido (R$)</label><input data-k="pg_valor" data-mask="moeda" placeholder="R$ 0,00"></div><div class="fin-fld"><label>Forma</label><select data-k="pg_forma">${FORMAS_PG.map(x=>`<option>${x}</option>`).join('')}</select></div>
       <label class="nfc-amb" data-pg-levou hidden style="grid-column:1/-1"><input type="checkbox" data-k="levou"><span>O cliente já levou as peças agora (entrega no balcão)</span></label></div><p class="pm-mini" data-pg-dica style="margin:6px 0 0"></p></div>`}
     <div class="pm-big"><span>Total da venda</span><b data-v-tot>—</b><span data-v-est></span></div>`,
-    [...(reg?[{html:'<i class="fas fa-trash"></i> Excluir',acao:async()=>{if(pagoDe(reg)>0||ops.length)throw new Error('Venda com pagamento ou produção: use Cancelar venda (Administrador).');setTimeout(()=>apagarReg(reg,`Venda nº ${reg.numero}`),60);}}]:[]),
+    [...(reg&&ehAdm()&&pagoDe(reg)<=0.009&&!ops.length?[{html:'<i class="fas fa-trash"></i> Excluir (lançado errado)',acao:async()=>{if(pagoDe(reg)>0||ops.length)throw new Error('Venda com pagamento ou produção: use Cancelar venda.');setTimeout(()=>apagarReg(reg,`Venda nº ${reg.numero}`),60);}}]:[]),
      {html:'<i class="fas fa-floppy-disk"></i> Salvar e ver o pedido',cls:'pri',acao:async jj=>{
       if(reg&&GS.podeMexer&&!GS.podeMexer(reg)&&!ehAdm())throw new Error(GS.MSG_DONO);
       const g=k=>String((jj.querySelector(`[data-k="${k}"]`)||{}).value||'').trim(),o=reg?{...reg}:{tipo:'venda',numero:proxNum('venda','numero'),pagamentos:[],data_lancamento:todayDateTime()};
@@ -1729,12 +1788,13 @@ function formVenda(reg){
       o.nf={quer:g('nf_quer')==='sim',numero:g('nf_numero')};
       if(!travarItens){o.itens=lerItens(jj);o.desconto_pct=num(g('desconto_pct'));o.frete=r2(num(g('frete')));o.frete_info=(jj.querySelector('[data-frete-info]')||{}).textContent||'';if(/^Calculando/.test(o.frete_info))throw new Error('Espere o cálculo do frete terminar.');delete o.desconto;}
       if(!o.cliente)throw new Error('Informe o cliente.');if(!o.data)throw new Error('Informe a data do pedido.');if(!(o.itens||[]).length)throw new Error('Inclua ao menos um item com quantidade.');
+      {const vis={};for(const it of o.itens){if(vis[it.peca])throw new Error(`"${nomePeca(it.peca)}" está duas vezes no pedido: deixe uma linha só e some as quantidades.`);vis[it.peca]=1;}}
       if(o.desconto_pct<0||o.desconto_pct>=100)throw new Error('O desconto deve ficar entre 0% e 99%.');
       if(o.comissao_pct<0||o.comissao_pct>30)throw new Error('A comissão deve ficar entre 0% e 30%.');
       if((o.itens||[]).some(it=>!(it.preco>0)))throw new Error('Todo item precisa de preço.');
       if(!reg&&r2(num(g('pg_valor')))>r2(totalVenda(o))+0.009)return trava('Pagamento maior que a venda',[{ok:false,txt:`Valor recebido ${R(num(g('pg_valor')))} — a venda é de ${R(totalVenda(o))}. Troco não entra no sistema: informe só o valor da venda.`}]);
       o.total=totalVenda(o);const tot=o.total;
-      if(!reg){const pv=r2(num(g('pg_valor')));if(pv>0)o.pagamentos=[{data:hojeISO(),valor:pv,forma:g('pg_forma'),tipo:o.tipo_venda==='pronta'?'pagamento':'sinal',por:eu()}];}
+      if(!reg){const pv=r2(num(g('pg_valor')));if(pv>0)o.pagamentos=[{data:hojeISO(),valor:pv,forma:g('pg_forma'),tipo:o.tipo_venda==='pronta'||pv>=tot-0.009?'pagamento':'sinal',por:eu()}];}
       const pago=pagoDe(o),sinalMin=r2(tot*num(c.sinal)/100);
       if(o.tipo_venda==='pronta'){
         const falta=(o.itens||[]).filter(it=>{const x=E.P[String(it.peca)]||{livre:0},minha=reg&&reg.status==='reservado'?(reg.itens||[]).filter(z=>String(z.peca)===String(it.peca)).reduce((s,z)=>s+num(z.qtd),0):0;return num(it.qtd)>x.livre+minha;});
@@ -1770,13 +1830,21 @@ function formVenda(reg){
     const tot=r2(bruto-r2(bruto*dp/100)+num(j.querySelector('[data-k="frete"]').value));j.querySelector('[data-v-tot]').textContent=R(tot);
     const falta=its.filter(it=>{const x=E.P[String(it.peca)]||{livre:0};const minha=reg&&reg.status==='reservado'?(reg.itens||[]).filter(z=>String(z.peca)===String(it.peca)).reduce((s,z)=>s+num(z.qtd),0):0;return it.qtd>x.livre+minha;});
     j.querySelector('[data-v-est]').innerHTML=falta.length?`<span style="color:#B54708"><i class="fas fa-industry"></i> sem peça livre: ${falta.map(it=>fe(nomePeca(it.peca))).join(', ')} — vira encomenda e a produção sai sozinha</span>`:'<span style="color:#067647"><i class="fas fa-check"></i> tudo pronto no estoque</span>';
-    const dica=j.querySelector('[data-pg-dica]');if(dica){const tp=j.querySelector('[data-k="tipo_venda"]').value;dica.innerHTML=tp==='pronta'?`Valor a receber: <b>${R(tot)}</b>.`:`Sinal mínimo (${nf(num(c.sinal),0)}%): <b>${R(tot*num(c.sinal)/100)}</b>. Sem o sinal, o pedido fica "aguardando sinal" e não reserva peça nem gera produção.`;}
+    // pagamento na criação: só o sinal, tudo, nada ou outro valor (pronta entrega = tudo)
+    const md=j.querySelector('[data-k="pg_modo"]'),pv=j.querySelector('[data-k="pg_valor"]');
+    if(md&&pv){const tp=j.querySelector('[data-k="tipo_venda"]').value;if(tp==='pronta')md.value='tudo';md.disabled=tp==='pronta';
+      const alvo=md.value==='tudo'?tot:md.value==='sinal'?r2(tot*num(c.sinal)/100):md.value==='nada'?0:null;if(alvo!=null){pv.value=alvo>0?R(alvo):'';pv.readOnly=true;}else pv.readOnly=false;}
+    const dica=j.querySelector('[data-pg-dica]');if(dica){const tp=j.querySelector('[data-k="tipo_venda"]').value;dica.innerHTML=tp==='pronta'?`Valor a receber: <b>${R(tot)}</b>.`:`Sinal mínimo (${nf(num(c.sinal),0)}%): <b>${R(tot*num(c.sinal)/100)}</b>. Depois do sinal, o resto é pago <b>uma vez só</b>: antes (Completar pagamento) ou na hora da entrega. Sem o sinal, o pedido fica "aguardando sinal" e não reserva peça nem gera produção.`;}
     const ci=j.querySelector('[data-cli-info]');if(ci)ci.innerHTML=cli?`<i class="fas fa-address-book"></i> Cliente do cadastro${cli.canal==='atacado'?' · atacado':''}${(cli.precos||[]).length?` · ${(cli.precos||[]).length} preço(s) próprio(s)`:''}${num(cli.desconto_pct)?` · desconto padrão ${nf(num(cli.desconto_pct),1)}%`:''}`:(j.querySelector('[data-k="cliente"]').value.trim()?'<i class="fas fa-user-plus"></i> Cliente novo: entra no cadastro ao salvar.':'');};
   const reprecificar=tr0=>{if(travarItens)return;const cli=cliAtual(),canal=canalAtual();j.querySelectorAll('[data-item]').forEach(tr=>{if(tr0&&tr!==tr0)return;const p=pecaDe(tr.querySelector('[data-i="peca"]').value);if(p)tr.querySelector('[data-i="preco"]').value=R(precoPara(p,canal,cli).v);});};
   const corpo=j.querySelector('.fin-jan-corpo');
   corpo.addEventListener('input',ev=>{if(ev.target.matches('[data-k="frete"]')){const fi=j.querySelector('[data-frete-info]');if(fi)fi.textContent='';}clearTimeout(j._pmT);j._pmT=setTimeout(at,100);});
   corpo.addEventListener('change',ev=>{const t=ev.target;
-    if(t.matches('[data-i="peca"]')){const tr=t.closest('tr');trocarThumb(tr,t.value);reprecificar(tr);}
+    if(t.matches('[data-i="peca"]')){const tr=t.closest('tr');
+      // a mesma peça não entra duas vezes: volta à anterior e avisa
+      if([...j.querySelectorAll('[data-i="peca"]')].some(s=>s!==t&&s.value===t.value)){const nova=t.value;t.value=t.dataset.prev||'';trocarThumb(tr,t.value);toast(`"${nomePeca(nova)}" já está no pedido em outra linha: aumente a quantidade lá.`,'error');}
+      else{t.dataset.prev=t.value;trocarThumb(tr,t.value);reprecificar(tr);}}
+    if(t.matches('[data-k="pg_valor"]')){const md=j.querySelector('[data-k="pg_modo"]');if(md&&!md.disabled)md.value='outro';}
     if(t.matches('[data-k="canal"]'))reprecificar(null);
     if(t.matches('[data-k="vendedor"]')){const vd=vends.find(x=>x.nome===t.value),ce=j.querySelector('[data-k="comissao_pct"]');if(ce)ce.value=vd&&vd.pct!=null?nf(num(vd.pct),2):'';}
     if(t.matches('[data-k="cliente"]')){const cl=cliDe(t.value);if(cl){const s=(k,v)=>{const e2=j.querySelector(`[data-k="${k}"]`);if(e2&&v!=null&&v!==''&&!e2.value)e2.value=v;};s('doc',cl.doc);s('telefone',cl.telefone);const en=cl.end||{};['cep','logradouro','numero','complemento','bairro','cidade','uf'].forEach(k=>s(k,en[k]));
@@ -1788,7 +1856,9 @@ function formVenda(reg){
     if(f==='usar-at'){const tr=b2.closest('tr');tr.querySelector('[data-i="preco"]').value=R(num(b2.dataset.v));}
     if(f==='frete'){const gv=k=>String(j.querySelector(`[data-k="${k}"]`).value||'').trim(),fi=j.querySelector('[data-frete-info]');b2.disabled=true;fi.textContent='Calculando a distância…';
       try{const r=await calcularFrete({logradouro:gv('logradouro'),numero:gv('numero'),bairro:gv('bairro'),cidade:gv('cidade'),uf:gv('uf')});if(!fi.isConnected)return;j.querySelector('[data-k="frete"]').value=R(r.valor);fi.textContent=r.info;}catch(e2){fi.textContent='';if(fi.isConnected)toast(e2.message||String(e2),'error');}finally{b2.disabled=false;}}
-    if(f==='item-add'){const p0=pecas()[0];j.querySelector('[data-itens]').insertAdjacentHTML('beforeend',itemLin({peca:p0.rowid,qtd:'',preco:precoPara(p0,canalAtual(),cliAtual()).v}));pintarFotos(j);}
+    if(f==='item-add'){const usadas=new Set([...j.querySelectorAll('[data-i="peca"]')].map(s=>s.value)),p0=pecas().find(p=>!usadas.has(String(p.rowid)));
+      if(!p0)return toast('Todas as peças cadastradas já estão no pedido.','error');
+      j.querySelector('[data-itens]').insertAdjacentHTML('beforeend',itemLin({peca:p0.rowid,qtd:'',preco:precoPara(p0,canalAtual(),cliAtual()).v}));pintarFotos(j);}
     else if(f==='item-x')b2.closest('tr').remove();at();});
   if(!reg)j.querySelectorAll('[data-item]').forEach(tr=>{const p=pecaDe(tr.querySelector('[data-i="peca"]').value);const pr=tr.querySelector('[data-i="preco"]');if(p&&!pr.value)pr.value=R(precoPara(p,'varejo',null).v);});
   ligarEndereco(j);pintarFotos(j);atVis();at();
@@ -1808,51 +1878,77 @@ function fichaVenda(v){
   if(!v)return;const E=estoque(),f=faseVenda(v,E),tot=totalVenda(v),pago=pagoDe(v),c=CFG(),ops=opsDaVenda(v),iniciada=ops.some(opIniciada),a=E.aloc[v.rowid]||{};
   const bts=[];
   bts.push({html:`<i class="fas fa-print"></i> ${f==='entregue'||pago>=tot-0.009?'Comprovante':'Imprimir pedido'}`,acao:async()=>{imprimirVenda(v);return false;}});
-  if(v.status!=='cancelada'&&((v.nf||{}).quer||f==='entregue'))bts.push({html:'<i class="fas fa-file-invoice"></i> Anexar nota fiscal',acao:async()=>{anexarNota(v);return false;}});
-  if(['sinal','producao','pagamento','liberado'].includes(f)&&pago<tot-0.009)bts.push({html:'<i class="fas fa-hand-holding-dollar"></i> Registrar pagamento',acao:async()=>{setTimeout(()=>registrarPagamento(v),60);}});
-  // cancelar: só o Administrador (antes da entrega a produção feita fica no estoque; depois, é a devolução de tudo)
-  if(['sinal','producao','pagamento','liberado','entregue'].includes(f)&&ehAdm())bts.push({html:'<i class="fas fa-ban"></i> Cancelar venda',acao:async()=>{setTimeout(()=>cancelarVenda(v),60);}});
-  if(f==='entregue'&&ehAdm()&&pago>0.009)bts.push({html:'<i class="fas fa-hand-holding-dollar"></i> Estorno sem devolução',acao:async()=>{setTimeout(()=>estornoSimples(v),60);}});
+  const fim=encerrada(v),pen=fim?[]:((pendenciasProducao(E).find(x=>String(x.v.rowid)===String(v.rowid))||{}).its||[]);
+  if((v.nf||{}).quer||f==='entregue'||fim)bts.push({html:`<i class="fas fa-file-invoice"></i> ${fim?'Anexar nota (venda ou devolução)':'Anexar nota fiscal'}`,acao:async()=>{anexarNota(v);return false;}});
+  // cancelar: o Administrador sempre; os demais só pedido sem dinheiro e sem produção (antes da entrega a produção feita fica no estoque; depois, é a devolução de tudo)
+  if(podeCancelar(v))bts.push({html:'<i class="fas fa-ban"></i> Cancelar venda',acao:async()=>{setTimeout(()=>cancelarVenda(v),60);}});
+  if((f==='entregue'||fim)&&ehAdm()&&pago>0.009)bts.push({html:`<i class="fas fa-hand-holding-dollar"></i> ${fim?'Estornar o que ficou':'Estorno sem devolução'}`,acao:async()=>{setTimeout(()=>estornoSimples(v),60);}});
   if(f==='entregue')bts.push({html:'<i class="fas fa-rotate-left"></i> Devolução / estorno',acao:async()=>{setTimeout(()=>devolver(v),60);}});
   if(f==='entregue')bts.push({html:'<i class="fas fa-heart-crack"></i> Avaria na entrega',acao:async()=>{setTimeout(()=>formAvaria(null,(v.itens||[])[0]&&v.itens[0].peca,{venda:v.rowid,origem:'transporte'}),60);}});
-  if(!['entregue','devolvida','cancelada'].includes(v.status))bts.push({html:'<i class="fas fa-calendar-days"></i> Agendar entrega',acao:async()=>{setTimeout(()=>formAgenda(v),60);}});
-  if(!['entregue','devolvida','cancelada'].includes(v.status))bts.push({html:'<i class="fas fa-pen"></i> Editar',acao:async()=>{setTimeout(()=>formVenda(v),60);}});
+  if(!fim&&f!=='entregue')bts.push({html:'<i class="fas fa-calendar-days"></i> Agendar entrega',acao:async()=>{setTimeout(()=>formAgenda(v),60);}});
+  if(!fim&&f!=='entregue')bts.push({html:'<i class="fas fa-pen"></i> Editar',acao:async()=>{setTimeout(()=>formVenda(v),60);}});
+  if(pen.length)bts.push({html:'<i class="fas fa-industry"></i> Mandar para a produção',acao:async()=>{await mandarProducao([{v,its:pen}]);const v2=vendaDe(v.rowid);if(v2)setTimeout(()=>fichaVenda(v2),120);return false;}});
+  // pagamento em no máximo dois passos: o sinal e, depois, o resto (antes ou na entrega)
+  if(f==='sinal')bts.push({html:'<i class="fas fa-hand-holding-dollar"></i> Receber o sinal',cls:'pri',acao:async()=>{setTimeout(()=>registrarPagamento(v),60);}});
+  else if(['producao','pagamento','liberado'].includes(f)&&pago<tot-0.009)bts.push({html:`<i class="fas fa-hand-holding-dollar"></i> ${pago>0.009?'Completar pagamento':'Receber pagamento'} (${R(tot-pago)})`,cls:f==='producao'?'pri':'',acao:async()=>{setTimeout(()=>registrarPagamento(v),60);}});
   if(f==='liberado')bts.push({html:'<i class="fas fa-truck"></i> Entregar',cls:'pri',acao:async()=>{setTimeout(()=>entregar(v),60);}});
+  if(f==='pagamento')bts.push({html:'<i class="fas fa-truck"></i> Entregar e receber o saldo',cls:'pri',acao:async()=>{setTimeout(()=>entregar(v),60);}});
   const lts=(f==='entregue'||v.status==='devolvida')?(rastreio().porVenda[v.rowid]||[]):[];
   const extra=`${v.agenda&&v.agenda.data&&f!=='entregue'?`<p class="pm-mini" style="margin:8px 0 0"><i class="fas fa-calendar-check"></i> Entrega agendada: <b>${fe(brDe(dt(v.agenda.data)))}</b>${v.agenda.periodo?' · '+fe(v.agenda.periodo):''}${v.agenda.caminhao?' · '+fe(v.agenda.caminhao):''}${v.agenda.obs?' · '+fe(v.agenda.obs):''}</p>`:''}
     ${v.vendedor?`<p class="pm-mini" style="margin:4px 0 0"><i class="fas fa-user-tie"></i> Vendedor: ${fe(v.vendedor)}${num(v.comissao_pct)?` · comissão ${nf(num(v.comissao_pct),1)}% = ${R(baseComissao(v)*num(v.comissao_pct)/100)}`:''}</p>`:''}
     ${v.frete_info?`<p class="pm-mini" style="margin:4px 0 0"><i class="fas fa-route"></i> Frete: ${fe(v.frete_info)}</p>`:''}
     ${lts.length?`<p class="pm-mini" style="margin:4px 0 0"><i class="fas fa-tag"></i> Lotes entregues (pela ordem de saída): ${lts.map(x=>`${fe(x.cod||x.lote)} (${nf(x.qtd,0)} × ${fe(nomePeca(x.peca))})`).join(' · ')}</p>`:''}`;
-  const pend=f==='sinal'?`Falta o sinal de <b>${R(Math.max(0,tot*num(c.sinal)/100-pago))}</b> (${nf(num(c.sinal),0)}%) para reservar as peças e começar a produção.`:f==='producao'?`Peças em produção: ${ops.length?ops.map(o=>`OP nº ${o.numero} (${nf(prodDaOrdem(o.rowid),0)}/${nf(num(o.qtd),0)})`).join(', '):'aguardando peça pronta do estoque'}.`:f==='pagamento'?`Peças prontas. Falta receber <b>${R(tot-pago)}</b> para liberar a entrega.`:f==='liberado'?'Pago e com as peças prontas: <b>pode entregar</b>.':'';
-  janela(`Venda nº ${v.numero}`,`<div class="fin-resumo"><b>${fe(v.cliente||'')}</b>${v.telefone?' · '+fe(v.telefone):''}${v.doc?' · '+fe(v.doc):''} · ${v.tipo_venda==='pronta'?'pronta entrega':'encomenda'} · ${v.canal==='atacado'?'atacado':'varejo'}<br>${fe((FASES_V.find(x=>x.k===f)||{rot:v.status}).rot)}${v.data?' · pedido em '+brDe(dt(v.data)):''}${v.prazo_entrega?' · entrega prevista '+brDe(dt(v.prazo_entrega)):''}${v.entrega?' · entregue em '+brDe(dt(v.entrega)):''}</div>
+  const andam=ops.map(o=>{const x=andamentoOP(o);return `OP nº ${o.numero}: ${nf(x.feito,0)} de ${nf(num(o.qtd),0)} feitas${x.cura?` · ${nf(x.cura,0)} em cura até ${brDe(x.ate)}`:''}`;}).join(' · ');
+  const pend=f==='sinal'?`Falta o sinal de <b>${R(Math.max(0,tot*num(c.sinal)/100-pago))}</b> (${nf(num(c.sinal),0)}%) para reservar as peças e mandar para a produção.`
+    :f==='producao'?`Peças em produção — o cartão vai sozinho para "Pronto" quando terminarem a cura. ${andam||'Aguardando peça pronta do estoque.'}${pen.length?` <b style="color:#B42318">Sem ordem de produção: ${pen.map(it=>`${nf(it.qtd,0)} × ${fe(nomePeca(it.peca))}`).join(', ')}</b> (use Mandar para a produção).`:''}`
+    :f==='pagamento'?`Peças prontas. Falta receber <b>${R(tot-pago)}</b>: agora (Completar pagamento) ou na hora da entrega (Entregar e receber o saldo).`:f==='liberado'?'Pago e com as peças prontas: <b>pode entregar</b>.':'';
+  const dv=fim?devolvidoDe(v):null,brutoPago=r2((v.pagamentos||[]).filter(p=>p.tipo!=='estorno').reduce((s,p)=>s+num(p.valor),0));
+  const fimTxt=fim?`<b>${v.status==='devolvida'?'Pedido encerrado: o cliente devolveu as peças':'Pedido cancelado'}</b> em ${fe(brDe(dt(dataFim(v))))}${v.cancelada_por?' por '+fe(v.cancelada_por):''}. Motivo: ${fe(motivoFim(v)||'—')}.
+    ${dv.estoque||dv.avaria?`<br>${dv.estoque?`${nf(dv.estoque,0)} peça(s) voltaram ao estoque`:''}${dv.estoque&&dv.avaria?' · ':''}${dv.avaria?`<b>${nf(dv.avaria,0)} avariada(s): entraram nas perdas</b> (não voltam ao estoque)`:''}.`:''}
+    <br>Recebido ${R(brutoPago)} · estornado ${R(dv.estorno)} · <b>ficou com a empresa ${R(Math.max(0,pago))}</b>.`:'';
+  janela(`Venda nº ${v.numero}`,`<div class="fin-resumo"><b>${fe(v.cliente||'')}</b>${v.telefone?' · '+fe(v.telefone):''}${v.doc?' · '+fe(v.doc):''} · ${v.tipo_venda==='pronta'?'pronta entrega':'encomenda'} · ${v.canal==='atacado'?'atacado':'varejo'}<br>${fe(rotFase(v,f))}${v.data?' · pedido em '+brDe(dt(v.data)):''}${v.prazo_entrega&&!fim?' · entrega prevista '+brDe(dt(v.prazo_entrega)):''}${v.entrega?' · entregue em '+brDe(dt(v.entrega)):''}</div>
+    ${fim?`<div class="fin-aviso vermelho" style="margin-top:8px"><div>${fimTxt}</div></div>`:''}
     ${pend?`<div class="fin-aviso ${f==='liberado'?'':'laranja'}" style="margin-top:8px"><div>${pend}</div></div>`:''}
     <table class="pm-tab2" data-sem-ordem style="margin-top:8px"><thead><tr><th>Peça</th><th class="n">Quant.</th><th class="n">Prontas</th><th class="n">Preço</th><th class="n">Total</th></tr></thead><tbody>
     ${(v.itens||[]).map((it,i)=>`<tr><td>${fe(nomePeca(it.peca))}</td><td class="n">${nf(num(it.qtd),0)}</td><td class="n">${v.status==='reservado'?nf(a[i]||0,0):'—'}</td><td class="n">${R(num(it.preco))}</td><td class="n">${R(num(it.qtd)*num(it.preco))}</td></tr>`).join('')}
     ${descontoVenda(v)?`<tr><td colspan="4">Desconto${v.desconto_pct?' ('+nf(num(v.desconto_pct),1)+'%)':''}</td><td class="n">${R(-descontoVenda(v))}</td></tr>`:''}${num(v.frete)?`<tr><td colspan="4">Frete</td><td class="n">${R(num(v.frete))}</td></tr>`:''}
-    <tr class="t"><td colspan="4">Total</td><td class="n">${R(tot)}</td></tr><tr><td colspan="4">Pago</td><td class="n" style="color:#067647">${R(pago)}</td></tr><tr><td colspan="4"><b>Saldo</b></td><td class="n"><b>${R(Math.max(0,tot-pago))}</b></td></tr></tbody></table>
+    <tr class="t"><td colspan="4">Total${fim?' do pedido':''}</td><td class="n">${R(tot)}</td></tr>${fim?`<tr><td colspan="4">Recebido</td><td class="n" style="color:#067647">${R(brutoPago)}</td></tr><tr><td colspan="4">Estornado ao cliente</td><td class="n" style="color:#B42318">${R(-dv.estorno)}</td></tr><tr><td colspan="4"><b>Ficou com a empresa</b></td><td class="n"><b>${R(Math.max(0,pago))}</b></td></tr>`
+      :`<tr><td colspan="4">Pago</td><td class="n" style="color:#067647">${R(pago)}</td></tr><tr><td colspan="4"><b>Saldo</b></td><td class="n"><b>${R(Math.max(0,tot-pago))}</b></td></tr>`}</tbody></table>
     ${(v.pagamentos||[]).length?`<h5 style="margin:10px 0 4px;font:800 12px Inter">Pagamentos</h5><ul class="pm-arml">${(v.pagamentos||[]).map(p=>`<li${p.tipo==='estorno'?' style="background:#FEF3F2"':''}><i class="fas ${p.tipo==='estorno'?'fa-rotate-left':'fa-circle-dollar-to-slot'}" style="color:${p.tipo==='estorno'?'#B42318':'#067647'}"></i><span>${fe(brDe(dt(p.data)))} · <b>${p.tipo==='estorno'?'estorno −':''}${R(num(p.valor))}</b> · ${fe(p.forma||'')} · ${fe(p.tipo||'')}${p.obs?' · '+fe(p.obs):''}</span></li>`).join('')}</ul>`:''}
     ${endTxt(v.end)?`<p class="pm-mini" style="margin:8px 0 0"><i class="fas fa-location-dot"></i> ${fe(endTxt(v.end))}</p>`:''}${(v.nf||{}).quer?`<p class="pm-mini" style="margin:4px 0 0"><i class="fas fa-file-invoice"></i> Cliente quer nota fiscal${(v.nf||{}).numero?' — NF nº '+fe(v.nf.numero):' (ainda sem número)'}.</p>`:''}${v.obs?`<p class="pm-mini" style="margin:4px 0 0">${fe(v.obs)}</p>`:''}${extra}<div data-nf-arqs style="margin-top:6px"></div>`,bts,820);
   // arquivos da nota fiscal anexada (XML / PDF)
   pintarNotas(v);
 }
 function registrarPagamento(v){
-  const c=CFG(),tot=totalVenda(v),pago=pagoDe(v),sinalFalta=r2(Math.max(0,tot*num(c.sinal)/100-pago)),saldo=r2(tot-pago);
-  janela(`Pagamento — venda nº ${v.numero}`,`<div class="fin-resumo">Total ${R(tot)} · pago ${R(pago)} · <b>saldo ${R(saldo)}</b>${v.status==='aguardando_sinal'?`<br>Sinal mínimo para reservar: <b>${R(sinalFalta)}</b>`:''}</div>
-    <div class="fin-linha" style="margin-top:8px"><div class="fin-fld"><label>Valor (R$) <span class="obg">*</span></label><input data-k="valor" data-mask="moeda" value="${fe(R(v.status==='aguardando_sinal'?sinalFalta:saldo))}"></div>
+  if(encerrada(v))return toast('Pedido encerrado: não recebe pagamento.','error');
+  const c=CFG(),tot=totalVenda(v),pago=pagoDe(v),sinalFalta=r2(Math.max(0,tot*num(c.sinal)/100-pago)),saldo=r2(tot-pago),ehSinal=v.status==='aguardando_sinal';
+  if(saldo<=0.009)return toast('Esta venda já está paga.','success');
+  janela(ehSinal?`Receber o sinal — venda nº ${v.numero}`:`${pago>0.009?'Completar pagamento':'Receber pagamento'} — venda nº ${v.numero}`,`<div class="fin-resumo">Total ${R(tot)} · pago ${R(pago)} · <b>saldo ${R(saldo)}</b>${ehSinal?`<br>Sinal mínimo para reservar: <b>${R(sinalFalta)}</b>`:''}</div>
+    ${ehSinal?`<div class="pm-seg" style="margin-top:8px" data-pg-op><button type="button" class="on" data-v="${sinalFalta}">Só o sinal (${R(sinalFalta)})</button><button type="button" data-v="${saldo}">Tudo de uma vez (${R(saldo)})</button></div>`
+      :`<p class="pm-mini" style="margin:8px 0 0">Este pagamento quita a venda. ${faseVenda(v)==='producao'?'O cliente também pode pagar na hora da entrega.':''}</p>`}
+    <div class="fin-linha" style="margin-top:8px"><div class="fin-fld"><label>Valor (R$) <span class="obg">*</span></label><input data-k="valor" data-mask="moeda" value="${fe(R(ehSinal?sinalFalta:saldo))}"></div>
     <div class="fin-fld"><label>Data <span class="obg">*</span></label><input type="date" data-k="data" value="${hojeISO()}" max="${hojeISO()}"></div>
     <div class="fin-fld"><label>Forma</label><select data-k="forma">${FORMAS_PG.map(x=>`<option>${x}</option>`).join('')}</select></div>
     <div class="fin-fld" style="grid-column:1/-1"><label>Observação</label><input data-k="obs"></div></div>`,
     [{html:'<i class="fas fa-circle-check"></i> Confirmar pagamento',cls:'pri',acao:async j=>{const g=k=>j.querySelector(`[data-k="${k}"]`).value,val=r2(num(g('valor')));
       if(!(val>0))throw new Error('Informe o valor.');if(v.data&&g('data')&&g('data')<v.data)throw new Error('O pagamento não pode ser antes da data do pedido.');if(val>saldo+0.009)throw new Error(`O valor passa do saldo (${R(saldo)}).`);if(!g('data'))throw new Error('Informe a data.');
-      const o=vendaBruta(v);o.pagamentos=(o.pagamentos||[]).concat([{data:g('data'),valor:val,forma:g('forma'),tipo:o.status==='aguardando_sinal'?'sinal':'pagamento',obs:g('obs'),por:eu()}]);
+      if(ehSinal&&r2(pago+val)<r2(tot*num(c.sinal)/100)-0.009)return trava('Valor menor que o sinal',[{ok:false,txt:`O sinal mínimo é ${R(sinalFalta)} (${nf(num(c.sinal),0)}%). Com menos, as peças não ficam reservadas.`}]);
+      const o=vendaBruta(v);o.pagamentos=(o.pagamentos||[]).concat([{data:g('data'),valor:val,forma:g('forma'),tipo:ehSinal&&val<saldo-0.009?'sinal':'pagamento',obs:g('obs'),por:eu()}]);
       let reservou=false;if(o.status==='aguardando_sinal'&&pagoDe(o)>=r2(tot*num(c.sinal)/100)-0.009){o.status='reservado';reservou=true;}
-      await gravar(o,v.rowid);toast(reservou?'Sinal recebido: peças reservadas.':'Pagamento registrado.','success');
+      await gravar(o,v.rowid);toast(reservou?'Sinal recebido: peças reservadas.':pagoDe(o)>=tot-0.009?'Pagamento completo.':'Pagamento registrado.','success');
       if(reservou){const v2=vendaDe(v.rowid);if(v2&&!v2.ops_geradas)await gerarProducaoVenda(v2);}
       const v3=vendaDe(v.rowid);if(v3)setTimeout(()=>fichaVenda(v3),120);}}],560);
+  const jj=document.getElementById('fin-jan'),seg=jj.querySelector('[data-pg-op]');
+  if(seg)seg.addEventListener('click',ev=>{const b=ev.target.closest('button');if(!b)return;seg.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));const e=jj.querySelector('[data-k="valor"]');e.value=R(num(b.dataset.v));});
 }
 function entregar(v){
-  const f=faseVenda(v);if(f!=='liberado')return toast(f==='pagamento'?'Falta o pagamento completo para entregar.':'As peças ainda não estão todas prontas.','error');
-  janela(`Entregar a venda nº ${v.numero}`,`<div class="fin-resumo">${fe(v.cliente||'')} · ${(v.itens||[]).map(it=>`${nf(num(it.qtd),0)} × ${fe(nomePeca(it.peca))}`).join(' · ')}</div>
+  const f=faseVenda(v);if(f!=='liberado'&&f!=='pagamento')return trava(`Venda nº ${v.numero}: ainda não pode ser entregue`,depsVenda(v));
+  const saldo=r2(totalVenda(v)-pagoDe(v));
+  janela(saldo>0.009?`Entregar e receber — venda nº ${v.numero}`:`Entregar a venda nº ${v.numero}`,`<div class="fin-resumo">${fe(v.cliente||'')} · ${(v.itens||[]).map(it=>`${nf(num(it.qtd),0)} × ${fe(nomePeca(it.peca))}`).join(' · ')}</div>
+    ${saldo>0.009?`<div class="pm-bloco" style="margin-top:8px"><h5><i class="fas fa-hand-holding-dollar"></i> Receber o saldo na entrega</h5><div class="fin-linha">
+      <div class="fin-fld"><label>Valor a receber</label><input data-k="pg_valor" value="${fe(R(saldo))}" readonly></div><div class="fin-fld"><label>Forma <span class="obg">*</span></label><select data-k="pg_forma">${FORMAS_PG.map(x=>`<option>${x}</option>`).join('')}</select></div>
+      <label class="nfc-amb" style="grid-column:1/-1"><input type="checkbox" data-k="pg_ok"><span>Recebi ${fe(R(saldo))} do cliente nesta entrega</span></label></div>
+      <p class="pm-mini" style="margin:6px 0 0">A peça só sai paga: sem marcar o recebimento, a entrega não é registrada.</p></div>`:''}
     <div class="fin-linha" style="margin-top:8px"><div class="fin-fld"><label>Data da entrega <span class="obg">*</span></label><input type="date" data-k="entrega" value="${hojeISO()}" max="${hojeISO()}"></div>
     ${(v.nf||{}).quer?`<div class="fin-fld"><label>Nº da nota fiscal</label><input data-k="nf" value="${fe((v.nf||{}).numero||'')}"></div>`:''}
     <div class="fin-fld"><label>Caminhão</label><select data-k="caminhao"><option value="">—</option>${(CFG().caminhoes||[]).filter(x=>x&&x.nome).map(x=>`<option ${v.agenda&&v.agenda.caminhao===x.nome?'selected':''}>${fe(x.nome)}</option>`).join('')}</select></div>
@@ -1860,13 +1956,14 @@ function entregar(v){
     <p class="pm-mini">Peça quebrada no caminho: registre depois em <b>Avaria na entrega</b>.</p>`,
     [{html:'<i class="fas fa-truck"></i> Confirmar entrega',cls:'pri',acao:async j=>{const e=j.querySelector('[data-k="entrega"]').value;if(!e)throw new Error('Informe a data da entrega.');
       if(v.data&&e<v.data)throw new Error('A entrega não pode ser antes da data do pedido.');
-      const o=vendaBruta(v);o.status='entregue';o.entrega=e;o.entregue_por=eu();o.caminhao=j.querySelector('[data-k="caminhao"]').value;o.recebedor=j.querySelector('[data-k="recebedor"]').value.trim();if(j.querySelector('[data-k="nf"]'))o.nf={...(o.nf||{}),numero:j.querySelector('[data-k="nf"]').value.trim()};
-      await gravar(o,v.rowid);toast(`Venda nº ${v.numero} entregue: peças baixadas do estoque.`,'success');}}],560);
+      if(saldo>0.009&&!j.querySelector('[data-k="pg_ok"]').checked)return trava('Falta receber o saldo',[{ok:false,txt:`Marque "Recebi ${R(saldo)} do cliente nesta entrega". Sem o pagamento completo a peça não sai.`}]);
+      const o=vendaBruta(v);if(saldo>0.009)o.pagamentos=(o.pagamentos||[]).concat([{data:e,valor:saldo,forma:j.querySelector('[data-k="pg_forma"]').value,tipo:'pagamento',obs:'na entrega',por:eu()}]);o.status='entregue';o.entrega=e;o.entregue_por=eu();o.caminhao=j.querySelector('[data-k="caminhao"]').value;o.recebedor=j.querySelector('[data-k="recebedor"]').value.trim();if(j.querySelector('[data-k="nf"]'))o.nf={...(o.nf||{}),numero:j.querySelector('[data-k="nf"]').value.trim()};
+      await gravar(o,v.rowid);toast(`Venda nº ${v.numero} entregue${saldo>0.009?' e paga':''}: peças baixadas do estoque.`,'success');}}],600);
 }
 // estorno só em dinheiro (o cliente fica com as peças: abatimento combinado, defeito pequeno) — não mexe no estoque
 function estornoSimples(v){
   const pago=pagoDe(v);
-  janela(`Estorno sem devolução — venda nº ${v.numero}`,`<div class="fin-aviso"><div>O cliente <b>fica com as peças</b> (o estoque não muda); só o dinheiro volta. Para devolver peças, use <b>Devolução / estorno</b>.</div></div>
+  janela(`${encerrada(v)?'Estornar o que ficou':'Estorno sem devolução'} — venda nº ${v.numero}`,`<div class="fin-aviso"><div>${encerrada(v)?'Pedido encerrado: devolve ao cliente o dinheiro que ficou com a empresa (ex.: sinal retido). O estoque não muda.':'O cliente <b>fica com as peças</b> (o estoque não muda); só o dinheiro volta. Para devolver peças, use <b>Devolução / estorno</b>.'}</div></div>
     <div class="fin-linha" style="margin-top:8px"><div class="fin-fld"><label>Valor do estorno (R$) <span class="obg">*</span></label><input data-k="estorno" data-mask="moeda"></div><div class="fin-fld"><label>Forma</label><select data-k="forma">${FORMAS_PG.map(x=>`<option>${x}</option>`).join('')}</select></div>
     <div class="fin-fld" style="grid-column:1/-1"><label>Motivo <span class="obg">*</span></label><input data-k="motivo" placeholder="Ex.: abatimento por atraso, peça com defeito de acabamento"></div></div><p class="pm-mini">Já pago: <b>${R(pago)}</b>.</p>`,
     [{html:'<i class="fas fa-hand-holding-dollar"></i> Lançar estorno',cls:'pri',acao:async j=>{if(!ehAdm())throw new Error('Só o Administrador lança estorno.');const g=k=>j.querySelector(`[data-k="${k}"]`).value.trim(),est=r2(num(g('estorno')));
@@ -1876,8 +1973,12 @@ function estornoSimples(v){
 }
 // cancelar (só o Administrador): antes da entrega, a produção já feita fica no estoque e o restante pode parar;
 // depois da entrega, cancelar = devolver tudo (peça boa volta ao estoque, avariada vira perda) + estorno
+const MOTIVOS_CANC=['Cliente desistiu da compra','Peça avariada','Atraso na entrega','Erro no pedido','Sem condição de pagamento','Outro'];
+const selMotivo=()=>`<div class="fin-fld"><label>Motivo <span class="obg">*</span></label><select data-k="motivo_tipo"><option value="">— escolha —</option>${MOTIVOS_CANC.map(m=>`<option>${m}</option>`).join('')}</select></div>
+  <div class="fin-fld" style="grid-column:span 2"><label>Detalhe do motivo</label><input data-k="motivo" placeholder="Ex.: obra parada; 3 peças trincadas no transporte"></div>`;
+const lerMotivo=jj=>{const t=jj.querySelector('[data-k="motivo_tipo"]').value,d=jj.querySelector('[data-k="motivo"]').value.trim();if(!t)throw new Error('Escolha o motivo.');if(t==='Outro'&&!d)throw new Error('Em "Outro", escreva o motivo no detalhe.');return t==='Outro'?d:t+(d?' — '+d:'');};
 function cancelarVenda(v){
-  if(!ehAdm())return toast('Só o Administrador pode cancelar uma venda.','error');
+  if(!podeCancelar(v))return toast(encerrada(v)?'Este pedido já está encerrado.':'Pedido com dinheiro recebido, produção começada ou já entregue: só o Administrador cancela.','error');
   const pago=pagoDe(v),ops=opsDaVenda(v),entregue=v.status==='entregue';
   const jaDev={};(v.devolucoes||[]).forEach(dv=>(dv.itens||[]).forEach(it=>jaDev[it.peca]=(jaDev[it.peca]||0)+num(it.qtd)));
   const resta=(v.itens||[]).map((it,i)=>({i,peca:it.peca,preco:num(it.preco),max:Math.max(0,num(it.qtd)-(jaDev[it.peca]||0))})).filter(x=>x.max>0);
@@ -1886,37 +1987,40 @@ function cancelarVenda(v){
     :[...opsInfo.map(({o,feito})=>({ok:true,txt:feito?`OP nº ${o.numero}: ${nf(feito,0)} de ${nf(num(o.qtd),0)} peças já feitas — <b>ficam no estoque</b> para outras vendas${feito<num(o.qtd)?'; o restante para (a ordem é concluída com o que foi feito)':''}.`:`OP nº ${o.numero}: nada produzido — <b>é cancelada</b>.`})),{ok:true,txt:'As peças reservadas voltam a ficar livres no estoque.'}];
   const j=janela(`Cancelar a venda nº ${v.numero}`,`<ul class="pm-arml" style="margin-bottom:10px">${deps.map(d=>`<li><i class="fas fa-circle-info" style="color:#1652D8"></i><span>${d.txt}</span></li>`).join('')}</ul>
     ${entregue&&resta.length?`<div class="pm-rolar"><table class="pm-itens"><thead><tr><th>Peça com o cliente</th><th style="width:90px">Quant.</th><th>Situação da peça</th></tr></thead><tbody>${resta.map(x=>`<tr data-cr="${x.i}"><td>${fe(nomePeca(x.peca))}</td><td>${nf(x.max,0)}</td><td><select data-d="destino"><option value="estoque">Boa — volta ao estoque</option><option value="avaria">Avariada — perda</option></select></td></tr>`).join('')}</tbody></table></div>`:''}
-    <div class="fin-linha" style="margin-top:8px"><div class="fin-fld"><label>Estorno ao cliente (R$)</label><input data-k="estorno" data-mask="moeda" value="${fe(R(Math.max(0,pago)))}"></div><div class="fin-fld"><label>Forma do estorno</label><select data-k="forma">${FORMAS_PG.map(x=>`<option>${x}</option>`).join('')}</select></div>
-    <div class="fin-fld" style="grid-column:1/-1"><label>Motivo <span class="obg">*</span></label><input data-k="motivo" placeholder="Ex.: cliente desistiu, obra parada"></div></div>
-    <p class="pm-mini">Já pago pelo cliente: <b>${R(pago)}</b>. O estorno pode ser menor (ex.: sinal retido como multa, se combinado).</p>`,
-    [{html:'<i class="fas fa-ban"></i> Cancelar a venda',cls:'pri',acao:async jj=>{if(!ehAdm())throw new Error('Só o Administrador pode cancelar.');
-      const g=k=>jj.querySelector(`[data-k="${k}"]`).value.trim(),est=r2(num(g('estorno')));if(!g('motivo'))throw new Error('Informe o motivo.');
+    <div class="fin-linha" style="margin-top:8px">${selMotivo()}
+      ${pago>0.009?`<div class="fin-fld"><label>Estorno ao cliente (R$)</label><input data-k="estorno" data-mask="moeda" value="${fe(R(Math.max(0,pago)))}"></div><div class="fin-fld"><label>Forma do estorno</label><select data-k="forma">${FORMAS_PG.map(x=>`<option>${x}</option>`).join('')}</select></div>`:''}</div>
+    <p class="pm-mini">${pago>0.009?`Já pago pelo cliente: <b>${R(pago)}</b>. O estorno pode ser menor (ex.: sinal retido como multa, se combinado).`:'Nenhum dinheiro recebido nesta venda: não há estorno.'} O pedido vai para a coluna <b>Cancelados · devolvidos</b> (não é excluído).</p>`,
+    [{html:'<i class="fas fa-ban"></i> Cancelar a venda',cls:'pri',acao:async jj=>{if(!podeCancelar(v))throw new Error('Só o Administrador pode cancelar este pedido.');
+      const g=k=>{const e=jj.querySelector(`[data-k="${k}"]`);return e?e.value.trim():'';},est=r2(num(g('estorno'))),mot=lerMotivo(jj);
       if(est<0||est>pago+0.009)return trava('Estorno maior do que foi pago',[{ok:false,txt:`Pago pelo cliente: ${R(pago)} — o estorno não pode passar disso.`}]);
-      const hoje=hojeISO(),o=vendaBruta(v),mud=[];o.cancelada_em=hoje;o.cancelada_por=eu();o.motivo_cancelamento=g('motivo');
-      if(est>0)o.pagamentos=(o.pagamentos||[]).concat([{data:hoje,valor:est,forma:g('forma'),tipo:'estorno',obs:'cancelamento: '+g('motivo'),por:eu()}]);
+      const hoje=hojeISO(),o=vendaBruta(v),mud=[];o.cancelada_em=hoje;o.cancelada_por=eu();o.motivo_cancelamento=mot;
+      if(est>0)o.pagamentos=(o.pagamentos||[]).concat([{data:hoje,valor:est,forma:g('forma'),tipo:'estorno',obs:'cancelamento: '+mot,por:eu()}]);
       if(entregue){const its=[...jj.querySelectorAll('[data-cr]')].map(tr=>{const x=resta.find(r=>String(r.i)===tr.dataset.cr);return {peca:x.peca,qtd:x.max,destino:tr.querySelector('[data-d="destino"]').value,preco:x.preco};});
-        if(its.length)o.devolucoes=(o.devolucoes||[]).concat([{data:hoje,itens:its,estorno:est,motivo:'cancelamento: '+g('motivo'),por:eu()}]);o.status='devolvida';
-        const E=estoque();its.filter(x=>x.destino==='avaria').forEach(x=>{const e=E.P[String(x.peca)];mud.push([{tipo:'avaria',data:hoje,peca:x.peca,qtd:x.qtd,origem:'cliente',causa:'cancelamento: '+g('motivo'),venda:String(v.rowid),custo_un:r2(e?e.custoUn:0),por:eu(),data_lancamento:todayDateTime()},null]);});}
+        if(its.length)o.devolucoes=(o.devolucoes||[]).concat([{data:hoje,itens:its,estorno:est,motivo:'cancelamento: '+mot,por:eu()}]);o.status='devolvida';
+        const E=estoque();its.filter(x=>x.destino==='avaria').forEach(x=>{const e=E.P[String(x.peca)];mud.push([{tipo:'avaria',data:hoje,peca:x.peca,qtd:x.qtd,origem:'cliente',causa:'cancelamento: '+mot,venda:String(v.rowid),custo_un:r2(e?e.custoUn:0),por:eu(),data_lancamento:todayDateTime()},null]);});}
       else{o.status='cancelada';opsInfo.forEach(({o:op,feito})=>mud.push([feito?{...op,venda:'',cliente:`Estoque (venda nº ${v.numero} cancelada)`,qtd:feito,status:'concluida',concluida_em:op.concluida_em||hoje,obs:(op.obs?op.obs+' · ':'')+'venda cancelada: produção feita fica no estoque'}:{...op,status:'cancelada',obs:(op.obs?op.obs+' · ':'')+'venda cancelada'},op.rowid]));}
-      await gravarVarios([[o,v.rowid]].concat(mud));toast(entregue?'Venda cancelada: devolução registrada e estorno lançado.':'Venda cancelada.','success');}}],680);
+      await gravarVarios([[o,v.rowid]].concat(mud));toast(entregue?'Venda cancelada: devolução registrada'+(est>0?' e estorno lançado':'')+'.':'Venda cancelada — está na coluna Cancelados.','success');}}],680);
+  // motivo "Peça avariada": as peças com o cliente já vêm marcadas como avariadas
+  j.querySelector('[data-k="motivo_tipo"]').addEventListener('change',ev=>{if(ev.target.value==='Peça avariada')j.querySelectorAll('[data-cr] [data-d="destino"]').forEach(s=>s.value='avaria');});
 }
 function devolver(v){
   const ja={};(v.devolucoes||[]).forEach(dv=>(dv.itens||[]).forEach(it=>ja[it.peca]=(ja[it.peca]||0)+num(it.qtd)));
   const lin=(v.itens||[]).map((it,i)=>{const max=num(it.qtd)-(ja[it.peca]||0);return `<tr data-dv="${i}"><td>${fe(nomePeca(it.peca))}<small>máx. ${nf(max,0)}</small></td><td><input data-d="qtd" inputmode="numeric" placeholder="0" data-max="${max}"></td><td><select data-d="destino"><option value="estoque">Volta ao estoque (peça boa)</option><option value="avaria">Avariada (perda)</option></select></td></tr>`;}).join('');
   const j=janela(`Devolução — venda nº ${v.numero}`,`<p class="pm-mini">Informe o que o cliente devolveu. Peça boa volta ao estoque; peça avariada entra nas perdas. O estorno sai do caixa.</p>
     <div class="pm-rolar"><table class="pm-itens"><thead><tr><th>Peça</th><th style="width:90px">Devolvidas</th><th>Destino</th></tr></thead><tbody>${lin}</tbody></table></div>
-    <div class="fin-linha" style="margin-top:8px"><div class="fin-fld"><label>Estorno ao cliente (R$)</label><input data-k="estorno" data-mask="moeda"></div><div class="fin-fld"><label>Forma</label><select data-k="forma">${FORMAS_PG.map(x=>`<option>${x}</option>`).join('')}</select></div>
-    <div class="fin-fld" style="grid-column:1/-1"><label>Motivo <span class="obg">*</span></label><input data-k="motivo"></div></div>`,
+    <div class="fin-linha" style="margin-top:8px">${selMotivo()}<div class="fin-fld"><label>Estorno ao cliente (R$)</label><input data-k="estorno" data-mask="moeda"></div><div class="fin-fld"><label>Forma</label><select data-k="forma">${FORMAS_PG.map(x=>`<option>${x}</option>`).join('')}</select></div></div>
+    <p class="pm-mini">Devolvendo tudo, o pedido fica encerrado e vai para a coluna <b>Cancelados · devolvidos</b>.</p>`,
     [{html:'<i class="fas fa-rotate-left"></i> Registrar devolução',cls:'pri',acao:async jj=>{
       const its=[...jj.querySelectorAll('[data-dv]')].map(tr=>{const it=v.itens[+tr.dataset.dv],q=num(tr.querySelector('[data-d="qtd"]').value),max=num(tr.querySelector('[data-d="qtd"]').dataset.max);if(q>max)throw new Error(`${nomePeca(it.peca)}: máximo ${max}.`);return {peca:it.peca,qtd:q,destino:tr.querySelector('[data-d="destino"]').value,preco:num(it.preco)};}).filter(x=>x.qtd>0);
-      if(!its.length)throw new Error('Informe as peças devolvidas.');const g=k=>jj.querySelector(`[data-k="${k}"]`).value.trim(),est=r2(num(g('estorno')));if(!g('motivo'))throw new Error('Informe o motivo.');
+      if(!its.length)throw new Error('Informe as peças devolvidas.');const mot=lerMotivo(jj),g=k=>k==='motivo'?mot:jj.querySelector(`[data-k="${k}"]`).value.trim(),est=r2(num(g('estorno')));
       // estorno nunca maior que o valor das peças devolvidas, nem que o pago
       const valDev=r2(its.reduce((s,x)=>s+x.qtd*x.preco,0)*(1-num(v.desconto_pct)/100)),pg=pagoDe(v);
       if(est>valDev+0.009||est>pg+0.009)return trava('Estorno maior do que pode',[{ok:est<=valDev+0.009,txt:`Valor das peças devolvidas (com o desconto da venda): ${R(valDev)}`},{ok:est<=pg+0.009,txt:`Valor pago pelo cliente até agora: ${R(pg)}`},{ok:false,txt:`Estorno informado: ${R(est)} — no máximo ${R(Math.min(valDev,pg))}`}]);
       const o=vendaBruta(v),dv={data:hojeISO(),itens:its,estorno:est,motivo:g('motivo'),por:eu()};o.devolucoes=(o.devolucoes||[]).concat([dv]);if(est>0)o.pagamentos=(o.pagamentos||[]).concat([{data:hojeISO(),valor:est,forma:g('forma'),tipo:'estorno',obs:'devolução: '+g('motivo'),por:eu()}]);
-      const totDev={};o.devolucoes.forEach(d=>d.itens.forEach(it=>totDev[it.peca]=(totDev[it.peca]||0)+num(it.qtd)));if((o.itens||[]).every(it=>(totDev[it.peca]||0)>=num(it.qtd)))o.status='devolvida';
-      const E=estoque(),mud=[[o,v.rowid]];its.filter(x=>x.destino==='avaria').forEach(x=>{const e=E.P[String(x.peca)];mud.push([{tipo:'avaria',data:hojeISO(),peca:x.peca,qtd:x.qtd,origem:'cliente',causa:'devolução: '+g('motivo'),venda:String(v.rowid),custo_un:r2(e?e.custoUn:0),data_lancamento:todayDateTime()},null]);});
-      await gravarVarios(mud);toast('Devolução registrada.','success');}}],720);
+      const totDev={};o.devolucoes.forEach(d=>d.itens.forEach(it=>totDev[it.peca]=(totDev[it.peca]||0)+num(it.qtd)));if((o.itens||[]).every(it=>(totDev[it.peca]||0)>=num(it.qtd))){o.status='devolvida';o.cancelada_em=hojeISO();o.cancelada_por=eu();o.motivo_cancelamento=mot;}
+      const E=estoque(),mud=[[o,v.rowid]];its.filter(x=>x.destino==='avaria').forEach(x=>{const e=E.P[String(x.peca)];mud.push([{tipo:'avaria',data:hojeISO(),peca:x.peca,qtd:x.qtd,origem:'cliente',causa:'devolução: '+g('motivo'),venda:String(v.rowid),custo_un:r2(e?e.custoUn:0),por:eu(),data_lancamento:todayDateTime()},null]);});
+      await gravarVarios(mud);toast(o.status==='devolvida'?'Devolução de tudo registrada: o pedido foi para Cancelados · devolvidos.':'Devolução registrada.','success');}}],720);
+  j.querySelector('[data-k="motivo_tipo"]').addEventListener('change',ev=>{if(ev.target.value==='Peça avariada')j.querySelectorAll('[data-dv] [data-d="destino"]').forEach(s=>s.value='avaria');});
   const at=()=>{const tot=[...j.querySelectorAll('[data-dv]')].reduce((s,tr)=>s+num(tr.querySelector('[data-d="qtd"]').value)*num(v.itens[+tr.dataset.dv].preco),0)*(1-num(v.desconto_pct)/100);const e=j.querySelector('[data-k="estorno"]');if(e&&!e.dataset.mexeu)e.value=R(tot);};
   j.querySelector('.fin-jan-corpo').addEventListener('input',ev=>{if(ev.target.matches('[data-k="estorno"]'))ev.target.dataset.mexeu='1';else at();});
 }
@@ -1936,7 +2040,7 @@ function imprimirVenda(v){
   const rows=(v.itens||[]).map(it=>{const p=pecaDe(it.peca),t=tipoDePeca(p||{}),ncm=(p&&p.ncm)||CAT.ncmDe(t);
     return `<tr><td>${fe(p&&p.codigo||'')}</td><td>${fe(nomePeca(it.peca))}<br><small style="color:#6e6e73">${fe(p?geoPeca(p).desc:'')}${lts.filter(x=>String(x.peca)===String(it.peca)).length?' · lote '+[...new Set(lts.filter(x=>String(x.peca)===String(it.peca)).map(x=>x.cod||x.lote))].map(fe).join(', '):''}</small></td><td>${fe(ncm)}</td><td style="text-align:right">${nf(num(it.qtd),0)} pç</td><td style="text-align:right">${R(num(it.preco))}</td><td style="text-align:right">${R(num(it.qtd)*num(it.preco))}</td></tr>`;});
   const pags=(v.pagamentos||[]).map(p=>`${fe(brDe(dt(p.data)))} · ${p.tipo==='estorno'?'estorno −':''}${R(num(p.valor))} · ${fe(p.forma||'')}`).join('<br>');
-  App._relExportPaginado({titulo:`${comp?'Comprovante de venda':'Pedido de venda'} nº ${v.numero}`,subLinhas:[`${fe(v.cliente||'')} · ${fe(brDe(dt(v.data)))}`],preHtml:pre,
+  App._relExportPaginado({titulo:`${encerrada(v)?(v.status==='devolvida'?'Venda devolvida':'Pedido cancelado'):comp?'Comprovante de venda':'Pedido de venda'} nº ${v.numero}`,subLinhas:[`${fe(v.cliente||'')} · ${fe(brDe(dt(v.data)))}`],preHtml:pre,
     theadHtml:'<tr><th style="width:9%">Código</th><th style="width:43%">Peça</th><th style="width:12%">NCM</th><th style="width:10%;text-align:right">Quant.</th><th style="width:12%;text-align:right">Unitário</th><th style="width:14%;text-align:right">Total</th></tr>',rowsArr:rows,
     posHtml:`<div style="display:flex;gap:12px;margin-top:10px;align-items:flex-start"><div style="flex:1;font-size:10.5px;line-height:1.5">${pags?`<b>Pagamentos</b><br>${pags}`:''}${v.obs?`<br><b>Observações:</b> ${fe(v.obs)}`:''}${fis.obs?`<br>${fe(fis.obs)}`:''}</div>
       <table style="width:42%;font-size:11px">${[['Peças',R(brutoVenda(v))],descontoVenda(v)?[`Desconto${v.desconto_pct?' ('+nf(num(v.desconto_pct),1)+'%)':''}`,R(-descontoVenda(v))]:null,num(v.frete)?['Frete',R(num(v.frete))]:null,['<b>Total</b>',`<b>${R(tot)}</b>`],['Pago',R(pago)],['<b>Saldo</b>',`<b>${R(Math.max(0,tot-pago))}</b>`]].filter(Boolean).map(([a,b])=>`<tr><td>${a}</td><td style="text-align:right">${b}</td></tr>`).join('')}</table></div>
@@ -1954,7 +2058,9 @@ function anexarNota(v){
         await GS.docs.enviarArq(OB_FAB,{aba:'pm_nf',venda:String(v.rowid),doc:ehXml?'xml':'pdf'},f);}
       const o=vendaBruta(v);o.nf={...(o.nf||{}),quer:true,...(info?{numero:info.numero,serie:info.serie,chave:info.chave,emissao:info.emissao,valor:info.valor}:{})};
       if(info&&info.valor&&Math.abs(info.valor-totalVenda(v))>0.05)toast(`Atenção: a nota é de ${R(info.valor)} e a venda de ${R(totalVenda(v))}.`,'error');
-      await gravar(o,v.rowid);toast(info?`Nota nº ${info.numero} anexada à venda.`:'Arquivo da nota anexado.','success');}catch(e){toast(e.message||String(e),'error');}finally{UI._hideBusy();}};inp.click();
+      await gravar(o,v.rowid);toast(info?`Nota nº ${info.numero} anexada à venda.`:'Arquivo da nota anexado.','success');
+      // a ficha aberta já mostra a nota (sem precisar fechar e abrir)
+      const v2=vendaDe(v.rowid);if(v2&&document.querySelector('#fin-ov.open #fin-jan [data-nf-arqs]'))fichaVenda(v2);}catch(e){toast(e.message||String(e),'error');}finally{UI._hideBusy();}};inp.click();
 }
 // arquivos da nota na ficha da venda: abrir e excluir (sem o XML, número e chave da nota saem da venda)
 async function pintarNotas(v){const L=await arquivosNota(v),box=document.querySelector('#fin-jan [data-nf-arqs]');if(!box)return;if(!L.length){box.innerHTML='';return;}
@@ -2021,11 +2127,12 @@ function dadosRel(){
     const cab=[{l:'Data'},{l:'Peça'},{l:'Boas',d:1},{l:'Refugo',d:1},{l:'m³',d:1},{l:'Custo/peça',d:1},{l:'Custo total',d:1},{l:'Equipe'}];
     const lin=L.map(({r,it})=>[brDe(dt(r.data)),nomePeca(it.peca),nf(num(it.qtd),0),nf(num(it.refugo),0),nf(num(it.m3),3),R(num(it.custo_un)),R(num(it.custo_un)*num(it.qtd)),eqLista(r).join(', ')]);
     return {cab,lin,tot:['Total','',nf(L.reduce((s,x)=>s+num(x.it.qtd),0),0),nf(L.reduce((s,x)=>s+num(x.it.refugo),0),0),nf(L.reduce((s,x)=>s+num(x.it.m3),0),3),'',R(L.reduce((s,x)=>s+num(x.it.custo_un)*num(x.it.qtd),0)),'']};}
-  if(tipo==='vendas'){const L=vendas().filter(v=>v.status!=='cancelada'&&dentro(v.entrega||v.data)).sort((a,b)=>String(a.data).localeCompare(String(b.data)));
-    const SIT={aguardando_sinal:'Aguardando sinal',reservado:'Reservado',entregue:'Entregue',devolvida:'Devolvida'};
+  if(tipo==='vendas'){const L=vendas().filter(v=>dentro(encerrada(v)?dataFim(v):(v.entrega||v.data))).sort((a,b)=>String(a.data).localeCompare(String(b.data)));
+    // canceladas e devolvidas aparecem (com o motivo), mas o total do pedido não soma nas vendas
+    const SIT={aguardando_sinal:'Aguardando sinal',reservado:'Reservado',entregue:'Entregue',devolvida:'Devolvida',cancelada:'Cancelada'};
     const cab=[{l:'Nº'},{l:'Data'},{l:'Cliente'},{l:'Tipo'},{l:'Itens'},{l:'Situação'},{l:'Total',d:1},{l:'Pago',d:1}];
-    const lin=L.map(v=>[String(v.numero),brDe(dt(v.data)),v.cliente||'',`${v.tipo_venda==='pronta'?'pronta':'encomenda'} · ${v.canal||'varejo'}`,(v.itens||[]).map(it=>`${nf(num(it.qtd),0)} × ${nomePeca(it.peca)}`).join('; '),SIT[v.status]||v.status,R(totalVenda(v)),R(pagoDe(v))]);
-    return {cab,lin,tot:['Total','','','','','',R(L.reduce((s,v)=>s+totalVenda(v),0)),R(L.reduce((s,v)=>s+pagoDe(v),0))]};}
+    const lin=L.map(v=>[String(v.numero),brDe(dt(v.data)),v.cliente||'',`${v.tipo_venda==='pronta'?'pronta':'encomenda'} · ${v.canal||'varejo'}`,(v.itens||[]).map(it=>`${nf(num(it.qtd),0)} × ${nomePeca(it.peca)}`).join('; '),(SIT[v.status]||v.status)+(encerrada(v)&&motivoFim(v)?' — '+motivoFim(v):''),encerrada(v)?'('+R(totalVenda(v))+')':R(totalVenda(v)),R(pagoDe(v))]);
+    return {cab,lin,tot:['Total','','','','','',R(L.filter(v=>!encerrada(v)).reduce((s,v)=>s+totalVenda(v),0)),R(L.reduce((s,v)=>s+pagoDe(v),0))]};}
   if(tipo==='consumo'){const tot={};T('producao').filter(r=>dentro(r.data)).forEach(r=>itensProd(r).forEach(it=>Object.entries(it.consumo||{}).forEach(([k,q])=>tot[k]=(tot[k]||0)+num(q))));const ei=estoqueInsumos();
     const cab=[{l:'Insumo'},{l:'Unidade'},{l:'Consumido',d:1},{l:'Custo estimado',d:1}];const lin=INS.filter(i=>tot[i.k]).map(i=>[i.nome,i.unL,nf(tot[i.k],3),R(tot[i.k]*ei[i.k].preco)]);
     return {cab,lin,tot:['Total','','',R(INS.filter(i=>tot[i.k]).reduce((s,i)=>s+tot[i.k]*ei[i.k].preco,0))]};}
@@ -2156,5 +2263,5 @@ async function salvarParametros(){
   try{await gravar(r?{...r,cfg:{...((r&&r.cfg)||{}),...c}}:{tipo:'config',cfg:c,data_lancamento:todayDateTime()},r?r.rowid:null);toast('Parâmetros salvos: os custos das peças foram recalculados.','success');}catch(e){toast(e.message,'error',false);}
 }
 
-window.PM_FABRICA={depsVenda,depsOrdem,faltaInsumos,lerXmlNfe,catalogoPDF,imprimirVenda,depsExcluir,lotes,rastreio,comissoesMes,precoPara,calcularFrete,situacaoLote,pesoVenda,romaneio,imprimirEtiquetas,escolherPeca,calc,receita,traco1m3,rateio,estoque,estoqueInsumos,CFG,render,irAba,resumoMes,necessidade,caixaMes,faseVenda,totalVenda,pagoDe,reposicao,fichaHtml,tiposTodos,armPeca};
+window.PM_FABRICA={T,vendas,vendaDe,fichaVenda,cancelarVenda,devolver,registrarPagamento,entregar,moverVenda,formVenda,pendenciasProducao,andamentoOP,encerrada,depsVenda,depsOrdem,faltaInsumos,lerXmlNfe,catalogoPDF,imprimirVenda,depsExcluir,lotes,rastreio,comissoesMes,precoPara,calcularFrete,situacaoLote,pesoVenda,romaneio,imprimirEtiquetas,escolherPeca,calc,receita,traco1m3,rateio,estoque,estoqueInsumos,CFG,render,irAba,resumoMes,necessidade,caixaMes,faseVenda,totalVenda,pagoDe,reposicao,fichaHtml,tiposTodos,armPeca};
 })();

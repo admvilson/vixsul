@@ -10918,6 +10918,8 @@ const Fin=(function(){
       const bt=botoes[+b.dataset.finBt];
       if(!bt.acao){fechar();return;}
       const err=j.querySelector('[data-fin-erro]');
+      // botão principal (salvar): telefone, e-mail, CPF e CNPJ preenchidos têm que estar certos
+      if(/\bpri\b/.test(bt.cls||'')&&typeof Mascara!=='undefined'&&Mascara.conferir){const ruim=Mascara.conferir(j);if(ruim){err.style.color='';err.textContent=ruim.msg;try{ruim.el.focus();ruim.el.scrollIntoView({block:'center',behavior:'smooth'});}catch(e){}return;}}
       err.style.color='var(--text-2)';err.textContent='Salvando…';
       j.querySelectorAll('.fin-bt').forEach(x=>x.disabled=true);
       // fecha e redesenha a tela (enquanto a janela estava aberta a conciliação não se redesenha)
@@ -15743,14 +15745,38 @@ const Mascara=(function(){
   const so=s=>String(s==null?'':s).replace(/\D/g,'');
   const F={
     cpf:v=>{v=so(v).slice(0,11);return v.replace(/(\d{3})(\d)/,'$1.$2').replace(/(\d{3})\.(\d{3})(\d)/,'$1.$2.$3').replace(/(\d{3})\.(\d{3})\.(\d{3})(\d)/,'$1.$2.$3-$4');},
-    cnpj:v=>{const d=so(v).slice(0,14);return d.replace(/^(\d{2})(\d)/,'$1.$2').replace(/^(\d{2})\.(\d{3})(\d)/,'$1.$2.$3').replace(/^(\d{2})\.(\d{3})\.(\d{3})(\d)/,'$1.$2.$3/$4').replace(/(\d{4})(\d)/,'$1-$2');},
+    // CNPJ: números ou o CNPJ alfanumérico (letras e números nas 12 primeiras posições, a partir de 2026)
+    cnpj:v=>{const d=String(v==null?'':v).toUpperCase().replace(/[^0-9A-Z]/g,'').slice(0,14);return d.replace(/^(\w{2})(\w)/,'$1.$2').replace(/^(\w{2})\.(\w{3})(\w)/,'$1.$2.$3').replace(/^(\w{2})\.(\w{3})\.(\w{3})(\w)/,'$1.$2.$3/$4').replace(/\/(\w{4})(\w)/,'/$1-$2');},
     tel:v=>{v=so(v).slice(0,11);if(v.length<=10)return v.replace(/(\d{2})(\d)/,'($1) $2').replace(/(\d{4})(\d)/,'$1-$2');return v.replace(/(\d{2})(\d)/,'($1) $2').replace(/(\d{5})(\d)/,'$1-$2');},
     cep:v=>so(v).slice(0,8).replace(/(\d{5})(\d)/,'$1-$2'),
     // e-mail: sem espaços e em minúsculas (a conferência do formato é ao sair do campo)
     email:v=>String(v==null?'':v).replace(/\s+/g,'').toLowerCase()
   };
-  const emailOk=v=>!v||/^[^@\s]+@[^@\s]+\.[a-z]{2,}$/i.test(v);
-  F.cpfcnpj=v=>so(v).length<=11?F.cpf(v):F.cnpj(v);
+  const emailOk=v=>!v||(/^[a-z0-9._%+'-]+@[a-z0-9-]+(\.[a-z0-9-]+)*\.[a-z]{2,}$/i.test(v)&&!/\.\.|^\.|\.@|@-|-\./.test(v));
+  F.cpfcnpj=v=>/[a-z]/i.test(String(v==null?'':v))||so(v).length>11?F.cnpj(v):F.cpf(v);
+  /* ── conferência dos campos: CPF e CNPJ pelos dígitos verificadores, telefone pelo DDD e pelo tamanho, e-mail pelo formato ── */
+  const cpfOk=v=>{const d=so(v);if(d.length!==11||/^(\d)\1{10}$/.test(d))return false;for(let t=9;t<11;t++){let s=0;for(let i=0;i<t;i++)s+=+d[i]*(t+1-i);if((s*10)%11%10!==+d[t])return false;}return true;};
+  const cnpjOk=v=>{const c=String(v||'').toUpperCase().replace(/[^0-9A-Z]/g,'');if(!/^[0-9A-Z]{12}\d{2}$/.test(c)||/^(\d)\1{13}$/.test(c))return false;
+    const dv=n=>{let s=0,w=n-7;for(let i=0;i<n;i++){s+=(c.charCodeAt(i)-48)*w;w=w===2?9:w-1;}const r=s%11;return r<2?0:11-r;};return dv(12)===+c[12]&&dv(13)===+c[13];};
+  const DDD=new Set('11 12 13 14 15 16 17 18 19 21 22 24 27 28 31 32 33 34 35 37 38 41 42 43 44 45 46 47 48 49 51 53 54 55 61 62 63 64 65 66 67 68 69 71 73 74 75 77 79 81 82 83 84 85 86 87 88 89 91 92 93 94 95 96 97 98 99'.split(' '));
+  const MSG={
+    cpf:v=>{const d=so(v);return !d?'':d.length<11?'CPF incompleto: são 11 números.':cpfOk(d)?'':'CPF inválido: os dígitos não conferem.';},
+    cnpj:v=>{const c=String(v||'').toUpperCase().replace(/[^0-9A-Z]/g,'');return !c?'':c.length<14?'CNPJ incompleto: são 14 caracteres.':cnpjOk(c)?'':'CNPJ inválido: os dígitos não conferem.';},
+    cpfcnpj:v=>{const c=String(v||'').toUpperCase().replace(/[^0-9A-Z]/g,'');if(!c)return '';if(/[A-Z]/.test(c)||c.length>11)return MSG.cnpj(c);return c.length<11?'Incompleto: CPF tem 11 números e CNPJ tem 14.':MSG.cpf(c);},
+    tel:v=>{const d=so(v);if(!d)return '';if(/^0[3589]00\d{6,7}$/.test(d)||/^[34]00\d{5}$/.test(d))return '';
+      if(d.length<10)return 'Telefone incompleto: DDD + número. Ex.: (77) 99999-9999';if(!DDD.has(d.slice(0,2)))return `DDD ${d.slice(0,2)} não existe.`;
+      if(d.length===11&&d[2]!=='9')return 'Celular: depois do DDD começa com 9. Ex.: (77) 99999-9999';if(d.length===10&&!/[2-5]/.test(d[2]))return 'Fixo começa com 2, 3, 4 ou 5 depois do DDD (celular tem o 9 na frente).';
+      if(/^(\d)\1+$/.test(d.slice(2)))return 'Número de telefone inválido (repetido).';return '';},
+    email:v=>emailOk(String(v||'').trim())?'':'E-mail inválido — confira (ex.: nome@empresa.com.br).'
+  };
+  // mostra (ou tira) o aviso embaixo do campo; devolve a mensagem do erro ('' = certo)
+  function marcar(el){const m=el.dataset.mask;if(!MSG[m])return '';const msg=MSG[m](el.value);el.classList.toggle('mask-err',!!msg);el.title=msg;
+    let s=el.nextElementSibling&&el.nextElementSibling.classList&&el.nextElementSibling.classList.contains('mask-msg')?el.nextElementSibling:null;
+    const pai=el.parentElement,emLinha=pai&&getComputedStyle(pai).display.includes('flex')&&!getComputedStyle(pai).flexDirection.startsWith('column');
+    if(msg&&!emLinha){if(!s){s=document.createElement('small');s.className='mask-msg';el.insertAdjacentElement('afterend',s);}s.textContent=msg;}else if(s)s.remove();return msg;}
+  // confere os campos visíveis de uma janela/tela: devolve o primeiro errado {el,msg} ou null
+  function conferir(raiz){for(const el of (raiz||document).querySelectorAll('input[data-mask]')){if(!MSG[el.dataset.mask]||!el.value.trim()||el.disabled||el.offsetParent===null)continue;const msg=marcar(el);if(msg)return {el,msg:(rotuloDe(el)?rotuloDe(el)+': ':'')+msg};}return null;}
+  const rotuloDe=el=>((el.closest('.fin-fld,.fld,.field-wrap')||{}).querySelector?.('label')?.textContent||'').replace(/\*/g,'').trim();
   // número guardado ("1234.56", "1.234,56", "R$ 1.234,56") → valor
   const numero=s=>{let t=String(s==null?'':s).trim().replace(/[^\d,.\-]/g,'');if(!t||t==='-')return null;if(t.includes(','))t=t.replace(/\./g,'').replace(',','.');else if(/^-?\d{1,3}(\.\d{3})+$/.test(t))t=t.replace(/\./g,'');const n=parseFloat(t);return isNaN(n)?null:n;};
   const brl=n=>n.toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
@@ -15794,14 +15820,15 @@ const Mascara=(function(){
     if(m==='email'){el.setAttribute('autocapitalize','off');el.setAttribute('spellcheck','false');}
   }
   function preparar(raiz){(raiz.querySelectorAll?raiz:document).querySelectorAll('input').forEach(el=>{detectar(el);if(el.dataset.mask&&!el.dataset.mascarado){el.dataset.mascarado='1';formatarInicial(el);}});}
-  document.addEventListener('input',ev=>{const el=ev.target;if(el&&el.matches&&el.matches('input[data-mask]'))aplicar(el);},true);
-  // e-mail: confere o formato ao sair do campo (borda vermelha + dica)
-  document.addEventListener('focusout',ev=>{const el=ev.target;if(!el||!el.matches||!el.matches('input[data-mask="email"]'))return;const ok=emailOk(el.value.trim());el.classList.toggle('mask-err',!ok);el.title=ok?'':'E-mail inválido — confira (ex.: nome@empresa.com.br)';},true);
+  // enquanto digita: aplica a máscara; se o campo já estava marcado como errado, confere de novo (o aviso some ao corrigir)
+  document.addEventListener('input',ev=>{const el=ev.target;if(el&&el.matches&&el.matches('input[data-mask]')){aplicar(el);if(el.classList.contains('mask-err'))marcar(el);}},true);
+  // telefone, e-mail, CPF e CNPJ: conferidos ao sair do campo (borda vermelha + aviso embaixo)
+  document.addEventListener('focusout',ev=>{const el=ev.target;if(el&&el.matches&&el.matches('input[data-mask]'))marcar(el);},true);
   new MutationObserver(ms=>{for(const m of ms)for(const n of m.addedNodes){if(n.nodeType!==1)continue;if(n.tagName==='INPUT')preparar(n.parentElement||document);else if(n.querySelector&&n.querySelector('input'))preparar(n);}}).observe(document.body,{childList:true,subtree:true});
   // valor de um campo mudado por código (ex.: sugestão da meta) volta a ser formatado
   function reformatar(el){if(el&&el.dataset.mask){el.dataset.mascarado='';preparar(el.parentElement||document);}}
   preparar(document);
-  return {F,numero,brl,aplicar,formatarInicial,preparar,reformatar};
+  return {F,numero,brl,aplicar,formatarInicial,preparar,reformatar,MSG,marcar,conferir,cpfOk,cnpjOk};
 })();
 </script>
 <script>
@@ -19029,6 +19056,7 @@ const Mascara=(function(){
 .cc-pr td.n{text-align:right;white-space:nowrap;}
 #cap-scroll-body .capx-n:empty,#cap-scroll-body .capx-pctb:empty{display:none!important;}
 input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
+.mask-msg{display:block;color:#B42318;font-size:11.5px;line-height:1.3;margin-top:3px;font-weight:500;}
 #cap-tbl-A th:nth-child(2),#cap-tbl-A td:nth-child(2),#cap-tbl-C th:nth-child(2),#cap-tbl-C td:nth-child(2){display:none;}
 .cc-dica-bloco{margin:0 2px 8px;font-size:12px;color:#667085;line-height:1.4;}
 .capx-real.cc-real{background:#fff;border:1px solid #E4E9F2;border-radius:18px;padding:14px 18px;margin-top:12px;box-shadow:0 1px 2px rgba(16,24,40,.04);}
@@ -22764,8 +22792,8 @@ input.gf-lista-campo{background-image:url("data:image/svg+xml;utf8,<svg xmlns='h
 .gf-lista-novo{border-top:1px dashed #D0D5DD;margin-top:6px;padding:8px 10px 4px;font-size:12.5px;color:#667085;}
 </style>
 <script src="listas.js?v=20261015"></script>
-<script src="pm-catalogo.js?v=20261026a"></script>
-<script src="premoldados.js?v=20261026a"></script>
+<script src="pm-catalogo.js?v=20261026b"></script>
+<script src="premoldados.js?v=20261026b"></script>
 </body>
 </html>
 
