@@ -133,9 +133,13 @@ function traduzir(e){return /premoldados|pré-moldados|does not exist|schema cac
 // antes de excluir: o que depende deste registro (se houver, a exclusão é bloqueada e a lista aparece)
 function depsExcluir(reg){
   const id=String(reg.rowid),E=estoque(),d=[];
-  if(reg.tipo==='peca'){const nP=T('producao').filter(r=>itensProd(r).some(it=>String(it.peca)===id)).length,nV=vendas().filter(v=>(v.itens||[]).some(it=>String(it.peca)===id)).length,nO=ordens().filter(o=>String(o.peca)===id).length,nA=T('avaria').filter(a=>String(a.peca)===id).length+T('ajuste').filter(a=>a.item==='peca:'+id).length;
-    if(nP)d.push({ok:false,txt:`${nP} dia(s) de produção com esta peça`});if(nV)d.push({ok:false,txt:`${nV} venda(s) com esta peça`});if(nO)d.push({ok:false,txt:`${nO} ordem(ns) de produção`});if(nA)d.push({ok:false,txt:`${nA} avaria(s) ou acerto(s) de estoque`});
-    if(d.length)d.push({ok:true,txt:'A peça tem histórico: em vez de excluir, edite (mude o nome ou o preço) — o histórico de custos e vendas continua certo.'});}
+  if(reg.tipo==='peca'){const nP=T('producao').filter(r=>itensProd(r).some(it=>String(it.peca)===id)).length,vs=vendas().filter(v=>(v.itens||[]).some(it=>String(it.peca)===id)),os=ordens().filter(o=>String(o.peca)===id),nA=T('avaria').filter(a=>String(a.peca)===id).length+T('ajuste').filter(a=>a.item==='peca:'+id).length;
+    const stV=v=>encerrada(v)?(v.status==='devolvida'?'devolvida':'cancelada'):v.status==='entregue'?'entregue':'em aberto',stO=o=>{const f=prodDaOrdem(o.rowid);return o.status==='cancelada'?'cancelada':opSolta(o)?'solta, '+(f?nf(f,0)+' feitas':'sem produção'):o.status==='concluida'?'concluída':f?nf(f,0)+' feitas':'sem produção';};
+    if(nP)d.push({ok:false,txt:`${nP} dia(s) de produção com esta peça`});
+    if(vs.length)d.push({ok:false,txt:`${vs.length} venda(s) com esta peça: ${vs.slice(0,8).map(v=>`nº ${fe(String(v.numero))} (${stV(v)})`).join(', ')}${vs.length>8?'…':''}${vs.every(encerrada)?' — vendas encerradas o Administrador pode excluir na ficha da venda':''}`});
+    if(os.length)d.push({ok:false,txt:`${os.length} ordem(ns) de produção: ${os.slice(0,8).map(o=>`OP nº ${fe(String(o.numero))} (${stO(o)})`).join(', ')}${os.length>8?'…':''}`});
+    if(nA)d.push({ok:false,txt:`${nA} avaria(s) ou acerto(s) de estoque`});
+    if(d.length)d.push({ok:true,txt:cascataPeca(id)?'Esse histórico é só de vendas encerradas e ordens sem produção: o Administrador pode excluir tudo junto no botão abaixo.':'A peça tem histórico: em vez de excluir, edite (mude o nome ou o preço) — o histórico de custos e vendas continua certo.'});}
   if(reg.tipo==='producao'){const h=hoje0(),ls=lotes().filter(l=>String(l.r.rowid)===id);
     ls.forEach(l=>{const ne=ensaiosDe(l.lote).length;if(ne)d.push({ok:false,txt:`Lote ${l.lote} tem ${ne} ensaio(s) registrado(s)`});
       const p=pecaDe(l.peca),lib=addD(dt(l.data)||h,num(p&&p.cura!=null&&p.cura!==''?p.cura:tipoDePeca(p||{}).cura||7))<=h,x=E.P[l.peca]||{disp:0,res:0};
@@ -149,7 +153,7 @@ function depsExcluir(reg){
 }
 async function apagarReg(reg,rotulo,depois){
   if(GS.podeMexer&&!GS.podeMexer(reg))return toast(GS.MSG_DONO,'error');
-  const dp=depsExcluir(reg);if(dp)return trava(`Não dá para excluir: ${rotulo}`,dp);
+  const dp=depsExcluir(reg);if(dp){const cas=reg.tipo==='peca'?cascataPeca(reg.rowid):null;return trava(`Não dá para excluir: ${rotulo}`,dp,cas?{rot:'Excluir a peça e esse histórico',f:()=>excluirPecaCascata(reg,cas)}:null);}
   const tm=travaMes(reg,reg);if(tm)return trava(`Não dá para excluir: ${rotulo}`,[{ok:false,txt:tm}]);
   confirmar('Excluir?',`<b>${fe(rotulo)}</b> será excluído de vez. Não tem como desfazer.`,'Sim, excluir',async()=>{await executar(()=>excluir(ABA,reg.rowid));toast('Excluído.','success');if(depois)depois();});
 }
@@ -220,6 +224,16 @@ const eqLista=r=>Array.isArray(r.equipe)?r.equipe:(r.equipe?String(r.equipe).spl
 const prodDaOrdem=id=>T('producao').reduce((s,r)=>s+itensProd(r).filter(it=>String(it.ordem||'')===String(id)).reduce((a,it)=>a+num(it.qtd),0),0);
 const opIniciada=o=>o.status==='producao'||o.status==='concluida'||prodDaOrdem(o.rowid)>0;
 const opsDaVenda=v=>ordens().filter(o=>String(o.venda||'')===String(v.rowid)&&o.status!=='cancelada');
+// a ordem só trabalha para a venda em aberto; venda entregue, cancelada, devolvida (ou excluída) deixa a ordem "solta"
+const vendaAberta=v=>!!v&&(v.status==='aguardando_sinal'||v.status==='reservado');
+const opSolta=o=>!!o.venda&&(o.status==='planejada'||o.status==='producao')&&!vendaAberta(vendaDe(o.venda));
+// fecha as ordens abertas de uma venda que saiu do fluxo: sem produção → cancelada; com produção → a ordem fica para o estoque
+const soltarOPs=(v,porque,manter)=>fecharOPs(ordens().filter(o=>String(o.venda||'')===String(v.rowid)&&(o.status==='planejada'||o.status==='producao')),`venda nº ${v.numero}`,porque,manter);
+function fecharOPs(lista,nm,porque,manter){const h=hojeISO();
+  return lista.map(o=>{const feito=prodDaOrdem(o.rowid);
+    return [!feito?{...o,status:'cancelada',obs:(o.obs?o.obs+' · ':'')+`${nm} ${porque}: a ordem não precisou ser feita`}
+      :manter?{...o,venda:'',cliente:`Estoque (${nm} ${porque})`,obs:(o.obs?o.obs+' · ':'')+`${nm} ${porque}: a produção continua para o estoque`}
+      :{...o,venda:'',cliente:`Estoque (${nm} ${porque})`,qtd:feito,status:'concluida',concluida_em:o.concluida_em||h,obs:(o.obs?o.obs+' · ':'')+`${nm} ${porque}: a produção feita fica no estoque`},o.rowid];});}
 // andamento de uma OP: peças feitas, em cura (até quando) e o que falta fazer
 function andamentoOP(o){const h=hoje0();let feito=0,cura=0,ate=null;
   T('producao').forEach(r=>itensProd(r).forEach(it=>{if(String(it.ordem||'')!==String(o.rowid))return;const q=num(it.qtd),p=pecaDe(it.peca);feito+=q;
@@ -532,6 +546,10 @@ function clique(ev){
     'ajuste-novo':()=>formAjuste(null,b.dataset.item),'ajuste':()=>formAjuste(T('ajuste').find(o=>String(o.rowid)===id)),
     'avaria-nova':()=>formAvaria(null,b.dataset.peca),'avaria':()=>formAvaria(T('avaria').find(o=>String(o.rowid)===id)),
     'venda-nova':()=>formVenda(null),'venda':()=>fichaVenda(vendaDe(id)),
+    'arrumar-soltas':()=>{const L=ordens().filter(opSolta);if(!L.length)return toast('Nenhuma ordem solta.','success');
+      const st=v=>v?(v.status==='entregue'?'já entregue':v.status==='devolvida'?'devolvida':'cancelada'):'excluída';
+      confirmar('Arrumar as ordens soltas?',`<ul style="margin:0 0 0 18px">${L.map(o=>{const v=vendaDe(o.venda),f=prodDaOrdem(o.rowid);return `<li>OP nº ${fe(String(o.numero))} — ${v?'venda nº '+v.numero:'venda'} ${st(v)}: ${f?`${nf(f,0)} peça(s) feita(s), <b>segue para o estoque</b>`:'<b>será cancelada</b> (nada produzido)'}</li>`;}).join('')}</ul>`,'Sim, arrumar',async()=>{
+        const mud=[];L.forEach(o=>{const v=vendaDe(o.venda);mud.push(...fecharOPs([o],v?`venda nº ${v.numero}`:'venda excluída',st(v),true));});await gravarVarios(mud);toast(`${mud.length} ordem(ns) arrumada(s).`,'success');});},
     'mandar-prod':()=>{const L=pendenciasProducao();if(!L.length)return toast('Nada a mandar para a produção.','success');
       confirmar('Mandar para a produção?',`Criar ordem de produção para:<ul style="margin:8px 0 0 18px">${L.map(x=>`<li>Venda nº ${fe(String(x.v.numero))} (${fe(x.v.cliente||'')}): ${x.its.map(it=>`${nf(it.qtd,0)} × ${fe(nomePeca(it.peca))}`).join(', ')}</li>`).join('')}</ul>`,'Sim, criar as ordens',async()=>{await mandarProducao(L);});},
     'vvista':()=>{PM.vendasVista=b.dataset.v;PM.busca='';render();},'sem':()=>{const d=num(b.dataset.d);PM.semana=isoDe(d?addD(dt(PM.semana)||segunda(hoje0()),d):segunda(hoje0()));render();},
@@ -1020,13 +1038,15 @@ function telaPlanejamento(){
     return `<article class="vk-card" style="--cor:${(COLS_OP.find(c=>c.k===o.status)||COLS_OP[0]).cor}" data-pm="ordem" data-id="${o.rowid}" draggable="true" data-card="${o.rowid}">
       <div class="vk-top"><b>OP nº ${fe(String(o.numero||''))}</b>${atras?pill('atrasada','err','fa-clock'):fim?pill('até '+brDe(fim).slice(0,5),'info'):''}</div>
       <div class="vk-obra"><i class="fas fa-cube"></i>${fe(p?p.nome:'(peça excluída)')}</div>
-      ${v?`<div class="vk-sub">${pill('venda nº '+v.numero,'warn','fa-cart-shopping')} ${fe(v.cliente||'')}</div>`:o.cliente?`<div class="vk-sub">para ${fe(o.cliente)}</div>`:''}
+      ${opSolta(o)?`<div class="vk-sub">${pill(v?`venda nº ${v.numero} ${v.status==='entregue'?'já entregue':v.status==='devolvida'?'devolvida':'cancelada'} · ordem solta`:'venda excluída · ordem solta','err','fa-link-slash')}</div>`
+        :v?`<div class="vk-sub">${pill('venda nº '+v.numero,'warn','fa-cart-shopping')} ${fe(v.cliente||'')}</div>`:o.cliente?`<div class="vk-sub">para ${fe(o.cliente)}</div>`:''}
       <div class="vk-val"><span>${nf(feito,0)} de ${nf(tot,0)} peças</span><b>${nf(pc,0)}%</b></div><div class="pm-barra ${pc>=100?'ok':''}"><i style="width:${pc}%"></i></div></article>`;};
   const cols=COLS_OP.map(c=>{const itens=L.filter(o=>(o.status||'planejada')===c.k).sort((a,b)=>String(a.fim||'9').localeCompare(String(b.fim||'9')));return {c,itens,sub:`${itens.length} ordem(ns) · ${nf(itens.reduce((s,o)=>s+num(o.qtd),0),0)} peças`};});
-  const nec=necessidade(),pen=pendenciasProducao(),espera=vendas().filter(v=>v.status==='aguardando_sinal');
+  const nec=necessidade(),pen=pendenciasProducao(),espera=vendas().filter(v=>v.status==='aguardando_sinal'),soltas=ordens().filter(opSolta);
   setTimeout(()=>{const w=document.querySelector('#pm-app .vk-quadro');if(w&&!w._lig){w._lig=1;GS.ligarArraste(w,moverOrdem);}},0);
   return cabG('Planejamento da produção','Ordens de produção (OP): o que fazer, quanto e até quando. Cada ordem imprime a sua ficha de produção com o material, o ferro e a receita do concreto. Pedidos de venda sem peça pronta geram a ordem sozinhos.',
       `<button type="button" class="gf-bt" data-pm="fichas-abertas"><i class="fas fa-print"></i> Fichas das ordens abertas</button><button type="button" class="gf-bt pri" data-pm="ordem-nova"><i class="fas fa-plus"></i> Nova ordem de produção</button>`)+
+    (soltas.length?`<div class="fin-aviso vermelho" style="margin:0 0 10px"><div><i class="fas fa-link-slash"></i> <b>${soltas.length} ordem(ns) solta(s)</b> — a venda já foi entregue, cancelada ou devolvida: ${soltas.map(o=>`OP nº ${fe(String(o.numero))}`).join(', ')}. Sem produção, a ordem é cancelada; com produção, segue para o estoque. <button type="button" class="gf-bt mini pri" data-pm="arrumar-soltas" style="margin-left:6px"><i class="fas fa-wand-magic-sparkles"></i> Arrumar agora</button></div></div>`:'')+
     (pen.length?`<div class="fin-aviso laranja" style="margin:0 0 10px"><div><b>Vendas com peça reservada sem ordem:</b> ${pen.map(x=>`venda nº ${fe(String(x.v.numero))} (${x.its.map(it=>`${nf(it.qtd,0)} × ${fe(nomePeca(it.peca))}`).join(', ')})`).join(' · ')}. <button type="button" class="gf-bt mini pri" data-pm="mandar-prod" style="margin-left:6px"><i class="fas fa-industry"></i> Criar as ordens</button></div></div>`:'')+
     (espera.length?`<div class="fin-aviso" style="margin:0 0 10px"><div><i class="fas fa-hourglass-start"></i> <b>${espera.length} pedido(s) aguardando o sinal</b> — ainda não produzir: ${espera.slice(0,6).map(v=>`venda nº ${fe(String(v.numero))} (${(v.itens||[]).map(it=>`${nf(num(it.qtd),0)} × ${fe(nomePeca(it.peca))}`).join(', ')})`).join(' · ')}${espera.length>6?' …':''}. A ordem sai sozinha quando o sinal for pago.</div></div>`:'')+
     GS.colunasHtml(cols,card,{planejada:'Nenhuma ordem planejada',producao:'Nenhuma ordem em produção',concluida:'Ordens concluídas aparecem aqui'})+
@@ -1056,7 +1076,8 @@ function depsOrdem(o,col){
   if(col==='concluida')d.push({ok:feito>=tot,txt:`Produção registrada no Diário: ${nf(feito,0)} de ${nf(tot,0)} peças${feito<tot?` — <b>faltam ${nf(tot-feito,0)}</b>`:''}`});
   if(col==='planejada'&&o.status!=='planejada')d.push({ok:feito===0,txt:feito?`Nenhuma peça registrada nesta ordem (já tem ${nf(feito,0)} no Diário)`:'Nenhuma peça registrada nesta ordem'});
   if(col==='producao'&&o.status==='concluida')d.push({ok:feito<tot,txt:feito>=tot?'A ordem já está completa — para fazer mais, crie outra ordem':'Ainda faltam peças nesta ordem'});
-  if(col==='cancelada')d.push({ok:feito===0,txt:feito?`Nenhuma peça produzida (já tem ${nf(feito,0)}) — conclua a ordem com o que foi feito`:'Nenhuma peça produzida'},{ok:!o.venda||!!(vendaDe(o.venda)&&vendaDe(o.venda).status==='cancelada'),txt:o.venda?'Ordem de uma venda: cancele ou edite pela venda':'Ordem sem venda ligada'});
+  if(col==='cancelada'){const v=o.venda?vendaDe(o.venda):null;d.push({ok:feito===0,txt:feito?`Nenhuma peça produzida (já tem ${nf(feito,0)}) — conclua a ordem com o que foi feito`:'Nenhuma peça produzida'},
+    {ok:!vendaAberta(v),txt:!o.venda?'Ordem sem venda ligada':vendaAberta(v)?`Ordem da venda nº ${v.numero}, que está em aberto: cancele ou edite pela venda`:`A venda ${v?'nº '+v.numero+' já está '+(v.status==='entregue'?'entregue':v.status==='devolvida'?'devolvida':'cancelada'):'ligada foi excluída'}: a ordem ficou solta e pode ser cancelada`});}
   return d;
 }
 async function moverOrdem(id,col){
@@ -1073,7 +1094,9 @@ function imprimirNecessidade(){
 }
 function formOrdem(reg,pre){
   pre=pre||{};if(!pecas().length)return toast('Cadastre as peças primeiro (Peças e catálogo).','error');
-  const b=reg||{status:'planejada',inicio:hojeISO(),peca:pre.peca||pecas()[0].rowid,qtd:pre.qtd||''},feito=reg?prodDaOrdem(reg.rowid):0,vend=reg&&reg.venda?vendaDe(reg.venda):null;
+  const b=reg||{status:'planejada',inicio:hojeISO(),peca:pre.peca||pecas()[0].rowid,qtd:pre.qtd||''},feito=reg?prodDaOrdem(reg.rowid):0,v0=reg&&reg.venda?vendaDe(reg.venda):null;
+  // só trava pela venda enquanto ela está em aberto; venda entregue/cancelada/devolvida (ou excluída) deixa a ordem solta
+  const vend=vendaAberta(v0)?v0:null,solta=!!(reg&&reg.venda&&!vend);
   const j=janela(reg?`OP nº ${reg.numero}`:'Nova ordem de produção',`<div class="pm-form"><div><div class="fin-linha">
       <div class="fin-fld" style="grid-column:1/-1"><label>Peça <span class="obg">*</span></label><select data-k="peca" ${vend?'disabled':''}>${pecas().map(p=>`<option value="${p.rowid}" ${String(p.rowid)===String(b.peca)?'selected':''}>${fe(p.nome)}</option>`).join('')}</select></div>
       <div class="fin-fld"><label>Quantidade (peças) <span class="obg">*</span></label><input data-k="qtd" inputmode="numeric" value="${fe(String(b.qtd||''))}" ${vend?'readonly':''}></div>
@@ -1083,15 +1106,17 @@ function formOrdem(reg,pre){
       <div class="fin-fld" style="grid-column:1/-1"><label>Para (cliente ou pedido)</label><input data-k="cliente" value="${fe(b.cliente||'')}" placeholder="Ex.: estoque" ${vend?'readonly':''}></div>
       <div class="fin-fld" style="grid-column:1/-1"><label>Observações</label><textarea data-k="obs" rows="2">${fe(b.obs||'')}</textarea></div></div>
       ${vend?`<div class="fin-aviso laranja" style="margin-top:8px"><div>Ordem ligada à <b>venda nº ${vend.numero}</b> (${fe(vend.cliente||'')}): a peça e a quantidade mudam pela venda.</div></div>`:''}
+      ${solta&&['planejada','producao'].includes(reg.status)?`<div class="fin-aviso vermelho" style="margin-top:8px"><div><b>Ordem solta:</b> ${v0?`a venda nº ${v0.numero} (${fe(v0.cliente||'')}) já está ${v0.status==='entregue'?'entregue':v0.status==='devolvida'?'devolvida':'cancelada'}`:'a venda ligada foi excluída'} e não precisa mais desta ordem. ${feito?'Conclua com o que foi feito (as peças ficam no estoque) ou mude o "Para" para estoque.':'Pode <b>excluir</b> ou mudar a situação para <b>Cancelada</b>.'}</div></div>`:''}
       ${reg?`<div class="fin-aviso" style="margin-top:8px"><div>Produzido nesta ordem: <b>${nf(feito,0)} de ${nf(num(reg.qtd),0)}</b> peças.</div></div>`:''}</div>
       <div class="pm-res"><div data-op-des></div><div data-op-prev></div></div></div>`,
-    [...(reg?[{html:'<i class="fas fa-trash"></i> Excluir',acao:async()=>{if(vend)throw new Error('Ordem de uma venda: cancele ou edite pela venda.');if(feito>0)throw new Error('Esta ordem já tem produção registrada.');setTimeout(()=>apagarReg(reg,`OP nº ${reg.numero}`),60);}},
+    [...(reg?[{html:'<i class="fas fa-trash"></i> Excluir',acao:async()=>{if(vend)throw new Error(`Ordem da venda nº ${vend.numero}, que está em aberto: cancele ou edite pela venda.`);if(feito>0)throw new Error('Esta ordem já tem produção registrada: conclua com o que foi feito.');setTimeout(()=>apagarReg(reg,`OP nº ${reg.numero}`),60);}},
       {html:'<i class="fas fa-industry"></i> Registrar produção',acao:async()=>{setTimeout(()=>formProducao(null,{peca:reg.peca,ordem:reg.rowid}),60);}},
       {html:'<i class="fas fa-print"></i> Ficha de produção',acao:async()=>{const p=pecaDe(reg.peca);if(p)imprimirFichaDoc([fichaHtml(p,Math.max(1,num(reg.qtd)-feito),reg)],'Ficha de produção — OP nº '+reg.numero,p.nome);return false;}}]:[]),
      {html:`<i class="fas fa-floppy-disk"></i> ${reg?'Salvar':'Criar e imprimir a ficha'}`,cls:'pri',acao:async jj=>{
-      if(reg&&GS.podeMexer&&!GS.podeMexer(reg)&&!vend)throw new Error(GS.MSG_DONO);
+      if(reg&&GS.podeMexer&&!GS.podeMexer(reg)&&!vend&&!solta)throw new Error(GS.MSG_DONO);
       const g=k=>jj.querySelector(`[data-k="${k}"]`).value.trim(),o=reg?{...reg}:{tipo:'ordem',numero:proxNum('ordem','numero'),data_lancamento:todayDateTime()};
       if(!vend){o.peca=g('peca');o.qtd=num(g('qtd'));o.cliente=g('cliente');}o.status=g('status');
+      if(solta){o.venda_origem=reg.venda;o.venda='';}   // a ordem solta passa a ser do estoque (a venda de origem fica anotada)
       if(reg&&o.status!==reg.status){const d=depsOrdem(reg,o.status);if(d.some(x=>!x.ok))return trava(`OP nº ${reg.numero}: não pode mudar para "${(COLS_OP.find(c=>c.k===o.status)||{rot:'Cancelada'}).rot}"`,d);}
       if(reg&&num(o.qtd)<prodDaOrdem(reg.rowid))return trava(`OP nº ${reg.numero}: quantidade menor do que já foi feito`,[{ok:false,txt:`A ordem já tem ${nf(prodDaOrdem(reg.rowid),0)} peças registradas no Diário — a quantidade não pode ser menor que isso`}]);
       if(!reg&&o.status!=='planejada')return trava('Ordem nova começa como Planejada',[{ok:false,txt:'Crie a ordem como Planejada e mude a situação depois, conforme a produção acontece'}]);o.inicio=g('inicio');o.fim=g('fim');o.obs=g('obs');
@@ -1883,6 +1908,7 @@ function fichaVenda(v){
   // cancelar: o Administrador sempre; os demais só pedido sem dinheiro e sem produção (antes da entrega a produção feita fica no estoque; depois, é a devolução de tudo)
   if(podeCancelar(v))bts.push({html:'<i class="fas fa-ban"></i> Cancelar venda',acao:async()=>{setTimeout(()=>cancelarVenda(v),60);}});
   if((f==='entregue'||fim)&&ehAdm()&&pago>0.009)bts.push({html:`<i class="fas fa-hand-holding-dollar"></i> ${fim?'Estornar o que ficou':'Estorno sem devolução'}`,acao:async()=>{setTimeout(()=>estornoSimples(v),60);}});
+  if(fim&&ehAdm())bts.unshift({html:'<i class="fas fa-trash"></i> Excluir venda',acao:async()=>{setTimeout(()=>excluirVenda(v),60);}});
   if(f==='entregue')bts.push({html:'<i class="fas fa-rotate-left"></i> Devolução / estorno',acao:async()=>{setTimeout(()=>devolver(v),60);}});
   if(f==='entregue')bts.push({html:'<i class="fas fa-heart-crack"></i> Avaria na entrega',acao:async()=>{setTimeout(()=>formAvaria(null,(v.itens||[])[0]&&v.itens[0].peca,{venda:v.rowid,origem:'transporte'}),60);}});
   if(!fim&&f!=='entregue')bts.push({html:'<i class="fas fa-calendar-days"></i> Agendar entrega',acao:async()=>{setTimeout(()=>formAgenda(v),60);}});
@@ -1958,7 +1984,9 @@ function entregar(v){
       if(v.data&&e<v.data)throw new Error('A entrega não pode ser antes da data do pedido.');
       if(saldo>0.009&&!j.querySelector('[data-k="pg_ok"]').checked)return trava('Falta receber o saldo',[{ok:false,txt:`Marque "Recebi ${R(saldo)} do cliente nesta entrega". Sem o pagamento completo a peça não sai.`}]);
       const o=vendaBruta(v);if(saldo>0.009)o.pagamentos=(o.pagamentos||[]).concat([{data:e,valor:saldo,forma:j.querySelector('[data-k="pg_forma"]').value,tipo:'pagamento',obs:'na entrega',por:eu()}]);o.status='entregue';o.entrega=e;o.entregue_por=eu();o.caminhao=j.querySelector('[data-k="caminhao"]').value;o.recebedor=j.querySelector('[data-k="recebedor"]').value.trim();if(j.querySelector('[data-k="nf"]'))o.nf={...(o.nf||{}),numero:j.querySelector('[data-k="nf"]').value.trim()};
-      await gravar(o,v.rowid);toast(`Venda nº ${v.numero} entregue${saldo>0.009?' e paga':''}: peças baixadas do estoque.`,'success');}}],600);
+      // ordem de produção que ainda estava aberta para esta venda (a peça saiu do estoque): sem produção é cancelada, com produção segue para o estoque
+      const ops=soltarOPs(v,'já entregue',true);
+      await gravarVarios([[o,v.rowid]].concat(ops));toast(`Venda nº ${v.numero} entregue${saldo>0.009?' e paga':''}: peças baixadas do estoque.${ops.length?` ${ops.length} ordem(ns) de produção liberada(s).`:''}`,'success');}}],600);
 }
 // estorno só em dinheiro (o cliente fica com as peças: abatimento combinado, defeito pequeno) — não mexe no estoque
 function estornoSimples(v){
@@ -1997,12 +2025,60 @@ function cancelarVenda(v){
       if(est>0)o.pagamentos=(o.pagamentos||[]).concat([{data:hoje,valor:est,forma:g('forma'),tipo:'estorno',obs:'cancelamento: '+mot,por:eu()}]);
       if(entregue){const its=[...jj.querySelectorAll('[data-cr]')].map(tr=>{const x=resta.find(r=>String(r.i)===tr.dataset.cr);return {peca:x.peca,qtd:x.max,destino:tr.querySelector('[data-d="destino"]').value,preco:x.preco};});
         if(its.length)o.devolucoes=(o.devolucoes||[]).concat([{data:hoje,itens:its,estorno:est,motivo:'cancelamento: '+mot,por:eu()}]);o.status='devolvida';
-        const E=estoque();its.filter(x=>x.destino==='avaria').forEach(x=>{const e=E.P[String(x.peca)];mud.push([{tipo:'avaria',data:hoje,peca:x.peca,qtd:x.qtd,origem:'cliente',causa:'cancelamento: '+mot,venda:String(v.rowid),custo_un:r2(e?e.custoUn:0),por:eu(),data_lancamento:todayDateTime()},null]);});}
+        const E=estoque();its.filter(x=>x.destino==='avaria').forEach(x=>{const e=E.P[String(x.peca)];mud.push([{tipo:'avaria',data:hoje,peca:x.peca,qtd:x.qtd,origem:'cliente',causa:'cancelamento: '+mot,venda:String(v.rowid),custo_un:r2(e?e.custoUn:0),por:eu(),data_lancamento:todayDateTime()},null]);});
+        mud.push(...soltarOPs(v,'cancelada',false));}
       else{o.status='cancelada';opsInfo.forEach(({o:op,feito})=>mud.push([feito?{...op,venda:'',cliente:`Estoque (venda nº ${v.numero} cancelada)`,qtd:feito,status:'concluida',concluida_em:op.concluida_em||hoje,obs:(op.obs?op.obs+' · ':'')+'venda cancelada: produção feita fica no estoque'}:{...op,status:'cancelada',obs:(op.obs?op.obs+' · ':'')+'venda cancelada'},op.rowid]));}
       await gravarVarios([[o,v.rowid]].concat(mud));toast(entregue?'Venda cancelada: devolução registrada'+(est>0?' e estorno lançado':'')+'.':'Venda cancelada — está na coluna Cancelados.','success');}}],680);
   // motivo "Peça avariada": as peças com o cliente já vêm marcadas como avariadas
   j.querySelector('[data-k="motivo_tipo"]').addEventListener('change',ev=>{if(ev.target.value==='Peça avariada')j.querySelectorAll('[data-cr] [data-d="destino"]').forEach(s=>s.value='avaria');});
 }
+/* ── excluir de vez uma venda encerrada (cancelada ou devolvida): só o Administrador ──
+   O dinheiro dela sai do caixa; a perda das peças que voltaram avariadas continua (vira avaria da fábrica, o estoque não muda);
+   ordem de produção sem produção é excluída, com produção fica para o estoque. */
+function planoExcluirVenda(v){
+  const f=CFG().fechado_ate,datas=[v.data,v.entrega,v.cancelada_em,...(v.pagamentos||[]).map(p=>p.data),...(v.devolucoes||[]).map(d=>d.data)].filter(Boolean),bloq=[];
+  if(!encerrada(v))bloq.push('Só venda cancelada ou devolvida pode ser excluída (as outras: use Cancelar venda).');
+  if(f&&datas.some(d=>d<=f))bloq.push(`A venda tem lançamento no período fechado (até ${brDe(dt(f))}): o Administrador reabre em Parâmetros › Fechamento do mês.`);
+  const avs=T('avaria').filter(a=>String(a.venda||'')===String(v.rowid));
+  if(avs.some(a=>a.origem!=='cliente'))bloq.push('A venda tem avaria de entrega/transporte ligada a ela: exclua ou corrija essa avaria antes.');
+  const ops=ordens().filter(o=>String(o.venda||'')===String(v.rowid)),pg=v.pagamentos||[];
+  const ent=r2(pg.filter(p=>p.tipo!=='estorno').reduce((s,p)=>s+num(p.valor),0)),est=r2(pg.filter(p=>p.tipo==='estorno').reduce((s,p)=>s+num(p.valor),0));
+  const mud=avs.map(a=>[{...a,origem:'outra',venda:'',causa:(a.causa?a.causa+' · ':'')+`voltou avariada do cliente (venda nº ${v.numero} excluída)`},a.rowid]),del=[];
+  ops.forEach(o=>{if(prodDaOrdem(o.rowid)>0)mud.push([{...o,venda:'',cliente:`Estoque (venda nº ${v.numero} excluída)`},o.rowid]);else del.push(o.rowid);});
+  return {bloq,ent,est,avs,ops,mud,del};}
+function excluirVenda(v){
+  if(!ehAdm())return toast('Só o Administrador exclui venda.','error');
+  const pl=planoExcluirVenda(v);if(pl.bloq.length)return trava(`Não dá para excluir a venda nº ${v.numero}`,pl.bloq.map(t=>({ok:false,txt:t})));
+  confirmar(`Excluir a venda nº ${v.numero}?`,`<b>A venda some de vez</b> — não tem como desfazer. (Para guardar o histórico, deixe na coluna Cancelados.)<ul style="margin:8px 0 0 18px">
+    <li>${pl.ent||pl.est?`Sai do caixa: entradas de ${R(pl.ent)} e estornos de ${R(pl.est)} (o saldo muda ${R(pl.est-pl.ent)}).`:'Não tem dinheiro lançado nesta venda.'}</li>
+    ${pl.avs.length?`<li>${pl.avs.length} avaria(s) da devolução continuam como perda da fábrica (o estoque não muda).</li>`:''}
+    ${pl.ops.length?`<li>${pl.ops.length} ordem(ns) de produção ligada(s): sem produção são excluídas; com produção ficam para o estoque.</li>`:''}
+    <li>Os arquivos de nota fiscal anexados a ela também são excluídos.</li></ul>`,'Sim, excluir a venda',async()=>{await excluirVendaJa(v,pl);toast(`Venda nº ${v.numero} excluída.`,'success');});}
+async function excluirVendaJa(v,pl,extra){
+  if(!ehAdm())throw new Error('Só o Administrador exclui venda.');pl=pl||planoExcluirVenda(v);if(pl.bloq.length)throw new Error(pl.bloq[0]);
+  for(const a of await arquivosNota(v)){try{await excluirAnexoFab(a);}catch(e){}}
+  await executar(async()=>{for(const [o,id] of pl.mud)await salvar(ABA,o,id);for(const id of pl.del)await excluir(ABA,id);await excluir(ABA,v.rowid);if(extra)await extra();});}
+// peça só com histórico "de teste": vendas encerradas e ordens sem produção (nada produzido, sem avaria fora dessas vendas, sem acerto)
+function cascataPeca(id){
+  id=String(id);if(!ehAdm())return null;
+  if(T('producao').some(r=>itensProd(r).some(it=>String(it.peca)===id))||T('ajuste').some(a=>a.item==='peca:'+id))return null;
+  const vs=vendas().filter(v=>(v.itens||[]).some(it=>String(it.peca)===id));if(vs.some(v=>!encerrada(v)))return null;
+  const ids=new Set(vs.map(v=>String(v.rowid)));if(T('avaria').some(a=>String(a.peca)===id&&!(a.origem==='cliente'&&ids.has(String(a.venda||'')))))return null;
+  const pls=vs.map(v=>({v,pl:planoExcluirVenda(v)}));if(pls.some(x=>x.pl.bloq.length))return null;
+  const ops=ordens().filter(o=>String(o.peca)===id);if(ops.some(o=>prodDaOrdem(o.rowid)>0))return null;
+  // as avarias desta peça que vieram dessas vendas saem junto (a peça deixa de existir)
+  const avDel=T('avaria').filter(a=>String(a.peca)===id).map(a=>a.rowid);
+  pls.forEach(x=>{x.pl.mud=x.pl.mud.filter(([o])=>!(o.tipo==='avaria'&&String(o.peca)===id));});
+  return {pls,ops,avDel};}
+function excluirPecaCascata(p,cas){
+  const nOut=v=>(v.itens||[]).some(it=>String(it.peca)!==String(p.rowid));
+  confirmar('Excluir a peça e o histórico dela?',`<b>${fe(p.nome)}</b> e tudo abaixo somem de vez — não tem como desfazer:<ul style="margin:8px 0 0 18px">
+    ${cas.pls.map(({v,pl})=>`<li>Venda nº ${fe(String(v.numero))} (${v.status==='devolvida'?'devolvida':'cancelada'} · ${fe(v.cliente||'')})${nOut(v)?' — <b>tem outras peças: sai inteira</b>':''}${pl.ent||pl.est?` · sai do caixa: entradas ${R(pl.ent)}, estornos ${R(pl.est)}`:''}</li>`).join('')}
+    ${cas.ops.length?`<li>${cas.ops.length} ordem(ns) de produção sem produção: ${cas.ops.map(o=>'OP nº '+fe(String(o.numero))).join(', ')}</li>`:''}
+    ${cas.avDel.length?`<li>${cas.avDel.length} avaria(s) desta peça (das devoluções acima)</li>`:''}</ul>`,'Sim, excluir tudo',async()=>{
+      const feitos=new Set();for(const {v,pl} of cas.pls){await excluirVendaJa(v,pl);pl.del.forEach(id=>feitos.add(String(id)));}
+      await executar(async()=>{for(const o of cas.ops)if(!feitos.has(String(o.rowid)))await excluir(ABA,o.rowid);for(const id of cas.avDel)await excluir(ABA,id);await excluir(ABA,p.rowid);});
+      toast('Peça e histórico excluídos.','success');});}
 function devolver(v){
   const ja={};(v.devolucoes||[]).forEach(dv=>(dv.itens||[]).forEach(it=>ja[it.peca]=(ja[it.peca]||0)+num(it.qtd)));
   const lin=(v.itens||[]).map((it,i)=>{const max=num(it.qtd)-(ja[it.peca]||0);return `<tr data-dv="${i}"><td>${fe(nomePeca(it.peca))}<small>máx. ${nf(max,0)}</small></td><td><input data-d="qtd" inputmode="numeric" placeholder="0" data-max="${max}"></td><td><select data-d="destino"><option value="estoque">Volta ao estoque (peça boa)</option><option value="avaria">Avariada (perda)</option></select></td></tr>`;}).join('');
@@ -2019,6 +2095,7 @@ function devolver(v){
       const o=vendaBruta(v),dv={data:hojeISO(),itens:its,estorno:est,motivo:g('motivo'),por:eu()};o.devolucoes=(o.devolucoes||[]).concat([dv]);if(est>0)o.pagamentos=(o.pagamentos||[]).concat([{data:hojeISO(),valor:est,forma:g('forma'),tipo:'estorno',obs:'devolução: '+g('motivo'),por:eu()}]);
       const totDev={};o.devolucoes.forEach(d=>d.itens.forEach(it=>totDev[it.peca]=(totDev[it.peca]||0)+num(it.qtd)));if((o.itens||[]).every(it=>(totDev[it.peca]||0)>=num(it.qtd))){o.status='devolvida';o.cancelada_em=hojeISO();o.cancelada_por=eu();o.motivo_cancelamento=mot;}
       const E=estoque(),mud=[[o,v.rowid]];its.filter(x=>x.destino==='avaria').forEach(x=>{const e=E.P[String(x.peca)];mud.push([{tipo:'avaria',data:hojeISO(),peca:x.peca,qtd:x.qtd,origem:'cliente',causa:'devolução: '+g('motivo'),venda:String(v.rowid),custo_un:r2(e?e.custoUn:0),por:eu(),data_lancamento:todayDateTime()},null]);});
+      if(o.status==='devolvida')mud.push(...soltarOPs(v,'devolvida',false));
       await gravarVarios(mud);toast(o.status==='devolvida'?'Devolução de tudo registrada: o pedido foi para Cancelados · devolvidos.':'Devolução registrada.','success');}}],720);
   j.querySelector('[data-k="motivo_tipo"]').addEventListener('change',ev=>{if(ev.target.value==='Peça avariada')j.querySelectorAll('[data-dv] [data-d="destino"]').forEach(s=>s.value='avaria');});
   const at=()=>{const tot=[...j.querySelectorAll('[data-dv]')].reduce((s,tr)=>s+num(tr.querySelector('[data-d="qtd"]').value)*num(v.itens[+tr.dataset.dv].preco),0)*(1-num(v.desconto_pct)/100);const e=j.querySelector('[data-k="estorno"]');if(e&&!e.dataset.mexeu)e.value=R(tot);};
@@ -2263,5 +2340,5 @@ async function salvarParametros(){
   try{await gravar(r?{...r,cfg:{...((r&&r.cfg)||{}),...c}}:{tipo:'config',cfg:c,data_lancamento:todayDateTime()},r?r.rowid:null);toast('Parâmetros salvos: os custos das peças foram recalculados.','success');}catch(e){toast(e.message,'error',false);}
 }
 
-window.PM_FABRICA={T,vendas,vendaDe,fichaVenda,cancelarVenda,devolver,registrarPagamento,entregar,moverVenda,formVenda,pendenciasProducao,andamentoOP,encerrada,depsVenda,depsOrdem,faltaInsumos,lerXmlNfe,catalogoPDF,imprimirVenda,depsExcluir,lotes,rastreio,comissoesMes,precoPara,calcularFrete,situacaoLote,pesoVenda,romaneio,imprimirEtiquetas,escolherPeca,calc,receita,traco1m3,rateio,estoque,estoqueInsumos,CFG,render,irAba,resumoMes,necessidade,caixaMes,faseVenda,totalVenda,pagoDe,reposicao,fichaHtml,tiposTodos,armPeca};
+window.PM_FABRICA={opSolta,cascataPeca,planoExcluirVenda,excluirVenda,depsExcluir2:depsExcluir,apagarReg,formOrdem,ordens,T,vendas,vendaDe,fichaVenda,cancelarVenda,devolver,registrarPagamento,entregar,moverVenda,formVenda,pendenciasProducao,andamentoOP,encerrada,depsVenda,depsOrdem,faltaInsumos,lerXmlNfe,catalogoPDF,imprimirVenda,depsExcluir,lotes,rastreio,comissoesMes,precoPara,calcularFrete,situacaoLote,pesoVenda,romaneio,imprimirEtiquetas,escolherPeca,calc,receita,traco1m3,rateio,estoque,estoqueInsumos,CFG,render,irAba,resumoMes,necessidade,caixaMes,faseVenda,totalVenda,pagoDe,reposicao,fichaHtml,tiposTodos,armPeca};
 })();
