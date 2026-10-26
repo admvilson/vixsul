@@ -100,12 +100,25 @@ const nomePeca=id=>{const p=pecaDe(id);return p?p.nome:'(peça excluída)';};
 const ordens=()=>T('ordem');
 const vendas=()=>T('venda').map(v=>v.status==='pedido'?{...v,status:'reservado'}:v.status==='recebida'?{...v,status:'entregue'}:v);
 const vendaDe=id=>vendas().find(v=>String(v.rowid)===String(id))||null;
+// fechamento do mês: lançamento com data até cfg.fechado_ate não entra, não muda e não sai (só o Administrador reabre)
+const DATA_DO={producao:'data',compra:'data',ajuste:'data',avaria:'data',custo:'data',ensaio:'data'};
+function travaMes(o,orig){
+  const f=CFG().fechado_ate;if(!f||!o)return null;const msg=d=>`O período até ${brDe(dt(f))} está fechado (lançamento com data ${brDe(dt(d))}). Para corrigir, o Administrador reabre em Parâmetros › Fechamento do mês.`;
+  const k=DATA_DO[o.tipo];if(k){const d1=o[k],d0=orig&&orig[k];if(d1&&d1<=f)return msg(d1);if(d0&&d0<=f)return msg(d0);return null;}
+  if(o.tipo==='venda'){const np=(o.pagamentos||[]).slice(((orig&&orig.pagamentos)||[]).length).find(p=>p.data&&p.data<=f);if(np)return msg(np.data);
+    if(o.entrega&&o.entrega!==(orig&&orig.entrega)&&o.entrega<=f)return msg(o.entrega);
+    const nd=(o.devolucoes||[]).slice(((orig&&orig.devolucoes)||[]).length).find(d=>d.data&&d.data<=f);if(nd)return msg(nd.data);}
+  return null;
+}
+const origDe=id=>id?linhas().find(r=>String(r.rowid)===String(id))||null:null;
 async function gravar(o,rowid){
+  const tm=travaMes(o,origDe(rowid));if(tm)throw new Error(tm);
   try{await executar(()=>salvar(ABA,o,rowid||null));}
   catch(e){throw traduzir(e);}
 }
 // várias gravações com uma recarga só no fim
 async function gravarVarios(ops){
+  for(const [o,id] of ops){const tm=travaMes(o,origDe(id));if(tm)throw new Error(tm);}
   try{await executar(async()=>{for(const [o,id] of ops)await salvar(ABA,o,id||null);});}catch(e){throw traduzir(e);}
 }
 function traduzir(e){return /premoldados|pré-moldados|does not exist|schema cache|relation|could not find the table/i.test(String(e&&e.message))?new Error('A tabela da fábrica ainda não existe no banco: rode o passo 6 no Supabase (arquivo seguranca/passo-6-premoldados.sql).'):e;}
@@ -129,6 +142,7 @@ function depsExcluir(reg){
 async function apagarReg(reg,rotulo,depois){
   if(GS.podeMexer&&!GS.podeMexer(reg))return toast(GS.MSG_DONO,'error');
   const dp=depsExcluir(reg);if(dp)return trava(`Não dá para excluir: ${rotulo}`,dp);
+  const tm=travaMes(reg,reg);if(tm)return trava(`Não dá para excluir: ${rotulo}`,[{ok:false,txt:tm}]);
   confirmar('Excluir?',`<b>${fe(rotulo)}</b> será excluído de vez. Não tem como desfazer.`,'Sim, excluir',async()=>{await executar(()=>excluir(ABA,reg.rowid));toast('Excluído.','success');if(depois)depois();});
 }
 const proxNum=(tipo,campo)=>T(tipo).reduce((m,r)=>Math.max(m,parseInt(String(r[campo]||'').replace(/\D/g,''),10)||0),0)+1;
@@ -265,18 +279,42 @@ function estilo(){
   s.textContent=`
 #pm-app{display:flex;flex-direction:column;gap:16px;}
 .pm-topo{position:sticky;top:-24px;z-index:6;margin:-24px -32px 0;padding:18px 32px 12px;background:var(--bg,#F5F5F7);}
-.pm-nav{display:flex;align-items:center;gap:4px;padding:6px;background:#fff;border:1px solid #E4E9F2;border-radius:18px;box-shadow:0 1px 3px rgba(16,24,40,.05);overflow-x:auto;scrollbar-width:none;transition:box-shadow .2s;}
+.pm-nav{display:flex;align-items:center;gap:2px;padding:6px 8px;background:#fff;border:1px solid #E4E9F2;border-radius:16px;box-shadow:0 1px 2px rgba(16,24,40,.04);overflow-x:auto;scrollbar-width:none;transition:box-shadow .2s;}
 .pm-nav::-webkit-scrollbar{display:none;}
-.pm-topo.rolado .pm-nav{box-shadow:0 10px 24px -16px rgba(16,24,40,.45);}
-.pm-tab{position:relative;flex:1 1 0;min-width:max-content;display:flex;align-items:center;justify-content:center;gap:9px;border:0;background:transparent;padding:7px 12px 7px 7px;border-radius:13px;font:600 13px Inter,sans-serif;color:#475467;cursor:pointer;white-space:nowrap;transition:background .15s,color .15s,box-shadow .15s;}
-.pm-tab .ic{width:30px;height:30px;border-radius:10px;display:grid;place-items:center;background:#F2F4F7;color:#475467;font-size:13px;flex:none;transition:background .15s,color .15s;}
-.pm-tab:hover{background:#F5F8FF;color:#1652D8;} .pm-tab:hover .ic{background:#DBE7FF;color:#1652D8;}
-.pm-tab.on{background:linear-gradient(135deg,#1652D8 0%,#2E90FA 100%);color:#fff;box-shadow:0 8px 18px -10px rgba(22,82,216,.85);}
-.pm-tab.on .ic{background:rgba(255,255,255,.2);color:#fff;}
-.pm-tab .bd{min-width:19px;height:19px;padding:0 6px;border-radius:99px;background:#F04438;color:#fff;font:800 10.5px Inter,sans-serif;display:inline-grid;place-items:center;}
-.pm-tab.on .bd{background:#fff;color:#1652D8;}
+.pm-topo.rolado .pm-nav{box-shadow:0 10px 24px -16px rgba(16,24,40,.4);}
+.pm-tab{position:relative;flex:1 1 0;min-width:max-content;display:flex;align-items:center;justify-content:center;gap:9px;border:1px solid transparent;background:transparent;padding:6px 12px 6px 6px;border-radius:11px;font:600 13px Inter,sans-serif;color:#475467;cursor:pointer;white-space:nowrap;transition:background .15s,color .15s,border-color .15s;}
+.pm-tab .ic{position:relative;width:28px;height:28px;border-radius:8px;display:grid;place-items:center;background:#F2F4F7;color:#667085;font-size:12.5px;flex:none;transition:background .15s,color .15s;}
+.pm-tab:hover{background:#F8FAFC;color:#1D2939;} .pm-tab:hover .ic{background:#E8EEF8;color:#1652D8;}
+.pm-tab.on{background:#EEF4FF;border-color:#D1E0FF;color:#1652D8;font-weight:700;}
+.pm-tab.on .ic{background:#1652D8;color:#fff;}
+.pm-tab .bd{position:absolute;top:-6px;right:-7px;min-width:17px;height:17px;padding:0 4px;border-radius:99px;background:#F04438;color:#fff;font:800 9.5px Inter,sans-serif;display:grid;place-items:center;border:2px solid #fff;}
 .pm-tab .lc{display:none;}
-.pm-sep{flex:none;width:1px;height:26px;background:#E4E9F2;margin:0 2px;}
+.pm-sep{flex:none;width:1px;height:22px;background:#EAECF0;margin:0 6px;}
+.pm-av{display:inline-grid;place-items:center;width:30px;height:30px;border-radius:99px;background:linear-gradient(135deg,#DBE7FF,#EEF4FF);color:#1652D8;font:800 11px Inter,sans-serif;border:2px solid #fff;box-shadow:0 0 0 1px #D1E0FF;flex:none;}
+.pm-dia2{background:#fff;border:1px solid #E4E9F2;border-radius:16px;padding:12px 14px;box-shadow:0 1px 2px rgba(16,24,40,.04);}
+.pm-dia2-cab{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:8px;}
+.pm-dia2-dt{width:58px;height:58px;border-radius:14px;background:linear-gradient(135deg,#1652D8,#2E90FA);color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;flex:none;box-shadow:0 8px 16px -10px rgba(22,82,216,.9);}
+.pm-dia2-dt b{font:800 22px Manrope,Inter,sans-serif;line-height:1;} .pm-dia2-dt span{font:700 10px Inter,sans-serif;text-transform:uppercase;letter-spacing:.04em;opacity:.9;}
+.pm-dia2-meta{flex:1;min-width:220px;display:flex;flex-direction:column;gap:6px;} .pm-dia2-meta>div:first-child{display:flex;flex-wrap:wrap;gap:4px;}
+.pm-dia2-num{display:flex;flex-wrap:wrap;gap:14px;font-size:12px;color:#667085;} .pm-dia2-num b{color:var(--text-1);font-size:14px;}
+.pm-dia2-bt{display:flex;gap:6px;flex:none;}
+.pm-dia2-eq{display:flex;align-items:center;flex-wrap:wrap;gap:4px;margin:0 0 8px;padding:6px 8px;background:#F8FAFC;border-radius:10px;} .pm-dia2-eq .pm-av{margin-right:-8px;} .pm-dia2-eq .pm-mini{margin:0 8px 0 14px;}
+.pm-pt-cab{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:8px;} .pm-pt-acoes{display:flex;gap:6px;flex-wrap:wrap;}
+.pm-pt-tot{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:#667085;margin-bottom:8px;} .pm-pt-tot b{color:var(--text-1);} .pm-pt-tot .x b{color:#B54708;} .pm-pt-tot .a b{color:#B42318;}
+.pm-pts{display:flex;flex-direction:column;gap:6px;}
+.pm-pt{display:grid;grid-template-columns:34px minmax(150px,1.4fr) 120px repeat(3,minmax(80px,.8fr)) minmax(110px,1fr) 32px;gap:8px;align-items:center;border:1px solid #EEF1F6;border-radius:12px;padding:6px 8px;background:#fff;transition:opacity .15s,background .15s;}
+.pm-pt.off{background:#FAFAFB;} .pm-pt.off .pm-pt-h{opacity:.35;}
+.pm-pt-nm b{display:block;font-size:13px;} .pm-pt-nm small{display:block;font-size:11px;color:#667085;} .pm-pt-nm input,.pm-pt-nm select{width:100%;padding:5px 7px;border:1px solid var(--border);border-radius:8px;font:12.5px Inter,sans-serif;margin-bottom:3px;}
+.pm-pt-st,.pm-pt-h input{width:100%;padding:6px 7px;border:1px solid var(--border);border-radius:8px;font:12.5px Inter,sans-serif;background:#fff;}
+.pm-pt-h{display:flex;flex-direction:column;gap:1px;} .pm-pt-h small{font:700 9.5px Inter,sans-serif;text-transform:uppercase;letter-spacing:.04em;color:#98A2B3;}
+.pm-pt-r{display:flex;flex-wrap:wrap;align-items:center;gap:4px;font-size:12.5px;} .pm-pt-r .x{font:700 10.5px Inter,sans-serif;background:#FFFAEB;color:#B54708;border-radius:6px;padding:1px 5px;} .pm-pt-r .a{font:700 10.5px Inter,sans-serif;background:#FEF3F2;color:#B42318;border-radius:6px;padding:1px 5px;}
+@media (max-width:900px){.pm-pt{grid-template-columns:34px 1fr 110px;} .pm-pt-h,.pm-pt-r{grid-column:span 1;}}
+.pm-ltiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;} .pm-ltile{background:#F8FAFC;border:1px solid #EEF1F6;border-radius:12px;padding:8px 10px;min-width:0;}
+.pm-ltile i{color:#1652D8;font-size:13px;} .pm-ltile small{display:block;font:700 10px Inter,sans-serif;text-transform:uppercase;letter-spacing:.04em;color:#667085;margin-top:3px;} .pm-ltile b{display:block;font:800 15px Inter,sans-serif;color:var(--text-1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;} .pm-ltile span{display:block;font-size:11px;color:#667085;}
+.pm-fotos{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px;} .pm-fotos figure{position:relative;margin:0;border-radius:10px;overflow:hidden;border:1px solid #E4E9F2;aspect-ratio:4/3;background:#F2F4F7;} .pm-fotos img{width:100%;height:100%;object-fit:cover;display:block;}
+.pm-fx{position:absolute;top:5px;right:5px;width:26px;height:26px;border-radius:8px;border:0;background:rgba(255,255,255,.92);color:#B42318;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,.18);} .pm-fprin{position:absolute;left:5px;bottom:5px;font:800 10px Inter,sans-serif;background:#1652D8;color:#fff;border-radius:6px;padding:1px 6px;}
+.pm-arqs{display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-size:12px;background:#EEF4FF;border:1px solid #D1E0FF;border-radius:10px;padding:6px 8px;} .pm-arqs>b{color:#1652D8;margin-right:4px;}
+.pm-arq{display:inline-flex;align-items:center;gap:4px;background:#fff;border:1px solid #D1E0FF;border-radius:8px;padding:2px 4px 2px 8px;} .pm-arq a{color:#1652D8;font-weight:700;text-decoration:none;} .pm-arq button{border:0;background:#FEF3F2;color:#B42318;border-radius:6px;width:20px;height:20px;cursor:pointer;}
 @media (max-width:1560px){.pm-tab .lb{display:none;} .pm-tab .lc{display:inline;} .pm-tab{padding:7px 10px 7px 7px;gap:8px;}}
 @media (max-width:1180px){.pm-tab{padding:6px 8px 6px 6px;gap:6px;font-size:12.5px;} .pm-tab .ic{width:26px;height:26px;border-radius:8px;font-size:12px;} .pm-sep{margin:0;} .pm-nav{gap:2px;padding:5px;}}
 @media (max-width:980px){.pm-tab .lc{display:none;} .pm-tab{padding:6px;}}
@@ -417,7 +455,7 @@ function render(){
   if(!pode()){box.innerHTML='<div class="gf-vazio"><i class="fas fa-lock"></i><p>Sem acesso aos pré-moldados.</p></div>';return;}
   const ab=ABAS.find(x=>x.k===PM.aba)||ABAS[0],bd=badges();
   // faixa de abas: na ordem da operação, com divisória entre os blocos (produção · comercial · financeiro · parâmetros)
-  const tabB=a=>`<button type="button" class="pm-tab ${a.k===ab.k?'on':''}" data-pm-aba="${a.k}" role="tab" aria-selected="${a.k===ab.k}" title="${a.rot}"><span class="ic"><i class="fas ${a.ico}"></i></span><span class="lb">${a.rot}</span><span class="lc">${a.curto||a.rot}</span>${bd[a.k]?`<span class="bd">${bd[a.k]}</span>`:''}</button>`;
+  const tabB=a=>`<button type="button" class="pm-tab ${a.k===ab.k?'on':''}" data-pm-aba="${a.k}" role="tab" aria-selected="${a.k===ab.k}" title="${a.rot}"><span class="ic"><i class="fas ${a.ico}"></i>${bd[a.k]?`<span class="bd">${bd[a.k]}</span>`:''}</span><span class="lb">${a.rot}</span><span class="lc">${a.curto||a.rot}</span></button>`;
   const GRP=[['painel'],['pecas','planejamento','producao'],['estoque','vendas'],['caixa','relatorios'],['parametros']];
   const nav=`<div class="pm-topo"><nav class="pm-nav" role="tablist">${GRP.map(ks=>ks.map(k=>tabB(ABAS.find(a=>a.k===k))).join('')).join('<span class="pm-sep" aria-hidden="true"></span>')}</nav></div>`;
   let corpo='';
@@ -456,7 +494,7 @@ function clique(ev){
     'nova-peca':()=>escolherTipo(t=>formPeca(null,{tipo_k:t.k})),'cat-grupo':()=>{PM.grupo=b.dataset.g;render();},'cat-pdf':()=>catalogoPDF(b.dataset.modo),'peca':()=>fichaPeca(pecaDe(id)),'vista':()=>{PM.pecasVista=b.dataset.v;render();},
     'tipo':()=>fichaTipo(tipoK(b.dataset.k)),'tipo-novo':()=>formTipo(null),'traco-novo':()=>formTraco(null),'traco':()=>formTraco(tracoDe(id)),
     'ordem-nova':()=>formOrdem(null),'ordem':()=>formOrdem(T('ordem').find(o=>String(o.rowid)===id)),'fichas-abertas':()=>imprimirFichas(ordens().filter(o=>o.status==='planejada'||o.status==='producao')),
-    'prod-nova':()=>formProducao(null),'lote':()=>fichaLote(b.dataset.lote),'prod':()=>formProducao(T('producao').find(o=>String(o.rowid)===id)),
+    'prod-nova':()=>formProducao(null),'lote':()=>fichaLote(b.dataset.lote),'dvista':()=>{PM.dVista=b.dataset.v;render();},'prod-copiar':()=>formProducao(null,{copiar:T('producao').find(o=>String(o.rowid)===id)}),'prod':()=>formProducao(T('producao').find(o=>String(o.rowid)===id)),
     'compra-nova':()=>formCompra(null,b.dataset.ins),'compra':()=>formCompra(T('compra').find(o=>String(o.rowid)===id)),
     'ajuste-novo':()=>formAjuste(null,b.dataset.item),'ajuste':()=>formAjuste(T('ajuste').find(o=>String(o.rowid)===id)),
     'avaria-nova':()=>formAvaria(null,b.dataset.peca),'avaria':()=>formAvaria(T('avaria').find(o=>String(o.rowid)===id)),
@@ -482,15 +520,15 @@ function resumoMes(k){
   const perdaRefugo=its.reduce((s,it)=>s+num(it.custo_un)*num(it.refugo),0);
   const av=T('avaria').filter(a=>noM(dt(a.data))),perdaAv=av.reduce((s,a)=>s+num(a.custo_un)*num(a.qtd),0);
   const vend=vendas().filter(v=>(v.status==='entregue'||v.status==='devolvida')&&noM(dt(v.entrega)));
-  const estornosDev=vendas().reduce((s,v)=>s+(v.devolucoes||[]).filter(dv=>noM(dt(dv.data))).reduce((a,dv)=>a+num(dv.estorno),0),0);
+  const estornosDev=vendas().reduce((s,v)=>s+(v.devolucoes||[]).filter(dv=>noM(dt(dv.data))).reduce((a,dv)=>a+num(dv.estorno),0)+(v.pagamentos||[]).filter(p=>p.tipo==='estorno'&&/^abatimento/.test(p.obs||'')&&noM(dt(p.data))).reduce((a,p)=>a+num(p.valor),0),0);
   const receita=vend.reduce((s,v)=>s+totalVenda(v),0)-estornosDev;
   let cmv=0;const porPeca={};
   vend.forEach(v=>(v.itens||[]).forEach(it=>{const x=E.P[String(it.peca)],q=num(it.qtd);cmv+=q*(x?x.custoMatUn:0);const y=porPeca[it.peca]=porPeca[it.peca]||{q:0,v:0};y.q+=q;y.v+=q*num(it.preco);}));
-  const impostos=receita*num(c.impostos)/100,mc=receita-impostos-cmv,perdas=perdaRefugo+perdaAv;
+  const impostos=receita*num(c.impostos)/100,mc=receita-impostos-cmv,perdaInv=T('ajuste').filter(a=>noM(dt(a.data))&&String(a.item||'').startsWith('peca:')&&num(a.qtd)<0).reduce((s,a)=>{const x=E.P[a.item.slice(5)];return s+(-num(a.qtd))*(x?x.custoUn:0);},0),perdas=perdaRefugo+perdaAv+perdaInv;
   const custos=T('custo').filter(x=>noM(dt(x.data))&&x.categoria!=='Comissões de vendedores').reduce((s,x)=>s+num(x.valor),0),comissoes=Object.values(comissoesMes(k)).reduce((s,x)=>s+x.com,0);
   const resultado=mc-perdas-comissoes-custos,custoM3=m3>0?(matCons+custos)/m3:null;
   const recebido=vendas().reduce((s,v)=>s+(v.pagamentos||[]).filter(p=>p.tipo!=='estorno'&&noM(dt(p.data))).reduce((a,p)=>a+num(p.valor),0),0);
-  return {k,prod,its,pecasProd,refugo,m3,matCons,vend,receita,impostos,cmv,mc,perdas,perdaAv,perdaRefugo,custos,comissoes,resultado,custoM3,porPeca,recebido,av};
+  return {k,prod,its,pecasProd,refugo,m3,matCons,vend,receita,impostos,cmv,mc,perdas,perdaAv,perdaRefugo,perdaInv,custos,comissoes,resultado,custoM3,porPeca,recebido,av};
 }
 function alertas(){
   const out=[],h=hoje0(),ei=estoqueInsumos(),E=estoque(),us=insumosUsados(),c=CFG();
@@ -525,7 +563,7 @@ function telaPainel(){
       ${kpiG(r.resultado>=0?'verde':'vermelho','fa-sack-dollar','Resultado do mês',R(r.resultado),`margem − perdas − custos da fábrica`)}
       ${kpiG('roxo','fa-cubes','Peças prontas',`${nf(disp,0)} peças`,`${nf(cura,0)} em cura · ${R(valEst)} a custo`)}
       ${kpiG(aRec?'laranja':'','fa-hand-holding-dollar','A receber dos pedidos',R(aRec),`${fases.sinal||0} sem sinal · ${fases.pagamento||0} prontos sem pagamento · ${fases.liberado||0} liberados`)}
-      ${kpiG(r.perdas?'vermelho':'verde','fa-heart-crack','Perdas e avarias',R(r.perdas),`refugo ${R(r.perdaRefugo)} · avarias ${R(r.perdaAv)}`)}
+      ${kpiG(r.perdas?'vermelho':'verde','fa-heart-crack','Perdas e avarias',R(r.perdas),`refugo ${R(r.perdaRefugo)} · avarias ${R(r.perdaAv)}${r.perdaInv?' · inventário '+R(r.perdaInv):''}`)}
       ${kpiG('laranja','fa-calculator','Custo por m³',r.custoM3!=null?R(r.custoM3):'—',`real do mês · previsto ${R(rateio(c).total+custoMatM3())}`)}
     </div>
     <div class="gf-duas">
@@ -542,7 +580,7 @@ function telaPainel(){
           <tr><td>(−) Impostos sobre a venda (${nf(num(c.impostos),1)}%)</td><td class="n">${R(-r.impostos)}</td></tr>
           <tr><td>(−) Materiais das peças vendidas</td><td class="n">${R(-r.cmv)}</td></tr>
           <tr class="t"><td>= Margem de contribuição</td><td class="n">${R(r.mc)}</td></tr>
-          <tr><td>(−) Perdas: refugo e avarias</td><td class="n">${R(-r.perdas)}</td></tr>
+          <tr><td>(−) Perdas: refugo, avarias e inventário<small>peça quebrada ou que sumiu é perda: não volta ao estoque</small></td><td class="n">${R(-r.perdas)}</td></tr>
           ${r.comissoes?`<tr><td>(−) Comissões de vendas</td><td class="n">${R(-r.comissoes)}</td></tr>`:''}
           <tr><td>(−) Custos da fábrica lançados no mês<small>mão de obra, energia, água, aluguel, manutenção…</small></td><td class="n">${R(-r.custos)}</td></tr>
           <tr class="t"><td>= Resultado</td><td class="n" style="color:${r.resultado>=0?'#067647':'#B42318'}">${R(r.resultado)}</td></tr>
@@ -719,6 +757,7 @@ function resumoHtml(p,n){
     else if(k==='malha')det=`${nf(x.malhaM2,2)} m²`;
     return `<tr><td>${fe(i.nome)}<small>${det}</small></td><td class="n">${nf(q,q<1?3:2)} ${i.un}</td><td class="n">${R(x.custoMat[k])}</td></tr>`;};
   return `<div data-sem-ordem><div class="pm-big"><span>Volume${un}</span><b>${nf(x.Vt,4)} m³</b><span>peso ${nf(x.peso*x.n,1)} kg</span></div>
+    <p class="pm-mini" style="margin:-4px 0 6px"><i class="fas fa-pallet"></i> ${(()=>{const ml=modoLote(p);return ml.modo==="unidade"?"Lote por unidade: cada peça recebe o seu número":`Lote por palete: ${nf(ml.pp,0)} peças por palete (≈ ${nf(ml.pp*x.peso/1000,2)} t)`;})()}</p>
     ${x.g.aj?`<p class="pm-mini" style="margin:-4px 0 6px"><i class="fas fa-scale-balanced"></i> Volume ajustado para bater com o peso do catálogo deste tamanho (furos, frisos e rebaixos): × ${nf(x.g.aj,2)}.</p>`:''}
     <h5>Materiais${un}</h5><table><thead><tr><th>Insumo</th><th class="n">Quant.</th><th class="n">Custo</th></tr></thead><tbody>
       ${INS.map(i=>linhaIns(i.k)).join('')}<tr><td>Água do traço<small>${nf(x.aguaL,1)} litros</small></td><td class="n">${nf(x.aguaL/1000,3)} m³</td><td class="n">${R(x.custoMat.agua)}</td></tr>
@@ -757,7 +796,7 @@ function formPeca(reg,opts){
       <div class="fin-fld"><label>Dias de cura até liberar</label><input data-k="cura" inputmode="numeric" value="${fe(String(base.cura!=null?base.cura:t.cura))}"></div>
       <div class="fin-fld"><label>Formas (moldes) disponíveis</label><input data-k="formas" inputmode="numeric" value="${fe(String(base.formas||1))}"></div>
       <div class="fin-fld"><label>Peças por forma por dia</label><input data-k="ciclo" inputmode="numeric" value="${fe(String(base.ciclo||1))}"></div>
-      <div class="fin-fld"><label>Estoque mínimo (peças)</label><input data-k="minimo" inputmode="numeric" value="${fe(String(base.minimo||''))}" placeholder="0"></div>
+      <div class="fin-fld"><label>Estoque mínimo (peças)</label><input data-k="minimo" inputmode="numeric" value="${fe(String(base.minimo||''))}" placeholder="0"></div><div class="fin-fld"><label>Controle de lote</label><select data-k="lote_modo"><option value="" ${!base.lote_modo?'selected':''}>Automático (pelo peso)</option><option value="palete" ${base.lote_modo==='palete'?'selected':''}>Por palete</option><option value="unidade" ${base.lote_modo==='unidade'?'selected':''}>Por unidade (cada peça numerada)</option></select></div><div class="fin-fld"><label>Peças por palete</label><input data-k="pecas_palete" inputmode="numeric" data-sem-mascara="1" value="${fe(String(base.pecas_palete||''))}" placeholder="automático"></div>
       <div class="fin-fld"><label>Perda de concreto (%)</label><input data-k="perda" value="${base.perda!=null&&base.perda!==''?fe(String(base.perda)):''}" placeholder="padrão ${nf(num(c.perdas.concreto),0)}%"></div></div></div>
     <div class="fin-fld"><label>Observações</label><textarea data-k="obs" rows="2">${fe(base.obs||'')}</textarea></div></div>
   <div class="pm-res"><div data-pm-desenho style="background:#fff;border-radius:10px;margin-bottom:8px"></div><div data-pm-arm></div>
@@ -765,6 +804,9 @@ function formPeca(reg,opts){
   const j=janela(novo?'Nova peça':'Editar peça',html,[{html:`<i class="fas fa-floppy-disk"></i> ${novo?'Cadastrar peça':'Salvar'}`,cls:'pri',acao:async jj=>{
     if(!novo&&GS.podeMexer&&!GS.podeMexer(reg))throw new Error(GS.MSG_DONO);
     const o=lerPeca(jj,novo?{tipo:'peca',tipo_k:t.k,data_lancamento:todayDateTime()}:{...reg});
+    // peça com produção ou venda: as medidas não mudam (mudaria o que já está no estoque e nos lotes) — outro tamanho = Duplicar
+    if(!novo){const id=String(reg.rowid),hist=T('producao').some(r=>itensProd(r).some(it=>String(it.peca)===id))||vendas().some(v=>(v.itens||[]).some(it=>String(it.peca)===id)),ks=new Set([...Object.keys(reg.dims||{}),...Object.keys(o.dims||{})]),mudou=[...ks].some(k=>Math.abs(num((reg.dims||{})[k])-num((o.dims||{})[k]))>1e-9);
+      if(hist&&mudou)return trava('Medidas travadas: a peça já tem produção ou venda',[{ok:false,txt:'Mudar as medidas mudaria as peças que já estão no estoque, nos lotes e nas vendas.'},{ok:true,txt:'Para outro tamanho, abra a peça e use <b>Duplicar</b>: a cópia nasce com as medidas que você quiser. Preço, traço e estoque mínimo podem ser mudados aqui.'}]);}
     if(!o.nome)o.nome=`${t.nome} ${CAT.geo(t,o.dims).desc}`;
     if(!(geoPeca(o).V>0))throw new Error('Informe as medidas: o volume da peça está zerado.');
     if(o.codigo&&T('peca').some(x=>x.codigo===o.codigo&&String(x.rowid)!==String(novo?'':reg.rowid)))throw new Error(`Já existe uma peça com o código ${o.codigo}.`);
@@ -788,7 +830,7 @@ function lerPeca(j,o){
   ['codigo','nome','obs','ncm'].forEach(k=>o[k]=v(k));o.traco=v('traco')||o.traco;
   const ar=j.querySelector('[data-k="armadura"]');if(ar)o.armadura=ar.checked;
   o.preco=v('preco')?r2(num(v('preco'))):'';o.preco_atacado=v('preco_atacado')?r2(num(v('preco_atacado'))):'';o.atacado_min=v('atacado_min')?num(v('atacado_min')):'';
-  o.cura=v('cura')!==''?num(v('cura')):o.cura;o.minimo=v('minimo')?num(v('minimo')):'';o.perda=v('perda')!==''?num(v('perda')):'';o.formas=Math.max(1,num(v('formas'))||1);o.ciclo=Math.max(1,num(v('ciclo'))||1);
+  o.cura=v('cura')!==''?num(v('cura')):o.cura;o.minimo=v('minimo')?num(v('minimo')):'';o.perda=v('perda')!==''?num(v('perda')):'';o.formas=Math.max(1,num(v('formas'))||1);o.ciclo=Math.max(1,num(v('ciclo'))||1);o.lote_modo=v('lote_modo');o.pecas_palete=v('pecas_palete')?Math.max(1,Math.round(num(v('pecas_palete')))):'';
   // medidas: vírgula ou ponto valem como decimal (0.096 m³ não vira 96)
   o.dims={};j.querySelectorAll('[data-dim]').forEach(e=>{const s=String(e.value).trim();if(s!==''){const n=parseFloat(s.replace(/\s/g,'').replace(',','.'));o.dims[e.dataset.dim]=isFinite(n)?n:0;}});
   if(j._ajuste!==undefined){if(j._ajuste)o.ajuste=j._ajuste;else delete o.ajuste;}
@@ -817,8 +859,20 @@ function fotoUrl(pid){pid=String(pid||'');if(!pid)return Promise.resolve('');if(
 // troca a ilustração pela foto real onde houver [data-th="id da peça"]
 function pintarFotos(root){if(!root)return;root.querySelectorAll('[data-th]').forEach(el=>{const pid=el.dataset.th;if(!pid||el.dataset.thOk===pid)return;el.dataset.thOk=pid;
   fotoUrl(pid).then(u=>{if(u&&el.dataset.th===pid)el.innerHTML=`<img src="${u}" alt="Foto da peça">`;});});}
-async function fotoMostrar(p){const box=document.querySelector('#fin-jan [data-pm-foto]');if(!box)return;const u=await fotoUrl(p.rowid);
-  box.innerHTML=u?`<img src="${u}" alt="Foto da peça" style="width:100%;border-radius:12px;border:1px solid #E4E9F2">`:'';}
+// anexos da fábrica: excluir (quem enviou ou o Administrador), confirmar sem fechar a janela aberta
+const excluirAnexoFab=a=>new Promise((ok,er)=>google.script.run.withSuccessHandler(ok).withFailureHandler(e=>er(e instanceof Error?e:new Error(String((e&&e.message)||e)))).excluirAnexo(a.uid,a.rowid));
+const podeApagarArq=a=>ehAdm()||String(a.enviado_por||'')===eu();
+function perguntar(titulo,msg,rotOk,fn){sobre(`<div class="pm-pop-box" style="max-width:440px"><div class="pm-pop-cab"><b>${fe(titulo)}</b><button type="button" class="pm-x" data-pop-x><i class="fas fa-xmark"></i></button></div>
+  <div style="padding:14px 16px"><p style="margin:0 0 14px;font-size:13.5px;line-height:1.5">${msg}</p><div style="display:flex;justify-content:flex-end;gap:8px"><button type="button" class="gf-bt" data-pop-x>Voltar</button><button type="button" class="gf-bt pri" data-pop-ok style="background:#D92D20;border-color:#D92D20">${fe(rotOk)}</button></div></div></div>`,
+  async(ev,fechar)=>{if(ev.target.closest('[data-pop-ok]')){fechar();try{await fn();}catch(e){toast(e.message||String(e),'error');}}});}
+const URLS_ARQ={};function dataUrlDe(a){if(!URLS_ARQ[a.uid])URLS_ARQ[a.uid]=new Promise(ok=>google.script.run.withSuccessHandler(r=>{const ps=((r&&r.partes)||[]).slice().sort((x,y)=>x.ordem-y.ordem);ok(ps.length?`data:${a.mime||'image/jpeg'};base64,${ps.map(x=>x.conteudo).join('')}`:'');}).withFailureHandler(()=>ok('')).partesAnexo(a.uid));return URLS_ARQ[a.uid];}
+async function fotoMostrar(p){const box=document.querySelector('#fin-jan [data-pm-foto]');if(!box)return;
+  const L=(await listaFotos()).filter(x=>String(x.peca)===String(p.rowid)).sort((x,y)=>String(y.enviado_em||'').localeCompare(String(x.enviado_em||'')));
+  if(!L.length){box.innerHTML='';return;}
+  box.innerHTML=`<div class="pm-fotos">${L.map((a,i)=>`<figure data-fi="${i}"><img alt="Foto da peça">${i===0?'<span class="pm-fprin">principal</span>':''}${podeApagarArq(a)?`<button type="button" class="pm-fx" data-fdel="${i}" title="Excluir esta foto"><i class="fas fa-trash"></i></button>`:''}</figure>`).join('')}</div>`;
+  L.forEach((a,i)=>dataUrlDe(a).then(u=>{const im=box.querySelector(`[data-fi="${i}"] img`);if(im&&u)im.src=u;}));
+  box.onclick=ev=>{const b=ev.target.closest('[data-fdel]');if(!b)return;const a=L[+b.dataset.fdel];
+    perguntar('Excluir a foto?','A foto sai da peça de vez. A mais recente que ficar passa a ser a principal.','Excluir foto',async()=>{UI._showBusy('Excluindo…');try{await excluirAnexoFab(a);}finally{UI._hideBusy();}FOTOS.lista=null;delete FOTOS.url[String(p.rowid)];toast('Foto excluída.','success');fotoMostrar(p);});};}
 // ilustração 3D da peça (do catálogo, nas medidas dela)
 const ilu=(t,d,o)=>CAT.ilustracao?CAT.ilustracao(t,d||{},o):CAT.desenho(t,d||{},{barras:[]});
 const iluPeca=(p,o)=>p?ilu(tipoDePeca(p),p.dims,o):'';
@@ -1034,29 +1088,48 @@ function situacaoLote(l){
   if(h>addD(f28,3))return {k:'atrasado',rot:'Ensaio de 28 dias atrasado',cor:'err',es,f28};
   return {k:'pendente',rot:`Ensaio de 28 dias em ${brDe(f28).slice(0,5)}`,cor:'info',es,f28};
 }
+// controle do lote: peça pequena por palete (N peças por palete, ~1,2 t); peça grande por unidade (cada peça com o seu número)
+function modoLote(p){const t=tipoDePeca(p||{}),peso=p?calc(p,1).peso:0,ppAuto=Math.max(1,Math.floor(1200/Math.max(0.1,peso)));
+  if(p&&p.lote_modo==='unidade')return {modo:'unidade',pp:1,auto:false};if(p&&p.lote_modo==='palete')return {modo:'palete',pp:Math.max(1,num(p.pecas_palete)||ppAuto),auto:false};
+  if(peso>=100||t.estr||(['tubo','aduela','pote','caixa','manual','canaleta'].includes(t.f)&&peso>=40))return {modo:'unidade',pp:1,auto:true};
+  return {modo:'palete',pp:ppAuto,auto:true};}
+function subLotes(l){const p=pecaDe(l.peca),m=l.it&&l.it.lmodo?{modo:l.it.lmodo,pp:Math.max(1,num(l.it.lpp)||1)}:modoLote(p),q=Math.max(0,Math.round(l.qtd)),o=[];
+  if(m.modo==='unidade'){for(let i=1;i<=q;i++)o.push({cod:`${l.lote}-U${String(i).padStart(3,'0')}`,qtd:1,i,n:q,modo:'unidade'});}
+  else if(q>0){const n=Math.ceil(q/m.pp);for(let i=1;i<=n;i++)o.push({cod:`${l.lote}-P${String(i).padStart(2,'0')}`,qtd:i<n?m.pp:q-m.pp*(n-1),i,n,modo:'palete',pp:m.pp});}
+  return o;}
+const resumoSub=l=>{const s=subLotes(l);if(!s.length)return '';return s[0].modo==='unidade'?`${s.length} unidade(s)`:`${s.length} palete(s) de até ${nf(s[0].pp,0)} peças`;};
+// rastreio por palete / unidade: as entregas consomem pela ordem de fabricação (o mais antigo sai primeiro)
 function rastreio(){
-  const porVenda={},porLote={},fila={};lotes().forEach(l=>(fila[l.peca]=fila[l.peca]||[]).push({lote:l.lote,resta:l.qtd}));
+  const porVenda={},porLote={},porSub={},fila={};
+  lotes().forEach(l=>subLotes(l).forEach(s=>(fila[l.peca]=fila[l.peca]||[]).push({lote:l.lote,cod:s.cod,resta:s.qtd})));
   vendas().filter(v=>(v.status==='entregue'||v.status==='devolvida')&&v.entrega).sort((a,b)=>String(a.entrega).localeCompare(String(b.entrega))||num(a.numero)-num(b.numero)).forEach(v=>
-    (v.itens||[]).forEach(it=>{let q=num(it.qtd);for(const x of (fila[String(it.peca)]||[])){if(q<=0)break;if(x.resta<=0)continue;const u=Math.min(q,x.resta);x.resta-=u;q-=u;
-      (porVenda[v.rowid]=porVenda[v.rowid]||[]).push({lote:x.lote,peca:it.peca,qtd:u});(porLote[x.lote]=porLote[x.lote]||[]).push({venda:v.rowid,numero:v.numero,cliente:v.cliente,data:v.entrega,qtd:u});}}));
-  return {porVenda,porLote};
+    (v.itens||[]).forEach(it=>{let q=num(it.qtd);for(const x of (fila[String(it.peca)]||[])){if(q<=0)break;if(x.resta<=0)continue;const u=Math.min(q,x.resta);x.resta-=u;q-=u;const r={venda:v.rowid,numero:v.numero,cliente:v.cliente,data:v.entrega,qtd:u};
+      (porVenda[v.rowid]=porVenda[v.rowid]||[]).push({lote:x.lote,cod:x.cod,peca:it.peca,qtd:u});(porLote[x.lote]=porLote[x.lote]||[]).push({...r,cod:x.cod});(porSub[x.cod]=porSub[x.cod]||[]).push(r);}}));
+  return {porVenda,porLote,porSub};
 }
 function fichaLote(cod){
-  const l=loteInfo(cod);if(!l)return toast('Lote não encontrado.','error');const p=pecaDe(l.peca),t=tipoDePeca(p||{}),tr=p?tracoDaPeca(p):null,st=situacaoLote(l),es=ensaiosDe(cod),rs=(rastreio().porLote[cod]||[]);
-  const lib=addD(dt(l.data)||hoje0(),num(p&&p.cura!=null&&p.cura!==''?p.cura:t.cura||7)),op=l.it.ordem?ordens().find(o=>String(o.rowid)===String(l.it.ordem)):null;
-  janela(`Lote ${cod}`,`<div class="pm-form"><div><div data-th="${p?p.rowid:''}" class="pm-svgbox" style="background:#F8FAFC;border-radius:12px">${iluPeca(p)}</div>
+  const l=loteInfo(cod);if(!l)return toast('Lote não encontrado.','error');const p=pecaDe(l.peca),t=tipoDePeca(p||{}),tr=p?tracoDaPeca(p):null,st=situacaoLote(l),es=ensaiosDe(cod),RS=rastreio(),subs=subLotes(l),h=hoje0();
+  const lib=addD(dt(l.data)||h,num(p&&p.cura!=null&&p.cura!==''?p.cura:t.cura||7)),liberado=lib<=h,op=l.it.ordem?ordens().find(o=>String(o.rowid)===String(l.it.ordem)):null;
+  const x=p?calc(p,1):null,peso=x?x.peso:0,unid=subs.length&&subs[0].modo==='unidade',ent=subs.reduce((a,s)=>a+(RS.porSub[s.cod]||[]).reduce((b,c)=>b+c.qtd,0),0);
+  const tile=(ic,rot,val,sub)=>`<div class="pm-ltile"><i class="fas ${ic}"></i><small>${rot}</small><b>${val}</b>${sub?`<span>${sub}</span>`:''}</div>`;
+  const sit=s=>{const r=RS.porSub[s.cod]||[],e=r.reduce((a,b)=>a+b.qtd,0);return e>=s.qtd?pill('entregue — '+r.map(z=>fe(z.cliente||'')+' '+brDe(dt(z.data)).slice(0,5)).join(', '),'ok','fa-truck'):e>0?pill(`${nf(e,0)} entregue(s) · ${nf(s.qtd-e,0)} no pátio`,'warn'):pill(liberado?'no pátio · liberado':'no pátio · em cura',liberado?'info':'','fa-warehouse');};
+  const cons=Object.entries(l.it.consumo||{}).filter(([,q])=>num(q)>0).map(([k,q])=>`${fe(insDe(k).nome.split(' (')[0])} ${nf(num(q),2)} ${insDe(k).un}`).join(' · ');
+  janela(`Lote ${cod}`,`<div class="pm-form"><div><div data-th="${p?p.rowid:''}" class="pm-svgbox" style="background:#F8FAFC;border-radius:12px;min-height:150px">${iluPeca(p)}</div>
       <table class="pm-tab2" data-sem-ordem style="margin-top:8px"><tbody><tr><td>Peça</td><td><b>${fe(p?p.nome:'(excluída)')}</b> <small>${fe(p&&p.codigo||'')}</small></td></tr>
-      <tr><td>Fabricação</td><td>${fe(brDe(dt(l.data)))}${l.r.turno?' · '+fe(l.r.turno):''}</td></tr><tr><td>Quantidade</td><td>${nf(l.qtd,0)} boas${l.refugo?` · ${nf(l.refugo,0)} refugo`:''}</td></tr>
-      <tr><td>Traço</td><td>${fe(tr?tr.nome:'')} <small>${fe(tr&&tr.fck||'')}</small></td></tr><tr><td>Liberação</td><td>${fe(brDe(lib))}</td></tr>
-      ${op?`<tr><td>Ordem</td><td>OP nº ${fe(String(op.numero))}${op.cliente?' · '+fe(op.cliente):''}</td></tr>`:''}${eqLista(l.r).length?`<tr><td>Equipe</td><td>${fe(eqLista(l.r).join(', '))}</td></tr>`:''}</tbody></table></div>
-    <div><div class="pm-bloco"><h5><i class="fas fa-flask"></i> Corpos de prova e ensaios</h5>
-      ${l.cp?`<p class="pm-mini" style="margin:0 0 6px">${nf(l.cp,0)} corpo(s) de prova moldado(s). ${st?pill(st.rot,st.cor):''}</p>`:'<p class="pm-mini" style="margin:0 0 6px">Nenhum corpo de prova registrado neste lote.</p>'}
-      ${es.length?`<table class="pm-tab2" data-sem-ordem><thead><tr><th>Idade</th><th>Data</th><th class="n">Resultado</th><th class="n">Esperado</th><th>Situação</th></tr></thead><tbody>${es.map(e=>`<tr class="pm-lin" data-ens="${e.rowid}"><td>${nf(num(e.idade),0)} dias</td><td>${fe(brDe(dt(e.data)))}</td><td class="n"><b>${nf(num(e.resultado),1)} MPa</b><small>${(e.valores||[]).map(v=>nf(v,1)).join(' · ')}</small></td><td class="n">${nf(num(e.esperado),1)} MPa</td><td>${pill(e.situacao==='aprovado'?'aprovado':e.situacao==='parcial'?'dentro do esperado':e.situacao==='abaixo'?'abaixo do esperado':'reprovado',e.situacao==='aprovado'||e.situacao==='parcial'?'ok':e.situacao==='abaixo'?'warn':'err')}</td></tr>`).join('')}</tbody></table>`:''}</div>
-      <div class="pm-bloco"><h5><i class="fas fa-route"></i> Para quem foi (rastreio)</h5>
-      ${rs.length?`<ul class="pm-arml">${rs.map(x=>`<li><i class="fas fa-truck" style="color:#1652D8"></i><span>${fe(brDe(dt(x.data)))} · venda nº ${fe(String(x.numero))} · <b>${fe(x.cliente||'')}</b> · ${nf(x.qtd,0)} peça(s)</span></li>`).join('')}</ul><p class="pm-mini" style="margin:6px 0 0">Estimado pela ordem de saída: o lote mais antigo sai primeiro.</p>`:'<p class="pm-mini" style="margin:0">Nenhuma entrega usou este lote ainda.</p>'}</div></div></div>`,
+      <tr><td>Fabricação</td><td>${fe(brDe(dt(l.data)))}${l.r.turno?' · '+fe(l.r.turno):''}${l.r.clima?' · '+fe(l.r.clima):''}</td></tr>
+      <tr><td>Traço</td><td>${fe(tr?tr.nome:'')} <small>${fe(tr&&tr.fck||'')}</small></td></tr>${op?`<tr><td>Ordem</td><td>OP nº ${fe(String(op.numero))}${op.cliente?' · '+fe(op.cliente):''}</td></tr>`:''}
+      ${eqLista(l.r).length?`<tr><td>Equipe</td><td>${fe(eqLista(l.r).join(', '))}</td></tr>`:''}${cons?`<tr><td>Material usado</td><td><small style="font-size:12px;color:#344054">${cons}</small></td></tr>`:''}</tbody></table></div>
+    <div><div class="pm-ltiles">${tile('fa-cubes','Quantidade',`${nf(l.qtd,0)} peças`,l.refugo?`${nf(l.refugo,0)} refugo`:'sem refugo')}${tile(unid?'fa-hashtag':'fa-pallet','Controle',unid?`${subs.length} unidades`:`${subs.length} palete(s)`,unid?'cada peça tem o seu número':`até ${nf(subs[0]?subs[0].pp:0,0)} peças por palete`)}
+      ${tile('fa-weight-hanging','Peso do lote',`${nf(peso*l.qtd/1000,2)} t`,`${nf(peso,1)} kg por peça`)}${tile('fa-hourglass-half','Liberação',fe(brDe(lib)),liberado?'liberado para venda':'em cura')}
+      ${tile('fa-flask','Ensaio',st?fe(st.rot):'sem corpo de prova',l.cp?`${nf(l.cp,0)} CP(s)`:'')}${tile('fa-truck','Entregue',`${nf(ent,0)} de ${nf(l.qtd,0)}`,`${nf(l.qtd-ent,0)} no pátio`)}</div>
+      <div class="pm-bloco" style="margin-top:10px"><h5><i class="fas ${unid?'fa-hashtag':'fa-pallet'}"></i> ${unid?'Unidades':'Paletes'}</h5><div class="pm-rolar" style="max-height:240px;overflow:auto"><table class="pm-tab2" data-sem-ordem><thead><tr><th>Código</th><th class="n">Peças</th><th>Situação</th><th></th></tr></thead><tbody>
+        ${subs.map(s=>`<tr><td><b>${fe(s.cod)}</b><small>${s.modo==='unidade'?`unidade ${s.i} de ${s.n}`:`palete ${s.i} de ${s.n}`}</small></td><td class="n">${nf(s.qtd,0)}</td><td>${sit(s)}</td><td><button type="button" class="gf-bt mini" data-etq-sub="${fe(s.cod)}" title="Etiqueta só deste ${unid?'item':'palete'}"><i class="fas fa-qrcode"></i></button></td></tr>`).join('')||'<tr><td colspan="4" class="pm-mini">Sem peças boas neste lote.</td></tr>'}</tbody></table></div></div>
+      <div class="pm-bloco"><h5><i class="fas fa-flask"></i> Corpos de prova e ensaios</h5>${l.cp?'':'<p class="pm-mini" style="margin:0">Nenhum corpo de prova registrado neste lote.</p>'}
+      ${es.length?`<table class="pm-tab2" data-sem-ordem><thead><tr><th>Idade</th><th>Data</th><th class="n">Resultado</th><th class="n">Esperado</th><th>Situação</th></tr></thead><tbody>${es.map(e=>`<tr class="pm-lin" data-ens="${e.rowid}"><td>${nf(num(e.idade),0)} dias</td><td>${fe(brDe(dt(e.data)))}</td><td class="n"><b>${nf(num(e.resultado),1)} MPa</b><small>${(e.valores||[]).map(v=>nf(v,1)).join(' · ')}</small></td><td class="n">${nf(num(e.esperado),1)} MPa</td><td>${pill(e.situacao==='aprovado'?'aprovado':e.situacao==='parcial'?'dentro do esperado':e.situacao==='abaixo'?'abaixo do esperado':'reprovado',e.situacao==='aprovado'||e.situacao==='parcial'?'ok':e.situacao==='abaixo'?'warn':'err')}</td></tr>`).join('')}</tbody></table>`:''}</div></div></div>`,
     [{html:'<i class="fas fa-qrcode"></i> Etiquetas',acao:async()=>{setTimeout(()=>formEtiquetas(cod),60);}},
-     {html:'<i class="fas fa-flask"></i> Registrar ensaio',cls:'pri',acao:async()=>{setTimeout(()=>formEnsaio(cod,null),60);}}],900);
-  const jb=document.querySelector('#fin-jan .fin-jan-corpo');if(jb){pintarFotos(jb);jb.addEventListener('click',ev=>{const r=ev.target.closest('[data-ens]');if(r){const e=T('ensaio').find(x=>String(x.rowid)===r.dataset.ens);document.getElementById('fin-ov').classList.remove('open');setTimeout(()=>formEnsaio(cod,e),60);}});}
+     ...(l.cp?[{html:'<i class="fas fa-flask"></i> Registrar ensaio',cls:'pri',acao:async()=>{setTimeout(()=>formEnsaio(cod,null),60);}}]:[])],1000);
+  const jb=document.querySelector('#fin-jan .fin-jan-corpo');if(jb){pintarFotos(jb);jb.addEventListener('click',ev=>{const r=ev.target.closest('[data-ens]');if(r){const e=T('ensaio').find(x=>String(x.rowid)===r.dataset.ens);document.getElementById('fin-ov').classList.remove('open');return setTimeout(()=>formEnsaio(cod,e),60);}
+    const b=ev.target.closest('[data-etq-sub]');if(b)imprimirEtiquetas(cod,{so:[b.dataset.etqSub],mk:unid?'g':'g',ini:1,copias:1}).catch(e=>toast(e.message,'error'));});}
 }
 function formEnsaio(cod,reg){
   const l=loteInfo(cod);if(!l)return toast('Lote não encontrado.','error');const p=pecaDe(l.peca),tr=p?tracoDaPeca(p):null,d0=dt(l.data)||hoje0();
@@ -1072,8 +1145,11 @@ function formEnsaio(cod,reg){
     [...(reg?[{html:'<i class="fas fa-trash"></i> Excluir',acao:async()=>{setTimeout(()=>apagarReg(reg,`Ensaio de ${reg.idade} dias do lote ${cod}`),60);}}]:[]),
      {html:'<i class="fas fa-floppy-disk"></i> Salvar ensaio',cls:'pri',acao:async jj=>{
       if(reg&&GS.podeMexer&&!GS.podeMexer(reg))throw new Error(GS.MSG_DONO);
-      const r=ler(jj);if(!r.data)throw new Error('Informe a data do ensaio.');if(r.data>hojeISO())throw new Error('A data do ensaio não pode ser no futuro: registre no dia em que o laboratório romper os corpos de prova.');if(!r.valores.length)throw new Error('Informe o resultado de ao menos um corpo de prova.');if(!(r.fck>0))throw new Error('Informe o fck exigido.');if(r.valores.some(x=>x>120)||r.fck>120)throw new Error('Resistência acima de 120 MPa: confira o valor (em MPa, não em kgf).');
-      await gravar({...(reg||{tipo:'ensaio',data_lancamento:todayDateTime()}),lote:cod,peca:l.peca,data_moldagem:l.data,...r},reg?reg.rowid:null);
+      const r=ler(jj);if(!r.data)throw new Error('Informe a data do ensaio.');
+      if(!l.cp)return trava('Lote sem corpo de prova',[{ok:false,txt:`O lote ${cod} não tem corpos de prova registrados. Abra o dia de produção e informe quantos CPs foram moldados (coluna CPs).`}]);
+      const minD=isoDe(addD(dt(l.data)||hoje0(),Math.max(0,r.idade-1)));if(r.data<minD)return trava(`Ensaio de ${r.idade} dias antes da hora`,[{ok:false,txt:`O lote foi moldado em ${brDe(dt(l.data))}: o ensaio de ${r.idade} dias só pode ser a partir de ${brDe(dt(minD))}.`}]);
+      if(r.valores.length>num(l.cp))return trava('Mais resultados do que corpos de prova',[{ok:false,txt:`O lote tem ${nf(num(l.cp),0)} CP(s) moldado(s) e foram informados ${r.valores.length} resultados.`}]);if(r.data>hojeISO())throw new Error('A data do ensaio não pode ser no futuro: registre no dia em que o laboratório romper os corpos de prova.');if(!r.valores.length)throw new Error('Informe o resultado de ao menos um corpo de prova.');if(!(r.fck>0))throw new Error('Informe o fck exigido.');if(r.valores.some(x=>x>120)||r.fck>120)throw new Error('Resistência acima de 120 MPa: confira o valor (em MPa, não em kgf).');
+      await gravar({...(reg||{tipo:'ensaio',data_lancamento:todayDateTime()}),lote:cod,peca:l.peca,data_moldagem:l.data,...r,por:eu()},reg?reg.rowid:null);
       toast(r.situacao==='reprovado'?'Ensaio registrado: lote REPROVADO — separe as peças e avalie com o responsável técnico.':'Ensaio registrado.',r.situacao==='reprovado'?'error':'success');}}],640);
   function ler(jj){const g=k=>String(jj.querySelector(`[data-k="${k}"]`).value||'').trim(),pf=s=>{const n=parseFloat(String(s).replace(',','.'));return isFinite(n)?n:0;};
     const idade=num(g('idade')),valores=[...jj.querySelectorAll('[data-cpv]')].map(e=>pf(e.value)).filter(v=>v>0),fck=pf(g('fck')),resultado=valores.length?Math.max(...valores):0,esperado=r2(fck*(FAT_IDADE[idade]||1));
@@ -1094,33 +1170,39 @@ function qrSvg(txt){const qr=window.qrcode(0,'M');qr.addData(ascii(txt));qr.make
 const ETQ={p:{rot:'Pequena — 63,5 × 38,1 mm (21 por folha A4, tipo Pimaco A4356 / 6180)',w:63.5,h:38.1,cols:3,rows:7,mt:15.15,ml:7.2,gx:2.54,gy:0,qr:27},
   g:{rot:'Grande — 99,1 × 67,7 mm (8 por folha A4, tipo Pimaco A4363 / 6183)',w:99.1,h:67.7,cols:2,rows:4,mt:13.1,ml:4.65,gx:2.5,gy:0,qr:44}};
 function formEtiquetas(cod){
-  const l=loteInfo(cod);if(!l)return toast('Lote não encontrado.','error');
-  janela(`Etiquetas — lote ${cod}`,`<div class="fin-linha"><div class="fin-fld"><label>Quantidade de etiquetas</label><input data-k="q" inputmode="numeric" value="${Math.max(1,l.qtd)}"></div>
-      <div class="fin-fld" style="grid-column:span 2"><label>Modelo da folha</label><select data-k="m">${Object.entries(ETQ).map(([k,x])=>`<option value="${k}">${x.rot}</option>`).join('')}</select></div>
+  const l=loteInfo(cod);if(!l)return toast('Lote não encontrado.','error');const subs=subLotes(l),unid=subs.length&&subs[0].modo==='unidade';
+  if(!subs.length)return toast('Este lote não tem peças boas para etiquetar.','error');
+  janela(`Etiquetas — lote ${cod}`,`<div class="fin-aviso"><div>${unid?`Uma etiqueta para <b>cada peça</b> (${subs.length} unidades, numeradas).`:`Uma etiqueta para <b>cada palete</b> (${subs.length} palete(s), com a quantidade de peças de cada um).`}</div></div>
+    <div class="fin-linha" style="margin-top:8px"><div class="fin-fld"><label>Cópias por ${unid?'peça':'palete'}</label><select data-k="cop">${[1,2,4].map(n=>`<option value="${n}" ${n===(unid?1:2)?'selected':''}>${n}${n===2&&!unid?' (uma de cada lado)':''}</option>`).join('')}</select></div>
+      <div class="fin-fld" style="grid-column:span 2"><label>Modelo da folha</label><select data-k="m">${Object.entries(ETQ).map(([k,x])=>`<option value="${k}" ${k===(unid?'p':'g')?'selected':''}>${x.rot}</option>`).join('')}</select></div>
       <div class="fin-fld"><label>Começar na etiqueta nº</label><input data-k="ini" inputmode="numeric" value="1" title="Para aproveitar uma folha já usada"></div></div>
-    <p class="pm-mini">Cada etiqueta leva o logo, a peça, o lote, as datas de fabricação e de liberação, o traço e um QR Code com esses dados — para garantia e rastreio. Imprima em folha adesiva A4 ou em papel comum e recorte.</p>`,
-    [{html:'<i class="fas fa-print"></i> Imprimir etiquetas',cls:'pri',acao:async j=>{const q=Math.min(500,Math.max(1,num(j.querySelector('[data-k="q"]').value))),m=j.querySelector('[data-k="m"]').value,ini=Math.max(1,num(j.querySelector('[data-k="ini"]').value)||1);
-      await imprimirEtiquetas(cod,q,m,ini);}}],620);
+    <p class="pm-mini">Cada etiqueta leva o logo, a peça, o lote e o ${unid?'número da unidade':'número do palete e a quantidade'}, as datas de fabricação e liberação, o traço e um QR Code com esses dados.</p>`,
+    [{html:'<i class="fas fa-print"></i> Imprimir etiquetas',cls:'pri',acao:async j=>{await imprimirEtiquetas(cod,{copias:num(j.querySelector('[data-k="cop"]').value)||1,mk:j.querySelector('[data-k="m"]').value,ini:Math.max(1,num(j.querySelector('[data-k="ini"]').value)||1)});}}],620);
 }
-async function imprimirEtiquetas(cod,q,mk,ini){
-  const l=loteInfo(cod),p=pecaDe(l.peca),t=tipoDePeca(p||{}),tr=p?tracoDaPeca(p):null,M=ETQ[mk]||ETQ.p,porFolha=M.cols*M.rows;
+async function imprimirEtiquetas(cod,op){
+  op=op||{};const l=loteInfo(cod),p=pecaDe(l.peca),t=tipoDePeca(p||{}),tr=p?tracoDaPeca(p):null,M=ETQ[op.mk]||ETQ.p,porFolha=M.cols*M.rows;
+  let subs=subLotes(l);if(op.so)subs=subs.filter(s=>op.so.includes(s.cod));const cop=Math.max(1,op.copias||1),ini=Math.max(1,op.ini||1);
+  if(!subs.length)throw new Error('Nada para etiquetar.');if(subs.length*cop>600)throw new Error('Mais de 600 etiquetas: imprima por partes (escolha o palete/unidade na ficha do lote).');
   const lib=addD(dt(l.data)||hoje0(),num(p&&p.cura!=null&&p.cura!==''?p.cura:t.cura||7));
-  const w=window.open('','_blank');if(!w)return toast('Permita pop-ups deste site para imprimir as etiquetas.','error');
+  const w=window.open('','_blank');if(!w)throw new Error('Permita pop-ups deste site para imprimir as etiquetas.');
   w.document.write('<p style="font:14px Arial;padding:20px">Montando as etiquetas…</p>');
   try{await carregarQR();}catch(e){w.close();throw e;}
-  const txt=`VIXSUL PRE-MOLDADOS\nPeca: ${p?(p.codigo?p.codigo+' ':'')+p.nome:''}\nLote: ${cod}\nFabricacao: ${brDe(dt(l.data))}\nLiberacao: ${brDe(lib)}\nTraco: ${tr?tr.nome:''}${tr&&tr.fck?' ('+tr.fck+')':''}\nVixsul Empreendimentos - CNPJ 64.518.375/0001-20`,qr=qrSvg(txt);
-  const etq=`<div class="e"><div class="tx"><img src="${typeof PDF_LOGO_FULL_B64!=='undefined'?PDF_LOGO_FULL_B64:''}" class="lg" alt=""><b class="nm">${fe(p?p.nome:'')}</b><div class="ln" style="font-size:1.12em"><b>Lote ${fe(cod)}</b>${p&&p.codigo?' · '+fe(p.codigo):''}</div>
-    <div class="ln">Fabricação: ${fe(brDe(dt(l.data)))}</div><div class="ln">Liberação: ${fe(brDe(lib))}</div><div class="ln">${fe(tr?tr.nome.split(' — ')[0]:'')}${tr&&tr.fck?' · '+fe(tr.fck):''}</div></div><div class="qr">${qr}</div></div>`;
-  const tot=q+ini-1,folhas=Math.ceil(tot/porFolha);let h='';
-  for(let f=0;f<folhas;f++){h+='<section class="fl">';for(let i=0;i<porFolha;i++){const k=f*porFolha+i;h+=k<ini-1||k>=tot?'<div class="e v"></div>':etq;}h+='</section>';}
+  const logo=typeof PDF_LOGO_FULL_B64!=='undefined'?PDF_LOGO_FULL_B64:'',um=[];
+  subs.forEach(s=>{const id=s.modo==='unidade'?`Unidade ${s.i}/${s.n}`:`Palete ${s.i}/${s.n} — ${nf(s.qtd,0)} peças`;
+    const txt=`VIXSUL PRE-MOLDADOS\nPeca: ${p?(p.codigo?p.codigo+' ':'')+p.nome:''}\n${s.modo==='unidade'?'Unidade':'Palete'}: ${s.cod}${s.modo==='palete'?' ('+s.qtd+' pecas)':''}\nLote: ${cod}\nFabricacao: ${brDe(dt(l.data))}\nLiberacao: ${brDe(lib)}\nTraco: ${tr?tr.nome:''}${tr&&tr.fck?' ('+tr.fck+')':''}\nVixsul Empreendimentos - CNPJ 64.518.375/0001-20`;
+    const e=`<div class="e"><div class="tx"><img src="${logo}" class="lg" alt=""><b class="nm">${fe(p?p.nome:'')}</b><div class="cd">${fe(s.cod)}</div><div class="ln"><b>${fe(id)}</b></div>
+      <div class="ln">Fab. ${fe(brDe(dt(l.data)))} · Lib. ${fe(brDe(lib))}</div><div class="ln">${fe(tr?tr.nome.split(' — ')[0]:'')}${tr&&tr.fck?' · '+fe(tr.fck):''}</div></div><div class="qr">${qrSvg(txt)}</div></div>`;
+    for(let c=0;c<cop;c++)um.push(e);});
+  const tot=um.length+ini-1,folhas=Math.ceil(tot/porFolha);let h='';
+  for(let f=0;f<folhas;f++){h+='<section class="fl">';for(let i=0;i<porFolha;i++){const k=f*porFolha+i;h+=k<ini-1||k>=tot?'<div class="e v"></div>':um[k-ini+1];}h+='</section>';}
   w.document.open();w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Etiquetas ${fe(cod)}</title><style>
     @page{size:A4;margin:0;} *{box-sizing:border-box;} body{margin:0;font-family:Arial,Helvetica,sans-serif;color:#1d1d1f;}
     .fl{width:210mm;height:297mm;padding:${M.mt}mm 0 0 ${M.ml}mm;display:grid;grid-template-columns:repeat(${M.cols},${M.w}mm);grid-auto-rows:${M.h}mm;column-gap:${M.gx}mm;row-gap:${M.gy}mm;page-break-after:always;}
     .fl:last-child{page-break-after:auto;}
     .e{display:flex;gap:2mm;align-items:center;padding:2.2mm 2.6mm;overflow:hidden;border:0.2mm dashed #d0d5dd;border-radius:2mm;} .e.v{border-color:transparent;}
-    .tx{flex:1;min-width:0;font-size:${mk==='g'?9.5:7}pt;line-height:1.25;} .lg{height:${mk==='g'?9:5.5}mm;display:block;margin-bottom:1mm;}
-    .nm{display:block;font-size:${mk==='g'?11:8}pt;line-height:1.15;margin-bottom:.6mm;max-height:2.4em;overflow:hidden;} .ln{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-    .qr{width:${M.qr}mm;height:${M.qr}mm;flex:none;} @media print{.e{border-color:transparent;}}
+    .tx{flex:1;min-width:0;font-size:${op.mk==='g'?9:6.6}pt;line-height:1.22;} .lg{height:${op.mk==='g'?8:5}mm;display:block;margin-bottom:.8mm;}
+    .nm{display:block;font-size:${op.mk==='g'?10.5:7.6}pt;line-height:1.15;max-height:2.3em;overflow:hidden;} .cd{font-size:${op.mk==='g'?12:8.4}pt;font-weight:800;letter-spacing:.02em;margin:.6mm 0;}
+    .ln{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;} .qr{width:${M.qr}mm;height:${M.qr}mm;flex:none;} @media print{.e{border-color:transparent;}}
   </style></head><body>${h}<script>window.onload=()=>setTimeout(()=>window.print(),400);<\/script></body></html>`);w.document.close();
 }
 
@@ -1128,64 +1210,89 @@ async function imprimirEtiquetas(cod,q,mk,ini){
 // ponto: horas de cada pessoa no dia (saída − entrada − intervalo; virada da meia-noite conta)
 const minDe=t=>{const [h,m]=String(t||'').split(':').map(Number);return isFinite(h)?h*60+(m||0):NaN;};
 const horasDe=(e,s,i)=>{let a=minDe(e),b=minDe(s);if(!isFinite(a)||!isFinite(b))return 0;if(b<a)b+=1440;return Math.max(0,(b-a-num(i))/60);};
-const pontoDe=r=>Array.isArray(r.ponto)&&r.ponto.length?r.ponto:eqLista(r).map(nome=>({nome}));
+const SIT_PT={presente:['Presente','ok'],falta:['Falta','err'],atestado:['Atestado','warn'],folga:['Folga','']};
+const jornada=()=>{const j={entrada:'07:00',saida:'17:00',intervalo:60,...(CFG().jornada||{})};j.horas=horasDe(j.entrada,j.saida,j.intervalo);return j;};
+// registro do ponto do dia (versões antigas: só a lista de nomes = presentes)
+const pontoDe=r=>(Array.isArray(r.ponto)&&r.ponto.length?r.ponto:eqLista(r).map(nome=>({nome}))).map(x=>({...x,status:x.status||'presente'}));
+const presentes=r=>pontoDe(r).filter(x=>x.status==='presente');
+const iniciais=n=>String(n||'?').trim().split(/\s+/).filter(Boolean).slice(0,2).map(s=>s[0].toUpperCase()).join('');
+function pontoMes(k){const jr=jornada(),P={};
+  T('producao').filter(r=>{const d=dt(r.data);return d&&mesKey(d)===k;}).forEach(r=>pontoDe(r).forEach(x=>{const y=P[x.nome]=P[x.nome]||{nome:x.nome,funcao:x.funcao||'',dias:0,horas:0,extras:0,atrasos:0,falta:0,atestado:0,folga:0};
+    if(x.status==='presente'){y.dias++;const hh=num(x.horas)||horasDe(x.entrada,x.saida,x.intervalo);y.horas+=hh;y.extras+=Math.max(0,hh-jr.horas);if(x.entrada&&minDe(x.entrada)>minDe(jr.entrada)+10)y.atrasos++;}else y[x.status]=(y[x.status]||0)+1;}));
+  return Object.values(P).sort((a,b)=>a.nome.localeCompare(b.nome,'pt-BR'));}
 function telaProducao(){
-  const k=PM.mes,L=T('producao').filter(r=>{const d=dt(r.data);return d&&mesKey(d)===k;}).sort((a,b)=>String(b.data).localeCompare(String(a.data))||(+b.rowid-+a.rowid));
-  const h=hoje0(),its=L.flatMap(itensProd),tot=its.reduce((s,it)=>s+num(it.qtd),0),ref=its.reduce((s,it)=>s+num(it.refugo),0);
+  const k=PM.mes,vista=PM.dVista||'dias',L=T('producao').filter(r=>{const d=dt(r.data);return d&&mesKey(d)===k;}).sort((a,b)=>String(b.data).localeCompare(String(a.data))||(+b.rowid-+a.rowid));
+  const h=hoje0(),its=L.flatMap(itensProd),tot=its.reduce((s,it)=>s+num(it.qtd),0),ref=its.reduce((s,it)=>s+num(it.refugo),0),jr=jornada();
   const m3=its.reduce((s,it)=>{const p=pecaDe(it.peca);return s+(p?geoPeca(p).V*(num(it.qtd)+num(it.refugo)):0);},0),custo=its.reduce((s,it)=>s+num(it.custo_un)*num(it.qtd),0);
-  const nDias=new Set(L.map(r=>r.data)).size,horas=L.reduce((s,r)=>s+pontoDe(r).reduce((a,x)=>a+num(x.horas),0),0);
+  const nDias=new Set(L.map(r=>r.data)).size,pm=pontoMes(k),horas=pm.reduce((s,x)=>s+x.horas,0),faltas=pm.reduce((s,x)=>s+x.falta,0);
   const lts=lotes(),comCP=lts.filter(l=>l.cp>0).map(l=>({l,st:situacaoLote(l)})),pend=comCP.filter(x=>x.st&&x.st.k!=='aprovado'),lim=addD(h,-45);
-  const cpLista=comCP.filter(x=>x.st&&(x.st.k!=='aprovado'||dt(x.l.data)>=lim)).sort((a,b)=>String(b.l.data).localeCompare(String(a.l.data))).slice(0,30);
-  const loteCel=(r,it,i)=>{const cod=loteDe(r,it,i),l=lts.find(x=>x.lote===cod),st=situacaoLote(l);return `<button type="button" class="gf-bt mini" data-pm="lote" data-lote="${fe(cod)}" title="Ensaios, rastreio e etiquetas"><i class="fas fa-tag"></i> ${fe(cod)}</button>${st?' '+pill(st.rot,st.cor,'fa-flask'):''}`;};
-  return cabG('Diário de produção','O dia de produção: turno, clima, ponto da equipe, betonadas, ocorrências e as peças feitas. Cada peça do dia vira um lote (com ensaio dos corpos de prova, rastreio e etiqueta com QR Code). Cada registro baixa os insumos e põe as peças em cura.',
+  const sub=`<div class="pm-sub">${[['dias','fa-calendar-days','Dias de produção'],['ponto','fa-user-clock','Ponto do mês'],['ensaios','fa-flask',`Ensaios${pend.length?` (${pend.length})`:''}`]].map(([v,ic,l])=>`<button type="button" class="gf-bt ${vista===v?'pri':''}" data-pm="dvista" data-v="${v}"><i class="fas ${ic}"></i> ${l}</button>`).join('')}</div>`;
+  const cab=cabG('Diário de produção','O dia da fábrica: equipe e ponto, betonadas, clima, ocorrências e as peças feitas. Cada peça do dia vira um lote (por palete ou por unidade), baixa os insumos e entra em cura.',
       `${GS.selMes(k,'data-pm-mes',12,0)}<button type="button" class="gf-bt pri" data-pm="prod-nova"><i class="fas fa-plus"></i> Registrar o dia</button>`)+
     `<div class="gf-kpis">${kpiG('','fa-cubes','Peças produzidas',nf(tot,0),`${nDias} dia(s) de produção no mês`)}${kpiG('','fa-fill-drip','Concreto',nf(m3,2)+' m³',nDias?`média ${nf(m3/nDias,2)} m³ por dia`:'—')}
       ${kpiG(ref&&ref/(tot+ref)>0.03?'vermelho':'verde','fa-heart-crack','Refugo',nf(ref,0)+' peças',tot+ref?`${nf(ref/(tot+ref)*100,1)}% da produção`:'—')}
-      ${kpiG('roxo','fa-user-clock','Horas trabalhadas',nf(horas,1)+' h',horas?`${nf(tot/horas,1)} peças por hora · ${nf(m3/horas*1000,0)} L de concreto por hora`:'marque o ponto da equipe no registro do dia')}
+      ${kpiG('roxo','fa-user-clock','Horas trabalhadas',nf(horas,1)+' h',horas?`${nf(tot/horas,1)} peças por hora · ${faltas} falta(s) no mês`:'marque o ponto no registro do dia')}
       ${kpiG(pend.some(x=>x.st.cor==='err')?'vermelho':pend.length?'laranja':'verde','fa-flask','Ensaios pendentes',nf(pend.length,0),pend.some(x=>x.st.cor==='err')?'há lote atrasado ou reprovado':'corpos de prova aguardando ensaio')}
-      ${kpiG('laranja','fa-money-bill-wave','Custo produzido',R(custo),tot?`média ${R(custo/tot)} por peça`:'—')}</div>
-    ${cpLista.length?`<section class="gf-sec"><div class="gf-sec-cab"><div><h3><i class="fas fa-flask" style="color:#7A2FE0"></i> Corpos de prova e ensaios</h3><p>Rompimento aos 7 dias (opcional, esperado ≈ 65% do fck) e aos 28 dias (tem de atingir o fck do traço). Clique no lote para registrar o ensaio.</p></div></div>
-      <div class="pm-rolar"><table class="pm-tab2"><thead><tr><th>Lote</th><th>Peça</th><th>Moldagem</th><th class="n">CPs</th><th>7 dias</th><th>28 dias</th><th>Situação</th></tr></thead><tbody>
-      ${cpLista.map(({l,st})=>{const e7=st.es.filter(e=>num(e.idade)<28).slice(-1)[0],e28=st.es.filter(e=>num(e.idade)>=28).slice(-1)[0],d=dt(l.data);
-        return `<tr class="pm-lin" data-pm="lote" data-lote="${fe(l.lote)}"><td><b>${fe(l.lote)}</b></td><td>${fe(nomePeca(l.peca))}</td><td>${fe(brDe(d))}</td><td class="n">${nf(l.cp,0)}</td>
-          <td>${e7?`${nf(num(e7.resultado),1)} MPa`:`<small>${fe(brDe(addD(d,7)).slice(0,5))}</small>`}</td><td>${e28?`<b>${nf(num(e28.resultado),1)} MPa</b>`:`<small>${fe(brDe(addD(d,28)).slice(0,5))}</small>`}</td><td>${pill(st.rot,st.cor)}</td></tr>`;}).join('')}</tbody></table></div></section>`:''}
-    <section class="gf-sec">${L.length?L.map(r=>{const d=dt(r.data),pt=pontoDe(r);return `<div style="border:1px solid #EEF1F6;border-radius:14px;padding:10px 12px;margin-bottom:10px">
-        <div class="gf-dia-cab" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><i class="fas fa-calendar-day" style="color:#1652D8"></i><b>${fe(brDe(d))}</b><span>${cap(GS.SEMANA[d.getDay()])}${r.turno?' · '+fe(r.turno):''}${r.clima?' · '+fe(r.clima):''}${num(r.betonadas)?' · '+nf(num(r.betonadas),0)+' betonada(s)':''}</span>
-          <button type="button" class="gf-bt mini" data-pm="prod" data-id="${r.rowid}" style="margin-left:auto"><i class="fas fa-pen"></i> Abrir o dia</button></div>
-        <div class="vk-sub" style="margin:6px 0;display:flex;flex-wrap:wrap;gap:4px">${pt.map(x=>pill(`${fe(x.nome)}${x.entrada?` ${fe(x.entrada)}–${fe(x.saida||'')} (${nf(num(x.horas),1)} h)`:''}`,'info','fa-user-clock')).join('')}${r.ocorrencia&&r.ocorrencia!=='Nenhuma'?pill(fe(r.ocorrencia),'warn','fa-triangle-exclamation'):''}</div>
-        <div class="pm-rolar"><table class="pm-tab2" data-sem-ordem><thead><tr><th></th><th>Peça</th><th>Lote</th><th class="n">Boas</th><th class="n">Refugo</th><th>Ordem</th><th>Cura</th><th class="n">Custo/peça</th></tr></thead><tbody>
-        ${itensProd(r).map((it,i)=>{const p=pecaDe(it.peca),lib=addD(d,num(p&&p.cura!=null&&p.cura!==''?p.cura:tipoDePeca(p||{}).cura||7)),o=ordens().find(x=>String(x.rowid)===String(it.ordem||''));
-          return `<tr><td style="width:64px"><span class="pm-th" data-th="${p?p.rowid:''}" style="cursor:default">${p?miniPeca(p):''}</span></td><td><b>${fe(p?p.nome:'(peça excluída)')}</b>${num(it.cp)?`<small>${nf(num(it.cp),0)} corpo(s) de prova</small>`:''}</td><td style="white-space:nowrap">${loteCel(r,it,i)}</td><td class="n">${nf(num(it.qtd),0)}</td><td class="n">${num(it.refugo)?nf(num(it.refugo),0):'—'}</td><td>${o?'OP nº '+fe(String(o.numero)):'—'}</td>
-            <td>${lib>h?pill('em cura até '+brDe(lib).slice(0,5),'info','fa-hourglass-half'):pill('liberada','ok','fa-check')}</td><td class="n">${R(num(it.custo_un))}</td></tr>`;}).join('')}</tbody></table></div>
-        ${r.obs?`<p class="pm-mini" style="margin:6px 0 0">${fe(r.obs)}</p>`:''}</div>`;}).join('')
-      :'<div class="gf-vazio"><i class="fas fa-industry"></i><p>Nenhuma produção registrada neste mês.</p></div>'}</section>`;
+      ${kpiG('laranja','fa-money-bill-wave','Custo produzido',R(custo),tot?`média ${R(custo/tot)} por peça`:'—')}</div>`+sub;
+  if(vista==='ponto')return cab+`<section class="gf-sec"><div class="gf-sec-cab"><div><h3>Ponto da equipe — ${fe(mesNome(k))}</h3><p>Jornada padrão ${fe(jr.entrada)} às ${fe(jr.saida)} (${nf(jr.horas,1)} h). Hora extra = o que passa da jornada; atraso = entrada mais de 10 minutos depois.</p></div></div>
+    ${pm.length?`<div class="pm-rolar"><table class="pm-tab2"><thead><tr><th>Pessoa</th><th class="n">Dias trabalhados</th><th class="n">Horas</th><th class="n">Horas extras</th><th class="n">Atrasos</th><th class="n">Faltas</th><th class="n">Atestados</th><th class="n">Folgas</th></tr></thead><tbody>
+      ${pm.map(x=>`<tr><td><span class="pm-av">${fe(iniciais(x.nome))}</span> <b>${fe(x.nome)}</b><small>${fe(x.funcao)}</small></td><td class="n">${x.dias}</td><td class="n">${nf(x.horas,1)} h</td><td class="n" style="${x.extras>0.01?'color:#B54708;font-weight:700':''}">${nf(x.extras,1)} h</td><td class="n">${x.atrasos||'—'}</td><td class="n" style="${x.falta?'color:#B42318;font-weight:700':''}">${x.falta||'—'}</td><td class="n">${x.atestado||'—'}</td><td class="n">${x.folga||'—'}</td></tr>`).join('')}
+      <tr class="t"><td>Total</td><td class="n">${pm.reduce((s,x)=>s+x.dias,0)}</td><td class="n">${nf(horas,1)} h</td><td class="n">${nf(pm.reduce((s,x)=>s+x.extras,0),1)} h</td><td class="n">${pm.reduce((s,x)=>s+x.atrasos,0)}</td><td class="n">${faltas}</td><td class="n">${pm.reduce((s,x)=>s+x.atestado,0)}</td><td class="n">${pm.reduce((s,x)=>s+x.folga,0)}</td></tr></tbody></table></div>`
+      :'<div class="gf-vazio"><i class="fas fa-user-clock"></i><p>Nenhum ponto marcado neste mês.</p></div>'}</section>`;
+  if(vista==='ensaios'){const cpL=comCP.filter(x=>x.st&&(x.st.k!=='aprovado'||dt(x.l.data)>=lim)).sort((a,b)=>String(b.l.data).localeCompare(String(a.l.data))).slice(0,60);
+    return cab+`<section class="gf-sec"><div class="gf-sec-cab"><div><h3><i class="fas fa-flask" style="color:#7A2FE0"></i> Corpos de prova e ensaios</h3><p>Rompimento aos 7 dias (esperado ≈ 65% do fck) e aos 28 dias (tem de atingir o fck do traço). Clique no lote para registrar o ensaio.</p></div></div>
+      ${cpL.length?`<div class="pm-rolar"><table class="pm-tab2"><thead><tr><th>Lote</th><th>Peça</th><th>Moldagem</th><th class="n">CPs</th><th>7 dias</th><th>28 dias</th><th>Situação</th></tr></thead><tbody>
+      ${cpL.map(({l,st})=>{const e7=st.es.filter(e=>num(e.idade)<28).slice(-1)[0],e28=st.es.filter(e=>num(e.idade)>=28).slice(-1)[0],d=dt(l.data);
+        return `<tr class="pm-lin" data-pm="lote" data-lote="${fe(l.lote)}"><td><b>${fe(l.lote)}</b></td><td>${fe(nomePeca(l.peca))}</td><td>${fe(brDe(d))}</td><td class="n">${nf(l.cp,0)}</td><td>${e7?`${nf(num(e7.resultado),1)} MPa`:`<small>${fe(brDe(addD(d,7)).slice(0,5))}</small>`}</td><td>${e28?`<b>${nf(num(e28.resultado),1)} MPa</b>`:`<small>${fe(brDe(addD(d,28)).slice(0,5))}</small>`}</td><td>${pill(st.rot,st.cor)}</td></tr>`;}).join('')}</tbody></table></div>`
+      :'<div class="gf-vazio ok"><i class="fas fa-circle-check"></i><p>Nenhum ensaio pendente. Informe os CPs (corpos de prova) ao registrar o dia.</p></div>'}</section>`;}
+  const CLI={Sol:'fa-sun','Nublado':'fa-cloud','Chuva fraca':'fa-cloud-rain','Chuva forte':'fa-cloud-showers-heavy'};
+  const dia=r=>{const d=dt(r.data),pt=pontoDe(r),pr=pt.filter(x=>x.status==='presente'),au=pt.filter(x=>x.status!=='presente'),ii=itensProd(r),q=ii.reduce((s,it)=>s+num(it.qtd),0),rf=ii.reduce((s,it)=>s+num(it.refugo),0),
+      hh=pr.reduce((s,x)=>s+(num(x.horas)||horasDe(x.entrada,x.saida,x.intervalo)),0),mm=ii.reduce((s,it)=>{const p=pecaDe(it.peca);return s+(p?geoPeca(p).V*(num(it.qtd)+num(it.refugo)):0);},0);
+    return `<article class="pm-dia2"><div class="pm-dia2-cab"><div class="pm-dia2-dt"><b>${d.getDate()}</b><span>${fe(mesCurto(mesKey(d)))} · ${fe(GS.SEMANA[d.getDay()].slice(0,3))}</span></div>
+      <div class="pm-dia2-meta"><div>${pill(fe(r.turno||'Dia inteiro'),'','fa-clock')}${r.clima?pill(fe(r.clima),'',CLI[r.clima]||'fa-sun'):''}${num(r.betonadas)?pill(nf(num(r.betonadas),0)+' betonada(s)','','fa-blender'):''}${r.ocorrencia&&r.ocorrencia!=='Nenhuma'?pill(fe(r.ocorrencia),'warn','fa-triangle-exclamation'):''}</div>
+        <div class="pm-dia2-num"><span><b>${nf(q,0)}</b> peças</span><span><b>${nf(mm,2)}</b> m³</span><span><b>${q+rf?nf(rf/(q+rf)*100,1):0}%</b> refugo</span><span><b>${nf(hh,1)}</b> h de equipe</span></div></div>
+      <div class="pm-dia2-bt"><button type="button" class="gf-bt mini" data-pm="prod-copiar" data-id="${r.rowid}" title="Novo dia com a mesma equipe e as mesmas peças"><i class="fas fa-copy"></i> Repetir</button><button type="button" class="gf-bt mini pri" data-pm="prod" data-id="${r.rowid}"><i class="fas fa-pen"></i> Abrir</button></div></div>
+      ${pt.length?`<div class="pm-dia2-eq">${pr.map(x=>`<span class="pm-av" title="${fe(x.nome)}${x.entrada?` · ${fe(x.entrada)}–${fe(x.saida||'')}`:''}">${fe(iniciais(x.nome))}</span>`).join('')}<span class="pm-mini">${pr.length} presente(s)</span>${au.map(x=>pill(`${fe(x.nome)} · ${SIT_PT[x.status][0].toLowerCase()}`,SIT_PT[x.status][1])).join('')}</div>`:''}
+      <div class="pm-rolar"><table class="pm-tab2" data-sem-ordem><thead><tr><th></th><th>Peça</th><th>Lote</th><th class="n">Boas</th><th class="n">Refugo</th><th>Ordem</th><th>Cura</th><th class="n">Custo/peça</th></tr></thead><tbody>
+      ${ii.map((it,i)=>{const p=pecaDe(it.peca),lib=addD(d,num(p&&p.cura!=null&&p.cura!==''?p.cura:tipoDePeca(p||{}).cura||7)),o=ordens().find(x=>String(x.rowid)===String(it.ordem||'')),cod=loteDe(r,it,i),l=lts.find(x=>x.lote===cod),st=situacaoLote(l);
+        return `<tr><td style="width:64px"><span class="pm-th" data-th="${p?p.rowid:''}" style="cursor:default">${p?miniPeca(p):''}</span></td><td><b>${fe(p?p.nome:'(peça excluída)')}</b>${num(it.cp)?`<small>${nf(num(it.cp),0)} corpo(s) de prova</small>`:''}</td>
+          <td style="white-space:nowrap"><button type="button" class="gf-bt mini" data-pm="lote" data-lote="${fe(cod)}" title="Paletes/unidades, ensaios, rastreio e etiquetas"><i class="fas fa-tag"></i> ${fe(cod)}</button><small>${l?fe(resumoSub(l)):''}</small>${st?pill(st.rot,st.cor,'fa-flask'):''}</td>
+          <td class="n">${nf(num(it.qtd),0)}</td><td class="n">${num(it.refugo)?nf(num(it.refugo),0):'—'}</td><td>${o?'OP nº '+fe(String(o.numero)):'—'}</td><td>${lib>h?pill('em cura até '+brDe(lib).slice(0,5),'info','fa-hourglass-half'):pill('liberada','ok','fa-check')}</td><td class="n">${R(num(it.custo_un))}</td></tr>`;}).join('')}</tbody></table></div>
+      ${r.obs?`<p class="pm-mini" style="margin:6px 2px 0"><i class="fas fa-note-sticky"></i> ${fe(r.obs)}</p>`:''}</article>`;};
+  return cab+(L.length?L.map(dia).join(''):`<section class="gf-sec"><div class="gf-vazio"><i class="fas fa-industry"></i><p>Nenhuma produção registrada em ${fe(mesNome(k))}.</p><button type="button" class="gf-bt pri" data-pm="prod-nova"><i class="fas fa-plus"></i> Registrar o dia</button></div></section>`);
 }
 function formProducao(reg,pre){
   pre=pre||{};if(!pecas().length)return toast('Cadastre as peças primeiro (Peças e catálogo).','error');
-  const c=CFG(),jor={entrada:'07:00',saida:'17:00',intervalo:60,...(c.jornada||{})},equipe=(c.equipe_lista||[]).filter(x=>x&&x.nome);
-  const b=reg?{...reg,itens:itensProd(reg)}:{data:hojeISO(),turno:'Dia inteiro',clima:'Sol',ocorrencia:'Nenhuma',ponto:[],itens:[{peca:pre.peca||pecas()[0].rowid,ordem:pre.ordem||'',qtd:'',refugo:''}]};
-  const pts=pontoDe(b),ptDe=n=>pts.find(x=>x.nome===n),avulsos=pts.filter(x=>!equipe.some(e=>e.nome===x.nome));
+  const c=CFG(),jr=jornada(),equipe=(c.equipe_lista||[]).filter(x=>x&&x.nome),cp0=pre.copiar;
+  const b=reg?{...reg,itens:itensProd(reg)}:cp0?{data:hojeISO(),turno:cp0.turno,clima:'Sol',ocorrencia:'Nenhuma',ponto:pontoDe(cp0).map(x=>({...x,horas:''})),itens:itensProd(cp0).map(it=>({peca:it.peca,ordem:'',qtd:'',refugo:''}))}
+    :{data:hojeISO(),turno:'Dia inteiro',clima:'Sol',ocorrencia:'Nenhuma',ponto:null,itens:[{peca:pre.peca||pecas()[0].rowid,ordem:pre.ordem||'',qtd:'',refugo:''}]};
+  const pts=b.ponto?pontoDe(b):[],ptDe=n=>pts.find(x=>x.nome===n),avulsos=pts.filter(x=>!equipe.some(e=>e.nome===x.nome));
   const opsOrd=(pid,sel)=>`<option value="">— sem ordem (estoque) —</option>`+ordens().filter(o=>String(o.peca)===String(pid)&&(o.status==='planejada'||o.status==='producao'||String(o.rowid)===String(sel))).map(o=>`<option value="${o.rowid}" ${String(o.rowid)===String(sel)?'selected':''}>OP nº ${o.numero} — ${nf(prodDaOrdem(o.rowid),0)} de ${nf(num(o.qtd),0)}</option>`).join('');
   const cpPad=pid=>pedeCP(tipoDePeca(pecaDe(pid)||{}))?2:'';
   const linIt=it=>`<tr data-item ${it.lote?`data-lote="${fe(it.lote)}"`:''}><td style="width:66px">${thumbBt(it.peca)}</td><td><select data-i="peca">${pecas().map(p=>`<option value="${p.rowid}" ${String(p.rowid)===String(it.peca)?'selected':''}>${fe(p.nome)}</option>`).join('')}</select>${it.lote?`<small class="pm-mini">lote ${fe(it.lote)}</small>`:''}</td>
     <td><select data-i="ordem">${opsOrd(it.peca,it.ordem)}</select></td><td><input data-i="qtd" inputmode="numeric" value="${fe(String(it.qtd||''))}" placeholder="0"></td><td><input data-i="refugo" inputmode="numeric" value="${fe(String(it.refugo||''))}" placeholder="0"></td>
     <td><input data-i="cp" inputmode="numeric" data-sem-mascara="1" value="${fe(String(it.cp!=null&&it.cp!==''?it.cp:(it.lote?'':cpPad(it.peca))))}" placeholder="0" title="Corpos de prova moldados com o concreto desta peça"></td><td><button type="button" class="pm-x" data-pmf="it-x"><i class="fas fa-xmark"></i></button></td></tr>`;
-  const linP=(x,avulso)=>{const pt=ptDe(x.nome)||{},on=avulso||!!ptDe(x.nome);return `<tr data-p ${avulso?'data-avulso="1"':''} data-nome="${fe(x.nome||'')}" data-funcao="${fe(x.funcao||'')}">
-    <td style="width:34px">${avulso?'':`<input type="checkbox" data-pc ${on?'checked':''} style="width:18px;height:18px">`}</td><td>${avulso?`<input data-pn value="${fe(x.nome||'')}" placeholder="Nome (diarista, visitante)">`:`<b>${fe(x.nome)}</b><small class="pm-mini" style="display:block">${fe(x.funcao||'')}</small>`}</td>
-    <td><input type="time" data-pe value="${fe(pt.entrada||jor.entrada)}"></td><td><input type="time" data-ps value="${fe(pt.saida||jor.saida)}"></td><td><input data-pi inputmode="numeric" data-sem-mascara="1" value="${fe(String(pt.intervalo!=null?pt.intervalo:jor.intervalo))}" style="max-width:80px"></td>
-    <td data-ph style="white-space:nowrap;font-weight:700"></td><td>${avulso?'<button type="button" class="pm-x" data-pmf="p-x"><i class="fas fa-xmark"></i></button>':''}</td></tr>`;};
+  const linP=(x,avulso)=>{const pt=ptDe(x.nome)||{},st=pt.status||(b.ponto?'falta':'presente');return `<div class="pm-pt" data-p ${avulso?'data-avulso="1"':''} data-nome="${fe(x.nome||'')}" data-funcao="${fe(x.funcao||'')}">
+    <span class="pm-av">${fe(iniciais(x.nome)||'+')}</span>
+    <div class="pm-pt-nm">${avulso?`<input data-pn value="${fe(x.nome||'')}" placeholder="Nome (diarista, visitante)"><select data-pf>${[...new Set([x.funcao||'Ajudante',...FUNCOES])].map(f=>`<option ${f===(x.funcao||'Ajudante')?'selected':''}>${f}</option>`).join('')}</select>`:`<b>${fe(x.nome)}</b><small>${fe(x.funcao||'')}</small>`}</div>
+    <select data-pst class="pm-pt-st">${Object.entries(SIT_PT).map(([k,[l]])=>`<option value="${k}" ${k===st?'selected':''}>${l}</option>`).join('')}</select>
+    <label class="pm-pt-h"><small>Entrada</small><input type="time" data-pe value="${fe(pt.entrada||jr.entrada)}"></label><label class="pm-pt-h"><small>Saída</small><input type="time" data-ps value="${fe(pt.saida||jr.saida)}"></label>
+    <label class="pm-pt-h"><small>Intervalo</small><input data-pi inputmode="numeric" data-sem-mascara="1" value="${fe(String(pt.intervalo!=null&&pt.intervalo!==''?pt.intervalo:jr.intervalo))}" title="minutos"></label>
+    <div class="pm-pt-r" data-ph></div>${avulso?'<button type="button" class="pm-x" data-pmf="p-x"><i class="fas fa-xmark"></i></button>':'<span></span>'}</div>`;};
   const sel=(k,ops,v)=>`<select data-k="${k}">${ops.map(x=>`<option ${x===v?'selected':''}>${x}</option>`).join('')}</select>`;
-  const j=janela(reg?'Editar o dia de produção':'Registrar o dia de produção',`<div class="fin-linha">
+  const j=janela(reg?'Editar o dia de produção':cp0?'Registrar o dia (repetindo equipe e peças)':'Registrar o dia de produção',`<div class="fin-linha">
       <div class="fin-fld"><label>Data <span class="obg">*</span></label><input type="date" data-k="data" value="${fe(b.data||'')}" max="${hojeISO()}"></div>
       <div class="fin-fld"><label>Turno</label>${sel('turno',TURNOS,b.turno||'Dia inteiro')}</div><div class="fin-fld"><label>Clima</label>${sel('clima',CLIMAS,b.clima||'Sol')}</div>
       <div class="fin-fld"><label>Betonadas feitas</label><input data-k="betonadas" inputmode="numeric" value="${fe(String(b.betonadas||''))}" placeholder="0"></div>
       <div class="fin-fld" style="grid-column:span 2"><label>Ocorrência</label>${sel('ocorrencia',OCORR,b.ocorrencia||'Nenhuma')}</div></div>
-    <div class="pm-bloco" style="margin-top:10px"><h5><i class="fas fa-user-clock"></i> Equipe presente — ponto do dia</h5>
-      ${equipe.length?'':'<p class="pm-mini" style="margin:0 0 6px">Cadastre a equipe da fábrica em <b>Parâmetros › Equipe da fábrica</b> para marcar quem veio com um clique.</p>'}
-      <div class="pm-rolar"><table class="pm-itens pm-ponto"><thead><tr><th></th><th>Pessoa</th><th>Entrada</th><th>Saída</th><th>Intervalo (min)</th><th>Horas</th><th></th></tr></thead><tbody data-ponto>${equipe.map(x=>linP(x,false)).join('')}${avulsos.map(x=>linP(x,true)).join('')}</tbody></table></div>
-      <div style="display:flex;gap:8px;align-items:center;margin-top:6px;flex-wrap:wrap"><button type="button" class="gf-bt mini" data-pmf="p-add"><i class="fas fa-plus"></i> Pessoa avulsa</button><span class="pm-mini" data-p-tot></span></div></div>
+    <div class="pm-bloco" style="margin-top:10px"><div class="pm-pt-cab"><h5 style="margin:0"><i class="fas fa-user-clock"></i> Equipe presente — ponto do dia</h5>
+        <div class="pm-pt-acoes"><button type="button" class="gf-bt mini" data-pmf="p-todos"><i class="fas fa-user-check"></i> Todos presentes</button><button type="button" class="gf-bt mini" data-pmf="p-jornada"><i class="fas fa-clock-rotate-left"></i> Jornada padrão (${fe(jr.entrada)}–${fe(jr.saida)})</button></div></div>
+      <div class="pm-pt-tot" data-p-tot></div>
+      ${equipe.length?'':'<p class="pm-mini" style="margin:0 0 6px">Cadastre a equipe em <b>Parâmetros › Equipe da fábrica</b> para ela aparecer aqui todo dia.</p>'}
+      <div class="pm-pts" data-ponto>${equipe.map(x=>linP(x,false)).join('')}${avulsos.map(x=>linP(x,true)).join('')}</div>
+      <button type="button" class="gf-bt mini" data-pmf="p-add" style="margin-top:8px"><i class="fas fa-plus"></i> Pessoa avulsa</button></div>
     <div class="pm-bloco"><h5><i class="fas fa-cubes"></i> Peças produzidas</h5><div class="pm-rolar"><table class="pm-itens"><thead><tr><th></th><th>Peça</th><th>Ordem de produção</th><th style="width:78px">Boas</th><th style="width:78px">Refugo</th><th style="width:70px" title="Corpos de prova">CPs</th><th></th></tr></thead><tbody data-itens>${(b.itens||[]).map(linIt).join('')}</tbody></table></div>
-      <button type="button" class="gf-bt mini" data-pmf="it-add" style="margin-top:6px"><i class="fas fa-plus"></i> Outra peça</button><p class="pm-mini" style="margin:6px 0 0">Cada peça do dia vira um lote. <b>CPs</b> = corpos de prova moldados (sugestão: 2 para tubos, postes, tampas, lajes e peças estruturais).</p></div>
+      <button type="button" class="gf-bt mini" data-pmf="it-add" style="margin-top:6px"><i class="fas fa-plus"></i> Outra peça</button><p class="pm-mini" style="margin:6px 0 0">Cada peça do dia vira um lote — por palete (peças pequenas) ou por unidade (peças grandes). <b>CPs</b> = corpos de prova moldados (sugestão: 2 em tubos, postes, tampas, lajes e peças estruturais).</p></div>
     <div class="fin-fld"><label>Observações</label><input data-k="obs" value="${fe(b.obs||'')}" placeholder="Ex.: forma 3 trincada, faltou brita à tarde"></div>
     <div class="fin-aviso" style="margin-top:8px"><div data-pr-prev></div></div>`,
     [...(reg?[{html:'<i class="fas fa-trash"></i> Excluir',acao:async()=>{setTimeout(()=>apagarReg(reg,`Produção de ${brDe(dt(reg.data))}`),60);}}]:[]),
@@ -1193,9 +1300,12 @@ function formProducao(reg,pre){
       if(reg&&GS.podeMexer&&!GS.podeMexer(reg))throw new Error(GS.MSG_DONO);
       const g=k=>String(jj.querySelector(`[data-k="${k}"]`).value||'').trim(),o=reg?{...reg}:{tipo:'producao',data_lancamento:todayDateTime()};
       ['data','turno','clima','ocorrencia','obs'].forEach(k=>o[k]=g(k));o.betonadas=num(g('betonadas'));
-      o.ponto=lerPonto(jj);o.equipe=o.ponto.map(x=>x.nome);
+      o.ponto=lerPonto(jj);o.equipe=o.ponto.filter(x=>x.status==='presente').map(x=>x.nome);
       if(!o.data)throw new Error('Informe a data.');if(o.data>hojeISO())throw new Error('A data não pode ser no futuro.');
+      {const tm=travaMes(o,reg);if(tm)return trava('Período fechado',[{ok:false,txt:tm}]);}
+      const ruim=o.ponto.find(x=>x.status==='presente'&&!(x.horas>0));if(ruim)throw new Error(`Confira o ponto de ${ruim.nome}: entrada e saída não dão horas trabalhadas.`);
       const its=lerItensProd(jj);if(!its.length)throw new Error('Informe ao menos uma peça com quantidade.');
+      if(its.some(it=>it.qtd>0)&&!o.ponto.some(x=>x.status==='presente'))return trava('Produção sem equipe presente',[{ok:false,txt:'Marque quem trabalhou no dia (Presente) — produção sem ninguém no ponto não fecha com as horas e o custo da mão de obra.'}]);
       // não se produz sem material: o consumo do dia tem de caber no estoque de insumos (na edição, o consumo antigo volta)
       const devolve={};if(reg)itensProd(reg).forEach(it=>Object.entries(it.consumo||{}).forEach(([k,q])=>devolve[k]=(devolve[k]||0)+num(q)));
       const fl=faltaInsumos(its,devolve);
@@ -1206,34 +1316,40 @@ function formProducao(reg,pre){
         if(ja+q>num(op.qtd))return trava(`OP nº ${op.numero}: passou da quantidade pedida`,[{ok:false,txt:`A ordem pede ${nf(num(op.qtd),0)} peças; já tem ${nf(ja,0)} registradas; este registro soma ${nf(q,0)} — <b>${nf(ja+q-num(op.qtd),0)} a mais</b>. Registre o excedente na mesma peça como "sem ordem (estoque)".`}]);}
       // lote de cada peça: o que já tinha fica; peça nova ganha o próximo número do dia
       const base='L'+ymd(o.data),usados=new Set(lotes().map(l=>l.lote));let seq=0;const prox=()=>{let c2;do{seq++;c2=`${base}-${String(seq).padStart(2,'0')}`;}while(usados.has(c2));usados.add(c2);return c2;};
-      // retrato do dia: consumo (boas + refugo) e custo por peça
+      // retrato do dia: consumo (boas + refugo), custo por peça e o controle do lote (palete ou unidade)
       o.itens=its.map(it=>{const p=pecaDe(it.peca),x=calc(p,it.qtd+it.refugo),u=calc(p,1),cons={};Object.entries(x.est).forEach(([k,q])=>cons[k]=Math.round(q*10000)/10000);
-        return {...it,lote:it.lote||prox(),consumo:cons,custo_un:r2(u.un),custo_mat_un:r2(u.custo.mat),m3:Math.round(x.Vt*10000)/10000};});
+        const old=reg&&it.lote?itensProd(reg).find(z=>z.lote===it.lote):null,ml=old&&old.lmodo?{modo:old.lmodo,pp:old.lpp}:modoLote(p);return {...it,lote:it.lote||prox(),lmodo:ml.modo,lpp:ml.pp,consumo:cons,custo_un:r2(u.un),custo_mat_un:r2(u.custo.mat),m3:Math.round(x.Vt*10000)/10000};});
       ['peca','ordem','qtd','refugo','consumo','custo_un','custo_mat_un','m3'].forEach(k=>delete o[k]);
-      PM.mes=mesKey(dt(o.data));   // a lista do diário passa a mostrar o mês do dia registrado
+      PM.mes=mesKey(dt(o.data));PM.dVista='dias';   // a lista do diário passa a mostrar o mês do dia registrado
       await gravar(o,reg?reg.rowid:null);
       const mud=[];new Set(o.itens.map(it=>it.ordem).filter(Boolean)).forEach(id=>{const op=ordens().find(z=>String(z.rowid)===String(id));if(!op)return;
         if(op.status!=='concluida'&&prodDaOrdem(op.rowid)>=num(op.qtd))mud.push([{...op,status:'concluida',concluida_em:o.data},op.rowid]);else if(op.status==='planejada')mud.push([{...op,status:'producao',inicio:op.inicio||o.data},op.rowid]);});
       if(mud.length)await gravarVarios(mud);
-      toast(`Dia registrado: ${o.itens.length} lote(s) — ${o.itens.map(it=>it.lote).join(', ')}.`,'success');}}],1000);
-  const atPonto=()=>{let t=0,n=0;j.querySelectorAll('[data-p]').forEach(tr=>{const on=tr.dataset.avulso?!!String((tr.querySelector('[data-pn]')||{}).value||'').trim():tr.querySelector('[data-pc]').checked;
-      const hh=horasDe(tr.querySelector('[data-pe]').value,tr.querySelector('[data-ps]').value,tr.querySelector('[data-pi]').value);tr.querySelector('[data-ph]').textContent=on?nf(hh,1)+' h':'—';tr.style.opacity=on?1:0.55;if(on){t+=hh;n++;}});
-    const e=j.querySelector('[data-p-tot]');if(e)e.textContent=n?`${n} presente(s) · ${nf(t,1)} horas no dia`:'';};
+      toast(`Dia registrado: ${o.itens.length} lote(s) — ${o.itens.map(it=>it.lote).join(', ')}.`,'success');}}],1040);
+  const atPonto=()=>{let t=0,n=0,ex=0,aus=0;j.querySelectorAll('[data-p]').forEach(row=>{const nome=row.dataset.avulso?String((row.querySelector('[data-pn]')||{}).value||'').trim():row.dataset.nome,st=row.querySelector('[data-pst]').value,on=st==='presente'&&!!nome;
+      row.querySelectorAll('[data-pe],[data-ps],[data-pi]').forEach(e=>e.disabled=!on);row.classList.toggle('off',!on);
+      const hh=on?horasDe(row.querySelector('[data-pe]').value,row.querySelector('[data-ps]').value,row.querySelector('[data-pi]').value):0,xe=Math.max(0,hh-jr.horas),atr=on&&minDe(row.querySelector('[data-pe]').value)>minDe(jr.entrada)+10;
+      row.querySelector('[data-ph]').innerHTML=on?`<b>${nf(hh,1)} h</b>${xe>0.01?`<span class="x">+${nf(xe,1)} extra</span>`:''}${atr?'<span class="a">atraso</span>':''}`:`<span class="pm-mini">${fe(SIT_PT[st][0])}</span>`;
+      if(on){t+=hh;n++;ex+=xe;}else if(nome&&st!=='folga')aus++;});
+    const e=j.querySelector('[data-p-tot]');if(e)e.innerHTML=`<span><b>${n}</b> presente(s)</span><span><b>${nf(t,1)} h</b> no dia</span>${ex>0.01?`<span class="x"><b>${nf(ex,1)} h</b> extras</span>`:''}${aus?`<span class="a"><b>${aus}</b> ausência(s)</span>`:''}`;};
   const at=()=>{atPonto();const its=lerItensProd(j),e=j.querySelector('[data-pr-prev]');if(!e)return;if(!its.length){e.innerHTML='Informe as peças feitas para ver o que sai do estoque de insumos.';return;}
     const tot={};its.forEach(it=>{const x=calc(pecaDe(it.peca),it.qtd+it.refugo);Object.entries(x.est).forEach(([k,q])=>tot[k]=(tot[k]||0)+q);});const ei=estoqueInsumos();
     e.innerHTML='Sai do estoque: '+INS.filter(i=>tot[i.k]).map(i=>{const f=ei[i.k].saldo<tot[i.k];return `<span style="${f?'color:#B42318;font-weight:700':''}">${i.nome.split(' (')[0].toLowerCase()} ${nf(tot[i.k],2)} ${i.un}${f?' (estoque insuficiente)':''}</span>`;}).join(' · ')+'.';};
   const corpo=j.querySelector('.fin-jan-corpo');
   corpo.addEventListener('change',ev=>{const t=ev.target;if(t.matches('[data-i="peca"]')){const tr=t.closest('tr');tr.querySelector('[data-i="ordem"]').innerHTML=opsOrd(t.value,'');trocarThumb(tr,t.value);const cp=tr.querySelector('[data-i="cp"]');if(cp&&!cp.dataset.mexeu)cp.value=cpPad(t.value);}at();});
-  corpo.addEventListener('input',ev=>{if(ev.target.matches('[data-i="cp"]'))ev.target.dataset.mexeu='1';clearTimeout(j._pmT);j._pmT=setTimeout(at,150);});
+  corpo.addEventListener('input',ev=>{if(ev.target.matches('[data-i="cp"]'))ev.target.dataset.mexeu='1';if(ev.target.matches('[data-pn]')){const av=ev.target.closest('[data-p]').querySelector('.pm-av');if(av)av.textContent=iniciais(ev.target.value)||'+';}clearTimeout(j._pmT);j._pmT=setTimeout(at,150);});
   corpo.addEventListener('click',ev=>{const b2=ev.target.closest('[data-pmf]');if(!b2)return;const f=b2.dataset.pmf;
     if(f==='pick'){const tr=b2.closest('tr'),s=tr.querySelector('[data-i="peca"]');return escolherPeca(s.value,pid=>{s.value=pid;s.dispatchEvent(new Event('change',{bubbles:true}));});}
-    if(f==='it-add'){j.querySelector('[data-itens]').insertAdjacentHTML('beforeend',linIt({peca:pecas()[0].rowid,ordem:'',qtd:'',refugo:''}));pintarFotos(j);}
-    else if(f==='it-x')b2.closest('tr').remove();else if(f==='p-add')j.querySelector('[data-ponto]').insertAdjacentHTML('beforeend',linP({nome:'',funcao:''},true));else if(f==='p-x')b2.closest('tr').remove();at();});
+    if(f==='p-todos')j.querySelectorAll('[data-pst]').forEach(s=>s.value='presente');
+    else if(f==='p-jornada')j.querySelectorAll('[data-p]').forEach(row=>{row.querySelector('[data-pe]').value=jr.entrada;row.querySelector('[data-ps]').value=jr.saida;row.querySelector('[data-pi]').value=jr.intervalo;});
+    else if(f==='it-add'){j.querySelector('[data-itens]').insertAdjacentHTML('beforeend',linIt({peca:pecas()[0].rowid,ordem:'',qtd:'',refugo:''}));pintarFotos(j);}
+    else if(f==='it-x')b2.closest('tr').remove();else if(f==='p-add')j.querySelector('[data-ponto]').insertAdjacentHTML('beforeend',linP({nome:'',funcao:'Ajudante'},true));else if(f==='p-x')b2.closest('[data-p]').remove();at();});
   pintarFotos(j);at();
 }
-function lerPonto(j){return [...j.querySelectorAll('[data-p]')].map(tr=>{const av=!!tr.dataset.avulso,nome=av?String((tr.querySelector('[data-pn]')||{}).value||'').trim():tr.dataset.nome;
-  if(!nome||(!av&&!tr.querySelector('[data-pc]').checked))return null;const entrada=tr.querySelector('[data-pe]').value,saida=tr.querySelector('[data-ps]').value,intervalo=num(tr.querySelector('[data-pi]').value);
-  return {nome,funcao:av?'Avulso':tr.dataset.funcao,entrada,saida,intervalo,horas:Math.round(horasDe(entrada,saida,intervalo)*100)/100};}).filter(Boolean);}
+function lerPonto(j){return [...j.querySelectorAll('[data-p]')].map(row=>{const av=!!row.dataset.avulso,nome=av?String((row.querySelector('[data-pn]')||{}).value||'').trim():row.dataset.nome;if(!nome)return null;
+  const status=row.querySelector('[data-pst]').value,funcao=av?(row.querySelector('[data-pf]')||{}).value||'Avulso':row.dataset.funcao;
+  if(status!=='presente')return {nome,funcao,status};const entrada=row.querySelector('[data-pe]').value,saida=row.querySelector('[data-ps]').value,intervalo=num(row.querySelector('[data-pi]').value);
+  return {nome,funcao,status,entrada,saida,intervalo,horas:Math.round(horasDe(entrada,saida,intervalo)*100)/100};}).filter(Boolean);}
 function lerItensProd(j){return [...j.querySelectorAll('[data-item]')].map(tr=>({peca:tr.querySelector('[data-i="peca"]').value,ordem:tr.querySelector('[data-i="ordem"]').value,qtd:num(tr.querySelector('[data-i="qtd"]').value),refugo:num(tr.querySelector('[data-i="refugo"]').value),cp:num((tr.querySelector('[data-i="cp"]')||{}).value),lote:tr.dataset.lote||''})).filter(it=>pecaDe(it.peca)&&(it.qtd>0||it.refugo>0));}
 
 /* ═══════════════ ESTOQUE E AVARIAS ═══════════════ */
@@ -1299,7 +1415,7 @@ function formAvaria(reg,pecaPre,pre){
       if(vendaEntregue(o.venda)){const ent=(v.itens||[]).filter(it=>String(it.peca)===String(o.peca)).reduce((s,it)=>s+num(it.qtd),0),ja=T('avaria').filter(a=>String(a.venda)===String(o.venda)&&String(a.peca)===String(o.peca)&&(!reg||String(a.rowid)!==String(reg.rowid))).reduce((s,a)=>s+num(a.qtd),0);
         if(o.qtd>ent-ja)return trava('Avaria maior do que foi entregue',[{ok:ent>0,txt:`A venda nº ${v.numero} entregou ${nf(ent,0)} peça(s) de ${fe(nomePeca(o.peca))}`},{ok:false,txt:`Já há ${nf(ja,0)} avariada(s) nessa entrega — dá para registrar no máximo ${nf(Math.max(0,ent-ja),0)}`}]);
         if(repor&&o.qtd>x.disp)return trava('Sem peças para repor',[{ok:false,txt:`Repor ${nf(o.qtd,0)} peça(s) exige estoque pronto — há ${nf(Math.max(0,x.disp),0)}. Desmarque "Repor" e reponha depois, quando houver peça.`}]);}
-      o.custo_un=r2(x.custoUn||calc(pecaDe(o.peca),1).un);
+      o.custo_un=r2(x.custoUn||calc(pecaDe(o.peca),1).un);o.por=o.por||eu();
       const ops=[[o,reg?reg.rowid:null]];if(repor)ops.push([{tipo:'ajuste',data:o.data,item:'peca:'+o.peca,qtd:-o.qtd,motivo:`reposição de avaria — venda nº ${v.numero}`,data_lancamento:todayDateTime()},null]);
       await gravarVarios(ops);toast(repor?'Avaria registrada e peças repostas ao cliente (saíram do estoque).':'Avaria registrada.','success');}}],640);
   const at=()=>{const p=pecaDe(j.querySelector('[data-k="peca"]').value),q=num(j.querySelector('[data-k="qtd"]').value),og=j.querySelector('[data-k="origem"]').value,vd=j.querySelector('[data-k="venda"]').value,x=estoque().P[String(p&&p.rowid)],cu=x?x.custoUn:(p?calc(p,1).un:0),ent=vendaEntregue(vd);
@@ -1350,7 +1466,7 @@ function formAjuste(reg,itemPre){
       if(reg&&GS.podeMexer&&!GS.podeMexer(reg))throw new Error(GS.MSG_DONO);
       const g=k=>jj.querySelector(`[data-k="${k}"]`),it=g('item').value,sist=saldoDe(it)-(reg&&reg.item===it?num(reg.qtd):0),fis=num(g('fisico').value);
       if(String(g('fisico').value).trim()==='')throw new Error('Informe a contagem física.');
-      const o=reg?{...reg}:{tipo:'ajuste',data_lancamento:todayDateTime()};o.data=g('data').value;o.item=it;o.qtd=Math.round((fis-sist)*10000)/10000;o.motivo=g('motivo').value.trim();
+      const o=reg?{...reg}:{tipo:'ajuste',data_lancamento:todayDateTime()};o.data=g('data').value;o.item=it;o.qtd=Math.round((fis-sist)*10000)/10000;o.motivo=g('motivo').value.trim();if(!o.motivo)throw new Error('Informe o motivo do acerto (ex.: inventário do mês, saco empedrado, peça achada).');o.por=eu();
       if(!o.data)throw new Error('Informe a data.');if(Math.abs(o.qtd)<1e-6)throw new Error('A contagem bate com o sistema: não há acerto a lançar.');
       await gravar(o,reg?reg.rowid:null);toast('Acerto lançado.','success');}}],600);
   const at=()=>{const it=j.querySelector('[data-k="item"]').value,sist=saldoDe(it)-(reg&&reg.item===it?num(reg.qtd):0),f=j.querySelector('[data-k="fisico"]').value,un=it.startsWith('peca:')?'peças':insDe(it.slice(7)).un;
@@ -1694,8 +1810,9 @@ function fichaVenda(v){
   bts.push({html:`<i class="fas fa-print"></i> ${f==='entregue'||pago>=tot-0.009?'Comprovante':'Imprimir pedido'}`,acao:async()=>{imprimirVenda(v);return false;}});
   if(v.status!=='cancelada'&&((v.nf||{}).quer||f==='entregue'))bts.push({html:'<i class="fas fa-file-invoice"></i> Anexar nota fiscal',acao:async()=>{anexarNota(v);return false;}});
   if(['sinal','producao','pagamento','liberado'].includes(f)&&pago<tot-0.009)bts.push({html:'<i class="fas fa-hand-holding-dollar"></i> Registrar pagamento',acao:async()=>{setTimeout(()=>registrarPagamento(v),60);}});
-  // cancelar: só o Administrador e só enquanto a produção da venda não começou
-  if(['sinal','producao','pagamento','liberado'].includes(f)&&ehAdm()&&!iniciada)bts.push({html:'<i class="fas fa-ban"></i> Cancelar venda',acao:async()=>{setTimeout(()=>cancelarVenda(v),60);}});
+  // cancelar: só o Administrador (antes da entrega a produção feita fica no estoque; depois, é a devolução de tudo)
+  if(['sinal','producao','pagamento','liberado','entregue'].includes(f)&&ehAdm())bts.push({html:'<i class="fas fa-ban"></i> Cancelar venda',acao:async()=>{setTimeout(()=>cancelarVenda(v),60);}});
+  if(f==='entregue'&&ehAdm()&&pago>0.009)bts.push({html:'<i class="fas fa-hand-holding-dollar"></i> Estorno sem devolução',acao:async()=>{setTimeout(()=>estornoSimples(v),60);}});
   if(f==='entregue')bts.push({html:'<i class="fas fa-rotate-left"></i> Devolução / estorno',acao:async()=>{setTimeout(()=>devolver(v),60);}});
   if(f==='entregue')bts.push({html:'<i class="fas fa-heart-crack"></i> Avaria na entrega',acao:async()=>{setTimeout(()=>formAvaria(null,(v.itens||[])[0]&&v.itens[0].peca,{venda:v.rowid,origem:'transporte'}),60);}});
   if(!['entregue','devolvida','cancelada'].includes(v.status))bts.push({html:'<i class="fas fa-calendar-days"></i> Agendar entrega',acao:async()=>{setTimeout(()=>formAgenda(v),60);}});
@@ -1705,7 +1822,7 @@ function fichaVenda(v){
   const extra=`${v.agenda&&v.agenda.data&&f!=='entregue'?`<p class="pm-mini" style="margin:8px 0 0"><i class="fas fa-calendar-check"></i> Entrega agendada: <b>${fe(brDe(dt(v.agenda.data)))}</b>${v.agenda.periodo?' · '+fe(v.agenda.periodo):''}${v.agenda.caminhao?' · '+fe(v.agenda.caminhao):''}${v.agenda.obs?' · '+fe(v.agenda.obs):''}</p>`:''}
     ${v.vendedor?`<p class="pm-mini" style="margin:4px 0 0"><i class="fas fa-user-tie"></i> Vendedor: ${fe(v.vendedor)}${num(v.comissao_pct)?` · comissão ${nf(num(v.comissao_pct),1)}% = ${R(baseComissao(v)*num(v.comissao_pct)/100)}`:''}</p>`:''}
     ${v.frete_info?`<p class="pm-mini" style="margin:4px 0 0"><i class="fas fa-route"></i> Frete: ${fe(v.frete_info)}</p>`:''}
-    ${lts.length?`<p class="pm-mini" style="margin:4px 0 0"><i class="fas fa-tag"></i> Lotes entregues (pela ordem de saída): ${lts.map(x=>`${fe(x.lote)} (${nf(x.qtd,0)} × ${fe(nomePeca(x.peca))})`).join(' · ')}</p>`:''}`;
+    ${lts.length?`<p class="pm-mini" style="margin:4px 0 0"><i class="fas fa-tag"></i> Lotes entregues (pela ordem de saída): ${lts.map(x=>`${fe(x.cod||x.lote)} (${nf(x.qtd,0)} × ${fe(nomePeca(x.peca))})`).join(' · ')}</p>`:''}`;
   const pend=f==='sinal'?`Falta o sinal de <b>${R(Math.max(0,tot*num(c.sinal)/100-pago))}</b> (${nf(num(c.sinal),0)}%) para reservar as peças e começar a produção.`:f==='producao'?`Peças em produção: ${ops.length?ops.map(o=>`OP nº ${o.numero} (${nf(prodDaOrdem(o.rowid),0)}/${nf(num(o.qtd),0)})`).join(', '):'aguardando peça pronta do estoque'}.`:f==='pagamento'?`Peças prontas. Falta receber <b>${R(tot-pago)}</b> para liberar a entrega.`:f==='liberado'?'Pago e com as peças prontas: <b>pode entregar</b>.':'';
   janela(`Venda nº ${v.numero}`,`<div class="fin-resumo"><b>${fe(v.cliente||'')}</b>${v.telefone?' · '+fe(v.telefone):''}${v.doc?' · '+fe(v.doc):''} · ${v.tipo_venda==='pronta'?'pronta entrega':'encomenda'} · ${v.canal==='atacado'?'atacado':'varejo'}<br>${fe((FASES_V.find(x=>x.k===f)||{rot:v.status}).rot)}${v.data?' · pedido em '+brDe(dt(v.data)):''}${v.prazo_entrega?' · entrega prevista '+brDe(dt(v.prazo_entrega)):''}${v.entrega?' · entregue em '+brDe(dt(v.entrega)):''}</div>
     ${pend?`<div class="fin-aviso ${f==='liberado'?'':'laranja'}" style="margin-top:8px"><div>${pend}</div></div>`:''}
@@ -1716,9 +1833,7 @@ function fichaVenda(v){
     ${(v.pagamentos||[]).length?`<h5 style="margin:10px 0 4px;font:800 12px Inter">Pagamentos</h5><ul class="pm-arml">${(v.pagamentos||[]).map(p=>`<li${p.tipo==='estorno'?' style="background:#FEF3F2"':''}><i class="fas ${p.tipo==='estorno'?'fa-rotate-left':'fa-circle-dollar-to-slot'}" style="color:${p.tipo==='estorno'?'#B42318':'#067647'}"></i><span>${fe(brDe(dt(p.data)))} · <b>${p.tipo==='estorno'?'estorno −':''}${R(num(p.valor))}</b> · ${fe(p.forma||'')} · ${fe(p.tipo||'')}${p.obs?' · '+fe(p.obs):''}</span></li>`).join('')}</ul>`:''}
     ${endTxt(v.end)?`<p class="pm-mini" style="margin:8px 0 0"><i class="fas fa-location-dot"></i> ${fe(endTxt(v.end))}</p>`:''}${(v.nf||{}).quer?`<p class="pm-mini" style="margin:4px 0 0"><i class="fas fa-file-invoice"></i> Cliente quer nota fiscal${(v.nf||{}).numero?' — NF nº '+fe(v.nf.numero):' (ainda sem número)'}.</p>`:''}${v.obs?`<p class="pm-mini" style="margin:4px 0 0">${fe(v.obs)}</p>`:''}${extra}<div data-nf-arqs style="margin-top:6px"></div>`,bts,820);
   // arquivos da nota fiscal anexada (XML / PDF)
-  arquivosNota(v).then(L=>{const box=document.querySelector('#fin-jan [data-nf-arqs]');if(!box||!L.length)return;
-    box.innerHTML=`<div class="pm-at az" style="white-space:normal"><i class="fas fa-file-invoice"></i> Nota fiscal${(v.nf||{}).numero?' nº '+fe(v.nf.numero):''}: ${L.map((a,i)=>`<a href="#" data-nfa="${i}" style="color:#1652D8;font-weight:800">${a.doc==='xml'?'XML':'PDF'}</a>`).join(' · ')}</div>`;
-    box.addEventListener('click',ev=>{const a=ev.target.closest('[data-nfa]');if(!a)return;ev.preventDefault();GS.docs.baixarArq(L[+a.dataset.nfa],true);});});
+  pintarNotas(v);
 }
 function registrarPagamento(v){
   const c=CFG(),tot=totalVenda(v),pago=pagoDe(v),sinalFalta=r2(Math.max(0,tot*num(c.sinal)/100-pago)),saldo=r2(tot-pago);
@@ -1728,7 +1843,7 @@ function registrarPagamento(v){
     <div class="fin-fld"><label>Forma</label><select data-k="forma">${FORMAS_PG.map(x=>`<option>${x}</option>`).join('')}</select></div>
     <div class="fin-fld" style="grid-column:1/-1"><label>Observação</label><input data-k="obs"></div></div>`,
     [{html:'<i class="fas fa-circle-check"></i> Confirmar pagamento',cls:'pri',acao:async j=>{const g=k=>j.querySelector(`[data-k="${k}"]`).value,val=r2(num(g('valor')));
-      if(!(val>0))throw new Error('Informe o valor.');if(val>saldo+0.009)throw new Error(`O valor passa do saldo (${R(saldo)}).`);if(!g('data'))throw new Error('Informe a data.');
+      if(!(val>0))throw new Error('Informe o valor.');if(v.data&&g('data')&&g('data')<v.data)throw new Error('O pagamento não pode ser antes da data do pedido.');if(val>saldo+0.009)throw new Error(`O valor passa do saldo (${R(saldo)}).`);if(!g('data'))throw new Error('Informe a data.');
       const o=vendaBruta(v);o.pagamentos=(o.pagamentos||[]).concat([{data:g('data'),valor:val,forma:g('forma'),tipo:o.status==='aguardando_sinal'?'sinal':'pagamento',obs:g('obs'),por:eu()}]);
       let reservou=false;if(o.status==='aguardando_sinal'&&pagoDe(o)>=r2(tot*num(c.sinal)/100)-0.009){o.status='reservado';reservou=true;}
       await gravar(o,v.rowid);toast(reservou?'Sinal recebido: peças reservadas.':'Pagamento registrado.','success');
@@ -1745,18 +1860,45 @@ function entregar(v){
     <p class="pm-mini">Peça quebrada no caminho: registre depois em <b>Avaria na entrega</b>.</p>`,
     [{html:'<i class="fas fa-truck"></i> Confirmar entrega',cls:'pri',acao:async j=>{const e=j.querySelector('[data-k="entrega"]').value;if(!e)throw new Error('Informe a data da entrega.');
       if(v.data&&e<v.data)throw new Error('A entrega não pode ser antes da data do pedido.');
-      const o=vendaBruta(v);o.status='entregue';o.entrega=e;o.caminhao=j.querySelector('[data-k="caminhao"]').value;o.recebedor=j.querySelector('[data-k="recebedor"]').value.trim();if(j.querySelector('[data-k="nf"]'))o.nf={...(o.nf||{}),numero:j.querySelector('[data-k="nf"]').value.trim()};
+      const o=vendaBruta(v);o.status='entregue';o.entrega=e;o.entregue_por=eu();o.caminhao=j.querySelector('[data-k="caminhao"]').value;o.recebedor=j.querySelector('[data-k="recebedor"]').value.trim();if(j.querySelector('[data-k="nf"]'))o.nf={...(o.nf||{}),numero:j.querySelector('[data-k="nf"]').value.trim()};
       await gravar(o,v.rowid);toast(`Venda nº ${v.numero} entregue: peças baixadas do estoque.`,'success');}}],560);
 }
+// estorno só em dinheiro (o cliente fica com as peças: abatimento combinado, defeito pequeno) — não mexe no estoque
+function estornoSimples(v){
+  const pago=pagoDe(v);
+  janela(`Estorno sem devolução — venda nº ${v.numero}`,`<div class="fin-aviso"><div>O cliente <b>fica com as peças</b> (o estoque não muda); só o dinheiro volta. Para devolver peças, use <b>Devolução / estorno</b>.</div></div>
+    <div class="fin-linha" style="margin-top:8px"><div class="fin-fld"><label>Valor do estorno (R$) <span class="obg">*</span></label><input data-k="estorno" data-mask="moeda"></div><div class="fin-fld"><label>Forma</label><select data-k="forma">${FORMAS_PG.map(x=>`<option>${x}</option>`).join('')}</select></div>
+    <div class="fin-fld" style="grid-column:1/-1"><label>Motivo <span class="obg">*</span></label><input data-k="motivo" placeholder="Ex.: abatimento por atraso, peça com defeito de acabamento"></div></div><p class="pm-mini">Já pago: <b>${R(pago)}</b>.</p>`,
+    [{html:'<i class="fas fa-hand-holding-dollar"></i> Lançar estorno',cls:'pri',acao:async j=>{if(!ehAdm())throw new Error('Só o Administrador lança estorno.');const g=k=>j.querySelector(`[data-k="${k}"]`).value.trim(),est=r2(num(g('estorno')));
+      if(!(est>0))throw new Error('Informe o valor.');if(!g('motivo'))throw new Error('Informe o motivo.');if(est>pago+0.009)return trava('Estorno maior do que foi pago',[{ok:false,txt:`Pago: ${R(pago)} — o estorno não pode passar disso.`}]);
+      const o=vendaBruta(v);o.pagamentos=(o.pagamentos||[]).concat([{data:hojeISO(),valor:est,forma:g('forma'),tipo:'estorno',obs:'abatimento: '+g('motivo'),por:eu()}]);o.abatimentos=r2(num(o.abatimentos)+est);
+      await gravar(o,v.rowid);toast('Estorno lançado (as peças ficam com o cliente).','success');}}],560);
+}
+// cancelar (só o Administrador): antes da entrega, a produção já feita fica no estoque e o restante pode parar;
+// depois da entrega, cancelar = devolver tudo (peça boa volta ao estoque, avariada vira perda) + estorno
 function cancelarVenda(v){
-  const pago=pagoDe(v),ops=opsDaVenda(v);
-  janela(`Cancelar a venda nº ${v.numero}`,`<div class="fin-aviso laranja"><div>A venda fica <b>cancelada</b>, as peças voltam a ficar livres${ops.length?` e ${ops.length} ordem(ns) de produção (não iniciadas) são canceladas`:''}.</div></div>
-    <div class="fin-linha" style="margin-top:8px"><div class="fin-fld"><label>Estorno ao cliente (R$)</label><input data-k="estorno" data-mask="moeda" value="${fe(R(pago))}"></div><div class="fin-fld"><label>Forma do estorno</label><select data-k="forma">${FORMAS_PG.map(x=>`<option>${x}</option>`).join('')}</select></div>
-    <div class="fin-fld" style="grid-column:1/-1"><label>Motivo <span class="obg">*</span></label><input data-k="motivo" placeholder="Ex.: cliente desistiu"></div></div>`,
-    [{html:'<i class="fas fa-ban"></i> Cancelar a venda',cls:'pri',acao:async j=>{if(!ehAdm())throw new Error('Só o Administrador pode cancelar.');const g=k=>j.querySelector(`[data-k="${k}"]`).value.trim(),est=r2(num(g('estorno')));
-      if(!g('motivo'))throw new Error('Informe o motivo.');if(est>pago+0.009)throw new Error(`O estorno não pode passar do que foi pago (${R(pago)}).`);
-      const o=vendaBruta(v);o.status='cancelada';o.cancelada_em=hojeISO();o.motivo_cancelamento=g('motivo');if(est>0)o.pagamentos=(o.pagamentos||[]).concat([{data:hojeISO(),valor:est,forma:g('forma'),tipo:'estorno',obs:'cancelamento: '+g('motivo'),por:eu()}]);
-      await gravarVarios([[o,v.rowid]].concat(ops.map(op=>[{...op,status:'cancelada',obs:(op.obs?op.obs+' · ':'')+'venda cancelada'},op.rowid])));toast('Venda cancelada.','success');}}],560);
+  if(!ehAdm())return toast('Só o Administrador pode cancelar uma venda.','error');
+  const pago=pagoDe(v),ops=opsDaVenda(v),entregue=v.status==='entregue';
+  const jaDev={};(v.devolucoes||[]).forEach(dv=>(dv.itens||[]).forEach(it=>jaDev[it.peca]=(jaDev[it.peca]||0)+num(it.qtd)));
+  const resta=(v.itens||[]).map((it,i)=>({i,peca:it.peca,preco:num(it.preco),max:Math.max(0,num(it.qtd)-(jaDev[it.peca]||0))})).filter(x=>x.max>0);
+  const opsInfo=ops.map(o=>({o,feito:prodDaOrdem(o.rowid)}));
+  const deps=entregue?[{ok:true,txt:'A venda já foi entregue: cancelar registra a <b>devolução de tudo</b> o que ainda está com o cliente.'},{ok:true,txt:'Peça boa volta ao estoque; peça avariada entra nas perdas (não volta).'}]
+    :[...opsInfo.map(({o,feito})=>({ok:true,txt:feito?`OP nº ${o.numero}: ${nf(feito,0)} de ${nf(num(o.qtd),0)} peças já feitas — <b>ficam no estoque</b> para outras vendas${feito<num(o.qtd)?'; o restante para (a ordem é concluída com o que foi feito)':''}.`:`OP nº ${o.numero}: nada produzido — <b>é cancelada</b>.`})),{ok:true,txt:'As peças reservadas voltam a ficar livres no estoque.'}];
+  const j=janela(`Cancelar a venda nº ${v.numero}`,`<ul class="pm-arml" style="margin-bottom:10px">${deps.map(d=>`<li><i class="fas fa-circle-info" style="color:#1652D8"></i><span>${d.txt}</span></li>`).join('')}</ul>
+    ${entregue&&resta.length?`<div class="pm-rolar"><table class="pm-itens"><thead><tr><th>Peça com o cliente</th><th style="width:90px">Quant.</th><th>Situação da peça</th></tr></thead><tbody>${resta.map(x=>`<tr data-cr="${x.i}"><td>${fe(nomePeca(x.peca))}</td><td>${nf(x.max,0)}</td><td><select data-d="destino"><option value="estoque">Boa — volta ao estoque</option><option value="avaria">Avariada — perda</option></select></td></tr>`).join('')}</tbody></table></div>`:''}
+    <div class="fin-linha" style="margin-top:8px"><div class="fin-fld"><label>Estorno ao cliente (R$)</label><input data-k="estorno" data-mask="moeda" value="${fe(R(Math.max(0,pago)))}"></div><div class="fin-fld"><label>Forma do estorno</label><select data-k="forma">${FORMAS_PG.map(x=>`<option>${x}</option>`).join('')}</select></div>
+    <div class="fin-fld" style="grid-column:1/-1"><label>Motivo <span class="obg">*</span></label><input data-k="motivo" placeholder="Ex.: cliente desistiu, obra parada"></div></div>
+    <p class="pm-mini">Já pago pelo cliente: <b>${R(pago)}</b>. O estorno pode ser menor (ex.: sinal retido como multa, se combinado).</p>`,
+    [{html:'<i class="fas fa-ban"></i> Cancelar a venda',cls:'pri',acao:async jj=>{if(!ehAdm())throw new Error('Só o Administrador pode cancelar.');
+      const g=k=>jj.querySelector(`[data-k="${k}"]`).value.trim(),est=r2(num(g('estorno')));if(!g('motivo'))throw new Error('Informe o motivo.');
+      if(est<0||est>pago+0.009)return trava('Estorno maior do que foi pago',[{ok:false,txt:`Pago pelo cliente: ${R(pago)} — o estorno não pode passar disso.`}]);
+      const hoje=hojeISO(),o=vendaBruta(v),mud=[];o.cancelada_em=hoje;o.cancelada_por=eu();o.motivo_cancelamento=g('motivo');
+      if(est>0)o.pagamentos=(o.pagamentos||[]).concat([{data:hoje,valor:est,forma:g('forma'),tipo:'estorno',obs:'cancelamento: '+g('motivo'),por:eu()}]);
+      if(entregue){const its=[...jj.querySelectorAll('[data-cr]')].map(tr=>{const x=resta.find(r=>String(r.i)===tr.dataset.cr);return {peca:x.peca,qtd:x.max,destino:tr.querySelector('[data-d="destino"]').value,preco:x.preco};});
+        if(its.length)o.devolucoes=(o.devolucoes||[]).concat([{data:hoje,itens:its,estorno:est,motivo:'cancelamento: '+g('motivo'),por:eu()}]);o.status='devolvida';
+        const E=estoque();its.filter(x=>x.destino==='avaria').forEach(x=>{const e=E.P[String(x.peca)];mud.push([{tipo:'avaria',data:hoje,peca:x.peca,qtd:x.qtd,origem:'cliente',causa:'cancelamento: '+g('motivo'),venda:String(v.rowid),custo_un:r2(e?e.custoUn:0),por:eu(),data_lancamento:todayDateTime()},null]);});}
+      else{o.status='cancelada';opsInfo.forEach(({o:op,feito})=>mud.push([feito?{...op,venda:'',cliente:`Estoque (venda nº ${v.numero} cancelada)`,qtd:feito,status:'concluida',concluida_em:op.concluida_em||hoje,obs:(op.obs?op.obs+' · ':'')+'venda cancelada: produção feita fica no estoque'}:{...op,status:'cancelada',obs:(op.obs?op.obs+' · ':'')+'venda cancelada'},op.rowid]));}
+      await gravarVarios([[o,v.rowid]].concat(mud));toast(entregue?'Venda cancelada: devolução registrada e estorno lançado.':'Venda cancelada.','success');}}],680);
 }
 function devolver(v){
   const ja={};(v.devolucoes||[]).forEach(dv=>(dv.itens||[]).forEach(it=>ja[it.peca]=(ja[it.peca]||0)+num(it.qtd)));
@@ -1792,7 +1934,7 @@ function imprimirVenda(v){
     ${caixa('ENTREGA',[v.entrega?`Entregue em <b>${fe(brDe(dt(v.entrega)))}</b>${v.recebedor?' — recebido por '+fe(v.recebedor):''}`:v.agenda&&v.agenda.data?`Agendada para <b>${fe(brDe(dt(v.agenda.data)))}</b> (${fe(v.agenda.periodo||'')})`:v.prazo_entrega?`Prevista para ${fe(brDe(dt(v.prazo_entrega)))}`:'A combinar',v.frete_info?'Frete: '+fe(v.frete_info):''])}
     ${caixa('NOTA FISCAL',[nfx.numero?`NF-e nº <b>${fe(nfx.numero)}</b>${nfx.serie?' série '+fe(nfx.serie):''}`:nfx.quer?'Será emitida (NF-e)':'Não solicitada',nfx.chave?`<span style="font-size:8.5px;letter-spacing:.02em">Chave ${fe(nfx.chave.replace(/(\d{4})(?=\d)/g,'$1 '))}</span>`:''])}</div>`;
   const rows=(v.itens||[]).map(it=>{const p=pecaDe(it.peca),t=tipoDePeca(p||{}),ncm=(p&&p.ncm)||CAT.ncmDe(t);
-    return `<tr><td>${fe(p&&p.codigo||'')}</td><td>${fe(nomePeca(it.peca))}<br><small style="color:#6e6e73">${fe(p?geoPeca(p).desc:'')}${lts.filter(x=>String(x.peca)===String(it.peca)).length?' · lote '+lts.filter(x=>String(x.peca)===String(it.peca)).map(x=>fe(x.lote)).join(', '):''}</small></td><td>${fe(ncm)}</td><td style="text-align:right">${nf(num(it.qtd),0)} pç</td><td style="text-align:right">${R(num(it.preco))}</td><td style="text-align:right">${R(num(it.qtd)*num(it.preco))}</td></tr>`;});
+    return `<tr><td>${fe(p&&p.codigo||'')}</td><td>${fe(nomePeca(it.peca))}<br><small style="color:#6e6e73">${fe(p?geoPeca(p).desc:'')}${lts.filter(x=>String(x.peca)===String(it.peca)).length?' · lote '+[...new Set(lts.filter(x=>String(x.peca)===String(it.peca)).map(x=>x.cod||x.lote))].map(fe).join(', '):''}</small></td><td>${fe(ncm)}</td><td style="text-align:right">${nf(num(it.qtd),0)} pç</td><td style="text-align:right">${R(num(it.preco))}</td><td style="text-align:right">${R(num(it.qtd)*num(it.preco))}</td></tr>`;});
   const pags=(v.pagamentos||[]).map(p=>`${fe(brDe(dt(p.data)))} · ${p.tipo==='estorno'?'estorno −':''}${R(num(p.valor))} · ${fe(p.forma||'')}`).join('<br>');
   App._relExportPaginado({titulo:`${comp?'Comprovante de venda':'Pedido de venda'} nº ${v.numero}`,subLinhas:[`${fe(v.cliente||'')} · ${fe(brDe(dt(v.data)))}`],preHtml:pre,
     theadHtml:'<tr><th style="width:9%">Código</th><th style="width:43%">Peça</th><th style="width:12%">NCM</th><th style="width:10%;text-align:right">Quant.</th><th style="width:12%;text-align:right">Unitário</th><th style="width:14%;text-align:right">Total</th></tr>',rowsArr:rows,
@@ -1814,6 +1956,14 @@ function anexarNota(v){
       if(info&&info.valor&&Math.abs(info.valor-totalVenda(v))>0.05)toast(`Atenção: a nota é de ${R(info.valor)} e a venda de ${R(totalVenda(v))}.`,'error');
       await gravar(o,v.rowid);toast(info?`Nota nº ${info.numero} anexada à venda.`:'Arquivo da nota anexado.','success');}catch(e){toast(e.message||String(e),'error');}finally{UI._hideBusy();}};inp.click();
 }
+// arquivos da nota na ficha da venda: abrir e excluir (sem o XML, número e chave da nota saem da venda)
+async function pintarNotas(v){const L=await arquivosNota(v),box=document.querySelector('#fin-jan [data-nf-arqs]');if(!box)return;if(!L.length){box.innerHTML='';return;}
+  box.innerHTML=`<div class="pm-arqs"><b><i class="fas fa-file-invoice"></i> Nota fiscal${(v.nf||{}).numero?' nº '+fe(v.nf.numero):''}</b>${L.map((a,i)=>`<span class="pm-arq"><a href="#" data-nfa="${i}">${a.doc==='xml'?'XML':'PDF'} · ${fe(a.nome||'')}</a>${podeApagarArq(a)?`<button type="button" data-nfdel="${i}" title="Excluir este arquivo"><i class="fas fa-xmark"></i></button>`:''}</span>`).join('')}</div>`;
+  box.onclick=ev=>{const o=ev.target.closest('[data-nfa]');if(o){ev.preventDefault();return GS.docs.baixarArq(L[+o.dataset.nfa],true);}
+    const d=ev.target.closest('[data-nfdel]');if(!d)return;const a=L[+d.dataset.nfdel];
+    perguntar('Excluir o arquivo da nota?',`${a.doc==='xml'?'Sem o XML, o número e a chave da nota saem da venda (o comprovante volta a dizer "será emitida").':'O PDF da nota sai da venda.'}`,'Excluir arquivo',async()=>{UI._showBusy('Excluindo…');
+      try{await excluirAnexoFab(a);if(a.doc==='xml'&&!L.some(x=>x!==a&&x.doc==='xml')){const o2=vendaBruta(v);o2.nf={...(o2.nf||{}),numero:'',serie:'',chave:'',emissao:'',valor:0};await gravar(o2,v.rowid);}}finally{UI._hideBusy();}
+      toast('Arquivo da nota excluído.','success');const v2=vendaDe(v.rowid);if(v2&&document.querySelector('#fin-jan [data-nf-arqs]'))pintarNotas(v2);});};}
 async function arquivosNota(v){if(!GS.docs||!GS.docs.listarArq)return [];try{return (await GS.docs.listarArq(OB_FAB,true)).filter(a=>a.aba==='pm_nf'&&String(a.venda)===String(v.rowid));}catch(e){return [];}}
 
 /* ═══════════════ FLUXO DE CAIXA ═══════════════ */
@@ -1959,6 +2109,9 @@ function telaParametros(){
        <p class="pm-mini" style="margin:10px 0 4px"><b>Valor fixo por cidade</b></p><div data-cids>${(fr.cidades||[]).map(linCid).join('')}</div><button type="button" class="gf-bt mini" data-pm="cfg-cid-add"><i class="fas fa-plus"></i> Cidade</button></section>
      <section class="gf-sec"><div class="gf-sec-cab"><div><h3>Caminhões</h3><p>Para a agenda de entregas: a carga de cada dia é conferida com a capacidade.</p></div><button type="button" class="gf-bt mini" data-pm="cfg-cam-add"><i class="fas fa-plus"></i> Caminhão</button></div>
        <div data-cams>${(c.caminhoes||[]).map(linCam).join('')||'<p class="pm-mini" data-vazio>Nenhum caminhão cadastrado.</p>'}</div></section></div>
+    <section class="gf-sec"><div class="gf-sec-cab"><div><h3><i class="fas fa-lock" style="color:#B42318"></i> Fechamento do mês</h3><p>Depois de conferir o mês (estoque contado, caixa batido), feche: nada com data até o dia escolhido pode ser lançado, mudado ou excluído — produção, compras, acertos, avarias, custos, ensaios, pagamentos, entregas e devoluções.</p></div></div>
+      <div class="fin-linha"><div class="fin-fld"><label>Lançamentos fechados até</label><input type="date" data-cfg="fechado_ate" value="${fe(c.fechado_ate||'')}" max="${hojeISO()}" ${ehAdm()?'':'disabled title="Só o Administrador fecha ou reabre o mês"'}></div>
+        <div class="fin-fld" style="grid-column:span 2;align-self:end"><p class="pm-mini" style="margin:0 0 10px">${c.fechado_ate?`<b>Fechado até ${fe(brDe(dt(c.fechado_ate)))}.</b> Para reabrir, apague a data ou escolha uma anterior e salve.`:'Nenhum mês fechado ainda.'}${ehAdm()?'':' Só o Administrador muda esta data.'}</p></div></div></section>
     <section class="gf-sec"><div class="gf-sec-cab"><div><h3>Nota fiscal das vendas de peças</h3><p>Venda de peça é venda de <b>produto</b>: a nota é a NF-e, autorizada pela SEFAZ-BA (não é a nota de serviço da prefeitura).</p></div></div>
       <div class="fin-aviso" style="margin-bottom:10px"><div>Para o sistema emitir a NF-e sozinho são necessários: <b>Inscrição Estadual</b> da empresa na SEFAZ-BA, o <b>certificado A1</b> (o mesmo já usado nas assinaturas) e a confirmação do contador sobre o regime e o CFOP.
         Enquanto isso, emita a nota no emissor do contador (ou a NFA-e, nota avulsa da SEFAZ-BA) e use <b>Anexar nota fiscal</b> na venda: o número e a chave entram sozinhos no comprovante. O NCM de cada peça já sai preenchido pelo tipo (pode mudar no cadastro da peça).</div></div>
@@ -1990,9 +2143,10 @@ function addLinha(qual){const box=document.querySelector(`#pm-app [data-${{fixos
   box.insertAdjacentHTML('beforeend',qual==='fixos'?PM._linFixo({nome:'',valor:''}):qual==='cid'?PM._linCid({cidade:'',uf:''}):qual==='cam'?PM._linCam({}):PM._linEq({nome:'',funcao:FUNCOES[1]}));if(qual==='cid')ligarCidadesFrete(box);}
 async function salvarParametros(){
   const box=document.getElementById('pm-app'),c=JSON.parse(JSON.stringify(CFG()));
-  box.querySelectorAll('[data-cfg]').forEach(e=>{const path=e.dataset.cfg.split('.'),txt=['cidade','uf','saldo_data','jornada.entrada','jornada.saida'].includes(e.dataset.cfg)||e.dataset.cfg.startsWith('frete.origem.')||e.dataset.cfg.startsWith('fiscal.'),v=txt?String(e.value||'').trim():(e.dataset.cfg==='jornada.intervalo'||e.dataset.cfg==='frete.km_min'?(parseFloat(String(e.value).replace(',','.'))||0):num(e.value));let o=c;for(let i=0;i<path.length-1;i++){o[path[i]]=o[path[i]]||{};o=o[path[i]];}o[path[path.length-1]]=e.dataset.cfg==='uf'?String(v).toUpperCase():v;});
+  box.querySelectorAll('[data-cfg]').forEach(e=>{const path=e.dataset.cfg.split('.'),txt=['cidade','uf','saldo_data','jornada.entrada','jornada.saida','fechado_ate'].includes(e.dataset.cfg)||e.dataset.cfg.startsWith('frete.origem.')||e.dataset.cfg.startsWith('fiscal.'),v=txt?String(e.value||'').trim():(e.dataset.cfg==='jornada.intervalo'||e.dataset.cfg==='frete.km_min'?(parseFloat(String(e.value).replace(',','.'))||0):num(e.value));let o=c;for(let i=0;i<path.length-1;i++){o[path[i]]=o[path[i]]||{};o=o[path[i]];}o[path[path.length-1]]=e.dataset.cfg==='uf'?String(v).toUpperCase():v;});
   c.fixos=[...box.querySelectorAll('[data-lin="fixos"]')].map(d=>({nome:d.querySelector('[data-fx="nome"]').value.trim(),valor:r2(num(d.querySelector('[data-fx="valor"]').value))})).filter(x=>x.nome||x.valor);
   c.equipe_lista=[...box.querySelectorAll('[data-lin="equipe"]')].map(d=>({nome:d.querySelector('[data-eqn]').value.trim(),funcao:d.querySelector('[data-eqf]').value})).filter(x=>x.nome);
+  if(!ehAdm())c.fechado_ate=CFG().fechado_ate||'';else if(c.fechado_ate&&c.fechado_ate>hojeISO())return toast('O fechamento não pode ser depois de hoje.','error');
   c.frete=c.frete||{};const ck=box.querySelector('[data-cfg-ck="frete.ida_volta"]');if(ck)c.frete.ida_volta=ck.checked;if(c.frete.origem&&c.frete.origem.uf)c.frete.origem.uf=String(c.frete.origem.uf).toUpperCase();
   c.frete.cidades=[...box.querySelectorAll('[data-lin="cid"]')].map(d=>({cidade:cidUF(d.querySelector('[data-cn]').value),uf:partesCid(d.querySelector('[data-cn]').value)[1]||d.querySelector('[data-cu]').value.trim().toUpperCase(),valor:r2(num(d.querySelector('[data-cv]').value))})).filter(x=>x.cidade&&x.valor>0);
   c.caminhoes=[...box.querySelectorAll('[data-lin="cam"]')].map(d=>({nome:d.querySelector('[data-kn]').value.trim(),cap_kg:parseFloat(String(d.querySelector('[data-kc]').value).replace(',','.'))||0,motorista:d.querySelector('[data-km]').value.trim()})).filter(x=>x.nome);

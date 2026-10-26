@@ -49,6 +49,7 @@ const FAM={
     V:d=>PI/4*d.d*d.d*d.e,face:d=>PI/4*d.d*d.d,sup:d=>PI/2*d.d*d.d+PI*d.d*d.e,desc:d=>`Ø ${n1(d.d)} × ${n1(d.e)} cm`},
   esfera:{rot:'Esfera',campos:[['d','Diâmetro']],V:d=>PI/6*d.d*d.d*d.d,face:()=>0,sup:d=>PI*d.d*d.d,desc:d=>`Ø ${n1(d.d)} cm`},
   cilindro:{rot:'Cilindro maciço (em pé)',campos:[['d','Diâmetro'],['h','Altura']],V:d=>PI/4*d.d*d.d*d.h,face:()=>0,sup:d=>PI*d.d*d.h+PI/4*d.d*d.d,desc:d=>`Ø ${n1(d.d)} × ${n1(d.h)} cm`},
+  disco_furo:{rot:'Disco com abertura (laje de redução / tampa furada)',campos:[['d','Diâmetro externo'],['ab','Diâmetro da abertura'],['e','Espessura']],V:d=>PI/4*(d.d*d.d-(d.ab||0)*(d.ab||0))*d.e,face:d=>PI/4*(d.d*d.d-(d.ab||0)*(d.ab||0)),sup:d=>PI/2*(d.d*d.d-(d.ab||0)*(d.ab||0))+PI*(d.d+(d.ab||0))*d.e,desc:d=>`Ø ${n1(d.d)} → abertura Ø ${n1(d.ab||0)} · ${n1(d.e)} cm`},
   tubo:{rot:'Tubo / anel',campos:[['di','Diâmetro interno'],['esp','Espessura da parede'],['comp','Comprimento']],
     V:d=>PI/4*((d.di+2*d.esp)**2-d.di*d.di)*d.comp,face:d=>PI*(d.di+d.esp)*d.comp,sup:d=>PI*(2*d.di+2*d.esp)*d.comp,desc:d=>`Ø int. ${n1(d.di)} · parede ${n1(d.esp)} · ${n1(d.comp)} cm`},
   calha:{rot:'Meia-cana (calha)',campos:[['di','Diâmetro interno'],['esp','Espessura da parede'],['comp','Comprimento']],
@@ -113,7 +114,8 @@ const TIPOS=[
   T('concregrama','Concregrama / Pisograma','pav','placa','nenhuma','c35s',7,{c:43,l:33,e:7},[['33 × 43 × 7 cm',{c:43,l:33,e:7},12],['45 × 45 × 8 cm (piso grama)',{c:45,l:45,e:8}]],'Áreas verdes trafegáveis',{fator:0.5}),
   T('sextavado','Lajota sextavada','pav','hexagono','nenhuma','c35s',7,{d:25,e:6},[['25 × 6 cm',{d:25,e:6},7.4],['25 × 8 cm',{d:25,e:8},9],['30 × 8 cm',{d:30,e:8},10.8],['30 × 10 cm',{d:30,e:10},13.7]],'Ruas, pátios e quintais (NBR 9781)',{norma:'NBR 9781'}),
   T('sextavado_dren','Sextavado drenante','pav','hexagono','nenhuma','poroso',7,{d:25,e:8},[['25 × 6 cm',{d:25,e:6},5.9],['25 × 8 cm',{d:25,e:8},7.2]],'Pavimento permeável'),
-  T('tatil','Piso tátil (alerta ou direcional)','pav','placa','nenhuma','c35s',7,{c:40,l:40,e:2.5},[['40 × 40 × 2,5 cm',{c:40,l:40,e:2.5},9],['20 × 20 × 6 cm (paver)',{c:20,l:20,e:6}]],'Acessibilidade (NBR 16537)',{norma:'NBR 16537'}),
+  T('tatil','Piso tátil de alerta (botões)','pav','placa','nenhuma','c35s',7,{c:40,l:40,e:2.5},[['40 × 40 × 2,5 cm',{c:40,l:40,e:2.5},9],['25 × 25 × 2,5 cm',{c:25,l:25,e:2.5}],['20 × 20 × 6 cm (paver)',{c:20,l:20,e:6}]],'Acessibilidade: avisa obstáculo, travessia e mudança de direção (NBR 16537)',{norma:'NBR 16537'}),
+  T('tatil_dir','Piso tátil direcional (barras)','pav','placa','nenhuma','c35s',7,{c:40,l:40,e:2.5},[['40 × 40 × 2,5 cm',{c:40,l:40,e:2.5},9],['25 × 25 × 2,5 cm',{c:25,l:25,e:2.5}],['20 × 20 × 6 cm (paver)',{c:20,l:20,e:6}]],'Acessibilidade: guia o caminho da pessoa com deficiência visual (NBR 16537)',{norma:'NBR 16537'}),
   T('placa_dren','Placa drenante / permeável','pav','placa','nenhuma','poroso',7,{c:40,l:40,e:5},[['40 × 40 × 5 cm',{c:40,l:40,e:5},18],['41 × 41 × 6 cm',{c:41,l:41,e:6}],['20 × 20 × 6 cm',{c:20,l:20,e:6}]],'Calçadas e praças permeáveis (NBR 16416)'),
   T('tijolao','Piso tijolão permeável','pav','placa','nenhuma','c35s',7,{c:25,l:15,e:6},[['15 × 25 × 6 cm',{c:25,l:15,e:6}]],'Drenagem urbana, visual rústico'),
   T('placa_rampa','Placa de rampa antiderrapante','pav','placa','nenhuma','micro',7,{c:20,l:20,e:2},[['20 × 20 × 2 cm',{c:20,l:20,e:2}]],'Rampas de garagem'),
@@ -142,14 +144,14 @@ const TIPOS=[
   T('caixa_gordura','Caixa de gordura retangular','dren','caixa','nenhuma','c25',7,{c:60,l:38,a:60,e:5},[['60 × 38 × 60 cm',{c:60,l:38,a:60,e:5}],['80 × 38 × 80 cm',{c:80,l:38,a:80,e:5}],['100 × 38 × 100 cm',{c:100,l:38,a:100,e:6}]],'Retenção de gordura (padrões CEF)'),
   T('caixa_gord_circ','Caixa de gordura circular','dren','pote','nenhuma','c25',7,{d:30,a:35,e:5},[['Ø 30 × 35 cm',{d:30,a:35,e:5},41]],'Retenção de gordura em residências'),
   T('caixa_pass','Caixa de passagem','dren','caixa','malha','c30',14,{c:60,l:60,a:60,e:8},[['60 × 60 × 60 cm',{c:60,l:60,a:60,e:8}],['80 × 80 × 80 cm',{c:80,l:80,a:80,e:8}],['100 × 100 × 100 cm',{c:100,l:100,a:100,e:10}]],'Redes elétricas, telefonia, drenagem'),
-  T('tampa_circ','Tampa circular','dren','disco','malha','c25',7,{d:60,e:5},[['Ø 30 cm',{d:30,e:5},8.2],['Ø 40 cm',{d:40,e:5},15],['Ø 50 cm',{d:50,e:5},23],['Ø 60 cm',{d:60,e:5}],['Ø 80 cm',{d:80,e:6}],['Ø 100 cm',{d:100,e:7}],['Ø 120 cm',{d:120,e:8}]],'Poços, caixas e cisternas'),
+  T('tampa_circ','Tampa circular com alças','dren','disco','malha','c25',7,{d:60,e:5},[['Ø 30 cm',{d:30,e:5},8.2],['Ø 40 cm',{d:40,e:5},15],['Ø 50 cm',{d:50,e:5},23],['Ø 60 cm',{d:60,e:5}],['Ø 80 cm',{d:80,e:6}],['Ø 100 cm',{d:100,e:7}],['Ø 120 cm',{d:120,e:8}]],'Poços, caixas e cisternas'),
   T('tampao','Tampão para poço com sobretampa','dren','disco','malha','c25',7,{d:80,e:4},[['Ø 60 cm',{d:60,e:3.5},22],['Ø 80 cm',{d:80,e:4},51],['Ø 100 cm',{d:100,e:4.5},86],['Ø 120 cm',{d:120,e:5},130],['Ø 150 cm',{d:150,e:5},200]],'Poços e cisternas'),
   T('tampa_ret','Tampa retangular (caixa / boca de lobo)','dren','placa','malha','c25',7,{c:60,l:60,e:6},[['60 × 60 × 6 cm',{c:60,l:60,e:6}],['100 × 50 × 6 cm (boca de lobo)',{c:100,l:50,e:6},70],['100 × 100 × 5 cm (furada)',{c:100,l:100,e:5},92]],'Caixas de passagem, inspeção e boca de lobo'),
   T('grelha','Grelha de concreto (boca de lobo)','dren','placa','malha','c30',14,{c:100,l:60,e:8},[['100 × 60 × 8 cm',{c:100,l:60,e:8},83]],'Drenagem superficial',{fator:0.6}),
   T('quadro_bl','Quadro / cavalete para boca de lobo','dren','prisma','linear','c25',7,{c:116,l:60,a:26},[['116 × 60 × 26 cm',{c:116,l:60,a:26},130]],'Boca de lobo',{fator:0.3}),
   T('cantoneira_bl','Cantoneira para boca de lobo','dren','prisma','nenhuma','c25',7,{c:116,l:26,a:10},[['116 × 26 × 10 cm',{c:116,l:26,a:10},40],['120 × 40 × 12 cm',{c:120,l:40,a:12},60]],'Boca de lobo',{fator:0.6}),
   T('suporte_grelha','Suporte para grelha','dren','prisma','linear','c25',7,{c:105,l:67,a:19},[['105 × 67 × 19 cm',{c:105,l:67,a:19},91]],'Drenagem superficial',{fator:0.27}),
-  T('laje_reducao','Laje de redução para poço de visita','dren','disco','malha','c30',14,{d:120,e:10},[['Ø 120 × 10 cm',{d:120,e:10},172]],'Poços de visita',{fator:0.6}),
+  T('laje_reducao','Laje de redução para poço de visita (poço → abertura)','dren','disco_furo','malha','c30',14,{d:136,ab:60,e:12},[['PV Ø 100 → abertura Ø 60',{d:116,ab:60,e:12}],['PV Ø 120 → abertura Ø 60',{d:136,ab:60,e:12}],['PV Ø 150 → abertura Ø 60',{d:170,ab:60,e:15}],['PV Ø 150 → abertura Ø 80',{d:170,ab:80,e:15}],['PV Ø 200 → abertura Ø 80',{d:220,ab:80,e:18}]],'Fecha o anel do poço e reduz para a abertura do tampão (Ø externo do anel → Ø da abertura)'),
   T('duto','Duto de concreto','dren','canaleta','nenhuma','c25',7,{li:20,hi:22,e:5,comp:60},[['60 × 30 × 30 cm',{li:20,hi:22,e:5,comp:60},42]],'Passagem de cabos e tubulações'),
   T('abrigo_cavalete','Abrigo de cavalete de água','dren','caixa','nenhuma','c25',7,{c:50,l:50,a:25,e:2.5},[['50 × 50 × 25 cm',{c:50,l:50,a:25,e:2.5},30]],'Proteção do hidrômetro'),
   T('caixa_sao','Caixa separadora de água e óleo','dren','manual','projeto','c30',14,{v:0.5,area:6},[],'Postos e oficinas (conforme projeto)',{estr:true}),
@@ -163,7 +165,7 @@ const TIPOS=[
   T('compensador','Bloco compensador','bloco','bloco','nenhuma','c14s',7,{c:39,l:14,a:4,vz:0},[['14 × 19 × 4 cm',{c:19,l:14,a:4,vz:0},2.6],['14 × 19 × 9 cm',{c:19,l:14,a:9,vz:30},7]],'Completar a paginação dos blocos'),
   T('bloco_hidr','Bloco hidráulico / elétrico','bloco','bloco','nenhuma','c14s',7,{c:39,l:14,a:19,vz:50},[['14 × 19 × 39 cm',{c:39,l:14,a:19,vz:50},12],['14 × 19 × 19 cm',{c:19,l:14,a:19,vz:50},5.2]],'Paredes com tubulação embutida'),
   T('bloco_jardim','Bloco para jardim vertical / jardineira','bloco','bloco','nenhuma','c14s',7,{c:39,l:19,a:14,vz:45},[['19 × 14 × 39 cm',{c:39,l:19,a:14,vz:45},9.3],['39 × 19 × 21 cm (triangular)',{c:39,l:19,a:21,vz:50},15],['39 × 19 × 23 cm (redonda)',{c:39,l:19,a:23,vz:45},18]],'Paredes verdes e jardineiras'),
-  T('cobogo','Cobogó / elemento vazado','bloco','bloco','nenhuma','c20',7,{c:39,l:7,a:39,vz:55},[['39 × 39 × 7 cm (flor, árabe, 16 furos, taco chinês)',{c:39,l:7,a:39,vz:55},15],['30 × 30 × 9 cm (triângulo)',{c:30,l:9,a:30,vz:55},9.8],['49 × 50 × 8 cm (veneziana)',{c:49,l:8,a:50,vz:55},13],['24 × 24 × 7 cm (vintage)',{c:24,l:7,a:24,vz:65},3.5]],'Ventilação e iluminação natural'),
+  T('cobogo','Cobogó de furos redondos (16 furos)','bloco','bloco','nenhuma','c20',7,{c:39,l:7,a:39,vz:55},[['39 × 39 × 7 cm (flor, árabe, 16 furos, taco chinês)',{c:39,l:7,a:39,vz:55},15],['30 × 30 × 9 cm (triângulo)',{c:30,l:9,a:30,vz:55},9.8],['49 × 50 × 8 cm (veneziana)',{c:49,l:8,a:50,vz:55},13],['24 × 24 × 7 cm (vintage)',{c:24,l:7,a:24,vz:65},3.5]],'Ventilação e iluminação natural'),
   // ── Estruturais ──
   T('verga','Verga / contraverga','estr','prisma','linear','c25',7,{c:150,l:14,a:10},[['14 × 10 × 120 cm',{c:120,l:14,a:10}],['14 × 10 × 150 cm',{c:150,l:14,a:10}],['14 × 10 × 200 cm',{c:200,l:14,a:10}]],'Sobre portas e janelas'),
   T('vigota','Vigota treliçada (laje)','estr','prisma','trelica','c25',7,{c:400,l:12,a:4},[['3 m',{c:300,l:12,a:4}],['4 m',{c:400,l:12,a:4}],['5 m',{c:500,l:12,a:4}]],'Lajes treliçadas (H8 forro, H12/H16 piso — NBR 14859)',{norma:'NBR 14859'}),
@@ -245,6 +247,32 @@ const TIPOS=[
   T('churrasqueira','Churrasqueira pré-moldada','design','manual','fios','c25',14,{v:0.25,area:6},[['80 × 60 × 190 cm',{v:0.25,area:6}]],'Áreas de lazer (usar tijolo refratário junto ao fogo)'),
   T('totem','Totem / marco de identificação','design','manual','fios','c25',7,{v:0.12,area:2},[['40 × 20 × 150 cm',{v:0.12,area:2}]],'Identificação de condomínios e empresas'),
   T('pia_coletiva','Lavatório coletivo','design','caixa','nenhuma','micro',7,{c:150,l:50,a:20,e:3},[['150 × 50 × 20 cm',{c:150,l:50,a:20,e:3}]],'Escolas, áreas de lazer e cozinhas comunitárias'),
+  // ── tampas, anéis e bases (todos os modelos que o mercado pede) ──
+  T('tampa_cega','Tampa circular cega (lisa)','dren','disco','malha','c25',7,{d:60,e:5},[['Ø 40 cm',{d:40,e:5}],['Ø 50 cm',{d:50,e:5}],['Ø 60 cm',{d:60,e:5}],['Ø 80 cm',{d:80,e:6}],['Ø 100 cm',{d:100,e:7}],['Ø 120 cm',{d:120,e:8}]],'Fecha caixas, poços e cisternas (sem furo e sem alça)'),
+  T('tampa_furo','Tampa circular com furo ao centro','dren','disco_furo','malha','c25',7,{d:60,ab:10,e:5},[['Ø 60 · furo Ø 10 cm',{d:60,ab:10,e:5}],['Ø 80 · furo Ø 15 cm',{d:80,ab:15,e:6}],['Ø 100 · furo Ø 20 cm',{d:100,ab:20,e:7}],['Ø 120 · furo Ø 20 cm',{d:120,ab:20,e:8}]],'Respiro, inspeção ou passagem de tubo'),
+  T('tampa_cavas','Tampa circular com cavas laterais','dren','disco','malha','c25',7,{d:60,e:5},[['Ø 60 cm',{d:60,e:5}],['Ø 80 cm',{d:80,e:6}],['Ø 100 cm',{d:100,e:7}],['Ø 120 cm',{d:120,e:8}]],'Cavas na borda para a mão ou o gancho na hora de tirar',{fator:0.97}),
+  T('tampao_cego','Tampão liso (cego) com sobretampa','dren','disco','malha','c25',7,{d:80,e:4},[['Ø 60 cm',{d:60,e:3.5}],['Ø 80 cm',{d:80,e:4}],['Ø 100 cm',{d:100,e:4.5}],['Ø 120 cm',{d:120,e:5}]],'Poços e cisternas, sem furos'),
+  T('tampa_ret_cega','Tampa retangular cega (lisa)','dren','placa','malha','c25',7,{c:60,l:60,e:6},[['40 × 40 × 5 cm',{c:40,l:40,e:5}],['50 × 50 × 5 cm',{c:50,l:50,e:5}],['60 × 60 × 6 cm',{c:60,l:60,e:6}],['80 × 80 × 7 cm',{c:80,l:80,e:7}]],'Caixas de passagem e de inspeção'),
+  T('tampa_ret_cavas','Tampa retangular com cavas laterais','dren','placa','malha','c25',7,{c:60,l:60,e:6},[['40 × 40 × 5 cm',{c:40,l:40,e:5}],['60 × 60 × 6 cm',{c:60,l:60,e:6}],['80 × 80 × 7 cm',{c:80,l:80,e:7}]],'Cavas nas laterais para tirar a tampa',{fator:0.97}),
+  T('anel_pb','Anel de poço com ponta e bolsa (encaixe)','dren','tubo','gaiola','c30',14,{di:100,esp:8,comp:50},[['Ø 60 × 50 cm',{di:60,esp:6,comp:50}],['Ø 80 × 50 cm',{di:80,esp:7,comp:50}],['Ø 100 × 50 cm',{di:100,esp:8,comp:50}],['Ø 120 × 50 cm',{di:120,esp:9,comp:50}],['Ø 150 × 50 cm',{di:150,esp:10,comp:50}]],'Poço de visita e cisterna: um anel encaixa no outro (vedação melhor)',{armPad:false}),
+  T('base_pv_pb','Base de poço de visita com encaixe (bolsa)','dren','pote','malha','c30',14,{d:136,a:60,e:8},[['Ø 100 × 60 cm',{d:116,a:60,e:8}],['Ø 120 × 60 cm',{d:136,a:60,e:8}],['Ø 150 × 60 cm',{d:170,a:60,e:10}]],'Fundo do poço com a bolsa para encaixar o primeiro anel'),
+  // ── mais cobogós (cada desenho de furação) ──
+  T('cobogo_quadrado','Cobogó quadriculado','bloco','bloco','nenhuma','c20',7,{c:39,l:7,a:39,vz:50},[['39 × 39 × 7 cm',{c:39,l:7,a:39,vz:50}],['29 × 29 × 7 cm',{c:29,l:7,a:29,vz:50}]],'Fachadas, muros e divisórias ventiladas',{padrao:'quad'}),
+  T('cobogo_losango','Cobogó losango (diamante)','bloco','bloco','nenhuma','c20',7,{c:39,l:7,a:39,vz:45},[['39 × 39 × 7 cm',{c:39,l:7,a:39,vz:45}]],'Fachadas e muros ventilados',{padrao:'losango'}),
+  T('cobogo_triangulo','Cobogó triângulo','bloco','bloco','nenhuma','c20',7,{c:30,l:9,a:30,vz:50},[['30 × 30 × 9 cm',{c:30,l:9,a:30,vz:50}],['39 × 39 × 7 cm',{c:39,l:7,a:39,vz:50}]],'Fachadas modernas',{padrao:'tri'}),
+  T('cobogo_xis','Cobogó X (ampulheta)','bloco','bloco','nenhuma','c20',7,{c:39,l:7,a:39,vz:50},[['39 × 39 × 7 cm',{c:39,l:7,a:39,vz:50}]],'Muros e fachadas decorativas',{padrao:'xis'}),
+  T('cobogo_colmeia','Cobogó colmeia (sextavado)','bloco','bloco','nenhuma','c20',7,{c:39,l:7,a:39,vz:50},[['39 × 39 × 7 cm',{c:39,l:7,a:39,vz:50}]],'Fachadas e divisórias',{padrao:'hex'}),
+  T('cobogo_flor','Cobogó flor (pétalas)','bloco','bloco','nenhuma','c20',7,{c:39,l:7,a:39,vz:40},[['39 × 39 × 7 cm',{c:39,l:7,a:39,vz:40}],['24 × 24 × 7 cm (vintage)',{c:24,l:7,a:24,vz:40}]],'Varandas e fachadas de estilo clássico',{padrao:'flor'}),
+  T('cobogo_veneziana','Cobogó veneziana','bloco','bloco','nenhuma','c20',7,{c:49,l:8,a:50,vz:45},[['49 × 50 × 8 cm',{c:49,l:8,a:50,vz:45},13],['39 × 39 × 7 cm',{c:39,l:7,a:39,vz:45}]],'Ventilação com privacidade (lavanderia, garagem)',{padrao:'ven'}),
+  // ── mais pisos e pavimentos ──
+  T('paver_ossinho','Paver ossinho (osso)','pav','placa','nenhuma','c35s',7,{c:22,l:11,e:8},[['22 × 11 × 6 cm',{c:22,l:11,e:6}],['22 × 11 × 8 cm',{c:22,l:11,e:8}]],'Pátios, garagens e ruas (NBR 9781)',{norma:'NBR 9781',fator:0.93}),
+  T('paver_raquete','Paver raquete','pav','placa','nenhuma','c35s',7,{c:25,l:12.5,e:8},[['25 × 12,5 × 6 cm',{c:25,l:12.5,e:6}],['25 × 12,5 × 8 cm',{c:25,l:12.5,e:8}]],'Pavimento intertravado decorativo (NBR 9781)',{norma:'NBR 9781',fator:0.9}),
+  T('paver_30x15','Paver retangular grande 30 × 15','pav','placa','nenhuma','c35s',7,{c:30,l:15,e:8},[['30 × 15 × 6 cm',{c:30,l:15,e:6}],['30 × 15 × 8 cm',{c:30,l:15,e:8}]],'Calçadas e praças'),
+  T('sextavado_20','Lajota sextavada pequena','pav','hexagono','nenhuma','c35s',7,{d:20,e:6},[['20 × 6 cm',{d:20,e:6}],['20 × 8 cm',{d:20,e:8}]],'Calçadas e jardins (NBR 9781)'),
+  T('piso_60','Placa de piso 60 × 60','pav','placa','nenhuma','c30',14,{c:60,l:60,e:5},[['60 × 60 × 5 cm',{c:60,l:60,e:5}],['60 × 60 × 7 cm',{c:60,l:60,e:7}]],'Calçadas largas, praças e pátios'),
+  T('piso_calcada','Placa de calçada 50 × 50','pav','placa','nenhuma','c25',7,{c:50,l:50,e:5},[['50 × 50 × 4 cm',{c:50,l:50,e:4}],['50 × 50 × 5 cm',{c:50,l:50,e:5}]],'Calçadas residenciais'),
+  T('piso_estampado','Piso estampado (pedra / seixo)','pav','placa','nenhuma','micro',7,{c:40,l:40,e:4},[['40 × 40 × 4 cm',{c:40,l:40,e:4}],['50 × 50 × 4 cm',{c:50,l:50,e:4}]],'Áreas externas e de piscina, acabamento rústico'),
+  T('piso_drenante_vazado','Piso drenante vazado (grama)','pav','placa','nenhuma','c35s',7,{c:40,l:20,e:8},[['40 × 20 × 8 cm',{c:40,l:20,e:8}]],'Estacionamento verde e drenagem',{fator:0.7}),
   T('outra','Outra peça (sob medida)','design','manual','nenhuma','c25',7,{v:0.05,area:1},[],'Peça especial: informe o volume e a área de forma')];
 const tipoDe=k=>TIPOS.find(t=>t.k===k)||null;
 
@@ -354,6 +382,13 @@ function desenho(t,d,arm){
       b+=tit(40,24,'VISTA DE CIMA')+`<polygon points="${pts.join(' ')}" fill="${COR.c}" stroke="${COR.cl}" stroke-width="1.5"/>`+cotaV(cx-r-12,cy-r*0.866,cy+r*0.866,nf(dd));
       b+=tit(240,24,'ESPESSURA')+`<rect x="240" y="80" width="110" height="${Math.max(8,Math.min(40,e*4))}" fill="${COR.c}" stroke="${COR.cl}" stroke-width="1.5"/>`+cotaV(362,80,80+Math.max(8,Math.min(40,e*4)),nf(e),'d');
       break;}
+    case 'disco_furo':{
+      const dd=g('d'),ab=g('ab'),e=g('e'),cx=105,cy=112,r=62,ra=r*Math.min(0.85,ab/Math.max(1,dd)),off=t.k==='laje_reducao'?(r-ra)*0.42:0;
+      b+=tit(40,24,'VISTA DE CIMA')+`<circle cx="${cx}" cy="${cy}" r="${r}" fill="${COR.c}" stroke="${COR.cl}" stroke-width="1.5"/><circle cx="${cx+off}" cy="${cy}" r="${ra}" fill="#fff" stroke="${COR.cl}" stroke-width="1.5"/>`;
+      if(temA&&A.malha)b+=`<circle cx="${cx}" cy="${cy}" r="${(r+ra)/2+2}" fill="none" stroke="${COR.m}" stroke-width="1" stroke-dasharray="3 2"/>`;
+      b+=cotaH(cx-r,cx+r,cy+r+18,'Ø '+nf(dd)+' cm')+`<text x="${cx+off}" y="${cy+4}" text-anchor="middle" font-size="10.5" font-weight="700" fill="${COR.tx}">Ø ${nf(ab)}</text>`;
+      const sh=Math.max(8,Math.min(40,e*3));b+=tit(250,24,'ESPESSURA')+`<rect x="250" y="96" width="110" height="${sh}" fill="${COR.c}" stroke="${COR.cl}" stroke-width="1.5"/>`+cotaV(370,96,96+sh,nf(e),'d');
+      break;}
     case 'cilindro':{
       const dd=g('d'),h=g('h'),cx=90,cy=110,r=48;
       b+=tit(40,24,'VISTA DE CIMA')+`<circle cx="${cx}" cy="${cy}" r="${r}" fill="${COR.c}" stroke="${COR.cl}" stroke-width="1.5"/>`+cotaH(cx-r,cx+r,cy+r+18,'Ø '+nf(dd)+' cm');
@@ -450,7 +485,7 @@ const ILU=(function(){
   // detalhes desenhados sobre as faces visíveis (furos de arame, botões do piso tátil, veios…)
   const circ3=(c,r,plano,N)=>{N=N||14;const o=[];for(let i=0;i<N;i++){const a=2*PI*i/N,u=r*Math.cos(a),v=r*Math.sin(a);o.push(plano==='z'?[c[0]+u,c[1]+v,c[2]]:plano==='y'?[c[0]+u,c[1],c[2]+v]:[c[0],c[1]+u,c[2]+v]);}return o;};
   const rgb=(c,k)=>`rgb(${c.map(v=>Math.max(0,Math.min(255,Math.round(v*k)))).join(',')})`;
-  const DEF={prisma:{c:100,l:15,a:15},placa:{c:50,l:50,e:5},bloco:{c:39,l:14,a:19,vz:50},hexagono:{d:25,e:6},disco:{d:60,e:5},esfera:{d:40},cilindro:{d:20,h:80},tubo:{di:40,esp:5,comp:100},calha:{di:40,esp:5,comp:100},
+  const DEF={prisma:{c:100,l:15,a:15},placa:{c:50,l:50,e:5},bloco:{c:39,l:14,a:19,vz:50},hexagono:{d:25,e:6},disco:{d:60,e:5},esfera:{d:40},cilindro:{d:20,h:80},disco_furo:{d:136,ab:60,e:12},tubo:{di:40,esp:5,comp:100},calha:{di:40,esp:5,comp:100},
     trapezio:{B:15,b:12,h:30,comp:100},canaleta:{li:30,hi:30,e:6,comp:100},caixa:{c:40,l:40,a:40,e:5},pote:{d:40,a:40,e:4},aduela:{li:100,hi:100,e:15,comp:100},manual:{v:0.05}};
   function furosBloco(c,l,vz,nf){if(!(vz>0))return [];const n=nf||(c>=29?2:1),alvo=vz/100*c*l;let lo=0,hi=Math.min(l/2,c/(n+1))-0.05;
     for(let i=0;i<40;i++){const t=(lo+hi)/2,ar=n*(l-2*t)*((c-(n+1)*t)/n);if(ar>alvo)lo=t;else hi=t;}
@@ -493,22 +528,24 @@ const ILU=(function(){
       case 'meiofio_vazado':{const B=g('B'),b=g('b'),h=g('h'),L=g('comp');m.meshes.push(extrX([[0,0],[B,0],[(B+b)/2,h],[(B-b)/2,h]],L));
         const n=Math.max(2,Math.round(L/30));for(let i=0;i<n;i++){const xa=L*(i+0.2)/n,xb=L*(i+0.8)/n,P=(x,s)=>[x,B-s*(B-b)/2,s*h];m.decor.push({p:[P(xa,0.25),P(xb,0.25),P(xb,0.7),P(xa,0.7)],fill:'#4A4844'});}
         cotaBox(L,B,h,cm(L),cm(B),cm(h));return m;}
-      case 'paver':case 'paver_dren':case 'junta_larga':case 'tijolao':case 'confinamento':case 'paralelepipedo':{const c=g('c'),l=g('l'),e=g('e'),ch=Math.min(c,l)*0.07;m.meshes.push(extrZ(ret(0,0,c,l),e));
+      case 'paver':case 'paver_dren':case 'junta_larga':case 'tijolao':case 'confinamento':case 'paralelepipedo':case 'paver_30x15':{const c=g('c'),l=g('l'),e=g('e'),ch=Math.min(c,l)*0.07;m.meshes.push(extrZ(ret(0,0,c,l),e));
         m.decor.push({p:[[ch,ch,e],[c-ch,ch,e],[c-ch,l-ch,e],[ch,l-ch,e]],fill:'rgba(255,255,255,.08)',stroke:'rgba(0,0,0,.16)',w:.8});
         if(k==='tijolao')[1/3,2/3].forEach(f=>m.decor.push({p:[[c*f,ch,e],[c*f,l-ch,e]],aberto:1,stroke:'rgba(0,0,0,.3)',w:1.2}));
         cotaBox(c,l,e,cm(c),cm(l),cm(e));return m;}
       case 'paver_16f':case 'bloquete_onda':{const c=g('c'),l=g('l'),e=g('e'),n=4,a=0.13*l,pts=[];for(let i=0;i<=2*n;i++)pts.push([c*i/(2*n),i%2?0:a]);for(let i=2*n;i>=0;i--)pts.push([c*i/(2*n),i%2?l:l-a]);
         m.meshes.push(extrZ(pts,e));cotaBox(c,l,e,cm(c),cm(l),cm(e));return m;}
       case 'paver_diamante':{const c=g('c'),l=g('l')*0.62,e=g('e');m.meshes.push(extrZ([[c/2,0],[c,l/2],[c/2,l],[0,l/2]],e));cotaBox(c,l,e,cm(c),cm(l),cm(e));return m;}
-      case 'unigrama':case 'concregrama':case 'piso_grelha':{const c=g('c'),l=g('l'),e=g('e'),[nx,ny]=k==='piso_grelha'?[4,4]:k==='unigrama'?[2,1]:(c>=40&&l>=40?[3,3]:[3,2]);
+      case 'unigrama':case 'concregrama':case 'piso_grelha':case 'piso_drenante_vazado':{const c=g('c'),l=g('l'),e=g('e'),[nx,ny]=k==='piso_grelha'?[4,4]:k==='unigrama'||k==='piso_drenante_vazado'?[2,1]:(c>=40&&l>=40?[3,3]:[3,2]);
         m.meshes.push(extrZ(ret(0,0,c,l),e,gradeFuros(c,l,nx,ny,0.45),{corFundo:COR.grama}));cotaBox(c,l,e,cm(c),cm(l),cm(e));return m;}
-      case 'tatil':{const c=g('c'),l=g('l'),e=g('e'),n=Math.max(4,Math.round(c/5.5)),ny=Math.max(4,Math.round(l/5.5));m.meshes.push(extrZ(ret(0,0,c,l),e));
+      case 'tatil':case 'tatil_dir':{const c=g('c'),l=g('l'),e=g('e'),n=Math.max(4,Math.round(c/5.5)),ny=Math.max(4,Math.round(l/5.5));m.meshes.push(extrZ(ret(0,0,c,l),e));
+        if(k==='tatil_dir'){const nb=Math.max(3,Math.round(c/8.5)),bw=c/nb*0.42;for(let i=0;i<nb;i++){const x=c*(i+0.5)/nb;m.decor.push({p:retR(x-bw/2,l*0.07,bw,l*0.86,bw/2).map(q=>[q[0],q[1],e]),fill:'rgb(214,211,203)',stroke:'rgba(0,0,0,.25)',w:.7},{p:[[x-bw*0.15,l*0.12,e],[x-bw*0.15,l*0.88,e]],aberto:1,stroke:'rgba(255,255,255,.65)',w:1.2});}
+          cotaBox(c,l,e,cm(c),cm(l),cm(e));return m;}
         for(let i=0;i<n;i++)for(let j=0;j<ny;j++){const x=c*(i+0.5)/n,y=l*(j+0.5)/ny,r=Math.min(c/n,l/ny)*0.3;m.decor.push({p:circ3([x,y,e],r,'z'),fill:'rgb(214,211,203)',stroke:'rgba(0,0,0,.25)',w:.6},{p:circ3([x-r*0.25,y-r*0.25,e],r*0.4,'z',10),fill:'rgba(255,255,255,.55)'});}
         cotaBox(c,l,e,cm(c),cm(l),cm(e));return m;}
-      case 'placa_rampa':case 'placa_deco':case 'ladrilho':case 'marmorizada':case 'deck':case 'placa_madeira':case 'ladrilho_hidr':case 'atermico':case 'pisadeira':{
+      case 'placa_rampa':case 'placa_deco':case 'ladrilho':case 'marmorizada':case 'deck':case 'placa_madeira':case 'ladrilho_hidr':case 'atermico':case 'pisadeira':case 'piso_calcada':case 'piso_60':{
         const c=g('c'),l=g('l'),e=g('e');m.meshes.push(extrZ(ret(0,0,c,l),e));const L=(a,b,st,w)=>m.decor.push({p:[[a[0],a[1],e],[b[0],b[1],e]],aberto:1,stroke:st,w:w||.8});
         if(k==='placa_rampa'){const s=Math.max(2.2,Math.min(c,l)/7);for(let q=-l+s/2;q<c;q+=s){let x1=Math.max(0,q),y1=x1-q,x2=Math.min(c,q+l),y2=x2-q;if(y1<0){y1=0;x1=q;}if(y2>l){y2=l;x2=q+l;}if(x2>x1)L([x1,y1],[x2,y2],'rgba(0,0,0,.28)',1);}}
-        if(k==='placa_deco'||k==='pisadeira'){const n=k==='pisadeira'?2:4;for(let i=1;i<n;i++){L([c*i/n,0.4],[c*i/n,l-0.4],'rgba(0,0,0,.25)');L([0.4,l*i/n],[c-0.4,l*i/n],'rgba(0,0,0,.25)');}}
+        if(['placa_deco','pisadeira','piso_calcada','piso_60'].includes(k)){const n=k==='placa_deco'?4:2;for(let i=1;i<n;i++){L([c*i/n,0.4],[c*i/n,l-0.4],'rgba(0,0,0,.25)');L([0.4,l*i/n],[c-0.4,l*i/n],'rgba(0,0,0,.25)');}}
         if(k==='deck'||k==='placa_madeira'){const n=Math.max(3,Math.round(l/4));for(let i=1;i<n;i++){const y=l*i/n,pts=[];for(let s=0;s<=10;s++)pts.push([c*s/10,y+Math.sin(s*1.3+i)*l*0.012,e]);m.decor.push({p:pts,aberto:1,stroke:'rgba(70,40,15,.38)',w:.8});}}
         if(k==='marmorizada'){[[0.1,0.2,0.9,0.7],[0.2,0.9,0.7,0.1],[0.05,0.55,0.6,0.95]].forEach(([a,b,cc,dd2],i)=>{const pts=[];for(let s=0;s<=12;s++){const f=s/12;pts.push([c*(a+(cc-a)*f)+Math.sin(f*7+i)*c*0.03,l*(b+(dd2-b)*f)+Math.cos(f*5+i)*l*0.03,e]);}m.decor.push({p:pts,aberto:1,stroke:'rgba(255,255,255,.65)',w:1});});}
         if(k==='ladrilho_hidr'){m.decor.push({p:[[c/2,l*0.08,e],[c*0.92,l/2,e],[c/2,l*0.92,e],[c*0.08,l/2,e]],fill:'rgb(176,82,58)'},{p:circ3([c/2,l/2,e],Math.min(c,l)*0.2,'z',24),fill:'rgb(46,86,146)'},{p:circ3([c/2,l/2,e],Math.min(c,l)*0.08,'z',16),fill:'rgb(236,226,200)'});
@@ -523,11 +560,20 @@ const ILU=(function(){
         m.meshes.push(extrZ(ret(0,0,c,l),e,fur));
         if(k==='tampa_ret')[[0.5,0.12],[0.5,0.88]].forEach(([fx,fy])=>m.decor.push({p:[[c*fx-c*0.08,l*fy-1.2,e],[c*fx+c*0.08,l*fy-1.2,e],[c*fx+c*0.08,l*fy+1.2,e],[c*fx-c*0.08,l*fy+1.2,e]],fill:'#4A4844'}));
         cotaBox(c,l,e,cm(c),cm(l),cm(e));return m;}
-      case 'tampa_circ':case 'tampao':case 'bolacha':{const R=g('d')/2,e=g('e');m.meshes.push(revol([[0,0],[R,0],[R,e],[0,e]],56));
-        if(k==='tampao')m.meshes.push(revol([[0,0],[R*0.72,0],[R*0.72,e*0.6],[0,e*0.6]],56,{z0:e}));
-        if(k!=='bolacha'){const z=k==='tampao'?e*1.6:e;[-1,1].forEach(s=>m.decor.push({p:[[s*R*0.5-R*0.1,-R*0.03,z],[s*R*0.5+R*0.1,-R*0.03,z],[s*R*0.5+R*0.1,R*0.03,z],[s*R*0.5-R*0.1,R*0.03,z]],fill:'#4A4844'}));}
+      case 'tampa_circ':case 'tampao':case 'bolacha':case 'tampa_cega':case 'tampao_cego':{const R=g('d')/2,e=g('e');m.meshes.push(revol([[0,0],[R,0],[R,e],[0,e]],56));
+        if(k==='tampao'||k==='tampao_cego')m.meshes.push(revol([[0,0],[R*0.72,0],[R*0.72,e*0.6],[0,e*0.6]],56,{z0:e}));
+        if(k==='tampa_circ'||k==='tampao'){const z=k==='tampao'?e*1.6:e;[-1,1].forEach(s=>m.decor.push({p:[[s*R*0.5-R*0.1,-R*0.03,z],[s*R*0.5+R*0.1,-R*0.03,z],[s*R*0.5+R*0.1,R*0.03,z],[s*R*0.5-R*0.1,R*0.03,z]],fill:'#4A4844'}));}
         m.cotas.push({a:[-R,R,0],b:[R,R,0],txt:'Ø '+cm(2*R)});return m;}
-      case 'laje_reducao':case 'tampa_fossa':{const R=g('d')/2,e=g('e');m.meshes.push(extrZ(circ(0,0,R,64),e,[circ(R*0.22,0,R*0.42,40)],{liso:true}));m.cotas.push({a:[-R,R,0],b:[R,R,0],txt:'Ø '+cm(2*R)});return m;}
+      case 'laje_reducao':case 'tampa_fossa':case 'tampa_furo':{const R=g('d')/2,e=g('e'),ra=k==='tampa_fossa'?R*0.42:Math.min(R*0.8,(g('ab')||R*0.84)/2),off=k==='laje_reducao'?Math.max(0,(R-ra)*0.42):k==='tampa_fossa'?R*0.22:0;
+        m.meshes.push(extrZ(circ(0,0,R,64),e,[circ(off,0,ra,40)],{liso:true}));m.cotas.push({a:[-R,R,0],b:[R,R,0],txt:'Ø '+cm(2*R)});if(k!=='tampa_fossa')m.cotas.push({a:[off-ra,0,e],b:[off+ra,0,e],txt:'abertura Ø '+cm(2*ra),dentro:1});return m;}
+      case 'tampa_cavas':case 'tampa_ret_cavas':{const e=g('e'),arco=(cx,cy,r,a0,a1,n)=>{const o=[];for(let s=0;s<=n;s++){const a=a0+(a1-a0)*s/n;o.push([cx+r*Math.cos(a),cy+r*Math.sin(a)]);}return o;};
+        if(k==='tampa_cavas'){const R=g('d')/2,rc=Math.max(3,R*0.13),tn=Math.asin(Math.min(0.9,rc/R)),pts=[];
+          // borda de cima, cava da esquerda (para dentro), borda de baixo, cava da direita
+          pts.push(...arco(0,0,R,tn,PI-tn,28),...arco(-R,0,rc,PI/2,-PI/2,8),...arco(0,0,R,PI+tn,2*PI-tn,28),...arco(R,0,rc,-PI/2,-3*PI/2,8));
+          m.meshes.push(extrZ(pts,e,[],{liso:true}));m.cotas.push({a:[-R,R,0],b:[R,R,0],txt:'Ø '+cm(2*R)});}
+        else{const c=g('c'),l=g('l'),rc=Math.max(3,Math.min(c,l)*0.09);
+          m.meshes.push(extrZ([[0,0],[c,0],...arco(c,l/2,rc,-PI/2,-3*PI/2,8),[c,l],[0,l],...arco(0,l/2,rc,PI/2,-PI/2,8)],e));cotaBox(c,l,e,cm(c),cm(l),cm(e));}
+        return m;}
       case 'anel_pv':case 'gola':case 'cone_pv':{const ri=g('di')/2,es=g('esp'),h=g('comp'),R=ri+es;
         if(k==='cone_pv'){const rt=Math.max(30,ri*0.6);m.meshes.push(revol([[ri,0],[R,0],[rt+es,h],[rt,h]],56));}else m.meshes.push(revol([[ri,0],[R,0],[R,h],[ri,h]],56));
         m.cotas.push({a:[-R,R,0],b:[R,R,0],txt:'Ø int. '+cm(2*ri)},{a:[R,0,0],b:[R,0,h],txt:cm(h)});return m;}
@@ -546,8 +592,19 @@ const ILU=(function(){
       case 'bloco_h':{const c=g('c'),l=g('l'),a=g('a'),tt=c*0.22,w=l*0.4;m.meshes.push(extrZ([[0,0],[tt,0],[tt,(l-w)/2],[c-tt,(l-w)/2],[c-tt,0],[c,0],[c,l],[c-tt,l],[c-tt,(l+w)/2],[tt,(l+w)/2],[tt,l],[0,l]],a));cotaBox(c,l,a,cm(c),cm(l),cm(a));return m;}
       case 'canaleta_bloco':{const c=g('c'),l=g('l'),a=g('a'),e=Math.min(2.5,l*0.2);m.meshes.push(extrX([[0,0],[l,0],[l,a],[l-e,a],[l-e,e*1.4],[e,e*1.4],[e,a],[0,a]],c));cotaBox(c,l,a,cm(c),cm(l),cm(a));return m;}
       case 'bloco_jardim':{const c=g('c'),l=g('l'),a=g('a');m.meshes.push(extrZ(ret(0,0,c,l),a,furosBloco(c,l,g('vz')||45,1)));cotaBox(c,l,a,cm(c),cm(l),cm(a));return m;}
-      case 'cobogo':{const c=g('c'),es=g('l'),a=g('a'),n=c>=35?4:3,cel=c/n,rr=Math.min(cel*0.4,cel*Math.sqrt((g('vz')||55)/100/PI)),fur=[];
-        for(let i=0;i<n;i++)for(let j=0;j<Math.max(1,Math.round(a/cel));j++)fur.push(circ(cel*(i+0.5),a/Math.max(1,Math.round(a/cel))*(j+0.5),rr,20));
+      case 'cobogo':case 'cobogo_quadrado':case 'cobogo_losango':case 'cobogo_triangulo':case 'cobogo_xis':case 'cobogo_colmeia':case 'cobogo_flor':case 'cobogo_veneziana':{
+        const c=g('c'),es=g('l'),a=g('a'),pad=t.padrao||'circ',fur=[];
+        if(pad==='ven'){const nr=Math.max(4,Math.round(a/6.5)),hh=a/nr;for(let j=0;j<nr;j++)fur.push(ret(c*0.08,hh*j+hh*0.28,c*0.84,hh*0.44));}
+        else{const n=c>=35?4:3,cel=c/n,nr=Math.max(1,Math.round(a/cel)),cy=a/nr,rr=Math.min(cel*0.4,cel*Math.sqrt((g('vz')||55)/100/PI));
+          const elp=(x,y,rx,ry,an)=>{const o=[];for(let s=0;s<16;s++){const b=2*PI*s/16,u=rx*Math.cos(b),v=ry*Math.sin(b);o.push([x+u*Math.cos(an)-v*Math.sin(an),y+u*Math.sin(an)+v*Math.cos(an)]);}return o;};
+          for(let i=0;i<n;i++)for(let j=0;j<nr;j++){const x=cel*(i+0.5),y=cy*(j+0.5),s2=Math.min(cel,cy),h=s2*0.36,gp=s2*0.07;
+            if(pad==='quad')fur.push(retR(x-h,y-h,2*h,2*h,h*0.12));
+            else if(pad==='losango')fur.push([[x,y-h*1.25],[x+h*1.25,y],[x,y+h*1.25],[x-h*1.25,y]]);
+            else if(pad==='tri'){const q=s2/2-gp*1.4;fur.push([[x-q,y-q],[x+q-gp,y-q],[x-q,y+q-gp]],[[x+q,y-q+gp],[x+q,y+q],[x-q+gp,y+q]]);}
+            else if(pad==='xis'){const q=s2/2-gp*1.3;fur.push([[x-q+gp,y-q],[x+q-gp,y-q],[x,y-gp]],[[x+q,y-q+gp],[x+q,y+q-gp],[x+gp,y]],[[x+q-gp,y+q],[x-q+gp,y+q],[x,y+gp]],[[x-q,y+q-gp],[x-q,y-q+gp],[x-gp,y]]);}
+            else if(pad==='hex')fur.push(circ(x,y,h*1.12,6,PI/6));
+            else if(pad==='flor'){for(let q=0;q<4;q++){const an=q*PI/2;fur.push(elp(x+Math.cos(an)*s2*0.22,y+Math.sin(an)*s2*0.22,s2*0.16,s2*0.085,an));}}
+            else fur.push(circ(x,y,rr,20));}}
         m.meshes.push(mapear(extrX(ret(0,0,c,a),es,fur),p=>[p[1],p[0],p[2]]));m.cotas.push({a:[0,es,0],b:[c,es,0],txt:cm(c)},{a:[c,0,0],b:[c,0,a],txt:cm(a)});return m;}
       case 'vigota':case 'verga':{const Lr=g('c'),W=g('l'),A=g('a'),L=longo(Lr,Math.max(W,A+(k==='vigota'?8:0)),'c',secTx(W,A));m.meshes.push(extrX(ret(0,0,W,A),L));if(k==='vigota')trelica(m,L,W/2,A,8);if(L<Lr)quebra(L/2,W,A);cotaBox(L,W,A,cmL(Lr),cm(W),cm(A));return m;}
       case 'minipainel':{const L=g('c'),W=g('l'),E=g('e');m.meshes.push(extrZ(ret(0,0,L,W),E));[W*0.3,W*0.7].forEach(y=>trelica(m,L,y,E,8));cotaBox(L,W,E,`${n1(L/100,2)} m`,cm(W),cm(E));return m;}
@@ -607,6 +664,23 @@ const ILU=(function(){
       case 'fossa_septica':case 'filtro_anaerobio':{const R=g('d')/2,a=g('a');m.meshes.push(revol([[0,0],[R,0],[R,a],[0,a]],56));
         [-0.42,0.42].forEach(s=>m.decor.push({p:circ3([s*R,0,a+0.05],R*0.2,'z',24),fill:'rgb(206,203,196)',stroke:'#475467',w:1},{p:[[s*R-R*0.08,0,a+0.1],[s*R+R*0.08,0,a+0.1]],aberto:1,stroke:'#3E3B37',w:2}));
         m.cotas.push({a:[-R,R,0],b:[R,R,0],txt:'Ø '+cm(2*R)},{a:[R,0,0],b:[R,0,a],txt:cm(a)});return m;}
+      case 'anel_pb':{const ri=g('di')/2,es=g('esp'),h=g('comp'),R=ri+es,hp=Math.max(4,h*0.12),hb=Math.max(4,h*0.12);
+        // ponta embaixo (parede mais fina por fora) e bolsa em cima (alargada por dentro): um anel encaixa no outro
+        m.meshes.push(revol([[ri,0],[R-es*0.45,0],[R-es*0.45,hp],[R,hp],[R,h],[ri+es*0.45,h],[ri+es*0.45,h-hb],[ri,h-hb]],56,{ly:{6:0}}));
+        m.cotas.push({a:[-R,R,0],b:[R,R,0],txt:'Ø int. '+cm(2*ri)},{a:[R,0,0],b:[R,0,h],txt:cm(h)});return m;}
+      case 'base_pv_pb':{const R=g('d')/2,a=g('a'),e=g('e'),ri=R-e,hb=Math.max(5,a*0.14);
+        m.meshes.push(revol([[0,0],[R,0],[R,a],[ri+e*0.45,a],[ri+e*0.45,a-hb],[ri,a-hb],[ri,e],[0,e]],56,{ly:{4:0,6:-1}}));
+        m.cotas.push({a:[-R,R,0],b:[R,R,0],txt:'Ø '+cm(2*R)},{a:[R,0,0],b:[R,0,a],txt:cm(a)});return m;}
+      case 'paver_ossinho':case 'paver_raquete':{const c=g('c'),l=g('l'),e=g('e');
+        const pts=k==='paver_ossinho'?[[0,0],[c*0.34,0],[c*0.5,l*0.16],[c*0.66,0],[c,0],[c,l],[c*0.66,l],[c*0.5,l*0.84],[c*0.34,l],[0,l]]:[[0,l*0.22],[c*0.28,0],[c,0],[c,l],[c*0.28,l],[0,l*0.78]];
+        m.meshes.push(extrZ(pts,e));const ch=Math.min(c,l)*0.07;m.decor.push({p:pts.map(([x,y])=>[x+(c/2-x)*0.08,y+(l/2-y)*0.12,e]),fill:'rgba(255,255,255,.07)',stroke:'rgba(0,0,0,.15)',w:.8});void ch;
+        cotaBox(c,l,e,cm(c),cm(l),cm(e));return m;}
+      case 'piso_estampado':{const c=g('c'),l=g('l'),e=g('e'),n=4;m.meshes.push(extrZ(ret(0,0,c,l),e));
+        // "pedras" irregulares em relevo, com junta escura
+        for(let i=0;i<n;i++)for(let j=0;j<n;j++){const x0=c*i/n,y0=l*j/n,w=c/n,hh=l/n,jit=(s)=>((Math.sin((i*7+j*13+s)*12.9898)*43758.5453)%1+1)%1,pts=[];
+          for(let s=0;s<7;s++){const an=2*PI*s/7,rx=w*(0.36+0.08*jit(s)),ry=hh*(0.36+0.08*jit(s+3));pts.push([x0+w/2+rx*Math.cos(an),y0+hh/2+ry*Math.sin(an),e]);}
+          m.decor.push({p:pts,fill:`rgba(${200+Math.round(jit(9)*25)},${196+Math.round(jit(5)*25)},${188+Math.round(jit(2)*25)},.9)`,stroke:'rgba(60,55,50,.45)',w:1});}
+        cotaBox(c,l,e,cm(c),cm(l),cm(e));return m;}
       case 'caixa_sao':{m.meshes.push(extrZ(ret(0,0,150,80),80,[ret(8,8,62,64),ret(78,8,64,64)],{fundo:8}));cotaBox(150,80,80,'150 cm','80 cm','80 cm');return m;}
     }
     // ── formas da família ──
