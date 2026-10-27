@@ -48,9 +48,7 @@
 #vx-espera.vis .l-txt{animation:vxTxt .75s 1.12s cubic-bezier(.2,.8,.3,1) both;}
 #vx-espera.vis .vxl-luz i{animation:vxLuz 3.4s 2s ease-in-out infinite;}
 #vx-espera.busy.vis .l-div{animation-delay:.4s;} #vx-espera.busy.vis .l-txt{animation-delay:.5s;}
-/* saudação, barra e mensagem */
-#vx-espera .vx-esp-ola{margin:4px 0 0;font:800 20px Manrope,Inter,system-ui,sans-serif;letter-spacing:-.01em;color:#101828;opacity:0;transform:translateY(6px);transition:opacity .5s 1.5s,transform .5s 1.5s;}
-#vx-espera.inicio.vis .vx-esp-ola{opacity:1;transform:none;} #vx-espera.busy .vx-esp-ola{display:none;}
+/* barra e mensagem */
 #vx-espera .vx-esp-barra{width:200px;height:4px;border-radius:99px;background:#E1E8F5;overflow:hidden;position:relative;}
 #vx-espera .vx-esp-barra i{position:absolute;top:0;bottom:0;width:38%;border-radius:99px;background:linear-gradient(90deg,#1E3A8A,#2E6FE0);box-shadow:0 0 10px rgba(46,111,224,.6);animation:vxBarra 1.3s ease-in-out infinite;}
 #vx-espera .vx-esp-msg{margin:0;min-height:18px;font:600 13.5px Inter,system-ui,sans-serif;color:#475467;letter-spacing:.01em;transition:opacity .25s;}
@@ -73,7 +71,7 @@
 @keyframes vxBolha{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(40px,-30px) scale(1.12)}}
 @keyframes vxPt{0%{opacity:0;transform:translateY(0) rotate(45deg) scale(.6)}20%{opacity:.85}100%{opacity:0;transform:translateY(-150px) rotate(225deg) scale(1)}}
 @media (prefers-reduced-motion:reduce){#vx-espera *{animation-duration:.01s!important;animation-iteration-count:1!important;} .vxl{transition:none;} #vx-espera.inicio{transition:opacity .3s;}}
-@media (max-width:560px){#vx-espera.busy .vx-esp-cx{padding:22px 24px 20px;} #vx-espera.busy .vxl{width:200px;} #vx-espera .vx-esp-ola{font-size:17px;}}`;
+@media (max-width:560px){#vx-espera.busy .vx-esp-cx{padding:22px 24px 20px;} #vx-espera.busy .vxl{width:200px;}}`;
   const st=document.createElement('style');st.textContent=css;document.head.appendChild(st);
 
   // ── as partes da logo: separadas pelos pixels da própria imagem (fundo transparente) ──
@@ -98,7 +96,7 @@
     if(el)return el;
     el=document.createElement('div');el.id='vx-espera';el.setAttribute('role','status');el.setAttribute('aria-live','polite');
     el.innerHTML=`<div class="vx-esp-cx"><div class="vx-esp-pts">${PTS.map(([x,s,c,d,a])=>`<span style="--x:${x}%;--s:${s}px;--c:${c};--d:${d}s;--a:${a}s"></span>`).join('')}</div>
-      <div class="vxl" data-vxl></div><p class="vx-esp-ola" data-ola></p><div class="vx-esp-barra"><i></i></div><p class="vx-esp-msg" data-msg></p><div class="vx-esp-dica">dica: clique na pirâmide</div></div>`;
+      <div class="vxl" data-vxl></div><div class="vx-esp-barra"><i></i></div><p class="vx-esp-msg" data-msg></p><div class="vx-esp-dica">dica: clique na pirâmide</div></div>`;
     document.body.appendChild(el);
     // inclina a logo acompanhando o mouse (efeito 3D)
     if(!reduz){el.addEventListener('pointermove',ev=>{const l=el.querySelector('[data-vxl]');if(!l||el.classList.contains('saindo'))return;const r=l.getBoundingClientRect(),dx=(ev.clientX-(r.left+r.width/2))/window.innerWidth,dy=(ev.clientY-(r.top+r.height/2))/window.innerHeight;
@@ -128,13 +126,12 @@
       if(modo==='inicio'&&!reduz){el.classList.add('saindo');setTimeout(()=>{if(el.classList.contains('saindo')){el.className='';modo='';}},780);return;}
       el.classList.remove('vis');setTimeout(()=>{if(!el.classList.contains('vis')){el.className='';modo='';}},380);},falta);}
 
-  // ── abertura do sistema: tela cheia, com a saudação, até os dados chegarem ──
+  // ── abertura do sistema: tela cheia desde o clique em Entrar (ou a sessão salva) até os dados chegarem ──
   const FRASES=['Carregando seus dados…','Conferindo obras e contratos…','Organizando a fábrica…','Arrumando o financeiro…','Quase pronto…'];
-  function saudacao(){const h=new Date().getHours(),s=(typeof Auth!=='undefined'&&Auth._session)||{},n=String(s.nome||'').trim().split(/\s+/)[0]||'';
-    return `${h<12?'Bom dia':h<18?'Boa tarde':'Boa noite'}${n?', '+n.charAt(0).toUpperCase()+n.slice(1).toLowerCase():''}!`;}
-  function inicio(){
-    if(modo==='inicio'&&!el.classList.contains('saindo'))return;abrir('inicio',FRASES[0]);el.querySelector('[data-ola]').textContent=saudacao();
-    let i=0;clearInterval(msgT);msgT=setInterval(()=>{i=Math.min(i+1,FRASES.length-1);mensagem(FRASES[i]);},1700);
+  function inicio(msg){
+    if(modo==='inicio'&&el&&!el.classList.contains('saindo')){clearTimeout(fimT);return;}   // já aberta (ex.: desde o Entrar): segue
+    abrir('inicio',msg||FRASES[0]);
+    let i=msg?-1:0;clearInterval(msgT);msgT=setInterval(()=>{i=Math.min(i+1,FRASES.length-1);mensagem(FRASES[i]);},1700);
     clearTimeout(iniP);iniP=setTimeout(()=>fechar(0),45000);}   // segurança: nunca fica presa
   function fimInicio(){clearTimeout(iniP);if(modo==='inicio')fechar(2300);}
   // ── espera de gravação: só aparece se passar de um instante (não pisca nas gravações rápidas) ──
@@ -150,7 +147,8 @@
   // ganchos: abertura (App.init sem dados ainda, com alguém entrando) e gravações (UI._showBusy / _hideBusy)
   function ligar(){
     if(typeof App!=='undefined'&&App.init&&!App.init._vx){const orig=App.init;
-      App.init=function(silent,onDone){const prim=!(this.state&&this.state.data)&&!silent&&typeof Auth!=='undefined'&&Auth._session;
+      // entrando no sistema: sem dados ainda, ou a tela de abertura já aberta pelo Entrar (sair e entrar de novo sem recarregar a página)
+      App.init=function(silent,onDone){const prim=!silent&&typeof Auth!=='undefined'&&!!Auth._session&&(!(this.state&&this.state.data)||modo==='inicio');
         if(prim)inicio();return orig.call(this,silent,prim?function(){fimInicio();if(onDone)return onDone.apply(this,arguments);}:onDone);};
       App.init._vx=1;}
     if(typeof UI!=='undefined'&&UI._showBusy&&!UI._showBusy._vx){const s=UI._showBusy,h=UI._hideBusy;

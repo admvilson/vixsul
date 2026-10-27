@@ -10195,7 +10195,8 @@ const Auth={
     }
 
     btn.disabled=true;
-    btn.innerHTML='<span class="btn-spin"></span> Verificando…';
+    btn.innerHTML='Entrar';
+    if(window.VxEspera)VxEspera.inicio('Conferindo o seu acesso…');   /* tela de carregamento com a logo desde o clique em Entrar */
     const cod2=((document.getElementById('login-codigo')||{}).value||'').trim();
     const runner=google.script.run
       .withSuccessHandler(res=>{
@@ -10222,6 +10223,7 @@ const Auth={
             this._startIdleWatcher();
           });
         } else if(res.precisaCodigo){
+          if(window.VxEspera)VxEspera.fechar(0);   /* volta ao login para digitar o código */
           // senha certa, conta com verificação em duas etapas: pede o código do celular
           btn.disabled=false;btn.innerHTML='Entrar';
           const box=document.getElementById('login-2fa'),ci=document.getElementById('login-codigo');
@@ -10229,6 +10231,7 @@ const Auth={
           document.getElementById('login-err-msg').textContent=res.msg||'Digite o código do aplicativo autenticador.';
           err.classList.add('show');
         } else {
+          if(window.VxEspera)VxEspera.fechar(0);
           btn.disabled=false;btn.innerHTML='Entrar';
           uEl.classList.add('err');pEl.classList.add('err');
           document.getElementById('login-err-msg').textContent=res.msg||'Usuário ou senha incorretos.';
@@ -10240,6 +10243,7 @@ const Auth={
         }
       })
       .withFailureHandler(()=>{
+        if(window.VxEspera)VxEspera.fechar(0);
         btn.disabled=false;btn.innerHTML='Entrar';
         document.getElementById('login-err-msg').textContent='Erro de conexão. Tente novamente.';
         err.classList.add('show');
@@ -22807,7 +22811,7 @@ input.gf-lista-campo{background-image:url("data:image/svg+xml;utf8,<svg xmlns='h
 <script src="listas.js?v=20261015"></script>
 <script src="pm-catalogo.js?v=20261028b"></script>
 <script src="premoldados.js?v=20261028b"></script>
-<script src="espera.js?v=20261028b"></script>
+<script src="espera.js?v=20261028c"></script>
 </body>
 </html>
 
