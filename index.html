@@ -11571,7 +11571,7 @@ const Fin=(function(){
       <div class="fin-linha">
         <div class="fin-fld" style="grid-column:1/-1"><label>Para onde vai o gasto <span class="obg">*</span></label>${GS.destino.html('data-k="centro"',centro0)}</div>
         <div style="grid-column:1/-1">${GS.rateio.htmlRateio()}</div></div>
-      <div class="cc-todas"><span>Preencher a categoria de todas as linhas:</span>${GS.comboGasto.html('data-k="catTodas"','data-k="descTodas"','','')}</div>
+      <div class="cc-todas"><span>Preencher todas as linhas:</span>${GS.comboGasto.html('data-k="catTodas"','data-k="descTodas"','','')}<select data-k="formaTodas" title="Forma de pagamento de todas as linhas"><option value="">Forma…</option>${FORMAS.map(f=>`<option>${fe(f)}</option>`).join('')}</select></div>
       <div class="lote-tab cc-lt"><table data-sem-ordem><thead><tr><th>No banco</th><th>Fornecedor / quem recebe</th><th>Categoria › Descrição <span class="obg">*</span></th><th>Forma</th><th>Valor</th><th></th></tr></thead><tbody data-k="linhas">${LN.map(linhaHtml).join('')}</tbody></table></div>
       <div class="lote-tot" data-k="tot"></div>
       <div class="lote-socio"><label class="nfc-amb"><input type="checkbox" data-k="socio"><span><b>Pago com dinheiro do sócio</b> (cartão, PIX ou conta pessoal) — as contas ficam pagas na data do banco e o valor também entra em <b>Sócios e investimentos</b> como aporte</span></label>
@@ -11615,6 +11615,7 @@ const Fin=(function(){
     ce.addEventListener('change',()=>{rb.hidden=ce.value!==RAT;ajustarCats();});
     j.addEventListener('change',ev=>{
       if(ev.target.matches('[data-k="descTodas"]')){const cat=j.querySelector('[data-k="catTodas"]').value,desc=ev.target.value;if(cat&&desc)tb.querySelectorAll('.cg').forEach(b=>GS.comboGasto.definir(b,cat,desc));}
+      else if(ev.target.matches('[data-k="formaTodas"]')){const f=ev.target.value;if(f)tb.querySelectorAll('[data-i="forma"]').forEach(s=>{s.value=f;});}
       else if(ev.target.matches('[data-k="socio"]'))j.querySelector('[data-k="socio-box"]').hidden=!ev.target.checked;});
     tb.addEventListener('click',ev=>{const b=ev.target.closest('[data-i="tirar"]');if(b){b.closest('tr').remove();pintarTot();}});
     ajustarCats();pintarTot();
@@ -21127,6 +21128,8 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
 .lote-tab.cc-lt td:nth-child(1){width:220px;} .lote-tab.cc-lt td:nth-child(2){width:190px;} .lote-tab.cc-lt td:nth-child(3){min-width:240px;} .lote-tab.cc-lt td:nth-child(4){width:175px;} .lote-tab.cc-lt td:nth-child(5){width:104px;} .lote-tab.cc-lt td:nth-child(6){width:40px;}
 .lote-tab.cc-lt td.cc-lt-banco{font-size:12px;color:#344054;line-height:1.35;padding:7px 6px;overflow-wrap:anywhere;} .lote-tab.cc-lt td.num{text-align:right;white-space:nowrap;padding:9px 8px;font-variant-numeric:tabular-nums;}
 .cc-todas{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;margin:12px 0 8px;font-size:12.5px;color:#475467;font-weight:600;} .cc-todas .cg{flex:1 1 300px;min-width:0;}
+.cc-todas select{flex:0 1 190px;min-width:150px;padding:8px 10px;border:1px solid #D0D5DD;border-radius:10px;font:500 13px Inter,sans-serif;background:#fff;}
+@media (max-width:560px){.cc-todas>span{flex-basis:100%;} .cc-todas select{flex:1 1 100%;}}
 @media (max-width:640px){
   .fin-jan-corpo .fin-bt,.fin-jan-corpo .gf-bt{white-space:normal;max-width:100%;text-align:left;}
   .fin-jan-corpo{padding:14px 14px;}
