@@ -1451,10 +1451,6 @@ tbody tr:hover td{background:rgba(0,113,227,.02);}
       <button class="btn-save" id="btn-save" form="form-upsert" type="submit">Salvar</button>
       <button class="btn-delete" id="btn-del" type="button" onclick="UI.confirmDelete()">Excluir</button>
     </div>
-    <div id="modal-editor-busy" style="display:none;position:absolute;inset:0;background:rgba(255,255,255,.92);backdrop-filter:blur(3px);z-index:999;align-items:center;justify-content:center;flex-direction:column;gap:12px;border-radius:inherit;cursor:not-allowed">
-      <span class="btn-spin" style="width:26px;height:26px;border-width:3px;border-color:rgba(0,113,227,.2);border-top-color:var(--blue)"></span>
-      <span id="modal-editor-busy-text" style="font-size:13px;font-weight:700;color:var(--text-2)">Atualizando…</span>
-    </div>
   </div>
 </div>
 <!-- Bloqueio global de cliques enquanto salva/exclui: cobre a tela INTEIRA (acima de tudo,
@@ -9612,19 +9608,12 @@ const UI={
     if(btn){btn.disabled=false;btn.innerHTML='Salvar';}
   },
 
-  /* Mostra/esconde o overlay de bloqueio total sobre o modal de edição,
-     usado durante toda a operação de salvar/excluir: impede fisicamente
-     qualquer clique ou interação com o conteúdo do modal enquanto ativo. */
+  /* Bloqueia os cliques na tela inteira durante salvar/excluir. O que aparece para o usuário
+     é a tela de espera com a logo animada (espera.js), ligada a estas duas funções. */
   _showBusy(texto){
-    const el=document.getElementById('modal-editor-busy');
-    const txt=document.getElementById('modal-editor-busy-text');
-    if(txt)txt.textContent=texto||'Atualizando…';
-    if(el)el.style.display='flex';
     const gb=document.getElementById('global-busy-block');if(gb)gb.style.display='block';
   },
   _hideBusy(){
-    const el=document.getElementById('modal-editor-busy');
-    if(el)el.style.display='none';
     const gb=document.getElementById('global-busy-block');if(gb)gb.style.display='none';
   },
 
@@ -10215,7 +10204,7 @@ const Auth={
           this._session={nome:res.nome,perfil:res.perfil,acessos:res.acessos||null,cpf:isExt?'':user,tipoUsuario:res.tipoUsuario||(isExt?'externo':'interno'),obrasPermitidas:res.obrasPermitidas||[],uid:res.uid||'',email:res.email||(isExt?user.toLowerCase():'')};
           this._saveSession();
           this._applySession();
-          btn.innerHTML='<span class="btn-spin"></span> Carregando…';
+          btn.innerHTML='Entrar';   /* o carregamento aparece na tela de abertura com a logo (espera.js) */
           // Só troca de tela DEPOIS que os dados terminarem de carregar — evita mostrar
           // a interface "crua" (sem os filtros/restrições aplicados) por uma fração de segundo.
           App.init(false,loadErr=>{
@@ -10920,7 +10909,7 @@ const Fin=(function(){
       const err=j.querySelector('[data-fin-erro]');
       // botão principal (salvar): campos com * preenchidos; telefone, e-mail, CPF e CNPJ preenchidos têm que estar certos
       if(/\b(pri|valida)\b/.test(bt.cls||'')&&typeof Mascara!=='undefined'&&Mascara.conferir){const ruim=(Mascara.obrigatorios&&Mascara.obrigatorios(j))||Mascara.conferir(j);if(ruim){err.style.color='';err.textContent=ruim.msg;try{ruim.el.focus();ruim.el.scrollIntoView({block:'center',behavior:'smooth'});}catch(e){}return;}}
-      err.style.color='var(--text-2)';err.textContent='Salvando…';
+      err.style.color='var(--text-2)';err.textContent='';   /* a espera aparece na tela com a logo (espera.js) */
       j.querySelectorAll('.fin-bt').forEach(x=>x.disabled=true);
       // fecha e redesenha a tela (enquanto a janela estava aberta a conciliação não se redesenha)
       try{const r=await bt.acao(j);err.textContent='';if(r!==false){fechar();aoAtualizar();}}
@@ -22818,7 +22807,7 @@ input.gf-lista-campo{background-image:url("data:image/svg+xml;utf8,<svg xmlns='h
 <script src="listas.js?v=20261015"></script>
 <script src="pm-catalogo.js?v=20261028b"></script>
 <script src="premoldados.js?v=20261028b"></script>
-<script src="espera.js?v=20261028a"></script>
+<script src="espera.js?v=20261028b"></script>
 </body>
 </html>
 
