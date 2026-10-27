@@ -11925,6 +11925,23 @@ const Atencao=(function(){
 .rdo-eq-tab tbody:empty::after{content:'Nenhum no dia.';display:block;padding:10px;color:#98A2B3;font-size:12px;}
 .rdo-res{margin-bottom:12px;} .rdo-res-cab{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px;} .rdo-res-cab h3{margin:0;font-size:15px;display:flex;gap:8px;align-items:center;}
 .rdo-eq-tit{display:flex;align-items:baseline;gap:8px;margin:2px 0 6px;font-size:12.5px;color:#344054;} .rdo-eq-tit small{color:#667085;font-size:11.5px;}
+/* horímetro da Retroescavadeira: 4 leituras, cada uma com a foto (obrigatória) e a hora em que a foto foi tirada */
+.rdo-hor{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;border:1px solid #E4E9F2;border-radius:12px;padding:10px;background:#FCFCFD;}
+.rdo-hor.rdo-erro .rdo-hl input[data-eq^="h"]:not([data-eq="h"]){border-color:#FDA29B;background:#FEF3F2;}
+.rdo-hl{display:flex;flex-direction:column;gap:5px;min-width:0;} .rdo-hl>label:not(.rdo-hfoto){font:800 10px Inter,sans-serif;text-transform:uppercase;letter-spacing:.04em;color:#667085;margin:0;}
+.rdo-hl input[data-eq]{width:100%;box-sizing:border-box;border:1px solid #D0D5DD;border-radius:8px;padding:7px 8px;font:600 13px Inter,sans-serif;background:#fff;}
+.rdo-hl input[data-eq="h"]{background:#F2F4F7;color:#344054;font-weight:800;cursor:not-allowed;}
+.rdo-hfoto{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;height:96px;border:1.5px dashed #84ADFF;border-radius:10px;background:#F5F8FF;color:#1652D8;font:600 11.5px Inter,sans-serif;text-align:center;cursor:pointer;overflow:hidden;margin:0;text-transform:none;letter-spacing:0;}
+.rdo-hfoto:hover{background:#EEF4FF;} .rdo-hfoto i.fa-camera{font-size:18px;} .rdo-hfoto span .obg{color:#D92D20;}
+.rdo-hfoto.ok{border-style:solid;border-color:#ABEFC6;background:#000;}
+.rdo-hfoto.ok img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;}
+.rdo-hfoto .rdo-hhora{position:absolute;left:4px;bottom:4px;background:rgba(16,24,40,.78);color:#fff;border-radius:6px;padding:2px 6px;font:800 11px Inter,sans-serif;} .rdo-hfoto .rdo-hhora.outro{background:#B54708;}
+.rdo-hfoto em{position:absolute;right:4px;top:4px;background:rgba(255,255,255,.92);color:#1652D8;border-radius:6px;padding:1px 6px;font:700 10.5px Inter,sans-serif;font-style:normal;opacity:0;transition:opacity .15s;} .rdo-hfoto.ok:hover em{opacity:1;}
+.rdo-hfotos{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 2px;}
+.rdo-hfotos button{position:relative;width:96px;height:72px;border:1px solid #E4E9F2;border-radius:9px;overflow:hidden;padding:0;background:#F2F4F7;cursor:zoom-in;}
+.rdo-hfotos img{width:100%;height:100%;object-fit:cover;display:block;}
+.rdo-hfotos span{position:absolute;left:0;right:0;bottom:0;background:linear-gradient(transparent,rgba(16,24,40,.85));color:#fff;font:600 9.5px Inter,sans-serif;padding:8px 5px 3px;text-align:left;line-height:1.2;} .rdo-hfotos span b{display:block;font-size:11px;}
+@media (max-width:760px){.rdo-hor{grid-template-columns:repeat(2,minmax(0,1fr));} .rdo-hl-tot{grid-column:1/-1;}}
 .rdo-eq-tab table.rdo-sem{min-width:0;}
 .rdo-eq-bts{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;} .rdo-antigo{display:block;margin-top:6px;color:#B54708;font-size:12px;}
 .eng-med-tab input{width:92px;padding:6px 8px;border:1px solid var(--border);border-radius:8px;font:12.5px Inter,sans-serif;text-align:right;}
@@ -12020,13 +12037,14 @@ const Eng=(function(){
     return `<div class="fin-fld"${c.inteira?' style="grid-column:1/-1"':''}>${lab}${inp}</div>`;
   }
   // cfg.extra(reg): HTML a mais no formulário · cfg.aoAbrir(j,reg): liga os eventos dele ·
-  // cfg.preparar(j,reg): roda AINDA DENTRO DO CLIQUE (ex.: pedir acesso ao Google para enviar fotos) ·
+  // cfg.validar(o,reg,j): confere (devolve a mensagem do que falta) ·
+  // cfg.preparar(j,reg): roda AINDA DENTRO DO CLIQUE, depois de conferir (ex.: pedir acesso ao Google para enviar fotos) ·
+  // cfg.antes(o,reg,j): roda antes de gravar (ex.: enviar as fotos do horímetro e guardar a ligação delas no registro) ·
   // cfg.depois(o,reg,j,prep): roda depois de gravar (ex.: enviar as fotos do dia)
   function formulario(cfg,reg,extraHtml){
     const linhas=`<div class="fin-linha">${cfg.campos.map(c=>campoHtml(c,reg?reg[c.k]:'',reg)).join('')}</div>${cfg.extra?cfg.extra(reg):''}${extraHtml||''}`;
     const jan=janela((reg?'Editar ':'Novo ')+cfg.nomeItem,linhas,[{html:'Cancelar'},{html:reg?'Salvar':'Cadastrar',cls:'pri',acao:async j=>{
       if(reg&&GS.podeMexer&&!GS.podeMexer(reg))throw new Error(GS.MSG_DONO);
-      const prep=cfg.preparar?cfg.preparar(j,reg):null;
       const o=reg?{...reg}:{data_lancamento:todayDateTime()};
       for(const c of cfg.campos){
         if(c.tipo==='sec'||c.tipo==='html')continue;
@@ -12036,7 +12054,9 @@ const Eng=(function(){
         if(c.tipo==='url'&&v&&!/^https?:\/\//i.test(v))throw new Error('O link precisa começar com http:// ou https://');
         o[c.k]=v;
       }
-      if(cfg.validar){const msg=cfg.validar(o,reg);if(msg)throw new Error(msg);}
+      if(cfg.validar){const msg=cfg.validar(o,reg,j);if(msg)throw new Error(msg);}
+      const prep=cfg.preparar?cfg.preparar(j,reg):null;
+      if(cfg.antes)await cfg.antes(o,reg,j);
       await executar(()=>salvar(cfg.aba,o,reg?reg.rowid:null));
       toast(reg?'Alterações salvas.':cfg.nomeItem.charAt(0).toUpperCase()+cfg.nomeItem.slice(1)+' cadastrado.','success');
       if(cfg.depois)await cfg.depois(o,reg,j,prep);
@@ -12219,6 +12239,7 @@ const Eng=(function(){
     if(so){so.value=ob;so.disabled=true;so.title='Para outra obra, feche e escolha de novo em Registrar dia';}
     if(sd)sd.value=iso;
     const av=j.querySelector('[data-rdo-dia]');if(av)av.innerHTML=avisoDiaRdo(iso);
+    if(j._rdoPrefill)j._rdoPrefill();
   }
   const avisoDiaRdo=iso=>passouHoraRdo(iso)?(ehAdmRdo()?'<i class="fas fa-user-shield"></i> Dia já encerrado às 19h: registrando como Administrador (fica aberto por 1 hora).':'<i class="fas fa-lock"></i> Dia encerrado às 19h: só o Administrador registra.'):iso===hojeRdo()?'<i class="fas fa-clock"></i> Este diário <b>fecha sozinho às 19h</b>. Depois disso, só o Administrador reabre.':'';
   // "Ver" de um dia fechado: tudo o que foi registrado, sem alterar
@@ -12250,7 +12271,6 @@ const Eng=(function(){
      Os textos antigos (efetivo_desc / equipamentos) continuam sendo gravados — o PDF e os relatórios usam. */
   const FUNCOES=['Encarregado','Pedreiro','Servente','Armador','Carpinteiro','Eletricista','Encanador','Pintor','Operador de máquina','Motorista','Outros'];
   const PLURAL={Encarregado:'encarregados',Pedreiro:'pedreiros',Servente:'serventes',Armador:'armadores',Carpinteiro:'carpinteiros',Eletricista:'eletricistas',Encanador:'encanadores',Pintor:'pintores','Operador de máquina':'operadores de máquina',Motorista:'motoristas',Outros:'outros'};
-  const EQUIP_SUG=['Retroescavadeira','Escavadeira','Mini carregadeira','Caminhão basculante','Caminhão-pipa','Caminhão munck','Rolo compactador','Compactador de solo (sapo)','Placa vibratória','Betoneira','Gerador','Martelete / rompedor','Bomba submersa','Andaime'];
   const jsonDe=s=>{try{const v=JSON.parse(s||'');return v&&typeof v==='object'?v:null;}catch(e){return null;}};
   const nBR=v=>{const n=Mascara.numero(String(v==null?'':v));return n==null?NaN:n;};
   const fmtH=n=>isNaN(n)?'':n.toLocaleString('pt-BR',{maximumFractionDigits:1});
@@ -12273,17 +12293,37 @@ const Eng=(function(){
     return {m,t,tot:(isNaN(m)?0:m)+(isNaN(t)?0:t)+(isNaN(m)&&isNaN(t)?NaN:0)};}
   const ordemRuim=x=>{const l=leituras(x),v=['h1','h2','h3','h4'].map(k=>nBR(l[k])).filter(n=>!isNaN(n));return v.some((n,i)=>i&&n<v[i-1]);};
   const ultimaLeitura=x=>{const l=leituras(x);return l.h4||l.h3||l.h2||l.h1||'';};
-  const cel=(k,v,ph)=>`<td><input data-eq="${k}" inputmode="decimal" value="${fe(v||'')}" placeholder="${ph||'0,0'}"></td>`;
-  function linhaEquip(x){x=x||{};const l=leituras(x),h=horasEq(x);
-    return `<tr><td><input data-eq="eq" list="rdo-equip-lista" value="${fe(x.eq||'')}" placeholder="Ex.: Retroescavadeira"></td>${cel('h1',l.h1)}${cel('h2',l.h2)}${cel('h3',l.h3)}${cel('h4',l.h4)}<td><input data-eq="h" value="${!isNaN(h.tot)&&h.tot>=0?fmtH(h.tot):''}" disabled title="Calculado: (meio-dia − início do dia) + (fim da tarde − início da tarde)"></td><td><input data-eq="obs" value="${fe(x.obs||'')}" placeholder="opcional"></td><td><button type="button" class="bt-tirar" data-eq-x title="Tirar esta linha" aria-label="Tirar esta linha"><i class="fas fa-trash-can"></i></button></td></tr>`;}
+  /* HORÍMETRO: a Retroescavadeira fica fixa, com as 4 leituras do dia — cada leitura com a FOTO do horímetro
+     (obrigatória). Na foto fica carimbada a data e a hora em que ela foi tirada; a foto vai para o sistema (galeria
+     da obra, marcada como "horimetro") e a ligação dela fica na leitura: f1…f4 = {uid, thumb, hora, data}. */
+  const MAQ_FIXA='Retroescavadeira';
+  const LEIT=[['h1','Início do dia'],['h2','Meio-dia'],['h3','Início da tarde'],['h4','Fim da tarde']];
+  const fk=k=>'f'+k.slice(1);
+  const maqDe=reg=>{const com=(jsonDe(reg&&reg.equip_json)||[]).filter(x=>x.hor!==false);return com.find(x=>cn(x.eq)===cn(MAQ_FIXA))||com[0]||{eq:MAQ_FIXA,hor:true};};
+  // foto de uma leitura: a que ainda vai ser enviada (url do arquivo) ou a que já está no sistema (ref)
+  const fotoHorHtml=(v,dia)=>{if(!v||!(v.url||v.ref))return '<i class="fas fa-camera"></i><span>Foto do horímetro <b class="obg">*</b></span>';
+    const r=v.ref||{},hora=v.hora||r.hora||'',data=v.data||r.data||'',outro=dia&&data&&data!==dia;
+    return `<img ${v.url?`src="${v.url}"`:GS.fotoSis.attrs({foto_uid:r.uid,thumb_uid:r.thumb},false,200)} alt=""><span class="rdo-hhora${outro?' outro':''}" title="${outro?'A foto é de outro dia — confira':'Hora em que a foto foi tirada'}"><i class="fas fa-clock"></i> ${fe(hora)}${outro?' · '+fe(brDe(dt(data)).slice(0,5)):''}</span><em>Trocar</em>`;};
+  // carimba na foto a data e a hora em que ela foi tirada (a do arquivo da câmera) e o que ela mostra
+  function carimbar(file,txt1,txt2){return new Promise((ok,er)=>{const u=URL.createObjectURL(file),im=new Image();
+    im.onload=()=>{const k=Math.min(1,1600/Math.max(im.naturalWidth,im.naturalHeight)),W=Math.max(1,Math.round(im.naturalWidth*k)),H=Math.max(1,Math.round(im.naturalHeight*k)),cv=document.createElement('canvas');cv.width=W;cv.height=H;
+      const cx=cv.getContext('2d');cx.drawImage(im,0,0,W,H);const fs=Math.max(14,Math.round(W/30)),pad=Math.round(fs*.55),bh=Math.round(fs*1.9+pad*3);
+      cx.fillStyle='rgba(16,24,40,.72)';cx.fillRect(0,H-bh,W,bh);cx.fillStyle='#fff';cx.textBaseline='top';
+      cx.font=`800 ${fs}px Inter,Arial,sans-serif`;cx.fillText(txt1,pad,H-bh+pad);cx.font=`600 ${Math.round(fs*.72)}px Inter,Arial,sans-serif`;cx.fillText(txt2,pad,H-bh+pad*2+fs);
+      URL.revokeObjectURL(u);cv.toBlob(b=>b?ok(new File([b],'horimetro.jpg',{type:'image/jpeg',lastModified:file.lastModified||Date.now()})):er(new Error('Não consegui preparar a foto.')),'image/jpeg',0.86);};
+    im.onerror=()=>{URL.revokeObjectURL(u);er(new Error('Não consegui abrir essa foto — tente outra.'));};im.src=u;});}
+  // as fotos do horímetro de um registro (para o cartão, o visualizador e o PDF)
+  function fotosHorimetro(r){const x=maqDe(r);
+    return LEIT.map(([k,rot])=>{const f=x[fk(k)];if(!f||!f.uid)return null;const im=(D().obra_imagens||[]).find(i=>i.foto_uid===f.uid)||{foto_uid:f.uid,thumb_uid:f.thumb,titulo_obra:r.titulo_obra,descricao:rot};return {im,rot,hora:f.hora||''};}).filter(Boolean);}
   function linhaSem(x){x=x||{};
     return `<tr><td><input data-sq="eq" list="rdo-equip-sem" value="${fe(x.eq||'')}" placeholder="Ex.: Betoneira"></td><td><input data-sq="qtd" inputmode="numeric" value="${fe(x.qtd||'1')}"></td><td><input data-sq="obs" value="${fe(x.obs||'')}" placeholder="opcional (ex.: parada à tarde)"></td><td><button type="button" class="bt-tirar" data-eq-x title="Tirar esta linha" aria-label="Tirar esta linha"><i class="fas fa-trash-can"></i></button></td></tr>`;}
-  function htmlEquip(reg){const l=(jsonDe(reg&&reg.equip_json)||[]),com=l.filter(x=>x.hor!==false),sem=l.filter(x=>x.hor===false);
-    return `<datalist id="rdo-equip-lista">${EQUIP_SUG.map(e=>`<option value="${fe(e)}">`).join('')}</datalist><datalist id="rdo-equip-sem">${EQUIP_SEM.map(e=>`<option value="${fe(e)}">`).join('')}</datalist>
-      <div class="rdo-eq-tit"><b><i class="fas fa-gauge-high"></i> Máquinas com horímetro</b><small>leituras do dia — as horas são calculadas</small></div>
-      <div class="rdo-eq-tab"><table data-sem-ordem><thead><tr><th>Máquina</th><th>Início do dia</th><th>Meio-dia</th><th>Início da tarde</th><th>Fim da tarde</th><th>Horas no dia</th><th>Observação</th><th></th></tr></thead><tbody data-rdo-eq>${com.map(linhaEquip).join('')}</tbody></table></div>
-      <div class="rdo-eq-bts"><button type="button" class="fin-bt mini pri" data-eq-add="Retroescavadeira"><i class="fas fa-tractor"></i> Retroescavadeira</button><button type="button" class="fin-bt mini" data-eq-add=""><i class="fas fa-plus"></i> Outra máquina com horímetro</button></div>
-      <div class="rdo-eq-tit" style="margin-top:12px"><b><i class="fas fa-toolbox"></i> Máquinas e equipamentos sem horímetro</b></div>
+  function htmlEquip(reg){const l=(jsonDe(reg&&reg.equip_json)||[]),sem=l.filter(x=>x.hor===false),x=maqDe(reg),L=leituras(x),h=horasEq(x),dia=reg?reg.data:'';
+    return `<datalist id="rdo-equip-sem">${EQUIP_SEM.map(e=>`<option value="${fe(e)}">`).join('')}</datalist>
+      <div class="rdo-eq-tit"><b><i class="fas fa-gauge-high"></i> ${MAQ_FIXA} — horímetro</b><small>as 4 leituras do dia, cada uma com a foto do horímetro (a hora da foto fica gravada nela) — as horas são calculadas</small></div>
+      <div class="rdo-hor" data-rdo-hor>${LEIT.map(([k,rot])=>{const f=x[fk(k)];return `<div class="rdo-hl"><label>${rot} <span class="obg">*</span></label><input data-eq="${k}" inputmode="decimal" value="${fe(L[k]||'')}" placeholder="0,0">
+          <label class="rdo-hfoto${f&&f.uid?' ok':''}" data-hfoto="${k}" title="Foto do horímetro — ${rot}">${fotoHorHtml(f&&f.uid?{ref:f}:null,dia)}<input type="file" accept="image/*" hidden data-hfile="${k}"></label></div>`;}).join('')}
+        <div class="rdo-hl rdo-hl-tot"><label>Horas no dia</label><input data-eq="h" value="${!isNaN(h.tot)&&h.tot>=0?fmtH(h.tot):''}" disabled title="Calculado: (meio-dia − início do dia) + (fim da tarde − início da tarde)"><label style="margin-top:8px">Observação</label><input data-eq="obs" value="${fe(x.obs||'')}" placeholder="opcional"></div></div>
+      <div class="rdo-eq-tit" style="margin-top:14px"><b><i class="fas fa-toolbox"></i> Máquinas e equipamentos sem horímetro</b><small>opcional</small></div>
       <div class="rdo-eq-tab"><table data-sem-ordem class="rdo-sem"><thead><tr><th>Equipamento</th><th>Quantidade</th><th>Observação</th><th></th></tr></thead><tbody data-rdo-sem>${sem.map(linhaSem).join('')}</tbody></table></div>
       <div class="rdo-eq-bts"><button type="button" class="fin-bt mini" data-sem-add><i class="fas fa-plus"></i> Equipamento sem horímetro</button></div>
       ${reg&&reg.equipamentos&&!reg.equip_json?`<small class="rdo-antigo">Registro antigo: ${fe(reg.equipamentos)}</small>`:''}`;}
@@ -12297,10 +12337,10 @@ const Eng=(function(){
     {k:'_s2',tipo:'sec',label:'<i class="fas fa-cloud-sun"></i> Tempo e condição de trabalho'},
     {k:'_tempo',tipo:'html',html:htmlTempo},
     {k:'clima_manha',label:'Tempo pela manhã',tipo:'oculto',obrig:true},{k:'clima_tarde',label:'Tempo à tarde',tipo:'oculto',obrig:true},{k:'condicao',label:'Condição do trabalho',tipo:'oculto',obrig:true},
-    {k:'_s3',tipo:'sec',label:'<i class="fas fa-people-group"></i> Equipe no dia'},
+    {k:'_s3',tipo:'sec',label:'<i class="fas fa-people-group"></i> Equipe no dia <span class="obg">*</span>'},
     {k:'_equipe',tipo:'html',html:htmlEquipe},
     {k:'efetivo_total',tipo:'oculto'},{k:'efetivo_desc',tipo:'oculto'},{k:'equipe_json',tipo:'oculto'},
-    {k:'_s4',tipo:'sec',label:'<i class="fas fa-tractor"></i> Equipamentos e horímetro'},
+    {k:'_s4',tipo:'sec',label:'<i class="fas fa-tractor"></i> Equipamentos e horímetro <span class="obg">*</span>'},
     {k:'_equip',tipo:'html',html:htmlEquip},
     {k:'equipamentos',tipo:'oculto'},{k:'equip_json',tipo:'oculto'},
     {k:'_s5',tipo:'sec',label:'<i class="fas fa-helmet-safety"></i> Serviços e ocorrências'},
@@ -12309,7 +12349,7 @@ const Eng=(function(){
     {k:'visitas',label:'Visitas e fiscalização',tipo:'area',inteira:true,linhas:2,ph:'Visita do fiscal da EMBASA, orientações recebidas…'}
   ],
   // FOTOS DO DIA já no registro: escolhidas aqui, vão para a galeria da obra com a data do diário
-  extra:reg=>podeFotoRdo()&&(!reg||GS.podeMexer(reg))?`<div class="rdo-fotos"><div class="rdo-fotos-cab"><b><i class="fas fa-camera"></i> Fotos do dia</b><label class="fin-bt mini" style="cursor:pointer">+ Escolher fotos<input type="file" accept="image/*" multiple data-rdo-fotos hidden></label></div>
+  extra:reg=>podeFotoRdo()&&(!reg||GS.podeMexer(reg))?`<div class="rdo-fotos"><div class="rdo-fotos-cab"><b><i class="fas fa-camera"></i> Fotos do dia <span class="obg">*</span></b><label class="fin-bt mini" style="cursor:pointer">+ Escolher fotos<input type="file" accept="image/*" multiple data-rdo-fotos hidden></label></div>
     <div class="eng-fotos-fila" data-rdo-prev></div><small>${reg?'As fotos que já estão neste dia continuam; as escolhidas aqui são somadas.':'As fotos vão para a galeria da obra com a data deste registro e aparecem neste dia do diário.'}</small></div>`:'',
   aoAbrir:(j,reg)=>{
     ligarRdo(j,reg);
@@ -12322,10 +12362,24 @@ const Eng=(function(){
   // o acesso ao Google Drive é pedido ainda no clique de Cadastrar (senão o navegador bloqueia a janela do Google)
   preparar:j=>{if(!(j._fotos&&j._fotos.length))return null;if(!ehAdmRdo())return Promise.resolve('sistema');const io=UI.ImagensObra;
     const p=new Promise((ok,er)=>{const t=setTimeout(()=>er(new Error('o acesso ao Google Drive não foi confirmado.')),180000);io._autenticar(()=>{clearTimeout(t);ok();});});p.catch(()=>{});return p;},
-  depois:async(o,reg,j,prep)=>{if(!prep)return;
+  // fotos do horímetro: vão para o sistema ANTES de gravar o diário, e a ligação de cada uma fica na leitura dela
+  antes:async(o,reg,j)=>{
+    const pend=LEIT.filter(([k])=>j._hor&&j._hor[k]&&j._hor[k].file);if(!pend.length)return;
+    App.state._busy=true;UI._showBusy('Enviando as fotos do horímetro…');
+    try{for(const [k,rot] of pend){const v=j._hor[k],r=await GS.fotoSis.enviar(o.titulo_obra,{file:v.file,descricao:`Horímetro ${MAQ_FIXA} · ${rot} · ${v.hora}`,etapa:'durante',data:o.data,extra:{horimetro:k,horimetro_hora:v.hora}});
+        if(v.ref&&v.ref.uid)(j._rdoApagar=j._rdoApagar||[]).push(v.ref);
+        v.ref={uid:r.foto_uid,thumb:r.thumb_uid,hora:v.hora,data:v.data};v.file=null;}}
+    catch(e){throw new Error('Não consegui enviar as fotos do horímetro: '+((e&&e.message)||e)+' O diário ainda não foi salvo — tente de novo.');}
+    finally{App.state._busy=false;UI._hideBusy();}
+    j._somaEquip();o.equip_json=j.querySelector('[data-f="equip_json"]').value;o.equipamentos=j.querySelector('[data-f="equipamentos"]').value;
+  },
+  depois:async(o,reg,j,prep)=>{
+    // foto do horímetro trocada: a antiga sai da galeria
+    for(const f of (j._rdoApagar||[])){const im=(D().obra_imagens||[]).find(i=>i.foto_uid===f.uid);try{if(im)await excluir('Imagens da Obra',im.rowid);await GS.fotoSis.apagar({foto_uid:f.uid,thumb_uid:f.thumb});}catch(e){}}
+    if(!prep)return;
     try{await prep;}catch(e){toast('Diário salvo, mas as fotos não foram enviadas: '+e.message+' Use o botão de fotos deste dia.','error');return;}
     await Eng.subirFotosDia(o.titulo_obra,o.data,j._fotos.map(f=>({file:f.file,descricao:(f.desc||'').trim(),previewUrl:f.url})));},
-  validar:(o,reg)=>{
+  validar:(o,reg,j)=>{
     const eqs=jsonDe(o.equip_json)||[],ruim=eqs.find(x=>x.hor!==false&&ordemRuim(x));
     if(ruim)return `${ruim.eq||'Máquina'}: as leituras do horímetro têm que ir aumentando ao longo do dia (início ≤ meio-dia ≤ início da tarde ≤ fim).`;
     if(reg&&!meuRdo(reg))return 'Só quem registrou pode alterar este registro do diário.';
@@ -12333,6 +12387,11 @@ const Eng=(function(){
     if(reg&&rdoFechado(reg))return `O dia ${brDe(dt(reg.data))} está fechado — só o Administrador reabre.`;
     if(o.data>hojeRdo())return 'Este dia ainda não chegou.';
     if(!reg&&passouHoraRdo(o.data)){if(!ehAdmRdo())return `O diário de ${brDe(dt(o.data))} encerrou às 19h. Peça ao Administrador para registrar este dia.`;o.aberto_ate=new Date(Date.now()+3600e3).toISOString();}
+    // tudo é obrigatório, menos Ocorrências, Visitas e os equipamentos sem horímetro (e a observação do horímetro)
+    if(!(numBR(o.efetivo_total)>0))return 'Informe a equipe do dia (pelo menos uma pessoa nos contadores de Equipe no dia).';
+    if(j&&j._hor){const x=eqs.find(y=>y.hor!==false)||{};
+      for(const [k,rot] of LEIT){if(isNaN(nBR(x[k])))return `${MAQ_FIXA}: preencha a leitura do horímetro — ${rot}.`;const v=j._hor[k];if(!(v&&(v.ref||v.file)))return `${MAQ_FIXA}: anexe a foto do horímetro — ${rot}.`;}}
+    if(j&&!((j._fotos&&j._fotos.length)||(reg&&fotosDoRegistro(reg).length)))return 'Anexe pelo menos uma foto do dia (em Fotos do dia, no fim do formulário).';
     // o autor vem do usuário do sistema (não se digita); na edição, continua o de quem registrou
     if(!reg){o.criado_por=eu().nome;o.criado_por_id=eu().id;o.responsavel=eu().nome;}
     else o.responsavel=reg.responsavel||reg.criado_por||o.responsavel;
@@ -12350,34 +12409,46 @@ const Eng=(function(){
     const eqBox=j.querySelector('.rdo-equipe');
     eqBox.addEventListener('click',ev=>{const b=ev.target.closest('[data-mais]');if(!b)return;const i=b.parentNode.querySelector('input');i.value=Math.max(0,(Math.round(nBR(i.value))||0)+(+b.dataset.mais));mexeuEquipe=true;somaEquipe();});
     eqBox.addEventListener('input',()=>{mexeuEquipe=true;somaEquipe();});
-    const tb=j.querySelector('[data-rdo-eq]'),ts=j.querySelector('[data-rdo-sem]');
+    const hb=j.querySelector('[data-rdo-hor]'),ts=j.querySelector('[data-rdo-sem]');
     // a 1ª leitura do dia é a última do dia anterior registrado desta máquina nesta obra
     const ultimoHorimetro=nome=>{const ob=H('titulo_obra').value,d=H('data').value;let best=null;
       (D().diario_obra||[]).filter(r=>r.titulo_obra===ob&&(!reg||String(r.rowid)!==String(reg.rowid))&&(!d||String(r.data)<=d)).forEach(r=>(jsonDe(r.equip_json)||[]).forEach(x=>{const u=ultimaLeitura(x);if(x.hor!==false&&cn(x.eq)===cn(nome)&&u&&(!best||String(r.data)>best.d))best={d:String(r.data),v:u};}));return best?best.v:'';};
-    const somaEquip=()=>{const l=[];
-      tb.querySelectorAll('tr').forEach(tr=>{const g=k=>tr.querySelector(`[data-eq="${k}"]`).value.trim(),x={eq:g('eq'),h1:g('h1'),h2:g('h2'),h3:g('h3'),h4:g('h4'),obs:g('obs'),hor:true},h=horasEq(x),ruim=ordemRuim(x);
-        tr.querySelector('[data-eq="h"]').value=!isNaN(h.tot)&&!ruim?fmtH(h.tot):'';tr.classList.toggle('rdo-erro',ruim);if(x.eq||x.h1||x.h4)l.push(x);});
-      ts.querySelectorAll('tr').forEach(tr=>{const g=k=>tr.querySelector(`[data-sq="${k}"]`).value.trim(),x={eq:g('eq'),qtd:g('qtd'),obs:g('obs'),hor:false};if(x.eq)l.push(x);});
-      H('equip_json').value=l.length?JSON.stringify(l):'';
-      H('equipamentos').value=l.map(x=>{if(x.hor===false)return `${x.qtd&&x.qtd!=='1'?x.qtd+' × ':''}${x.eq}${x.obs?` (${x.obs})`:''}`;const h=horasEq(x),L=leituras(x);
-        return x.eq+` — horímetro ${[L.h1,L.h2,L.h3,L.h4].map(v=>v||'—').join(' / ')}${!isNaN(h.tot)?` (${fmtH(h.tot)} h)`:''}`+(x.obs?` (${x.obs})`:'');}).join('; ');};
-    const addEq=x=>{tb.insertAdjacentHTML('beforeend',linhaEquip(x));somaEquip();const ins=tb.lastElementChild.querySelectorAll('input');(x&&x.eq?ins[x.h1?2:1]:ins[0]).focus();};
-    j.querySelectorAll('.rdo-eq-bts').forEach(bx=>bx.addEventListener('click',ev=>{const b=ev.target.closest('[data-eq-add]');if(b){const nome=b.dataset.eqAdd;return addEq(nome?{eq:nome,h1:ultimoHorimetro(nome)}:{});}
-      if(ev.target.closest('[data-sem-add]')){ts.insertAdjacentHTML('beforeend',linhaSem({}));ts.lastElementChild.querySelector('input').focus();somaEquip();}}));
-    [tb,ts].forEach(x=>{x.addEventListener('click',ev=>{if(ev.target.closest('[data-eq-x]')){ev.target.closest('tr').remove();somaEquip();}});x.addEventListener('input',somaEquip);});
-    // máquina escolhida: a leitura do início do dia vem da última leitura dela nesta obra
-    tb.addEventListener('change',ev=>{const i=ev.target;if(i.dataset.eq!=='eq')return;const h1=i.closest('tr').querySelector('[data-eq="h1"]');if(!h1.value){const u=ultimoHorimetro(i.value);if(u){h1.value=u;somaEquip();}}});
-    if(reg&&reg.equip_json)somaEquip();
+    // fotos das leituras: j._hor[h1…h4] = {ref (já no sistema), file/url/hora/data (escolhida agora, enviada ao gravar)}
+    const x0=maqDe(reg);j._hor={};LEIT.forEach(([k])=>{const f=x0[fk(k)];j._hor[k]=f&&f.uid?{ref:f}:{};});
+    const somaEquip=()=>{const l=[],g=k=>hb.querySelector(`[data-eq="${k}"]`).value.trim(),x={eq:MAQ_FIXA,h1:g('h1'),h2:g('h2'),h3:g('h3'),h4:g('h4'),obs:g('obs'),hor:true},h=horasEq(x),ruim=ordemRuim(x);
+      LEIT.forEach(([k])=>{const v=j._hor[k];if(v&&v.ref)x[fk(k)]=v.ref;});
+      hb.querySelector('[data-eq="h"]').value=!isNaN(h.tot)&&!ruim?fmtH(h.tot):'';hb.classList.toggle('rdo-erro',ruim);l.push(x);
+      ts.querySelectorAll('tr').forEach(tr=>{const g2=k=>tr.querySelector(`[data-sq="${k}"]`).value.trim(),y={eq:g2('eq'),qtd:g2('qtd'),obs:g2('obs'),hor:false};if(y.eq)l.push(y);});
+      H('equip_json').value=JSON.stringify(l);
+      H('equipamentos').value=l.map(y=>{if(y.hor===false)return `${y.qtd&&y.qtd!=='1'?y.qtd+' × ':''}${y.eq}${y.obs?` (${y.obs})`:''}`;const hh=horasEq(y),L=leituras(y);
+        return y.eq+` — horímetro ${[L.h1,L.h2,L.h3,L.h4].map(v=>v||'—').join(' / ')}${!isNaN(hh.tot)?` (${fmtH(hh.tot)} h)`:''}`+(y.obs?` (${y.obs})`:'');}).join('; ');};
+    j._somaEquip=somaEquip;
+    const pintarFoto=k=>{const b=hb.querySelector(`[data-hfoto="${k}"]`),v=j._hor[k],inp=b.querySelector('input');b.classList.toggle('ok',!!(v.url||v.ref));b.innerHTML=fotoHorHtml(v,H('data').value);b.appendChild(inp);};
+    // foto escolhida: carimba data/hora (a do arquivo, que é a hora em que a câmera tirou) e o que é; avisa se for de outro dia
+    hb.addEventListener('change',async ev=>{const i=ev.target.closest('[data-hfile]');if(!i)return;const file=i.files&&i.files[0];i.value='';if(!file)return;
+      if(!/^image\//.test(file.type))return toast('Escolha uma foto (imagem).','error');
+      const k=i.dataset.hfile,rot=(LEIT.find(x=>x[0]===k)||[])[1],t=new Date(file.lastModified||Date.now()),hora=String(t.getHours()).padStart(2,'0')+':'+String(t.getMinutes()).padStart(2,'0'),data=isoDe(t);
+      try{const ob=H('titulo_obra').value,st=await carimbar(file,`${brDe(t)} ${hora} · ${rot}`,`${MAQ_FIXA}${ob?' · '+ob:''}`);
+        const v=j._hor[k];if(v.url)URL.revokeObjectURL(v.url);Object.assign(v,{file:st,url:URL.createObjectURL(st),hora,data});pintarFoto(k);
+        const dia=H('data').value;if(dia&&data!==dia)toast(`A foto do ${rot.toLowerCase()} é de ${brDe(t)}, não do dia do diário (${brDe(dt(dia))}). Confira se é a foto certa.`,'error');}
+      catch(e){toast(e.message||String(e),'error');}});
+    ts.addEventListener('click',ev=>{if(ev.target.closest('[data-eq-x]')){ev.target.closest('tr').remove();somaEquip();}});
+    [hb,ts].forEach(x=>x.addEventListener('input',somaEquip));
+    j.querySelectorAll('.rdo-eq-bts').forEach(bx=>bx.addEventListener('click',ev=>{if(ev.target.closest('[data-sem-add]')){ts.insertAdjacentHTML('beforeend',linhaSem({}));ts.lastElementChild.querySelector('input').focus();somaEquip();}}));
+    // registro novo: o início do dia vem da última leitura da máquina nesta obra (chamado quando a obra e o dia já estão no formulário)
+    j._rdoPrefill=()=>{const h1=hb.querySelector('[data-eq="h1"]');if(!h1.value){const u=ultimoHorimetro(MAQ_FIXA);if(u)h1.value=u;}somaEquip();LEIT.forEach(([k])=>pintarFoto(k));};
+    somaEquip();
     const tr=j.querySelector('[data-rdo-trocar]');
     if(tr)tr.addEventListener('click',()=>{const ob=H('titulo_obra').value;if(!ob)return toast('Escolha a obra primeiro.','error');
-      escolherDiaRdo(ob,iso=>{H('data').value=iso;const av=j.querySelector('[data-rdo-dia]');if(av)av.innerHTML=avisoDiaRdo(iso);});});
+      escolherDiaRdo(ob,iso=>{H('data').value=iso;const av=j.querySelector('[data-rdo-dia]');if(av)av.innerHTML=avisoDiaRdo(iso);if(j._rdoPrefill)j._rdoPrefill();});});
     const cp=j.querySelector('[data-rdo-copiar]');
     if(cp)cp.addEventListener('click',()=>{const ob=H('titulo_obra').value;if(!ob)return toast('Escolha a obra primeiro.','error');
       const ult=(D().diario_obra||[]).filter(r=>r.titulo_obra===ob).sort((a,b)=>String(b.data).localeCompare(String(a.data)))[0];
       if(!ult)return toast('Ainda não há registro desta obra para copiar.','error');
       const eq=jsonDe(ult.equipe_json)||{};j.querySelectorAll('.rdo-cont').forEach(c=>{c.querySelector('input').value=+eq[c.dataset.fn]||0;});mexeuEquipe=true;somaEquipe();
-      tb.innerHTML='';ts.innerHTML='';(jsonDe(ult.equip_json)||[]).forEach(x=>x.hor===false?ts.insertAdjacentHTML('beforeend',linhaSem({eq:x.eq,qtd:x.qtd,obs:x.obs})):tb.insertAdjacentHTML('beforeend',linhaEquip({eq:x.eq,h1:ultimaLeitura(x),obs:x.obs})));somaEquip();
-      toast(`Copiado de ${brDe(dt(ult.data))}: equipe e equipamentos (a leitura do início do dia é a última daquele dia).`,'success');});
+      ts.innerHTML='';(jsonDe(ult.equip_json)||[]).filter(x=>x.hor===false).forEach(x=>ts.insertAdjacentHTML('beforeend',linhaSem({eq:x.eq,qtd:x.qtd,obs:x.obs})));
+      const u=ultimaLeitura(maqDe(ult)),h1=hb.querySelector('[data-eq="h1"]');if(u)h1.value=u;somaEquip();
+      toast(`Copiado de ${brDe(dt(ult.data))}: equipe e equipamentos (a leitura do início do dia é a última daquele dia — as fotos são as de hoje).`,'success');});
     somaEquipe();
   }
   // fotos de um registro: com um registro só no dia, todas as fotos do dia; com vários (usuários
@@ -12401,7 +12472,7 @@ const Eng=(function(){
     const nomeMes=m=>{const [a,b]=m.split('-');return ['','Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'][+b]+' de '+a;};
     const imp=lista.filter(r=>r.condicao==='Impraticável').length,chuva=lista.filter(choveu).length;
     const efs=lista.map(r=>numBR(r.efetivo_total)).filter(n=>n>0),efMed=efs.length?efs.reduce((a,b)=>a+b,0)/efs.length:0;
-    App._rdoLista=lista;App._rdoFotos=[];
+    App._rdoLista=lista;App._rdoFotos=[];App._rdoHF=[];
     box.innerHTML=`<div class="fin-wrap">
       ${cab('Diário de obra','O registro de cada dia de obra: tempo, condição de trabalho, equipe, equipamentos, serviços e ocorrências. É a prova que sustenta pedido de aditivo de prazo (dias de chuva e impraticáveis) e a defesa em qualquer questionamento da fiscalização. <b>Cada dia fecha às 19h</b> (ou antes, em <b>Fechar o dia</b>) e só o Administrador reabre.',`${GS.selMes(RD.mes==='__todos'?'':RD.mes,'data-rd="mes"',nAntes,0).replace('</select>',`<option value="__todos" ${RD.mes==='__todos'?'selected':''}>Todos os meses</option></select>`)}<button type="button" class="fin-bt" data-rd="pdf">Exportar PDF</button><button type="button" class="fin-bt pri" data-rd="novo"><i class="fas fa-plus"></i> Registrar dia</button>`)}
       <div class="fin-filtros"><select class="filter-select" data-rd="obra"><option value="">Todas as obras</option>${obrasNomes().map(o=>`<option ${RD.obra===o?'selected':''}>${fe(o)}</option>`).join('')}</select>
@@ -12421,12 +12492,14 @@ const Eng=(function(){
             ${RD.obra?'':`<div class="rdo-obra" title="${fe(r.titulo_obra)}"><i class="fas fa-helmet-safety"></i> ${fe(r.titulo_obra)}</div>`}
             <div class="rdo-pills"><span class="eng-pill ${tomCond(r.condicao)}">${fe(r.condicao||'—')}</span><span class="eng-pill ${choveu(r)?'azul':''}"><i class="fas ${choveu(r)?'fa-cloud-rain':'fa-sun'}"></i> manhã: ${fe(r.clima_manha||'—')} · tarde: ${fe(r.clima_tarde||'—')}</span>${r.efetivo_total?`<span class="eng-pill"><i class="fas fa-people-group"></i> ${fe(r.efetivo_total)} pessoas</span>`:''}</div></div>
           <div class="pm-dia2-bt rdo-bts">${bts}</div></div>
-          <div class="eng-dia-txt rdo-corpo"><p>${fe(r.atividades||'')}</p>${r.efetivo_desc?`<small><b>Equipe:</b> ${fe(r.efetivo_desc)}</small>`:''}${r.equipamentos?`<small><b>Equipamentos:</b> ${fe(r.equipamentos)}</small>`:''}${r.ocorrencias?`<small><b>Ocorrências:</b> ${fe(r.ocorrencias)}</small>`:''}${r.visitas?`<small><b>Visitas:</b> ${fe(r.visitas)}</small>`:''}<small>${fe(r.responsavel?'Registrado por '+r.responsavel:'')}</small>${Eng.fotosHtml(r.titulo_obra,r.data,i,(App._rdoFotos[i]=fotosDoRegistro(r)))}</div></article>`;}).join('')}</div>`
+          <div class="eng-dia-txt rdo-corpo"><p>${fe(r.atividades||'')}</p>${r.efetivo_desc?`<small><b>Equipe:</b> ${fe(r.efetivo_desc)}</small>`:''}${r.equipamentos?`<small><b>Equipamentos:</b> ${fe(r.equipamentos)}</small>`:''}${(()=>{const hf=fotosHorimetro(r);App._rdoHF[i]=hf.map(x=>x.im);
+            return hf.length?`<div class="rdo-hfotos">${hf.map((x,k)=>`<button type="button" data-rd="hfoto" data-i="${i}" data-f="${k}" title="Horímetro — ${fe(x.rot)} (foto das ${fe(x.hora)})"><img ${GS.fotoSis.attrs(x.im,false,200)} loading="lazy" alt=""><span>${fe(x.rot)}<b>${fe(x.hora)}</b></span></button>`).join('')}</div>`:'';})()}${r.ocorrencias?`<small><b>Ocorrências:</b> ${fe(r.ocorrencias)}</small>`:''}${r.visitas?`<small><b>Visitas:</b> ${fe(r.visitas)}</small>`:''}<small>${fe(r.responsavel?'Registrado por '+r.responsavel:'')}</small>${Eng.fotosHtml(r.titulo_obra,r.data,i,(App._rdoFotos[i]=fotosDoRegistro(r)))}</div></article>`;}).join('')}</div>`
         :`<div class="fin-card"><div class="fin-vazio">${todos.length?'Nenhum registro neste filtro.':'Nenhum dia registrado ainda. O ideal é registrar no fim de cada dia de obra.'}<br><button type="button" class="fin-bt pri" data-rd="novo" style="margin-top:10px"><i class="fas fa-plus"></i> Registrar dia</button></div></div>`}
     </div>`;
     box.onchange=ev=>{const s=ev.target.closest('select[data-rd]');if(!s)return;RD[s.dataset.rd]=s.value;renderDiario();};
     box.onclick=ev=>{const b=ev.target.closest('button[data-rd]');if(!b)return;const r=App._rdoLista[+b.dataset.i];
       if(b.dataset.rd==='foto'&&r)Eng.verFoto(App._rdoFotos[+b.dataset.i]||Eng.fotosDoDia(r.titulo_obra,r.data),+b.dataset.f);
+      else if(b.dataset.rd==='hfoto'&&r){const L=(App._rdoHF[+b.dataset.i]||[]);if(L[+b.dataset.f]&&L[+b.dataset.f].rowid)Eng.verFoto(L.filter(x=>x.rowid),L.filter(x=>x.rowid).indexOf(L[+b.dataset.f]));}
       else if(b.dataset.rd==='fotos'&&r)Eng.enviarFotos(r.titulo_obra,r.data);
       else if(b.dataset.rd==='acao'&&r)Eng.novaAcao({titulo_obra:r.titulo_obra,tipo:'Pendência',o_que:String(r.ocorrencias).slice(0,150),por_que:'Ocorrência registrada no diário de '+brDe(dt(r.data)),origem:'Diário de obra '+brDe(dt(r.data))});
       else if(b.dataset.rd==='novo')novoRdo();
@@ -12465,7 +12538,7 @@ const Eng=(function(){
     return pdf?corpo:`<div class="fin-card rdo-res"><div class="rdo-res-cab"><h3><i class="fas fa-chart-column"></i> Resumo do mês — ${fe(rotMes)}</h3><button type="button" class="fin-bt mini" data-rd="resumo-pdf"><i class="fas fa-file-pdf"></i> PDF do resumo</button></div>${corpo}</div>`;
   }
   async function pdfDiario(regs,sub){
-    const fs=regs.flatMap(r=>fotosDoRegistro(r).slice(0,6));
+    const fs=regs.flatMap(r=>fotosDoRegistro(r).slice(0,6).concat(fotosHorimetro(r).map(x=>x.im)));
     if(GS.fotoSis.falta(fs).length){try{UI._showBusy('Preparando as fotos…');await GS.fotoSis.prep(fs);}catch(e){}finally{UI._hideBusy();}}
     const bl=t=>String(t||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/\n/g,'<br>');
     const blocos=regs.map(r=>{const d=dt(r.data);return `<div style="border:1px solid #d5d5da;border-radius:8px;padding:10px 12px;margin-bottom:8px;page-break-inside:avoid">
@@ -12477,6 +12550,7 @@ const Eng=(function(){
         const com=l.filter(x=>x.hor!==false),sem=l.filter(x=>x.hor===false),td='padding:3px 5px;border-top:1px solid #e5e5ea',tr='text-align:right;';
         return (com.length?`<table style="width:100%;border-collapse:collapse;font-size:10px;margin:2px 0 6px"><tr style="background:#f2f2f7"><th style="text-align:left;padding:3px 5px">Máquina (horímetro)</th><th style="${tr}padding:3px 5px">Início do dia</th><th style="${tr}padding:3px 5px">Meio-dia</th><th style="${tr}padding:3px 5px">Início da tarde</th><th style="${tr}padding:3px 5px">Fim da tarde</th><th style="${tr}padding:3px 5px">Horas</th><th style="text-align:left;padding:3px 5px">Obs.</th></tr>${com.map(x=>{const L=leituras(x),h=horasEq(x);return `<tr><td style="${td}">${bl(x.eq)}</td><td style="${td};${tr}">${bl(L.h1)}</td><td style="${td};${tr}">${bl(L.h2)}</td><td style="${td};${tr}">${bl(L.h3)}</td><td style="${td};${tr}">${bl(L.h4)}</td><td style="${td};${tr}"><b>${!isNaN(h.tot)?fmtH(h.tot):''}</b></td><td style="${td}">${bl(x.obs)}</td></tr>`;}).join('')}</table>`:'')
           +(sem.length?`<div style="font-size:10.5px;margin-bottom:4px"><b>Equipamentos sem horímetro:</b> ${sem.map(x=>bl((x.qtd&&x.qtd!=='1'?x.qtd+' × ':'')+x.eq+(x.obs?' ('+x.obs+')':''))).join('; ')}</div>`:'');})()}
+      ${(()=>{const hf=fotosHorimetro(r);return hf.length?`<div style="display:flex;gap:6px;flex-wrap:wrap;margin:2px 0 6px">${hf.map(x=>`<div style="width:40mm"><img ${GS.fotoSis.attrs(x.im,true,600)} style="width:40mm;height:28mm;object-fit:cover;border-radius:4px;border:1px solid #e5e5ea;display:block"><div style="font-size:8.5px;color:#6e6e73;margin-top:2px">Horímetro · ${bl(x.rot)} · ${bl(x.hora)}</div></div>`).join('')}</div>`:'';})()}
       <div style="font-size:10.5px;margin-bottom:4px"><b>Serviços executados:</b><br>${bl(r.atividades)}</div>
       ${r.ocorrencias?`<div style="font-size:10.5px;margin-bottom:4px"><b>Ocorrências:</b><br>${bl(r.ocorrencias)}</div>`:''}
       ${r.visitas?`<div style="font-size:10.5px;margin-bottom:4px"><b>Visitas e fiscalização:</b><br>${bl(r.visitas)}</div>`:''}
@@ -13147,7 +13221,8 @@ const Eng=(function(){
   const n2=v=>(Math.round((+v||0)*100)/100).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
 
   /* ═══════════════ FOTOS DO DIÁRIO ═══════════════ */
-  const fotosDoDia=(ob,dataISO)=>(D().obra_imagens||[]).filter(i=>i.titulo_obra===ob&&dataISO&&String(i.data_foto||'')===String(dataISO));
+  // as fotos do horímetro (marcadas com "horimetro") aparecem junto das leituras, não entre as fotos do dia
+  const fotosDoDia=(ob,dataISO)=>(D().obra_imagens||[]).filter(i=>i.titulo_obra===ob&&dataISO&&String(i.data_foto||'')===String(dataISO)&&!i.horimetro);
   function fotosHtml(ob,dataISO,i,lista){
     const fs=lista||fotosDoDia(ob,dataISO);if(!fs.length)return '';
     const max=6,vis=fs.slice(0,max);
@@ -22919,13 +22994,14 @@ GS.fotoSis=(function(){
     im.onerror=()=>{URL.revokeObjectURL(u);er(new Error('Não consegui abrir a imagem '+(file.name||'')+'.'));};im.src=u;});}
   async function guardar(ob,b64,uid){const n=Math.max(1,Math.ceil(b64.length/PARTE));
     for(let i=0;i<n;i++)await run('upsertRegistroLote','Arquivos',{titulo_obra:ob,tipo:'anexo_parte',anexo_uid:uid,ordem:i,conteudo:b64.slice(i*PARTE,(i+1)*PARTE)},null);}
-  // item: {file, descricao, etapa, data}
+  // item: {file, descricao, etapa, data, extra (campos a mais na linha da foto)} — devolve {foto_uid, thumb_uid}
   async function enviar(ob,item){const s=Auth._session||{},base='fs'+Date.now().toString(36)+Math.random().toString(36).slice(2,7);
     const grande=await reduzir(item.file,1600,0.8),mini=await reduzir(item.file,360,0.72);
     await guardar(ob,grande,base+'g');await guardar(ob,mini,base+'m');
     const rot={inicio:'Início da Obra',durante:'Durante a Obra',fim:'Fim da Obra'}[item.etapa]||item.etapa||'',d=String(item.data||'').match(/^(\d{4})-(\d{2})-(\d{2})/);
     await run('upsertRegistro','Imagens da Obra',{titulo_obra:ob,enviado_por:s.nome||'',enviado_por_id:String(s.uid||s.cpf||s.nome||''),foto_uid:base+'g',thumb_uid:base+'m',origem:'sistema',
-      nome_arquivo:item.file.name||'foto.jpg',etapa_obra:item.etapa||'durante',data_foto:item.data||'',descricao:[rot,d?`${d[3]}/${d[2]}/${d[1]}`:'',String(item.descricao||'').trim()].filter(Boolean).join(' • ')},null);}
+      nome_arquivo:item.file.name||'foto.jpg',etapa_obra:item.etapa||'durante',data_foto:item.data||'',descricao:[rot,d?`${d[3]}/${d[2]}/${d[1]}`:'',String(item.descricao||'').trim()].filter(Boolean).join(' • '),...(item.extra||{})},null);
+    return {foto_uid:base+'g',thumb_uid:base+'m'};}
   const apagar=f=>Promise.all([f.foto_uid,f.thumb_uid].filter(Boolean).map(uid=>run('excluirAnexo',uid,null).catch(()=>{})));
   return {PIX,url,ja,falta,prep,attrs,enviar,apagar};
 })();
