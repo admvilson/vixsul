@@ -11933,12 +11933,23 @@ const Atencao=(function(){
 .rdo-hl input[data-eq="h"]{background:#F2F4F7;color:#344054;font-weight:800;cursor:not-allowed;}
 .rdo-hfoto{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;height:96px;border:1.5px dashed #84ADFF;border-radius:10px;background:#F5F8FF;color:#1652D8;font:600 11.5px Inter,sans-serif;text-align:center;cursor:pointer;overflow:hidden;margin:0;text-transform:none;letter-spacing:0;}
 .rdo-hfoto:hover{background:#EEF4FF;} .rdo-hfoto i.fa-camera{font-size:18px;} .rdo-hfoto span .obg{color:#D92D20;}
-.rdo-hfoto.ok{border-style:solid;border-color:#ABEFC6;background:#000;}
+.rdo-hfoto.ok{border-style:solid;border-color:#ABEFC6;background:#000;cursor:zoom-in;height:110px;}
 .rdo-hfoto.ok img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;}
-.rdo-hfoto .rdo-hhora{position:absolute;left:4px;bottom:4px;background:rgba(16,24,40,.78);color:#fff;border-radius:6px;padding:2px 6px;font:800 11px Inter,sans-serif;} .rdo-hfoto .rdo-hhora.outro{background:#B54708;}
-.rdo-hfoto em{position:absolute;right:4px;top:4px;background:rgba(255,255,255,.92);color:#1652D8;border-radius:6px;padding:1px 6px;font:700 10.5px Inter,sans-serif;font-style:normal;opacity:0;transition:opacity .15s;} .rdo-hfoto.ok:hover em{opacity:1;}
+.rdo-hfoto .rdo-hhora{position:absolute;left:4px;right:4px;bottom:4px;background:rgba(16,24,40,.8);color:#fff;border-radius:6px;padding:2px 6px;font:800 10.5px Inter,sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:left;} .rdo-hfoto .rdo-hhora.outro{background:#B54708;}
+.rdo-hfoto .rdo-hzoom{position:absolute;left:4px;top:4px;width:22px;height:22px;border-radius:6px;background:rgba(255,255,255,.9);color:#1652D8;display:grid;place-items:center;font-size:11px;pointer-events:none;}
+.rdo-htrocar{position:absolute;right:4px;top:4px;border:0;border-radius:6px;background:rgba(255,255,255,.95);color:#1652D8;font:700 10.5px Inter,sans-serif;padding:3px 7px;cursor:pointer;display:inline-flex;align-items:center;gap:4px;box-shadow:0 1px 3px rgba(0,0,0,.25);} .rdo-htrocar:hover{background:#EEF4FF;}
+.rdo-hfoto:focus-visible{outline:2px solid #84ADFF;outline-offset:2px;}
 .rdo-hfotos{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 2px;}
-.rdo-hfotos button{position:relative;width:96px;height:72px;border:1px solid #E4E9F2;border-radius:9px;overflow:hidden;padding:0;background:#F2F4F7;cursor:zoom-in;}
+.rdo-hfotos button{position:relative;width:128px;height:84px;border:1px solid #E4E9F2;border-radius:9px;overflow:hidden;padding:0;background:#F2F4F7;cursor:zoom-in;}
+.rdo-ver .rdo-hfotos span{color:#fff;white-space:normal;} .rdo-ver .rdo-hfotos span b{display:block;font-size:11px;text-transform:none;letter-spacing:0;color:#fff;}
+/* foto do horímetro em tamanho grande */
+.rdo-lb{position:fixed;inset:0;z-index:10100;background:rgba(10,14,22,.94);display:flex;flex-direction:column;}
+.rdo-lb-cab{display:flex;align-items:center;gap:12px;padding:12px 16px;color:#fff;} .rdo-lb-cab b{font:700 14px Inter,sans-serif;flex:1;min-width:0;overflow-wrap:anywhere;} .rdo-lb-cab span{font-size:12px;color:#D0D5DD;white-space:nowrap;}
+.rdo-lb-cab button{border:0;background:rgba(255,255,255,.12);color:#fff;width:36px;height:36px;border-radius:10px;cursor:pointer;font-size:16px;flex:none;} .rdo-lb-cab button:hover{background:rgba(255,255,255,.22);}
+.rdo-lb-corpo{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;gap:10px;padding:0 10px 16px;}
+.rdo-lb-corpo img{max-width:calc(100% - 110px);max-height:100%;object-fit:contain;border-radius:8px;background:#111;}
+.rdo-lb-nav{border:0;background:rgba(255,255,255,.12);color:#fff;width:44px;height:44px;border-radius:50%;cursor:pointer;font-size:16px;flex:none;} .rdo-lb-nav:hover{background:rgba(255,255,255,.24);} .rdo-lb-nav[hidden]{visibility:hidden;display:block;}
+@media (max-width:560px){.rdo-lb-corpo{padding:0 4px 10px;gap:4px;} .rdo-lb-corpo img{max-width:calc(100% - 76px);} .rdo-lb-nav{width:34px;height:34px;}}
 .rdo-hfotos img{width:100%;height:100%;object-fit:cover;display:block;}
 .rdo-hfotos span{position:absolute;left:0;right:0;bottom:0;background:linear-gradient(transparent,rgba(16,24,40,.85));color:#fff;font:600 9.5px Inter,sans-serif;padding:8px 5px 3px;text-align:left;line-height:1.2;} .rdo-hfotos span b{display:block;font-size:11px;}
 @media (max-width:760px){.rdo-hor{grid-template-columns:repeat(2,minmax(0,1fr));} .rdo-hl-tot{grid-column:1/-1;}}
@@ -12246,8 +12257,9 @@ const Eng=(function(){
   function verRdo(r){
     const f=r.fechado||{},linha=(ic,rot,v)=>v?`<li><i class="fas ${ic}"></i><div><b>${rot}</b><span>${fe(v)}</span></div></li>`:'';
     janela(`Diário de ${brDe(dt(r.data))}`,`<div class="fin-aviso" style="background:#F2F4F7;border-color:#E4E7EC"><div><i class="fas fa-lock"></i> <b>Dia fechado</b> ${fechadoManual(r)?`por ${fe(f.por||'')}${f.em?' em '+fe(brDe(dt(String(f.em).slice(0,10))))+' '+fe(String(f.em).slice(11,16)):''}`:'automaticamente às 19h'}. Nada pode ser alterado${ehAdmRdo()?' — como Administrador, você pode reabrir':'; só o Administrador reabre'}.</div></div>
-      <ul class="rdo-ver">${linha('fa-helmet-safety','Obra',r.titulo_obra)}${linha('fa-cloud-sun','Tempo',`manhã: ${r.clima_manha||'—'} · tarde: ${r.clima_tarde||'—'} · ${r.condicao||'—'}`)}${linha('fa-people-group','Equipe',r.efetivo_total?`${r.efetivo_total} pessoa(s)${r.efetivo_desc?' — '+r.efetivo_desc:''}`:'')}${linha('fa-tractor','Equipamentos',r.equipamentos)}${linha('fa-helmet-safety','Serviços executados',r.atividades)}${linha('fa-triangle-exclamation','Ocorrências',r.ocorrencias)}${linha('fa-user-check','Visitas e fiscalização',r.visitas)}${linha('fa-user-pen','Registrado por',r.responsavel||r.criado_por)}</ul>`,
+      <ul class="rdo-ver">${linha('fa-helmet-safety','Obra',r.titulo_obra)}${linha('fa-cloud-sun','Tempo',`manhã: ${r.clima_manha||'—'} · tarde: ${r.clima_tarde||'—'} · ${r.condicao||'—'}`)}${linha('fa-people-group','Equipe',r.efetivo_total?`${r.efetivo_total} pessoa(s)${r.efetivo_desc?' — '+r.efetivo_desc:''}`:'')}${linha('fa-tractor','Equipamentos',r.equipamentos)}${(()=>{const hf=fotosHorimetro(r);return hf.length?`<li><i class="fas fa-gauge-high"></i><div><b>Fotos do horímetro</b><div class="rdo-hfotos" data-ver-hf>${hf.map((x,k)=>`<button type="button" data-k="${k}" title="Ampliar — ${fe(x.rot)} (${fe(x.quando)})"><img ${GS.fotoSis.attrs(x.im,false,200)} alt=""><span>${fe(x.rot)}<b>${fe(x.quando)}</b></span></button>`).join('')}</div></div></li>`:'';})()}${linha('fa-helmet-safety','Serviços executados',r.atividades)}${linha('fa-triangle-exclamation','Ocorrências',r.ocorrencias)}${linha('fa-user-check','Visitas e fiscalização',r.visitas)}${linha('fa-user-pen','Registrado por',r.responsavel||r.criado_por)}</ul>`,
       [ehAdmRdo()?{html:'<i class="fas fa-lock-open"></i> Reabrir o dia',acao:()=>{setTimeout(()=>reabrirDiaRdo(r),10);}}:null,{html:'<i class="fas fa-file-pdf"></i> PDF',cls:'pri',acao:()=>{pdfDiario([r],`${r.titulo_obra} · ${brDe(dt(r.data))}`);}}].filter(Boolean),640);
+    const vh=document.querySelector('#fin-jan [data-ver-hf]');if(vh)vh.addEventListener('click',ev=>{const b=ev.target.closest('button[data-k]');if(b)verFotosHor(fotosHorimetro(r).map(x=>({uid:x.im.foto_uid,thumb:x.im.thumb_uid,rot:x.rot,quando:x.quando})),+b.dataset.k);});
   }
   // às 19h: a lista se atualiza sozinha e quem registrou o dia de hoje recebe o aviso (uma vez por dia neste navegador)
   function avisoRdo19(){
@@ -12300,10 +12312,31 @@ const Eng=(function(){
   const LEIT=[['h1','Início do dia'],['h2','Meio-dia'],['h3','Início da tarde'],['h4','Fim da tarde']];
   const fk=k=>'f'+k.slice(1);
   const maqDe=reg=>{const com=(jsonDe(reg&&reg.equip_json)||[]).filter(x=>x.hor!==false);return com.find(x=>cn(x.eq)===cn(MAQ_FIXA))||com[0]||{eq:MAQ_FIXA,hor:true};};
-  // foto de uma leitura: a que ainda vai ser enviada (url do arquivo) ou a que já está no sistema (ref)
+  // data e hora da foto sempre no padrão dia/mês/ano hora:minuto
+  const quandoHor=(data,hora)=>[data&&dt(data)?brDe(dt(data)):'',hora||''].filter(Boolean).join(' ');
+  /* foto de uma leitura: a que ainda vai ser enviada (url do arquivo) ou a que já está no sistema (ref).
+     Clicar na foto AMPLIA; o botão "Trocar" escolhe outra; sem foto, o quadro todo abre a câmera/galeria. */
   const fotoHorHtml=(v,dia)=>{if(!v||!(v.url||v.ref))return '<i class="fas fa-camera"></i><span>Foto do horímetro <b class="obg">*</b></span>';
-    const r=v.ref||{},hora=v.hora||r.hora||'',data=v.data||r.data||'',outro=dia&&data&&data!==dia;
-    return `<img ${v.url?`src="${v.url}"`:GS.fotoSis.attrs({foto_uid:r.uid,thumb_uid:r.thumb},false,200)} alt=""><span class="rdo-hhora${outro?' outro':''}" title="${outro?'A foto é de outro dia — confira':'Hora em que a foto foi tirada'}"><i class="fas fa-clock"></i> ${fe(hora)}${outro?' · '+fe(brDe(dt(data)).slice(0,5)):''}</span><em>Trocar</em>`;};
+    const r=v.ref||{},data=v.data||r.data||'',outro=dia&&data&&data!==dia;
+    return `<img ${v.url?`src="${v.url}"`:GS.fotoSis.attrs({foto_uid:r.uid,thumb_uid:r.thumb},false,200)} alt="" title="Clique para ampliar"><span class="rdo-hzoom" aria-hidden="true"><i class="fas fa-magnifying-glass-plus"></i></span>
+      <span class="rdo-hhora${outro?' outro':''}" title="${outro?'A foto é de outro dia — confira':'Data e hora em que a foto foi tirada'}"><i class="fas fa-clock"></i> ${fe(quandoHor(data,v.hora||r.hora))}</span>
+      <button type="button" class="rdo-htrocar" data-htrocar title="Escolher outra foto"><i class="fas fa-camera-rotate"></i> Trocar</button>`;};
+  /* ver as fotos do horímetro em tamanho grande (no formulário e no cartão do dia): setas e Esc.
+     L: [{url (arquivo ainda não enviado) | uid+thumb (já no sistema), rot, quando}] */
+  function verFotosHor(L,i){L=(L||[]).filter(x=>x&&(x.url||x.uid));if(!L.length)return;let k=Math.min(Math.max(0,i||0),L.length-1);
+    document.querySelectorAll('.rdo-lb').forEach(x=>x.remove());const d=document.createElement('div');d.className='rdo-lb';
+    d.innerHTML=`<div class="rdo-lb-cab"><b data-lb-tit></b><span data-lb-n></span><button type="button" data-lb-x aria-label="Fechar"><i class="fas fa-xmark"></i></button></div>
+      <div class="rdo-lb-corpo"><button type="button" class="rdo-lb-nav" data-lb-ant aria-label="Foto anterior"><i class="fas fa-chevron-left"></i></button><img alt="" data-lb-img><button type="button" class="rdo-lb-nav" data-lb-prox aria-label="Próxima foto"><i class="fas fa-chevron-right"></i></button></div>`;
+    document.body.appendChild(d);const img=d.querySelector('[data-lb-img]');
+    const pintar=()=>{const x=L[k];d.querySelector('[data-lb-tit]').textContent=`Horímetro · ${x.rot} · ${x.quando}`;d.querySelector('[data-lb-n]').textContent=L.length>1?`${k+1} de ${L.length}`:'';
+      d.querySelector('[data-lb-ant]').hidden=k===0;d.querySelector('[data-lb-prox]').hidden=k===L.length-1;
+      if(x.url){img.src=x.url;return;}img.src=GS.fotoSis.ja(x.uid)||GS.fotoSis.ja(x.thumb)||GS.fotoSis.PIX;GS.fotoSis.url(x.uid).then(u=>{if(u&&L[k]===x)img.src=u;});};
+    const fechar=()=>{d.remove();document.removeEventListener('keydown',tecla,true);};
+    const tecla=ev=>{if(ev.key==='Escape'){ev.stopPropagation();ev.preventDefault();fechar();}else if(ev.key==='ArrowLeft'&&k>0){k--;pintar();}else if(ev.key==='ArrowRight'&&k<L.length-1){k++;pintar();}};
+    document.addEventListener('keydown',tecla,true);
+    d.addEventListener('click',ev=>{if(ev.target.closest('[data-lb-x]')||ev.target===d||ev.target.classList.contains('rdo-lb-corpo'))return fechar();
+      if(ev.target.closest('[data-lb-ant]')&&k>0){k--;pintar();}else if(ev.target.closest('[data-lb-prox]')&&k<L.length-1){k++;pintar();}});
+    pintar();}
   // carimba na foto a data e a hora em que ela foi tirada (a do arquivo da câmera) e o que ela mostra
   function carimbar(file,txt1,txt2){return new Promise((ok,er)=>{const u=URL.createObjectURL(file),im=new Image();
     im.onload=()=>{const k=Math.min(1,1600/Math.max(im.naturalWidth,im.naturalHeight)),W=Math.max(1,Math.round(im.naturalWidth*k)),H=Math.max(1,Math.round(im.naturalHeight*k)),cv=document.createElement('canvas');cv.width=W;cv.height=H;
@@ -12314,14 +12347,14 @@ const Eng=(function(){
     im.onerror=()=>{URL.revokeObjectURL(u);er(new Error('Não consegui abrir essa foto — tente outra.'));};im.src=u;});}
   // as fotos do horímetro de um registro (para o cartão, o visualizador e o PDF)
   function fotosHorimetro(r){const x=maqDe(r);
-    return LEIT.map(([k,rot])=>{const f=x[fk(k)];if(!f||!f.uid)return null;const im=(D().obra_imagens||[]).find(i=>i.foto_uid===f.uid)||{foto_uid:f.uid,thumb_uid:f.thumb,titulo_obra:r.titulo_obra,descricao:rot};return {im,rot,hora:f.hora||''};}).filter(Boolean);}
+    return LEIT.map(([k,rot])=>{const f=x[fk(k)];if(!f||!f.uid)return null;const im=(D().obra_imagens||[]).find(i=>i.foto_uid===f.uid)||{foto_uid:f.uid,thumb_uid:f.thumb,titulo_obra:r.titulo_obra,descricao:rot};return {im,rot,hora:f.hora||'',quando:quandoHor(f.data||r.data,f.hora)};}).filter(Boolean);}
   function linhaSem(x){x=x||{};
     return `<tr><td><input data-sq="eq" list="rdo-equip-sem" value="${fe(x.eq||'')}" placeholder="Ex.: Betoneira"></td><td><input data-sq="qtd" inputmode="numeric" value="${fe(x.qtd||'1')}"></td><td><input data-sq="obs" value="${fe(x.obs||'')}" placeholder="opcional (ex.: parada à tarde)"></td><td><button type="button" class="bt-tirar" data-eq-x title="Tirar esta linha" aria-label="Tirar esta linha"><i class="fas fa-trash-can"></i></button></td></tr>`;}
   function htmlEquip(reg){const l=(jsonDe(reg&&reg.equip_json)||[]),sem=l.filter(x=>x.hor===false),x=maqDe(reg),L=leituras(x),h=horasEq(x),dia=reg?reg.data:'';
     return `<datalist id="rdo-equip-sem">${EQUIP_SEM.map(e=>`<option value="${fe(e)}">`).join('')}</datalist>
       <div class="rdo-eq-tit"><b><i class="fas fa-gauge-high"></i> ${MAQ_FIXA} — horímetro</b><small>as 4 leituras do dia, cada uma com a foto do horímetro (a hora da foto fica gravada nela) — as horas são calculadas</small></div>
       <div class="rdo-hor" data-rdo-hor>${LEIT.map(([k,rot])=>{const f=x[fk(k)];return `<div class="rdo-hl"><label>${rot} <span class="obg">*</span></label><input data-eq="${k}" inputmode="decimal" value="${fe(L[k]||'')}" placeholder="0,0">
-          <label class="rdo-hfoto${f&&f.uid?' ok':''}" data-hfoto="${k}" title="Foto do horímetro — ${rot}">${fotoHorHtml(f&&f.uid?{ref:f}:null,dia)}<input type="file" accept="image/*" hidden data-hfile="${k}"></label></div>`;}).join('')}
+          <div class="rdo-hfoto${f&&f.uid?' ok':''}" data-hfoto="${k}" role="button" tabindex="0" aria-label="Foto do horímetro — ${rot}">${fotoHorHtml(f&&f.uid?{ref:f}:null,dia)}</div><input type="file" accept="image/*" hidden data-hfile="${k}"></div>`;}).join('')}
         <div class="rdo-hl rdo-hl-tot"><label>Horas no dia</label><input data-eq="h" value="${!isNaN(h.tot)&&h.tot>=0?fmtH(h.tot):''}" disabled title="Calculado: (meio-dia − início do dia) + (fim da tarde − início da tarde)"><label style="margin-top:8px">Observação</label><input data-eq="obs" value="${fe(x.obs||'')}" placeholder="opcional"></div></div>
       <div class="rdo-eq-tit" style="margin-top:14px"><b><i class="fas fa-toolbox"></i> Máquinas e equipamentos sem horímetro</b><small>opcional</small></div>
       <div class="rdo-eq-tab"><table data-sem-ordem class="rdo-sem"><thead><tr><th>Equipamento</th><th>Quantidade</th><th>Observação</th><th></th></tr></thead><tbody data-rdo-sem>${sem.map(linhaSem).join('')}</tbody></table></div>
@@ -12366,7 +12399,7 @@ const Eng=(function(){
   antes:async(o,reg,j)=>{
     const pend=LEIT.filter(([k])=>j._hor&&j._hor[k]&&j._hor[k].file);if(!pend.length)return;
     App.state._busy=true;UI._showBusy('Enviando as fotos do horímetro…');
-    try{for(const [k,rot] of pend){const v=j._hor[k],r=await GS.fotoSis.enviar(o.titulo_obra,{file:v.file,descricao:`Horímetro ${MAQ_FIXA} · ${rot} · ${v.hora}`,etapa:'durante',data:o.data,extra:{horimetro:k,horimetro_hora:v.hora}});
+    try{for(const [k,rot] of pend){const v=j._hor[k],r=await GS.fotoSis.enviar(o.titulo_obra,{file:v.file,descricao:`Horímetro ${MAQ_FIXA} · ${rot} · ${quandoHor(v.data,v.hora)}`,etapa:'durante',data:o.data,extra:{horimetro:k,horimetro_hora:v.hora,horimetro_data:v.data}});
         if(v.ref&&v.ref.uid)(j._rdoApagar=j._rdoApagar||[]).push(v.ref);
         v.ref={uid:r.foto_uid,thumb:r.thumb_uid,hora:v.hora,data:v.data};v.file=null;}}
     catch(e){throw new Error('Não consegui enviar as fotos do horímetro: '+((e&&e.message)||e)+' O diário ainda não foi salvo — tente de novo.');}
@@ -12423,14 +12456,21 @@ const Eng=(function(){
       H('equipamentos').value=l.map(y=>{if(y.hor===false)return `${y.qtd&&y.qtd!=='1'?y.qtd+' × ':''}${y.eq}${y.obs?` (${y.obs})`:''}`;const hh=horasEq(y),L=leituras(y);
         return y.eq+` — horímetro ${[L.h1,L.h2,L.h3,L.h4].map(v=>v||'—').join(' / ')}${!isNaN(hh.tot)?` (${fmtH(hh.tot)} h)`:''}`+(y.obs?` (${y.obs})`:'');}).join('; ');};
     j._somaEquip=somaEquip;
-    const pintarFoto=k=>{const b=hb.querySelector(`[data-hfoto="${k}"]`),v=j._hor[k],inp=b.querySelector('input');b.classList.toggle('ok',!!(v.url||v.ref));b.innerHTML=fotoHorHtml(v,H('data').value);b.appendChild(inp);};
+    const pintarFoto=k=>{const b=hb.querySelector(`[data-hfoto="${k}"]`),v=j._hor[k];b.classList.toggle('ok',!!(v.url||v.ref));b.innerHTML=fotoHorHtml(v,H('data').value);};
+    // clicar na foto amplia (com as outras leituras nas setas); "Trocar" — ou o quadro vazio — abre a câmera/galeria
+    const fotosDoForm=()=>LEIT.map(([k,rot])=>{const v=j._hor[k]||{},r=v.ref||{};return v.url||r.uid?{url:v.url||'',uid:r.uid,thumb:r.thumb,rot,quando:quandoHor(v.data||r.data,v.hora||r.hora),k}:null;}).filter(Boolean);
+    const abrirFoto=(box,trocar)=>{const k=box.dataset.hfoto,v=j._hor[k]||{};
+      if(trocar||!(v.url||v.ref))return hb.querySelector(`[data-hfile="${k}"]`).click();
+      const L=fotosDoForm();verFotosHor(L,L.findIndex(x=>x.k===k));};
+    hb.addEventListener('click',ev=>{const box=ev.target.closest('[data-hfoto]');if(box)abrirFoto(box,!!ev.target.closest('[data-htrocar]'));});
+    hb.addEventListener('keydown',ev=>{const box=ev.target.closest('[data-hfoto]');if(box&&ev.target===box&&(ev.key==='Enter'||ev.key===' ')){ev.preventDefault();abrirFoto(box,false);}});
     // foto escolhida: carimba data/hora (a do arquivo, que é a hora em que a câmera tirou) e o que é; avisa se for de outro dia
     hb.addEventListener('change',async ev=>{const i=ev.target.closest('[data-hfile]');if(!i)return;const file=i.files&&i.files[0];i.value='';if(!file)return;
       if(!/^image\//.test(file.type))return toast('Escolha uma foto (imagem).','error');
       const k=i.dataset.hfile,rot=(LEIT.find(x=>x[0]===k)||[])[1],t=new Date(file.lastModified||Date.now()),hora=String(t.getHours()).padStart(2,'0')+':'+String(t.getMinutes()).padStart(2,'0'),data=isoDe(t);
       try{const ob=H('titulo_obra').value,st=await carimbar(file,`${brDe(t)} ${hora} · ${rot}`,`${MAQ_FIXA}${ob?' · '+ob:''}`);
         const v=j._hor[k];if(v.url)URL.revokeObjectURL(v.url);Object.assign(v,{file:st,url:URL.createObjectURL(st),hora,data});pintarFoto(k);
-        const dia=H('data').value;if(dia&&data!==dia)toast(`A foto do ${rot.toLowerCase()} é de ${brDe(t)}, não do dia do diário (${brDe(dt(dia))}). Confira se é a foto certa.`,'error');}
+        const dia=H('data').value;if(dia&&data!==dia)toast(`A foto do ${rot.toLowerCase()} é de ${brDe(t)} ${hora}, não do dia do diário (${brDe(dt(dia))}). Confira se é a foto certa.`,'error');}
       catch(e){toast(e.message||String(e),'error');}});
     ts.addEventListener('click',ev=>{if(ev.target.closest('[data-eq-x]')){ev.target.closest('tr').remove();somaEquip();}});
     [hb,ts].forEach(x=>x.addEventListener('input',somaEquip));
@@ -12492,14 +12532,14 @@ const Eng=(function(){
             ${RD.obra?'':`<div class="rdo-obra" title="${fe(r.titulo_obra)}"><i class="fas fa-helmet-safety"></i> ${fe(r.titulo_obra)}</div>`}
             <div class="rdo-pills"><span class="eng-pill ${tomCond(r.condicao)}">${fe(r.condicao||'—')}</span><span class="eng-pill ${choveu(r)?'azul':''}"><i class="fas ${choveu(r)?'fa-cloud-rain':'fa-sun'}"></i> manhã: ${fe(r.clima_manha||'—')} · tarde: ${fe(r.clima_tarde||'—')}</span>${r.efetivo_total?`<span class="eng-pill"><i class="fas fa-people-group"></i> ${fe(r.efetivo_total)} pessoas</span>`:''}</div></div>
           <div class="pm-dia2-bt rdo-bts">${bts}</div></div>
-          <div class="eng-dia-txt rdo-corpo"><p>${fe(r.atividades||'')}</p>${r.efetivo_desc?`<small><b>Equipe:</b> ${fe(r.efetivo_desc)}</small>`:''}${r.equipamentos?`<small><b>Equipamentos:</b> ${fe(r.equipamentos)}</small>`:''}${(()=>{const hf=fotosHorimetro(r);App._rdoHF[i]=hf.map(x=>x.im);
-            return hf.length?`<div class="rdo-hfotos">${hf.map((x,k)=>`<button type="button" data-rd="hfoto" data-i="${i}" data-f="${k}" title="Horímetro — ${fe(x.rot)} (foto das ${fe(x.hora)})"><img ${GS.fotoSis.attrs(x.im,false,200)} loading="lazy" alt=""><span>${fe(x.rot)}<b>${fe(x.hora)}</b></span></button>`).join('')}</div>`:'';})()}${r.ocorrencias?`<small><b>Ocorrências:</b> ${fe(r.ocorrencias)}</small>`:''}${r.visitas?`<small><b>Visitas:</b> ${fe(r.visitas)}</small>`:''}<small>${fe(r.responsavel?'Registrado por '+r.responsavel:'')}</small>${Eng.fotosHtml(r.titulo_obra,r.data,i,(App._rdoFotos[i]=fotosDoRegistro(r)))}</div></article>`;}).join('')}</div>`
+          <div class="eng-dia-txt rdo-corpo"><p>${fe(r.atividades||'')}</p>${r.efetivo_desc?`<small><b>Equipe:</b> ${fe(r.efetivo_desc)}</small>`:''}${r.equipamentos?`<small><b>Equipamentos:</b> ${fe(r.equipamentos)}</small>`:''}${(()=>{const hf=fotosHorimetro(r);App._rdoHF[i]=hf.map(x=>({uid:x.im.foto_uid,thumb:x.im.thumb_uid,rot:x.rot,quando:x.quando}));
+            return hf.length?`<div class="rdo-hfotos">${hf.map((x,k)=>`<button type="button" data-rd="hfoto" data-i="${i}" data-f="${k}" title="Ampliar — horímetro, ${fe(x.rot)} (${fe(x.quando)})"><img ${GS.fotoSis.attrs(x.im,false,200)} loading="lazy" alt=""><span>${fe(x.rot)}<b>${fe(x.quando)}</b></span></button>`).join('')}</div>`:'';})()}${r.ocorrencias?`<small><b>Ocorrências:</b> ${fe(r.ocorrencias)}</small>`:''}${r.visitas?`<small><b>Visitas:</b> ${fe(r.visitas)}</small>`:''}<small>${fe(r.responsavel?'Registrado por '+r.responsavel:'')}</small>${Eng.fotosHtml(r.titulo_obra,r.data,i,(App._rdoFotos[i]=fotosDoRegistro(r)))}</div></article>`;}).join('')}</div>`
         :`<div class="fin-card"><div class="fin-vazio">${todos.length?'Nenhum registro neste filtro.':'Nenhum dia registrado ainda. O ideal é registrar no fim de cada dia de obra.'}<br><button type="button" class="fin-bt pri" data-rd="novo" style="margin-top:10px"><i class="fas fa-plus"></i> Registrar dia</button></div></div>`}
     </div>`;
     box.onchange=ev=>{const s=ev.target.closest('select[data-rd]');if(!s)return;RD[s.dataset.rd]=s.value;renderDiario();};
     box.onclick=ev=>{const b=ev.target.closest('button[data-rd]');if(!b)return;const r=App._rdoLista[+b.dataset.i];
       if(b.dataset.rd==='foto'&&r)Eng.verFoto(App._rdoFotos[+b.dataset.i]||Eng.fotosDoDia(r.titulo_obra,r.data),+b.dataset.f);
-      else if(b.dataset.rd==='hfoto'&&r){const L=(App._rdoHF[+b.dataset.i]||[]);if(L[+b.dataset.f]&&L[+b.dataset.f].rowid)Eng.verFoto(L.filter(x=>x.rowid),L.filter(x=>x.rowid).indexOf(L[+b.dataset.f]));}
+      else if(b.dataset.rd==='hfoto'&&r)verFotosHor(App._rdoHF[+b.dataset.i]||[],+b.dataset.f);
       else if(b.dataset.rd==='fotos'&&r)Eng.enviarFotos(r.titulo_obra,r.data);
       else if(b.dataset.rd==='acao'&&r)Eng.novaAcao({titulo_obra:r.titulo_obra,tipo:'Pendência',o_que:String(r.ocorrencias).slice(0,150),por_que:'Ocorrência registrada no diário de '+brDe(dt(r.data)),origem:'Diário de obra '+brDe(dt(r.data))});
       else if(b.dataset.rd==='novo')novoRdo();
@@ -12550,7 +12590,7 @@ const Eng=(function(){
         const com=l.filter(x=>x.hor!==false),sem=l.filter(x=>x.hor===false),td='padding:3px 5px;border-top:1px solid #e5e5ea',tr='text-align:right;';
         return (com.length?`<table style="width:100%;border-collapse:collapse;font-size:10px;margin:2px 0 6px"><tr style="background:#f2f2f7"><th style="text-align:left;padding:3px 5px">Máquina (horímetro)</th><th style="${tr}padding:3px 5px">Início do dia</th><th style="${tr}padding:3px 5px">Meio-dia</th><th style="${tr}padding:3px 5px">Início da tarde</th><th style="${tr}padding:3px 5px">Fim da tarde</th><th style="${tr}padding:3px 5px">Horas</th><th style="text-align:left;padding:3px 5px">Obs.</th></tr>${com.map(x=>{const L=leituras(x),h=horasEq(x);return `<tr><td style="${td}">${bl(x.eq)}</td><td style="${td};${tr}">${bl(L.h1)}</td><td style="${td};${tr}">${bl(L.h2)}</td><td style="${td};${tr}">${bl(L.h3)}</td><td style="${td};${tr}">${bl(L.h4)}</td><td style="${td};${tr}"><b>${!isNaN(h.tot)?fmtH(h.tot):''}</b></td><td style="${td}">${bl(x.obs)}</td></tr>`;}).join('')}</table>`:'')
           +(sem.length?`<div style="font-size:10.5px;margin-bottom:4px"><b>Equipamentos sem horímetro:</b> ${sem.map(x=>bl((x.qtd&&x.qtd!=='1'?x.qtd+' × ':'')+x.eq+(x.obs?' ('+x.obs+')':''))).join('; ')}</div>`:'');})()}
-      ${(()=>{const hf=fotosHorimetro(r);return hf.length?`<div style="display:flex;gap:6px;flex-wrap:wrap;margin:2px 0 6px">${hf.map(x=>`<div style="width:40mm"><img ${GS.fotoSis.attrs(x.im,true,600)} style="width:40mm;height:28mm;object-fit:cover;border-radius:4px;border:1px solid #e5e5ea;display:block"><div style="font-size:8.5px;color:#6e6e73;margin-top:2px">Horímetro · ${bl(x.rot)} · ${bl(x.hora)}</div></div>`).join('')}</div>`:'';})()}
+      ${(()=>{const hf=fotosHorimetro(r);return hf.length?`<div style="display:flex;gap:6px;flex-wrap:wrap;margin:2px 0 6px">${hf.map(x=>`<div style="width:40mm"><img ${GS.fotoSis.attrs(x.im,true,600)} style="width:40mm;height:28mm;object-fit:cover;border-radius:4px;border:1px solid #e5e5ea;display:block"><div style="font-size:8.5px;color:#6e6e73;margin-top:2px">Horímetro · ${bl(x.rot)} · ${bl(x.quando)}</div></div>`).join('')}</div>`:'';})()}
       <div style="font-size:10.5px;margin-bottom:4px"><b>Serviços executados:</b><br>${bl(r.atividades)}</div>
       ${r.ocorrencias?`<div style="font-size:10.5px;margin-bottom:4px"><b>Ocorrências:</b><br>${bl(r.ocorrencias)}</div>`:''}
       ${r.visitas?`<div style="font-size:10.5px;margin-bottom:4px"><b>Visitas e fiscalização:</b><br>${bl(r.visitas)}</div>`:''}
