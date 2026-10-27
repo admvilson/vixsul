@@ -116,8 +116,8 @@
     montar();clearTimeout(fimT);modo=m;
     const novo=!el.classList.contains('on')||!el.classList.contains(m)||el.classList.contains('saindo');
     el.className='on '+m;
-    if(novo){pintarLogo();abertoEm=Date.now();setTimeout(()=>el.classList.add('vis'),30);}else el.classList.add('vis');
-    mensagem(msg);}
+    if(novo){pintarLogo();abertoEm=Date.now();const p=el.querySelector('[data-msg]');if(p){p.textContent=msg||'';p.style.opacity=1;}setTimeout(()=>el.classList.add('vis'),30);}
+    else{el.classList.add('vis');mensagem(msg);}}
   function mensagem(t){const p=el&&el.querySelector('[data-msg]');if(!p||p.textContent===t)return;p.style.opacity=0;setTimeout(()=>{p.textContent=t||'';p.style.opacity=1;},180);}
   function fechar(minimo){
     if(!el||!el.classList.contains('on'))return;const falta=Math.max(0,(minimo||0)-(Date.now()-abertoEm));clearTimeout(fimT);
@@ -134,12 +134,12 @@
     let i=msg?-1:0;clearInterval(msgT);msgT=setInterval(()=>{i=Math.min(i+1,FRASES.length-1);mensagem(FRASES[i]);},1700);
     clearTimeout(iniP);iniP=setTimeout(()=>fechar(0),45000);}   // segurança: nunca fica presa
   function fimInicio(){clearTimeout(iniP);if(modo==='inicio')fechar(2300);}
-  // ── espera de gravação: só aparece se passar de um instante (não pisca nas gravações rápidas) ──
+  // ── espera de gravação/exclusão: aparece na hora (no lugar do cursor de bloqueio); a mesma tela só troca o texto ──
   function ocupado(t){
     clearTimeout(busyT);if(modo==='inicio')return;
-    if(el&&el.classList.contains('on')&&modo==='busy'){clearTimeout(fimT);mensagem(t||'Aguarde…');return;}
-    busyT=setTimeout(()=>abrir('busy',t||'Aguarde…'),450);}
-  function livre(){clearTimeout(busyT);if(modo==='busy')fechar(700);}
+    if(el&&el.classList.contains('on')&&modo==='busy'){clearTimeout(fimT);el.classList.add('vis');mensagem(t||'Aguarde…');return;}
+    abrir('busy',t||'Aguarde…');}
+  function livre(){clearTimeout(busyT);if(modo==='busy')fechar(500);}
 
   window.VxEspera={inicio,fimInicio,ocupado,livre,separar,abrir,fechar};
   prontas=separar();   // prepara as partes da logo logo que a página abre
