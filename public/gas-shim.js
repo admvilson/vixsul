@@ -93,14 +93,24 @@ const _CHAVES = ['obras','custos','faturamentos','aportes','cap','orcamentos','d
 
 // ─── Funções que espelham o Código.gs ─────────────────────────────────────────
 
+// A tabela inteira, de 1000 em 1000 linhas: o banco devolve no máximo 1000 por pedido e, sem isso, as linhas
+// mais novas de uma tabela grande (ex.: contas lançadas pela conciliação) não chegavam à tela.
+async function _lerTabela(chave) {
+  const L = [];
+  for (let i = 0; ; i += 1000) {
+    const r = await _sb.from(chave).select('*').order('id', { ascending: true }).range(i, i + 999);
+    if (r.error) return r;
+    L.push(...(r.data || []));
+    if (!r.data || r.data.length < 1000) return { data: L, error: null };
+  }
+}
+
 async function _getSistemaData() {
   const pacote = { obras:[], custos:[], faturamentos:[], aportes:[], cap:[], metadata:{}, lixeira:{} };
 
-  // Busca as 5 tabelas em paralelo (antes era uma de cada vez, em sequência —
-  // isso sozinho já multiplicava por 5 o tempo de qualquer atualização/sincronização).
-  const resultados = await Promise.all(
-    _CHAVES.map(chave => _sb.from(chave).select('*').order('id', { ascending: true }))
-  );
+  // Busca as tabelas em paralelo (antes era uma de cada vez, em sequência —
+  // isso sozinho já multiplicava o tempo de qualquer atualização/sincronização).
+  const resultados = await Promise.all(_CHAVES.map(_lerTabela));
 
   // passe vencido (ou sessão do modo antigo depois que a segurança foi ligada): volta para o login
   if ((_segLigada() && !_tokenAtual()) || resultados.some(r => r.error && /jwt|token/i.test(String(r.error.message || '')))) { _encerrarSessao(true); return pacote; }

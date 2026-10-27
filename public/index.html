@@ -654,7 +654,7 @@ tbody tr:hover td{background:rgba(0,113,227,.02);}
     html:not([data-authed="1"]) #app-shell{display:none;}
     #app-shell.hidden{display:none!important;}
   </style>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0/dist/umd/supabase.js" integrity="sha384-TcHRA3zBbn+Lexh5n+Oil4guNPOS3rjNDpGRAN46u/s/mB2IZ50ceC6TYDU2yvgK" crossorigin="anonymous"></script><script src="gas-shim.js?v=20261024a"></script><script src="espera.js?v=20261028e"></script><script src="https://accounts.google.com/gsi/client" async defer></script></head>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0/dist/umd/supabase.js" integrity="sha384-TcHRA3zBbn+Lexh5n+Oil4guNPOS3rjNDpGRAN46u/s/mB2IZ50ceC6TYDU2yvgK" crossorigin="anonymous"></script><script src="gas-shim.js?v=20261028a"></script><script src="espera.js?v=20261028e"></script><script src="https://accounts.google.com/gsi/client" async defer></script></head>
 <body>
 <div class="toast" id="toast"><span id="toast-icon"></span><span id="toast-msg">—</span></div>
 
@@ -10770,8 +10770,11 @@ const Fin=(function(){
   const dias=(a,b)=>Math.round((b-a)/86400000);   // b − a, em dias
   const val=v=>parseStoredNumber(v);
   const dinheiro=n=>(Math.round(n*100)/100).toFixed(2);
-  const juntarId=(atual,novo)=>[...new Set(String(atual||'').split(',').filter(Boolean).concat(novo))].join(',');
-  const tirarId=(atual,id)=>String(atual||'').split(',').filter(f=>f&&f!==id).join(',');
+  // a identificação da linha do extrato leva o histórico do banco, que pode ter vírgula ("TARIFA 12,50"): a lista
+  // guardada na conta é procurada pela identificação INTEIRA — quebrar na vírgula fazia a linha voltar como não conciliada
+  const temId=(lista,id)=>!!id&&(','+String(lista||'')+',').includes(','+id+',');
+  const juntarId=(atual,novo)=>temId(atual,novo)?String(atual):[String(atual||''),novo].filter(Boolean).join(',');
+  const tirarId=(atual,id)=>{let s=','+String(atual||'')+',';const k=','+id+',';while(s.includes(k))s=s.replace(k,',');return s.slice(1,-1);};
   const ABA={custo:'Custos',despesa:'Despesas',fat:'Faturamentos',aporte:'Aportes financeiros'};
   const TIPO_ROT={custo:'Custo de obra',despesa:'Despesa da empresa',fat:'Faturamento',aporte:'Aporte'};
   const ICO_ARQ='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M12 18v-6M9 15l3-3 3 3"/></svg>';
@@ -11228,7 +11231,8 @@ const Fin=(function(){
   function conciliar(ext){
     const ms=movimentos(),feitos=new Map(),usados=new Set(),props=[],ign=ignorados();
     const idm=m=>m.tipo+':'+m.r.rowid;
-    ms.forEach(m=>String(m.r.conciliacao||'').split(',').filter(Boolean).forEach(f=>{const x=feitos.get(f)||{rots:[],alvos:[]};x.rots.push(TIPO_ROT[m.tipo]+': '+m.desc+' · '+m.origem);x.alvos.push(m);feitos.set(f,x);}));
+    const idsExt=ext.itens.map(t=>t.id);
+    ms.forEach(m=>{const s=m.r.conciliacao;if(!s)return;idsExt.forEach(f=>{if(!temId(s,f))return;const x=feitos.get(f)||{rots:[],alvos:[]};x.rots.push((TIPO_ROT[m.tipo]||'Retirada')+': '+m.desc+' · '+m.origem);x.alvos.push(m);feitos.set(f,x);});});
     const abertosS=ms.filter(m=>m.sent<0&&!m.pago),abertosE=ms.filter(m=>m.tipo==='fat'&&!m.pago);
     ext.itens.slice().sort((a,b)=>dt(a.data)-dt(b.data)).forEach(t=>{
       const td=dt(t.data),v=Math.abs(t.valor);
@@ -11613,10 +11617,10 @@ const Fin=(function(){
         if(cat&&!cats.includes(cat)){const nc=GS.comboGasto.categoriaDe(desc,forn,emp);nc&&cats.includes(nc)?GS.comboGasto.definir(box,nc,desc):GS.comboGasto.limpar(box);}});
       const top=j.querySelector('[data-k="catTodas"]');if(top.value&&!cats.includes(top.value))GS.comboGasto.limpar(top.closest('.cg'));};
     ce.addEventListener('change',()=>{rb.hidden=ce.value!==RAT;ajustarCats();});
-    j.addEventListener('change',ev=>{
+    j.onchange=ev=>{
       if(ev.target.matches('[data-k="descTodas"]')){const cat=j.querySelector('[data-k="catTodas"]').value,desc=ev.target.value;if(cat&&desc)tb.querySelectorAll('.cg').forEach(b=>GS.comboGasto.definir(b,cat,desc));}
       else if(ev.target.matches('[data-k="formaTodas"]')){const f=ev.target.value;if(f)tb.querySelectorAll('[data-i="forma"]').forEach(s=>{s.value=f;});}
-      else if(ev.target.matches('[data-k="socio"]'))j.querySelector('[data-k="socio-box"]').hidden=!ev.target.checked;});
+      else if(ev.target.matches('[data-k="socio"]'))j.querySelector('[data-k="socio-box"]').hidden=!ev.target.checked;};
     tb.addEventListener('click',ev=>{const b=ev.target.closest('[data-i="tirar"]');if(b){b.closest('tr').remove();pintarTot();}});
     ajustarCats();pintarTot();
     try{Eng.datalistFornecedores();}catch(e){}
@@ -11652,25 +11656,6 @@ const Fin=(function(){
     j.onchange=total;
     j.oninput=ev=>{if(!ev.target.matches('[data-k="busca"]'))return;const q=cn(ev.target.value).split(' ').filter(Boolean);let n=0;j.querySelectorAll('.fin-lote label').forEach(l=>{l.hidden=!q.every(w=>l.dataset.busca.includes(w));if(!l.hidden)n++;});j.querySelector('.cc-nada').hidden=n>0;};
   }
-  /* Do quadro de Contas a pagar ("Selecionar várias" → Conciliar com o extrato): as contas marcadas saíram numa só linha do
-     banco. Usa o extrato aberto na Conciliação — as saídas de valor mais perto da soma aparecem primeiro. */
-  function conciliarContas(L,depois){
-    const ext=CONC.extrato;
-    if(!ext)return confirmar('Falta o extrato do banco','Para conciliar, abra <b>Conciliação bancária</b> e importe o extrato do banco. Depois volte aqui, marque as contas e clique em <b>Conciliar com o extrato</b> de novo.','Ir para a Conciliação',async()=>{setTimeout(()=>UI.nav('conciliacao'),60);});
-    const ms=movimentos(),alvos=L.map(o=>ms.find(m=>(o._t==='c'?m.tipo==='custo':m.tipo==='despesa')&&String(m.r.rowid)===String(o.rowid))).filter(Boolean);
-    if(!alvos.length)return toast('Não encontrei essas contas — atualize a página e tente de novo.','error');
-    const ja=alvos.filter(m=>m.r.conciliacao);if(ja.length)return toast(`${ja.length} das contas marcadas já ${ja.length>1?'estão ligadas':'está ligada'} ao extrato — desmarque ou desfaça na Conciliação.`,'error');
-    const soma=Math.round(alvos.reduce((s,m)=>s+m.valor,0)*100)/100;
-    const linhas=conciliar(ext).filter(p=>p.t.valor<0&&p.st!=='feito'&&p.st!=='ignorado').map(p=>p.t).sort((a,b)=>Math.abs(-a.valor-soma)-Math.abs(-b.valor-soma)).slice(0,80);
-    if(!linhas.length)return toast('No extrato aberto não sobrou saída para conciliar.','error');
-    janela('Conciliar com o extrato',`<div class="fin-resumo">${alvos.length} conta${alvos.length>1?'s':''} marcada${alvos.length>1?'s':''} · total <b>${fmt(soma)}</b><br><small>Extrato aberto: ${fe(ext.nome||'')}</small></div>
-      <div class="fin-fld"><label>Saída do banco que pagou estas contas — as de valor mais perto primeiro</label><select data-k="linha">${linhas.map((t,i)=>`<option value="${i}">${fe(t.data)} · ${fe(t.desc)} · ${fmt(-t.valor)}${Math.abs(-t.valor-soma)<0.01?' · mesmo valor':''}</option>`).join('')}</select></div>
-      <div class="fin-aviso laranja"><div>As contas em aberto ficam pagas na data do banco; as já pagas só são ligadas ao extrato. Se o valor for diferente, confira depois juros, multa ou desconto.</div></div>`,
-      [{html:'<i class="fas fa-link"></i> Conciliar',cls:'pri',acao:async j=>{
-        const t=linhas[+j.querySelector('[data-k="linha"]').value];if(!t)throw new Error('Escolha a saída do banco.');
-        if(depois)depois();await ligarContas(t,alvos);
-        toast(`${alvos.length} conta${alvos.length>1?'s conciliadas':' conciliada'} com a saída de ${fmt(-t.valor)} do dia ${t.data}.`,'success');}}],660);
-  }
   // saída do banco sem conta: abre a "Nova conta" em modo compra — vários itens (ou a nota lida), somando o valor do banco
   function lancarConta(p){
     const C=GS.contas,v=Math.abs(p.t.valor),iso=isoDeBR(p.t.data),prev=sugestaoConta(p,contasDoSistema());
@@ -11683,13 +11668,13 @@ const Fin=(function(){
      extrato apenas se solta. */
   function desfazer(p){
     const alvos=p.alvos||[],id=p.t.id;
-    const baixados=alvos.filter(m=>String(m.r.conciliacao_baixa||'').split(',').includes(id));
+    const baixados=alvos.filter(m=>temId(m.r.conciliacao_baixa,id));
     const efeito=baixados.length?`${baixados.length} lançamento(s) voltam para "em aberto" (sem data de pagamento/recebimento)`:'Só a ligação com o extrato é desfeita — os lançamentos continuam pagos';
     confirmar('Desfazer conciliação?',`${efeito}. A linha de ${fmt(p.t.valor)} de ${fe(p.t.data)} volta para a conferência.`,'Sim, desfazer',async()=>{
       await executar(async()=>{
         for(const m of alvos){
           const o={...m.r,conciliacao:tirarId(m.r.conciliacao,id)};
-          if(String(m.r.conciliacao_baixa||'').split(',').includes(id)){
+          if(temId(m.r.conciliacao_baixa,id)){
             o.conciliacao_baixa=tirarId(m.r.conciliacao_baixa,id);
             if(m.tipo==='custo'){o[m.kTipo]='Previsto';o[m.kData]='';}
             else if(m.tipo==='despesa'){o[m.kSt]='Pendente';o[m.kPg]='';o[m.kTipo]='Prevista';}
@@ -11706,7 +11691,7 @@ const Fin=(function(){
     if(document.getElementById('view-contas')?.classList.contains('active'))renderContas();
     if(document.getElementById('view-conciliacao')?.classList.contains('active')&&!document.getElementById('fin-ov')?.classList.contains('open'))renderConciliacao();
   }
-  return {renderContas,renderConciliacao,aoAtualizar,movimentos,prazoReceb,lerSaldo,conciliarContas,_conciliar:conciliar,_lerOFX:lerOFX,_lerCSV:lerCSVExtrato,
+  return {renderContas,renderConciliacao,aoAtualizar,movimentos,prazoReceb,lerSaldo,_conciliar:conciliar,_lerOFX:lerOFX,_lerCSV:lerCSVExtrato,
     // utilitários compartilhados com os módulos de engenharia (Eng)
     util:{janela,confirmar,executar,salvar,excluir,fe,cn,dt,brDe,isoDe,isoDeBR,hoje0,addD,dias,col,kRow,dinheiro,val}};
 })();
@@ -15768,19 +15753,6 @@ const PL2=(function(){
 .vk-card{background:#fff;border-radius:14px;padding:11px 12px;border:1px solid #e8e8ed;box-shadow:0 2px 6px rgba(20,20,60,.05);cursor:pointer;border-left:4px solid var(--cor);transition:transform .15s,box-shadow .15s;}
 .vk-card:hover,.vk-card:focus-visible{transform:translateY(-2px);box-shadow:0 10px 22px -12px rgba(20,20,60,.35);outline:none;}
 .vk-card[draggable="true"]{cursor:grab;} .vk-card.arrastando{opacity:.45;}
-/* modo "Selecionar várias" (Contas a pagar): quadradinho no cartão + barra de baixo com as ações */
-.vk-card.vk-sel{cursor:pointer;} .vk-sel .vk-top{justify-content:flex-start;} .vk-sel .vk-top b{flex:1;min-width:0;}
-.vk-marca{flex:none;width:20px;height:20px;border-radius:6px;border:2px solid #C4C9D4;background:#fff;display:grid;place-items:center;color:transparent;font-size:11px;margin-top:-1px;transition:background .12s,border-color .12s;}
-.vk-sel:hover .vk-marca{border-color:#1652D8;}
-.vk-sel.on{box-shadow:0 0 0 2px #1652D8;background:#F5F8FF;} .vk-sel.on .vk-marca{background:#1652D8;border-color:#1652D8;color:#fff;}
-.vk-sel.meio .vk-marca{background:#D1E0FF;border-color:#1652D8;color:#1652D8;}
-.gf-bt.on{background:#EEF4FF;border-color:#84ADFF;color:#1652D8;} .gf-bt:disabled{opacity:.45;cursor:not-allowed;}
-.vk-selbar{position:sticky;bottom:12px;z-index:6;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px 16px;background:#101828;color:#fff;border-radius:16px;padding:12px 16px;box-shadow:0 16px 32px -12px rgba(16,24,40,.6);}
-.vk-selbar-txt b{display:block;font-size:14px;} .vk-selbar-txt span{display:block;font-size:12px;color:#D0D5DD;}
-.vk-selbar-bts{display:flex;flex-wrap:wrap;gap:8px;}
-.vk-selbar .gf-bt{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.25);color:#fff;} .vk-selbar .gf-bt:hover{background:rgba(255,255,255,.18);}
-.vk-selbar .gf-bt.pri{background:#fff;border-color:#fff;color:#1652D8;} .vk-selbar .gf-bt.pri:hover{background:#EEF4FF;}
-@media (max-width:560px){.vk-selbar{bottom:8px;padding:10px 12px;gap:8px;} .vk-selbar-bts{gap:6px;width:100%;} .vk-selbar-bts .gf-bt{flex:1 1 40%;justify-content:center;padding:7px 10px;font-size:12.5px;white-space:normal;text-align:center;}}
 .vk-top{display:flex;justify-content:space-between;gap:6px 8px;align-items:flex-start;}
 .vk-top b{font-size:13.5px;line-height:1.3;overflow-wrap:anywhere;color:var(--text-1);}
 .vk-sub{font-size:12px;color:#6e6e73;margin:3px 0 6px;overflow-wrap:anywhere;}
@@ -15798,6 +15770,15 @@ const PL2=(function(){
 .vk-pill{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:800;padding:3px 9px;border-radius:99px;background:#F1F2F6;color:#6e6e73;white-space:nowrap;}
 .vk-pill.ok{background:#ECFDF3;color:#067647;} .vk-pill.warn{background:#FFFAEB;color:#B54708;} .vk-pill.err{background:#FEF3F2;color:#B42318;} .vk-pill.info{background:#EEF4FF;color:#0062C4;} .vk-pill.roxo{background:#F4F0FF;color:#6941C6;}
 .vk-aviso{display:flex;gap:12px;align-items:center;padding:12px 16px;border-radius:14px;background:#F4F0FF;color:#53389E;font-size:13px;}
+/* verificação de duplicidade (Contas a pagar e Sócios) */
+.gf-bt.dup-on{border-color:#FDA29B;color:#B42318;background:#FFFBFA;} .gf-bt .vk-badge{background:#D92D20;color:#fff;border-radius:99px;padding:1px 7px;font-size:11px;font-weight:800;line-height:1.5;}
+.dup-lista{display:grid;gap:10px;margin-top:10px;}
+.dup-g{border:1px solid #FECDCA;border-radius:12px;background:#FFFBFA;padding:10px 12px;}
+.dup-cab{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;margin-bottom:4px;} .dup-cab b{font-size:13.5px;color:#101828;overflow-wrap:anywhere;} .dup-cab span{flex:1;font-size:12px;color:#B42318;font-weight:700;white-space:nowrap;}
+.dup-tab{width:100%;min-width:0!important;border-collapse:collapse;font-size:12.5px;} .dup-tab td{padding:7px 4px;border-top:1px solid #FEE4E2;vertical-align:middle;} .dup-tab tr:first-child td{border-top:0;}
+.dup-tab td b{color:#101828;} .dup-tab td small{display:block;color:#667085;font-size:11.5px;margin-top:1px;} .dup-tab td.num{text-align:right;white-space:nowrap;font-weight:800;color:#101828;}
+.dup-ac{white-space:nowrap;text-align:right;} .dup-ac .fin-bt{margin-left:4px;} .fin-bt.mini.err{color:#B42318;border-color:#FECDCA;background:#fff;} .fin-bt.mini.err:hover{background:#FEF3F2;}
+@media (max-width:560px){.dup-tab tr{display:grid;grid-template-columns:1fr auto;gap:4px;padding:6px 0;border-top:1px solid #FEE4E2;} .dup-tab td{border:0;padding:0;} .dup-ac{grid-column:1/-1;text-align:left;} .dup-ac .fin-bt{margin:0 6px 0 0;}}
 .vk-aviso i{font-size:16px;} .vk-aviso div{flex:1;}
 .vk-ficha-cab{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px;}
 .vk-etq{display:inline-flex;gap:7px;align-items:center;font-weight:800;font-size:12.5px;color:#fff;background:var(--cor);padding:6px 12px;border-radius:99px;}
@@ -15976,7 +15957,7 @@ const Mascara=(function(){
   const {janela,confirmar,executar,salvar,excluir,fe,cn,dt,brDe,isoDe,hoje0,addD,dias,dinheiro,val}=U;
   const C=GS.contas,Fa=GS.fat,EMP=C.EMP;
   const FORMAS=typeof FORMAS_PAGAMENTO_DESPESA!=='undefined'?FORMAS_PAGAMENTO_DESPESA:['PIX','Boleto','Transferência/TED','Dinheiro'];
-  const QC={busca:'',obra:'',mes:'',antigas:false,aprovar:false,semForn:false,ord:'',cat:'',forma:'',selModo:false,sel:new Set()},QF={busca:'',obra:'',mes:'',antigas:false,semNF:false,ord:''};
+  const QC={busca:'',obra:'',mes:'',antigas:false,aprovar:false,semForn:false,ord:'',cat:'',forma:''},QF={busca:'',obra:'',mes:'',antigas:false,semNF:false,ord:''};
   // ordem dos cartões dentro de cada coluna (o padrão de cada quadro é a data)
   const selOrd=(atr,v,ops)=>`<select ${atr} title="Ordem dos cartões em cada coluna">${ops.map(([k,r])=>`<option value="${k}" ${v===k?'selected':''}>${r}</option>`).join('')}</select>`;
   const cmpTxt=(a,b)=>String(a||'').localeCompare(String(b||''),'pt-BR',{sensitivity:'base',numeric:true});
@@ -16023,12 +16004,10 @@ const Mascara=(function(){
   const acharConta=id=>todasContas().find(o=>idC(o)===id);
   const souAdmin=C.souAdmin;
   const podeEditarConta=o=>GS.ehAdm()||pode('contas')&&!pagoC(o)&&GS.podeMexer(o._r,o.lancPor)&&(souAdmin()||o.tipo!=='Real'||o.aprov==='pendente');
-  // modo "Selecionar várias": o clique marca o cartão (o cartão de uma compra marca todos os itens dela)
-  const marcaSel=ids=>{if(!QC.selModo)return {cls:'',html:''};const n=ids.filter(id=>QC.sel.has(id)).length;return {cls:n&&n===ids.length?' vk-sel on':n?' vk-sel meio':' vk-sel',html:'<span class="vk-marca" aria-hidden="true"><i class="fas fa-check"></i></span>'};};
   function cartaoConta(o){
-    const col=colConta(o),pc=parcDe(o.desc),ms=marcaSel([idC(o)]);
-    return `<article class="vk-card${ms.cls}" style="--cor:${COLS_CP.find(c=>c.k===col).cor}" draggable="${pode('contas')&&!QC.selModo?'true':'false'}" data-card="${idC(o)}" tabindex="0">
-      <div class="vk-top">${ms.html}<b>${fe(o.forn||C.limparParc(o.desc)||'Conta')}</b>${o.centro===EMP?pill('empresa','info'):''}</div>
+    const col=colConta(o),pc=parcDe(o.desc);
+    return `<article class="vk-card" style="--cor:${COLS_CP.find(c=>c.k===col).cor}" draggable="${pode('contas')?'true':'false'}" data-card="${idC(o)}" tabindex="0">
+      <div class="vk-top"><b>${fe(o.forn||C.limparParc(o.desc)||'Conta')}</b>${o.centro===EMP?pill('empresa','info'):''}</div>
       ${o.forn&&o.desc?`<div class="vk-sub">${fe(C.limparParc(o.desc))}${pc?' '+pill(pc,''):''}</div>`:pc?`<div class="vk-sub">${pill(pc,'')}</div>`:''}
       ${o.centro!==EMP?`<div class="vk-obra" title="${fe(o.centro)}"><i class="fas fa-helmet-safety"></i>${fe(o.centro)}</div>`:''}
       <div class="vk-val"><span>${fe(o.cat||'')}</span><b>${fmt(val(o.total))}</b></div>
@@ -16045,10 +16024,10 @@ const Mascara=(function(){
     lista.forEach(o=>{const k=chaveCompra(o);if(!k){out.push(o);return;}let g=mapa.get(k);if(!g){g={_compra:true,id:'g:'+k,lista:[]};mapa.set(k,g);out.push(g);}g.lista.push(o);});
     return out.map(g=>g._compra&&g.lista.length===1?g.lista[0]:g);}
   function cartaoCompra(g){
-    const L=g.lista,o=L[0],col=colConta(o),tot=L.reduce((s,x)=>s+val(x.total),0),obras=[...new Set(L.map(x=>x.centro))],dc=diaCompra(o),rat=L.some(x=>x.rateio),ms=marcaSel(L.map(idC));
+    const L=g.lista,o=L[0],col=colConta(o),tot=L.reduce((s,x)=>s+val(x.total),0),obras=[...new Set(L.map(x=>x.centro))],dc=diaCompra(o),rat=L.some(x=>x.rateio);
     (App._vkCompras=App._vkCompras||{})[g.id]=L;
-    return `<article class="vk-card vk-compra${ms.cls}" style="--cor:${COLS_CP.find(c=>c.k===col).cor}" draggable="${pode('contas')&&!QC.selModo?'true':'false'}" data-card="${fe(g.id)}" tabindex="0">
-      <div class="vk-top">${ms.html}<b>${fe(o.forn||'Compra')}</b>${obras.length===1&&obras[0]===EMP?pill('empresa','info'):''}</div>
+    return `<article class="vk-card vk-compra" style="--cor:${COLS_CP.find(c=>c.k===col).cor}" draggable="${pode('contas')?'true':'false'}" data-card="${fe(g.id)}" tabindex="0">
+      <div class="vk-top"><b>${fe(o.forn||'Compra')}</b>${obras.length===1&&obras[0]===EMP?pill('empresa','info'):''}</div>
       <div class="vk-sub"><i class="fas fa-basket-shopping"></i> ${L.length} itens${dc?` · compra de ${brDe(dt(dc))}`:''}</div>
       ${obras.some(x=>x!==EMP)?`<div class="vk-obra" title="${fe(obras.join(' · '))}"><i class="fas fa-helmet-safety"></i>${fe(obras.length===1?obras[0]:obras.length+' obras')}</div>`:''}
       <ul class="vk-itens">${L.slice(0,5).map(x=>`<li><span>${fe(C.limparParc(x.desc)||x.cat||'Item')}</span><b>${fmt(val(x.total))}</b></li>`).join('')}${L.length>5?`<li class="mais">+ ${L.length-5} item(ns)</li>`:''}</ul>
@@ -16138,11 +16117,11 @@ const Mascara=(function(){
     const temPrev=todas.some(o=>colConta(o)==='previstas');
     const cols=COLS_CP.filter(c=>c.k!=='previstas'||temPrev).map(c=>{const itens=visiveis.filter(o=>colConta(o)===c.k).sort(ordemCartoes(f.ord,o=>val(o.total),o=>o.forn||C.limparParc(o.desc))||(f.ord==='rec'?(a,b)=>(+b.rowid||0)-(+a.rowid||0):c.k==='paga'?(a,b)=>String(b.pago).localeCompare(String(a.pago)):ordV));return {c:c.k==='previstas'?{...c,rot:'Estimativas antigas'}:c,itens:agruparCompras(itens),total:S(itens),sub:`${itens.length} ${itens.length===1?'item':'itens'} · ${fmt(S(itens))}`};});
     App._vkCompras={};
-    App._vkContas=filtradas;App._vkVisiveis=visiveis;
+    App._vkContas=filtradas;
     const filtroAtivo=f.busca||f.obra||f.mes||f.aprovar||f.semForn||f.cat||f.forma||f.ord;
     const catsF=[...new Set(C.CATC().concat(C.podeEmpresa()?C.CATD():[]).concat(todas.map(o=>o.cat).filter(Boolean)))],formasF=[...new Set(FORMAS.concat(todas.map(o=>o.forma).filter(Boolean)))];
     box.innerHTML=`<div class="gf">
-      ${cabG('Contas a pagar','Tudo o que a empresa paga: compras e serviços de cada obra e as despesas da Empresa — só contas que já existem (a previsão de custo das obras vem do CAP). Um Administrador aprova (conta lançada por Administrador já nasce aprovada) e, quando pagar, arraste o cartão para <b>Paga</b>. Clique no cartão para ver e corrigir todos os dados.','<button type="button" class="gf-bt" data-vk="imprimir"><i class="fas fa-print"></i> Imprimir</button><button type="button" class="gf-bt" data-vk="exportar"><i class="fas fa-file-excel"></i> Exportar</button>'+(pode('contas')?`<button type="button" class="gf-bt${f.selModo?' on':''}" data-vk="selecionar" title="Marcar várias contas para ratear entre obras ou conciliar com o extrato de uma vez"><i class="fas fa-square-check"></i> ${f.selModo?'Sair da seleção':'Selecionar várias'}</button><button type="button" class="gf-bt pri" data-vk="nova"><i class="fas fa-plus"></i> Nova conta</button>`:''))}
+      ${cabG('Contas a pagar','Tudo o que a empresa paga: compras e serviços de cada obra e as despesas da Empresa — só contas que já existem (a previsão de custo das obras vem do CAP). Um Administrador aprova (conta lançada por Administrador já nasce aprovada) e, quando pagar, arraste o cartão para <b>Paga</b>. Clique no cartão para ver e corrigir todos os dados.',(()=>{const n=gruposDupContas().length;return `<button type="button" class="gf-bt${n?' dup-on':''}" data-vk="dup" title="Procura contas lançadas em dobro (mesmo fornecedor, destino e valor em datas próximas)"><i class="fas fa-clone"></i> Verificar duplicados${n?` <b class="vk-badge">${n}</b>`:''}</button>`;})()+'<button type="button" class="gf-bt" data-vk="imprimir"><i class="fas fa-print"></i> Imprimir</button><button type="button" class="gf-bt" data-vk="exportar"><i class="fas fa-file-excel"></i> Exportar</button>'+(pode('contas')?'<button type="button" class="gf-bt pri" data-vk="nova"><i class="fas fa-plus"></i> Nova conta</button>':''))}
       ${semAprov.length&&souAdmin()?`<div class="vk-aviso"><i class="fas fa-signature"></i><div><b>${semAprov.length} conta(s) esperando a sua aprovação</b> — ${fmt(S(semAprov))}. Abra o cartão (ou arraste para "Aprovada") para aprovar.</div><button type="button" class="gf-bt mini" data-vk="so-aprovar">${f.aprovar?'Ver todas':'Ver só elas'}</button></div>`:''}
       <div class="gf-kpis">
         ${kpiG(vencidas.length?'vermelho':'verde','fa-triangle-exclamation','Vencidas',Rk(S(vencidas)),vencidas.length?`${vencidas.length} conta(s) em atraso — juros e multa correndo`:'nenhuma conta atrasada')}
@@ -16160,54 +16139,9 @@ const Mascara=(function(){
         <label class="vk-chk"><input type="checkbox" data-vkf="semForn" ${f.semForn?'checked':''}> Sem fornecedor</label>
         ${filtroAtivo?'<a href="#" class="vk-chk" data-vk="limpar"><i class="fas fa-xmark"></i> Limpar filtros</a>':''}</div>
       ${colunasHtml(cols,cartaoQuadro,{previstas:'Estimativas de custo (ainda sem conta) ficam aqui',aprovar:'Nenhuma conta esperando aprovação',pagar:'Contas aprovadas aparecem aqui até serem pagas',paga:'Arraste para cá a conta que foi paga'})}
-      ${f.selModo?'<div class="vk-selbar" data-vk-selbar></div>':''}
       ${analiseContas(todas)}
     </div>`;
-    pintarSel(box);
     ligarQuadroContas(box);
-  }
-  // barra de baixo do modo "Selecionar várias": quantas contas, o total e o que dá para fazer com elas
-  const contasMarcadas=()=>todasContas().filter(o=>QC.sel.has(idC(o)));
-  function pintarSel(box){const bar=box.querySelector('[data-vk-selbar]');if(!bar)return;
-    const L=contasMarcadas(),n=L.length,tot=L.reduce((s,o)=>s+val(o.total),0);
-    bar.innerHTML=`<div class="vk-selbar-txt"><b>${n?`${n} conta${n>1?'s':''} marcada${n>1?'s':''}`:'Clique nos cartões para marcar'}</b><span>${n?'total '+fmt(tot):'o cartão de uma compra marca todos os itens dela'}</span></div>
-      <div class="vk-selbar-bts"><button type="button" class="gf-bt" data-vk="sel-todas"><i class="fas fa-check-double"></i> Marcar todas da tela</button>${n?'<button type="button" class="gf-bt" data-vk="sel-nenhuma"><i class="fas fa-xmark"></i> Desmarcar</button>':''}
-        <button type="button" class="gf-bt pri" data-vk="sel-ratear" ${n?'':'disabled'}><i class="fas fa-chart-pie"></i> Ratear entre obras</button>${pode('conciliacao')?`<button type="button" class="gf-bt pri" data-vk="sel-conciliar" ${n?'':'disabled'}><i class="fas fa-building-columns"></i> Conciliar com o extrato</button>`:''}</div>`;}
-  function alternarSel(box,c){const id=c.dataset.card,ids=String(id).startsWith('g:')?((App._vkCompras||{})[id]||[]).map(idC):[id];if(!ids.length)return;
-    const todos=ids.every(x=>QC.sel.has(x));ids.forEach(x=>todos?QC.sel.delete(x):QC.sel.add(x));
-    c.classList.toggle('on',!todos);c.classList.remove('meio');pintarSel(box);}
-  const sairSel=()=>{QC.sel.clear();QC.selModo=false;};
-  /* RATEIO de várias contas de uma vez: cada conta marcada é dividida entre as obras escolhidas, pela proporção do
-     orçamento (a mesma regra da Nova conta). A conta vira a parte da 1ª obra e as outras partes nascem com os mesmos
-     dados — fornecedor, vencimento, pagamento, aprovação e ligação com o extrato. */
-  const COPIA_RAT=['aprovacao','aprovado_por','aprovado_em','lancado_por','criado_por_id','conciliacao','conciliacao_baixa','extrato_desc'];
-  function ratearContas(L){
-    L=L.map(x=>acharConta(idC(x))||x);const fora=[],ok=[];
-    L.forEach(o=>{const m=o.rateio?'já faz parte de um rateio':!(val(o.total)>0)?'sem valor':!podeEditarConta(o)?(!GS.podeMexer(o._r,o.lancPor)?'lançada por outra pessoa':pagoC(o)?'já paga — só o Administrador mexe':'já aprovada — só o Administrador mexe'):'';m?fora.push([o,m]):ok.push(o);});
-    const nome=o=>fe(o.forn||C.limparParc(o.desc)||'Conta');
-    if(!ok.length)return toast(`Nenhuma das contas marcadas pode ser rateada: ${fora.slice(0,3).map(([o,m])=>`${o.forn||C.limparParc(o.desc)||'conta'} (${m})`).join('; ')}.`,'error');
-    const tot=Math.round(ok.reduce((s,o)=>s+val(o.total),0)*100)/100;
-    const j=janela(`Ratear ${ok.length} conta${ok.length>1?'s':''} entre obras`,`<div class="fin-resumo">${ok.length} conta${ok.length>1?'s':''} · total <b>${fmt(tot)}</b><br><small>${ok.slice(0,6).map(o=>`${nome(o)} · ${fe(C.limparParc(o.desc)||o.cat||'')} · ${fe(o.centro)} · ${fmt(val(o.total))}`).join('<br>')}${ok.length>6?`<br>+ ${ok.length-6} conta(s)`:''}</small></div>
-      ${fora.length?`<div class="fin-aviso laranja"><div><b>${fora.length} conta${fora.length>1?'s ficam':' fica'} de fora:</b> ${fora.slice(0,5).map(([o,m])=>`${nome(o)} (${m})`).join(' · ')}${fora.length>5?' …':''}</div></div>`:''}
-      ${htmlRateio()}
-      <div class="fin-aviso"><div>Cada conta é dividida entre as obras marcadas, na proporção do orçamento de cada uma. Fornecedor, vencimento, pagamento e aprovação continuam os mesmos.</div></div>`,
-      [{html:'<i class="fas fa-chart-pie"></i> Ratear',cls:'pri',acao:async()=>{
-        const obras=RT.obras();if(obras.length<2)throw new Error('Marque pelo menos 2 obras para o rateio.');
-        const T0=Date.now().toString(36),ops=[];
-        ok.forEach((o,i)=>{const v=val(o.total),partes=partesRateio(v,obras);if(!partes)return;const rid='rt'+T0+'_'+i,q0=o.centro!==EMP&&val(o.qtd)>0?val(o.qtd):0;
-          // conta da Empresa que vai para as obras ganha a categoria de obra (Materiais, Mão de obra…)
-          const cat=C.CATC().includes(o.cat)?o.cat:categoriaDe(C.limparParc(o.desc),o.forn,false);
-          partes.forEach((dd,k)=>{const vt=dd.valor;if(!(vt>0))return;
-            const q4=q0?(Math.round(q0*vt/v*10000)/10000||1):1;
-            const u={...o,centro:dd.obra,cat,total:dinheiro(vt),qtd:String(q4),fator:o.centro!==EMP&&o.fator?o.fator:'UN',pUnit:String(Math.round(vt/q4*1e6)/1e6),desconto:'',rateio:rid,grupo:o.grupo?o.grupo+'_r'+k:'',
-              obs:[o.obs,`Rateio: ${pctTxt(dd.pct)} de ${fmt(v)} (pelo orçamento)`].filter(Boolean).join(' · ')};
-            C.finalizarConta(u);
-            // as partes novas (e a conta que mudou de tabela) levam aprovação, autor e ligação com o extrato da original
-            C.montarConta(u,k===0?o:null).forEach(op=>{if(op.dados&&!op.rowid)COPIA_RAT.forEach(c=>{if(o._r[c]!=null&&o._r[c]!=='')op.dados[c]=o._r[c];});ops.push(op);});});});
-        sairSel();   /* antes de gravar: a recarga no fim já desenha o quadro sem a seleção */
-        await executar(async()=>{for(const x of ops)await(x.excluir?excluir(x.aba,x.rowid):salvar(x.aba,x.dados,x.rowid||null));});
-        toast(`${ok.length} conta${ok.length>1?'s rateadas':' rateada'} entre ${obras.length} obras.`,'success');}}],780);
-    const rb=j.querySelector('[data-rat]');rb.hidden=false;const RT=ligarRateio(rb,()=>tot);
   }
   function analiseContas(todas){
     const h=hoje0(),ini=addD(h,-90),pagas=todas.filter(o=>pagoC(o)&&dt(o.pago)>=ini),S=a=>a.reduce((s,o)=>s+val(o.total),0),tot=S(pagas);
@@ -16235,19 +16169,15 @@ const Mascara=(function(){
     box.onclick=ev=>{
       const b=ev.target.closest('[data-vk]');if(b){ev.preventDefault();const a=b.dataset.vk;
         if(a==='nova')return fichaLote();
-        if(a==='selecionar'){if(QC.selModo)sairSel();else QC.selModo=true;return re();}
-        if(a==='sel-todas'){(App._vkVisiveis||[]).forEach(o=>QC.sel.add(idC(o)));return re();}
-        if(a==='sel-nenhuma'){QC.sel.clear();return re();}
-        if(a==='sel-ratear'){const L=contasMarcadas();if(L.length)ratearContas(L);return;}
-        if(a==='sel-conciliar'){const L=contasMarcadas();if(L.length)Fin.conciliarContas(L,sairSel);return;}
+        if(a==='dup')return verDupContas();
         if(a==='so-aprovar'){QC.aprovar=!QC.aprovar;return re();}
         if(a==='limpar'){Object.assign(QC,{busca:'',obra:'',mes:'',aprovar:false,semForn:false,ord:'',cat:'',forma:''});return re();}
         if(a==='exportar')return exportarContas();
         if(a==='imprimir')return imprimirContas();
         return;}
-      const c=ev.target.closest('[data-card]');if(c){if(QC.selModo)return alternarSel(box,c);abrirCartao(c.dataset.card);}
+      const c=ev.target.closest('[data-card]');if(c)abrirCartao(c.dataset.card);
     };
-    box.onkeydown=ev=>{if(ev.key!=='Enter')return;const c=ev.target.closest('[data-card]');if(c){if(QC.selModo)return alternarSel(box,c);abrirCartao(c.dataset.card);}};
+    box.onkeydown=ev=>{if(ev.key!=='Enter')return;const c=ev.target.closest('[data-card]');if(c)abrirCartao(c.dataset.card);};
     if(!box._arraste){box._arraste=1;ligarArraste(box,(id,col)=>{
       if(String(id).startsWith('g:')){const L=(App._vkCompras||{})[id];if(!L)return;const de=colConta(L[0]);if(de===col)return;
         if(!pode('contas'))return toast('Seu perfil não mexe em contas a pagar.','error');
@@ -16949,6 +16879,60 @@ const Mascara=(function(){
         toast(`Parcelamento desfeito — ${outras.length} parcela(s) apagada(s).`,'success');}}],620);
   }
   function excluirConta(o){confirmar('Excluir conta',`<b>${fe(o.forn||o.desc)}</b> · ${fmt(val(o.total))} será excluída de vez.`,'Sim, excluir',async()=>{await executar(()=>excluir(o._t==='c'?'Custos':'Despesas',o.rowid));toast('Conta excluída.','success');});}
+
+  /* ═══════════════ VERIFICAÇÃO DE DUPLICIDADE (Contas a pagar e Sócios e investimentos) ═══════════════
+     Suspeito = mesmo valor (ao centavo), da mesma pessoa (fornecedor / sócio) e do mesmo destino (obra / empresa), com
+     datas a até DIAS_DUP dias uma da outra. Não conta como repetido: lançamentos ligados a linhas DIFERENTES do extrato
+     (o banco mostra dois pagamentos) e itens diferentes da mesma compra. "Não é repetido" guarda a marca (dup_ok) nos
+     lançamentos do grupo — o grupo só volta se aparecer outro lançamento igual. */
+  const DIAS_DUP=5;
+  // itens: {id, chave, d (data), valor, compra, desc, conc, ok}
+  function gruposDup(itens){
+    const porK=new Map(),out=[];
+    itens.forEach(x=>{if(!x.d||!x.chave)return;if(!porK.has(x.chave))porK.set(x.chave,[]);porK.get(x.chave).push(x);});
+    const liga=(a,b)=>Math.abs(dias(a.d,b.d))<=DIAS_DUP&&!(a.conc&&b.conc&&a.conc!==b.conc)&&!(a.compra&&a.compra===b.compra&&a.desc!==b.desc);
+    porK.forEach(L=>{if(L.length<2)return;const visto=new Set();
+      L.forEach(x=>{if(visto.has(x))return;const g=[x];visto.add(x);
+        for(let i=0;i<g.length;i++)L.forEach(y=>{if(!visto.has(y)&&liga(g[i],y)){visto.add(y);g.push(y);}});
+        if(g.length<2)return;const sig=g.map(y=>y.id).sort().join(',');if(g.every(y=>y.ok===sig))return;
+        out.push({sig,itens:g.sort((a,b)=>a.d-b.d)});});});
+    return out.sort((a,b)=>b.itens[0].d-a.itens[0].d);
+  }
+  /* janela da verificação: cada grupo com os lançamentos um embaixo do outro — Abrir / Excluir em cada um e
+     "Não é repetido" no grupo. op: {titulo(x), linha(x), abrir(x), podeExcluir(x), excluir(x), marcar(itens,sig), recalcular()}.
+     Depois de excluir ou marcar, a verificação abre de novo com os dados atualizados. */
+  function verDuplicados(titulo,op){
+    const grupos=op.recalcular();
+    if(!grupos.length)return toast('Nenhum lançamento repetido encontrado.','success');
+    const volta=()=>setTimeout(()=>verDuplicados(titulo,op),60);
+    const j=janela(titulo,`<div class="fin-resumo"><b>${grupos.length} grupo${grupos.length>1?'s':''}</b> com o mesmo valor, da mesma pessoa e do mesmo destino, em datas próximas (até ${DIAS_DUP} dias). Exclua o que estiver repetido ou marque <b>Não é repetido</b>.</div>
+      <div class="dup-lista">${grupos.map((g,gi)=>`<div class="dup-g"><div class="dup-cab"><b>${op.titulo(g.itens[0])}</b><span>${g.itens.length} lançamentos de ${fmt(g.itens[0].valor)}</span><button type="button" class="fin-bt mini" data-dup-ok="${gi}"><i class="fas fa-check"></i> Não é repetido</button></div>
+        <table class="dup-tab" data-sem-ordem><tbody>${g.itens.map((x,i)=>`<tr><td>${op.linha(x)}</td><td class="num">${fmt(x.valor)}</td><td class="dup-ac">${op.abrir?`<button type="button" class="fin-bt mini" data-dup-abrir="${gi}:${i}">Abrir</button>`:''}${op.podeExcluir(x)?`<button type="button" class="fin-bt mini err" data-dup-exc="${gi}:${i}"><i class="fas fa-trash"></i> Excluir</button>`:''}</td></tr>`).join('')}</tbody></table></div>`).join('')}</div>`,[],820);
+    // ouvinte na lista (que nasce com a janela), não na janela: a janela é reaproveitada e acumularia ouvintes
+    j.querySelector('.dup-lista').addEventListener('click',ev=>{
+      const b=ev.target.closest('[data-dup-ok],[data-dup-abrir],[data-dup-exc]');if(!b)return;
+      if(b.dataset.dupOk!=null){const g=grupos[+b.dataset.dupOk];if(!g)return;
+        confirmar('Não é repetido',`Os ${g.itens.length} lançamentos de <b>${fmt(g.itens[0].valor)}</b> são diferentes de verdade? O grupo sai da verificação (volta só se aparecer outro igual).`,'Sim, não é repetido',async()=>{await executar(()=>op.marcar(g.itens,g.sig));toast('Marcado: não é repetido.','success');});
+        jan()._aoFechar=volta;return;}
+      const [gi,i]=(b.dataset.dupAbrir||b.dataset.dupExc).split(':').map(Number),x=grupos[gi]&&grupos[gi].itens[i];if(!x)return;
+      if(b.dataset.dupAbrir!=null)return op.abrir(x);
+      confirmar('Excluir lançamento repetido',`${op.linha(x)}<br>Valor: <b>${fmt(x.valor)}</b>${x.conc?'<br><small>Ele está ligado ao extrato do banco: a linha do banco volta para a conferência na Conciliação.</small>':''}`,'Sim, excluir',async()=>{await executar(()=>op.excluir(x));toast('Lançamento excluído.','success');});
+      jan()._aoFechar=volta;});
+  }
+  GS.dup={grupos:gruposDup,ver:verDuplicados};
+  // Contas a pagar: só contas de verdade (as estimativas antigas ficam de fora); data = pagamento, vencimento ou compra
+  const itensDupContas=()=>todasContas().filter(o=>o.tipo==='Real'&&val(o.total)>0).map(o=>({o,id:idC(o),chave:[cn(o.forn),cn(o.centro),Math.round(val(o.total)*100)].join('|'),
+    d:dt(o.pago||o.venc||o.dataCompra),valor:val(o.total),compra:o.compra||'',desc:cn(C.limparParc(o.desc)),conc:String(o._r.conciliacao||''),ok:String(o._r.dup_ok||'')}));
+  const gruposDupContas=()=>gruposDup(itensDupContas());
+  function verDupContas(){
+    verDuplicados('Contas repetidas?',{recalcular:gruposDupContas,
+      titulo:x=>`${fe(x.o.forn||'Sem fornecedor')} · ${fe(x.o.centro)}`,
+      linha:x=>{const o=x.o;return `<b>${fe(C.limparParc(o.desc)||o.cat||'Conta')}</b><small>${pagoC(o)?'paga em '+brDe(dt(o.pago)):'vence '+brDe(dt(o.venc))}${o.dataCompra?' · compra de '+brDe(dt(o.dataCompra)):''} · ${fe(C.sitP(o)[0])}${o.lancPor?' · lançada por '+fe(o.lancPor):''}${x.conc?' · ligada ao extrato':''}</small>`;},
+      abrir:x=>{const o=acharConta(x.id);if(o)fichaConta(o);},
+      podeExcluir:x=>{const o=x.o,dono=GS.podeMexer(o._r,o.lancPor);return pode('contas')&&(GS.ehAdm()||(!pagoC(o)&&dono&&(souAdmin()||podeEditarConta(o))));},
+      excluir:x=>excluir(x.o._t==='c'?'Custos':'Despesas',x.o.rowid),
+      marcar:async(itens,sig)=>{for(const x of itens)await salvar(x.o._t==='c'?'Custos':'Despesas',{...x.o._r,dup_ok:sig},x.o.rowid);}});
+  }
 
   /* ═══════════════ FATURAMENTO E RECEBIMENTOS (ligado às medições) ═══════════════ */
   const COLS_F=[{k:'medicao',rot:'Medição em andamento',cor:'#7F56D9',ico:'fa-ruler-combined'},{k:'faturar',rot:'Aprovada · a faturar',cor:'#B54708',ico:'fa-file-pen'},{k:'receber',rot:'Nota emitida · a receber',cor:'#1652D8',ico:'fa-file-invoice-dollar'},{k:'recebida',rot:'Recebida',cor:'#067647',ico:'fa-circle-check'}];
@@ -22686,6 +22670,18 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
             await excluir('Aportes financeiros',y.r.rowid);}}});
       toast('Aportes agrupados por período e obra.','success');});
   }
+  // verificação de duplicidade dos lançamentos dos sócios (as retiradas antigas, vindas de Contas a pagar, são conferidas lá)
+  const itensDupSocios=()=>livro().filter(x=>x.fonte==='ap').map(x=>({x,id:'a'+x.r.rowid,chave:[x.tipo,cn(x.quem),cn(x.obra),Math.round(x.valor*100)].join('|'),
+    d:x.data,valor:x.valor,compra:'',desc:'',conc:String(x.r.conciliacao||''),ok:String(x.r.dup_ok||'')}));
+  function verDupSocios(){
+    GS.dup.ver('Lançamentos repetidos?',{recalcular:()=>GS.dup.grupos(itensDupSocios()),
+      titulo:y=>`${fe(y.x.tipo)} · ${fe(y.x.quem)} · ${fe(y.x.obra)}`,
+      linha:y=>{const x=y.x;return `<b>${x.ini&&x.fim&&isoDe(x.ini)!==isoDe(x.fim)?`${brDe(x.ini)} a ${brDe(x.fim)}`:x.data?brDe(x.data):'—'}</b><small>${[x.forma,x.obs].filter(Boolean).map(fe).join(' · ')||'sem observação'}${y.conc?' · ligado ao extrato':''}</small>`;},
+      abrir:y=>editarMov(y.x),
+      podeExcluir:y=>pode('socios')&&GS.podeMexer(y.x.r),
+      excluir:y=>excluir('Aportes financeiros',y.x.r.rowid),
+      marcar:async(itens,sig)=>{for(const y of itens)await salvar('Aportes financeiros',{...limpo(y.x.r),dup_ok:sig},y.x.r.rowid);}});
+  }
   GS.renderSocios=function(){
     const box=document.getElementById('gs-socios');if(!box)return;
     const L=livro(),h=hoje0(),ms=Fin.movimentos();
@@ -22703,7 +22699,8 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
         <div class="so2-filtros"><select data-so2f="obra"><option value="">Todas as obras</option><option ${f.obra==='Empresa'?'selected':''}>Empresa</option>${obrasOps().map(o=>`<option ${f.obra===o?'selected':''}>${fe(o)}</option>`).join('')}</select>
           <select data-so2f="quem"><option value="">Todos os sócios</option>${[...new Set(L.map(x=>x.quem))].map(q=>`<option ${f.quem===q?'selected':''}>${fe(q)}</option>`).join('')}</select>
           <select data-so2f="tipo"><option value="">Entradas e saídas</option>${['Aporte','Retirada','Devolução de aporte'].map(t=>`<option ${f.tipo===t?'selected':''}>${t}</option>`).join('')}</select>
-          <select data-so2f="ano"><option value="">Todos os anos</option>${anos.map(a=>`<option ${f.ano===String(a)?'selected':''}>${a}</option>`).join('')}</select></div>
+          <select data-so2f="ano"><option value="">Todos os anos</option>${anos.map(a=>`<option ${f.ano===String(a)?'selected':''}>${a}</option>`).join('')}</select>
+          ${podeEd?(()=>{const n=GS.dup.grupos(itensDupSocios()).length;return `<button type="button" class="gf-bt mini${n?' dup-on':''}" data-so2="dup" title="Procura lançamentos em dobro (mesmo sócio, obra e valor em datas próximas)"><i class="fas fa-clone"></i> Verificar duplicados${n?` <b class="vk-badge">${n}</b>`:''}</button>`;})():''}</div>
         ${vis.length?`<div class="gf-rolar"><table class="so2-tab so2-mov"><thead><tr><th>Data / período</th><th>Movimento</th><th>Sócio · obra</th><th style="text-align:right">Valor</th><th style="text-align:right">Devolvido ao sócio</th><th>Observação</th><th></th></tr></thead><tbody>
           ${vis.map((x,i)=>{const sd=!x.sai&&x.fonte==='ap'?saldoAporte(x,L):0,per=x.ini&&x.fim&&isoDe(x.ini)!==isoDe(x.fim)?`${brDe(x.ini).slice(0,5)} a<br>${brDe(x.fim)}`:x.data?brDe(x.data):'—';
             const sit=x.sai||x.fonte!=='ap'?'':sd<=0.004?'<span class="so2-sit ok">devolvido</span>':sd<x.valor-0.004?`<span class="so2-sit parc">falta ${fmt(sd)}</span>`:'';
@@ -22736,7 +22733,7 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
     box.onclick=ev=>{
       const a=ev.target.closest('[data-so2-aba]');if(a){SO2.aba=a.dataset.so2Aba;return GS.renderSocios();}
       const b=ev.target.closest('[data-so2]');if(!b)return;const ac=b.dataset.so2,x=App._so2[+b.dataset.i];
-      if(ac==='aporte')return editarMov(null,'Aporte');if(ac==='retirada')return editarMov(null,'Retirada');if(ac==='devolucao')return editarMov(null,'Devolução de aporte');if(ac==='agrupar')return unificarAportes();
+      if(ac==='aporte')return editarMov(null,'Aporte');if(ac==='retirada')return editarMov(null,'Retirada');if(ac==='devolucao')return editarMov(null,'Devolução de aporte');if(ac==='agrupar')return unificarAportes();if(ac==='dup')return verDupSocios();
       if(ac==='devolver'&&x)return editarMov(null,'Devolução de aporte',x);
       if((ac==='editar'||ac==='excluir')&&x&&!GS.podeMexer(x.r))return toast(GS.MSG_DONO,'error');
       if(ac==='editar'&&x)return editarMov(x);
