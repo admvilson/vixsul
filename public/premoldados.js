@@ -360,6 +360,22 @@ function estilo(){
 .pm-cal .d{display:block;font:800 26px/1 Manrope,Inter,sans-serif;color:#101828;padding:7px 0 2px;}
 .pm-cal .s{display:block;font:600 10.5px Inter,sans-serif;color:#667085;padding:0 0 7px;}
 .pm-cal.fech{border-color:#E4E7EC;box-shadow:none;} .pm-cal.fech .m{background:linear-gradient(135deg,#475467,#98A2B3);} .pm-cal.fech .d{color:#475467;}
+/* calendário para escolher o dia do diário */
+.pm-cl-cab{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:12px 16px 10px;} .pm-cl-cab b{font:800 16px Manrope,Inter,sans-serif;color:#101828;}
+.pm-cl-sem,.pm-cl-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;padding:0 16px;}
+.pm-cl-sem span{font:700 10.5px Inter,sans-serif;color:#667085;text-transform:uppercase;text-align:center;letter-spacing:.04em;}
+.pm-cl-grid{padding:6px 16px 12px;}
+.pm-cd{position:relative;height:60px;border:1px solid #E4E7EC;border-radius:12px;background:#fff;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:2px;padding:7px 3px 4px;cursor:pointer;color:#101828;transition:background .12s,border-color .12s,box-shadow .12s;font-family:Inter,sans-serif;}
+.pm-cd b{font:800 16px/1 Manrope,Inter,sans-serif;} .pm-cd small{font:600 9px/1.1 Inter,sans-serif;text-align:center;max-height:20px;overflow:hidden;color:#667085;}
+.pm-cd.livre:hover{border-color:#1652D8;background:#EEF4FF;box-shadow:0 6px 12px -8px rgba(22,82,216,.7);}
+.pm-cd.vz{border:0;background:transparent;cursor:default;}
+.pm-cd.fds{background:#F2F4F7;} .pm-cd.fer{background:#FEF3F2;border-color:#FECDCA;} .pm-cd.fer small,.pm-cd.fer b{color:#B42318;}
+.pm-cd.reg{background:#ECFDF3;border-color:#ABEFC6;cursor:not-allowed;} .pm-cd.reg b{color:#067647;} .pm-cd.reg i{position:absolute;top:5px;right:6px;font-size:11px;color:#12B76A;}
+.pm-cd.fut,.pm-cd.enc{opacity:.4;cursor:not-allowed;}
+.pm-cd.hoje{box-shadow:inset 0 0 0 2px #1652D8;} .pm-cd.hoje small{color:#1652D8;}
+.pm-cl-leg{display:flex;flex-wrap:wrap;gap:6px 14px;padding:10px 16px 14px;border-top:1px solid #F2F4F7;font-size:11.5px;color:#475467;}
+.pm-cl-leg span::before{content:'';display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:5px;vertical-align:-1px;background:var(--c);border:1px solid var(--b);}
+@media (max-width:560px){.pm-cd{height:50px;} .pm-cd small{display:none;} .pm-cl-sem,.pm-cl-grid{gap:4px;padding-left:10px;padding-right:10px;}}
 .pm-dia2-tit{display:flex;align-items:center;gap:8px;flex-wrap:wrap;} .pm-dia2-tit>b{font:800 15px Manrope,Inter,sans-serif;color:#101828;}
 .pm-dia2.fech{background:#FCFCFD;}
 .pm-st-dia{display:inline-flex;align-items:center;gap:5px;font:700 11px Inter,sans-serif;border-radius:99px;padding:3px 9px;}
@@ -573,8 +589,8 @@ function clique(ev){
     'nova-peca':()=>escolherTipo(t=>formPeca(null,{tipo_k:t.k})),'cat-grupo':()=>{PM.grupo=b.dataset.g;render();},'cat-pdf':()=>catalogoPDF(b.dataset.modo),'peca':()=>fichaPeca(pecaDe(id)),'vista':()=>{PM.pecasVista=b.dataset.v;render();},
     'tipo':()=>fichaTipo(tipoK(b.dataset.k)),'tipo-novo':()=>formTipo(null),'traco-novo':()=>formTraco(null),'traco':()=>formTraco(tracoDe(id)),
     'ordem-nova':()=>formOrdem(null),'ordem':()=>formOrdem(T('ordem').find(o=>String(o.rowid)===id)),'fichas-abertas':()=>imprimirFichas(ordens().filter(o=>o.status==='planejada'||o.status==='producao')),
-    // um diário por dia: se hoje já foi registrado, abre o de hoje para alterar
-    'prod-nova':()=>{const hj=T('producao').find(r=>r.data===hojeISO());if(hj){toast(diaFechado(hj)?'O dia de hoje já foi registrado e fechado.':'O dia de hoje já foi registrado: abrindo para alterar.','success');return formProducao(hj);}formProducao(null);},
+    // registrar o dia: primeiro o calendário (dia já registrado não dá para escolher)
+    'prod-nova':()=>escolherDiaProducao(),
     'lote':()=>fichaLote(b.dataset.lote),'dvista':()=>{PM.dVista=b.dataset.v;render();},'lfiltro':()=>{PM.lFiltro=b.dataset.v;render();},
     'prod-copiar':()=>{const hj=T('producao').find(r=>r.data===hojeISO());if(hj)return trava('O dia de hoje já foi registrado',[{ok:false,txt:'Cada dia tem um diário só. Abra o dia de hoje para alterar.'}],{rot:'Abrir o dia de hoje',f:()=>formProducao(hj)});formProducao(null,{copiar:T('producao').find(o=>String(o.rowid)===id)});},
     'prod':()=>formProducao(T('producao').find(o=>String(o.rowid)===id)),
@@ -1365,6 +1381,33 @@ function semRepetir(box,sel){if(!box)return;const ss=[...box.querySelectorAll(se
 // próxima opção livre (para a linha nova)
 const livreDe=(box,sel,todas)=>{const u=new Set([...box.querySelectorAll(sel)].map(s=>s.value));return todas.find(v=>!u.has(String(v)));};
 const repetido=L=>{const v=new Set();for(const x of L){if(v.has(String(x)))return x;v.add(String(x));}return null;};
+/* ── feriados: nacionais, da Bahia (2 de julho), os móveis (Carnaval, Sexta-feira Santa, Corpus Christi) e os da cidade (Parâmetros) ── */
+const pascoaDe=a=>{const b=a%19,c=Math.floor(a/100),d=a%100,e=Math.floor(c/4),f=c%4,g=Math.floor((c+8)/25),h=Math.floor((c-g+1)/3),i=(19*b+c-e-h+15)%30,k=Math.floor(d/4),l=d%4,m=(32+2*f+2*k-i-l)%7,n=Math.floor((b+11*i+22*m)/451),x=i+m-7*n+114;return new Date(a,Math.floor(x/31)-1,x%31+1);};
+function feriadosDe(a){const m={};
+  [['01-01','Confraternização Universal'],['04-21','Tiradentes'],['05-01','Dia do Trabalho'],['07-02','Independência da Bahia'],['09-07','Independência do Brasil'],['10-12','N. Sra. Aparecida'],['11-02','Finados'],['11-15','Proclamação da República'],['11-20','Consciência Negra'],['12-25','Natal']].forEach(([d,n])=>m[`${a}-${d}`]=n);
+  const p=pascoaDe(a);[[-48,'Carnaval'],[-47,'Carnaval'],[-2,'Sexta-feira Santa'],[60,'Corpus Christi']].forEach(([k,n])=>m[isoDe(addD(p,k))]=n);
+  // da cidade: uma linha por feriado, "dd/mm Nome" (Parâmetros › Feriados da cidade)
+  String(CFG().feriados_cidade||'').split(/\n+/).forEach(l=>{const x=l.match(/^\s*(\d{1,2})\/(\d{1,2})\s*[-–:]?\s*(.*)$/);if(x)m[`${a}-${x[2].padStart(2,'0')}-${x[1].padStart(2,'0')}`]=x[3].trim()||'Feriado da cidade';});
+  return m;}
+/* calendário para escolher o dia do diário: dia já registrado não dá para escolher; sábado, domingo e feriado aparecem marcados */
+function escolherDiaProducao(aoEscolher,kIni){
+  const adm=ehAdm(),hj=hojeISO(),kHoje=hj.slice(0,7);let k=kIni||PM.mes||kHoje;if(k>kHoje)k=kHoje;
+  const p=sobre(`<div class="pm-pop-box pm-cl" style="max-width:560px"><div class="pm-pop-cab"><b><i class="fas fa-calendar-day" style="color:#1652D8"></i> Qual dia vai registrar?</b><button type="button" class="pm-x" data-pop-x><i class="fas fa-xmark"></i></button></div><div data-cl></div></div>`,
+    (ev,fechar)=>{const nv=ev.target.closest('[data-cl-mes]');if(nv){const [y,m]=k.split('-').map(Number),d=new Date(y,m-1+(+nv.dataset.clMes),1);k=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;return pintar();}
+      const b=ev.target.closest('[data-dia]');if(b&&!b.disabled){fechar();(aoEscolher||(iso=>formProducao(null,{data:iso})))(b.dataset.dia);}});
+  function pintar(){
+    const [y,m]=k.split('-').map(Number),ini=new Date(y,m-1,1),nd=new Date(y,m,0).getDate(),fer=feriadosDe(y),reg=new Map(T('producao').filter(r=>String(r.data||'').startsWith(k)).map(r=>[r.data,r]));
+    let cel='';for(let i=0;i<ini.getDay();i++)cel+='<span class="pm-cd vz"></span>';let livres=0;
+    for(let d=1;d<=nd;d++){const iso=`${k}-${String(d).padStart(2,'0')}`,dw=new Date(y,m-1,d).getDay(),r=reg.get(iso),fr=fer[iso],fut=iso>hj,enc=!adm&&!r&&passouHora(iso),fds=dw===0||dw===6;
+      const st=r?'reg':fut?'fut':enc?'enc':'livre';if(st==='livre')livres++;
+      const tit=r?`Já registrado${diaFechado(r)?' e fechado':''}: abra o dia na lista do diário para ver ou alterar`:fut?'Este dia ainda não chegou':enc?'Encerrado às 19h: só o Administrador registra este dia':'Registrar este dia';
+      cel+=`<button type="button" class="pm-cd ${st}${fds?' fds':''}${fr?' fer':''}${iso===hj?' hoje':''}" data-dia="${iso}" ${st!=='livre'?'disabled':''} title="${fe(tit+(fr?' · Feriado: '+fr:fds?' · '+(dw===0?'Domingo':'Sábado'):''))}"><b>${d}</b>${r?'<i class="fas fa-circle-check"></i>':''}<small>${fr?fe(fr):fds?(dw===0?'domingo':'sábado'):iso===hj?'hoje':''}</small></button>`;}
+    const nReg=reg.size,mesN=MESES_PT[m-1];
+    p.d.querySelector('[data-cl]').innerHTML=`<div class="pm-cl-cab"><button type="button" class="gf-bt mini" data-cl-mes="-1" title="Mês anterior"><i class="fas fa-chevron-left"></i></button><b>${fe(mesN.replace(/^./,c=>c.toUpperCase()))} de ${y}</b><button type="button" class="gf-bt mini" data-cl-mes="1" ${k>=kHoje?'disabled':''} title="Próximo mês"><i class="fas fa-chevron-right"></i></button></div>
+      <div class="pm-cl-sem">${['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'].map(x=>`<span>${x}</span>`).join('')}</div><div class="pm-cl-grid">${cel}</div>
+      <div class="pm-cl-leg"><span style="--c:#ECFDF3;--b:#ABEFC6">Já registrado (${nReg})</span><span style="--c:#F2F4F7;--b:#D0D5DD">Sábado e domingo</span><span style="--c:#FEF3F2;--b:#FECDCA">Feriado</span><span style="--c:#fff;--b:#1652D8">Hoje</span>${adm?'':'<span style="--c:#fff;--b:#EAECF0">Apagado = ainda não chegou ou encerrado às 19h</span>'}</div>
+      ${livres?'':`<p class="pm-mini" style="margin:0 16px 14px">Nenhum dia livre neste mês para você registrar.</p>`}`;}
+  pintar();return p;}
 // pergunta com "Sim, …" e "Não" (janela por cima, sem fechar a que está aberta) — devolve true/false
 function simNao(titulo,msg,rotSim,icone){return new Promise(ok=>{let r=false;const p=sobre(`<div class="pm-pop-box" style="max-width:460px"><div class="pm-pop-cab"><b>${icone?`<i class="fas ${icone}" style="color:#1652D8"></i> `:''}${fe(titulo)}</b><button type="button" class="pm-x" data-pop-x><i class="fas fa-xmark"></i></button></div>
   <div style="padding:14px 16px 16px"><div style="font-size:13.5px;line-height:1.55;margin:0 0 16px">${msg}</div><div style="display:flex;justify-content:flex-end;gap:8px"><button type="button" class="gf-bt" data-pop-x>Não</button><button type="button" class="gf-bt pri" data-pop-ok>${fe(rotSim)}</button></div></div></div>`,
@@ -1476,8 +1519,8 @@ function telaProducao(){
 function formProducao(reg,pre){
   pre=pre||{};if(!pecas().length)return toast('Cadastre as peças primeiro (Peças e catálogo).','error');
   const c=CFG(),jr=jornada(),equipe=(c.equipe_lista||[]).filter(x=>x&&x.nome),cp0=pre.copiar;
-  const b=reg?{...reg,...(()=>{const c2=climaDe(reg);return {clima_manha:c2.manha,clima_tarde:c2.tarde};})(),itens:itensProd(reg)}:cp0?{data:hojeISO(),clima_manha:'',clima_tarde:'',ocorrencia:'Nenhuma',ponto:pontoDe(cp0).map(x=>({...x,horas:''})),itens:itensProd(cp0).map(it=>({peca:it.peca,ordem:'',qtd:'',refugo:''}))}
-    :{data:hojeISO(),clima_manha:'',clima_tarde:'',ocorrencia:'Nenhuma',ponto:null,itens:[{peca:pre.peca||pecas()[0].rowid,ordem:pre.ordem||'',qtd:'',refugo:''}]};
+  const b=reg?{...reg,...(()=>{const c2=climaDe(reg);return {clima_manha:c2.manha,clima_tarde:c2.tarde};})(),itens:itensProd(reg)}:cp0?{data:pre.data||hojeISO(),clima_manha:'',clima_tarde:'',ocorrencia:'Nenhuma',ponto:pontoDe(cp0).map(x=>({...x,horas:''})),itens:itensProd(cp0).map(it=>({peca:it.peca,ordem:'',qtd:'',refugo:''}))}
+    :{data:pre.data||hojeISO(),clima_manha:'',clima_tarde:'',ocorrencia:'Nenhuma',ponto:null,itens:[{peca:pre.peca||pecas()[0].rowid,ordem:pre.ordem||'',qtd:'',refugo:''}]};
   const fechadoJa=!!reg&&(diaFechado(reg)||!!(c.fechado_ate&&reg.data<=c.fechado_ate)),fx=(reg&&reg.fechado)||{};
   const pts=b.ponto?pontoDe(b):[],ptDe=n=>pts.find(x=>x.nome===n),avulsos=pts.filter(x=>!equipe.some(e=>e.nome===x.nome));
   const opsOrd=(pid,sel)=>`<option value="">— sem ordem (estoque) —</option>`+ordens().filter(o=>String(o.peca)===String(pid)&&(o.status==='planejada'||o.status==='producao'||String(o.rowid)===String(sel))).map(o=>`<option value="${o.rowid}" ${String(o.rowid)===String(sel)?'selected':''}>OP nº ${o.numero} — ${nf(prodDaOrdem(o.rowid),0)} de ${nf(num(o.qtd),0)}</option>`).join('');
@@ -1494,11 +1537,11 @@ function formProducao(reg,pre){
     <label class="pm-pt-h"><small>Intervalo</small><input data-pi inputmode="numeric" data-num="int" data-sem-mascara="1" value="${fe(String(pt.intervalo!=null&&pt.intervalo!==''?pt.intervalo:jr.intervalo))}" title="minutos"></label>
     <div class="pm-pt-r" data-ph></div>${avulso?'<button type="button" class="pm-x" data-pmf="p-x"><i class="fas fa-xmark"></i></button>':'<span></span>'}</div>`;};
   const sel=(k,ops,v,vazio)=>`<select data-k="${k}">${vazio?`<option value="" ${v?'':'selected'}>${vazio}</option>`:''}${ops.map(x=>`<option ${x===v?'selected':''}>${x}</option>`).join('')}</select>`;
-  const dd=dt(b.data),tit=reg?`${fechadoJa?'Diário fechado':'Alterar o diário'} — ${SEM_PT[dd.getDay()]}, ${brDe(dd)}`:cp0?'Registrar o dia (repetindo equipe e peças)':'Registrar o dia de produção';
+  const dd=dt(b.data),tit=reg?`${fechadoJa?'Diário fechado':'Alterar o diário'} — ${SEM_PT[dd.getDay()]}, ${brDe(dd)}`:`${cp0?'Registrar o dia (repetindo equipe e peças)':'Registrar o dia de produção'} — ${SEM_PT[dd.getDay()]}, ${brDe(dd)}`;
   const j=janela(tit,`${fechadoJa?`<div class="fin-aviso" style="margin:0 0 10px;background:#F2F4F7;border-color:#E4E7EC"><div><i class="fas fa-lock"></i> <b>Dia fechado</b>${diaFechado(reg)?` ${fx.auto?'automaticamente às 19h':'por '+fe(fx.por||'')}${fx.em?' em '+fe(brDe(dt(String(fx.em).slice(0,10))))+' '+fe(String(fx.em).slice(11,16)):''}`:' junto com o mês (Parâmetros › Fechamento do mês)'}. Nada pode ser alterado${diaFechado(reg)?'; só o Administrador reabre':''}.</div></div>`
       :reg&&reg.data===hojeISO()?`<div class="fin-aviso" style="margin:0 0 10px"><div><i class="fas fa-clock"></i> Este diário <b>fecha sozinho às 19h</b>. Depois disso, só o Administrador reabre.</div></div>`:''}
     <div class="fin-linha">
-      <div class="fin-fld"><label>Data <span class="obg">*</span></label><input type="date" data-k="data" value="${fe(b.data||'')}" max="${hojeISO()}"><small class="pm-mini" data-dt-aviso style="color:#B42318"></small></div>
+      <div class="fin-fld"><label>Data <span class="obg">*</span></label><div style="display:flex;gap:6px"><input type="date" data-k="data" value="${fe(b.data||'')}" max="${hojeISO()}" readonly tabindex="-1" style="flex:1;min-width:0">${fechadoJa?'':`<button type="button" class="gf-bt mini" data-pmf="dia-trocar" title="Escolher outro dia no calendário"><i class="fas fa-calendar-day"></i> Trocar</button>`}</div><small class="pm-mini" data-dt-aviso style="color:#B42318"></small></div>
       <div class="fin-fld"><label>Clima de manhã <span class="obg">*</span></label>${sel('clima_manha',CLIMAS,b.clima_manha,'— escolha —')}</div><div class="fin-fld"><label>Clima à tarde <span class="obg">*</span></label>${sel('clima_tarde',CLIMAS,b.clima_tarde,'— escolha —')}</div>
       <div class="fin-fld"><label>Betonadas feitas <span class="obg">*</span></label><input data-k="betonadas" inputmode="numeric" data-num="int" value="${fe(String(b.betonadas||''))}" placeholder="0"></div>
       <div class="fin-fld" style="grid-column:span 2"><label>Ocorrência <span class="obg">*</span></label>${sel('ocorrencia',OCORR,b.ocorrencia||'Nenhuma')}</div></div>
@@ -1582,6 +1625,7 @@ function formProducao(reg,pre){
   corpo.addEventListener('input',ev=>{if(ev.target.matches('[data-i="cp"]'))ev.target.dataset.mexeu='1';if(ev.target.matches('[data-pn]')){const av=ev.target.closest('[data-p]').querySelector('.pm-av');if(av)av.textContent=iniciais(ev.target.value)||'+';}clearTimeout(j._pmT);j._pmT=setTimeout(at,150);});
   corpo.addEventListener('click',ev=>{const b2=ev.target.closest('[data-pmf]');if(!b2)return;const f=b2.dataset.pmf;
     if(f==='pick'){const tr=b2.closest('tr'),s=tr.querySelector('[data-i="peca"]');return escolherPeca(s.value,pid=>{s.value=pid;s.dispatchEvent(new Event('change',{bubbles:true}));});}
+    if(f==='dia-trocar'){const inp=j.querySelector('[data-k="data"]');return escolherDiaProducao(iso=>{inp.value=iso;inp.dispatchEvent(new Event('change',{bubbles:true}));const tb=j.querySelector('.fin-jan-cab b');if(tb&&!reg)tb.textContent=`Registrar o dia de produção — ${SEM_PT[dt(iso).getDay()]}, ${brDe(dt(iso))}`;},String(inp.value||'').slice(0,7));}
     if(f==='p-todos')j.querySelectorAll('[data-pst]').forEach(s=>s.value='presente');
     else if(f==='p-jornada')j.querySelectorAll('[data-p]').forEach(row=>{row.querySelector('[data-pe]').value=jr.entrada;row.querySelector('[data-ps]').value=jr.saida;row.querySelector('[data-pi]').value=jr.intervalo;});
     else if(f==='it-add'){const pl=livreDe(j,'[data-i="peca"]',pecas().map(p=>String(p.rowid)));if(!pl)return toast('Todas as peças cadastradas já estão lançadas neste dia.','error');
@@ -2596,6 +2640,8 @@ function telaParametros(){
     <section class="gf-sec"><div class="gf-sec-cab"><div><h3><i class="fas fa-lock" style="color:#B42318"></i> Fechamento do mês</h3><p>Depois de conferir o mês (estoque contado, caixa batido), feche: nada com data até o dia escolhido pode ser lançado, mudado ou excluído — produção, compras, acertos, avarias, custos, ensaios, pagamentos, entregas e devoluções.</p></div></div>
       <div class="fin-linha"><div class="fin-fld"><label>Lançamentos fechados até</label><input type="date" data-cfg="fechado_ate" value="${fe(c.fechado_ate||'')}" max="${hojeISO()}" ${ehAdm()?'':'disabled title="Só o Administrador fecha ou reabre o mês"'}></div>
         <div class="fin-fld" style="grid-column:span 2;align-self:end"><p class="pm-mini" style="margin:0 0 10px">${c.fechado_ate?`<b>Fechado até ${fe(brDe(dt(c.fechado_ate)))}.</b> Para reabrir, apague a data ou escolha uma anterior e salve.`:'Nenhum mês fechado ainda.'}${ehAdm()?'':' Só o Administrador muda esta data.'}</p></div></div></section>
+    <section class="gf-sec"><div class="gf-sec-cab"><div><h3><i class="fas fa-calendar-xmark" style="color:#B42318"></i> Feriados da cidade</h3><p>Os feriados nacionais, o 2 de Julho (Bahia), o Carnaval, a Sexta-feira Santa e o Corpus Christi já aparecem sozinhos no calendário do diário. Aqui entram os feriados da cidade da fábrica: um por linha, com dia/mês e o nome.</p></div></div>
+      <div class="fin-fld"><label>Feriados da cidade</label><textarea data-cfg="feriados_cidade" rows="4" placeholder="Ex.:&#10;20/05 Aniversário da cidade&#10;29/06 São Pedro (padroeiro)">${fe(c.feriados_cidade||'')}</textarea></div></section>
     <section class="gf-sec"><div class="gf-sec-cab"><div><h3>Nota fiscal das vendas de peças</h3><p>Venda de peça é venda de <b>produto</b>: a nota é a NF-e, autorizada pela SEFAZ-BA (não é a nota de serviço da prefeitura).</p></div></div>
       <div class="fin-aviso" style="margin-bottom:10px"><div>Para o sistema emitir a NF-e sozinho são necessários: <b>Inscrição Estadual</b> da empresa na SEFAZ-BA, o <b>certificado A1</b> (o mesmo já usado nas assinaturas) e a confirmação do contador sobre o regime e o CFOP.
         Enquanto isso, emita a nota no emissor do contador (ou a NFA-e, nota avulsa da SEFAZ-BA) e use <b>Anexar nota fiscal</b> na venda: o número e a chave entram sozinhos no comprovante. O NCM de cada peça já sai preenchido pelo tipo (pode mudar no cadastro da peça).</div></div>
@@ -2627,7 +2673,7 @@ function addLinha(qual){const box=document.querySelector(`#pm-app [data-${{fixos
   box.insertAdjacentHTML('beforeend',qual==='fixos'?PM._linFixo({nome:'',valor:''}):qual==='cid'?PM._linCid({cidade:'',uf:''}):qual==='cam'?PM._linCam({}):PM._linEq({nome:'',funcao:FUNCOES[1]}));if(qual==='cid')ligarCidadesFrete(box);}
 async function salvarParametros(){
   const box=document.getElementById('pm-app'),c=JSON.parse(JSON.stringify(CFG()));
-  box.querySelectorAll('[data-cfg]').forEach(e=>{const path=e.dataset.cfg.split('.'),txt=['cidade','uf','saldo_data','jornada.entrada','jornada.saida','fechado_ate'].includes(e.dataset.cfg)||e.dataset.cfg.startsWith('frete.origem.')||e.dataset.cfg.startsWith('fiscal.'),v=txt?String(e.value||'').trim():(e.dataset.cfg==='jornada.intervalo'||e.dataset.cfg==='frete.km_min'?(parseFloat(String(e.value).replace(',','.'))||0):num(e.value));let o=c;for(let i=0;i<path.length-1;i++){o[path[i]]=o[path[i]]||{};o=o[path[i]];}o[path[path.length-1]]=e.dataset.cfg==='uf'?String(v).toUpperCase():v;});
+  box.querySelectorAll('[data-cfg]').forEach(e=>{const path=e.dataset.cfg.split('.'),txt=['cidade','uf','saldo_data','jornada.entrada','jornada.saida','fechado_ate','feriados_cidade'].includes(e.dataset.cfg)||e.dataset.cfg.startsWith('frete.origem.')||e.dataset.cfg.startsWith('fiscal.'),v=txt?String(e.value||'').trim():(e.dataset.cfg==='jornada.intervalo'||e.dataset.cfg==='frete.km_min'?(parseFloat(String(e.value).replace(',','.'))||0):num(e.value));let o=c;for(let i=0;i<path.length-1;i++){o[path[i]]=o[path[i]]||{};o=o[path[i]];}o[path[path.length-1]]=e.dataset.cfg==='uf'?String(v).toUpperCase():v;});
   c.fixos=[...box.querySelectorAll('[data-lin="fixos"]')].map(d=>({nome:d.querySelector('[data-fx="nome"]').value.trim(),valor:r2(num(d.querySelector('[data-fx="valor"]').value))})).filter(x=>x.nome||x.valor);
   c.equipe_lista=[...box.querySelectorAll('[data-lin="equipe"]')].map(d=>({nome:d.querySelector('[data-eqn]').value.trim(),funcao:d.querySelector('[data-eqf]').value})).filter(x=>x.nome);
   if(!ehAdm())c.fechado_ate=CFG().fechado_ate||'';else if(c.fechado_ate&&c.fechado_ate>hojeISO())return toast('O fechamento não pode ser depois de hoje.','error');
@@ -2640,5 +2686,5 @@ async function salvarParametros(){
   try{await gravar(r?{...r,cfg:{...((r&&r.cfg)||{}),...c}}:{tipo:'config',cfg:c,data_lancamento:todayDateTime()},r?r.rowid:null);toast('Parâmetros salvos: os custos das peças foram recalculados.','success');}catch(e){toast(e.message,'error',false);}
 }
 
-window.PM_FABRICA={liberacaoLote,formCompra,formAvaria,formAjuste,formEnsaio,fichaLote,loteInfo,fecharDiasVencidos,confirmarFecharDia,reabrirDia,formProducao,diaFechado,passouHora,opSolta,cascataPeca,planoExcluirVenda,excluirVenda,depsExcluir2:depsExcluir,apagarReg,formOrdem,ordens,T,vendas,vendaDe,fichaVenda,cancelarVenda,devolver,registrarPagamento,entregar,moverVenda,formVenda,pendenciasProducao,andamentoOP,encerrada,depsVenda,depsOrdem,faltaInsumos,lerXmlNfe,catalogoPDF,imprimirVenda,depsExcluir,lotes,rastreio,comissoesMes,precoPara,calcularFrete,situacaoLote,pesoVenda,romaneio,imprimirEtiquetas,escolherPeca,calc,receita,traco1m3,rateio,estoque,estoqueInsumos,CFG,render,irAba,resumoMes,necessidade,caixaMes,faseVenda,totalVenda,pagoDe,reposicao,fichaHtml,tiposTodos,armPeca};
+window.PM_FABRICA={escolherDiaProducao,feriadosDe,liberacaoLote,formCompra,formAvaria,formAjuste,formEnsaio,fichaLote,loteInfo,fecharDiasVencidos,confirmarFecharDia,reabrirDia,formProducao,diaFechado,passouHora,opSolta,cascataPeca,planoExcluirVenda,excluirVenda,depsExcluir2:depsExcluir,apagarReg,formOrdem,ordens,T,vendas,vendaDe,fichaVenda,cancelarVenda,devolver,registrarPagamento,entregar,moverVenda,formVenda,pendenciasProducao,andamentoOP,encerrada,depsVenda,depsOrdem,faltaInsumos,lerXmlNfe,catalogoPDF,imprimirVenda,depsExcluir,lotes,rastreio,comissoesMes,precoPara,calcularFrete,situacaoLote,pesoVenda,romaneio,imprimirEtiquetas,escolherPeca,calc,receita,traco1m3,rateio,estoque,estoqueInsumos,CFG,render,irAba,resumoMes,necessidade,caixaMes,faseVenda,totalVenda,pagoDe,reposicao,fichaHtml,tiposTodos,armPeca};
 })();
