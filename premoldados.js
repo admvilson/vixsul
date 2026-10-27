@@ -361,7 +361,8 @@ function estilo(){
 .pm-cal .s{display:block;font:600 10.5px Inter,sans-serif;color:#667085;padding:0 0 7px;}
 .pm-cal.fech{border-color:#E4E7EC;box-shadow:none;} .pm-cal.fech .m{background:linear-gradient(135deg,#475467,#98A2B3);} .pm-cal.fech .d{color:#475467;}
 /* calendário para escolher o dia do diário */
-.pm-cl-cab{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:12px 16px 10px;} .pm-cl-cab b{font:800 16px Manrope,Inter,sans-serif;color:#101828;}
+.pm-cl-cab{display:flex;align-items:center;justify-content:center;gap:8px;padding:12px 16px 10px;} .pm-cl-cab .gf-mes{box-shadow:0 1px 2px rgba(16,24,40,.05);}
+.pm-pop ~ .gf-lista-pop{z-index:10070;}
 .pm-cl-sem,.pm-cl-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;padding:0 16px;}
 .pm-cl-sem span{font:700 10.5px Inter,sans-serif;color:#667085;text-transform:uppercase;text-align:center;letter-spacing:.04em;}
 .pm-cl-grid{padding:6px 16px 12px;}
@@ -1393,8 +1394,7 @@ function feriadosDe(a){const m={};
 function escolherDiaProducao(aoEscolher,kIni){
   const adm=ehAdm(),hj=hojeISO(),kHoje=hj.slice(0,7);let k=kIni||PM.mes||kHoje;if(k>kHoje)k=kHoje;
   const p=sobre(`<div class="pm-pop-box pm-cl" style="max-width:560px"><div class="pm-pop-cab"><b><i class="fas fa-calendar-day" style="color:#1652D8"></i> Qual dia vai registrar?</b><button type="button" class="pm-x" data-pop-x><i class="fas fa-xmark"></i></button></div><div data-cl></div></div>`,
-    (ev,fechar)=>{const nv=ev.target.closest('[data-cl-mes]');if(nv){const [y,m]=k.split('-').map(Number),d=new Date(y,m-1+(+nv.dataset.clMes),1);k=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;return pintar();}
-      const b=ev.target.closest('[data-dia]');if(b&&!b.disabled){fechar();(aoEscolher||(iso=>formProducao(null,{data:iso})))(b.dataset.dia);}});
+    (ev,fechar)=>{const b=ev.target.closest('[data-dia]');if(b&&!b.disabled){fechar();(aoEscolher||(iso=>formProducao(null,{data:iso})))(b.dataset.dia);}});
   function pintar(){
     const [y,m]=k.split('-').map(Number),ini=new Date(y,m-1,1),nd=new Date(y,m,0).getDate(),fer=feriadosDe(y),reg=new Map(T('producao').filter(r=>String(r.data||'').startsWith(k)).map(r=>[r.data,r]));
     let cel='';for(let i=0;i<ini.getDay();i++)cel+='<span class="pm-cd vz"></span>';let livres=0;
@@ -1403,10 +1403,12 @@ function escolherDiaProducao(aoEscolher,kIni){
       const tit=r?`Já registrado${diaFechado(r)?' e fechado':''}: abra o dia na lista do diário para ver ou alterar`:fut?'Este dia ainda não chegou':enc?'Encerrado às 19h: só o Administrador registra este dia':'Registrar este dia';
       cel+=`<button type="button" class="pm-cd ${st}${fds?' fds':''}${fr?' fer':''}${iso===hj?' hoje':''}" data-dia="${iso}" ${st!=='livre'?'disabled':''} title="${fe(tit+(fr?' · Feriado: '+fr:fds?' · '+(dw===0?'Domingo':'Sábado'):''))}"><b>${d}</b>${r?'<i class="fas fa-circle-check"></i>':''}<small>${fr?fe(fr):fds?(dw===0?'domingo':'sábado'):iso===hj?'hoje':''}</small></button>`;}
     const nReg=reg.size,mesN=MESES_PT[m-1];
-    p.d.querySelector('[data-cl]').innerHTML=`<div class="pm-cl-cab"><button type="button" class="gf-bt mini" data-cl-mes="-1" title="Mês anterior"><i class="fas fa-chevron-left"></i></button><b>${fe(mesN.replace(/^./,c=>c.toUpperCase()))} de ${y}</b><button type="button" class="gf-bt mini" data-cl-mes="1" ${k>=kHoje?'disabled':''} title="Próximo mês"><i class="fas fa-chevron-right"></i></button></div>
+    // um jeito só de trocar o mês: a lista de meses (a mesma do diário)
+    p.d.querySelector('[data-cl]').innerHTML=`<div class="pm-cl-cab">${GS.selMes(k,'data-cl-sel',24,0)}</div>
       <div class="pm-cl-sem">${['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'].map(x=>`<span>${x}</span>`).join('')}</div><div class="pm-cl-grid">${cel}</div>
       <div class="pm-cl-leg"><span style="--c:#ECFDF3;--b:#ABEFC6">Já registrado (${nReg})</span><span style="--c:#F2F4F7;--b:#D0D5DD">Sábado e domingo</span><span style="--c:#FEF3F2;--b:#FECDCA">Feriado</span><span style="--c:#fff;--b:#1652D8">Hoje</span>${adm?'':'<span style="--c:#fff;--b:#EAECF0">Apagado = ainda não chegou ou encerrado às 19h</span>'}</div>
       ${livres?'':`<p class="pm-mini" style="margin:0 16px 14px">Nenhum dia livre neste mês para você registrar.</p>`}`;}
+  p.d.addEventListener('change',ev=>{if(ev.target.matches('[data-cl-sel]')){k=ev.target.value;pintar();}});
   pintar();return p;}
 // pergunta com "Sim, …" e "Não" (janela por cima, sem fechar a que está aberta) — devolve true/false
 function simNao(titulo,msg,rotSim,icone){return new Promise(ok=>{let r=false;const p=sobre(`<div class="pm-pop-box" style="max-width:460px"><div class="pm-pop-cab"><b>${icone?`<i class="fas ${icone}" style="color:#1652D8"></i> `:''}${fe(titulo)}</b><button type="button" class="pm-x" data-pop-x><i class="fas fa-xmark"></i></button></div>
