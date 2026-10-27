@@ -273,9 +273,12 @@ function descontoVenda(v){return v.desconto_pct!=null&&v.desconto_pct!==''?r2(br
 function totalVenda(v){return r2(brutoVenda(v)-descontoVenda(v)+num(v.frete));}
 function pagoDe(v){return r2((v.pagamentos||[]).reduce((s,p)=>s+(p.tipo==='estorno'?-1:1)*num(p.valor),0)+(v.pagamentos?0:(v.status==='entregue'&&v.recebido_em?totalVenda(v):0)));}
 function estoque(){
-  const P={},h=hoje0(),g=id=>P[id]=P[id]||{prod:0,refugo:0,cura:0,lib:0,ent:0,dev:0,aj:0,av:0,res:0,emProd:0,custo:0,custoMat:0};
-  T('producao').forEach(r=>itensProd(r).forEach(it=>{const p=pecaDe(it.peca),x=g(String(it.peca)),q=num(it.qtd);x.prod+=q;x.refugo+=num(it.refugo);x.custo+=q*num(it.custo_un);x.custoMat+=q*num(it.custo_mat_un);
-    const lib=addD(dt(r.data)||h,num(p&&p.cura!=null&&p.cura!==''?p.cura:tipoDePeca(p||{}).cura||7));if(lib>h)x.cura+=q;else x.lib+=q;}));
+  const P={},h=hoje0(),g=id=>P[id]=P[id]||{prod:0,refugo:0,cura:0,lib:0,bloq:0,ent:0,dev:0,aj:0,av:0,res:0,emProd:0,custo:0,custoMat:0};
+  const reprov=new Set(T('ensaio').filter(e=>num(e.idade)>=28&&e.situacao==='reprovado').map(e=>e.lote));
+  T('producao').forEach(r=>itensProd(r).forEach((it,i)=>{const p=pecaDe(it.peca),x=g(String(it.peca)),q=num(it.qtd);x.prod+=q;x.refugo+=num(it.refugo);x.custo+=q*num(it.custo_un);x.custoMat+=q*num(it.custo_mat_un);
+    const lib=addD(dt(r.data)||h,num(p&&p.cura!=null&&p.cura!==''?p.cura:tipoDePeca(p||{}).cura||7));
+    // lote reprovado no ensaio: bloqueado (não fica pronto para vender)
+    if(reprov.size&&reprov.has(loteDe(r,it,i)))x.bloq+=q;else if(lib>h)x.cura+=q;else x.lib+=q;}));
   const vs=vendas();
   vs.forEach(v=>{if(v.status==='cancelada')return;(v.itens||[]).forEach(it=>{const x=g(String(it.peca)),q=num(it.qtd);if(v.status==='entregue'||v.status==='devolvida')x.ent+=q;else if(v.status==='reservado')x.res+=q;});
     (v.devolucoes||[]).forEach(dv=>(dv.itens||[]).forEach(it=>{if(it.destino==='estoque')g(String(it.peca)).dev+=num(it.qtd);}));});
@@ -383,6 +386,9 @@ function estilo(){
 .pm-arqs{display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-size:12px;background:#EEF4FF;border:1px solid #D1E0FF;border-radius:10px;padding:6px 8px;} .pm-arqs>b{color:#1652D8;margin-right:4px;}
 .pm-arq{display:inline-flex;align-items:center;gap:4px;background:#fff;border:1px solid #D1E0FF;border-radius:8px;padding:2px 4px 2px 8px;} .pm-arq a{color:#1652D8;font-weight:700;text-decoration:none;} .pm-arq button{border:0;background:#FEF3F2;color:#B42318;border-radius:6px;width:20px;height:20px;cursor:pointer;}
 .fin-aviso.vermelho{background:#FEF3F2;border-color:#FECDCA;color:#7A271A;}
+#fin-jan .pm-itens td>small{display:block;margin-top:2px;font-size:11px;line-height:1.25;white-space:normal;color:#667085;}
+.pm-guia{margin-top:10px;border:1px solid #D1E0FF;background:#F5F8FF;border-radius:12px;padding:8px 12px;font-size:12.5px;line-height:1.5;color:#344054;} .pm-guia summary{cursor:pointer;font-weight:700;color:#1652D8;} .pm-guia ol{margin:8px 0 2px 18px;padding:0;} .pm-guia li{margin-bottom:5px;}
+.pm-conv{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:8px;font-size:12.5px;color:#475467;background:#F8FAFC;border-radius:10px;padding:6px 10px;} .pm-conv input{width:90px;padding:5px 8px;border:1px solid var(--border);border-radius:8px;} .pm-conv b{color:#1652D8;font-size:14px;}
 .pm-seg{display:flex;gap:4px;background:#F2F4F7;border-radius:10px;padding:3px;} .pm-seg button{flex:1;border:0;background:transparent;border-radius:8px;padding:8px 10px;font:600 13px Inter,system-ui,sans-serif;color:#475467;cursor:pointer;} .pm-seg button.on{background:#fff;color:#1652D8;box-shadow:0 1px 3px rgba(16,24,40,.12);}
 #pm-app .vk-card.vk-fim{background:#FFFBFA;} #pm-app .vk-card.vk-fim .vk-itens li span{text-decoration:line-through;text-decoration-color:rgba(180,35,24,.35);}
 #pm-app .vk-motivo{background:#FEF3F2;border-radius:8px;padding:5px 8px;color:#7A271A;font-size:11.5px;line-height:1.4;}
@@ -569,7 +575,7 @@ function clique(ev){
     'ordem-nova':()=>formOrdem(null),'ordem':()=>formOrdem(T('ordem').find(o=>String(o.rowid)===id)),'fichas-abertas':()=>imprimirFichas(ordens().filter(o=>o.status==='planejada'||o.status==='producao')),
     // um diário por dia: se hoje já foi registrado, abre o de hoje para alterar
     'prod-nova':()=>{const hj=T('producao').find(r=>r.data===hojeISO());if(hj){toast(diaFechado(hj)?'O dia de hoje já foi registrado e fechado.':'O dia de hoje já foi registrado: abrindo para alterar.','success');return formProducao(hj);}formProducao(null);},
-    'lote':()=>fichaLote(b.dataset.lote),'dvista':()=>{PM.dVista=b.dataset.v;render();},
+    'lote':()=>fichaLote(b.dataset.lote),'dvista':()=>{PM.dVista=b.dataset.v;render();},'lfiltro':()=>{PM.lFiltro=b.dataset.v;render();},
     'prod-copiar':()=>{const hj=T('producao').find(r=>r.data===hojeISO());if(hj)return trava('O dia de hoje já foi registrado',[{ok:false,txt:'Cada dia tem um diário só. Abra o dia de hoje para alterar.'}],{rot:'Abrir o dia de hoje',f:()=>formProducao(hj)});formProducao(null,{copiar:T('producao').find(o=>String(o.rowid)===id)});},
     'prod':()=>formProducao(T('producao').find(o=>String(o.rowid)===id)),
     'dia-fechar':()=>confirmarFecharDia(T('producao').find(o=>String(o.rowid)===id)),'dia-reabrir':()=>reabrirDia(T('producao').find(o=>String(o.rowid)===id)),
@@ -871,7 +877,7 @@ function formPeca(reg,opts){
       ${t.arm!=='nenhuma'?`<label class="nfc-amb" style="margin-top:8px"><input type="checkbox" data-k="armadura" ${base.armadura!==false&&(base.armadura===true||t.armPad!==false)?'checked':''}><span><b>Esta peça leva armadura</b> — ${fe(armTxt(t.arm))}</span></label>`:''}</div>
     <div class="pm-bloco"><h5><i class="fas fa-tag"></i> Identificação e preço</h5><div class="fin-linha">
       <div class="fin-fld"><label>Código</label><input data-k="codigo" value="${fe(base.codigo||'')}"></div>
-      <div class="fin-fld" style="grid-column:span 2"><label>Nome da peça <span class="obg">*</span></label><input data-k="nome" value="${fe(base.nome||'')}" placeholder="${fe(t.nome)}"></div>
+      <div class="fin-fld" style="grid-column:span 2"><label>Nome da peça <small style="font-weight:500;text-transform:none;color:#667085">(vazio = nome automático)</small></label><input data-k="nome" value="${fe(base.nome||'')}" placeholder="${fe(t.nome)}"></div>
       <div class="fin-fld"><label>Preço de varejo (R$)</label><input data-k="preco" value="${base.preco?fe(String(base.preco)):''}" placeholder="vazio = sugerido"></div>
       <div class="fin-fld"><label>Preço de atacado (R$)</label><input data-k="preco_atacado" value="${base.preco_atacado?fe(String(base.preco_atacado)):''}"></div>
       <div class="fin-fld"><label>Atacado a partir de (peças)</label><input data-k="atacado_min" inputmode="numeric" data-num="int" value="${fe(String(base.atacado_min||''))}" placeholder="ex.: 100"></div><div class="fin-fld"><label>NCM (nota fiscal)</label><input data-k="ncm" value="${fe(base.ncm||'')}" placeholder="${CAT.ncmDe?CAT.ncmDe(t):''}"></div></div></div>
@@ -1181,6 +1187,22 @@ function situacaoLote(l){
   if(h>addD(f28,3))return {k:'atrasado',rot:'Ensaio de 28 dias atrasado',cor:'err',es,f28};
   return {k:'pendente',rot:`Ensaio de 28 dias em ${brDe(f28).slice(0,5)}`,cor:'info',es,f28};
 }
+// lote reprovado no ensaio de 28 dias: as peças ficam bloqueadas (não entram no estoque pronto nem nas vendas)
+const loteBloqueado=cod=>T('ensaio').some(e=>e.lote===cod&&num(e.idade)>=28&&e.situacao==='reprovado');
+// situação de liberação do lote: em cura → curado (falta o ensaio) → liberado; ou bloqueado (ensaio reprovado)
+function liberacaoLote(l){
+  if(!l)return null;const p=pecaDe(l.peca),t=tipoDePeca(p||{}),h=hoje0(),d=dt(l.data)||h,lib=addD(d,num(p&&p.cura!=null&&p.cura!==''?p.cura:t.cura||7)),falta=Math.max(0,Math.ceil((lib-h)/864e5));
+  const base={lib,falta,cura:Math.round((lib-d)/864e5)};
+  if(lib>h)return {...base,k:'cura',rot:`Em cura — libera em ${brDe(lib)} (falta${falta>1?'m':''} ${falta} dia${falta>1?'s':''})`,curto:`em cura · ${falta} dia(s)`,cor:'info',ico:'fa-hourglass-half'};
+  if(loteBloqueado(l.lote))return {...base,k:'bloq',rot:'BLOQUEADO — ensaio de 28 dias reprovado: não vender; avalie com o responsável técnico',curto:'bloqueado · ensaio reprovado',cor:'err',ico:'fa-ban'};
+  const st=situacaoLote(l);
+  if(!st)return {...base,k:'ok',rot:'Liberado — cura completa (lote sem corpo de prova)',curto:'liberado',cor:'ok',ico:'fa-circle-check'};
+  const ult=st.es[st.es.length-1];
+  if(st.k==='aprovado')return {...base,k:'ok',rot:'100% liberado — cura completa e ensaio de 28 dias aprovado',curto:'100% liberado',cor:'ok',ico:'fa-circle-check'};
+  if(ult&&ult.situacao==='parcial')return {...base,k:'ok',rot:`Liberado — cura completa e ensaio de ${nf(num(ult.idade),0)} dias dentro do esperado (o de 28 dias confirma em ${brDe(st.f28)})`,curto:`liberado · ensaio ${nf(num(ult.idade),0)}d ok`,cor:'ok',ico:'fa-circle-check'};
+  if(ult&&ult.situacao==='abaixo')return {...base,k:'ens',rot:`Curado — ATENÇÃO: ensaio de ${nf(num(ult.idade),0)} dias abaixo do esperado; aguarde o de 28 dias (${brDe(st.f28)})`,curto:'curado · ensaio abaixo',cor:'warn',ico:'fa-triangle-exclamation'};
+  return {...base,k:'ens',rot:`Curado — falta o ensaio dos corpos de prova (${nf(l.cp,0)} CP)`,curto:'curado · falta o ensaio',cor:'warn',ico:'fa-flask'};
+}
 // controle do lote: peça pequena por palete (N peças por palete, ~1,2 t); peça grande por unidade (cada peça com o seu número)
 function modoLote(p){const t=tipoDePeca(p||{}),peso=p?calc(p,1).peso:0,ppAuto=Math.max(1,Math.floor(1200/Math.max(0.1,peso)));
   if(p&&p.lote_modo==='unidade')return {modo:'unidade',pp:1,auto:false};if(p&&p.lote_modo==='palete')return {modo:'palete',pp:Math.max(1,num(p.pecas_palete)||ppAuto),auto:false};
@@ -1200,45 +1222,64 @@ function rastreio(){
       (porVenda[v.rowid]=porVenda[v.rowid]||[]).push({lote:x.lote,cod:x.cod,peca:it.peca,qtd:u});(porLote[x.lote]=porLote[x.lote]||[]).push({...r,cod:x.cod});(porSub[x.cod]=porSub[x.cod]||[]).push(r);}}));
   return {porVenda,porLote,porSub};
 }
-function fichaLote(cod){
-  const l=loteInfo(cod);if(!l)return toast('Lote não encontrado.','error');const p=pecaDe(l.peca),t=tipoDePeca(p||{}),tr=p?tracoDaPeca(p):null,st=situacaoLote(l),es=ensaiosDe(cod),RS=rastreio(),subs=subLotes(l),h=hoje0();
-  const lib=addD(dt(l.data)||h,num(p&&p.cura!=null&&p.cura!==''?p.cura:t.cura||7)),liberado=lib<=h,op=l.it.ordem?ordens().find(o=>String(o.rowid)===String(l.it.ordem)):null;
+function fichaLote(cod,subDestaque){
+  const l=loteInfo(cod);if(!l)return toast('Lote não encontrado.','error');const p=pecaDe(l.peca),t=tipoDePeca(p||{}),tr=p?tracoDaPeca(p):null,st=situacaoLote(l),es=ensaiosDe(cod),RS=rastreio(),subs=subLotes(l),h=hoje0(),lb=liberacaoLote(l);
+  const lib=addD(dt(l.data)||h,num(p&&p.cura!=null&&p.cura!==''?p.cura:t.cura||7)),liberado=lb.k==='ok',op=l.it.ordem?ordens().find(o=>String(o.rowid)===String(l.it.ordem)):null;
   const x=p?calc(p,1):null,peso=x?x.peso:0,unid=subs.length&&subs[0].modo==='unidade',ent=subs.reduce((a,s)=>a+(RS.porSub[s.cod]||[]).reduce((b,c)=>b+c.qtd,0),0);
   const tile=(ic,rot,val,sub)=>`<div class="pm-ltile"><i class="fas ${ic}"></i><small>${rot}</small><b>${val}</b>${sub?`<span>${sub}</span>`:''}</div>`;
-  const sit=s=>{const r=RS.porSub[s.cod]||[],e=r.reduce((a,b)=>a+b.qtd,0);return e>=s.qtd?pill('entregue — '+r.map(z=>fe(z.cliente||'')+' '+brDe(dt(z.data)).slice(0,5)).join(', '),'ok','fa-truck'):e>0?pill(`${nf(e,0)} entregue(s) · ${nf(s.qtd-e,0)} no pátio`,'warn'):pill(liberado?'no pátio · liberado':'no pátio · em cura',liberado?'info':'','fa-warehouse');};
+  const sit=s=>{const r=RS.porSub[s.cod]||[],e=r.reduce((a,b)=>a+b.qtd,0);return e>=s.qtd?pill('entregue — '+r.map(z=>fe(z.cliente||'')+' '+brDe(dt(z.data)).slice(0,5)).join(', '),'ok','fa-truck'):e>0?pill(`${nf(e,0)} entregue(s) · ${nf(s.qtd-e,0)} no pátio`,'warn'):pill('no pátio · '+(lb.k==='ok'?'liberado':lb.k==='bloq'?'bloqueado':lb.k==='ens'?'falta o ensaio':'em cura'),lb.k==='ok'?'ok':lb.k==='bloq'?'err':lb.k==='ens'?'warn':'info','fa-warehouse');};
   const cons=Object.entries(l.it.consumo||{}).filter(([,q])=>num(q)>0).map(([k,q])=>`${fe(insDe(k).nome.split(' (')[0])} ${nf(num(q),2)} ${insDe(k).un}`).join(' · ');
-  janela(`Lote ${cod}`,`<div class="pm-form"><div><div data-th="${p?p.rowid:''}" class="pm-svgbox" style="background:#F8FAFC;border-radius:12px;min-height:150px">${iluPeca(p)}</div>
+  const corLb=lb.k==='ok'?'background:#ECFDF3;border-color:#ABEFC6;color:#05603A':lb.k==='bloq'?'background:#FEF3F2;border-color:#FECDCA;color:#912018':lb.k==='ens'?'background:#FFFAEB;border-color:#FEDF89;color:#93370D':'background:#EFF8FF;border-color:#B2DDFF;color:#175CD3';
+  janela(`Lote ${cod}`,`<div class="fin-aviso" style="margin:0 0 12px;${corLb}"><div style="display:flex;align-items:center;gap:10px"><i class="fas ${lb.ico}" style="font-size:20px"></i><div><b style="font-size:14.5px">${fe(lb.rot)}</b><br><small>Fabricado em ${fe(brDe(dt(l.data)))} · ${nf(lb.cura,0)} dias de cura${l.cp?` · ${nf(l.cp,0)} corpo(s) de prova`:' · sem corpo de prova'}</small></div></div></div>
+    <div class="pm-form"><div><div data-th="${p?p.rowid:''}" class="pm-svgbox" style="background:#F8FAFC;border-radius:12px;min-height:150px">${iluPeca(p)}</div>
       <table class="pm-tab2" data-sem-ordem style="margin-top:8px"><tbody><tr><td>Peça</td><td><b>${fe(p?p.nome:'(excluída)')}</b> <small>${fe(p&&p.codigo||'')}</small></td></tr>
       <tr><td>Fabricação</td><td>${fe(brDe(dt(l.data)))}${(c2=>[c2.manha?' · manhã '+fe(c2.manha.toLowerCase()):'',c2.tarde?' · tarde '+fe(c2.tarde.toLowerCase()):''].join(''))(climaDe(l.r))}</td></tr>
       <tr><td>Traço</td><td>${fe(tr?tr.nome:'')} <small>${fe(tr&&tr.fck||'')}</small></td></tr>${op?`<tr><td>Ordem</td><td>OP nº ${fe(String(op.numero))}${op.cliente?' · '+fe(op.cliente):''}</td></tr>`:''}
       ${eqLista(l.r).length?`<tr><td>Equipe</td><td>${fe(eqLista(l.r).join(', '))}</td></tr>`:''}${cons?`<tr><td>Material usado</td><td><small style="font-size:12px;color:#344054">${cons}</small></td></tr>`:''}</tbody></table></div>
     <div><div class="pm-ltiles">${tile('fa-cubes','Quantidade',`${nf(l.qtd,0)} peças`,l.refugo?`${nf(l.refugo,0)} refugo`:'sem refugo')}${tile(unid?'fa-hashtag':'fa-pallet','Controle',unid?`${subs.length} unidades`:`${subs.length} palete(s)`,unid?'cada peça tem o seu número':`até ${nf(subs[0]?subs[0].pp:0,0)} peças por palete`)}
-      ${tile('fa-weight-hanging','Peso do lote',`${nf(peso*l.qtd/1000,2)} t`,`${nf(peso,1)} kg por peça`)}${tile('fa-hourglass-half','Liberação',fe(brDe(lib)),liberado?'liberado para venda':'em cura')}
+      ${tile('fa-weight-hanging','Peso do lote',`${nf(peso*l.qtd/1000,2)} t`,`${nf(peso,1)} kg por peça`)}${tile(lb.ico,'Liberação',fe(brDe(lib)),fe(lb.curto))}
       ${tile('fa-flask','Ensaio',st?fe(st.rot):'sem corpo de prova',l.cp?`${nf(l.cp,0)} CP(s)`:'')}${tile('fa-truck','Entregue',`${nf(ent,0)} de ${nf(l.qtd,0)}`,`${nf(l.qtd-ent,0)} no pátio`)}</div>
       <div class="pm-bloco" style="margin-top:10px"><h5><i class="fas ${unid?'fa-hashtag':'fa-pallet'}"></i> ${unid?'Unidades':'Paletes'}</h5><div class="pm-rolar" style="max-height:240px;overflow:auto"><table class="pm-tab2" data-sem-ordem><thead><tr><th>Código</th><th class="n">Peças</th><th>Situação</th><th></th></tr></thead><tbody>
-        ${subs.map(s=>`<tr><td><b>${fe(s.cod)}</b><small>${s.modo==='unidade'?`unidade ${s.i} de ${s.n}`:`palete ${s.i} de ${s.n}`}</small></td><td class="n">${nf(s.qtd,0)}</td><td>${sit(s)}</td><td><button type="button" class="gf-bt mini" data-etq-sub="${fe(s.cod)}" title="Etiqueta só deste ${unid?'item':'palete'}"><i class="fas fa-qrcode"></i></button></td></tr>`).join('')||'<tr><td colspan="4" class="pm-mini">Sem peças boas neste lote.</td></tr>'}</tbody></table></div></div>
+        ${subs.map(s=>`<tr data-sub="${fe(s.cod)}" ${s.cod===subDestaque?'style="background:#FFFAEB;outline:2px solid #FDB022"':''}><td><b>${fe(s.cod)}</b><small>${s.modo==='unidade'?`unidade ${s.i} de ${s.n}`:`palete ${s.i} de ${s.n}`}</small></td><td class="n">${nf(s.qtd,0)}</td><td>${sit(s)}</td><td><button type="button" class="gf-bt mini" data-etq-sub="${fe(s.cod)}" title="Etiqueta só deste ${unid?'item':'palete'}"><i class="fas fa-qrcode"></i></button></td></tr>`).join('')||'<tr><td colspan="4" class="pm-mini">Sem peças boas neste lote.</td></tr>'}</tbody></table></div></div>
       <div class="pm-bloco"><h5><i class="fas fa-flask"></i> Corpos de prova e ensaios</h5>${l.cp?'':'<p class="pm-mini" style="margin:0">Nenhum corpo de prova registrado neste lote.</p>'}
-      ${es.length?`<table class="pm-tab2" data-sem-ordem><thead><tr><th>Idade</th><th>Data</th><th class="n">Resultado</th><th class="n">Esperado</th><th>Situação</th></tr></thead><tbody>${es.map(e=>`<tr class="pm-lin" data-ens="${e.rowid}"><td>${nf(num(e.idade),0)} dias</td><td>${fe(brDe(dt(e.data)))}</td><td class="n"><b>${nf(num(e.resultado),1)} MPa</b><small>${(e.valores||[]).map(v=>nf(v,1)).join(' · ')}</small></td><td class="n">${nf(num(e.esperado),1)} MPa</td><td>${pill(e.situacao==='aprovado'?'aprovado':e.situacao==='parcial'?'dentro do esperado':e.situacao==='abaixo'?'abaixo do esperado':'reprovado',e.situacao==='aprovado'||e.situacao==='parcial'?'ok':e.situacao==='abaixo'?'warn':'err')}</td></tr>`).join('')}</tbody></table>`:''}</div></div></div>`,
+      ${es.length?`<table class="pm-tab2" data-sem-ordem><thead><tr><th>Idade</th><th>Data</th><th class="n">Resultado</th><th class="n">Esperado</th><th>Situação</th></tr></thead><tbody>${es.map(e=>`<tr class="pm-lin" data-ens="${e.rowid}"><td>${nf(num(e.idade),0)} dias</td><td>${fe(brDe(dt(e.data)))}</td><td class="n"><b>${nf(num(e.resultado),1)} MPa</b><small>${(e.valores||[]).map(v=>nf(v,1)).join(' · ')}</small></td><td class="n">${nf(num(e.esperado),1)} MPa</td><td>${pill(e.situacao==='aprovado'?'aprovado':e.situacao==='parcial'?'dentro do esperado':e.situacao==='abaixo'?'abaixo do esperado':'reprovado',e.situacao==='aprovado'||e.situacao==='parcial'?'ok':e.situacao==='abaixo'?'warn':'err')}</td></tr>${e.metodo||e.tipo_cp||e.responsavel?`<tr class="pm-lin" data-ens="${e.rowid}"><td colspan="5" style="padding-top:0"><small style="font-size:11.5px;color:#475467;white-space:normal"><i class="fas fa-clipboard-check"></i> ${[e.tipo_cp,e.laboratorio?'laboratório: '+e.laboratorio:'',e.responsavel?'por '+e.responsavel:''].filter(Boolean).map(fe).join(' · ')}${e.metodo?`<br>${fe(e.metodo)}`:''}</small></td></tr>`:''}`).join('')}</tbody></table>`:''}</div></div></div>`,
     [{html:'<i class="fas fa-qrcode"></i> Etiquetas',acao:async()=>{setTimeout(()=>formEtiquetas(cod),60);}},
      ...(l.cp?[{html:'<i class="fas fa-flask"></i> Registrar ensaio',cls:'pri',acao:async()=>{setTimeout(()=>formEnsaio(cod,null),60);}}]:[])],1000);
-  const jb=document.querySelector('#fin-jan .fin-jan-corpo');if(jb){pintarFotos(jb);jb.addEventListener('click',ev=>{const r=ev.target.closest('[data-ens]');if(r){const e=T('ensaio').find(x=>String(x.rowid)===r.dataset.ens);document.getElementById('fin-ov').classList.remove('open');return setTimeout(()=>formEnsaio(cod,e),60);}
+  const jb=document.querySelector('#fin-jan .fin-jan-corpo');if(jb&&subDestaque){const rs=[...jb.querySelectorAll('[data-sub]')].find(x=>x.dataset.sub===subDestaque);if(rs)setTimeout(()=>rs.scrollIntoView({block:'center'}),250);}
+  if(jb){pintarFotos(jb);jb.addEventListener('click',ev=>{const r=ev.target.closest('[data-ens]');if(r){const e=T('ensaio').find(x=>String(x.rowid)===r.dataset.ens);document.getElementById('fin-ov').classList.remove('open');return setTimeout(()=>formEnsaio(cod,e),60);}
     const b=ev.target.closest('[data-etq-sub]');if(b)imprimirEtiquetas(cod,{so:[b.dataset.etqSub],mk:unid?'g':'g',ini:1,copias:1}).catch(e=>toast(e.message,'error'));});}
 }
+/* ensaio de compressão dos corpos de prova: o procedimento padrão (NBR 5738 moldagem e cura; NBR 5739 ruptura) */
+const TIPOS_CP=[['Cilíndrico 10 × 20 cm',7853.98],['Cilíndrico 15 × 30 cm',17671.46],['Testemunho extraído da peça',7853.98]];
+const PROC_PADRAO='Corpos de prova cilíndricos 10 × 20 cm moldados com o concreto do lote no dia da produção (NBR 5738): 2 camadas com 12 golpes de haste cada, topo rasado e identificado com o número do lote. Cura inicial de 24 h na forma, na sombra e protegidos do vento; depois desmoldados e mantidos em cura úmida (tanque com água) até a data do ensaio. Topos retificados ou capeados. Ruptura à compressão em prensa calibrada, carregamento contínuo de 0,45 MPa por segundo até romper (NBR 5739). Resistência de cada CP = carga de ruptura ÷ área da seção (CP 10 × 20: MPa = kN × 0,1273). Resultado do exemplar = o maior valor entre os CPs da mesma idade.';
+const GUIA_ENSAIO=`<details class="pm-guia"><summary><i class="fas fa-book-open"></i> Como fazer o ensaio — passo a passo</summary><ol>
+  <li><b>Moldar no dia da produção</b> — pegue o concreto da betonada da peça e encha os moldes cilíndricos (10 × 20 cm, untados com desmoldante) em 2 camadas, com 12 golpes de haste em cada; rase o topo e escreva o número do lote. Molde 2 corpos de prova (CPs) para cada idade (7 e 28 dias).</li>
+  <li><b>Cura</b> — deixe 24 h na forma, na sombra e protegido do vento; desmolde e guarde na água (tanque) ou em câmara úmida até o dia do ensaio.</li>
+  <li><b>Preparar</b> — no dia, tire da água, retifique ou capeie os topos (planos e paralelos) e confira o diâmetro.</li>
+  <li><b>Romper</b> — prensa calibrada, CP no centro, carga subindo devagar e sem parar (0,45 MPa por segundo) até romper; anote a carga máxima em kN.</li>
+  <li><b>Calcular</b> — MPa = carga ÷ área. CP 10 × 20: MPa = kN × 0,1273 · CP 15 × 30: MPa = kN × 0,0566 (use o conversor).</li>
+  <li><b>Avaliar</b> — vale o maior resultado da mesma idade. Aos 7 dias espera-se cerca de 65% do fck; aos 28 dias tem que atingir o fck do traço. Abaixo disso: separe as peças do lote e chame o responsável técnico.</li>
+  <li><b>Registrar</b> — informe aqui a data, cada CP em MPa, como foi feito, quem fez e o laboratório; laboratório de fora: guarde o laudo.</li></ol></details>`;
 function formEnsaio(cod,reg){
   const l=loteInfo(cod);if(!l)return toast('Lote não encontrado.','error');const p=pecaDe(l.peca),tr=p?tracoDaPeca(p):null,d0=dt(l.data)||hoje0();
-  const ateHoje=d=>isoDe(d>hoje0()?hoje0():d),b=reg||{idade:28,data:ateHoje(addD(d0,28)),valores:Array(Math.max(1,Math.min(6,l.cp||2))).fill(''),fck:fckDe(tr)||'',laboratorio:''};
+  const ateHoje=d=>isoDe(d>hoje0()?hoje0():d),b=reg||{idade:28,data:ateHoje(addD(d0,28)),valores:Array(Math.max(1,Math.min(6,l.cp||2))).fill(''),fck:fckDe(tr)||'',laboratorio:'',tipo_cp:TIPOS_CP[0][0],responsavel:'',metodo:''};
   const cpIn=(v,i)=>`<div class="fin-fld"><label>CP ${i+1} (MPa)</label><input data-cpv inputmode="decimal" data-num="dec" data-sem-mascara="1" value="${v!==''&&v!=null?fe(String(v).replace('.',',')):''}" placeholder="0,0"></div>`;
   const j=janela(reg?`Ensaio do lote ${cod}`:`Registrar ensaio — lote ${cod}`,`<div class="fin-resumo">${fe(p?p.nome:'')} · fabricado em ${fe(brDe(d0))} · ${fe(tr?tr.nome:'')}</div>
     <div class="fin-linha" style="margin-top:8px"><div class="fin-fld"><label>Idade do ensaio</label><select data-k="idade">${[3,7,14,28,63].map(x=>`<option value="${x}" ${x===num(b.idade)?'selected':''}>${x} dias</option>`).join('')}</select></div>
       <div class="fin-fld"><label>Data do ensaio <span class="obg">*</span></label><input type="date" data-k="data" value="${fe(b.data||'')}"></div>
       <div class="fin-fld"><label>fck exigido (MPa) <span class="obg">*</span></label><input data-k="fck" inputmode="decimal" data-num="dec" data-sem-mascara="1" value="${b.fck!==''?fe(String(b.fck).replace('.',',')):''}"></div>
-      <div class="fin-fld"><label>Laboratório</label><input data-k="laboratorio" value="${fe(b.laboratorio||'')}" placeholder="Ex.: próprio, laboratório da cidade"></div></div>
+      <div class="fin-fld"><label>Laboratório</label><input data-k="laboratorio" value="${fe(b.laboratorio||'')}" placeholder="Ex.: próprio, laboratório da cidade"></div>
+      <div class="fin-fld"><label>Tipo de corpo de prova <span class="obg">*</span></label><select data-k="tipo_cp">${TIPOS_CP.map(([t])=>`<option ${t===(b.tipo_cp||TIPOS_CP[0][0])?'selected':''}>${t}</option>`).join('')}</select></div>
+      <div class="fin-fld"><label>Quem fez o ensaio <span class="obg">*</span></label><input data-k="responsavel" value="${fe(b.responsavel||'')}" placeholder="nome do responsável"></div></div>
     <div class="fin-linha" data-cps style="margin-top:6px">${(b.valores||['']).map(cpIn).join('')}</div><button type="button" class="gf-bt mini" data-pmf="cp-add" style="margin-top:6px"><i class="fas fa-plus"></i> Corpo de prova</button>
+    <div class="pm-conv"><i class="fas fa-calculator"></i> A prensa mostra em kN? <input data-kn inputmode="decimal" data-num="dec" placeholder="carga"> kN = <b data-kn-r>—</b> MPa <small data-kn-t></small></div>
+    <div class="fin-fld" style="margin-top:8px"><label>Como o ensaio foi feito <span class="obg">*</span></label><textarea data-k="metodo" rows="3" placeholder="Moldagem, cura, preparo dos topos, prensa e velocidade de carga, como calculou">${fe(b.metodo||'')}</textarea><button type="button" class="gf-bt mini" data-pmf="proc" style="margin-top:6px;align-self:flex-start"><i class="fas fa-wand-magic-sparkles"></i> Usar o procedimento padrão</button></div>
+    ${GUIA_ENSAIO}
     <div class="fin-fld" style="margin-top:8px"><label>Observações</label><input data-k="obs" value="${fe(b.obs||'')}"></div><div class="fin-aviso" style="margin-top:8px"><div data-en-prev></div></div>`,
     [...(reg?[{html:'<i class="fas fa-trash"></i> Excluir',acao:async()=>{setTimeout(()=>apagarReg(reg,`Ensaio de ${reg.idade} dias do lote ${cod}`),60);}}]:[]),
      {html:'<i class="fas fa-floppy-disk"></i> Salvar ensaio',cls:'pri',acao:async jj=>{
       if(reg&&GS.podeMexer&&!GS.podeMexer(reg))throw new Error(GS.MSG_DONO);
-      const r=ler(jj);if(!r.data)throw new Error('Informe a data do ensaio.');
+      const r=ler(jj);if(!r.data)throw new Error('Informe a data do ensaio.');if(!r.responsavel)throw new Error('Informe quem fez o ensaio.');if(r.metodo.length<20)throw new Error('Descreva como o ensaio foi feito (ou use o procedimento padrão).');
       if(!l.cp)return trava('Lote sem corpo de prova',[{ok:false,txt:`O lote ${cod} não tem corpos de prova registrados. Abra o dia de produção e informe quantos CPs foram moldados (coluna CPs).`}]);
       const minD=isoDe(addD(dt(l.data)||hoje0(),Math.max(0,r.idade-1)));if(r.data<minD)return trava(`Ensaio de ${r.idade} dias antes da hora`,[{ok:false,txt:`O lote foi moldado em ${brDe(dt(l.data))}: o ensaio de ${r.idade} dias só pode ser a partir de ${brDe(dt(minD))}.`}]);
       if(r.valores.length>num(l.cp))return trava('Mais resultados do que corpos de prova',[{ok:false,txt:`O lote tem ${nf(num(l.cp),0)} CP(s) moldado(s) e foram informados ${r.valores.length} resultados.`}]);if(r.data>hojeISO())throw new Error('A data do ensaio não pode ser no futuro: registre no dia em que o laboratório romper os corpos de prova.');if(!r.valores.length)throw new Error('Informe o resultado de ao menos um corpo de prova.');if(!(r.fck>0))throw new Error('Informe o fck exigido.');if(r.valores.some(x=>x>120)||r.fck>120)throw new Error('Resistência acima de 120 MPa: confira o valor (em MPa, não em kgf).');
@@ -1246,12 +1287,16 @@ function formEnsaio(cod,reg){
       toast(r.situacao==='reprovado'?'Ensaio registrado: lote REPROVADO — separe as peças e avalie com o responsável técnico.':'Ensaio registrado.',r.situacao==='reprovado'?'error':'success');}}],640);
   function ler(jj){const g=k=>String(jj.querySelector(`[data-k="${k}"]`).value||'').trim(),pf=s=>{const n=parseFloat(String(s).replace(',','.'));return isFinite(n)?n:0;};
     const idade=num(g('idade')),valores=[...jj.querySelectorAll('[data-cpv]')].map(e=>pf(e.value)).filter(v=>v>0),fck=pf(g('fck')),resultado=valores.length?Math.max(...valores):0,esperado=r2(fck*(FAT_IDADE[idade]||1));
-    const situacao=resultado>=esperado-1e-9?(idade>=28?'aprovado':'parcial'):(idade>=28?'reprovado':'abaixo');return {idade,data:g('data'),valores,fck,resultado,esperado,situacao,laboratorio:g('laboratorio'),obs:g('obs')};}
+    const situacao=resultado>=esperado-1e-9?(idade>=28?'aprovado':'parcial'):(idade>=28?'reprovado':'abaixo');return {idade,data:g('data'),valores,fck,resultado,esperado,situacao,laboratorio:g('laboratorio'),obs:g('obs'),tipo_cp:g('tipo_cp'),responsavel:g('responsavel'),metodo:g('metodo')};}
   const at=()=>{const r=ler(j),e=j.querySelector('[data-en-prev]');if(!e)return;e.innerHTML=!r.valores.length?`Informe a resistência de cada corpo de prova. Aos ${r.idade} dias o esperado é <b>${nf(r.esperado,1)} MPa</b>${r.idade<28?` (${nf((FAT_IDADE[r.idade]||1)*100,0)}% do fck)`:''}.`
       :`Resultado do exemplar (o maior): <b>${nf(r.resultado,1)} MPa</b> · esperado ${nf(r.esperado,1)} MPa → <b style="color:${r.situacao==='aprovado'||r.situacao==='parcial'?'#067647':'#B42318'}">${r.situacao==='aprovado'?'APROVADO':r.situacao==='parcial'?'dentro do esperado':r.situacao==='abaixo'?'abaixo do esperado — acompanhe o de 28 dias':'REPROVADO'}</b>.`;};
   const corpo=j.querySelector('.fin-jan-corpo');corpo.addEventListener('input',at);
   corpo.addEventListener('change',ev=>{if(ev.target.matches('[data-k="idade"]')&&!reg)j.querySelector('[data-k="data"]').value=ateHoje(addD(d0,num(ev.target.value)));at();});
-  corpo.addEventListener('click',ev=>{if(ev.target.closest('[data-pmf="cp-add"]')){const box=j.querySelector('[data-cps]');box.insertAdjacentHTML('beforeend',cpIn('',box.children.length));}});at();
+  corpo.addEventListener('click',ev=>{if(ev.target.closest('[data-pmf="cp-add"]')){const box=j.querySelector('[data-cps]');box.insertAdjacentHTML('beforeend',cpIn('',box.children.length));}
+    if(ev.target.closest('[data-pmf="proc"]')){ev.preventDefault();const m=j.querySelector('[data-k="metodo"]');const tp=j.querySelector('[data-k="tipo_cp"]').value;m.value=tp===TIPOS_CP[0][0]?PROC_PADRAO:PROC_PADRAO.replace('cilíndricos 10 × 20 cm','do tipo '+tp.toLowerCase()).replace(' (CP 10 × 20: MPa = kN × 0,1273)','');m.dispatchEvent(new Event('input',{bubbles:true}));}});
+  // conversor: carga da prensa (kN) → resistência (MPa) pela área do corpo de prova
+  const conv=()=>{const kn=num(j.querySelector('[data-kn]').value),tp=j.querySelector('[data-k="tipo_cp"]').value,a=(TIPOS_CP.find(x=>x[0]===tp)||TIPOS_CP[0])[1];j.querySelector('[data-kn-r]').textContent=kn>0?nf(kn*1000/a,1):'—';j.querySelector('[data-kn-t]').textContent=`(${tp.toLowerCase()}: área ${nf(a,0)} mm²)`;};
+  corpo.addEventListener('input',conv);corpo.addEventListener('change',conv);conv();at();
 }
 /* etiquetas com QR Code (texto sem acentos: qualquer celular lê, mesmo sem internet) */
 let QRP=null;
@@ -1282,9 +1327,10 @@ async function imprimirEtiquetas(cod,op){
   try{await carregarQR();}catch(e){w.close();throw e;}
   const logo=typeof PDF_LOGO_FULL_B64!=='undefined'?PDF_LOGO_FULL_B64:'',um=[];
   subs.forEach(s=>{const id=s.modo==='unidade'?`Unidade ${s.i}/${s.n}`:`Palete ${s.i}/${s.n} — ${nf(s.qtd,0)} peças`;
-    const txt=`VIXSUL PRE-MOLDADOS\nPeca: ${p?(p.codigo?p.codigo+' ':'')+p.nome:''}\n${s.modo==='unidade'?'Unidade':'Palete'}: ${s.cod}${s.modo==='palete'?' ('+s.qtd+' pecas)':''}\nLote: ${cod}\nFabricacao: ${brDe(dt(l.data))}\nLiberacao: ${brDe(lib)}\nTraco: ${tr?tr.nome:''}${tr&&tr.fck?' ('+tr.fck+')':''}\nVixsul Empreendimentos - CNPJ 64.518.375/0001-20`;
+    // o QR Code abre o sistema direto na ficha do lote (com a situação de cura e ensaio do dia em que for lido)
+    const txt=`${location.origin}/?lote=${encodeURIComponent(cod)}&p=${encodeURIComponent(s.cod)}`;
     const e=`<div class="e"><div class="tx"><img src="${logo}" class="lg" alt=""><b class="nm">${fe(p?p.nome:'')}</b><div class="cd">${fe(s.cod)}</div><div class="ln"><b>${fe(id)}</b></div>
-      <div class="ln">Fab. ${fe(brDe(dt(l.data)))} · Lib. ${fe(brDe(lib))}</div><div class="ln">${fe(tr?tr.nome.split(' — ')[0]:'')}${tr&&tr.fck?' · '+fe(tr.fck):''}</div></div><div class="qr">${qrSvg(txt)}</div></div>`;
+      <div class="ln">Fab. ${fe(brDe(dt(l.data)))} · Lib. ${fe(brDe(lib))}</div><div class="ln">${fe(tr?tr.nome.split(' — ')[0]:'')}${tr&&tr.fck?' · '+fe(tr.fck):''}</div><div class="ln sc">Leia o QR: situação da cura</div></div><div class="qr">${qrSvg(txt)}</div></div>`;
     for(let c=0;c<cop;c++)um.push(e);});
   const tot=um.length+ini-1,folhas=Math.ceil(tot/porFolha);let h='';
   for(let f=0;f<folhas;f++){h+='<section class="fl">';for(let i=0;i<porFolha;i++){const k=f*porFolha+i;h+=k<ini-1||k>=tot?'<div class="e v"></div>':um[k-ini+1];}h+='</section>';}
@@ -1295,7 +1341,7 @@ async function imprimirEtiquetas(cod,op){
     .e{display:flex;gap:2mm;align-items:center;padding:2.2mm 2.6mm;overflow:hidden;border:0.2mm dashed #d0d5dd;border-radius:2mm;} .e.v{border-color:transparent;}
     .tx{flex:1;min-width:0;font-size:${op.mk==='g'?9:6.6}pt;line-height:1.22;} .lg{height:${op.mk==='g'?8:5}mm;display:block;margin-bottom:.8mm;}
     .nm{display:block;font-size:${op.mk==='g'?10.5:7.6}pt;line-height:1.15;max-height:2.3em;overflow:hidden;} .cd{font-size:${op.mk==='g'?12:8.4}pt;font-weight:800;letter-spacing:.02em;margin:.6mm 0;}
-    .ln{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;} .qr{width:${M.qr}mm;height:${M.qr}mm;flex:none;} @media print{.e{border-color:transparent;}}
+    .ln{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;} .ln.sc{color:#667085;font-style:italic;} .qr{width:${M.qr}mm;height:${M.qr}mm;flex:none;} @media print{.e{border-color:transparent;}}
   </style></head><body>${h}<script>window.onload=()=>setTimeout(()=>window.print(),400);<\/script></body></html>`);w.document.close();
 }
 
@@ -1313,6 +1359,12 @@ function pontoMes(k){const jr=jornada(),P={};
   T('producao').filter(r=>{const d=dt(r.data);return d&&mesKey(d)===k;}).forEach(r=>pontoDe(r).forEach(x=>{const y=P[x.nome]=P[x.nome]||{nome:x.nome,funcao:x.funcao||'',dias:0,horas:0,extras:0,atrasos:0,falta:0,atestado:0,folga:0};
     if(x.status==='presente'){y.dias++;const hh=num(x.horas)||horasDe(x.entrada,x.saida,x.intervalo);y.horas+=hh;y.extras+=Math.max(0,hh-jr.horas);if(x.entrada&&minDe(x.entrada)>minDe(jr.entrada)+10)y.atrasos++;}else y[x.status]=(y[x.status]||0)+1;}));
   return Object.values(P).sort((a,b)=>a.nome.localeCompare(b.nome,'pt-BR'));}
+// lista com várias linhas: a opção já escolhida numa linha fica bloqueada (cinza) nas outras — o item não se repete
+function semRepetir(box,sel){if(!box)return;const ss=[...box.querySelectorAll(sel)],usados=new Set(ss.map(s=>s.value).filter(Boolean));
+  ss.forEach(s=>[...s.options].forEach(o=>{o.disabled=!!o.value&&o.value!==s.value&&usados.has(o.value);}));}
+// próxima opção livre (para a linha nova)
+const livreDe=(box,sel,todas)=>{const u=new Set([...box.querySelectorAll(sel)].map(s=>s.value));return todas.find(v=>!u.has(String(v)));};
+const repetido=L=>{const v=new Set();for(const x of L){if(v.has(String(x)))return x;v.add(String(x));}return null;};
 // pergunta com "Sim, …" e "Não" (janela por cima, sem fechar a que está aberta) — devolve true/false
 function simNao(titulo,msg,rotSim,icone){return new Promise(ok=>{let r=false;const p=sobre(`<div class="pm-pop-box" style="max-width:460px"><div class="pm-pop-cab"><b>${icone?`<i class="fas ${icone}" style="color:#1652D8"></i> `:''}${fe(titulo)}</b><button type="button" class="pm-x" data-pop-x><i class="fas fa-xmark"></i></button></div>
   <div style="padding:14px 16px 16px"><div style="font-size:13.5px;line-height:1.55;margin:0 0 16px">${msg}</div><div style="display:flex;justify-content:flex-end;gap:8px"><button type="button" class="gf-bt" data-pop-x>Não</button><button type="button" class="gf-bt pri" data-pop-ok>${fe(rotSim)}</button></div></div></div>`,
@@ -1355,13 +1407,23 @@ function avisoFechamento(dias){
   if(document.querySelector('#pm-app'))try{render();}catch(e){}
 }
 setInterval(()=>{fecharDiasVencidos().catch(()=>{});},30000);setTimeout(()=>{fecharDiasVencidos().catch(()=>{});},6000);
+/* QR Code da etiqueta (…/?lote=CÓDIGO&p=PALETE): guarda o pedido (sobrevive ao login) e, quando o sistema carrega,
+   abre a ficha do lote com a situação de cura e do ensaio. */
+(function(){
+  try{const u=new URLSearchParams(location.search),q=u.get('lote');if(q){gravarSess('pm-abrir-lote',JSON.stringify({lote:q,sub:u.get('p')||''}));history.replaceState(null,'',location.pathname+location.hash);}}catch(e){}
+  let n=0;const t=setInterval(()=>{n++;let pd=null;try{pd=JSON.parse(lerSess('pm-abrir-lote')||'null');}catch(e){}if(!pd||n>900){clearInterval(t);return;}
+    if(!(typeof App!=='undefined'&&App.state&&App.state.data)||nivelFab()==='nenhum')return;
+    clearInterval(t);try{sessionStorage.removeItem('pm-abrir-lote');}catch(e){}
+    try{UI.nav('pm-producao');PM.dVista='lotes';render();}catch(e){}
+    setTimeout(()=>{if(loteInfo(pd.lote))fichaLote(pd.lote,pd.sub);else toast(`Lote ${pd.lote} não encontrado.`,'error');},600);},1000);
+})();
 function telaProducao(){
   const k=PM.mes,vista=PM.dVista||'dias',L=T('producao').filter(r=>{const d=dt(r.data);return d&&mesKey(d)===k;}).sort((a,b)=>String(b.data).localeCompare(String(a.data))||(+b.rowid-+a.rowid));
   const h=hoje0(),its=L.flatMap(itensProd),tot=its.reduce((s,it)=>s+num(it.qtd),0),ref=its.reduce((s,it)=>s+num(it.refugo),0),jr=jornada();
   const m3=its.reduce((s,it)=>{const p=pecaDe(it.peca);return s+(p?geoPeca(p).V*(num(it.qtd)+num(it.refugo)):0);},0),custo=its.reduce((s,it)=>s+num(it.custo_un)*num(it.qtd),0);
   const nDias=new Set(L.map(r=>r.data)).size,pm=pontoMes(k),horas=pm.reduce((s,x)=>s+x.horas,0),faltas=pm.reduce((s,x)=>s+x.falta,0);
   const lts=lotes(),comCP=lts.filter(l=>l.cp>0).map(l=>({l,st:situacaoLote(l)})),pend=comCP.filter(x=>x.st&&x.st.k!=='aprovado'),lim=addD(h,-45);
-  const sub=`<div class="pm-sub">${[['dias','fa-calendar-days','Dias de produção'],['ponto','fa-user-clock','Ponto do mês'],['ensaios','fa-flask',`Ensaios${pend.length?` (${pend.length})`:''}`]].map(([v,ic,l])=>`<button type="button" class="gf-bt ${vista===v?'pri':''}" data-pm="dvista" data-v="${v}"><i class="fas ${ic}"></i> ${l}</button>`).join('')}</div>`;
+  const sub=`<div class="pm-sub">${[['dias','fa-calendar-days','Dias de produção'],['lotes','fa-tags','Lotes e cura'],['ponto','fa-user-clock','Ponto do mês'],['ensaios','fa-flask',`Ensaios${pend.length?` (${pend.length})`:''}`]].map(([v,ic,l])=>`<button type="button" class="gf-bt ${vista===v?'pri':''}" data-pm="dvista" data-v="${v}"><i class="fas ${ic}"></i> ${l}</button>`).join('')}</div>`;
   const cab=cabG('Diário de produção','O dia da fábrica: equipe e ponto, betonadas, clima, ocorrências e as peças feitas. Cada peça do dia vira um lote (por palete ou por unidade), baixa os insumos e entra em cura.',
       `${GS.selMes(k,'data-pm-mes',12,0)}<button type="button" class="gf-bt pri" data-pm="prod-nova"><i class="fas fa-plus"></i> Registrar o dia</button>`)+
     `<div class="gf-kpis">${kpiG('','fa-cubes','Peças produzidas',nf(tot,0),`${nDias} dia(s) de produção no mês`)}${kpiG('','fa-fill-drip','Concreto',nf(m3,2)+' m³',nDias?`média ${nf(m3/nDias,2)} m³ por dia`:'—')}
@@ -1374,8 +1436,17 @@ function telaProducao(){
       ${pm.map(x=>`<tr><td><span class="pm-av">${fe(iniciais(x.nome))}</span> <b>${fe(x.nome)}</b><small>${fe(x.funcao)}</small></td><td class="n">${x.dias}</td><td class="n">${nf(x.horas,1)} h</td><td class="n" style="${x.extras>0.01?'color:#B54708;font-weight:700':''}">${nf(x.extras,1)} h</td><td class="n">${x.atrasos||'—'}</td><td class="n" style="${x.falta?'color:#B42318;font-weight:700':''}">${x.falta||'—'}</td><td class="n">${x.atestado||'—'}</td><td class="n">${x.folga||'—'}</td></tr>`).join('')}
       <tr class="t"><td>Total</td><td class="n">${pm.reduce((s,x)=>s+x.dias,0)}</td><td class="n">${nf(horas,1)} h</td><td class="n">${nf(pm.reduce((s,x)=>s+x.extras,0),1)} h</td><td class="n">${pm.reduce((s,x)=>s+x.atrasos,0)}</td><td class="n">${faltas}</td><td class="n">${pm.reduce((s,x)=>s+x.atestado,0)}</td><td class="n">${pm.reduce((s,x)=>s+x.folga,0)}</td></tr></tbody></table></div>`
       :'<div class="gf-vazio"><i class="fas fa-user-clock"></i><p>Nenhum ponto marcado neste mês.</p></div>'}</section>`;
+  // lotes e cura: o que já curou e está liberado (com o ensaio), o que ainda está em cura e o que está bloqueado
+  if(vista==='lotes'){const RS=rastreio(),fl=PM.lFiltro||'todos',lim2=addD(h,-120);
+    const LL=lts.map(l=>{const lb=liberacaoLote(l),ent=(RS.porLote[l.lote]||[]).reduce((s,x)=>s+x.qtd,0);return {l,lb,patio:Math.max(0,l.qtd-ent)};}).filter(x=>x.l.qtd>0&&(x.patio>0||dt(x.l.data)>=lim2)).sort((a,b)=>String(b.l.data).localeCompare(String(a.l.data)));
+    const cnt=k=>LL.filter(x=>x.lb.k===k).length,FL=[['todos','Todos',LL.length],['cura','Em cura',cnt('cura')],['ens','Curados · falta ensaio',cnt('ens')],['ok','Liberados',cnt('ok')],['bloq','Bloqueados',cnt('bloq')]],V=fl==='todos'?LL:LL.filter(x=>x.lb.k===fl);
+    return cab+`<section class="gf-sec"><div class="gf-sec-cab"><div><h3><i class="fas fa-tags" style="color:#1652D8"></i> Lotes e cura</h3><p><b>Liberado</b> = a cura terminou e o ensaio (quando o lote tem corpo de prova) está dentro do esperado: pode vender e entregar. <b>100% liberado</b> = ensaio de 28 dias aprovado. Lote reprovado fica <b>bloqueado</b> e sai do estoque pronto. Escaneie o QR Code da etiqueta com o celular para abrir a ficha do lote.</p></div></div>
+      <div class="pm-sub" style="margin:0 0 10px">${FL.map(([k,l,n])=>`<button type="button" class="gf-bt mini ${fl===k?'pri':''}" data-pm="lfiltro" data-v="${k}">${l} (${n})</button>`).join('')}</div>
+      ${V.length?`<div class="pm-rolar"><table class="pm-tab2"><thead><tr><th>Lote</th><th>Peça</th><th>Fabricação</th><th class="n">Peças</th><th class="n">No pátio</th><th>Libera em</th><th>Situação</th><th></th></tr></thead><tbody>
+      ${V.map(({l,lb,patio})=>`<tr class="pm-lin" data-pm="lote" data-lote="${fe(l.lote)}"><td><b>${fe(l.lote)}</b><small>${fe(resumoSub(l))}</small></td><td>${fe(nomePeca(l.peca))}</td><td>${fe(brDe(dt(l.data)))}</td><td class="n">${nf(l.qtd,0)}</td><td class="n">${nf(patio,0)}</td><td>${fe(brDe(lb.lib))}<small>${nf(lb.cura,0)} dias de cura</small></td><td>${pill(lb.curto,lb.cor,lb.ico)}</td><td><i class="fas fa-chevron-right" style="color:#98A2B3"></i></td></tr>`).join('')}</tbody></table></div>`
+      :'<div class="gf-vazio"><i class="fas fa-tags"></i><p>Nenhum lote nesta situação.</p></div>'}</section>`;}
   if(vista==='ensaios'){const cpL=comCP.filter(x=>x.st&&(x.st.k!=='aprovado'||dt(x.l.data)>=lim)).sort((a,b)=>String(b.l.data).localeCompare(String(a.l.data))).slice(0,60);
-    return cab+`<section class="gf-sec"><div class="gf-sec-cab"><div><h3><i class="fas fa-flask" style="color:#7A2FE0"></i> Corpos de prova e ensaios</h3><p>Rompimento aos 7 dias (esperado ≈ 65% do fck) e aos 28 dias (tem de atingir o fck do traço). Clique no lote para registrar o ensaio.</p></div></div>
+    return cab+`<section class="gf-sec"><div class="gf-sec-cab"><div><h3><i class="fas fa-flask" style="color:#7A2FE0"></i> Corpos de prova e ensaios</h3><p>Rompimento aos 7 dias (esperado ≈ 65% do fck) e aos 28 dias (tem de atingir o fck do traço). Clique no lote para registrar o ensaio.</p></div></div>${GUIA_ENSAIO.replace('<details class="pm-guia">','<details class="pm-guia" style="margin:0 0 10px">')}
       ${cpL.length?`<div class="pm-rolar"><table class="pm-tab2"><thead><tr><th>Lote</th><th>Peça</th><th>Moldagem</th><th class="n">CPs</th><th>7 dias</th><th>28 dias</th><th>Situação</th></tr></thead><tbody>
       ${cpL.map(({l,st})=>{const e7=st.es.filter(e=>num(e.idade)<28).slice(-1)[0],e28=st.es.filter(e=>num(e.idade)>=28).slice(-1)[0],d=dt(l.data);
         return `<tr class="pm-lin" data-pm="lote" data-lote="${fe(l.lote)}"><td><b>${fe(l.lote)}</b></td><td>${fe(nomePeca(l.peca))}</td><td>${fe(brDe(d))}</td><td class="n">${nf(l.cp,0)}</td><td>${e7?`${nf(num(e7.resultado),1)} MPa`:`<small>${fe(brDe(addD(d,7)).slice(0,5))}</small>`}</td><td>${e28?`<b>${nf(num(e28.resultado),1)} MPa</b>`:`<small>${fe(brDe(addD(d,28)).slice(0,5))}</small>`}</td><td>${pill(st.rot,st.cor)}</td></tr>`;}).join('')}</tbody></table></div>`
@@ -1411,7 +1482,7 @@ function formProducao(reg,pre){
   const pts=b.ponto?pontoDe(b):[],ptDe=n=>pts.find(x=>x.nome===n),avulsos=pts.filter(x=>!equipe.some(e=>e.nome===x.nome));
   const opsOrd=(pid,sel)=>`<option value="">— sem ordem (estoque) —</option>`+ordens().filter(o=>String(o.peca)===String(pid)&&(o.status==='planejada'||o.status==='producao'||String(o.rowid)===String(sel))).map(o=>`<option value="${o.rowid}" ${String(o.rowid)===String(sel)?'selected':''}>OP nº ${o.numero} — ${nf(prodDaOrdem(o.rowid),0)} de ${nf(num(o.qtd),0)}</option>`).join('');
   const cpPad=pid=>pedeCP(tipoDePeca(pecaDe(pid)||{}))?2:'';
-  const linIt=it=>`<tr data-item ${it.lote?`data-lote="${fe(it.lote)}"`:''}><td style="width:66px">${thumbBt(it.peca)}</td><td><select data-i="peca">${pecas().map(p=>`<option value="${p.rowid}" ${String(p.rowid)===String(it.peca)?'selected':''}>${fe(p.nome)}</option>`).join('')}</select>${it.lote?`<small class="pm-mini">lote ${fe(it.lote)}</small>`:''}</td>
+  const linIt=it=>`<tr data-item ${it.lote?`data-lote="${fe(it.lote)}"`:''}><td style="width:66px">${thumbBt(it.peca)}</td><td><select data-i="peca" data-prev="${fe(String(it.peca))}">${pecas().map(p=>`<option value="${p.rowid}" ${String(p.rowid)===String(it.peca)?'selected':''}>${fe(p.nome)}</option>`).join('')}</select>${it.lote?`<small class="pm-mini">lote ${fe(it.lote)}</small>`:''}</td>
     <td><select data-i="ordem">${opsOrd(it.peca,it.ordem)}</select></td><td><input data-i="qtd" inputmode="numeric" data-num="int" value="${fe(String(it.qtd||''))}" placeholder="0"></td><td><input data-i="refugo" inputmode="numeric" data-num="int" value="${fe(String(it.refugo||''))}" placeholder="0"></td>
     <td><input data-i="cp" inputmode="numeric" data-num="int" data-sem-mascara="1" value="${fe(String(it.cp!=null&&it.cp!==''?it.cp:(it.lote?'':cpPad(it.peca))))}" placeholder="0" title="Corpos de prova moldados com o concreto desta peça"></td><td><button type="button" class="pm-x" data-pmf="it-x"><i class="fas fa-xmark"></i></button></td></tr>`;
   // ponto obrigatório: no dia novo ninguém vem marcado — cada pessoa tem de ser marcada (presente, falta, atestado ou folga)
@@ -1467,6 +1538,7 @@ function formProducao(reg,pre){
         if(!o.ponto.length)return trava('Falta o ponto do dia',[{ok:false,txt:'Ninguém no ponto: cadastre a equipe em Parâmetros › Equipe da fábrica ou inclua uma Pessoa avulsa.'}]);}
       const ruim=o.ponto.find(x=>x.status==='presente'&&!(x.horas>0));if(ruim)throw new Error(`Confira o ponto de ${ruim.nome}: entrada e saída não dão horas trabalhadas.`);
       const its=lerItensProd(jj);if(!its.length)throw new Error('Informe ao menos uma peça com quantidade.');
+      {const rp=repetido(its.map(it=>it.peca));if(rp)throw new Error(`"${nomePeca(rp)}" está em duas linhas: deixe uma só e some as quantidades.`);}
       if(its.some(it=>it.qtd>0)&&!(o.betonadas>=1))throw new Error('Informe quantas betonadas foram feitas (só números).');
       if(its.some(it=>it.qtd>0)&&!o.ponto.some(x=>x.status==='presente'))return trava('Produção sem equipe presente',[{ok:false,txt:'Marque quem trabalhou no dia (Presente) — produção sem ninguém no ponto não fecha com as horas e o custo da mão de obra.'}]);
       // não se produz sem material: o consumo do dia tem de caber no estoque de insumos (na edição, o consumo antigo volta)
@@ -1476,7 +1548,7 @@ function formProducao(reg,pre){
       // ordem de produção: não passa da quantidade pedida
       const porOP={};its.forEach(it=>{if(it.ordem)porOP[it.ordem]=(porOP[it.ordem]||0)+it.qtd;});
       for(const [id,q] of Object.entries(porOP)){const op=ordens().find(z=>String(z.rowid)===String(id));if(!op)continue;const ja=prodDaOrdem(op.rowid)-(reg?itensProd(reg).filter(it=>String(it.ordem)===String(id)).reduce((s,it)=>s+num(it.qtd),0):0);
-        if(ja+q>num(op.qtd))return trava(`OP nº ${op.numero}: passou da quantidade pedida`,[{ok:false,txt:`A ordem pede ${nf(num(op.qtd),0)} peças; já tem ${nf(ja,0)} registradas; este registro soma ${nf(q,0)} — <b>${nf(ja+q-num(op.qtd),0)} a mais</b>. Registre o excedente na mesma peça como "sem ordem (estoque)".`}]);}
+        if(ja+q>num(op.qtd))return trava(`OP nº ${op.numero}: passou da quantidade pedida`,[{ok:false,txt:`A ordem pede ${nf(num(op.qtd),0)} peças; já tem ${nf(ja,0)} registradas; este registro soma ${nf(q,0)} — <b>${nf(ja+q-num(op.qtd),0)} a mais</b>. Aumente a quantidade da ordem no Planejamento ou lance esta peça "sem ordem (estoque)".`}]);}
       // lote de cada peça: o que já tinha fica; peça nova ganha o próximo número do dia
       const base='L'+ymd(o.data),usados=new Set(lotes().map(l=>l.lote));let seq=0;const prox=()=>{let c2;do{seq++;c2=`${base}-${String(seq).padStart(2,'0')}`;}while(usados.has(c2));usados.add(c2);return c2;};
       // retrato do dia: consumo (boas + refugo), custo por peça e o controle do lote (palete ou unidade)
@@ -1496,20 +1568,24 @@ function formProducao(reg,pre){
       row.querySelector('[data-ph]').innerHTML=on?`<b>${nf(hh,1)} h</b>${xe>0.01?`<span class="x">+${nf(xe,1)} extra</span>`:''}${atr?'<span class="a">atraso</span>':''}`:`<span class="pm-mini" style="${st?'':'color:#B54708;font-weight:700'}">${fe(st?SIT_PT[st][0]:'falta marcar')}</span>`;
       if(on){t+=hh;n++;ex+=xe;}else if(nome&&!st)sm++;else if(nome&&st!=='folga')aus++;});
     const e=j.querySelector('[data-p-tot]');if(e)e.innerHTML=`<span><b>${n}</b> presente(s)</span><span><b>${nf(t,1)} h</b> no dia</span>${ex>0.01?`<span class="x"><b>${nf(ex,1)} h</b> extras</span>`:''}${aus?`<span class="a"><b>${aus}</b> ausência(s)</span>`:''}${sm?`<span class="a"><b>${sm}</b> sem marcar</span>`:''}`;};
-  const at=()=>{atPonto();
+  const at=()=>{atPonto();semRepetir(j,'[data-i="peca"]');
     {const av=j.querySelector('[data-dt-aviso]'),dv=(j.querySelector('[data-k="data"]')||{}).value;if(av&&!fechadoJa){const ou=dv&&T('producao').find(r=>r.data===dv&&(!reg||String(r.rowid)!==String(reg.rowid)));
       av.textContent=ou?'Este dia já tem diário: abra o dia registrado para alterar.':(!reg&&dv&&passouHora(dv))?(ehAdm()?'Dia já encerrado às 19h: registrando como Administrador.':'Dia encerrado às 19h: só o Administrador registra.'):'';}}
     const its=lerItensProd(j),e=j.querySelector('[data-pr-prev]');if(!e)return;if(!its.length){e.innerHTML='Informe as peças feitas para ver o que sai do estoque de insumos.';return;}
     const tot={};its.forEach(it=>{const x=calc(pecaDe(it.peca),it.qtd+it.refugo);Object.entries(x.est).forEach(([k,q])=>tot[k]=(tot[k]||0)+q);});const ei=estoqueInsumos();
     e.innerHTML='Sai do estoque: '+INS.filter(i=>tot[i.k]).map(i=>{const f=ei[i.k].saldo<tot[i.k];return `<span style="${f?'color:#B42318;font-weight:700':''}">${i.nome.split(' (')[0].toLowerCase()} ${nf(tot[i.k],2)} ${i.un}${f?' (estoque insuficiente)':''}</span>`;}).join(' · ')+'.';};
   const corpo=j.querySelector('.fin-jan-corpo');
-  corpo.addEventListener('change',ev=>{const t=ev.target;if(t.matches('[data-i="peca"]')){const tr=t.closest('tr');tr.querySelector('[data-i="ordem"]').innerHTML=opsOrd(t.value,'');trocarThumb(tr,t.value);const cp=tr.querySelector('[data-i="cp"]');if(cp&&!cp.dataset.mexeu)cp.value=cpPad(t.value);}at();});
+  corpo.addEventListener('change',ev=>{const t=ev.target;if(t.matches('[data-i="peca"]')){const tr=t.closest('tr');
+      // a peça já lançada em outra linha não entra de novo (volta à anterior)
+      if([...j.querySelectorAll('[data-i="peca"]')].some(s=>s!==t&&s.value===t.value)){const nova=t.value;t.value=t.dataset.prev||'';trocarThumb(tr,t.value);toast(`"${nomePeca(nova)}" já está lançada em outra linha: some a quantidade lá.`,'error');}
+      else{t.dataset.prev=t.value;tr.querySelector('[data-i="ordem"]').innerHTML=opsOrd(t.value,'');trocarThumb(tr,t.value);const cp=tr.querySelector('[data-i="cp"]');if(cp&&!cp.dataset.mexeu)cp.value=cpPad(t.value);}}at();});
   corpo.addEventListener('input',ev=>{if(ev.target.matches('[data-i="cp"]'))ev.target.dataset.mexeu='1';if(ev.target.matches('[data-pn]')){const av=ev.target.closest('[data-p]').querySelector('.pm-av');if(av)av.textContent=iniciais(ev.target.value)||'+';}clearTimeout(j._pmT);j._pmT=setTimeout(at,150);});
   corpo.addEventListener('click',ev=>{const b2=ev.target.closest('[data-pmf]');if(!b2)return;const f=b2.dataset.pmf;
     if(f==='pick'){const tr=b2.closest('tr'),s=tr.querySelector('[data-i="peca"]');return escolherPeca(s.value,pid=>{s.value=pid;s.dispatchEvent(new Event('change',{bubbles:true}));});}
     if(f==='p-todos')j.querySelectorAll('[data-pst]').forEach(s=>s.value='presente');
     else if(f==='p-jornada')j.querySelectorAll('[data-p]').forEach(row=>{row.querySelector('[data-pe]').value=jr.entrada;row.querySelector('[data-ps]').value=jr.saida;row.querySelector('[data-pi]').value=jr.intervalo;});
-    else if(f==='it-add'){j.querySelector('[data-itens]').insertAdjacentHTML('beforeend',linIt({peca:pecas()[0].rowid,ordem:'',qtd:'',refugo:''}));pintarFotos(j);}
+    else if(f==='it-add'){const pl=livreDe(j,'[data-i="peca"]',pecas().map(p=>String(p.rowid)));if(!pl)return toast('Todas as peças cadastradas já estão lançadas neste dia.','error');
+      j.querySelector('[data-itens]').insertAdjacentHTML('beforeend',linIt({peca:pl,ordem:'',qtd:'',refugo:''}));pintarFotos(j);}
     else if(f==='it-x')b2.closest('tr').remove();else if(f==='p-add')j.querySelector('[data-ponto]').insertAdjacentHTML('beforeend',linP({nome:'',funcao:'Ajudante'},true));else if(f==='p-x')b2.closest('[data-p]').remove();at();});
   pintarFotos(j);at();
 }
@@ -1535,7 +1611,7 @@ function telaEstoque(){
     <section class="gf-sec"><div class="gf-sec-cab"><div><h3>Peças</h3><p>Livre = pronta − reservada. <b>Produzir</b>: o livre + o que já está em produção não cobre a saída média até a próxima fornada (ponto de reposição) ou o mínimo.</p></div></div>
       ${ps.length?`<div class="pm-rolar"><table class="pm-tab2"><thead><tr><th>Peça</th><th>Situação</th><th class="n">Em cura</th><th class="n">Prontas</th><th class="n">Reservadas</th><th class="n">Livres</th><th class="n">Em produção</th><th class="n">Ponto de reposição</th><th class="n">Valor</th><th></th></tr></thead><tbody>
         ${ps.map(p=>{const x=E.P[String(p.rowid)]||{cura:0,disp:0,res:0,livre:0,emProd:0,custoUn:calc(p,1).un},rp=reposicao(p,x);
-          return `<tr><td><b>${fe(p.nome)}</b><small>${fe(p.codigo||'')}</small></td><td>${pill(rp.rot,rp.cor,rp.k==='ok'?'fa-check':'fa-triangle-exclamation')}</td><td class="n">${nf(x.cura,0)}</td><td class="n">${nf(x.disp,0)}</td><td class="n">${nf(x.res,0)}</td><td class="n" style="${x.livre<0?'color:#B42318;font-weight:800':''}">${nf(x.livre,0)}</td><td class="n">${nf(x.emProd,0)}</td><td class="n">${nf(rp.ponto,0)}</td><td class="n">${R(Math.max(0,x.disp)*x.custoUn)}</td>
+          return `<tr><td><b>${fe(p.nome)}</b><small>${fe(p.codigo||'')}</small></td><td>${pill(rp.rot,rp.cor,rp.k==='ok'?'fa-check':'fa-triangle-exclamation')}</td><td class="n">${nf(x.cura,0)}</td><td class="n">${nf(x.disp,0)}${x.bloq?`<small style="color:#B42318;font-weight:700" title="Lote com ensaio reprovado: não pode ser vendido">${nf(x.bloq,0)} bloqueada(s)</small>`:''}</td><td class="n">${nf(x.res,0)}</td><td class="n" style="${x.livre<0?'color:#B42318;font-weight:800':''}">${nf(x.livre,0)}</td><td class="n">${nf(x.emProd,0)}</td><td class="n">${nf(rp.ponto,0)}</td><td class="n">${R(Math.max(0,x.disp)*x.custoUn)}</td>
             <td style="white-space:nowrap">${rp.k!=='ok'?`<button type="button" class="gf-bt mini pri" data-pm="gerar-op" data-peca="${p.rowid}" data-qtd="${rp.sug}"><i class="fas fa-clipboard-list"></i> Produzir ${nf(rp.sug,0)}</button>`:''}<button type="button" class="gf-bt mini" data-pm="avaria-nova" data-peca="${p.rowid}" title="Registrar avaria"><i class="fas fa-heart-crack"></i></button><button type="button" class="gf-bt mini" data-pm="ajuste-novo" data-item="peca:${p.rowid}" title="Acerto de inventário"><i class="fas fa-scale-balanced"></i></button></td></tr>`;}).join('')}</tbody></table></div>`
       :'<div class="gf-vazio"><i class="fas fa-cubes"></i><p>Cadastre as peças em Peças e catálogo.</p></div>'}</section>
     <section class="gf-sec"><div class="gf-sec-cab"><div><h3>Avarias e perdas</h3><p>${cap(mesNome(k))}: ${Object.entries(porOrig).map(([o,q])=>`${ORIG_AV[o]||o} ${nf(q,0)}`).join(' · ')||'nenhuma avaria'}. As do pátio, desforma, carregamento e transporte saem do estoque.</p></div>${GS.selMes(k,'data-pm-mes',12,0)}</div>
@@ -1557,8 +1633,47 @@ function telaEstoque(){
 // peça quebrada sai do estoque — menos quando foi numa entrega já feita (a peça já tinha saído com a venda)
 const vendaEntregue=id=>{const v=id?vendaDe(id):null;return !!v&&(v.status==='entregue'||v.status==='devolvida');};
 function avariaTiraEstoque(a){return AV_ESTOQUE.includes(a.origem)&&!vendaEntregue(a.venda);}
+function formAvariaLote(pecaPre,pre){
+  pre=pre||{};const E=estoque();
+  const lin=pid=>`<tr><td style="width:66px">${thumbBt(pid)}</td><td><select data-a="peca" data-prev="${fe(String(pid))}">${pecas().map(p=>`<option value="${p.rowid}" ${String(p.rowid)===String(pid)?'selected':''}>${fe(p.nome)}</option>`).join('')}</select></td>
+    <td><input data-a="qtd" inputmode="numeric" data-num="int" placeholder="0"></td><td><input data-a="tem" readonly tabindex="-1"></td><td><input data-a="perda" readonly tabindex="-1"></td><td><button type="button" class="pm-x" data-pmf="l-x" title="Tirar esta linha"><i class="fas fa-xmark"></i></button></td></tr>`;
+  const j=janela('Registrar avarias (peças quebradas)',`<div class="fin-linha">
+      <div class="fin-fld"><label>Data <span class="obg">*</span></label><input type="date" data-k="data" value="${hojeISO()}" max="${hojeISO()}"></div>
+      <div class="fin-fld" style="grid-column:span 2"><label>Onde quebrou <span class="obg">*</span></label><select data-k="origem">${Object.entries(ORIG_AV).filter(([k])=>k!=='cliente').map(([k,l])=>`<option value="${k}" ${k===(pre.origem||'patio')?'selected':''}>${l}</option>`).join('')}</select></div>
+      <div class="fin-fld" style="grid-column:1/-1"><label>Causa <span class="obg">*</span></label><input data-k="causa" placeholder="Ex.: queda da empilhadeira, desforma antes da hora, estrada ruim"></div>
+      <div class="fin-fld" style="grid-column:1/-1"><label>Venda (se aconteceu numa entrega)</label><select data-k="venda"><option value="">—</option>${vendas().filter(v=>!encerrada(v)).slice(-60).reverse().map(v=>`<option value="${v.rowid}" ${String(v.rowid)===String(pre.venda||'')?'selected':''}>Venda nº ${v.numero} — ${fe(v.cliente||'')}</option>`).join('')}</select></div>
+      <label class="nfc-amb" data-av-repor hidden style="grid-column:1/-1"><input type="checkbox" data-k="repor" checked><span><b>Repor as peças ao cliente</b> — sai do estoque a mesma quantidade (peças novas no lugar das quebradas)</span></label></div>
+    <div class="pm-bloco" style="margin-top:10px"><h5><i class="fas fa-heart-crack"></i> Peças quebradas</h5><div class="pm-rolar"><table class="pm-itens"><thead><tr><th></th><th>Peça</th><th style="width:90px">Quantidade</th><th style="width:150px" data-av-temh>Prontas no pátio</th><th style="width:130px">Perda (R$)</th><th></th></tr></thead><tbody data-lote-linhas>${lin(pecaPre||pecas()[0].rowid)}</tbody></table></div>
+      <button type="button" class="gf-bt mini" data-pmf="l-add" style="margin-top:6px"><i class="fas fa-plus"></i> Outra peça</button></div>
+    <div class="fin-linha"><div class="fin-fld"><label>Perda total</label><input data-k="perda_tot" readonly tabindex="-1"></div></div>`,
+    [{html:'<i class="fas fa-floppy-disk"></i> Registrar avarias',cls:'pri',acao:async jj=>{
+      const g=k=>String((jj.querySelector(`[data-k="${k}"]`)||{}).value||'').trim(),L=ler(jj),og=g('origem'),vd=g('venda'),v=vd?vendaDe(vd):null,ent=vendaEntregue(vd),repor=ent&&!!(jj.querySelector('[data-k="repor"]')||{}).checked,E2=estoque();
+      if(!g('data'))throw new Error('Informe a data.');if(!g('causa'))throw new Error('Informe a causa.');
+      {const rp=repetido(L.map(x=>x.peca));if(rp)throw new Error(`"${nomePeca(rp)}" está em duas linhas: deixe uma só.`);}
+      const sem=L.find(x=>!(x.qtd>0));if(sem)throw new Error(`${nomePeca(sem.peca)}: informe a quantidade (ou tire a linha).`);
+      if(v&&dt(v.data)&&g('data')<v.data)throw new Error('A data da avaria não pode ser antes do pedido.');
+      // não quebra mais do que existe: no pátio (estoque) ou na entrega (o que foi entregue de cada peça)
+      for(const x of L){const e=E2.P[String(x.peca)]||{disp:0};
+        if(AV_ESTOQUE.includes(og)&&!ent&&x.qtd>e.disp)return trava('Avaria maior do que o estoque',[{ok:false,txt:`${fe(nomePeca(x.peca))}: há ${nf(Math.max(0,e.disp),0)} peça(s) prontas no pátio — a avaria não pode passar disso.`},{ok:true,txt:'Peça que quebrou ainda em cura: registre como refugo no dia de produção.'}]);
+        if(ent){const q=(v.itens||[]).filter(it=>String(it.peca)===String(x.peca)).reduce((s,it)=>s+num(it.qtd),0),ja=T('avaria').filter(a=>String(a.venda)===String(vd)&&String(a.peca)===String(x.peca)).reduce((s,a)=>s+num(a.qtd),0);
+          if(x.qtd>q-ja)return trava('Avaria maior do que foi entregue',[{ok:q>0,txt:`A venda nº ${v.numero} entregou ${nf(q,0)} peça(s) de ${fe(nomePeca(x.peca))}`},{ok:false,txt:`Já há ${nf(ja,0)} avariada(s) nessa entrega — dá para registrar no máximo ${nf(Math.max(0,q-ja),0)}`}]);
+          if(repor&&x.qtd>e.disp)return trava('Sem peças para repor',[{ok:false,txt:`${fe(nomePeca(x.peca))}: repor ${nf(x.qtd,0)} exige estoque pronto — há ${nf(Math.max(0,e.disp),0)}. Desmarque "Repor" e reponha depois.`}]);}}
+      const ops=[];L.forEach(x=>{const e=E2.P[String(x.peca)];ops.push([{tipo:'avaria',data_lancamento:todayDateTime(),data:g('data'),peca:x.peca,qtd:x.qtd,origem:og,causa:g('causa'),venda:vd,custo_un:r2(e&&e.custoUn?e.custoUn:calc(pecaDe(x.peca),1).un),por:eu()},null]);
+        if(repor)ops.push([{tipo:'ajuste',data:g('data'),item:'peca:'+x.peca,qtd:-x.qtd,motivo:`reposição de avaria — venda nº ${v.numero}`,por:eu(),data_lancamento:todayDateTime()},null]);});
+      await gravarVarios(ops);toast(`${L.length} avaria(s) registrada(s)${repor?' e peças repostas ao cliente':''}.`,'success');}}],860);
+  function ler(jj){return [...jj.querySelectorAll('[data-lote-linhas] tr')].map(tr=>({peca:tr.querySelector('[data-a="peca"]').value,qtd:num(tr.querySelector('[data-a="qtd"]').value)}));}
+  const at=()=>{semRepetir(j,'[data-a="peca"]');const vd=j.querySelector('[data-k="venda"]').value,ent=vendaEntregue(vd),rp=j.querySelector('[data-av-repor]');if(rp)rp.hidden=!ent;let t=0;
+    j.querySelectorAll('[data-lote-linhas] tr').forEach(tr=>{const id=tr.querySelector('[data-a="peca"]').value,x=E.P[String(id)],q=num(tr.querySelector('[data-a="qtd"]').value),cu=x&&x.custoUn?x.custoUn:calc(pecaDe(id),1).un;t+=cu*q;
+      tr.querySelector('[data-a="tem"]').value=`${nf(Math.max(0,(x||{}).disp||0),0)} prontas`;tr.querySelector('[data-a="perda"]').value=q?R(cu*q):'';});
+    j.querySelector('[data-k="perda_tot"]').value=R(t);};
+  loteForm(j,'[data-a="peca"]',lin,()=>pecas().map(p=>String(p.rowid)));const corpo=j.querySelector('.fin-jan-corpo');
+  corpo.addEventListener('change',ev=>{if(ev.target.matches('[data-a="peca"]'))trocarThumb(ev.target.closest('tr'),ev.target.value);});
+  corpo.addEventListener('click',ev=>{const b2=ev.target.closest('[data-pmf="pick"]');if(!b2)return;const tr=b2.closest('tr'),s=tr.querySelector('[data-a="peca"]');escolherPeca(s.value,pid=>{s.value=pid;s.dispatchEvent(new Event('change',{bubbles:true}));});});
+  corpo.addEventListener('input',at);corpo.addEventListener('change',at);pintarFotos(j);at();
+}
 function formAvaria(reg,pecaPre,pre){
   if(!pecas().length)return toast('Cadastre as peças primeiro.','error');pre=pre||{};
+  if(!reg)return formAvariaLote(pecaPre,pre);
   const b=reg||{data:hojeISO(),peca:pecaPre||pecas()[0].rowid,origem:pre.origem||'patio',qtd:'',venda:pre.venda||''};
   const j=janela(reg?'Editar avaria':'Registrar avaria (peça quebrada)',`<div class="fin-linha">
       <div class="fin-fld"><label>Data <span class="obg">*</span></label><input type="date" data-k="data" value="${fe(b.data||'')}" max="${hojeISO()}"></div>
@@ -1590,7 +1705,47 @@ function formAvaria(reg,pecaPre,pre){
     j.querySelector('[data-av-prev]').innerHTML=q?`Perda de <b>${R(cu*q)}</b> (custo ${R(cu)} por peça).${ent?' A peça já tinha saído com a entrega: a perda entra no resultado sem baixar o estoque de novo.':AV_ESTOQUE.includes(og)?` As peças saem do estoque (há ${nf(Math.max(0,(x||{}).disp||0),0)} prontas).`:''}`:'Informe a quantidade.';};
   const corpo=j.querySelector('.fin-jan-corpo');corpo.addEventListener('input',at);corpo.addEventListener('change',at);at();
 }
+/* ── lançamentos em lote (como no Contas a pagar): os dados comuns em cima e uma linha por item; cada linha vira um registro.
+   O item escolhido numa linha fica bloqueado nas outras. Abrir um lançamento já feito continua no formulário de um item. ── */
+const fornLista=()=>[...new Set(T('compra').map(x=>x.fornecedor).filter(Boolean).concat((GS.D().fornecedores||[]).map(f=>f.nome||f.razao_social||'').filter(Boolean)))].slice(0,300);
+function loteForm(j,sel,linha,todas,minimo){const corpo=j.querySelector('.fin-jan-corpo'),box=j.querySelector('[data-lote-linhas]');
+  corpo.addEventListener('change',ev=>{const t=ev.target;if(!t.matches(sel))return;if([...j.querySelectorAll(sel)].some(s=>s!==t&&s.value===t.value)){t.value=t.dataset.prev||'';toast('Este item já está em outra linha: some a quantidade lá.','error');}else t.dataset.prev=t.value;});
+  corpo.addEventListener('click',ev=>{const b=ev.target.closest('[data-pmf]');if(!b)return;
+    if(b.dataset.pmf==='l-add'){const v=livreDe(j,sel,todas());if(!v)return toast('Todos os itens já estão na lista.','error');box.insertAdjacentHTML('beforeend',linha(v));pintarFotos(j);}
+    else if(b.dataset.pmf==='l-x'){if(box.querySelectorAll('tr').length<=(minimo||1))return toast('Deixe ao menos uma linha.','error');b.closest('tr').remove();}
+    corpo.dispatchEvent(new Event('input',{bubbles:true}));});}
+function formCompraLote(insPre){
+  const c=CFG();
+  const lin=k=>`<tr><td><select data-c="insumo" data-prev="${fe(k)}">${INS.map(i=>`<option value="${i.k}" ${i.k===k?'selected':''}>${fe(i.nome)}</option>`).join('')}</select></td>
+    <td><input data-c="qtd" inputmode="decimal" data-num="dec" placeholder="0"><small class="pm-mini" data-c-un></small></td><td><input data-c="valor" data-mask="moeda" placeholder="R$ 0,00"></td>
+    <td><input data-c="unit" readonly tabindex="-1" placeholder="automático"><small class="pm-mini" data-c-ref></small></td><td><button type="button" class="pm-x" data-pmf="l-x" title="Tirar esta linha"><i class="fas fa-xmark"></i></button></td></tr>`;
+  const j=janela('Entrada de insumos (compra)',`<div class="fin-linha">
+      <div class="fin-fld"><label>Data da compra <span class="obg">*</span></label><input type="date" data-k="data" value="${hojeISO()}" max="${hojeISO()}"></div>
+      <div class="fin-fld" style="grid-column:span 2"><label>Fornecedor <span class="obg">*</span></label><input data-k="fornecedor" list="vx-forn-pm"></div>
+      <div class="fin-fld"><label>Nº da nota</label><input data-k="nf"></div>
+      <div class="fin-fld"><label>Vencimento</label><input type="date" data-k="vencimento"></div><div class="fin-fld"><label>Pago em</label><input type="date" data-k="pago_em" max="${hojeISO()}"></div></div>
+    <datalist id="vx-forn-pm">${fornLista().map(n=>`<option value="${fe(n)}">`).join('')}</datalist>
+    <div class="pm-bloco" style="margin-top:10px"><h5><i class="fas fa-boxes-stacked"></i> Insumos desta compra</h5><div class="pm-rolar"><table class="pm-itens"><thead><tr><th>Insumo</th><th style="width:140px">Quantidade</th><th style="width:150px">Valor total (R$)</th><th style="width:170px">Preço por unidade</th><th></th></tr></thead><tbody data-lote-linhas>${lin(insPre||'cimento')}</tbody></table></div>
+      <button type="button" class="gf-bt mini" data-pmf="l-add" style="margin-top:6px"><i class="fas fa-plus"></i> Outro insumo</button></div>
+    <div class="fin-linha"><div class="fin-fld"><label>Total da compra</label><input data-k="total" readonly tabindex="-1"></div></div>
+    <label class="nfc-amb" style="margin-top:8px"><input type="checkbox" data-k="atualiza" checked><span>Usar estes preços nos cálculos das peças (atualiza o preço dos insumos em Parâmetros)</span></label>`,
+    [{html:'<i class="fas fa-floppy-disk"></i> Lançar a entrada',cls:'pri',acao:async jj=>{
+      const g=k=>String(jj.querySelector(`[data-k="${k}"]`).value||'').trim(),L=ler(jj);
+      if(!g('data'))throw new Error('Informe a data da compra.');if(g('data')>hojeISO())throw new Error('A data da compra não pode ser no futuro.');if(!g('fornecedor'))throw new Error('Informe o fornecedor.');
+      {const rp=repetido(L.map(x=>x.insumo));if(rp)throw new Error(`${insDe(rp).nome} está em duas linhas: deixe uma só.`);}
+      const ruim=L.find(x=>!(x.qtd>0)||!(x.valor>0));if(ruim)throw new Error(`${insDe(ruim.insumo).nome}: informe a quantidade e o valor total (ou tire a linha).`);
+      if(g('pago_em')&&g('pago_em')<g('data'))throw new Error('O pagamento não pode ser antes da compra.');
+      const grupo='C'+Date.now().toString(36),ops=L.map(x=>[{tipo:'compra',data_lancamento:todayDateTime(),data:g('data'),insumo:x.insumo,qtd:x.qtd,valor:x.valor,fornecedor:g('fornecedor'),nf:g('nf'),vencimento:g('vencimento'),pago_em:g('pago_em'),grupo,por:eu()},null]);
+      if(jj.querySelector('[data-k="atualiza"]').checked){const r=cfgRow(),cf=r&&r.cfg?JSON.parse(JSON.stringify(r.cfg)):{};cf.precos=cf.precos||{};L.forEach(x=>cf.precos[x.insumo]=Math.round(x.valor/x.qtd*100)/100);ops.push([r?{...r,cfg:cf}:{tipo:'config',cfg:cf,data_lancamento:todayDateTime()},r?r.rowid:null]);}
+      await gravarVarios(ops);toast(`Entrada lançada: ${L.length} insumo(s) no estoque.`,'success');}}],900);
+  function ler(jj){return [...jj.querySelectorAll('[data-lote-linhas] tr')].map(tr=>({insumo:tr.querySelector('[data-c="insumo"]').value,qtd:num(tr.querySelector('[data-c="qtd"]').value),valor:r2(num(tr.querySelector('[data-c="valor"]').value))}));}
+  const at=()=>{semRepetir(j,'[data-c="insumo"]');let t=0;j.querySelectorAll('[data-lote-linhas] tr').forEach(tr=>{const i=insDe(tr.querySelector('[data-c="insumo"]').value),q=num(tr.querySelector('[data-c="qtd"]').value),v=num(tr.querySelector('[data-c="valor"]').value);t+=v;
+    tr.querySelector('[data-c-un]').textContent=i.unL;tr.querySelector('[data-c="unit"]').value=q>0&&v>0?`${R(v/q)} por ${i.un}`:'';tr.querySelector('[data-c-ref]').textContent=num(c.precos[i.k])?`hoje nos parâmetros: ${R(num(c.precos[i.k]))}`:'';});
+    j.querySelector('[data-k="total"]').value=R(t);};
+  loteForm(j,'[data-c="insumo"]',lin,()=>INS.map(i=>i.k));const corpo=j.querySelector('.fin-jan-corpo');corpo.addEventListener('input',at);corpo.addEventListener('change',at);at();
+}
 function formCompra(reg,insPre){
+  if(!reg)return formCompraLote(insPre);
   const b=reg||{data:hojeISO(),insumo:insPre||'cimento'},c=CFG();
   const j=janela(reg?'Editar entrada de insumo':'Entrada de insumo (compra)',`<div class="fin-linha">
       <div class="fin-fld"><label>Data da compra <span class="obg">*</span></label><input type="date" data-k="data" value="${fe(b.data||'')}"></div>
@@ -1617,7 +1772,31 @@ function formCompra(reg,insPre){
     j.querySelector('[data-un]').textContent=`(${i.unL})`;j.querySelector('[data-cp-prev]').innerHTML=q>0&&v>0?`Preço: <b>${R(v/q)}</b> por ${i.unL} · nos parâmetros hoje: ${R(num(c.precos[i.k]))}.`:`Informe a quantidade em ${i.unL} e o valor total da nota.`;};
   const corpo=j.querySelector('.fin-jan-corpo');corpo.addEventListener('input',at);corpo.addEventListener('change',at);at();
 }
+function formAjusteLote(itemPre){
+  const ei=estoqueInsumos(),E=estoque(),todos=INS.map(i=>'insumo:'+i.k).concat(pecas().map(p=>'peca:'+p.rowid));
+  const saldoDe=it=>it.startsWith('peca:')?((E.P[it.slice(5)]||{}).disp||0):((ei[it.slice(7)]||{}).saldo||0),unDe=it=>it.startsWith('peca:')?'peças':insDe(it.slice(7)).un;
+  const opsHtml=v=>`<optgroup label="Insumos">${INS.map(i=>`<option value="insumo:${i.k}" ${('insumo:'+i.k)===v?'selected':''}>${fe(i.nome)}</option>`).join('')}</optgroup><optgroup label="Peças">${pecas().map(p=>`<option value="peca:${p.rowid}" ${('peca:'+p.rowid)===v?'selected':''}>${fe(p.nome)}</option>`).join('')}</optgroup>`;
+  const lin=v=>`<tr><td><select data-j="item" data-prev="${fe(v)}">${opsHtml(v)}</select></td><td><input data-j="sist" readonly tabindex="-1"></td><td><input data-j="fis" inputmode="decimal" data-num="dec" placeholder="quanto tem"></td><td><input data-j="dif" readonly tabindex="-1"></td><td><button type="button" class="pm-x" data-pmf="l-x" title="Tirar esta linha"><i class="fas fa-xmark"></i></button></td></tr>`;
+  const j=janela('Acerto de inventário',`<div class="fin-aviso"><div>Conte o que existe de verdade e informe na <b>Contagem física</b> — o sistema lança a diferença de cada item. Peça quebrada: use <b>Registrar avaria</b>.</div></div>
+    <div class="fin-linha" style="margin-top:8px"><div class="fin-fld"><label>Data <span class="obg">*</span></label><input type="date" data-k="data" value="${hojeISO()}" max="${hojeISO()}"></div>
+      <div class="fin-fld" style="grid-column:span 2"><label>Motivo <span class="obg">*</span></label><input data-k="motivo" placeholder="Ex.: inventário do mês, saco de cimento empedrado"></div></div>
+    <div class="pm-bloco" style="margin-top:10px"><h5><i class="fas fa-scale-balanced"></i> Itens contados</h5><div class="pm-rolar"><table class="pm-itens"><thead><tr><th>Item</th><th style="width:150px">Saldo no sistema</th><th style="width:140px">Contagem física</th><th style="width:140px">Diferença</th><th></th></tr></thead><tbody data-lote-linhas>${lin(itemPre||'insumo:cimento')}</tbody></table></div>
+      <button type="button" class="gf-bt mini" data-pmf="l-add" style="margin-top:6px"><i class="fas fa-plus"></i> Outro item</button></div>`,
+    [{html:'<i class="fas fa-floppy-disk"></i> Lançar acertos',cls:'pri',acao:async jj=>{
+      const g=k=>String(jj.querySelector(`[data-k="${k}"]`).value||'').trim(),rows=[...jj.querySelectorAll('[data-lote-linhas] tr')].map(tr=>({item:tr.querySelector('[data-j="item"]').value,f:tr.querySelector('[data-j="fis"]').value.trim()}));
+      if(!g('data'))throw new Error('Informe a data.');if(!g('motivo'))throw new Error('Informe o motivo do acerto (ex.: inventário do mês, saco empedrado, peça achada).');
+      {const rp=repetido(rows.map(x=>x.item));if(rp)throw new Error('O mesmo item está em duas linhas: deixe uma só.');}
+      const vazio=rows.find(x=>x.f==='');if(vazio)throw new Error(`Informe a contagem física de ${vazio.item.startsWith('peca:')?nomePeca(vazio.item.slice(5)):insDe(vazio.item.slice(7)).nome} (ou tire a linha).`);
+      const L=rows.map(x=>({...x,qtd:Math.round((num(x.f)-saldoDe(x.item))*10000)/10000})).filter(x=>Math.abs(x.qtd)>1e-6);
+      if(!L.length)throw new Error('As contagens batem com o sistema: não há acerto a lançar.');
+      await gravarVarios(L.map(x=>[{tipo:'ajuste',data_lancamento:todayDateTime(),data:g('data'),item:x.item,qtd:x.qtd,motivo:g('motivo'),por:eu()},null]));
+      toast(`${L.length} acerto(s) lançado(s)${rows.length>L.length?` — ${rows.length-L.length} item(ns) já batiam com o sistema`:''}.`,'success');}}],820);
+  const at=()=>{semRepetir(j,'[data-j="item"]');j.querySelectorAll('[data-lote-linhas] tr').forEach(tr=>{const it=tr.querySelector('[data-j="item"]').value,s=saldoDe(it),f=tr.querySelector('[data-j="fis"]').value.trim(),un=unDe(it),d=num(f)-s;
+    tr.querySelector('[data-j="sist"]').value=`${nf(s,2)} ${un}`;const de=tr.querySelector('[data-j="dif"]');de.value=f===''?'':`${d>0?'+':''}${nf(d,2)} ${un}`;de.style.color=f===''||Math.abs(d)<1e-6?'':d<0?'#B42318':'#067647';});};
+  loteForm(j,'[data-j="item"]',lin,()=>todos);const corpo=j.querySelector('.fin-jan-corpo');corpo.addEventListener('input',at);corpo.addEventListener('change',at);at();
+}
 function formAjuste(reg,itemPre){
+  if(!reg)return formAjusteLote(itemPre);
   const b=reg||{data:hojeISO(),item:itemPre||'insumo:cimento'},ei=estoqueInsumos(),E=estoque();
   const ops=`<optgroup label="Insumos">${INS.map(i=>`<option value="insumo:${i.k}" ${('insumo:'+i.k)===b.item?'selected':''}>${fe(i.nome)}</option>`).join('')}</optgroup><optgroup label="Peças">${pecas().map(p=>`<option value="peca:${p.rowid}" ${('peca:'+p.rowid)===b.item?'selected':''}>${fe(p.nome)}</option>`).join('')}</optgroup>`;
   const saldoDe=it=>it.startsWith('peca:')?((E.P[it.slice(5)]||{}).disp||0):((ei[it.slice(7)]||{}).saldo||0);
@@ -1681,7 +1860,9 @@ const PERIODOS=['Manhã','Tarde','Dia todo'];
 function telaEntregas(sub){
   const c=CFG(),E=estoque(),h=hoje0(),ini=dt(PM.semana)||segunda(h),dias7=[...Array(7)].map((_,i)=>addD(ini,i)),cams=(c.caminhoes||[]).filter(x=>x&&x.nome);
   const vs=vendas().filter(v=>v.status!=='cancelada'),doDia=d=>vs.filter(v=>v.agenda&&v.agenda.data===isoDe(d));
-  const semData=vs.filter(v=>['aguardando_sinal','reservado'].includes(v.status)&&!(v.agenda&&v.agenda.data)).sort((a,b)=>String(a.prazo_entrega||'9').localeCompare(String(b.prazo_entrega||'9')));
+  // retirada na fábrica não vai para o caminhão: fica numa lista à parte
+  const abertas=vs.filter(v=>['aguardando_sinal','reservado'].includes(v.status)),retiradas=abertas.filter(v=>v.entrega_tipo==='retira');
+  const semData=abertas.filter(v=>v.entrega_tipo!=='retira'&&!(v.agenda&&v.agenda.data)).sort((a,b)=>String(a.prazo_entrega||'9').localeCompare(String(b.prazo_entrega||'9')));
   const cartao=v=>{const f=faseVenda(v,E),fs=FASES_V.find(x=>x.k===f)||FASES_V[4],e=v.end||{};
     return `<div class="pm-ent" style="--cor:${fs.cor}" data-pm="venda" data-id="${v.rowid}"><b>Nº ${fe(String(v.numero))} · ${fe(v.cliente||'')}</b><div>${fe([e.bairro,e.cidade].filter(Boolean).join(' · ')||'sem endereço')}${v.agenda&&v.agenda.periodo?' · '+fe(v.agenda.periodo):''}</div>
       <div class="pm-mini">${(v.itens||[]).map(it=>`${nf(num(it.qtd),0)} × ${fe(nomePeca(it.peca))}`).join(' · ')} · ${nf(pesoVenda(v),0)} kg</div><div style="margin-top:3px">${pill(f==='entregue'?'entregue':fs.rot,f==='liberado'||f==='entregue'?'ok':'warn')}</div></div>`;};
@@ -1694,7 +1875,8 @@ function telaEntregas(sub){
     (cams.length?'':'<div class="gf-aviso warn"><i class="fas fa-circle-info"></i><div>Cadastre os caminhões em <b>Parâmetros › Entregas e frete</b> para separar a carga de cada um.</div></div>')+
     `<section class="gf-sec"><div class="gf-sec-cab"><div><h3>Semana de ${fe(brDe(ini))} a ${fe(brDe(addD(ini,6)))}</h3><p>Clique num pedido para abrir; o botão de impressora gera o romaneio do dia.</p></div></div><div class="pm-sem">${dias7.map(col).join('')}</div></section>
     <section class="gf-sec"><div class="gf-sec-cab"><div><h3>Pedidos sem data de entrega</h3><p>Abra o pedido e use <b>Agendar entrega</b>.</p></div></div>
-      ${semData.length?`<div class="pm-grid">${semData.map(cartao).join('')}</div>`:'<div class="gf-vazio ok"><i class="fas fa-circle-check"></i><p>Todos os pedidos abertos têm data de entrega.</p></div>'}</section>`;
+      ${semData.length?`<div class="pm-grid">${semData.map(cartao).join('')}</div>`:'<div class="gf-vazio ok"><i class="fas fa-circle-check"></i><p>Todos os pedidos abertos têm data de entrega.</p></div>'}</section>
+    ${retiradas.length?`<section class="gf-sec"><div class="gf-sec-cab"><div><h3><i class="fas fa-store"></i> Retiradas na fábrica</h3><p>O cliente busca as peças: não usam caminhão. Abra o pedido e use <b>Registrar a retirada</b> quando ele levar.</p></div></div><div class="pm-grid">${retiradas.map(cartao).join('')}</div></section>`:''}`;
 }
 function formAgenda(v){
   const c=CFG(),cams=(c.caminhoes||[]).filter(x=>x&&x.nome),a=v.agenda||{},f=faseVenda(v);
@@ -1758,7 +1940,7 @@ function formCliente(reg){
       o.precos=[...jj.querySelectorAll('[data-pr]')].map(tr=>({peca:tr.querySelector('[data-pp]').value,preco:r2(num(tr.querySelector('[data-pv]').value))})).filter(x=>x.preco>0);
       if(!o.nome)throw new Error('Informe o nome do cliente.');if(new Set(o.precos.map(x=>String(x.peca))).size<o.precos.length)throw new Error('A mesma peça está duas vezes na tabela de preços: deixe uma linha só.');const dup=cliDe(o.nome);if(dup&&(!reg||String(dup.rowid)!==String(reg.rowid)))throw new Error('Já existe um cliente com esse nome.');
       await gravar(o,reg?reg.rowid:null);toast('Cliente salvo.','success');}}],940);
-  const at=()=>j.querySelectorAll('[data-pr]').forEach(tr=>{const p=pecaDe(tr.querySelector('[data-pp]').value);if(!p)return;const x=calc(p,1);tr.querySelector('[data-pref]').textContent=`varejo ${R(x.preco||x.sug)}${num(p.preco_atacado)?` · atacado ${R(num(p.preco_atacado))}`:''} · custo ${R(x.un)}`;});
+  const at=()=>(semRepetir(j,'[data-pp]'),j.querySelectorAll('[data-pr]')).forEach(tr=>{const p=pecaDe(tr.querySelector('[data-pp]').value);if(!p)return;const x=calc(p,1);tr.querySelector('[data-pref]').textContent=`varejo ${R(x.preco||x.sug)}${num(p.preco_atacado)?` · atacado ${R(num(p.preco_atacado))}`:''} · custo ${R(x.un)}`;});
   const corpo=j.querySelector('.fin-jan-corpo');
   corpo.addEventListener('click',ev=>{const b2=ev.target.closest('[data-pmf]');if(!b2)return;const f=b2.dataset.pmf;
     if(f==='pick'){const tr=b2.closest('tr'),s=tr.querySelector('[data-pp]');return escolherPeca(s.value,pid=>{s.value=pid;s.dispatchEvent(new Event('change',{bubbles:true}));});}
@@ -1879,7 +2061,7 @@ function formVenda(reg){
   const itemLin=it=>`<tr data-item><td style="width:66px">${thumbBt(it.peca)}</td><td><select data-i="peca" data-prev="${fe(String(it.peca))}" ${travarItens?'disabled':''}>${pecas().map(p=>`<option value="${p.rowid}" ${String(p.rowid)===String(it.peca)?'selected':''}>${fe(p.nome)}</option>`).join('')}</select></td>
     <td><input data-i="qtd" inputmode="numeric" data-num="int" value="${fe(String(it.qtd||''))}" placeholder="0" ${travarItens?'readonly':''}></td><td><input data-i="preco" data-mask="moeda" value="${it.preco!==''&&it.preco!=null?fe(R(num(it.preco))):''}" ${travarItens?'readonly':''}></td>
     <td data-i="disp" class="pm-mini" style="min-width:150px"></td><td class="n" data-i="tot" style="white-space:nowrap;text-align:right"></td><td>${travarItens?'':'<button type="button" class="pm-x" data-pmf="item-x"><i class="fas fa-xmark"></i></button>'}</td></tr>`;
-  const e=b.end||{},sel=(k,ops2,v)=>`<select data-k="${k}">${ops2.map(([a,l])=>`<option value="${a}" ${a===v?'selected':''}>${l}</option>`).join('')}</select>`;
+  const entTipo=reg?(reg.entrega_tipo||(reg.end&&reg.end.logradouro?'entrega':'retira')):'',e=b.end||{},sel=(k,ops2,v)=>`<select data-k="${k}">${ops2.map(([a,l])=>`<option value="${a}" ${a===v?'selected':''}>${l}</option>`).join('')}</select>`;
   const j=janela(reg?`Editar venda nº ${reg.numero}`:'Nova venda',`${travarItens&&reg?`<div class="fin-aviso laranja"><div>${iniciada?'A produção desta venda <b>já começou</b>: os itens não podem mais ser mudados (só contato, endereço, prazo e observações).':'Os itens desta venda não podem mais ser mudados.'}</div></div>`:''}
     <div class="fin-linha" style="margin-top:6px">
       <div class="fin-fld"><label>Tipo de venda</label>${sel('tipo_venda',[['encomenda','Encomenda (reserva com sinal)'],['pronta','Pronta entrega (peça pronta)']],b.tipo_venda||'encomenda')}</div>
@@ -1891,16 +2073,17 @@ function formVenda(reg){
     <div class="pm-bloco" style="margin-top:10px"><h5><i class="fas fa-user"></i> Cliente</h5><div class="fin-linha">
       <div class="fin-fld" style="grid-column:span 2"><label>Nome / razão social <span class="obg">*</span></label><input data-k="cliente" value="${fe(b.cliente||'')}" list="pm-clientes" placeholder="cliente do cadastro ou novo"></div>
       <div class="fin-fld"><label>CPF / CNPJ</label><input data-k="doc" value="${fe(b.doc||'')}"></div><div class="fin-fld"><label>Telefone / WhatsApp <span class="obg" data-obg-enc>*</span></label><input data-k="telefone" value="${fe(b.telefone||'')}"></div>
-      <div class="fin-fld"><label>CEP</label><input data-k="cep" value="${fe(e.cep||'')}" placeholder="00000-000"></div>
-      <div class="fin-fld" style="grid-column:span 2"><label>Endereço de entrega (rua)</label><input data-k="logradouro" value="${fe(e.logradouro||'')}" placeholder="digite a rua: o sistema sugere o endereço com o CEP" autocomplete="off"></div>
-      <div class="fin-fld"><label>Número</label><input data-k="numero" value="${fe(e.numero||'')}"></div><div class="fin-fld"><label>Complemento</label><input data-k="complemento" value="${fe(e.complemento||'')}"></div>
-      <div class="fin-fld"><label>Bairro</label><input data-k="bairro" value="${fe(e.bairro||'')}"></div><div class="fin-fld"><label>Cidade</label><input data-k="cidade" value="${fe(cidUF(e.cidade,e.uf))}" placeholder="Ex.: Itarantim, BA"></div><div class="fin-fld"><label>UF</label><input data-k="uf" value="${fe(e.uf||'')}" maxlength="2"></div></div>
+      <div class="fin-fld" style="grid-column:span 2"><label>Entrega ou retirada <span class="obg">*</span></label><select data-k="entrega_tipo"><option value="" ${entTipo?'':'selected'}>— escolha —</option><option value="entrega" ${entTipo==='entrega'?'selected':''}>Entregar no endereço do cliente</option><option value="retira" ${entTipo==='retira'?'selected':''}>Cliente retira na fábrica</option></select></div>
+      <div class="fin-fld"><label>CEP <span class="obg" data-obg-ent>*</span></label><input data-k="cep" value="${fe(e.cep||'')}" placeholder="00000-000"></div>
+      <div class="fin-fld" style="grid-column:span 2"><label>Endereço de entrega (rua) <span class="obg" data-obg-ent>*</span></label><input data-k="logradouro" value="${fe(e.logradouro||'')}" placeholder="digite a rua: o sistema sugere o endereço com o CEP" autocomplete="off"></div>
+      <div class="fin-fld"><label>Número <span class="obg" data-obg-ent>*</span></label><input data-k="numero" value="${fe(e.numero||'')}" placeholder="ou S/N"></div><div class="fin-fld"><label>Complemento</label><input data-k="complemento" value="${fe(e.complemento||'')}"></div>
+      <div class="fin-fld"><label>Bairro <span class="obg" data-obg-ent>*</span></label><input data-k="bairro" value="${fe(e.bairro||'')}"></div><div class="fin-fld"><label>Cidade <span class="obg" data-obg-ent>*</span></label><input data-k="cidade" value="${fe(cidUF(e.cidade,e.uf))}" placeholder="Ex.: Itarantim, BA"></div><div class="fin-fld"><label>UF <span class="obg" data-obg-ent>*</span></label><input data-k="uf" value="${fe(e.uf||'')}" maxlength="2"></div></div>
       <p class="pm-mini" data-cli-info style="margin:6px 0 0"></p></div>
     <datalist id="pm-clientes">${clientes.map(x=>`<option value="${fe(x.nome)}">`).join('')}</datalist>
     <div class="pm-bloco"><h5><i class="fas fa-cubes"></i> Itens</h5><div class="pm-rolar"><table class="pm-itens"><thead><tr><th></th><th>Peça</th><th style="width:80px">Quant.</th><th style="width:130px">Preço unit. (R$)</th><th>Estoque e preço</th><th style="width:100px;text-align:right">Total</th><th></th></tr></thead><tbody data-itens>${(b.itens||[]).map(itemLin).join('')}</tbody></table></div>
       ${travarItens?'':'<button type="button" class="gf-bt mini" data-pmf="item-add" style="margin-top:6px"><i class="fas fa-plus"></i> Item</button>'}</div>
     <div class="fin-linha"><div class="fin-fld"><label>Desconto (%)</label><input data-k="desconto_pct" value="${b.desconto_pct?fe(String(b.desconto_pct)):''}" ${travarItens?'readonly':''}></div><div class="fin-fld"><label>Desconto em reais</label><input data-k="desc_rs" readonly></div>
-      <div class="fin-fld"><label>Frete (R$)</label><div style="display:flex;gap:6px"><input data-k="frete" value="${num(b.frete)?fe(R(num(b.frete))):''}" ${travarItens?'readonly':''} style="flex:1;min-width:0">${travarItens?'':'<button type="button" class="gf-bt mini" data-pmf="frete" title="Calcular pelo endereço"><i class="fas fa-route"></i> Calcular</button>'}</div><small class="pm-mini" data-frete-info>${fe(b.frete_info||'')}</small></div>
+      <div class="fin-fld" data-frete-fld><label>Frete (R$)</label><div style="display:flex;gap:6px"><input data-k="frete" value="${num(b.frete)?fe(R(num(b.frete))):''}" ${travarItens?'readonly':''} style="flex:1;min-width:0">${travarItens?'':'<button type="button" class="gf-bt mini" data-pmf="frete" title="Calcular pelo endereço"><i class="fas fa-route"></i> Calcular</button>'}</div><small class="pm-mini" data-frete-info>${fe(b.frete_info||'')}</small></div>
       <div class="fin-fld"><label>Cliente quer nota fiscal?</label><select data-k="nf_quer"><option value="nao" ${!(b.nf||{}).quer?'selected':''}>Não</option><option value="sim" ${(b.nf||{}).quer?'selected':''}>Sim</option></select></div>
       <div class="fin-fld" data-nf-num ${(b.nf||{}).quer?'':'hidden'}><label>Nº da nota fiscal</label><input data-k="nf_numero" value="${fe((b.nf||{}).numero||'')}" placeholder="preencher ao emitir"></div>
       <div class="fin-fld" style="grid-column:1/-1"><label>Observações</label><input data-k="obs" value="${fe(b.obs||'')}"></div></div>
@@ -1915,8 +2098,12 @@ function formVenda(reg){
       const g=k=>String((jj.querySelector(`[data-k="${k}"]`)||{}).value||'').trim(),o=reg?{...reg}:{tipo:'venda',numero:proxNum('venda','numero'),pagamentos:[],data_lancamento:todayDateTime()};
       ['cliente','doc','telefone','data','prazo_entrega','obs','tipo_venda','canal','vendedor'].forEach(k=>o[k]=g(k));o.comissao_pct=o.vendedor?num(g('comissao_pct')):0;
       o.end={cep:g('cep'),logradouro:g('logradouro'),numero:g('numero'),complemento:g('complemento'),bairro:g('bairro'),cidade:g('cidade'),uf:g('uf').toUpperCase()};
+      o.entrega_tipo=g('entrega_tipo');if(!o.entrega_tipo)throw new Error('Informe se o cliente quer a entrega ou se vai retirar na fábrica.');
+      if(o.entrega_tipo==='entrega'){const falta=[['cep','CEP'],['logradouro','rua'],['numero','número'],['bairro','bairro'],['cidade','cidade'],['uf','UF']].filter(([k])=>!o.end[k]).map(([,l])=>l);
+        if(falta.length)throw new Error(`Para entregar, preencha o endereço: falta ${falta.join(', ')}.`);}
+      else if(o.agenda&&o.agenda.data)o.agenda=null;   /* retirada não vai para a agenda do caminhão */
       o.nf={quer:g('nf_quer')==='sim',numero:g('nf_numero')};
-      if(!travarItens){o.itens=lerItens(jj);o.desconto_pct=num(g('desconto_pct'));o.frete=r2(num(g('frete')));o.frete_info=(jj.querySelector('[data-frete-info]')||{}).textContent||'';if(/^Calculando/.test(o.frete_info))throw new Error('Espere o cálculo do frete terminar.');delete o.desconto;}
+      if(!travarItens){o.itens=lerItens(jj);o.desconto_pct=num(g('desconto_pct'));o.frete=g('entrega_tipo')==='retira'?0:r2(num(g('frete')));o.frete_info=(jj.querySelector('[data-frete-info]')||{}).textContent||'';if(/^Calculando/.test(o.frete_info))throw new Error('Espere o cálculo do frete terminar.');delete o.desconto;}
       if(!o.cliente)throw new Error('Informe o cliente.');if(!o.data)throw new Error('Informe a data do pedido.');if(!(o.itens||[]).length)throw new Error('Inclua ao menos um item com quantidade.');
       {const vis={};for(const it of o.itens){if(vis[it.peca])throw new Error(`"${nomePeca(it.peca)}" está duas vezes no pedido: deixe uma linha só e some as quantidades.`);vis[it.peca]=1;}}
       if(o.desconto_pct<0||o.desconto_pct>=100)throw new Error('O desconto deve ficar entre 0% e 99%.');
@@ -1947,8 +2134,11 @@ function formVenda(reg){
   const atVis=()=>{const tp=j.querySelector('[data-k="tipo_venda"]').value,pg=j.querySelector('[data-pg]');if(pg){j.querySelector('[data-pg-tit]').textContent=tp==='pronta'?'Pagamento (pronta entrega: tem que estar pago)':`Sinal recebido agora (mínimo ${nf(num(c.sinal),0)}% para reservar)`;j.querySelector('[data-pg-levou]').hidden=tp!=='pronta';}
     j.querySelector('[data-nf-num]').hidden=j.querySelector('[data-k="nf_quer"]').value!=='sim';
     // encomenda: telefone e entrega prevista são obrigatórios (balcão/pronta entrega não)
-    j.querySelectorAll('[data-obg-enc]').forEach(s=>s.hidden=tp==='pronta');};
-  const at=()=>{if(!j.isConnected||!j.querySelector('[data-v-tot]'))return;const its=lerItens(j),cli=cliAtual(),canal=canalAtual();
+    j.querySelectorAll('[data-obg-enc]').forEach(s=>s.hidden=tp==='pronta');
+    // entregar: o endereço completo é obrigatório e tem frete; retirada na fábrica: sem endereço obrigatório e sem frete
+    const et=j.querySelector('[data-k="entrega_tipo"]').value;j.querySelectorAll('[data-obg-ent]').forEach(s=>s.hidden=et!=='entrega');
+    const ff=j.querySelector('[data-frete-fld]');if(ff){ff.hidden=et==='retira'&&!travarItens;if(et==='retira'&&!travarItens){const fr=j.querySelector('[data-k="frete"]');if(fr&&fr.value){fr.value='';const fi=j.querySelector('[data-frete-info]');if(fi)fi.textContent='';}}}};
+  const at=()=>{if(!j.isConnected||!j.querySelector('[data-v-tot]'))return;semRepetir(j,'[data-i="peca"]');const its=lerItens(j),cli=cliAtual(),canal=canalAtual();
     j.querySelectorAll('[data-item]').forEach(tr=>{const p=pecaDe(tr.querySelector('[data-i="peca"]').value),q=num(tr.querySelector('[data-i="qtd"]').value),pr=num(tr.querySelector('[data-i="preco"]').value),x=E.P[String(p&&p.rowid)]||{livre:0,emProd:0};
       tr.querySelector('[data-i="tot"]').textContent=q?R(q*pr):'';if(!p)return;
       const base=precoPara(p,canal,cli),at2=num(p.preco_atacado),min=num(p.atacado_min);let h=`${nf(Math.max(0,x.livre),0)} livres${x.emProd?` · ${nf(x.emProd,0)} em produção`:''}`;
@@ -2018,14 +2208,15 @@ function fichaVenda(v){
   if(fim&&ehAdm())bts.unshift({html:'<i class="fas fa-trash"></i> Excluir venda',acao:async()=>{setTimeout(()=>excluirVenda(v),60);}});
   if(f==='entregue')bts.push({html:'<i class="fas fa-rotate-left"></i> Devolução / estorno',acao:async()=>{setTimeout(()=>devolver(v),60);}});
   if(f==='entregue')bts.push({html:'<i class="fas fa-heart-crack"></i> Avaria na entrega',acao:async()=>{setTimeout(()=>formAvaria(null,(v.itens||[])[0]&&v.itens[0].peca,{venda:v.rowid,origem:'transporte'}),60);}});
-  if(!fim&&f!=='entregue')bts.push({html:'<i class="fas fa-calendar-days"></i> Agendar entrega',acao:async()=>{setTimeout(()=>formAgenda(v),60);}});
+  if(!fim&&f!=='entregue'&&v.entrega_tipo!=='retira')bts.push({html:'<i class="fas fa-calendar-days"></i> Agendar entrega',acao:async()=>{setTimeout(()=>formAgenda(v),60);}});
   if(!fim&&f!=='entregue')bts.push({html:'<i class="fas fa-pen"></i> Editar',acao:async()=>{setTimeout(()=>formVenda(v),60);}});
   if(pen.length)bts.push({html:'<i class="fas fa-industry"></i> Mandar para a produção',acao:async()=>{await mandarProducao([{v,its:pen}]);const v2=vendaDe(v.rowid);if(v2)setTimeout(()=>fichaVenda(v2),120);return false;}});
   // pagamento em no máximo dois passos: o sinal e, depois, o resto (antes ou na entrega)
   if(f==='sinal')bts.push({html:'<i class="fas fa-hand-holding-dollar"></i> Receber o sinal',cls:'pri',acao:async()=>{setTimeout(()=>registrarPagamento(v),60);}});
   else if(['producao','pagamento','liberado'].includes(f)&&pago<tot-0.009)bts.push({html:`<i class="fas fa-hand-holding-dollar"></i> ${pago>0.009?'Completar pagamento':'Receber pagamento'} (${R(tot-pago)})`,cls:f==='producao'?'pri':'',acao:async()=>{setTimeout(()=>registrarPagamento(v),60);}});
-  if(f==='liberado')bts.push({html:'<i class="fas fa-truck"></i> Entregar',cls:'pri',acao:async()=>{setTimeout(()=>entregar(v),60);}});
-  if(f==='pagamento')bts.push({html:'<i class="fas fa-truck"></i> Entregar e receber o saldo',cls:'pri',acao:async()=>{setTimeout(()=>entregar(v),60);}});
+  const retV=v.entrega_tipo==='retira';
+  if(f==='liberado')bts.push({html:retV?'<i class="fas fa-store"></i> Registrar a retirada':'<i class="fas fa-truck"></i> Entregar',cls:'pri',acao:async()=>{setTimeout(()=>entregar(v),60);}});
+  if(f==='pagamento')bts.push({html:retV?'<i class="fas fa-store"></i> Retirada e receber o saldo':'<i class="fas fa-truck"></i> Entregar e receber o saldo',cls:'pri',acao:async()=>{setTimeout(()=>entregar(v),60);}});
   const lts=(f==='entregue'||v.status==='devolvida')?(rastreio().porVenda[v.rowid]||[]):[];
   const extra=`${v.agenda&&v.agenda.data&&f!=='entregue'?`<p class="pm-mini" style="margin:8px 0 0"><i class="fas fa-calendar-check"></i> Entrega agendada: <b>${fe(brDe(dt(v.agenda.data)))}</b>${v.agenda.periodo?' · '+fe(v.agenda.periodo):''}${v.agenda.caminhao?' · '+fe(v.agenda.caminhao):''}${v.agenda.obs?' · '+fe(v.agenda.obs):''}</p>`:''}
     ${v.vendedor?`<p class="pm-mini" style="margin:4px 0 0"><i class="fas fa-user-tie"></i> Vendedor: ${fe(v.vendedor)}${num(v.comissao_pct)?` · comissão ${nf(num(v.comissao_pct),1)}% = ${R(baseComissao(v)*num(v.comissao_pct)/100)}`:''}</p>`:''}
@@ -2048,7 +2239,7 @@ function fichaVenda(v){
     <tr class="t"><td colspan="4">Total${fim?' do pedido':''}</td><td class="n">${R(tot)}</td></tr>${fim?`<tr><td colspan="4">Recebido</td><td class="n" style="color:#067647">${R(brutoPago)}</td></tr><tr><td colspan="4">Estornado ao cliente</td><td class="n" style="color:#B42318">${R(-dv.estorno)}</td></tr><tr><td colspan="4"><b>Ficou com a empresa</b></td><td class="n"><b>${R(Math.max(0,pago))}</b></td></tr>`
       :`<tr><td colspan="4">Pago</td><td class="n" style="color:#067647">${R(pago)}</td></tr><tr><td colspan="4"><b>Saldo</b></td><td class="n"><b>${R(Math.max(0,tot-pago))}</b></td></tr>`}</tbody></table>
     ${(v.pagamentos||[]).length?`<h5 style="margin:10px 0 4px;font:800 12px Inter">Pagamentos</h5><ul class="pm-arml">${(v.pagamentos||[]).map(p=>`<li${p.tipo==='estorno'?' style="background:#FEF3F2"':''}><i class="fas ${p.tipo==='estorno'?'fa-rotate-left':'fa-circle-dollar-to-slot'}" style="color:${p.tipo==='estorno'?'#B42318':'#067647'}"></i><span>${fe(brDe(dt(p.data)))} · <b>${p.tipo==='estorno'?'estorno −':''}${R(num(p.valor))}</b> · ${fe(p.forma||'')} · ${fe(p.tipo||'')}${p.obs?' · '+fe(p.obs):''}</span></li>`).join('')}</ul>`:''}
-    ${endTxt(v.end)?`<p class="pm-mini" style="margin:8px 0 0"><i class="fas fa-location-dot"></i> ${fe(endTxt(v.end))}</p>`:''}${(v.nf||{}).quer?`<p class="pm-mini" style="margin:4px 0 0"><i class="fas fa-file-invoice"></i> Cliente quer nota fiscal${(v.nf||{}).numero?' — NF nº '+fe(v.nf.numero):' (ainda sem número)'}.</p>`:''}${v.obs?`<p class="pm-mini" style="margin:4px 0 0">${fe(v.obs)}</p>`:''}${extra}<div data-nf-arqs style="margin-top:6px"></div>`,bts,820);
+    ${v.entrega_tipo==='retira'?`<p class="pm-mini" style="margin:8px 0 0"><i class="fas fa-store"></i> <b>Cliente retira na fábrica</b> (sem frete)</p>`:endTxt(v.end)?`<p class="pm-mini" style="margin:8px 0 0"><i class="fas fa-location-dot"></i> Entregar em: ${fe(endTxt(v.end))}</p>`:''}${(v.nf||{}).quer?`<p class="pm-mini" style="margin:4px 0 0"><i class="fas fa-file-invoice"></i> Cliente quer nota fiscal${(v.nf||{}).numero?' — NF nº '+fe(v.nf.numero):' (ainda sem número)'}.</p>`:''}${v.obs?`<p class="pm-mini" style="margin:4px 0 0">${fe(v.obs)}</p>`:''}${extra}<div data-nf-arqs style="margin-top:6px"></div>`,bts,820);
   // arquivos da nota fiscal anexada (XML / PDF)
   pintarNotas(v);
 }
@@ -2076,24 +2267,25 @@ function registrarPagamento(v){
 }
 function entregar(v){
   const f=faseVenda(v);if(f!=='liberado'&&f!=='pagamento')return trava(`Venda nº ${v.numero}: ainda não pode ser entregue`,depsVenda(v));
-  const saldo=r2(totalVenda(v)-pagoDe(v));
-  janela(saldo>0.009?`Entregar e receber — venda nº ${v.numero}`:`Entregar a venda nº ${v.numero}`,`<div class="fin-resumo">${fe(v.cliente||'')} · ${(v.itens||[]).map(it=>`${nf(num(it.qtd),0)} × ${fe(nomePeca(it.peca))}`).join(' · ')}</div>
-    ${saldo>0.009?`<div class="pm-bloco" style="margin-top:8px"><h5><i class="fas fa-hand-holding-dollar"></i> Receber o saldo na entrega</h5><div class="fin-linha">
+  const saldo=r2(totalVenda(v)-pagoDe(v)),ret=v.entrega_tipo==='retira',pal=ret?'retirada':'entrega';
+  janela(ret?`Retirada na fábrica — venda nº ${v.numero}`:saldo>0.009?`Entregar e receber — venda nº ${v.numero}`:`Entregar a venda nº ${v.numero}`,`<div class="fin-resumo">${fe(v.cliente||'')} · ${(v.itens||[]).map(it=>`${nf(num(it.qtd),0)} × ${fe(nomePeca(it.peca))}`).join(' · ')}</div>
+    ${saldo>0.009?`<div class="pm-bloco" style="margin-top:8px"><h5><i class="fas fa-hand-holding-dollar"></i> Receber o saldo na ${pal}</h5><div class="fin-linha">
       <div class="fin-fld"><label>Valor a receber</label><input data-k="pg_valor" value="${fe(R(saldo))}" readonly></div><div class="fin-fld"><label>Forma <span class="obg">*</span></label><select data-k="pg_forma">${FORMAS_PG.map(x=>`<option>${x}</option>`).join('')}</select></div>
-      <label class="nfc-amb" style="grid-column:1/-1"><input type="checkbox" data-k="pg_ok"><span>Recebi ${fe(R(saldo))} do cliente nesta entrega</span></label></div>
-      <p class="pm-mini" style="margin:6px 0 0">A peça só sai paga: sem marcar o recebimento, a entrega não é registrada.</p></div>`:''}
-    <div class="fin-linha" style="margin-top:8px"><div class="fin-fld"><label>Data da entrega <span class="obg">*</span></label><input type="date" data-k="entrega" value="${hojeISO()}" max="${hojeISO()}"></div>
+      <label class="nfc-amb" style="grid-column:1/-1"><input type="checkbox" data-k="pg_ok"><span>Recebi ${fe(R(saldo))} do cliente nesta ${pal}</span></label></div>
+      <p class="pm-mini" style="margin:6px 0 0">A peça só sai paga: sem marcar o recebimento, a ${pal} não é registrada.</p></div>`:''}
+    <div class="fin-linha" style="margin-top:8px"><div class="fin-fld"><label>Data da ${pal} <span class="obg">*</span></label><input type="date" data-k="entrega" value="${hojeISO()}" max="${hojeISO()}"></div>
     ${(v.nf||{}).quer?`<div class="fin-fld"><label>Nº da nota fiscal</label><input data-k="nf" value="${fe((v.nf||{}).numero||'')}"></div>`:''}
-    <div class="fin-fld"><label>Caminhão</label><select data-k="caminhao"><option value="">—</option>${(CFG().caminhoes||[]).filter(x=>x&&x.nome).map(x=>`<option ${v.agenda&&v.agenda.caminhao===x.nome?'selected':''}>${fe(x.nome)}</option>`).join('')}</select></div>
-    <div class="fin-fld" style="grid-column:1/-1"><label>Quem recebeu <span class="obg">*</span></label><input data-k="recebedor" placeholder="nome de quem recebeu as peças"></div></div>
-    <p class="pm-mini">Peça quebrada no caminho: registre depois em <b>Avaria na entrega</b>.</p>`,
-    [{html:'<i class="fas fa-truck"></i> Confirmar entrega',cls:'pri',acao:async j=>{const e=j.querySelector('[data-k="entrega"]').value;if(!e)throw new Error('Informe a data da entrega.');
+    ${ret?'':`<div class="fin-fld"><label>Caminhão</label><select data-k="caminhao"><option value="">—</option>${(CFG().caminhoes||[]).filter(x=>x&&x.nome).map(x=>`<option ${v.agenda&&v.agenda.caminhao===x.nome?'selected':''}>${fe(x.nome)}</option>`).join('')}</select></div>`}
+    <div class="fin-fld" style="grid-column:1/-1"><label>${ret?'Quem retirou':'Quem recebeu'} <span class="obg">*</span></label><input data-k="recebedor" placeholder="${ret?'nome (e documento) de quem retirou as peças':'nome de quem recebeu as peças'}"></div></div>
+    <p class="pm-mini">${ret?'Confira as peças com o cliente antes de carregar o veículo dele.':'Peça quebrada no caminho: registre depois em <b>Avaria na entrega</b>.'}</p>`,
+    [{html:`<i class="fas ${ret?'fa-store':'fa-truck'}"></i> Confirmar ${pal}`,cls:'pri',acao:async j=>{const e=j.querySelector('[data-k="entrega"]').value;if(!e)throw new Error(`Informe a data da ${pal}.`);
+      if(!j.querySelector('[data-k="recebedor"]').value.trim())throw new Error(ret?'Informe quem retirou as peças.':'Informe quem recebeu as peças.');
       if(v.data&&e<v.data)throw new Error('A entrega não pode ser antes da data do pedido.');
       if(saldo>0.009&&!j.querySelector('[data-k="pg_ok"]').checked)return trava('Falta receber o saldo',[{ok:false,txt:`Marque "Recebi ${R(saldo)} do cliente nesta entrega". Sem o pagamento completo a peça não sai.`}]);
-      const o=vendaBruta(v);if(saldo>0.009)o.pagamentos=(o.pagamentos||[]).concat([{data:e,valor:saldo,forma:j.querySelector('[data-k="pg_forma"]').value,tipo:'pagamento',obs:'na entrega',por:eu()}]);o.status='entregue';o.entrega=e;o.entregue_por=eu();o.caminhao=j.querySelector('[data-k="caminhao"]').value;o.recebedor=j.querySelector('[data-k="recebedor"]').value.trim();if(j.querySelector('[data-k="nf"]'))o.nf={...(o.nf||{}),numero:j.querySelector('[data-k="nf"]').value.trim()};
+      const o=vendaBruta(v);if(saldo>0.009)o.pagamentos=(o.pagamentos||[]).concat([{data:e,valor:saldo,forma:j.querySelector('[data-k="pg_forma"]').value,tipo:'pagamento',obs:'na entrega',por:eu()}]);o.status='entregue';o.entrega=e;o.entregue_por=eu();o.caminhao=ret?'':j.querySelector('[data-k="caminhao"]').value;o.recebedor=j.querySelector('[data-k="recebedor"]').value.trim();if(j.querySelector('[data-k="nf"]'))o.nf={...(o.nf||{}),numero:j.querySelector('[data-k="nf"]').value.trim()};
       // ordem de produção que ainda estava aberta para esta venda (a peça saiu do estoque): sem produção é cancelada, com produção segue para o estoque
       const ops=soltarOPs(v,'já entregue',true);
-      await gravarVarios([[o,v.rowid]].concat(ops));toast(`Venda nº ${v.numero} entregue${saldo>0.009?' e paga':''}: peças baixadas do estoque.${ops.length?` ${ops.length} ordem(ns) de produção liberada(s).`:''}`,'success');}}],600);
+      await gravarVarios([[o,v.rowid]].concat(ops));toast(`Venda nº ${v.numero} ${ret?'retirada pelo cliente':'entregue'}${saldo>0.009?' e paga':''}: peças baixadas do estoque.${ops.length?` ${ops.length} ordem(ns) de produção liberada(s).`:''}`,'success');}}],600);
 }
 // estorno só em dinheiro (o cliente fica com as peças: abatimento combinado, defeito pequeno) — não mexe no estoque
 function estornoSimples(v){
@@ -2219,7 +2411,8 @@ function imprimirVenda(v){
   const pre=`<div style="display:flex;gap:10px;margin-bottom:10px">${caixa('EMITENTE',[`<b>${fe(em.razao||'Vixsul Empreendimentos')}</b>`,`CNPJ ${fe(em.cnpj||'')}${fis.ie?' · IE '+fe(fis.ie):''}`,fe(em.endereco||''),[em.telefone,em.email].filter(Boolean).map(fe).join(' · ')])}
     ${caixa('CLIENTE',[`<b>${fe(v.cliente||'')}</b>`,v.doc?'CPF/CNPJ '+fe(v.doc):'',fe(endTxt(v.end)),fe(v.telefone||cli.telefone||'')])}</div>
     <div style="display:flex;gap:10px;margin-bottom:10px">${caixa('PEDIDO',[`Nº <b>${fe(String(v.numero))}</b> · ${fe(brDe(dt(v.data)))}`,`${v.tipo_venda==='pronta'?'Pronta entrega':'Encomenda'} · ${v.canal==='atacado'?'atacado':'varejo'}${v.vendedor?' · vendedor '+fe(v.vendedor):''}`])}
-    ${caixa('ENTREGA',[v.entrega?`Entregue em <b>${fe(brDe(dt(v.entrega)))}</b>${v.recebedor?' — recebido por '+fe(v.recebedor):''}`:v.agenda&&v.agenda.data?`Agendada para <b>${fe(brDe(dt(v.agenda.data)))}</b> (${fe(v.agenda.periodo||'')})`:v.prazo_entrega?`Prevista para ${fe(brDe(dt(v.prazo_entrega)))}`:'A combinar',v.frete_info?'Frete: '+fe(v.frete_info):''])}
+    ${v.entrega_tipo==='retira'?caixa('RETIRADA',[v.entrega?`Retirado na fábrica em <b>${fe(brDe(dt(v.entrega)))}</b>${v.recebedor?' — por '+fe(v.recebedor):''}`:'O cliente retira na fábrica (sem frete)',v.prazo_entrega&&!v.entrega?`Previsto para ${fe(brDe(dt(v.prazo_entrega)))}`:'']):''}
+    ${v.entrega_tipo==='retira'?'':caixa('ENTREGA',[v.entrega?`Entregue em <b>${fe(brDe(dt(v.entrega)))}</b>${v.recebedor?' — recebido por '+fe(v.recebedor):''}`:v.agenda&&v.agenda.data?`Agendada para <b>${fe(brDe(dt(v.agenda.data)))}</b> (${fe(v.agenda.periodo||'')})`:v.prazo_entrega?`Prevista para ${fe(brDe(dt(v.prazo_entrega)))}`:'A combinar',v.frete_info?'Frete: '+fe(v.frete_info):''])}
     ${caixa('NOTA FISCAL',[nfx.numero?`NF-e nº <b>${fe(nfx.numero)}</b>${nfx.serie?' série '+fe(nfx.serie):''}`:nfx.quer?'Será emitida (NF-e)':'Não solicitada',nfx.chave?`<span style="font-size:8.5px;letter-spacing:.02em">Chave ${fe(nfx.chave.replace(/(\d{4})(?=\d)/g,'$1 '))}</span>`:''])}</div>`;
   const rows=(v.itens||[]).map(it=>{const p=pecaDe(it.peca),t=tipoDePeca(p||{}),ncm=(p&&p.ncm)||CAT.ncmDe(t);
     return `<tr><td>${fe(p&&p.codigo||'')}</td><td>${fe(nomePeca(it.peca))}<br><small style="color:#6e6e73">${fe(p?geoPeca(p).desc:'')}${lts.filter(x=>String(x.peca)===String(it.peca)).length?' · lote '+[...new Set(lts.filter(x=>String(x.peca)===String(it.peca)).map(x=>x.cod||x.lote))].map(fe).join(', '):''}</small></td><td>${fe(ncm)}</td><td style="text-align:right">${nf(num(it.qtd),0)} pç</td><td style="text-align:right">${R(num(it.preco))}</td><td style="text-align:right">${R(num(it.qtd)*num(it.preco))}</td></tr>`;});
@@ -2447,5 +2640,5 @@ async function salvarParametros(){
   try{await gravar(r?{...r,cfg:{...((r&&r.cfg)||{}),...c}}:{tipo:'config',cfg:c,data_lancamento:todayDateTime()},r?r.rowid:null);toast('Parâmetros salvos: os custos das peças foram recalculados.','success');}catch(e){toast(e.message,'error',false);}
 }
 
-window.PM_FABRICA={fecharDiasVencidos,confirmarFecharDia,reabrirDia,formProducao,diaFechado,passouHora,opSolta,cascataPeca,planoExcluirVenda,excluirVenda,depsExcluir2:depsExcluir,apagarReg,formOrdem,ordens,T,vendas,vendaDe,fichaVenda,cancelarVenda,devolver,registrarPagamento,entregar,moverVenda,formVenda,pendenciasProducao,andamentoOP,encerrada,depsVenda,depsOrdem,faltaInsumos,lerXmlNfe,catalogoPDF,imprimirVenda,depsExcluir,lotes,rastreio,comissoesMes,precoPara,calcularFrete,situacaoLote,pesoVenda,romaneio,imprimirEtiquetas,escolherPeca,calc,receita,traco1m3,rateio,estoque,estoqueInsumos,CFG,render,irAba,resumoMes,necessidade,caixaMes,faseVenda,totalVenda,pagoDe,reposicao,fichaHtml,tiposTodos,armPeca};
+window.PM_FABRICA={liberacaoLote,formCompra,formAvaria,formAjuste,formEnsaio,fichaLote,loteInfo,fecharDiasVencidos,confirmarFecharDia,reabrirDia,formProducao,diaFechado,passouHora,opSolta,cascataPeca,planoExcluirVenda,excluirVenda,depsExcluir2:depsExcluir,apagarReg,formOrdem,ordens,T,vendas,vendaDe,fichaVenda,cancelarVenda,devolver,registrarPagamento,entregar,moverVenda,formVenda,pendenciasProducao,andamentoOP,encerrada,depsVenda,depsOrdem,faltaInsumos,lerXmlNfe,catalogoPDF,imprimirVenda,depsExcluir,lotes,rastreio,comissoesMes,precoPara,calcularFrete,situacaoLote,pesoVenda,romaneio,imprimirEtiquetas,escolherPeca,calc,receita,traco1m3,rateio,estoque,estoqueInsumos,CFG,render,irAba,resumoMes,necessidade,caixaMes,faseVenda,totalVenda,pagoDe,reposicao,fichaHtml,tiposTodos,armPeca};
 })();
