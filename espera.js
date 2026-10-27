@@ -75,10 +75,11 @@
   const st=document.createElement('style');st.textContent=css;document.head.appendChild(st);
 
   // ── as partes da logo: separadas pelos pixels da própria imagem (fundo transparente) ──
-  let camadas=null,logoSrc='',prontas=null;
+  // a logo vem de um arquivo próprio: assim a tela aparece antes de a página inteira carregar (recarregar com F5)
+  const LOGO='img/logo-vixsul.png';
+  let camadas=null,logoSrc=LOGO,prontas=null;
   async function separar(){
     if(camadas)return camadas;
-    const ref=document.querySelector('.vx-marca img');logoSrc=ref?ref.src:'';if(!logoSrc)return null;
     const im=new Image();await new Promise(ok=>{im.onload=ok;im.onerror=ok;im.src=logoSrc;if(im.complete&&im.naturalWidth)ok();});if(!im.naturalWidth)return null;
     const W=im.naturalWidth,H=im.naturalHeight,c=document.createElement('canvas');c.width=W;c.height=H;const x=c.getContext('2d');x.drawImage(im,0,0);
     const base=x.getImageData(0,0,W,H),nomes=['chE','chD','pir','div','txt'],dados={};nomes.forEach(n=>dados[n]=x.createImageData(W,H));
@@ -97,7 +98,7 @@
     el=document.createElement('div');el.id='vx-espera';el.setAttribute('role','status');el.setAttribute('aria-live','polite');
     el.innerHTML=`<div class="vx-esp-cx"><div class="vx-esp-pts">${PTS.map(([x,s,c,d,a])=>`<span style="--x:${x}%;--s:${s}px;--c:${c};--d:${d}s;--a:${a}s"></span>`).join('')}</div>
       <div class="vxl" data-vxl></div><div class="vx-esp-barra"><i></i></div><p class="vx-esp-msg" data-msg></p><div class="vx-esp-dica">dica: clique na pirâmide</div></div>`;
-    document.body.appendChild(el);
+    (document.body||document.documentElement).appendChild(el);
     // inclina a logo acompanhando o mouse (efeito 3D)
     if(!reduz){el.addEventListener('pointermove',ev=>{const l=el.querySelector('[data-vxl]');if(!l||el.classList.contains('saindo'))return;const r=l.getBoundingClientRect(),dx=(ev.clientX-(r.left+r.width/2))/window.innerWidth,dy=(ev.clientY-(r.top+r.height/2))/window.innerHeight;
         l.style.transform=`rotateY(${(dx*22).toFixed(2)}deg) rotateX(${(-dy*18).toFixed(2)}deg)`;});
@@ -109,7 +110,7 @@
     const box=el.querySelector('[data-vxl]');box.style.transform='';
     if(camadas){box.innerHTML=`<img class="l-chE" src="${camadas.chE}" alt=""><img class="l-chD" src="${camadas.chD}" alt=""><span class="vxl-onda"></span><span class="vxl-sombra"></span><span class="vxl-pg"><img class="l-pir" src="${camadas.pir}" alt=""></span><img class="l-div" src="${camadas.div}" alt=""><img class="l-txt" src="${camadas.txt}" alt=""><span class="vxl-luz"><i></i></span><span class="vxl-pirb" title="Clique na pirâmide"></span>`;
       const luz=box.querySelector('.vxl-luz');luz.style.webkitMaskImage=luz.style.maskImage=`url("${logoSrc}")`;}
-    else{box.innerHTML=`<img class="l-txt" src="${(document.querySelector('.vx-marca img')||{}).src||''}" alt="Vixsul">`;
+    else{box.innerHTML=`<img class="l-txt" src="${LOGO}" alt="Vixsul">`;
       // as partes ainda estão sendo separadas (frações de segundo): quando ficarem prontas, a animação começa
       (prontas||Promise.resolve(null)).then(cm=>cm||separar()).then(cm=>{if(cm&&el.classList.contains('on')){el.classList.remove('vis');pintarLogo();setTimeout(()=>el.classList.add('vis'),30);}});}}
   function abrir(m,msg){
@@ -134,26 +135,55 @@
     let i=msg?-1:0;clearInterval(msgT);msgT=setInterval(()=>{i=Math.min(i+1,FRASES.length-1);mensagem(FRASES[i]);},1700);
     clearTimeout(iniP);iniP=setTimeout(()=>fechar(0),45000);}   // segurança: nunca fica presa
   function fimInicio(){clearTimeout(iniP);if(modo==='inicio')fechar(2300);}
-  // ── espera de gravação/exclusão: aparece na hora (no lugar do cursor de bloqueio); a mesma tela só troca o texto ──
-  function ocupado(t){
-    clearTimeout(busyT);if(modo==='inicio')return;
-    if(el&&el.classList.contains('on')&&modo==='busy'){clearTimeout(fimT);el.classList.add('vis');mensagem(t||'Aguarde…');return;}
+  /* ── espera de gravação/exclusão: aparece na hora (no lugar do cursor de bloqueio); a mesma tela só troca o texto ──
+     Uma tela só para tudo: conta o que está em andamento (o bloqueio da tela + as chamadas ao servidor) e só fecha
+     quando não sobra nada — assim "Salvando…" vira "Atualizando…" sem fechar e abrir de novo. */
+  let pend=0,uiBusy=false,chamouInit=false;
+  function ocupado(t,daTela){
+    clearTimeout(busyT);if(daTela)uiBusy=true;if(modo==='inicio')return;
+    if(el&&el.classList.contains('on')&&modo==='busy'){clearTimeout(fimT);el.classList.add('vis');if(daTela||!uiBusy)mensagem(t||'Aguarde…');return;}
     abrir('busy',t||'Aguarde…');}
-  function livre(){clearTimeout(busyT);if(modo==='busy')fechar(500);}
+  function livre(daTela){clearTimeout(busyT);if(daTela)uiBusy=false;if(modo==='busy'&&!uiBusy&&pend<=0)fechar(500);}
+  function chamada(t){pend++;ocupado(t,false);}
+  function fimChamada(){pend=Math.max(0,pend-1);livre(false);}
 
   window.VxEspera={inicio,fimInicio,ocupado,livre,separar,abrir,fechar};
   prontas=separar();   // prepara as partes da logo logo que a página abre
 
-  // ganchos: abertura (App.init sem dados ainda, com alguém entrando) e gravações (UI._showBusy / _hideBusy)
+  // recarregar a página (F5) com alguém logado: a tela de abertura aparece já no primeiro instante, antes de o resto carregar
+  try{if(sessionStorage.getItem('vixsul_session'))inicio();}catch(e){}
+
+  // o que grava ou exclui no servidor (vale para todas as telas: elas passam por google.script.run)
+  const MUDA={upsertRegistro:'Salvando…',upsertRegistroLote:'Salvando…',salvarComposicaoCAP:'Salvando…',salvarUsuario:'Salvando…',
+    excluirRegistro:'Excluindo…',excluirRegistroLote:'Excluindo…',excluirComposicaoCAP:'Excluindo…',excluirAnexo:'Excluindo…',excluirUsuario:'Excluindo…',
+    restaurarAuditoria:'Restaurando…',moverAnexosLote:'Movendo os arquivos…',exportarTabela:'Preparando a cópia…',exportarStorage:'Preparando a cópia…',
+    alterarSenhaPorCpf:'Salvando a senha…',alterarSenhaPorEmail:'Salvando a senha…',redefinirSenhaPorCpf:'Salvando a senha…',redefinirSenhaPorEmail:'Salvando a senha…'};
+  const segundoPlano=()=>typeof App!=='undefined'&&!!App._lixeiraPurgando;   // limpeza automática da lixeira: sem tela
+  function ligarServidor(){
+    const gs=window.google&&window.google.script,d=gs&&Object.getOwnPropertyDescriptor(gs,'run');if(!d||!d.get||d.get._vx)return;
+    const get=function(){const ctx=d.get.call(gs);let uOk=null,uErr=null,marcada=false;const fim=()=>{if(marcada){marcada=false;fimChamada();}};
+      ctx.withSuccessHandler(r=>{fim();if(uOk)return uOk(r);});ctx.withFailureHandler(e=>{fim();if(uErr)return uErr(e);});
+      ctx.withSuccessHandler=f=>{uOk=f;return ctx;};ctx.withFailureHandler=f=>{uErr=f;return ctx;};
+      Object.keys(MUDA).forEach(n=>{const f=ctx[n];if(typeof f==='function')ctx[n]=function(){if(!segundoPlano()){marcada=true;chamada(MUDA[n]);}return f.apply(ctx,arguments);};});
+      return ctx;};
+    get._vx=1;Object.defineProperty(gs,'run',{configurable:true,get});}
+
+  // ganchos: abertura (App.init sem dados ainda, com alguém entrando), recarga dos dados e o bloqueio da tela (UI._showBusy / _hideBusy)
   function ligar(){
+    ligarServidor();
     if(typeof App!=='undefined'&&App.init&&!App.init._vx){const orig=App.init;
-      // entrando no sistema: sem dados ainda, ou a tela de abertura já aberta pelo Entrar (sair e entrar de novo sem recarregar a página)
-      App.init=function(silent,onDone){const prim=!silent&&typeof Auth!=='undefined'&&!!Auth._session&&(!(this.state&&this.state.data)||modo==='inicio');
-        if(prim)inicio();return orig.call(this,silent,prim?function(){fimInicio();if(onDone)return onDone.apply(this,arguments);}:onDone);};
+      App.init=function(silent,onDone){chamouInit=true;const temDados=!!(this.state&&this.state.data);
+        // entrando no sistema: sem dados ainda, ou a tela de abertura já aberta (Entrar / F5)
+        if(!silent&&typeof Auth!=='undefined'&&!!Auth._session&&(!temDados||modo==='inicio')){inicio();return orig.call(this,silent,function(){fimInicio();if(onDone)return onDone.apply(this,arguments);});}
+        // recarga pedida (botão Atualizar, depois de salvar): a mesma tela, "Atualizando…"
+        if(!silent&&temDados){chamada('Atualizando…');return orig.call(this,silent,function(){fimChamada();if(onDone)return onDone.apply(this,arguments);});}
+        return orig.call(this,silent,onDone);};
       App.init._vx=1;}
     if(typeof UI!=='undefined'&&UI._showBusy&&!UI._showBusy._vx){const s=UI._showBusy,h=UI._hideBusy;
-      UI._showBusy=function(t){const r=s.apply(this,arguments);ocupado(t);return r;};UI._showBusy._vx=1;
-      UI._hideBusy=function(){const r=h.apply(this,arguments);livre();return r;};}
+      UI._showBusy=function(t){const r=s.apply(this,arguments);ocupado(t,true);return r;};UI._showBusy._vx=1;
+      UI._hideBusy=function(){const r=h.apply(this,arguments);livre(true);return r;};}
   }
-  ligar();
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',ligar);else ligar();
+  // segurança: se a tela abriu no F5 e o sistema não começou a carregar (ex.: sessão inválida), ela sai
+  window.addEventListener('load',()=>setTimeout(()=>{if(modo==='inicio'&&!chamouInit)fechar(0);},2500));
 })();
