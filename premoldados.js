@@ -361,7 +361,12 @@ function estilo(){
 .pm-cal .s{display:block;font:600 10.5px Inter,sans-serif;color:#667085;padding:0 0 7px;}
 .pm-cal.fech{border-color:#E4E7EC;box-shadow:none;} .pm-cal.fech .m{background:linear-gradient(135deg,#475467,#98A2B3);} .pm-cal.fech .d{color:#475467;}
 /* calendário para escolher o dia do diário */
-.pm-cl-cab{display:flex;align-items:center;justify-content:center;gap:8px;padding:12px 16px 10px;} .pm-cl-cab .gf-mes{box-shadow:0 1px 2px rgba(16,24,40,.05);}
+/* cabeçalho do calendário: o mês como título que abre a lista (alinhado com a grade), e o resumo à direita */
+.pm-cl-cab{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:14px 16px 12px;}
+.pm-cl-cab .gf-mes{border:0;background:transparent;border-radius:10px;padding:0 2px 0 8px;margin-left:-8px;gap:8px;transition:background .12s;}
+.pm-cl-cab .gf-mes:hover{background:#F2F4F7;} .pm-cl-cab .gf-mes i{font-size:16px;color:#1652D8;}
+.pm-cl-cab .gf-mes select{font:800 19px Manrope,Inter,sans-serif;letter-spacing:-.01em;color:#101828;padding:6px 30px 6px 0;min-width:0;}
+.pm-cl-res{font-size:12px;color:#667085;white-space:nowrap;} .pm-cl-res b{color:#101828;}
 .pm-pop ~ .gf-lista-pop{z-index:10070;}
 .pm-cl-sem,.pm-cl-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;padding:0 16px;}
 .pm-cl-sem span{font:700 10.5px Inter,sans-serif;color:#667085;text-transform:uppercase;text-align:center;letter-spacing:.04em;}
@@ -1404,11 +1409,14 @@ function escolherDiaProducao(aoEscolher,kIni){
       cel+=`<button type="button" class="pm-cd ${st}${fds?' fds':''}${fr?' fer':''}${iso===hj?' hoje':''}" data-dia="${iso}" ${st!=='livre'?'disabled':''} title="${fe(tit+(fr?' · Feriado: '+fr:fds?' · '+(dw===0?'Domingo':'Sábado'):''))}"><b>${d}</b>${r?'<i class="fas fa-circle-check"></i>':''}<small>${fr?fe(fr):fds?(dw===0?'domingo':'sábado'):iso===hj?'hoje':''}</small></button>`;}
     const nReg=reg.size,mesN=MESES_PT[m-1];
     // um jeito só de trocar o mês: a lista de meses (a mesma do diário)
-    p.d.querySelector('[data-cl]').innerHTML=`<div class="pm-cl-cab">${GS.selMes(k,'data-cl-sel',24,0)}</div>
+    p.d.querySelector('[data-cl]').innerHTML=`<div class="pm-cl-cab">${GS.selMes(k,'data-cl-sel',24,0)}<span class="pm-cl-res"><b>${nReg}</b> registrado${nReg===1?'':'s'} · <b>${livres}</b> livre${livres===1?'':'s'}</span></div>
       <div class="pm-cl-sem">${['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'].map(x=>`<span>${x}</span>`).join('')}</div><div class="pm-cl-grid">${cel}</div>
       <div class="pm-cl-leg"><span style="--c:#ECFDF3;--b:#ABEFC6">Já registrado (${nReg})</span><span style="--c:#F2F4F7;--b:#D0D5DD">Sábado e domingo</span><span style="--c:#FEF3F2;--b:#FECDCA">Feriado</span><span style="--c:#fff;--b:#1652D8">Hoje</span>${adm?'':'<span style="--c:#fff;--b:#EAECF0">Apagado = ainda não chegou ou encerrado às 19h</span>'}</div>
-      ${livres?'':`<p class="pm-mini" style="margin:0 16px 14px">Nenhum dia livre neste mês para você registrar.</p>`}`;}
-  p.d.addEventListener('change',ev=>{if(ev.target.matches('[data-cl-sel]')){k=ev.target.value;pintar();}});
+      ${livres?'':`<p class="pm-mini" style="margin:0 16px 14px">Nenhum dia livre neste mês para você registrar.</p>`}`;
+    // a seta da lista fica logo depois do nome do mês (largura do texto escolhido)
+    const sl=p.d.querySelector('[data-cl-sel]');if(sl){const cv=document.createElement('canvas').getContext('2d'),cs=getComputedStyle(sl);cv.font=`${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;sl.style.width=Math.ceil(cv.measureText(sl.options[sl.selectedIndex].text).width*1.04+50)+'px';}}
+  // trocar o mês no calendário também troca o mês mostrado no diário
+  p.d.addEventListener('change',ev=>{if(ev.target.matches('[data-cl-sel]')){k=ev.target.value;pintar();PM.mes=k;try{if(document.querySelector('#pm-app'))render();}catch(e){}}});
   pintar();return p;}
 // pergunta com "Sim, …" e "Não" (janela por cima, sem fechar a que está aberta) — devolve true/false
 function simNao(titulo,msg,rotSim,icone){return new Promise(ok=>{let r=false;const p=sobre(`<div class="pm-pop-box" style="max-width:460px"><div class="pm-pop-cab"><b>${icone?`<i class="fas ${icone}" style="color:#1652D8"></i> `:''}${fe(titulo)}</b><button type="button" class="pm-x" data-pop-x><i class="fas fa-xmark"></i></button></div>
@@ -1469,8 +1477,9 @@ function telaProducao(){
   const nDias=new Set(L.map(r=>r.data)).size,pm=pontoMes(k),horas=pm.reduce((s,x)=>s+x.horas,0),faltas=pm.reduce((s,x)=>s+x.falta,0);
   const lts=lotes(),comCP=lts.filter(l=>l.cp>0).map(l=>({l,st:situacaoLote(l)})),pend=comCP.filter(x=>x.st&&x.st.k!=='aprovado'),lim=addD(h,-45);
   const sub=`<div class="pm-sub">${[['dias','fa-calendar-days','Dias de produção'],['lotes','fa-tags','Lotes e cura'],['ponto','fa-user-clock','Ponto do mês'],['ensaios','fa-flask',`Ensaios${pend.length?` (${pend.length})`:''}`]].map(([v,ic,l])=>`<button type="button" class="gf-bt ${vista===v?'pri':''}" data-pm="dvista" data-v="${v}"><i class="fas ${ic}"></i> ${l}</button>`).join('')}</div>`;
-  const cab=cabG('Diário de produção','O dia da fábrica: equipe e ponto, betonadas, clima, ocorrências e as peças feitas. Cada peça do dia vira um lote (por palete ou por unidade), baixa os insumos e entra em cura.',
-      `${GS.selMes(k,'data-pm-mes',12,0)}<button type="button" class="gf-bt pri" data-pm="prod-nova"><i class="fas fa-plus"></i> Registrar o dia</button>`)+
+  // o mês é escolhido no calendário do "Registrar o dia" (um seletor só)
+  const cab=cabG('Diário de produção',`O dia da fábrica: equipe e ponto, betonadas, clima, ocorrências e as peças feitas. Cada peça do dia vira um lote (por palete ou por unidade), baixa os insumos e entra em cura. Mostrando <b>${fe(mesNome(k))}</b> — para ver outro mês, troque no calendário do <b>Registrar o dia</b>.`,
+      `<button type="button" class="gf-bt pri" data-pm="prod-nova"><i class="fas fa-plus"></i> Registrar o dia</button>`)+
     `<div class="gf-kpis">${kpiG('','fa-cubes','Peças produzidas',nf(tot,0),`${nDias} dia(s) de produção no mês`)}${kpiG('','fa-fill-drip','Concreto',nf(m3,2)+' m³',nDias?`média ${nf(m3/nDias,2)} m³ por dia`:'—')}
       ${kpiG(ref&&ref/(tot+ref)>0.03?'vermelho':'verde','fa-heart-crack','Refugo',nf(ref,0)+' peças',tot+ref?`${nf(ref/(tot+ref)*100,1)}% da produção`:'—')}
       ${kpiG('roxo','fa-user-clock','Horas trabalhadas',nf(horas,1)+' h',horas?`${nf(tot/horas,1)} peças por hora · ${faltas} falta(s) no mês`:'marque o ponto no registro do dia')}
