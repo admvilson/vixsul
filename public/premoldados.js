@@ -119,7 +119,7 @@ const ordens=()=>T('ordem');
 const vendas=()=>T('venda').map(v=>v.status==='pedido'?{...v,status:'reservado'}:v.status==='recebida'?{...v,status:'entregue'}:v);
 const vendaDe=id=>vendas().find(v=>String(v.rowid)===String(id))||null;
 // fechamento do mês: lançamento com data até cfg.fechado_ate não entra, não muda e não sai (só o Administrador reabre)
-const DATA_DO={producao:'data',compra:'data',ajuste:'data',avaria:'data',custo:'data',ensaio:'data'};
+const DATA_DO={producao:'data',compra:'data',ajuste:'data',avaria:'data',custo:'data',ensaio:'data',cp:'data'};
 function travaMes(o,orig){
   const f=CFG().fechado_ate;if(!f||!o)return null;const msg=d=>`O período até ${brDe(dt(f))} está fechado (lançamento com data ${brDe(dt(d))}). Para corrigir, o Administrador reabre em Parâmetros › Fechamento do mês.`;
   const k=DATA_DO[o.tipo];if(k){const d1=o[k],d0=orig&&orig[k];if(d1&&d1<=f)return msg(d1);if(d0&&d0<=f)return msg(d0);return null;}
@@ -593,7 +593,7 @@ function clique(ev){
     'ordem-nova':()=>formOrdem(null),'ordem':()=>formOrdem(T('ordem').find(o=>String(o.rowid)===id)),'fichas-abertas':()=>imprimirFichas(ordens().filter(o=>o.status==='planejada'||o.status==='producao')),
     // registrar o dia: primeiro o calendário (dia já registrado não dá para escolher)
     'prod-nova':()=>escolherDiaProducao(),
-    'lote':()=>fichaLote(b.dataset.lote),'dvista':()=>{PM.dVista=b.dataset.v;render();},'lfiltro':()=>{PM.lFiltro=b.dataset.v;render();},
+    'lote':()=>fichaLote(b.dataset.lote),'ensaio-novo':()=>escolherLoteEnsaio(),'dvista':()=>{PM.dVista=b.dataset.v;render();},'lfiltro':()=>{PM.lFiltro=b.dataset.v;render();},
     'prod-copiar':()=>{const hj=T('producao').find(r=>r.data===hojeISO());if(hj)return trava('O dia de hoje já foi registrado',[{ok:false,txt:'Cada dia tem um diário só. Abra o dia de hoje para alterar.'}],{rot:'Abrir o dia de hoje',f:()=>formProducao(hj)});formProducao(null,{copiar:T('producao').find(o=>String(o.rowid)===id)});},
     'prod':()=>formProducao(T('producao').find(o=>String(o.rowid)===id)),
     'dia-fechar':()=>confirmarFecharDia(T('producao').find(o=>String(o.rowid)===id)),'dia-reabrir':()=>reabrirDia(T('producao').find(o=>String(o.rowid)===id)),
@@ -1192,7 +1192,9 @@ function formOrdem(reg,pre){
    Rastreio: as entregas consomem os lotes pela ordem de fabricação (o mais antigo sai primeiro). */
 const ymd=d=>{d=d instanceof Date?d:dt(d);return d?String(d.getFullYear()).slice(2)+String(d.getMonth()+1).padStart(2,'0')+String(d.getDate()).padStart(2,'0'):'000000';};
 const loteDe=(r,it,i)=>it.lote||`L${ymd(r.data)}-R${r.rowid}${i?'.'+(i+1):''}`;
-function lotes(){const o=[];T('producao').forEach(r=>itensProd(r).forEach((it,i)=>o.push({lote:loteDe(r,it,i),r,it,i,peca:String(it.peca),data:r.data,qtd:num(it.qtd),refugo:num(it.refugo),cp:num(it.cp)})));
+// corpos de prova do lote: os informados no dia de produção ou, depois, na ficha do lote (registro "cp", vale o último)
+function lotes(){const o=[],cx={};T('cp').forEach(c=>{cx[c.lote]=num(c.qtd);});
+  T('producao').forEach(r=>itensProd(r).forEach((it,i)=>{const lote=loteDe(r,it,i);o.push({lote,r,it,i,peca:String(it.peca),data:r.data,qtd:num(it.qtd),refugo:num(it.refugo),cp:cx[lote]!=null?cx[lote]:num(it.cp)});}));
   return o.sort((a,b)=>String(a.data).localeCompare(String(b.data))||a.lote.localeCompare(b.lote));}
 const loteInfo=cod=>lotes().find(l=>l.lote===cod)||null;
 const ensaiosDe=cod=>T('ensaio').filter(e=>e.lote===cod).sort((a,b)=>num(a.idade)-num(b.idade)||String(a.data).localeCompare(String(b.data)));
@@ -1259,10 +1261,11 @@ function fichaLote(cod,subDestaque){
       ${tile('fa-flask','Ensaio',st?fe(st.rot):'sem corpo de prova',l.cp?`${nf(l.cp,0)} CP(s)`:'')}${tile('fa-truck','Entregue',`${nf(ent,0)} de ${nf(l.qtd,0)}`,`${nf(l.qtd-ent,0)} no pátio`)}</div>
       <div class="pm-bloco" style="margin-top:10px"><h5><i class="fas ${unid?'fa-hashtag':'fa-pallet'}"></i> ${unid?'Unidades':'Paletes'}</h5><div class="pm-rolar" style="max-height:240px;overflow:auto"><table class="pm-tab2" data-sem-ordem><thead><tr><th>Código</th><th class="n">Peças</th><th>Situação</th><th></th></tr></thead><tbody>
         ${subs.map(s=>`<tr data-sub="${fe(s.cod)}" ${s.cod===subDestaque?'style="background:#FFFAEB;outline:2px solid #FDB022"':''}><td><b>${fe(s.cod)}</b><small>${s.modo==='unidade'?`unidade ${s.i} de ${s.n}`:`palete ${s.i} de ${s.n}`}</small></td><td class="n">${nf(s.qtd,0)}</td><td>${sit(s)}</td><td><button type="button" class="gf-bt mini" data-etq-sub="${fe(s.cod)}" title="Etiqueta só deste ${unid?'item':'palete'}"><i class="fas fa-qrcode"></i></button></td></tr>`).join('')||'<tr><td colspan="4" class="pm-mini">Sem peças boas neste lote.</td></tr>'}</tbody></table></div></div>
-      <div class="pm-bloco"><h5><i class="fas fa-flask"></i> Corpos de prova e ensaios</h5>${l.cp?'':'<p class="pm-mini" style="margin:0">Nenhum corpo de prova registrado neste lote.</p>'}
+      <div class="pm-bloco"><h5><i class="fas fa-flask"></i> Corpos de prova e ensaios</h5>${l.cp?`<p class="pm-mini" style="margin:0 0 6px">${nf(l.cp,0)} corpo(s) de prova moldado(s).</p>`:'<p class="pm-mini" style="margin:0">Nenhum corpo de prova informado. Use <b>Corpos de prova</b> para informar quantos foram moldados, ou <b>Registrar ensaio</b> (ele pede o número).</p>'}
       ${es.length?`<table class="pm-tab2" data-sem-ordem><thead><tr><th>Idade</th><th>Data</th><th class="n">Resultado</th><th class="n">Esperado</th><th>Situação</th></tr></thead><tbody>${es.map(e=>`<tr class="pm-lin" data-ens="${e.rowid}"><td>${nf(num(e.idade),0)} dias</td><td>${fe(brDe(dt(e.data)))}</td><td class="n"><b>${nf(num(e.resultado),1)} MPa</b><small>${(e.valores||[]).map(v=>nf(v,1)).join(' · ')}</small></td><td class="n">${nf(num(e.esperado),1)} MPa</td><td>${pill(e.situacao==='aprovado'?'aprovado':e.situacao==='parcial'?'dentro do esperado':e.situacao==='abaixo'?'abaixo do esperado':'reprovado',e.situacao==='aprovado'||e.situacao==='parcial'?'ok':e.situacao==='abaixo'?'warn':'err')}</td></tr>${e.metodo||e.tipo_cp||e.responsavel?`<tr class="pm-lin" data-ens="${e.rowid}"><td colspan="5" style="padding-top:0"><small style="font-size:11.5px;color:#475467;white-space:normal"><i class="fas fa-clipboard-check"></i> ${[e.tipo_cp,e.laboratorio?'laboratório: '+e.laboratorio:'',e.responsavel?'por '+e.responsavel:''].filter(Boolean).map(fe).join(' · ')}${e.metodo?`<br>${fe(e.metodo)}`:''}</small></td></tr>`:''}`).join('')}</tbody></table>`:''}</div></div></div>`,
     [{html:'<i class="fas fa-qrcode"></i> Etiquetas',acao:async()=>{setTimeout(()=>formEtiquetas(cod),60);}},
-     ...(l.cp?[{html:'<i class="fas fa-flask"></i> Registrar ensaio',cls:'pri',acao:async()=>{setTimeout(()=>formEnsaio(cod,null),60);}}]:[])],1000);
+     {html:'<i class="fas fa-vial"></i> Corpos de prova',acao:async()=>{setTimeout(()=>formCPs(cod),60);}},
+     {html:'<i class="fas fa-flask"></i> Registrar ensaio',cls:'pri',acao:async()=>{setTimeout(()=>formEnsaio(cod,null),60);}}],1000);
   const jb=document.querySelector('#fin-jan .fin-jan-corpo');if(jb&&subDestaque){const rs=[...jb.querySelectorAll('[data-sub]')].find(x=>x.dataset.sub===subDestaque);if(rs)setTimeout(()=>rs.scrollIntoView({block:'center'}),250);}
   if(jb){pintarFotos(jb);jb.addEventListener('click',ev=>{const r=ev.target.closest('[data-ens]');if(r){const e=T('ensaio').find(x=>String(x.rowid)===r.dataset.ens);document.getElementById('fin-ov').classList.remove('open');return setTimeout(()=>formEnsaio(cod,e),60);}
     const b=ev.target.closest('[data-etq-sub]');if(b)imprimirEtiquetas(cod,{so:[b.dataset.etqSub],mk:unid?'g':'g',ini:1,copias:1}).catch(e=>toast(e.message,'error'));});}
@@ -1278,12 +1281,37 @@ const GUIA_ENSAIO=`<details class="pm-guia"><summary><i class="fas fa-book-open"
   <li><b>Calcular</b> — MPa = carga ÷ área. CP 10 × 20: MPa = kN × 0,1273 · CP 15 × 30: MPa = kN × 0,0566 (use o conversor).</li>
   <li><b>Avaliar</b> — vale o maior resultado da mesma idade. Aos 7 dias espera-se cerca de 65% do fck; aos 28 dias tem que atingir o fck do traço. Abaixo disso: separe as peças do lote e chame o responsável técnico.</li>
   <li><b>Registrar</b> — informe aqui a data, cada CP em MPa, como foi feito, quem fez e o laboratório; laboratório de fora: guarde o laudo.</li></ol></details>`;
+// escolher o lote para o ensaio: os lotes dos últimos 120 dias, com a idade e o que já foi ensaiado
+function escolherLoteEnsaio(){
+  const h=hoje0(),L=lotes().filter(l=>l.qtd>0&&dt(l.data)&&dt(l.data)>=addD(h,-120)).sort((a,b)=>String(b.data).localeCompare(String(a.data)));
+  if(!L.length)return toast('Nenhum lote nos últimos 120 dias.','error');
+  sobre(`<div class="pm-pop-box" style="max-width:640px"><div class="pm-pop-cab"><b><i class="fas fa-flask" style="color:#7A2FE0"></i> De qual lote é o ensaio?</b><button type="button" class="pm-x" data-pop-x><i class="fas fa-xmark"></i></button></div>
+    <div style="padding:10px 14px 14px;max-height:62vh;overflow:auto"><table class="pm-tab2" data-sem-ordem><thead><tr><th>Lote</th><th>Peça</th><th>Fabricação</th><th class="n">Idade</th><th>Ensaios</th></tr></thead><tbody>
+    ${L.map(l=>{const id=Math.floor((h-dt(l.data))/864e5),es=ensaiosDe(l.lote);return `<tr class="pm-lin" data-el="${fe(l.lote)}"><td><b>${fe(l.lote)}</b><small>${l.cp?nf(l.cp,0)+' CP(s)':'sem CP informado'}</small></td><td>${fe(nomePeca(l.peca))}</td><td>${fe(brDe(dt(l.data)))}</td><td class="n">${id} dia${id===1?'':'s'}</td><td>${es.length?es.map(e=>pill(nf(num(e.idade),0)+' dias',e.situacao==='aprovado'||e.situacao==='parcial'?'ok':e.situacao==='abaixo'?'warn':'err')).join(' '):'<small>nenhum</small>'}</td></tr>`;}).join('')}</tbody></table></div></div>`,
+    (ev,fechar)=>{const r=ev.target.closest('[data-el]');if(r){fechar();formEnsaio(r.dataset.el,null);}});}
+// corpos de prova do lote informados depois (o dia de produção pode já estar fechado): não mexe no diário
+function formCPs(cod){
+  const l=loteInfo(cod);if(!l)return toast('Lote não encontrado.','error');const usados=ensaiosDe(cod).reduce((s,e)=>s+(e.valores||[]).length,0);
+  janela(`Corpos de prova — lote ${cod}`,`<div class="fin-resumo">${fe(nomePeca(l.peca))} · fabricado em ${fe(brDe(dt(l.data)))}</div>
+    <div class="fin-aviso" style="margin-top:8px"><div>Informe quantos corpos de prova foram moldados com o concreto deste lote. O recomendado é <b>2 para cada idade</b> (7 e 28 dias = <b>4</b>). Com isso o lote passa a cobrar os ensaios e só fica <b>100% liberado</b> com o de 28 dias aprovado.</div></div>
+    <div class="fin-linha" style="margin-top:8px"><div class="fin-fld"><label>Corpos de prova moldados <span class="obg">*</span></label><input data-k="qtd" inputmode="numeric" data-num="int" value="${l.cp||4}"></div></div>
+    ${usados?`<p class="pm-mini">Já há ${usados} resultado(s) de ensaio neste lote: o número não pode ser menor que isso.</p>`:''}`,
+    [{html:'<i class="fas fa-floppy-disk"></i> Salvar',cls:'pri',acao:async jj=>{const q=num(jj.querySelector('[data-k="qtd"]').value);
+      if(q<usados)throw new Error(`Já há ${usados} resultado(s) de ensaio: informe ao menos ${usados}.`);if(q>40)throw new Error('Confira o número: mais de 40 corpos de prova num lote.');
+      await gravar({tipo:'cp',lote:cod,peca:l.peca,qtd:q,data:hojeISO(),data_moldagem:l.data,por:eu(),data_lancamento:todayDateTime()},null);toast(q?`${q} corpo(s) de prova informado(s) no lote ${cod}.`:'Lote sem corpo de prova.','success');
+      setTimeout(()=>fichaLote(cod),150);return false;}}],520);
+}
 function formEnsaio(cod,reg){
   const l=loteInfo(cod);if(!l)return toast('Lote não encontrado.','error');const p=pecaDe(l.peca),tr=p?tracoDaPeca(p):null,d0=dt(l.data)||hoje0();
-  const ateHoje=d=>isoDe(d>hoje0()?hoje0():d),b=reg||{idade:28,data:ateHoje(addD(d0,28)),valores:Array(Math.max(1,Math.min(6,l.cp||2))).fill(''),fck:fckDe(tr)||'',laboratorio:'',tipo_cp:TIPOS_CP[0][0],responsavel:'',metodo:''};
+  // idade sugerida: a maior que o lote já atingiu e ainda não foi ensaiada (as que ainda não chegaram ficam bloqueadas)
+  const IDADES=[3,7,14,28,63],idadeLote=Math.floor((hoje0()-d0)/864e5),feitas=new Set(ensaiosDe(cod).map(e=>num(e.idade))),podeId=x=>idadeLote+1>=x;
+  const idSug=IDADES.filter(podeId).filter(x=>!feitas.has(x)).pop()||IDADES.filter(podeId).pop()||7;
+  const ateHoje=d=>isoDe(d>hoje0()?hoje0():d),b=reg||{idade:idSug,data:ateHoje(addD(d0,idSug)),valores:Array(Math.max(1,Math.min(6,l.cp?Math.min(l.cp,2):2))).fill(''),fck:fckDe(tr)||'',laboratorio:'',tipo_cp:TIPOS_CP[0][0],responsavel:'',metodo:''};
   const cpIn=(v,i)=>`<div class="fin-fld"><label>CP ${i+1} (MPa)</label><input data-cpv inputmode="decimal" data-num="dec" data-sem-mascara="1" value="${v!==''&&v!=null?fe(String(v).replace('.',',')):''}" placeholder="0,0"></div>`;
-  const j=janela(reg?`Ensaio do lote ${cod}`:`Registrar ensaio — lote ${cod}`,`<div class="fin-resumo">${fe(p?p.nome:'')} · fabricado em ${fe(brDe(d0))} · ${fe(tr?tr.nome:'')}</div>
-    <div class="fin-linha" style="margin-top:8px"><div class="fin-fld"><label>Idade do ensaio</label><select data-k="idade">${[3,7,14,28,63].map(x=>`<option value="${x}" ${x===num(b.idade)?'selected':''}>${x} dias</option>`).join('')}</select></div>
+  const j=janela(reg?`Ensaio do lote ${cod}`:`Registrar ensaio — lote ${cod}`,`<div class="fin-resumo">${fe(p?p.nome:'')} · fabricado em ${fe(brDe(d0))} (${idadeLote} dia${idadeLote===1?'':'s'}) · ${fe(tr?tr.nome:'')}</div>
+    ${l.cp?'':`<div class="fin-aviso laranja" style="margin-top:8px"><div>Este lote ainda não tem corpos de prova informados. Diga quantos foram moldados com o concreto dele (o recomendado é 2 para cada idade: 7 e 28 dias = 4).</div></div>`}
+    <div class="fin-linha" style="margin-top:8px">${l.cp?'':`<div class="fin-fld"><label>Corpos de prova moldados <span class="obg">*</span></label><input data-k="cp_lote" inputmode="numeric" data-num="int" value="4"></div>`}
+      <div class="fin-fld"><label>Idade do ensaio</label><select data-k="idade">${IDADES.map(x=>`<option value="${x}" ${x===num(b.idade)?'selected':''} ${!reg&&!podeId(x)?'disabled':''}>${x} dias${!reg&&!podeId(x)?` (a partir de ${brDe(addD(d0,x-1)).slice(0,5)})`:feitas.has(x)&&!reg?' — já ensaiado':''}</option>`).join('')}</select></div>
       <div class="fin-fld"><label>Data do ensaio <span class="obg">*</span></label><input type="date" data-k="data" value="${fe(b.data||'')}"></div>
       <div class="fin-fld"><label>fck exigido (MPa) <span class="obg">*</span></label><input data-k="fck" inputmode="decimal" data-num="dec" data-sem-mascara="1" value="${b.fck!==''?fe(String(b.fck).replace('.',',')):''}"></div>
       <div class="fin-fld"><label>Laboratório</label><input data-k="laboratorio" value="${fe(b.laboratorio||'')}" placeholder="Ex.: próprio, laboratório da cidade"></div>
@@ -1298,10 +1326,14 @@ function formEnsaio(cod,reg){
      {html:'<i class="fas fa-floppy-disk"></i> Salvar ensaio',cls:'pri',acao:async jj=>{
       if(reg&&GS.podeMexer&&!GS.podeMexer(reg))throw new Error(GS.MSG_DONO);
       const r=ler(jj);if(!r.data)throw new Error('Informe a data do ensaio.');if(!r.responsavel)throw new Error('Informe quem fez o ensaio.');if(r.metodo.length<20)throw new Error('Descreva como o ensaio foi feito (ou use o procedimento padrão).');
-      if(!l.cp)return trava('Lote sem corpo de prova',[{ok:false,txt:`O lote ${cod} não tem corpos de prova registrados. Abra o dia de produção e informe quantos CPs foram moldados (coluna CPs).`}]);
+      // lote sem corpo de prova informado: o número vem deste formulário (vira o registro dos CPs do lote)
+      const cpNovo=l.cp?0:num((jj.querySelector('[data-k="cp_lote"]')||{}).value),cpTot=l.cp||cpNovo;
+      if(!cpTot)throw new Error('Informe quantos corpos de prova foram moldados deste lote.');
       const minD=isoDe(addD(dt(l.data)||hoje0(),Math.max(0,r.idade-1)));if(r.data<minD)return trava(`Ensaio de ${r.idade} dias antes da hora`,[{ok:false,txt:`O lote foi moldado em ${brDe(dt(l.data))}: o ensaio de ${r.idade} dias só pode ser a partir de ${brDe(dt(minD))}.`}]);
-      if(r.valores.length>num(l.cp))return trava('Mais resultados do que corpos de prova',[{ok:false,txt:`O lote tem ${nf(num(l.cp),0)} CP(s) moldado(s) e foram informados ${r.valores.length} resultados.`}]);if(r.data>hojeISO())throw new Error('A data do ensaio não pode ser no futuro: registre no dia em que o laboratório romper os corpos de prova.');if(!r.valores.length)throw new Error('Informe o resultado de ao menos um corpo de prova.');if(!(r.fck>0))throw new Error('Informe o fck exigido.');if(r.valores.some(x=>x>120)||r.fck>120)throw new Error('Resistência acima de 120 MPa: confira o valor (em MPa, não em kgf).');
-      await gravar({...(reg||{tipo:'ensaio',data_lancamento:todayDateTime()}),lote:cod,peca:l.peca,data_moldagem:l.data,...r,por:eu()},reg?reg.rowid:null);
+      if(r.valores.length>cpTot)return trava('Mais resultados do que corpos de prova',[{ok:false,txt:`O lote tem ${nf(cpTot,0)} CP(s) moldado(s) e foram informados ${r.valores.length} resultados.`}]);if(r.data>hojeISO())throw new Error('A data do ensaio não pode ser no futuro: registre no dia em que o laboratório romper os corpos de prova.');if(!r.valores.length)throw new Error('Informe o resultado de ao menos um corpo de prova.');if(!(r.fck>0))throw new Error('Informe o fck exigido.');if(r.valores.some(x=>x>120)||r.fck>120)throw new Error('Resistência acima de 120 MPa: confira o valor (em MPa, não em kgf).');
+      const ops=[[{...(reg||{tipo:'ensaio',data_lancamento:todayDateTime()}),lote:cod,peca:l.peca,data_moldagem:l.data,...r,por:eu()},reg?reg.rowid:null]];
+      if(cpNovo)ops.unshift([{tipo:'cp',lote:cod,peca:l.peca,qtd:cpNovo,data:hojeISO(),data_moldagem:l.data,por:eu(),data_lancamento:todayDateTime()},null]);
+      await gravarVarios(ops);
       toast(r.situacao==='reprovado'?'Ensaio registrado: lote REPROVADO — separe as peças e avalie com o responsável técnico.':'Ensaio registrado.',r.situacao==='reprovado'?'error':'success');}}],640);
   function ler(jj){const g=k=>String(jj.querySelector(`[data-k="${k}"]`).value||'').trim(),pf=s=>{const n=parseFloat(String(s).replace(',','.'));return isFinite(n)?n:0;};
     const idade=num(g('idade')),valores=[...jj.querySelectorAll('[data-cpv]')].map(e=>pf(e.value)).filter(v=>v>0),fck=pf(g('fck')),resultado=valores.length?Math.max(...valores):0,esperado=r2(fck*(FAT_IDADE[idade]||1));
@@ -1494,11 +1526,11 @@ function telaProducao(){
       ${V.map(({l,lb,patio})=>`<tr class="pm-lin" data-pm="lote" data-lote="${fe(l.lote)}"><td><b>${fe(l.lote)}</b><small>${fe(resumoSub(l))}</small></td><td>${fe(nomePeca(l.peca))}</td><td>${fe(brDe(dt(l.data)))}</td><td class="n">${nf(l.qtd,0)}</td><td class="n">${nf(patio,0)}</td><td>${fe(brDe(lb.lib))}<small>${nf(lb.cura,0)} dias de cura</small></td><td>${pill(lb.curto,lb.cor,lb.ico)}</td><td><i class="fas fa-chevron-right" style="color:#98A2B3"></i></td></tr>`).join('')}</tbody></table></div>`
       :'<div class="gf-vazio"><i class="fas fa-tags"></i><p>Nenhum lote nesta situação.</p></div>'}</section>`;}
   if(vista==='ensaios'){const cpL=comCP.filter(x=>x.st&&(x.st.k!=='aprovado'||dt(x.l.data)>=lim)).sort((a,b)=>String(b.l.data).localeCompare(String(a.l.data))).slice(0,60);
-    return cab+`<section class="gf-sec"><div class="gf-sec-cab"><div><h3><i class="fas fa-flask" style="color:#7A2FE0"></i> Corpos de prova e ensaios</h3><p>Rompimento aos 7 dias (esperado ≈ 65% do fck) e aos 28 dias (tem de atingir o fck do traço). Clique no lote para registrar o ensaio.</p></div></div>${GUIA_ENSAIO.replace('<details class="pm-guia">','<details class="pm-guia" style="margin:0 0 10px">')}
+    return cab+`<section class="gf-sec"><div class="gf-sec-cab"><div><h3><i class="fas fa-flask" style="color:#7A2FE0"></i> Corpos de prova e ensaios</h3><p>Rompimento aos 7 dias (esperado ≈ 65% do fck) e aos 28 dias (tem de atingir o fck do traço). Clique no lote para registrar o ensaio — ou use <b>Registrar ensaio</b> para escolher qualquer lote (mesmo sem corpo de prova informado no dia).</p></div><button type="button" class="gf-bt pri" data-pm="ensaio-novo"><i class="fas fa-flask"></i> Registrar ensaio</button></div>${GUIA_ENSAIO.replace('<details class="pm-guia">','<details class="pm-guia" style="margin:0 0 10px">')}
       ${cpL.length?`<div class="pm-rolar"><table class="pm-tab2"><thead><tr><th>Lote</th><th>Peça</th><th>Moldagem</th><th class="n">CPs</th><th>7 dias</th><th>28 dias</th><th>Situação</th></tr></thead><tbody>
       ${cpL.map(({l,st})=>{const e7=st.es.filter(e=>num(e.idade)<28).slice(-1)[0],e28=st.es.filter(e=>num(e.idade)>=28).slice(-1)[0],d=dt(l.data);
         return `<tr class="pm-lin" data-pm="lote" data-lote="${fe(l.lote)}"><td><b>${fe(l.lote)}</b></td><td>${fe(nomePeca(l.peca))}</td><td>${fe(brDe(d))}</td><td class="n">${nf(l.cp,0)}</td><td>${e7?`${nf(num(e7.resultado),1)} MPa`:`<small>${fe(brDe(addD(d,7)).slice(0,5))}</small>`}</td><td>${e28?`<b>${nf(num(e28.resultado),1)} MPa</b>`:`<small>${fe(brDe(addD(d,28)).slice(0,5))}</small>`}</td><td>${pill(st.rot,st.cor)}</td></tr>`;}).join('')}</tbody></table></div>`
-      :'<div class="gf-vazio ok"><i class="fas fa-circle-check"></i><p>Nenhum ensaio pendente. Informe os CPs (corpos de prova) ao registrar o dia.</p></div>'}</section>`;}
+      :'<div class="gf-vazio ok"><i class="fas fa-circle-check"></i><p>Nenhum ensaio pendente. Para ensaiar um lote, use <b>Registrar ensaio</b> e escolha o lote.</p></div>'}</section>`;}
   const temHoje=L.some(r=>r.data===hojeISO()),fMes=CFG().fechado_ate;
   const dia=r=>{const d=dt(r.data),pt=pontoDe(r),pr=pt.filter(x=>x.status==='presente'),au=pt.filter(x=>x.status&&x.status!=='presente'),ii=itensProd(r),q=ii.reduce((s,it)=>s+num(it.qtd),0),rf=ii.reduce((s,it)=>s+num(it.refugo),0),
       hh=pr.reduce((s,x)=>s+(num(x.horas)||horasDe(x.entrada,x.saida,x.intervalo)),0),mm=ii.reduce((s,it)=>{const p=pecaDe(it.peca);return s+(p?geoPeca(p).V*(num(it.qtd)+num(it.refugo)):0);},0);
