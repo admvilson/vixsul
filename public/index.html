@@ -11883,6 +11883,20 @@ const Atencao=(function(){
 .eng-dia-txt .linha{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:5px;}
 .eng-dia-txt p{white-space:pre-wrap;word-break:break-word;}
 .eng-dia-txt small{display:block;color:var(--text-3);font-size:11.5px;margin-top:4px;}
+/* Diário de obra no jeito do Diário de produção: folhinha, situação do dia (aberto · fecha às 19h / fechado) e botões */
+.rdo-dias{display:flex;flex-direction:column;gap:10px;}
+.rdo-dia2 .pm-dia2-cab{align-items:flex-start;margin-bottom:6px;}
+.rdo-obra{font-size:12.5px;font-weight:600;color:#475467;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;} .rdo-obra i{color:#98A2B3;margin-right:3px;}
+.rdo-pills{display:flex;flex-wrap:wrap;gap:4px;} .rdo-pills .eng-pill i{margin-right:3px;}
+.pm-dia2-bt.rdo-bts{flex:0 1 auto;flex-wrap:wrap;justify-content:flex-end;max-width:440px;}
+.rdo-corpo{border-top:1px dashed #EAECF0;padding-top:8px;margin-top:2px;}
+.rdo-dia2.fech .rdo-corpo{color:#475467;}
+.rdo-dia-av{display:flex;gap:8px;align-items:center;font-size:12.5px;color:#1849A9;background:#EFF4FF;border:1px solid #D1E0FF;border-radius:10px;padding:8px 10px;} .rdo-dia-av:empty{display:none;}
+.rdo-dia-bts{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;}
+.rdo-ver{list-style:none;margin:10px 0 0;padding:0;display:grid;gap:8px;} .rdo-ver li{display:flex;gap:10px;align-items:flex-start;font-size:13px;} .rdo-ver li>i{width:18px;color:#1652D8;margin-top:2px;}
+.rdo-ver li b{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:#667085;} .rdo-ver li span{white-space:pre-wrap;overflow-wrap:anywhere;color:#101828;}
+.rdo-aviso-ico{width:54px;height:54px;border-radius:16px;margin:0 auto 12px;display:grid;place-items:center;background:linear-gradient(135deg,#1652D8,#2E90FA);color:#fff;font-size:22px;box-shadow:0 10px 20px -10px rgba(22,82,216,.9);}
+@media (max-width:700px){.pm-dia2-bt.rdo-bts{max-width:none;width:100%;justify-content:flex-start;}}
 .med-desc table{width:100%;border-collapse:collapse;margin:8px 0;font-size:12.5px;} .med-desc th{text-align:left;font:800 10px Inter,sans-serif;text-transform:uppercase;color:#667085;padding:5px;}
 .med-desc td{padding:4px;} .med-desc input{width:100%;box-sizing:border-box;border:1px solid #D0D5DD;border-radius:8px;padding:7px 9px;font:500 13px Inter,sans-serif;}
 .med-desc tbody:empty::after{content:'Nenhum desconto nesta medição.';display:block;padding:6px;color:#98A2B3;font-size:12px;}
@@ -12152,6 +12166,7 @@ const Eng=(function(){
   }
 
   /* ═══════════════ DIÁRIO DE OBRA (RDO) ═══════════════ */
+  const MESES_RDO=['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
   const CLIMAS=['Bom','Nublado','Chuva fraca','Chuva forte'];
   const CONDICOES=['Praticável','Parcialmente praticável','Impraticável'];
   /* cada registro é de quem registrou (o usuário do sistema): só ele edita, exclui e põe fotos;
@@ -12161,6 +12176,76 @@ const Eng=(function(){
   const meuRdo=r=>ehAdmRdo()||!!(r&&r.criado_por_id&&GS.podeMexer(r));
   // fotos: todo usuário (interno ou externo) que vê o diário registra fotos — cada foto é de quem anexou
   const podeFotoRdo=()=>true;
+  /* FECHAMENTO DO DIA (como no Diário de produção): o dia fecha em "Fechar o dia" ou sozinho às 19h; fechado não muda
+     mais — só o Administrador reabre (por 1 hora). O fechamento das 19h é calculado (não precisa gravar nada): dia que
+     já passou das 19h está fechado, a não ser que o Administrador tenha reaberto (aberto_ate). Dia que já encerrou só o
+     Administrador registra. */
+  const HORA_FECHA_RDO=19;
+  const hojeRdo=()=>isoDe(hoje0());
+  const passouHoraRdo=d=>{const hj=hojeRdo();return !!d&&(d<hj||(d===hj&&new Date().getHours()>=HORA_FECHA_RDO));};
+  const reabertoRdo=r=>!!(r&&r.aberto_ate&&new Date(r.aberto_ate)>new Date());
+  const fechadoManual=r=>!!(r&&r.fechado&&r.fechado.em);
+  const rdoFechado=r=>!!r&&(fechadoManual(r)||(passouHoraRdo(String(r.data||''))&&!reabertoRdo(r)));
+  const hm=d=>String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
+  const PMF=()=>window.PM_FABRICA||{};
+  // pergunta "Sim, …" / "Não" do Diário de produção (com a janela simples de reserva)
+  const simNaoRdo=(tit,msg,sim,ico)=>PMF().simNao?PMF().simNao(tit,msg,sim,ico):Promise.resolve(window.confirm(msg.replace(/<[^>]+>/g,'')));
+  async function fecharDiaRdo(r){
+    if(!r||rdoFechado(r))return toast('Este dia já está fechado.','success');if(!meuRdo(r))return toast('Só quem registrou (ou o Administrador) fecha este dia.','error');
+    if(!(await simNaoRdo(`Fechar o dia ${brDe(dt(r.data))}?`,`O diário de <b>${fe(brDe(dt(r.data)))}</b> da obra <b>${fe(r.titulo_obra)}</b> não poderá mais ser alterado (equipe, equipamentos, serviços e fotos ficam como estão). <b>Só o Administrador pode reabrir.</b><br><br>Deseja realmente fechar o dia?`,'Sim, fechar','fa-lock')))return;
+    try{await executar(()=>salvar('Diário de obra',{...r,fechado:{em:todayDateTime(),por:eu().nome,auto:false},aberto_ate:''},r.rowid));toast(`Dia ${brDe(dt(r.data))} fechado.`,'success');}catch(e){toast(e.message||String(e),'error');}
+  }
+  async function reabrirDiaRdo(r){
+    if(!r)return;if(!ehAdmRdo())return toast('Só o Administrador reabre um dia fechado.','error');
+    if(!(await simNaoRdo(`Reabrir o dia ${brDe(dt(r.data))}?`,`O diário volta a poder ser alterado. Ele fica aberto por <b>1 hora</b> e depois fecha sozinho de novo (ou feche antes, em <b>Fechar o dia</b>).`,'Sim, reabrir','fa-lock-open')))return;
+    const ate=new Date(Date.now()+3600e3);
+    try{await executar(()=>salvar('Diário de obra',{...r,fechado:null,reaberto:{em:todayDateTime(),por:eu().nome},aberto_ate:ate.toISOString()},r.rowid));toast(`Dia ${brDe(dt(r.data))} reaberto até ${hm(ate)}.`,'success');}catch(e){toast(e.message||String(e),'error');}
+  }
+  // "Registrar dia": a obra (se não estiver no filtro) → o calendário do mês do diário → o formulário com a obra e o dia
+  function novoRdo(){
+    const obs=obrasNomes();if(!obs.length)return toast('Cadastre uma obra primeiro.','error');
+    if(RD.obra)return escolherDiaRdo(RD.obra);if(obs.length===1)return escolherDiaRdo(obs[0]);
+    janela('Diário de qual obra?',`<div class="fin-fld"><label>Obra <span class="obg">*</span></label><select data-k="obra"><option value="">Selecione a obra…</option>${obs.map(o=>`<option>${fe(o)}</option>`).join('')}</select></div>`,
+      [{html:'<i class="fas fa-calendar-day"></i> Escolher o dia',cls:'pri',acao:async j=>{const v=j.querySelector('[data-k="obra"]').value;if(!v)throw new Error('Escolha a obra.');setTimeout(()=>escolherDiaRdo(v),80);}}],480);
+  }
+  // calendário (o mesmo do Diário de produção): o dia em que você já registrou esta obra não dá para escolher
+  function escolherDiaRdo(ob,aoEscolher){
+    const P=PMF();if(!P.calendarioDias)return abrirNovoRdo(ob,hojeRdo());
+    const meus=(D().diario_obra||[]).filter(r=>r.titulo_obra===ob&&(r.criado_por_id||'')===eu().id);
+    P.calendarioDias({k:RD.mes&&RD.mes!=='__todos'?RD.mes:hojeRdo().slice(0,7),registrados:new Map(meus.map(r=>[r.data,r])),fechado:rdoFechado,sub:ob,aoEscolher:aoEscolher||(iso=>abrirNovoRdo(ob,iso))});
+  }
+  function abrirNovoRdo(ob,iso){
+    const j=formulario(CFG_RDO,null),so=j.querySelector('[data-f="titulo_obra"]'),sd=j.querySelector('[data-f="data"]');
+    if(so){so.value=ob;so.disabled=true;so.title='Para outra obra, feche e escolha de novo em Registrar dia';}
+    if(sd)sd.value=iso;
+    const av=j.querySelector('[data-rdo-dia]');if(av)av.innerHTML=avisoDiaRdo(iso);
+  }
+  const avisoDiaRdo=iso=>passouHoraRdo(iso)?(ehAdmRdo()?'<i class="fas fa-user-shield"></i> Dia já encerrado às 19h: registrando como Administrador (fica aberto por 1 hora).':'<i class="fas fa-lock"></i> Dia encerrado às 19h: só o Administrador registra.'):iso===hojeRdo()?'<i class="fas fa-clock"></i> Este diário <b>fecha sozinho às 19h</b>. Depois disso, só o Administrador reabre.':'';
+  // "Ver" de um dia fechado: tudo o que foi registrado, sem alterar
+  function verRdo(r){
+    const f=r.fechado||{},linha=(ic,rot,v)=>v?`<li><i class="fas ${ic}"></i><div><b>${rot}</b><span>${fe(v)}</span></div></li>`:'';
+    janela(`Diário de ${brDe(dt(r.data))}`,`<div class="fin-aviso" style="background:#F2F4F7;border-color:#E4E7EC"><div><i class="fas fa-lock"></i> <b>Dia fechado</b> ${fechadoManual(r)?`por ${fe(f.por||'')}${f.em?' em '+fe(brDe(dt(String(f.em).slice(0,10))))+' '+fe(String(f.em).slice(11,16)):''}`:'automaticamente às 19h'}. Nada pode ser alterado${ehAdmRdo()?' — como Administrador, você pode reabrir':'; só o Administrador reabre'}.</div></div>
+      <ul class="rdo-ver">${linha('fa-helmet-safety','Obra',r.titulo_obra)}${linha('fa-cloud-sun','Tempo',`manhã: ${r.clima_manha||'—'} · tarde: ${r.clima_tarde||'—'} · ${r.condicao||'—'}`)}${linha('fa-people-group','Equipe',r.efetivo_total?`${r.efetivo_total} pessoa(s)${r.efetivo_desc?' — '+r.efetivo_desc:''}`:'')}${linha('fa-tractor','Equipamentos',r.equipamentos)}${linha('fa-helmet-safety','Serviços executados',r.atividades)}${linha('fa-triangle-exclamation','Ocorrências',r.ocorrencias)}${linha('fa-user-check','Visitas e fiscalização',r.visitas)}${linha('fa-user-pen','Registrado por',r.responsavel||r.criado_por)}</ul>`,
+      [ehAdmRdo()?{html:'<i class="fas fa-lock-open"></i> Reabrir o dia',acao:()=>{setTimeout(()=>reabrirDiaRdo(r),10);}}:null,{html:'<i class="fas fa-file-pdf"></i> PDF',cls:'pri',acao:()=>{pdfDiario([r],`${r.titulo_obra} · ${brDe(dt(r.data))}`);}}].filter(Boolean),640);
+  }
+  // às 19h: a lista se atualiza sozinha e quem registrou o dia de hoje recebe o aviso (uma vez por dia neste navegador)
+  function avisoRdo19(){
+    document.querySelectorAll('.rdo-aviso19').forEach(x=>x.remove());const d=document.createElement('div');d.className='pm-pop rdo-aviso19';
+    d.innerHTML=`<div class="pm-pop-box" style="max-width:440px;text-align:center"><div style="padding:22px 22px 18px"><div class="rdo-aviso-ico"><i class="fas fa-lock"></i></div>
+      <b style="font:800 17px Manrope,Inter,sans-serif;display:block;margin-bottom:6px">Diário de obra fechado</b>
+      <p style="margin:0 0 16px;font-size:13.5px;line-height:1.55;color:#475467">O dia de hoje (<b>${fe(brDe(hoje0()))}</b>) foi fechado às <b>19h</b>. Para alterar, peça ao Administrador para reabrir o dia.</p>
+      <button type="button" class="gf-bt pri" data-pop-x style="min-width:140px;justify-content:center">Entendi</button></div></div>`;
+    document.body.appendChild(d);d.addEventListener('click',ev=>{if(ev.target===d||ev.target.closest('[data-pop-x]'))d.remove();});
+  }
+  let rdoNFech=null;
+  setInterval(()=>{try{
+    if(!(App.state&&App.state.data)||!Auth._session)return;
+    const todos=D().diario_obra||[],n=todos.filter(rdoFechado).length,hj=hojeRdo();
+    if(rdoNFech!==null&&n!==rdoNFech&&document.getElementById('view-diario')?.classList.contains('active')&&!document.getElementById('fin-ov')?.classList.contains('open'))renderDiario();
+    rdoNFech=n;
+    const k='rdo-aviso19-'+hj;let visto=false;try{visto=!!sessionStorage.getItem(k);}catch(e){}
+    if(new Date().getHours()>=HORA_FECHA_RDO&&!visto&&todos.some(r=>r.data===hj&&(r.criado_por_id||'')===eu().id&&!fechadoManual(r)&&!reabertoRdo(r))){try{sessionStorage.setItem(k,'1');}catch(e){}avisoRdo19();}
+  }catch(e){}},30000);
   /* Equipe por função (contadores) e equipamentos com horímetro: o efetivo e as horas são calculados (travados).
      Os textos antigos (efetivo_desc / equipamentos) continuam sendo gravados — o PDF e os relatórios usam. */
   const FUNCOES=['Encarregado','Pedreiro','Servente','Armador','Carpinteiro','Eletricista','Encanador','Pintor','Operador de máquina','Motorista','Outros'];
@@ -12205,9 +12290,10 @@ const Eng=(function(){
   const CFG_RDO={aba:'Diário de obra',nomeItem:'registro do diário',larg:820,campos:[
     {k:'_s1',tipo:'sec',label:'<i class="fas fa-calendar-day"></i> O dia'},
     {k:'titulo_obra',label:'Obra',tipo:'obra',obrig:true,inteira:true},
-    {k:'data',label:'Data',tipo:'data',obrig:true,padrao:()=>isoDe(hoje0())},
+    {k:'data',label:'Data',tipo:'data',obrig:true,travado:true,padrao:()=>isoDe(hoje0())},
     {k:'responsavel',label:'Responsável pelo registro',travado:true,padrao:()=>eu().nome},
-    {k:'_copiar',tipo:'html',html:reg=>reg?'':'<button type="button" class="fin-bt mini" data-rdo-copiar><i class="fas fa-copy"></i> Copiar equipe e equipamentos do último dia desta obra</button>'},
+    // o dia vem do calendário (Registrar dia); "Trocar o dia" abre o calendário de novo
+    {k:'_copiar',tipo:'html',html:reg=>`<div class="rdo-dia-av" data-rdo-dia>${reg?(reabertoRdo(reg)?`<i class="fas fa-lock-open"></i> Dia aberto pelo Administrador até <b>${hm(new Date(reg.aberto_ate))}</b> — depois fecha sozinho de novo.`:reg.data===hojeRdo()?avisoDiaRdo(reg.data):''):''}</div>${reg?'':'<div class="rdo-dia-bts"><button type="button" class="fin-bt mini" data-rdo-trocar><i class="fas fa-calendar-day"></i> Trocar o dia</button><button type="button" class="fin-bt mini" data-rdo-copiar><i class="fas fa-copy"></i> Copiar equipe e equipamentos do último dia desta obra</button></div>'}`},
     {k:'_s2',tipo:'sec',label:'<i class="fas fa-cloud-sun"></i> Tempo e condição de trabalho'},
     {k:'_tempo',tipo:'html',html:htmlTempo},
     {k:'clima_manha',label:'Tempo pela manhã',tipo:'oculto',obrig:true},{k:'clima_tarde',label:'Tempo à tarde',tipo:'oculto',obrig:true},{k:'condicao',label:'Condição do trabalho',tipo:'oculto',obrig:true},
@@ -12243,6 +12329,10 @@ const Eng=(function(){
     const eqs=jsonDe(o.equip_json)||[],ruim=eqs.find(x=>x.hor!==false&&ordemRuim(x));
     if(ruim)return `${ruim.eq||'Máquina'}: as leituras do horímetro têm que ir aumentando ao longo do dia (início ≤ meio-dia ≤ início da tarde ≤ fim).`;
     if(reg&&!meuRdo(reg))return 'Só quem registrou pode alterar este registro do diário.';
+    // fechamento: dia fechado não muda; dia futuro não registra; dia que já encerrou às 19h só o Administrador registra (e fica aberto por 1 hora)
+    if(reg&&rdoFechado(reg))return `O dia ${brDe(dt(reg.data))} está fechado — só o Administrador reabre.`;
+    if(o.data>hojeRdo())return 'Este dia ainda não chegou.';
+    if(!reg&&passouHoraRdo(o.data)){if(!ehAdmRdo())return `O diário de ${brDe(dt(o.data))} encerrou às 19h. Peça ao Administrador para registrar este dia.`;o.aberto_ate=new Date(Date.now()+3600e3).toISOString();}
     // o autor vem do usuário do sistema (não se digita); na edição, continua o de quem registrou
     if(!reg){o.criado_por=eu().nome;o.criado_por_id=eu().id;o.responsavel=eu().nome;}
     else o.responsavel=reg.responsavel||reg.criado_por||o.responsavel;
@@ -12278,6 +12368,9 @@ const Eng=(function(){
     // máquina escolhida: a leitura do início do dia vem da última leitura dela nesta obra
     tb.addEventListener('change',ev=>{const i=ev.target;if(i.dataset.eq!=='eq')return;const h1=i.closest('tr').querySelector('[data-eq="h1"]');if(!h1.value){const u=ultimoHorimetro(i.value);if(u){h1.value=u;somaEquip();}}});
     if(reg&&reg.equip_json)somaEquip();
+    const tr=j.querySelector('[data-rdo-trocar]');
+    if(tr)tr.addEventListener('click',()=>{const ob=H('titulo_obra').value;if(!ob)return toast('Escolha a obra primeiro.','error');
+      escolherDiaRdo(ob,iso=>{H('data').value=iso;const av=j.querySelector('[data-rdo-dia]');if(av)av.innerHTML=avisoDiaRdo(iso);});});
     const cp=j.querySelector('[data-rdo-copiar]');
     if(cp)cp.addEventListener('click',()=>{const ob=H('titulo_obra').value;if(!ob)return toast('Escolha a obra primeiro.','error');
       const ult=(D().diario_obra||[]).filter(r=>r.titulo_obra===ob).sort((a,b)=>String(b.data).localeCompare(String(a.data)))[0];
@@ -12300,8 +12393,9 @@ const Eng=(function(){
   function renderDiario(){
     const box=document.getElementById('eng-diario');if(!box)return;
     const todos=D().diario_obra||[];
-    const meses=[...new Set(todos.map(r=>String(r.data||'').slice(0,7)).filter(Boolean))].sort().reverse();
-    if(RD.mes===''&&meses.length)RD.mes=meses[0];
+    // o mês escolhido aqui vale para a lista e para o calendário do "Registrar dia" (como no Diário de produção)
+    const kHoje=hojeRdo().slice(0,7);if(RD.mes==='')RD.mes=kHoje;
+    const mais=todos.map(r=>String(r.data||'').slice(0,7)).filter(Boolean).sort()[0],nAntes=mais?Math.max(12,(+kHoje.slice(0,4)-+mais.slice(0,4))*12+(+kHoje.slice(5)-+mais.slice(5))):12;
     const autorDe=r=>r.responsavel||r.criado_por||'',autores=[...new Set(todos.map(autorDe).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'pt-BR'));
     const lista=todos.filter(r=>(!RD.obra||r.titulo_obra===RD.obra)&&(!RD.mes||RD.mes==='__todos'||String(r.data||'').startsWith(RD.mes))&&(!RD.autor||autorDe(r)===RD.autor)).sort((a,b)=>String(b.data).localeCompare(String(a.data))||String(a.titulo_obra).localeCompare(String(b.titulo_obra)));
     const nomeMes=m=>{const [a,b]=m.split('-');return ['','Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'][+b]+' de '+a;};
@@ -12309,27 +12403,38 @@ const Eng=(function(){
     const efs=lista.map(r=>numBR(r.efetivo_total)).filter(n=>n>0),efMed=efs.length?efs.reduce((a,b)=>a+b,0)/efs.length:0;
     App._rdoLista=lista;App._rdoFotos=[];
     box.innerHTML=`<div class="fin-wrap">
-      ${cab('Diário de obra','O registro de cada dia de obra: tempo, condição de trabalho, equipe, equipamentos, serviços e ocorrências. É a prova que sustenta pedido de aditivo de prazo (dias de chuva e impraticáveis) e a defesa em qualquer questionamento da fiscalização.',`<button type="button" class="fin-bt" data-rd="pdf">Exportar PDF</button><button type="button" class="fin-bt pri" data-rd="novo">+ Registrar dia</button>`)}
+      ${cab('Diário de obra','O registro de cada dia de obra: tempo, condição de trabalho, equipe, equipamentos, serviços e ocorrências. É a prova que sustenta pedido de aditivo de prazo (dias de chuva e impraticáveis) e a defesa em qualquer questionamento da fiscalização. <b>Cada dia fecha às 19h</b> (ou antes, em <b>Fechar o dia</b>) e só o Administrador reabre.',`${GS.selMes(RD.mes==='__todos'?'':RD.mes,'data-rd="mes"',nAntes,0).replace('</select>',`<option value="__todos" ${RD.mes==='__todos'?'selected':''}>Todos os meses</option></select>`)}<button type="button" class="fin-bt" data-rd="pdf">Exportar PDF</button><button type="button" class="fin-bt pri" data-rd="novo"><i class="fas fa-plus"></i> Registrar dia</button>`)}
       <div class="fin-filtros"><select class="filter-select" data-rd="obra"><option value="">Todas as obras</option>${obrasNomes().map(o=>`<option ${RD.obra===o?'selected':''}>${fe(o)}</option>`).join('')}</select>
-        ${autores.length>1?`<select class="filter-select" data-rd="autor"><option value="">Todos os usuários</option>${autores.map(a=>`<option ${RD.autor===a?"selected":""}>${fe(a)}</option>`).join("")}</select>`:""}
-        <select class="filter-select" data-rd="mes"><option value="__todos" ${RD.mes==='__todos'?'selected':''}>Todos os meses</option>${meses.map(m=>`<option value="${m}" ${RD.mes===m?'selected':''}>${nomeMes(m)}</option>`).join('')}</select></div>
+        ${autores.length>1?`<select class="filter-select" data-rd="autor"><option value="">Todos os usuários</option>${autores.map(a=>`<option ${RD.autor===a?"selected":""}>${fe(a)}</option>`).join("")}</select>`:""}</div>
       <div class="fin-kpis">${kpi('','Dias registrados',lista.length,RD.obra?'nesta obra':'somando as obras')}${kpi(imp?'vermelho':'verde','Dias impraticáveis',imp,'base para aditivo de prazo')}${kpi(chuva?'laranja':'verde','Dias com chuva',chuva,'manhã ou tarde')}${kpi('','Efetivo médio',efMed?n2(efMed).replace(',00',''):'—','pessoas por dia registrado')}${kpi('','Fotos dos dias',lista.reduce((s,r)=>s+Eng.fotosDoDia(r.titulo_obra,r.data).length,0),'ligadas pela obra e pela data')}</div>
       ${RD.mes&&RD.mes!=='__todos'&&lista.length?resumoMesHtml(lista,nomeMes(RD.mes)):''}
-      <div class="fin-card">${lista.length?lista.map((r,i)=>{const d=dt(r.data);return `<div class="eng-dia">
-        <div class="eng-dia-data"><b>${d?String(d.getDate()).padStart(2,'0'):'—'}</b><span>${d?DIAS_SEM[d.getDay()].slice(0,3)+' · '+brDe(d).slice(3,5)+'/'+String(d.getFullYear()).slice(2):''}</span></div>
-        <div class="eng-dia-txt"><div class="linha">${RD.obra?'':`<b>${fe(r.titulo_obra)}</b>`}<span class="eng-pill ${tomCond(r.condicao)}">${fe(r.condicao||'—')}</span><span class="eng-pill ${choveu(r)?'azul':''}">manhã: ${fe(r.clima_manha||'—')} · tarde: ${fe(r.clima_tarde||'—')}</span>${r.efetivo_total?`<span class="eng-pill">${fe(r.efetivo_total)} pessoas</span>`:''}</div>
-          <p>${fe(r.atividades||'')}</p>${r.efetivo_desc?`<small><b>Equipe:</b> ${fe(r.efetivo_desc)}</small>`:''}${r.equipamentos?`<small><b>Equipamentos:</b> ${fe(r.equipamentos)}</small>`:''}${r.ocorrencias?`<small><b>Ocorrências:</b> ${fe(r.ocorrencias)}</small>`:''}${r.visitas?`<small><b>Visitas:</b> ${fe(r.visitas)}</small>`:''}<small>${fe(r.responsavel?'Registrado por '+r.responsavel:'')}</small>${Eng.fotosHtml(r.titulo_obra,r.data,i,(App._rdoFotos[i]=fotosDoRegistro(r)))}</div>
-        <div class="eng-acoes">${r.ocorrencias&&Eng.novaAcao&&(!UI._allowedViews||UI._allowedViews.includes('acoes'))?`<button type="button" class="fin-bt mini" data-rd="acao" data-i="${i}" title="Transformar a ocorrência numa ação do plano, com responsável e prazo">→ Ação</button>`:''}${podeFotoRdo()?`<button type="button" class="fin-bt mini" data-rd="fotos" data-i="${i}" title="Incluir fotos deste dia (vão também para a galeria da obra)">+ Fotos</button>`:''}<button type="button" class="fin-bt mini" data-rd="pdfdia" data-i="${i}">PDF</button>${meuRdo(r)?`<button type="button" class="fin-bt mini" data-rd="editar" data-i="${i}">Editar</button><button type="button" class="fin-bt mini" data-rd="excluir" data-i="${i}">Excluir</button>`:""}</div></div>`;}).join('')
-        :`<div class="fin-vazio">${todos.length?'Nenhum registro neste filtro.':'Nenhum dia registrado ainda. O ideal é registrar no fim de cada dia de obra.'}</div>`}</div>
+      ${lista.length?`<div class="rdo-dias">${lista.map((r,i)=>{const d=dt(r.data),fech=rdoFechado(r),f=r.fechado||{},hj=r.data===hojeRdo(),meu=meuRdo(r);
+        // como no Diário de produção: folhinha com a data, situação (aberto · fecha às 19h / fechado) e os botões do dia
+        const st=fech?`<span class="pm-st-dia fe"><i class="fas fa-lock"></i> ${fechadoManual(r)?`Fechado por ${fe(f.por||'')}${f.em?' · '+fe(brDe(dt(String(f.em).slice(0,10))).slice(0,5))+' '+fe(String(f.em).slice(11,16)):''}`:'Fechado às 19h (automático)'}</span>`
+          :`<span class="pm-st-dia ab"><i class="fas fa-lock-open"></i> Aberto${reabertoRdo(r)?` · reaberto até ${hm(new Date(r.aberto_ate))}`:hj?' · fecha às 19h':''}</span>`;
+        const acao=r.ocorrencias&&Eng.novaAcao&&(!UI._allowedViews||UI._allowedViews.includes('acoes'))?`<button type="button" class="fin-bt mini" data-rd="acao" data-i="${i}" title="Transformar a ocorrência numa ação do plano, com responsável e prazo">→ Ação</button>`:'';
+        const bts=fech?`${acao}<button type="button" class="fin-bt mini" data-rd="pdfdia" data-i="${i}"><i class="fas fa-file-pdf"></i> PDF</button>${ehAdmRdo()?`<button type="button" class="fin-bt mini" data-rd="reabrir" data-i="${i}"><i class="fas fa-lock-open"></i> Reabrir</button>`:''}<button type="button" class="fin-bt mini" data-rd="ver" data-i="${i}"><i class="fas fa-eye"></i> Ver</button>`
+          :`${acao}${podeFotoRdo()?`<button type="button" class="fin-bt mini" data-rd="fotos" data-i="${i}" title="Incluir fotos deste dia (vão também para a galeria da obra)"><i class="fas fa-camera"></i> Fotos</button>`:''}<button type="button" class="fin-bt mini" data-rd="pdfdia" data-i="${i}"><i class="fas fa-file-pdf"></i> PDF</button>${meu?`<button type="button" class="fin-bt mini" data-rd="excluir" data-i="${i}" title="Excluir este registro"><i class="fas fa-trash"></i></button><button type="button" class="fin-bt mini" data-rd="fechar" data-i="${i}"><i class="fas fa-lock"></i> Fechar o dia</button><button type="button" class="fin-bt mini pri" data-rd="editar" data-i="${i}"><i class="fas fa-pen"></i> Alterar</button>`:''}`;
+        return `<article class="pm-dia2 rdo-dia2${fech?' fech':''}"><div class="pm-dia2-cab">
+          <div class="pm-cal${fech?' fech':''}"><span class="m">${d?fe(MESES_RDO[d.getMonth()].slice(0,3).toUpperCase()):''}</span><span class="d">${d?d.getDate():'—'}</span><span class="s">${d?fe(DIAS_SEM[d.getDay()].slice(0,3).toLowerCase()):''}</span></div>
+          <div class="pm-dia2-meta"><div class="pm-dia2-tit"><b>${d?`${fe(DIAS_SEM[d.getDay()])}, ${d.getDate()} de ${fe(MESES_RDO[d.getMonth()])}`:'Sem data'}</b>${st}</div>
+            ${RD.obra?'':`<div class="rdo-obra" title="${fe(r.titulo_obra)}"><i class="fas fa-helmet-safety"></i> ${fe(r.titulo_obra)}</div>`}
+            <div class="rdo-pills"><span class="eng-pill ${tomCond(r.condicao)}">${fe(r.condicao||'—')}</span><span class="eng-pill ${choveu(r)?'azul':''}"><i class="fas ${choveu(r)?'fa-cloud-rain':'fa-sun'}"></i> manhã: ${fe(r.clima_manha||'—')} · tarde: ${fe(r.clima_tarde||'—')}</span>${r.efetivo_total?`<span class="eng-pill"><i class="fas fa-people-group"></i> ${fe(r.efetivo_total)} pessoas</span>`:''}</div></div>
+          <div class="pm-dia2-bt rdo-bts">${bts}</div></div>
+          <div class="eng-dia-txt rdo-corpo"><p>${fe(r.atividades||'')}</p>${r.efetivo_desc?`<small><b>Equipe:</b> ${fe(r.efetivo_desc)}</small>`:''}${r.equipamentos?`<small><b>Equipamentos:</b> ${fe(r.equipamentos)}</small>`:''}${r.ocorrencias?`<small><b>Ocorrências:</b> ${fe(r.ocorrencias)}</small>`:''}${r.visitas?`<small><b>Visitas:</b> ${fe(r.visitas)}</small>`:''}<small>${fe(r.responsavel?'Registrado por '+r.responsavel:'')}</small>${Eng.fotosHtml(r.titulo_obra,r.data,i,(App._rdoFotos[i]=fotosDoRegistro(r)))}</div></article>`;}).join('')}</div>`
+        :`<div class="fin-card"><div class="fin-vazio">${todos.length?'Nenhum registro neste filtro.':'Nenhum dia registrado ainda. O ideal é registrar no fim de cada dia de obra.'}<br><button type="button" class="fin-bt pri" data-rd="novo" style="margin-top:10px"><i class="fas fa-plus"></i> Registrar dia</button></div></div>`}
     </div>`;
     box.onchange=ev=>{const s=ev.target.closest('select[data-rd]');if(!s)return;RD[s.dataset.rd]=s.value;renderDiario();};
     box.onclick=ev=>{const b=ev.target.closest('button[data-rd]');if(!b)return;const r=App._rdoLista[+b.dataset.i];
       if(b.dataset.rd==='foto'&&r)Eng.verFoto(App._rdoFotos[+b.dataset.i]||Eng.fotosDoDia(r.titulo_obra,r.data),+b.dataset.f);
       else if(b.dataset.rd==='fotos'&&r)Eng.enviarFotos(r.titulo_obra,r.data);
       else if(b.dataset.rd==='acao'&&r)Eng.novaAcao({titulo_obra:r.titulo_obra,tipo:'Pendência',o_que:String(r.ocorrencias).slice(0,150),por_que:'Ocorrência registrada no diário de '+brDe(dt(r.data)),origem:'Diário de obra '+brDe(dt(r.data))});
-      else if(b.dataset.rd==='novo'){formulario(CFG_RDO,null);if(RD.obra)setTimeout(()=>{const el=document.querySelector('#fin-jan [data-f="titulo_obra"]');if(el)el.value=RD.obra;},40);}
-      else if(b.dataset.rd==='editar'&&r){if(!meuRdo(r))return toast('Só quem registrou pode alterar este registro.','error');formulario(CFG_RDO,r);}
-      else if(b.dataset.rd==='excluir'&&r&&meuRdo(r))apagar(CFG_RDO,r,`${r.titulo_obra} — ${brDe(dt(r.data))}`);
+      else if(b.dataset.rd==='novo')novoRdo();
+      else if(b.dataset.rd==='editar'&&r){if(!meuRdo(r))return toast('Só quem registrou pode alterar este registro.','error');if(rdoFechado(r))return verRdo(r);formulario(CFG_RDO,r);}
+      else if(b.dataset.rd==='excluir'&&r&&meuRdo(r)){if(rdoFechado(r))return toast('Dia fechado não pode ser excluído — só o Administrador reabre.','error');apagar(CFG_RDO,r,`${r.titulo_obra} — ${brDe(dt(r.data))}`);}
+      else if(b.dataset.rd==='fechar'&&r)fecharDiaRdo(r);
+      else if(b.dataset.rd==='reabrir'&&r)reabrirDiaRdo(r);
+      else if(b.dataset.rd==='ver'&&r)verRdo(r);
       else if(b.dataset.rd==='pdfdia'&&r)pdfDiario([r],`${r.titulo_obra} · ${brDe(dt(r.data))}`);
       else if(b.dataset.rd==='resumo-pdf'){const html=resumoMesHtml(App._rdoLista,nomeMes(RD.mes),true);App._relExportPaginado({titulo:'Diário de obra — resumo do mês',subLinhas:[RD.obra||'Todas as obras',nomeMes(RD.mes)],blocosArr:[html]});}
       else if(b.dataset.rd==='pdf'){if(!App._rdoLista.length)return toast('Nada para exportar neste filtro.','error');pdfDiario(App._rdoLista.slice().reverse(),[RD.obra||'Todas as obras',RD.mes&&RD.mes!=='__todos'?nomeMes(RD.mes):'Todos os meses'].join(' · '));}
@@ -23020,7 +23125,7 @@ input.gf-lista-campo{background-image:url("data:image/svg+xml;utf8,<svg xmlns='h
 </style>
 <script src="listas.js?v=20261015"></script>
 <script src="pm-catalogo.js?v=20261028b"></script>
-<script src="premoldados.js?v=20261028b"></script>
+<script src="premoldados.js?v=20261028c"></script>
 </body>
 </html>
 

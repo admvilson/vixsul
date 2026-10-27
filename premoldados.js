@@ -375,6 +375,7 @@ function estilo(){
 /* calendário para escolher o dia do diário: o mês só aparece (quem troca é o seletor do diário) */
 .pm-cl-sem,.pm-cl-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;padding:0 16px;}
 .pm-cl-sem{padding-top:16px;}
+.pm-cl-sub{display:block;font:600 12px Inter,sans-serif;color:#667085;margin-top:2px;}
 .pm-cl-sem span{font:700 10.5px Inter,sans-serif;color:#667085;text-transform:uppercase;text-align:center;letter-spacing:.04em;}
 .pm-cl-grid{padding:6px 16px 12px;}
 .pm-cd{position:relative;height:60px;border:1px solid #E4E7EC;border-radius:12px;background:#fff;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:2px;padding:7px 3px 4px;cursor:pointer;color:#101828;transition:background .12s,border-color .12s,box-shadow .12s;font-family:Inter,sans-serif;}
@@ -1443,15 +1444,19 @@ function feriadosDe(a){const m={};
 /* calendário para escolher o dia do diário: dia já registrado não dá para escolher; sábado, domingo e feriado aparecem marcados */
 // o mês vem do seletor do diário (no calendário ele só aparece, para sinalizar)
 function escolherDiaProducao(aoEscolher,kIni){
-  const adm=ehAdm(),hj=hojeISO(),kHoje=hj.slice(0,7);let k=kIni||PM.mes||kHoje;if(k>kHoje)k=kHoje;
-  const p=sobre(`<div class="pm-pop-box pm-cl" style="max-width:560px"><div class="pm-pop-cab"><b><i class="fas fa-calendar-day" style="color:#1652D8"></i> Qual dia vai registrar?</b><button type="button" class="pm-x" data-pop-x><i class="fas fa-xmark"></i></button></div><div data-cl></div></div>`,
-    (ev,fechar)=>{const b=ev.target.closest('[data-dia]');if(b&&!b.disabled){fechar();(aoEscolher||(iso=>formProducao(null,{data:iso})))(b.dataset.dia);}});
+  return calendarioDias({k:kIni||PM.mes,registrados:new Map(T('producao').map(r=>[r.data,r])),fechado:diaFechado,aoEscolher:aoEscolher||(iso=>formProducao(null,{data:iso}))});}
+/* o calendário em si — usado também pelo Diário de obra (PM_FABRICA.calendarioDias).
+   op: {k: mês 'aaaa-mm', registrados: Map(dia → registro), fechado(r), aoEscolher(dia), sub: linha embaixo do título (ex.: a obra)} */
+function calendarioDias(op){
+  const adm=ehAdm(),hj=hojeISO(),kHoje=hj.slice(0,7),fechadoDe=op.fechado||diaFechado;let k=op.k||kHoje;if(k>kHoje)k=kHoje;
+  const p=sobre(`<div class="pm-pop-box pm-cl" style="max-width:560px"><div class="pm-pop-cab"><b><i class="fas fa-calendar-day" style="color:#1652D8"></i> Qual dia vai registrar?${op.sub?`<small class="pm-cl-sub">${fe(op.sub)}</small>`:''}</b><button type="button" class="pm-x" data-pop-x><i class="fas fa-xmark"></i></button></div><div data-cl></div></div>`,
+    (ev,fechar)=>{const b=ev.target.closest('[data-dia]');if(b&&!b.disabled){fechar();op.aoEscolher(b.dataset.dia);}});
   function pintar(){
-    const [y,m]=k.split('-').map(Number),ini=new Date(y,m-1,1),nd=new Date(y,m,0).getDate(),fer=feriadosDe(y),reg=new Map(T('producao').filter(r=>String(r.data||'').startsWith(k)).map(r=>[r.data,r]));
+    const [y,m]=k.split('-').map(Number),ini=new Date(y,m-1,1),nd=new Date(y,m,0).getDate(),fer=feriadosDe(y),reg=new Map([...(op.registrados||new Map())].filter(([d])=>String(d||'').startsWith(k)));
     let cel='';for(let i=0;i<ini.getDay();i++)cel+='<span class="pm-cd vz"></span>';let livres=0;
     for(let d=1;d<=nd;d++){const iso=`${k}-${String(d).padStart(2,'0')}`,dw=new Date(y,m-1,d).getDay(),r=reg.get(iso),fr=fer[iso],fut=iso>hj,enc=!adm&&!r&&passouHora(iso),fds=dw===0||dw===6;
       const st=r?'reg':fut?'fut':enc?'enc':'livre';if(st==='livre')livres++;
-      const tit=r?`Já registrado${diaFechado(r)?' e fechado':''}: abra o dia na lista do diário para ver ou alterar`:fut?'Este dia ainda não chegou':enc?'Encerrado às 19h: só o Administrador registra este dia':'Registrar este dia';
+      const tit=r?`Já registrado${fechadoDe(r)?' e fechado':''}: abra o dia na lista do diário para ver ou alterar`:fut?'Este dia ainda não chegou':enc?'Encerrado às 19h: só o Administrador registra este dia':'Registrar este dia';
       cel+=`<button type="button" class="pm-cd ${st}${fds?' fds':''}${fr?' fer':''}${iso===hj?' hoje':''}" data-dia="${iso}" ${st!=='livre'?'disabled':''} title="${fe(tit+(fr?' · Feriado: '+fr:fds?' · '+(dw===0?'Domingo':'Sábado'):''))}"><b>${d}</b>${r?'<i class="fas fa-circle-check"></i>':''}<small>${fr?fe(fr):fds?(dw===0?'domingo':'sábado'):iso===hj?'hoje':''}</small></button>`;}
     const nReg=reg.size;
     // o mês é o do seletor do diário (não aparece aqui)
@@ -2745,5 +2750,5 @@ async function salvarParametros(){
   try{await gravar(r?{...r,cfg:{...((r&&r.cfg)||{}),...c}}:{tipo:'config',cfg:c,data_lancamento:todayDateTime()},r?r.rowid:null);toast('Parâmetros salvos: os custos das peças foram recalculados.','success');}catch(e){toast(e.message,'error',false);}
 }
 
-window.PM_FABRICA={apagarReg,escolherDiaProducao,feriadosDe,liberacaoLote,formCompra,formAvaria,formAjuste,formEnsaio,fichaLote,loteInfo,fecharDiasVencidos,confirmarFecharDia,reabrirDia,formProducao,diaFechado,passouHora,opSolta,cascataPeca,planoExcluirVenda,excluirVenda,depsExcluir2:depsExcluir,apagarReg,formOrdem,ordens,T,vendas,vendaDe,fichaVenda,cancelarVenda,devolver,registrarPagamento,entregar,moverVenda,formVenda,pendenciasProducao,andamentoOP,encerrada,depsVenda,depsOrdem,faltaInsumos,lerXmlNfe,catalogoPDF,imprimirVenda,depsExcluir,lotes,rastreio,comissoesMes,precoPara,calcularFrete,situacaoLote,pesoVenda,romaneio,imprimirEtiquetas,escolherPeca,calc,receita,traco1m3,rateio,estoque,estoqueInsumos,CFG,render,irAba,resumoMes,necessidade,caixaMes,faseVenda,totalVenda,pagoDe,reposicao,fichaHtml,tiposTodos,armPeca};
+window.PM_FABRICA={apagarReg,escolherDiaProducao,calendarioDias,simNao,feriadosDe,liberacaoLote,formCompra,formAvaria,formAjuste,formEnsaio,fichaLote,loteInfo,fecharDiasVencidos,confirmarFecharDia,reabrirDia,formProducao,diaFechado,passouHora,opSolta,cascataPeca,planoExcluirVenda,excluirVenda,depsExcluir2:depsExcluir,apagarReg,formOrdem,ordens,T,vendas,vendaDe,fichaVenda,cancelarVenda,devolver,registrarPagamento,entregar,moverVenda,formVenda,pendenciasProducao,andamentoOP,encerrada,depsVenda,depsOrdem,faltaInsumos,lerXmlNfe,catalogoPDF,imprimirVenda,depsExcluir,lotes,rastreio,comissoesMes,precoPara,calcularFrete,situacaoLote,pesoVenda,romaneio,imprimirEtiquetas,escolherPeca,calc,receita,traco1m3,rateio,estoque,estoqueInsumos,CFG,render,irAba,resumoMes,necessidade,caixaMes,faseVenda,totalVenda,pagoDe,reposicao,fichaHtml,tiposTodos,armPeca};
 })();
