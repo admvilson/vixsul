@@ -361,9 +361,8 @@ function estilo(){
 .pm-cal .s{display:block;font:600 10.5px Inter,sans-serif;color:#667085;padding:0 0 7px;}
 .pm-cal.fech{border-color:#E4E7EC;box-shadow:none;} .pm-cal.fech .m{background:linear-gradient(135deg,#475467,#98A2B3);} .pm-cal.fech .d{color:#475467;}
 /* calendário para escolher o dia do diário: o mês só aparece (quem troca é o seletor do diário) */
-.pm-cl-cab{display:flex;align-items:center;gap:10px;padding:14px 16px 12px;}
-.pm-cl-mes{display:inline-flex;align-items:center;gap:10px;font:800 19px Manrope,Inter,sans-serif;letter-spacing:-.01em;color:#101828;} .pm-cl-mes i{font-size:16px;color:#1652D8;}
 .pm-cl-sem,.pm-cl-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;padding:0 16px;}
+.pm-cl-sem{padding-top:16px;}
 .pm-cl-sem span{font:700 10.5px Inter,sans-serif;color:#667085;text-transform:uppercase;text-align:center;letter-spacing:.04em;}
 .pm-cl-grid{padding:6px 16px 12px;}
 .pm-cd{position:relative;height:60px;border:1px solid #E4E7EC;border-radius:12px;background:#fff;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:2px;padding:7px 3px 4px;cursor:pointer;color:#101828;transition:background .12s,border-color .12s,box-shadow .12s;font-family:Inter,sans-serif;}
@@ -1396,7 +1395,6 @@ function feriadosDe(a){const m={};
 // o mês vem do seletor do diário (no calendário ele só aparece, para sinalizar)
 function escolherDiaProducao(aoEscolher,kIni){
   const adm=ehAdm(),hj=hojeISO(),kHoje=hj.slice(0,7);let k=kIni||PM.mes||kHoje;if(k>kHoje)k=kHoje;
-  const [y0,m0]=k.split('-').map(Number),rotMes=`${MESES_PT[m0-1].replace(/^./,c=>c.toUpperCase())} de ${y0}`;
   const p=sobre(`<div class="pm-pop-box pm-cl" style="max-width:560px"><div class="pm-pop-cab"><b><i class="fas fa-calendar-day" style="color:#1652D8"></i> Qual dia vai registrar?</b><button type="button" class="pm-x" data-pop-x><i class="fas fa-xmark"></i></button></div><div data-cl></div></div>`,
     (ev,fechar)=>{const b=ev.target.closest('[data-dia]');if(b&&!b.disabled){fechar();(aoEscolher||(iso=>formProducao(null,{data:iso})))(b.dataset.dia);}});
   function pintar(){
@@ -1407,9 +1405,8 @@ function escolherDiaProducao(aoEscolher,kIni){
       const tit=r?`Já registrado${diaFechado(r)?' e fechado':''}: abra o dia na lista do diário para ver ou alterar`:fut?'Este dia ainda não chegou':enc?'Encerrado às 19h: só o Administrador registra este dia':'Registrar este dia';
       cel+=`<button type="button" class="pm-cd ${st}${fds?' fds':''}${fr?' fer':''}${iso===hj?' hoje':''}" data-dia="${iso}" ${st!=='livre'?'disabled':''} title="${fe(tit+(fr?' · Feriado: '+fr:fds?' · '+(dw===0?'Domingo':'Sábado'):''))}"><b>${d}</b>${r?'<i class="fas fa-circle-check"></i>':''}<small>${fr?fe(fr):fds?(dw===0?'domingo':'sábado'):iso===hj?'hoje':''}</small></button>`;}
     const nReg=reg.size;
-    // o mês só aparece (quem troca o mês é o seletor do diário)
-    p.d.querySelector('[data-cl]').innerHTML=`<div class="pm-cl-cab"><span class="pm-cl-mes"><i class="fas fa-calendar"></i> ${fe(rotMes)}</span></div>
-      <div class="pm-cl-sem">${['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'].map(x=>`<span>${x}</span>`).join('')}</div><div class="pm-cl-grid">${cel}</div>
+    // o mês é o do seletor do diário (não aparece aqui)
+    p.d.querySelector('[data-cl]').innerHTML=`<div class="pm-cl-sem">${['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'].map(x=>`<span>${x}</span>`).join('')}</div><div class="pm-cl-grid">${cel}</div>
       <div class="pm-cl-leg"><div><span style="--c:#ECFDF3;--b:#ABEFC6">Já registrado (${nReg})</span><span style="--c:#F2F4F7;--b:#D0D5DD">Sábado e domingo</span><span style="--c:#FEF3F2;--b:#FECDCA">Feriado</span><span style="--c:#fff;--b:#1652D8">Hoje</span></div>
         <em><b>${nReg}</b> registrado${nReg===1?'':'s'} · <b>${livres}</b> livre${livres===1?'':'s'}</em></div>
       ${adm?'':'<p class="pm-mini" style="margin:-6px 18px 12px">Dia apagado: ainda não chegou ou já encerrou às 19h (só o Administrador registra).</p>'}
