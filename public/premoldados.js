@@ -156,7 +156,7 @@ function depsExcluir(reg){
     if(d.length)d.push({ok:true,txt:cascataPeca(id)?'Esse histórico é só de vendas encerradas e ordens sem produção: o Administrador pode excluir tudo junto no botão abaixo.':'A peça tem histórico: em vez de excluir, edite (mude o nome ou o preço) — o histórico de custos e vendas continua certo.'});}
   if(reg.tipo==='producao'&&diaFechado(reg))d.push({ok:false,txt:`O diário de ${fe(brDe(dt(reg.data)))} está fechado — o Administrador reabre o dia antes de excluir`});
   if(reg.tipo==='producao'){const h=hoje0(),ls=lotes().filter(l=>String(l.r.rowid)===id);
-    ls.forEach(l=>{const ne=ensaiosDe(l.lote).length;if(ne)d.push({ok:false,txt:`Lote ${l.lote} tem ${ne} ensaio(s) registrado(s)`});
+    ls.forEach(l=>{const ne=ensaiosDe(l.lote).length;if(ne)d.push({ok:false,ens:true,txt:`Lote ${l.lote} tem ${ne} ensaio(s) registrado(s) — dá para excluir o dia junto com os ensaios`});
       const p=pecaDe(l.peca),lib=addD(dt(l.data)||h,num(p&&p.cura!=null&&p.cura!==''?p.cura:tipoDePeca(p||{}).cura||7))<=h,x=E.P[l.peca]||{disp:0,res:0};
       if(lib&&x.disp-l.qtd<0)d.push({ok:false,txt:`${fe(nomePeca(l.peca))}: as ${nf(l.qtd,0)} peças deste dia já saíram em vendas — excluir deixaria o estoque negativo`});
       else if(lib&&x.disp-l.qtd<x.res)d.push({ok:false,txt:`${fe(nomePeca(l.peca))}: as peças deste dia estão reservadas para vendas`});});}
@@ -166,9 +166,21 @@ function depsExcluir(reg){
   if(reg.tipo==='cliente'){const ab=vendas().filter(v=>String(v.cliente||'').trim().toLowerCase()===String(reg.nome||'').trim().toLowerCase()&&['aguardando_sinal','reservado'].includes(v.status)).length;if(ab)d.push({ok:false,txt:`${ab} venda(s) em aberto deste cliente`});}
   return d.some(x=>!x.ok)?d:null;
 }
+// excluir o dia de produção com os ensaios (e os corpos de prova informados) dos lotes dele
+async function excluirDiaComEnsaios(reg,rotulo){
+  const cods=new Set(lotes().filter(l=>String(l.r.rowid)===String(reg.rowid)).map(l=>l.lote)),ens=T('ensaio').filter(e=>cods.has(e.lote)),cps=T('cp').filter(c=>cods.has(c.lote));
+  const tm=travaMes(reg,reg)||ens.map(e=>travaMes(e,e)).find(Boolean);if(tm)return trava(`Não dá para excluir: ${rotulo}`,[{ok:false,txt:tm}]);
+  if(!(await simNao('Excluir o dia e os ensaios?',`Serão excluídos de vez (não tem como desfazer):<ul style="margin:8px 0 0 18px"><li><b>${fe(rotulo)}</b> — ${cods.size} lote(s): ${[...cods].map(fe).join(', ')}</li><li>${ens.length} ensaio(s): ${ens.map(e=>`${fe(e.lote)} aos ${nf(num(e.idade),0)} dias`).join(', ')}</li>${cps.length?`<li>o número de corpos de prova informado nesses lotes</li>`:''}</ul>`,'Sim, excluir tudo','fa-trash')))return;
+  try{await executar(async()=>{for(const e of ens)await excluir(ABA,e.rowid);for(const c of cps)await excluir(ABA,c.rowid);await excluir(ABA,reg.rowid);});toast('Dia de produção e ensaios excluídos.','success');document.getElementById('fin-ov').classList.remove('open');}
+  catch(e){toast(e.message||String(e),'error');}}
 async function apagarReg(reg,rotulo,depois){
   if(GS.podeMexer&&!GS.podeMexer(reg))return toast(GS.MSG_DONO,'error');
-  const dp=depsExcluir(reg);if(dp){const cas=reg.tipo==='peca'?cascataPeca(reg.rowid):null;return trava(`Não dá para excluir: ${rotulo}`,dp,cas?{rot:'Excluir a peça e esse histórico',f:()=>excluirPecaCascata(reg,cas)}:null);}
+  const dp=depsExcluir(reg);if(dp){const cas=reg.tipo==='peca'?cascataPeca(reg.rowid):null;if(cas)return trava(`Não dá para excluir: ${rotulo}`,dp,{rot:'Excluir a peça e esse histórico',f:()=>excluirPecaCascata(reg,cas)});
+    // dia de produção: fechado → o Administrador reabre; o que impede é só ensaio → exclui o dia junto com os ensaios
+    if(reg.tipo==='producao'){const bl=dp.filter(x=>!x.ok);
+      if(diaFechado(reg))return trava(`Não dá para excluir: ${rotulo}`,dp,ehAdm()?{rot:'Reabrir o dia',f:()=>reabrirDia(reg)}:null);
+      if(bl.every(x=>x.ens))return trava(`Não dá para excluir: ${rotulo}`,dp,{rot:'Excluir o dia junto com os ensaios',f:()=>excluirDiaComEnsaios(reg,rotulo)});}
+    return trava(`Não dá para excluir: ${rotulo}`,dp);}
   const tm=travaMes(reg,reg);if(tm)return trava(`Não dá para excluir: ${rotulo}`,[{ok:false,txt:tm}]);
   confirmar('Excluir?',`<b>${fe(rotulo)}</b> será excluído de vez. Não tem como desfazer.`,'Sim, excluir',async()=>{await executar(()=>excluir(ABA,reg.rowid));toast('Excluído.','success');if(depois)depois();});
 }
@@ -2733,5 +2745,5 @@ async function salvarParametros(){
   try{await gravar(r?{...r,cfg:{...((r&&r.cfg)||{}),...c}}:{tipo:'config',cfg:c,data_lancamento:todayDateTime()},r?r.rowid:null);toast('Parâmetros salvos: os custos das peças foram recalculados.','success');}catch(e){toast(e.message,'error',false);}
 }
 
-window.PM_FABRICA={escolherDiaProducao,feriadosDe,liberacaoLote,formCompra,formAvaria,formAjuste,formEnsaio,fichaLote,loteInfo,fecharDiasVencidos,confirmarFecharDia,reabrirDia,formProducao,diaFechado,passouHora,opSolta,cascataPeca,planoExcluirVenda,excluirVenda,depsExcluir2:depsExcluir,apagarReg,formOrdem,ordens,T,vendas,vendaDe,fichaVenda,cancelarVenda,devolver,registrarPagamento,entregar,moverVenda,formVenda,pendenciasProducao,andamentoOP,encerrada,depsVenda,depsOrdem,faltaInsumos,lerXmlNfe,catalogoPDF,imprimirVenda,depsExcluir,lotes,rastreio,comissoesMes,precoPara,calcularFrete,situacaoLote,pesoVenda,romaneio,imprimirEtiquetas,escolherPeca,calc,receita,traco1m3,rateio,estoque,estoqueInsumos,CFG,render,irAba,resumoMes,necessidade,caixaMes,faseVenda,totalVenda,pagoDe,reposicao,fichaHtml,tiposTodos,armPeca};
+window.PM_FABRICA={apagarReg,escolherDiaProducao,feriadosDe,liberacaoLote,formCompra,formAvaria,formAjuste,formEnsaio,fichaLote,loteInfo,fecharDiasVencidos,confirmarFecharDia,reabrirDia,formProducao,diaFechado,passouHora,opSolta,cascataPeca,planoExcluirVenda,excluirVenda,depsExcluir2:depsExcluir,apagarReg,formOrdem,ordens,T,vendas,vendaDe,fichaVenda,cancelarVenda,devolver,registrarPagamento,entregar,moverVenda,formVenda,pendenciasProducao,andamentoOP,encerrada,depsVenda,depsOrdem,faltaInsumos,lerXmlNfe,catalogoPDF,imprimirVenda,depsExcluir,lotes,rastreio,comissoesMes,precoPara,calcularFrete,situacaoLote,pesoVenda,romaneio,imprimirEtiquetas,escolherPeca,calc,receita,traco1m3,rateio,estoque,estoqueInsumos,CFG,render,irAba,resumoMes,necessidade,caixaMes,faseVenda,totalVenda,pagoDe,reposicao,fichaHtml,tiposTodos,armPeca};
 })();
