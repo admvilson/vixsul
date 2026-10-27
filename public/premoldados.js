@@ -69,7 +69,17 @@ function devolvidoDe(v){const r={estoque:0,avaria:0,estorno:0};(v.devolucoes||[]
   (v.pagamentos||[]).forEach(p=>{if(p.tipo==='estorno')r.estorno+=num(p.valor);});return r;}
 const ORIG_AV={patio:'Pátio / estoque',desforma:'Na desforma',carregamento:'No carregamento',transporte:'No transporte / entrega',cliente:'Devolvida avariada pelo cliente',outra:'Outra'};
 const AV_ESTOQUE=['patio','desforma','carregamento','transporte','outra'];
-const TURNOS=['Dia inteiro','Manhã','Tarde','Noite'],CLIMAS=['Sol','Nublado','Chuva fraca','Chuva forte'];
+const CLIMAS=['Sol','Parcialmente nublado','Nublado','Chuva fraca','Chuva forte'];
+const CLI_ICO={Sol:'fa-sun','Parcialmente nublado':'fa-cloud-sun',Nublado:'fa-cloud','Chuva fraca':'fa-cloud-rain','Chuva forte':'fa-cloud-showers-heavy'};
+// clima do dia: manhã e tarde (registros antigos tinham um clima só)
+const climaDe=r=>({manha:r.clima_manha||r.clima||'',tarde:r.clima_tarde||r.clima||''});
+/* ── fechamento do dia (como o fechamento do caixa): fechado, só o Administrador reabre; às 19h o dia aberto fecha sozinho ── */
+const HORA_FECHA=19;
+const diaFechado=r=>!!(r&&r.fechado&&r.fechado.em);
+// já passou da hora de fechar? (dia anterior a hoje, ou hoje a partir das 19h)
+const passouHora=d=>{const hj=hojeISO();return !!d&&(d<hj||(d===hj&&new Date().getHours()>=HORA_FECHA));};
+const MESES_PT=['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
+const SEM_PT=['domingo','segunda-feira','terça-feira','quarta-feira','quinta-feira','sexta-feira','sábado'];
 const OCORR=['Nenhuma','Falta de material','Chuva parou a produção','Betoneira / equipamento quebrado','Falta de energia','Falta de água','Falta de pessoal','Outra'];
 const FUNCOES=['Encarregado','Pedreiro','Armador','Operador de betoneira','Servente','Ajudante','Motorista'];
 const FORMAS_PG=['Pix','Dinheiro','Transferência','Boleto','Cartão de débito','Cartão de crédito','Cheque'];
@@ -119,14 +129,18 @@ function travaMes(o,orig){
   return null;
 }
 const origDe=id=>id?linhas().find(r=>String(r.rowid)===String(id))||null:null;
+// dia de produção fechado: não muda mais; só o Administrador reabre (tirando o fechamento)
+function travaDia(o,orig){if(!o||o.tipo!=='producao'||!orig||!diaFechado(orig))return null;
+  if(diaFechado(o))return `O diário de ${brDe(dt(orig.data))} está fechado: não pode ser alterado. Só o Administrador reabre.`;
+  return ehAdm()?null:'Só o Administrador reabre um dia fechado.';}
 async function gravar(o,rowid){
-  const tm=travaMes(o,origDe(rowid));if(tm)throw new Error(tm);
+  const tm=travaMes(o,origDe(rowid))||travaDia(o,origDe(rowid));if(tm)throw new Error(tm);
   try{await executar(()=>salvar(ABA,o,rowid||null));}
   catch(e){throw traduzir(e);}
 }
 // várias gravações com uma recarga só no fim
 async function gravarVarios(ops){
-  for(const [o,id] of ops){const tm=travaMes(o,origDe(id));if(tm)throw new Error(tm);}
+  for(const [o,id] of ops){const tm=travaMes(o,origDe(id))||travaDia(o,origDe(id));if(tm)throw new Error(tm);}
   try{await executar(async()=>{for(const [o,id] of ops)await salvar(ABA,o,id||null);});}catch(e){throw traduzir(e);}
 }
 function traduzir(e){return /premoldados|pré-moldados|does not exist|schema cache|relation|could not find the table/i.test(String(e&&e.message))?new Error('A tabela da fábrica ainda não existe no banco: rode o passo 6 no Supabase (arquivo seguranca/passo-6-premoldados.sql).'):e;}
@@ -140,6 +154,7 @@ function depsExcluir(reg){
     if(os.length)d.push({ok:false,txt:`${os.length} ordem(ns) de produção: ${os.slice(0,8).map(o=>`OP nº ${fe(String(o.numero))} (${stO(o)})`).join(', ')}${os.length>8?'…':''}`});
     if(nA)d.push({ok:false,txt:`${nA} avaria(s) ou acerto(s) de estoque`});
     if(d.length)d.push({ok:true,txt:cascataPeca(id)?'Esse histórico é só de vendas encerradas e ordens sem produção: o Administrador pode excluir tudo junto no botão abaixo.':'A peça tem histórico: em vez de excluir, edite (mude o nome ou o preço) — o histórico de custos e vendas continua certo.'});}
+  if(reg.tipo==='producao'&&diaFechado(reg))d.push({ok:false,txt:`O diário de ${fe(brDe(dt(reg.data)))} está fechado — o Administrador reabre o dia antes de excluir`});
   if(reg.tipo==='producao'){const h=hoje0(),ls=lotes().filter(l=>String(l.r.rowid)===id);
     ls.forEach(l=>{const ne=ensaiosDe(l.lote).length;if(ne)d.push({ok:false,txt:`Lote ${l.lote} tem ${ne} ensaio(s) registrado(s)`});
       const p=pecaDe(l.peca),lib=addD(dt(l.data)||h,num(p&&p.cura!=null&&p.cura!==''?p.cura:tipoDePeca(p||{}).cura||7))<=h,x=E.P[l.peca]||{disp:0,res:0};
@@ -336,7 +351,18 @@ function estilo(){
 .pm-dia2-cab{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:8px;}
 .pm-dia2-dt{width:58px;height:58px;border-radius:14px;background:linear-gradient(135deg,#1652D8,#2E90FA);color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;flex:none;box-shadow:0 8px 16px -10px rgba(22,82,216,.9);}
 .pm-dia2-dt b{font:800 22px Manrope,Inter,sans-serif;line-height:1;} .pm-dia2-dt span{font:700 10px Inter,sans-serif;text-transform:uppercase;letter-spacing:.04em;opacity:.9;}
-.pm-dia2-meta{flex:1;min-width:220px;display:flex;flex-direction:column;gap:6px;} .pm-dia2-meta>div:first-child{display:flex;flex-wrap:wrap;gap:4px;}
+/* data do dia em forma de folhinha de calendário: mês na faixa, dia grande, dia da semana embaixo */
+.pm-cal{width:64px;flex:none;border-radius:14px;overflow:hidden;background:#fff;border:1px solid #D9E2F1;box-shadow:0 6px 14px -8px rgba(22,82,216,.45);text-align:center;}
+.pm-cal .m{display:block;background:linear-gradient(135deg,#1652D8,#2E90FA);color:#fff;font:800 10px Inter,sans-serif;letter-spacing:.14em;padding:4px 0 3px;}
+.pm-cal .d{display:block;font:800 26px/1 Manrope,Inter,sans-serif;color:#101828;padding:7px 0 2px;}
+.pm-cal .s{display:block;font:600 10.5px Inter,sans-serif;color:#667085;padding:0 0 7px;}
+.pm-cal.fech{border-color:#E4E7EC;box-shadow:none;} .pm-cal.fech .m{background:linear-gradient(135deg,#475467,#98A2B3);} .pm-cal.fech .d{color:#475467;}
+.pm-dia2-tit{display:flex;align-items:center;gap:8px;flex-wrap:wrap;} .pm-dia2-tit>b{font:800 15px Manrope,Inter,sans-serif;color:#101828;}
+.pm-dia2.fech{background:#FCFCFD;}
+.pm-st-dia{display:inline-flex;align-items:center;gap:5px;font:700 11px Inter,sans-serif;border-radius:99px;padding:3px 9px;}
+.pm-st-dia.ab{background:#ECFDF3;color:#067647;} .pm-st-dia.fe{background:#F2F4F7;color:#475467;}
+.pm-pt.pend{border-color:#FDB022;background:#FFFAEB;} .pm-pt.pend [data-pst]{border-color:#F79009;}
+.pm-dia2-meta{flex:1;min-width:220px;display:flex;flex-direction:column;gap:6px;} .pm-dia2-meta>div.pm-pills{display:flex;flex-wrap:wrap;gap:4px;}
 .pm-dia2-num{display:flex;flex-wrap:wrap;gap:14px;font-size:12px;color:#667085;} .pm-dia2-num b{color:var(--text-1);font-size:14px;}
 .pm-dia2-bt{display:flex;gap:6px;flex:none;}
 .pm-dia2-eq{display:flex;align-items:center;flex-wrap:wrap;gap:4px;margin:0 0 8px;padding:6px 8px;background:#F8FAFC;border-radius:10px;} .pm-dia2-eq .pm-av{margin-right:-8px;} .pm-dia2-eq .pm-mini{margin:0 8px 0 14px;}
@@ -541,7 +567,12 @@ function clique(ev){
     'nova-peca':()=>escolherTipo(t=>formPeca(null,{tipo_k:t.k})),'cat-grupo':()=>{PM.grupo=b.dataset.g;render();},'cat-pdf':()=>catalogoPDF(b.dataset.modo),'peca':()=>fichaPeca(pecaDe(id)),'vista':()=>{PM.pecasVista=b.dataset.v;render();},
     'tipo':()=>fichaTipo(tipoK(b.dataset.k)),'tipo-novo':()=>formTipo(null),'traco-novo':()=>formTraco(null),'traco':()=>formTraco(tracoDe(id)),
     'ordem-nova':()=>formOrdem(null),'ordem':()=>formOrdem(T('ordem').find(o=>String(o.rowid)===id)),'fichas-abertas':()=>imprimirFichas(ordens().filter(o=>o.status==='planejada'||o.status==='producao')),
-    'prod-nova':()=>formProducao(null),'lote':()=>fichaLote(b.dataset.lote),'dvista':()=>{PM.dVista=b.dataset.v;render();},'prod-copiar':()=>formProducao(null,{copiar:T('producao').find(o=>String(o.rowid)===id)}),'prod':()=>formProducao(T('producao').find(o=>String(o.rowid)===id)),
+    // um diário por dia: se hoje já foi registrado, abre o de hoje para alterar
+    'prod-nova':()=>{const hj=T('producao').find(r=>r.data===hojeISO());if(hj){toast(diaFechado(hj)?'O dia de hoje já foi registrado e fechado.':'O dia de hoje já foi registrado: abrindo para alterar.','success');return formProducao(hj);}formProducao(null);},
+    'lote':()=>fichaLote(b.dataset.lote),'dvista':()=>{PM.dVista=b.dataset.v;render();},
+    'prod-copiar':()=>{const hj=T('producao').find(r=>r.data===hojeISO());if(hj)return trava('O dia de hoje já foi registrado',[{ok:false,txt:'Cada dia tem um diário só. Abra o dia de hoje para alterar.'}],{rot:'Abrir o dia de hoje',f:()=>formProducao(hj)});formProducao(null,{copiar:T('producao').find(o=>String(o.rowid)===id)});},
+    'prod':()=>formProducao(T('producao').find(o=>String(o.rowid)===id)),
+    'dia-fechar':()=>confirmarFecharDia(T('producao').find(o=>String(o.rowid)===id)),'dia-reabrir':()=>reabrirDia(T('producao').find(o=>String(o.rowid)===id)),
     'compra-nova':()=>formCompra(null,b.dataset.ins),'compra':()=>formCompra(T('compra').find(o=>String(o.rowid)===id)),
     'ajuste-novo':()=>formAjuste(null,b.dataset.item),'ajuste':()=>formAjuste(T('ajuste').find(o=>String(o.rowid)===id)),
     'avaria-nova':()=>formAvaria(null,b.dataset.peca),'avaria':()=>formAvaria(T('avaria').find(o=>String(o.rowid)===id)),
@@ -729,7 +760,7 @@ function formTipo(t){
     <div class="fin-fld"><label>Forma (família)</label><select data-k="f">${Object.entries(CAT.FAM).map(([k,f])=>`<option value="${k}" ${k===b.f?'selected':''}>${f.rot}</option>`).join('')}</select></div>
     <div class="fin-fld"><label>Armadura</label><select data-k="arm">${['nenhuma','linear','malha','fios','gaiola','trelica','projeto'].map(a=>`<option value="${a}" ${a===b.arm?'selected':''}>${armTxt(a)}</option>`).join('')}</select></div>
     <div class="fin-fld"><label>Traço indicado</label><select data-k="tr">${Object.entries(CAT.TR).map(([k,x])=>`<option value="${k}" ${k===b.tr?'selected':''}>${fe(x.nome)}</option>`).join('')}</select></div>
-    <div class="fin-fld"><label>Dias de cura</label><input data-k="cura" inputmode="numeric" value="${fe(String(b.cura||7))}"></div>
+    <div class="fin-fld"><label>Dias de cura</label><input data-k="cura" inputmode="numeric" data-num="int" value="${fe(String(b.cura||7))}"></div>
     <div class="fin-fld" style="grid-column:1/-1"><label>Uso</label><input data-k="uso" value="${fe(b.uso||'')}"></div></div>`,
     [...(t&&t.reg?[{html:'<i class="fas fa-trash"></i> Excluir',acao:async()=>{if(pecas().some(p=>p.tipo_k===t.k))throw new Error('Há peças deste tipo cadastradas.');setTimeout(()=>apagarReg(t.reg,t.nome),60);}}]:[]),
      {html:'<i class="fas fa-floppy-disk"></i> Salvar tipo',cls:'pri',acao:async jj=>{const g=k=>String(jj.querySelector(`[data-k="${k}"]`).value||'').trim(),o=t&&t.reg?{...t.reg}:{tipo:'tipo_custom',data_lancamento:todayDateTime()};
@@ -748,7 +779,7 @@ const receitaTxt=(rc,mult)=>{mult=mult||1;const L=rc.latas,p=[];if(L.areia)p.pus
   p.push(`${nf(rc.porSaco.agua*mult,0)} litros de água`);if(rc.porSaco.aditivo)p.push(`${nf(rc.porSaco.aditivo*mult*1000,0)} g de aditivo`);return `${mult===1?'1 saco':nf(mult,1).replace(',0','')+' sacos'} de cimento + ${p.join(' + ')}`;};
 function formTraco(t){
   const padrao=t&&t.padrao,reg=t&&t.reg,c=CFG(),b=t||{nome:'',ar:2,po:0,br:3,ac:0.55,ad:0,uso:''};
-  const fld=(k,l,ph)=>`<div class="fin-fld"><label>${l}</label><input data-k="${k}" inputmode="decimal" value="${fe(String(b[k]!=null?b[k]:'').replace('.',','))}" placeholder="${ph||'0'}" ${padrao?'readonly':''}></div>`;
+  const fld=(k,l,ph)=>`<div class="fin-fld"><label>${l}</label><input data-k="${k}" inputmode="decimal" data-num="dec" value="${fe(String(b[k]!=null?b[k]:'').replace('.',','))}" placeholder="${ph||'0'}" ${padrao?'readonly':''}></div>`;
   const prev=jj=>{const x={ar:num(jj.querySelector('[data-k="ar"]').value),po:num(jj.querySelector('[data-k="po"]').value),br:num(jj.querySelector('[data-k="br"]').value),ac:num(jj.querySelector('[data-k="ac"]').value),ad:num(jj.querySelector('[data-k="ad"]').value),vz:b.vz||0},rc=receita(x,c);
     return rc?`Por m³: <b>${nf(rc.k.cimento,0)} kg de cimento</b> (${nf(rc.k.cimento/50,1)} sacos). Na betoneira: <b>${receitaTxt(rc)}</b>.`:'Informe as proporções.';};
   const j=janela(padrao?`Traço padrão — ${b.nome}`:reg?'Editar traço':'Novo traço',`${padrao?'<div class="fin-aviso"><div>Traço padrão do sistema: para mudar, clique em <b>Copiar e ajustar</b>.</div></div>':''}
@@ -832,7 +863,7 @@ function formPeca(reg,opts){
   const t=tipoK(base.tipo_k)||CAT.tipoDe('outra');if(!reg&&!opts.copia){base.dims={...t.d};base.cura=t.cura;base.traco='p:'+t.tr;base.armadura=t.arm!=='nenhuma'&&t.armPad!==false;base.formas=1;base.ciclo=1;}
   if(novo)base.codigo=proxCodigo();
   const F=CAT.FAM[t.f]||CAT.FAM.manual;
-  const dimsHtml=d=>F.campos.map(([k,l])=>`<div class="fin-fld"><label>${l}${t.f==='manual'?'':(k==='vz'?'':' (cm)')}</label><input data-dim="${k}" inputmode="decimal" data-sem-mascara="1" value="${d&&d[k]!=null&&d[k]!==''?fe(String(d[k]).replace('.',',')):''}" placeholder="0"></div>`).join('');
+  const dimsHtml=d=>F.campos.map(([k,l])=>`<div class="fin-fld"><label>${l}${t.f==='manual'?'':(k==='vz'?'':' (cm)')}</label><input data-dim="${k}" inputmode="decimal" data-num="dec" data-sem-mascara="1" value="${d&&d[k]!=null&&d[k]!==''?fe(String(d[k]).replace('.',',')):''}" placeholder="0"></div>`).join('');
   const html=`<div class="pm-form"><div>
     <div class="pm-bloco"><h5><i class="fas fa-shapes"></i> Tipo: ${fe(t.nome)}</h5><p class="pm-mini" style="margin:-4px 0 8px">${fe(grupoDe(t.g).rot)} · forma ${fe(F.rot.toLowerCase())} · ${fe(t.uso||'')}</p>
       ${t.tam.length?`<div class="fin-fld"><label>Tamanho de mercado</label><select data-pmf="tam"><option value="">— medidas próprias —</option>${t.tam.map(([r],i)=>`<option value="${i}">${fe(r)}</option>`).join('')}</select></div>`:''}
@@ -843,17 +874,17 @@ function formPeca(reg,opts){
       <div class="fin-fld" style="grid-column:span 2"><label>Nome da peça <span class="obg">*</span></label><input data-k="nome" value="${fe(base.nome||'')}" placeholder="${fe(t.nome)}"></div>
       <div class="fin-fld"><label>Preço de varejo (R$)</label><input data-k="preco" value="${base.preco?fe(String(base.preco)):''}" placeholder="vazio = sugerido"></div>
       <div class="fin-fld"><label>Preço de atacado (R$)</label><input data-k="preco_atacado" value="${base.preco_atacado?fe(String(base.preco_atacado)):''}"></div>
-      <div class="fin-fld"><label>Atacado a partir de (peças)</label><input data-k="atacado_min" inputmode="numeric" value="${fe(String(base.atacado_min||''))}" placeholder="ex.: 100"></div><div class="fin-fld"><label>NCM (nota fiscal)</label><input data-k="ncm" value="${fe(base.ncm||'')}" placeholder="${CAT.ncmDe?CAT.ncmDe(t):''}"></div></div></div>
+      <div class="fin-fld"><label>Atacado a partir de (peças)</label><input data-k="atacado_min" inputmode="numeric" data-num="int" value="${fe(String(base.atacado_min||''))}" placeholder="ex.: 100"></div><div class="fin-fld"><label>NCM (nota fiscal)</label><input data-k="ncm" value="${fe(base.ncm||'')}" placeholder="${CAT.ncmDe?CAT.ncmDe(t):''}"></div></div></div>
     <div class="pm-bloco"><h5><i class="fas fa-industry"></i> Produção</h5><div class="fin-linha">
       <div class="fin-fld" style="grid-column:span 2"><label>Traço</label><select data-k="traco">${tracos().map(x=>`<option value="${x.id}" ${x.id===(LEGADO_TR[base.traco]||base.traco)?'selected':''}>${fe(x.nome)}</option>`).join('')}</select></div>
-      <div class="fin-fld"><label>Dias de cura até liberar</label><input data-k="cura" inputmode="numeric" value="${fe(String(base.cura!=null?base.cura:t.cura))}"></div>
-      <div class="fin-fld"><label>Formas (moldes) disponíveis</label><input data-k="formas" inputmode="numeric" value="${fe(String(base.formas||1))}"></div>
-      <div class="fin-fld"><label>Peças por forma por dia</label><input data-k="ciclo" inputmode="numeric" value="${fe(String(base.ciclo||1))}"></div>
-      <div class="fin-fld"><label>Estoque mínimo (peças)</label><input data-k="minimo" inputmode="numeric" value="${fe(String(base.minimo||''))}" placeholder="0"></div><div class="fin-fld"><label>Controle de lote</label><select data-k="lote_modo"><option value="" ${!base.lote_modo?'selected':''}>Automático (pelo peso)</option><option value="palete" ${base.lote_modo==='palete'?'selected':''}>Por palete</option><option value="unidade" ${base.lote_modo==='unidade'?'selected':''}>Por unidade (cada peça numerada)</option></select></div><div class="fin-fld"><label>Peças por palete</label><input data-k="pecas_palete" inputmode="numeric" data-sem-mascara="1" value="${fe(String(base.pecas_palete||''))}" placeholder="automático"></div>
+      <div class="fin-fld"><label>Dias de cura até liberar</label><input data-k="cura" inputmode="numeric" data-num="int" value="${fe(String(base.cura!=null?base.cura:t.cura))}"></div>
+      <div class="fin-fld"><label>Formas (moldes) disponíveis</label><input data-k="formas" inputmode="numeric" data-num="int" value="${fe(String(base.formas||1))}"></div>
+      <div class="fin-fld"><label>Peças por forma por dia</label><input data-k="ciclo" inputmode="numeric" data-num="int" value="${fe(String(base.ciclo||1))}"></div>
+      <div class="fin-fld"><label>Estoque mínimo (peças)</label><input data-k="minimo" inputmode="numeric" data-num="int" value="${fe(String(base.minimo||''))}" placeholder="0"></div><div class="fin-fld"><label>Controle de lote</label><select data-k="lote_modo"><option value="" ${!base.lote_modo?'selected':''}>Automático (pelo peso)</option><option value="palete" ${base.lote_modo==='palete'?'selected':''}>Por palete</option><option value="unidade" ${base.lote_modo==='unidade'?'selected':''}>Por unidade (cada peça numerada)</option></select></div><div class="fin-fld"><label>Peças por palete</label><input data-k="pecas_palete" inputmode="numeric" data-num="int" data-sem-mascara="1" value="${fe(String(base.pecas_palete||''))}" placeholder="automático"></div>
       <div class="fin-fld"><label>Perda de concreto (%)</label><input data-k="perda" value="${base.perda!=null&&base.perda!==''?fe(String(base.perda)):''}" placeholder="padrão ${nf(num(c.perdas.concreto),0)}%"></div></div></div>
     <div class="fin-fld"><label>Observações</label><textarea data-k="obs" rows="2">${fe(base.obs||'')}</textarea></div></div>
   <div class="pm-res"><div data-pm-desenho style="background:#fff;border-radius:10px;margin-bottom:8px"></div><div data-pm-arm></div>
-    <div class="fin-fld" style="margin:8px 0"><label>Calcular para quantas peças?</label><input data-pmf="lote" inputmode="numeric" value="1"></div><div data-pm-res></div></div></div>`;
+    <div class="fin-fld" style="margin:8px 0"><label>Calcular para quantas peças?</label><input data-pmf="lote" inputmode="numeric" data-num="int" value="1"></div><div data-pm-res></div></div></div>`;
   const j=janela(novo?'Nova peça':'Editar peça',html,[{html:`<i class="fas fa-floppy-disk"></i> ${novo?'Cadastrar peça':'Salvar'}`,cls:'pri',acao:async jj=>{
     if(!novo&&GS.podeMexer&&!GS.podeMexer(reg))throw new Error(GS.MSG_DONO);
     const o=lerPeca(jj,novo?{tipo:'peca',tipo_k:t.k,data_lancamento:todayDateTime()}:{...reg});
@@ -1015,7 +1046,7 @@ function imprimirFichaDoc(fichas,titulo,sub){
   App._relExportPaginado({titulo:titulo||'Ficha de produção',subLinhas:[sub||'Vixsul Empreendimentos · fábrica de pré-moldados'],blocosArr:blocos});
 }
 function abrirQtdFicha(p){
-  janela('Ficha técnica — quantas peças?',`<div class="fin-fld"><label>Quantidade a produzir</label><input data-k="q" inputmode="numeric" value="10"></div><p class="pm-mini">A ficha sai com o desenho, o material, o ferro e a receita do concreto para essa quantidade — em letra grande, para a equipe da produção.</p>`,
+  janela('Ficha técnica — quantas peças?',`<div class="fin-fld"><label>Quantidade a produzir</label><input data-k="q" inputmode="numeric" data-num="int" value="10"></div><p class="pm-mini">A ficha sai com o desenho, o material, o ferro e a receita do concreto para essa quantidade — em letra grande, para a equipe da produção.</p>`,
     [{html:'<i class="fas fa-print"></i> Imprimir ficha',cls:'pri',acao:async j=>{const q=num(j.querySelector('[data-k="q"]').value);if(!(q>0))throw new Error('Informe a quantidade.');imprimirFichaDoc([fichaHtml(p,q,null)],'Ficha de produção',`${p.nome} · ${nf(q,0)} peças`);}}],420);
 }
 function imprimirFichas(L){
@@ -1099,7 +1130,7 @@ function formOrdem(reg,pre){
   const vend=vendaAberta(v0)?v0:null,solta=!!(reg&&reg.venda&&!vend);
   const j=janela(reg?`OP nº ${reg.numero}`:'Nova ordem de produção',`<div class="pm-form"><div><div class="fin-linha">
       <div class="fin-fld" style="grid-column:1/-1"><label>Peça <span class="obg">*</span></label><select data-k="peca" ${vend?'disabled':''}>${pecas().map(p=>`<option value="${p.rowid}" ${String(p.rowid)===String(b.peca)?'selected':''}>${fe(p.nome)}</option>`).join('')}</select></div>
-      <div class="fin-fld"><label>Quantidade (peças) <span class="obg">*</span></label><input data-k="qtd" inputmode="numeric" value="${fe(String(b.qtd||''))}" ${vend?'readonly':''}></div>
+      <div class="fin-fld"><label>Quantidade (peças) <span class="obg">*</span></label><input data-k="qtd" inputmode="numeric" data-num="int" value="${fe(String(b.qtd||''))}" ${vend?'readonly':''}></div>
       <div class="fin-fld"><label>Situação</label><select data-k="status">${COLS_OP.concat([{k:'cancelada',rot:'Cancelada'}]).map(c=>`<option value="${c.k}" ${c.k===b.status?'selected':''}>${c.rot.replace(/s$/,'')}</option>`).join('')}</select></div>
       <div class="fin-fld"><label>Início</label><input type="date" data-k="inicio" value="${fe(b.inicio||'')}"></div>
       <div class="fin-fld"><label>Prazo (terminar até)</label><input type="date" data-k="fim" value="${fe(b.fim||'')}"></div>
@@ -1178,7 +1209,7 @@ function fichaLote(cod){
   const cons=Object.entries(l.it.consumo||{}).filter(([,q])=>num(q)>0).map(([k,q])=>`${fe(insDe(k).nome.split(' (')[0])} ${nf(num(q),2)} ${insDe(k).un}`).join(' · ');
   janela(`Lote ${cod}`,`<div class="pm-form"><div><div data-th="${p?p.rowid:''}" class="pm-svgbox" style="background:#F8FAFC;border-radius:12px;min-height:150px">${iluPeca(p)}</div>
       <table class="pm-tab2" data-sem-ordem style="margin-top:8px"><tbody><tr><td>Peça</td><td><b>${fe(p?p.nome:'(excluída)')}</b> <small>${fe(p&&p.codigo||'')}</small></td></tr>
-      <tr><td>Fabricação</td><td>${fe(brDe(dt(l.data)))}${l.r.turno?' · '+fe(l.r.turno):''}${l.r.clima?' · '+fe(l.r.clima):''}</td></tr>
+      <tr><td>Fabricação</td><td>${fe(brDe(dt(l.data)))}${(c2=>[c2.manha?' · manhã '+fe(c2.manha.toLowerCase()):'',c2.tarde?' · tarde '+fe(c2.tarde.toLowerCase()):''].join(''))(climaDe(l.r))}</td></tr>
       <tr><td>Traço</td><td>${fe(tr?tr.nome:'')} <small>${fe(tr&&tr.fck||'')}</small></td></tr>${op?`<tr><td>Ordem</td><td>OP nº ${fe(String(op.numero))}${op.cliente?' · '+fe(op.cliente):''}</td></tr>`:''}
       ${eqLista(l.r).length?`<tr><td>Equipe</td><td>${fe(eqLista(l.r).join(', '))}</td></tr>`:''}${cons?`<tr><td>Material usado</td><td><small style="font-size:12px;color:#344054">${cons}</small></td></tr>`:''}</tbody></table></div>
     <div><div class="pm-ltiles">${tile('fa-cubes','Quantidade',`${nf(l.qtd,0)} peças`,l.refugo?`${nf(l.refugo,0)} refugo`:'sem refugo')}${tile(unid?'fa-hashtag':'fa-pallet','Controle',unid?`${subs.length} unidades`:`${subs.length} palete(s)`,unid?'cada peça tem o seu número':`até ${nf(subs[0]?subs[0].pp:0,0)} peças por palete`)}
@@ -1196,11 +1227,11 @@ function fichaLote(cod){
 function formEnsaio(cod,reg){
   const l=loteInfo(cod);if(!l)return toast('Lote não encontrado.','error');const p=pecaDe(l.peca),tr=p?tracoDaPeca(p):null,d0=dt(l.data)||hoje0();
   const ateHoje=d=>isoDe(d>hoje0()?hoje0():d),b=reg||{idade:28,data:ateHoje(addD(d0,28)),valores:Array(Math.max(1,Math.min(6,l.cp||2))).fill(''),fck:fckDe(tr)||'',laboratorio:''};
-  const cpIn=(v,i)=>`<div class="fin-fld"><label>CP ${i+1} (MPa)</label><input data-cpv inputmode="decimal" data-sem-mascara="1" value="${v!==''&&v!=null?fe(String(v).replace('.',',')):''}" placeholder="0,0"></div>`;
+  const cpIn=(v,i)=>`<div class="fin-fld"><label>CP ${i+1} (MPa)</label><input data-cpv inputmode="decimal" data-num="dec" data-sem-mascara="1" value="${v!==''&&v!=null?fe(String(v).replace('.',',')):''}" placeholder="0,0"></div>`;
   const j=janela(reg?`Ensaio do lote ${cod}`:`Registrar ensaio — lote ${cod}`,`<div class="fin-resumo">${fe(p?p.nome:'')} · fabricado em ${fe(brDe(d0))} · ${fe(tr?tr.nome:'')}</div>
     <div class="fin-linha" style="margin-top:8px"><div class="fin-fld"><label>Idade do ensaio</label><select data-k="idade">${[3,7,14,28,63].map(x=>`<option value="${x}" ${x===num(b.idade)?'selected':''}>${x} dias</option>`).join('')}</select></div>
       <div class="fin-fld"><label>Data do ensaio <span class="obg">*</span></label><input type="date" data-k="data" value="${fe(b.data||'')}"></div>
-      <div class="fin-fld"><label>fck exigido (MPa) <span class="obg">*</span></label><input data-k="fck" inputmode="decimal" data-sem-mascara="1" value="${b.fck!==''?fe(String(b.fck).replace('.',',')):''}"></div>
+      <div class="fin-fld"><label>fck exigido (MPa) <span class="obg">*</span></label><input data-k="fck" inputmode="decimal" data-num="dec" data-sem-mascara="1" value="${b.fck!==''?fe(String(b.fck).replace('.',',')):''}"></div>
       <div class="fin-fld"><label>Laboratório</label><input data-k="laboratorio" value="${fe(b.laboratorio||'')}" placeholder="Ex.: próprio, laboratório da cidade"></div></div>
     <div class="fin-linha" data-cps style="margin-top:6px">${(b.valores||['']).map(cpIn).join('')}</div><button type="button" class="gf-bt mini" data-pmf="cp-add" style="margin-top:6px"><i class="fas fa-plus"></i> Corpo de prova</button>
     <div class="fin-fld" style="margin-top:8px"><label>Observações</label><input data-k="obs" value="${fe(b.obs||'')}"></div><div class="fin-aviso" style="margin-top:8px"><div data-en-prev></div></div>`,
@@ -1237,7 +1268,7 @@ function formEtiquetas(cod){
   janela(`Etiquetas — lote ${cod}`,`<div class="fin-aviso"><div>${unid?`Uma etiqueta para <b>cada peça</b> (${subs.length} unidades, numeradas).`:`Uma etiqueta para <b>cada palete</b> (${subs.length} palete(s), com a quantidade de peças de cada um).`}</div></div>
     <div class="fin-linha" style="margin-top:8px"><div class="fin-fld"><label>Cópias por ${unid?'peça':'palete'}</label><select data-k="cop">${[1,2,4].map(n=>`<option value="${n}" ${n===(unid?1:2)?'selected':''}>${n}${n===2&&!unid?' (uma de cada lado)':''}</option>`).join('')}</select></div>
       <div class="fin-fld" style="grid-column:span 2"><label>Modelo da folha</label><select data-k="m">${Object.entries(ETQ).map(([k,x])=>`<option value="${k}" ${k===(unid?'p':'g')?'selected':''}>${x.rot}</option>`).join('')}</select></div>
-      <div class="fin-fld"><label>Começar na etiqueta nº</label><input data-k="ini" inputmode="numeric" value="1" title="Para aproveitar uma folha já usada"></div></div>
+      <div class="fin-fld"><label>Começar na etiqueta nº</label><input data-k="ini" inputmode="numeric" data-num="int" value="1" title="Para aproveitar uma folha já usada"></div></div>
     <p class="pm-mini">Cada etiqueta leva o logo, a peça, o lote e o ${unid?'número da unidade':'número do palete e a quantidade'}, as datas de fabricação e liberação, o traço e um QR Code com esses dados.</p>`,
     [{html:'<i class="fas fa-print"></i> Imprimir etiquetas',cls:'pri',acao:async j=>{await imprimirEtiquetas(cod,{copias:num(j.querySelector('[data-k="cop"]').value)||1,mk:j.querySelector('[data-k="m"]').value,ini:Math.max(1,num(j.querySelector('[data-k="ini"]').value)||1)});}}],620);
 }
@@ -1282,6 +1313,48 @@ function pontoMes(k){const jr=jornada(),P={};
   T('producao').filter(r=>{const d=dt(r.data);return d&&mesKey(d)===k;}).forEach(r=>pontoDe(r).forEach(x=>{const y=P[x.nome]=P[x.nome]||{nome:x.nome,funcao:x.funcao||'',dias:0,horas:0,extras:0,atrasos:0,falta:0,atestado:0,folga:0};
     if(x.status==='presente'){y.dias++;const hh=num(x.horas)||horasDe(x.entrada,x.saida,x.intervalo);y.horas+=hh;y.extras+=Math.max(0,hh-jr.horas);if(x.entrada&&minDe(x.entrada)>minDe(jr.entrada)+10)y.atrasos++;}else y[x.status]=(y[x.status]||0)+1;}));
   return Object.values(P).sort((a,b)=>a.nome.localeCompare(b.nome,'pt-BR'));}
+// pergunta com "Sim, …" e "Não" (janela por cima, sem fechar a que está aberta) — devolve true/false
+function simNao(titulo,msg,rotSim,icone){return new Promise(ok=>{let r=false;const p=sobre(`<div class="pm-pop-box" style="max-width:460px"><div class="pm-pop-cab"><b>${icone?`<i class="fas ${icone}" style="color:#1652D8"></i> `:''}${fe(titulo)}</b><button type="button" class="pm-x" data-pop-x><i class="fas fa-xmark"></i></button></div>
+  <div style="padding:14px 16px 16px"><div style="font-size:13.5px;line-height:1.55;margin:0 0 16px">${msg}</div><div style="display:flex;justify-content:flex-end;gap:8px"><button type="button" class="gf-bt" data-pop-x>Não</button><button type="button" class="gf-bt pri" data-pop-ok>${fe(rotSim)}</button></div></div></div>`,
+  (ev,fechar)=>{if(ev.target.closest('[data-pop-ok]')){r=true;fechar();}});
+  new MutationObserver((m,obs)=>{if(!p.d.isConnected){obs.disconnect();ok(r);}}).observe(document.body,{childList:true});});}
+const msgFechar=r=>`O diário de <b>${fe(brDe(dt(r.data)))}</b> não poderá mais ser alterado (equipe, ponto, peças e lotes ficam como estão). <b>Só o Administrador pode reabrir.</b><br><br>Deseja realmente fechar o dia?`;
+async function fecharDia(r,auto){
+  const o={...r,fechado:{em:todayDateTime(),por:auto?'Fechamento automático (19h)':eu(),auto:!!auto},aberto_ate:''};await gravar(o,r.rowid);}
+async function confirmarFecharDia(r){if(!r)return;if(diaFechado(r))return toast('Este dia já está fechado.','success');
+  if(!(await simNao(`Fechar o dia ${brDe(dt(r.data))}?`,msgFechar(r),'Sim, fechar','fa-lock')))return;
+  try{await fecharDia(r,false);toast(`Dia ${brDe(dt(r.data))} fechado.`,'success');}catch(e){toast(e.message||String(e),'error');}}
+async function reabrirDia(r){if(!r)return;if(!ehAdm())return toast('Só o Administrador reabre um dia fechado.','error');
+  if(!(await simNao(`Reabrir o dia ${brDe(dt(r.data))}?`,`O diário volta a poder ser alterado. Ele fica aberto por <b>1 hora</b> e depois fecha sozinho de novo (ou feche antes, em <b>Fechar o dia</b>).`,'Sim, reabrir','fa-lock-open')))return;
+  const ate=new Date(Date.now()+3600e3);
+  try{await gravar({...r,fechado:null,reaberto:{em:todayDateTime(),por:eu()},aberto_ate:ate.toISOString()},r.rowid);toast(`Dia ${brDe(dt(r.data))} reaberto até ${String(ate.getHours()).padStart(2,'0')}:${String(ate.getMinutes()).padStart(2,'0')}.`,'success');}catch(e){toast(e.message||String(e),'error');}}
+/* às 19h o diário aberto fecha sozinho. Quem estiver com o sistema aberto vê o aviso; os dias que ficaram abertos
+   (ninguém estava conectado às 19h) fecham na próxima vez que alguém abrir o sistema. O Administrador que reabre ganha 1 hora. */
+const nivelFab=()=>{const s=(typeof Auth!=='undefined'&&Auth._session)||null;if(!s)return 'nenhum';if(UI._ehAdmin&&UI._ehAdmin(s.perfil))return 'excluir';return UI.permNivel?UI.permNivel('premoldados'):'nenhum';};
+const lerSess=k=>{try{return sessionStorage.getItem(k);}catch(e){return null;}},gravarSess=(k,v)=>{try{sessionStorage.setItem(k,v);}catch(e){}};
+let fechandoDias=false;
+async function fecharDiasVencidos(){
+  if(fechandoDias||!(App&&App.state&&App.state.data))return;const nv=nivelFab();if(nv==='nenhum')return;
+  const agora=new Date(),fMes=CFG().fechado_ate,hj=hojeISO();
+  const L=T('producao').filter(r=>r.data&&!diaFechado(r)&&passouHora(r.data)&&!(fMes&&r.data<=fMes)&&!(r.aberto_ate&&new Date(r.aberto_ate)>agora));
+  const fechei=[];
+  if(L.length&&nv!=='ver'){fechandoDias=true;try{for(const r of L){try{await fecharDia(r,true);fechei.push(r.data);}catch(e){}}}finally{fechandoDias=false;}}
+  // aviso: às 19h (uma vez por dia neste navegador, para quem tem o diário de hoje) ou quando este computador fechou dias que tinham ficado abertos
+  const k='pm-aviso19-'+hj,hojeReg=T('producao').some(r=>r.data===hj),dias=[...new Set(fechei)].sort();
+  if(agora.getHours()>=HORA_FECHA&&hojeReg&&!lerSess(k)){gravarSess(k,'1');avisoFechamento(dias.includes(hj)?dias:[hj].concat(dias));}
+  else if(dias.length)avisoFechamento(dias);
+}
+function avisoFechamento(dias){
+  document.querySelectorAll('.pm-aviso19').forEach(x=>x.remove());const hj=hojeISO(),soHoje=dias.length===1&&dias[0]===hj;
+  const d=document.createElement('div');d.className='pm-pop pm-aviso19';
+  d.innerHTML=`<div class="pm-pop-box" style="max-width:440px;text-align:center"><div style="padding:22px 22px 18px"><div style="width:54px;height:54px;border-radius:16px;margin:0 auto 12px;display:grid;place-items:center;background:linear-gradient(135deg,#1652D8,#2E90FA);color:#fff;font-size:22px;box-shadow:0 10px 20px -10px rgba(22,82,216,.9)"><i class="fas fa-lock"></i></div>
+    <b style="font:800 17px Manrope,Inter,sans-serif;display:block;margin-bottom:6px">Diário de produção fechado</b>
+    <p style="margin:0 0 16px;font-size:13.5px;line-height:1.55;color:#475467">${soHoje?`O dia de hoje (<b>${fe(brDe(dt(hj)))}</b>) foi fechado às <b>19h</b>.`:`Foram fechados os dias: <b>${dias.map(x=>fe(brDe(dt(x)))).join(', ')}</b>.`} Para alterar, peça ao Administrador para reabrir o dia.</p>
+    <button type="button" class="gf-bt pri" data-pop-x style="min-width:140px;justify-content:center">Entendi</button></div></div>`;
+  document.body.appendChild(d);d.addEventListener('click',ev=>{if(ev.target.closest('[data-pop-x]'))d.remove();});
+  if(document.querySelector('#pm-app'))try{render();}catch(e){}
+}
+setInterval(()=>{fecharDiasVencidos().catch(()=>{});},30000);setTimeout(()=>{fecharDiasVencidos().catch(()=>{});},6000);
 function telaProducao(){
   const k=PM.mes,vista=PM.dVista||'dias',L=T('producao').filter(r=>{const d=dt(r.data);return d&&mesKey(d)===k;}).sort((a,b)=>String(b.data).localeCompare(String(a.data))||(+b.rowid-+a.rowid));
   const h=hoje0(),its=L.flatMap(itensProd),tot=its.reduce((s,it)=>s+num(it.qtd),0),ref=its.reduce((s,it)=>s+num(it.refugo),0),jr=jornada();
@@ -1307,13 +1380,19 @@ function telaProducao(){
       ${cpL.map(({l,st})=>{const e7=st.es.filter(e=>num(e.idade)<28).slice(-1)[0],e28=st.es.filter(e=>num(e.idade)>=28).slice(-1)[0],d=dt(l.data);
         return `<tr class="pm-lin" data-pm="lote" data-lote="${fe(l.lote)}"><td><b>${fe(l.lote)}</b></td><td>${fe(nomePeca(l.peca))}</td><td>${fe(brDe(d))}</td><td class="n">${nf(l.cp,0)}</td><td>${e7?`${nf(num(e7.resultado),1)} MPa`:`<small>${fe(brDe(addD(d,7)).slice(0,5))}</small>`}</td><td>${e28?`<b>${nf(num(e28.resultado),1)} MPa</b>`:`<small>${fe(brDe(addD(d,28)).slice(0,5))}</small>`}</td><td>${pill(st.rot,st.cor)}</td></tr>`;}).join('')}</tbody></table></div>`
       :'<div class="gf-vazio ok"><i class="fas fa-circle-check"></i><p>Nenhum ensaio pendente. Informe os CPs (corpos de prova) ao registrar o dia.</p></div>'}</section>`;}
-  const CLI={Sol:'fa-sun','Nublado':'fa-cloud','Chuva fraca':'fa-cloud-rain','Chuva forte':'fa-cloud-showers-heavy'};
-  const dia=r=>{const d=dt(r.data),pt=pontoDe(r),pr=pt.filter(x=>x.status==='presente'),au=pt.filter(x=>x.status!=='presente'),ii=itensProd(r),q=ii.reduce((s,it)=>s+num(it.qtd),0),rf=ii.reduce((s,it)=>s+num(it.refugo),0),
+  const temHoje=L.some(r=>r.data===hojeISO()),fMes=CFG().fechado_ate;
+  const dia=r=>{const d=dt(r.data),pt=pontoDe(r),pr=pt.filter(x=>x.status==='presente'),au=pt.filter(x=>x.status&&x.status!=='presente'),ii=itensProd(r),q=ii.reduce((s,it)=>s+num(it.qtd),0),rf=ii.reduce((s,it)=>s+num(it.refugo),0),
       hh=pr.reduce((s,x)=>s+(num(x.horas)||horasDe(x.entrada,x.saida,x.intervalo)),0),mm=ii.reduce((s,it)=>{const p=pecaDe(it.peca);return s+(p?geoPeca(p).V*(num(it.qtd)+num(it.refugo)):0);},0);
-    return `<article class="pm-dia2"><div class="pm-dia2-cab"><div class="pm-dia2-dt"><b>${d.getDate()}</b><span>${fe(mesCurto(mesKey(d)))} · ${fe(GS.SEMANA[d.getDay()].slice(0,3))}</span></div>
-      <div class="pm-dia2-meta"><div>${pill(fe(r.turno||'Dia inteiro'),'','fa-clock')}${r.clima?pill(fe(r.clima),'',CLI[r.clima]||'fa-sun'):''}${num(r.betonadas)?pill(nf(num(r.betonadas),0)+' betonada(s)','','fa-blender'):''}${r.ocorrencia&&r.ocorrencia!=='Nenhuma'?pill(fe(r.ocorrencia),'warn','fa-triangle-exclamation'):''}</div>
+    const fech=diaFechado(r)||!!(fMes&&r.data<=fMes),cl=climaDe(r),f=r.fechado||{},hj=r.data===hojeISO();
+    const st=fech?`<span class="pm-st-dia fe"><i class="fas fa-lock"></i> ${diaFechado(r)?`Fechado${f.auto?' às 19h (automático)':' por '+fe(f.por||'')}${f.em?' · '+fe(brDe(dt(String(f.em).slice(0,10))).slice(0,5))+' '+fe(String(f.em).slice(11,16)):''}`:'Mês fechado'}</span>`
+      :`<span class="pm-st-dia ab"><i class="fas fa-lock-open"></i> Aberto${hj?' · fecha às 19h':''}</span>`;
+    return `<article class="pm-dia2${fech?' fech':''}"><div class="pm-dia2-cab"><div class="pm-cal${fech?' fech':''}"><span class="m">${fe(MESES_PT[d.getMonth()].slice(0,3).toUpperCase())}</span><span class="d">${d.getDate()}</span><span class="s">${fe(SEM_PT[d.getDay()].split('-')[0])}</span></div>
+      <div class="pm-dia2-meta"><div class="pm-dia2-tit"><b>${fe(SEM_PT[d.getDay()].replace(/^./,c=>c.toUpperCase()))}, ${d.getDate()} de ${fe(MESES_PT[d.getMonth()])}</b>${st}</div>
+        <div class="pm-pills">${cl.manha?pill('Manhã: '+fe(cl.manha),'',CLI_ICO[cl.manha]||'fa-sun'):''}${cl.tarde?pill('Tarde: '+fe(cl.tarde),'',CLI_ICO[cl.tarde]||'fa-sun'):''}${num(r.betonadas)?pill(nf(num(r.betonadas),0)+' betonada(s)','','fa-blender'):''}${r.ocorrencia&&r.ocorrencia!=='Nenhuma'?pill(fe(r.ocorrencia),'warn','fa-triangle-exclamation'):''}</div>
         <div class="pm-dia2-num"><span><b>${nf(q,0)}</b> peças</span><span><b>${nf(mm,2)}</b> m³</span><span><b>${q+rf?nf(rf/(q+rf)*100,1):0}%</b> refugo</span><span><b>${nf(hh,1)}</b> h de equipe</span></div></div>
-      <div class="pm-dia2-bt"><button type="button" class="gf-bt mini" data-pm="prod-copiar" data-id="${r.rowid}" title="Novo dia com a mesma equipe e as mesmas peças"><i class="fas fa-copy"></i> Repetir</button><button type="button" class="gf-bt mini pri" data-pm="prod" data-id="${r.rowid}"><i class="fas fa-pen"></i> Abrir</button></div></div>
+      <div class="pm-dia2-bt">${temHoje?'':`<button type="button" class="gf-bt mini" data-pm="prod-copiar" data-id="${r.rowid}" title="Registrar hoje com a mesma equipe e as mesmas peças"><i class="fas fa-copy"></i> Repetir hoje</button>`}
+        ${fech?(diaFechado(r)&&ehAdm()?`<button type="button" class="gf-bt mini" data-pm="dia-reabrir" data-id="${r.rowid}"><i class="fas fa-lock-open"></i> Reabrir</button>`:'')+`<button type="button" class="gf-bt mini" data-pm="prod" data-id="${r.rowid}"><i class="fas fa-eye"></i> Ver</button>`
+          :`<button type="button" class="gf-bt mini" data-pm="dia-fechar" data-id="${r.rowid}"><i class="fas fa-lock"></i> Fechar o dia</button><button type="button" class="gf-bt mini pri" data-pm="prod" data-id="${r.rowid}"><i class="fas fa-pen"></i> Alterar</button>`}</div></div>
       ${pt.length?`<div class="pm-dia2-eq">${pr.map(x=>`<span class="pm-av" title="${fe(x.nome)}${x.entrada?` · ${fe(x.entrada)}–${fe(x.saida||'')}`:''}">${fe(iniciais(x.nome))}</span>`).join('')}<span class="pm-mini">${pr.length} presente(s)</span>${au.map(x=>pill(`${fe(x.nome)} · ${SIT_PT[x.status][0].toLowerCase()}`,SIT_PT[x.status][1])).join('')}</div>`:''}
       <div class="pm-rolar"><table class="pm-tab2" data-sem-ordem><thead><tr><th></th><th>Peça</th><th>Lote</th><th class="n">Boas</th><th class="n">Refugo</th><th>Ordem</th><th>Cura</th><th class="n">Custo/peça</th></tr></thead><tbody>
       ${ii.map((it,i)=>{const p=pecaDe(it.peca),lib=addD(d,num(p&&p.cura!=null&&p.cura!==''?p.cura:tipoDePeca(p||{}).cura||7)),o=ordens().find(x=>String(x.rowid)===String(it.ordem||'')),cod=loteDe(r,it,i),l=lts.find(x=>x.lote===cod),st=situacaoLote(l);
@@ -1326,27 +1405,32 @@ function telaProducao(){
 function formProducao(reg,pre){
   pre=pre||{};if(!pecas().length)return toast('Cadastre as peças primeiro (Peças e catálogo).','error');
   const c=CFG(),jr=jornada(),equipe=(c.equipe_lista||[]).filter(x=>x&&x.nome),cp0=pre.copiar;
-  const b=reg?{...reg,itens:itensProd(reg)}:cp0?{data:hojeISO(),turno:cp0.turno,clima:'Sol',ocorrencia:'Nenhuma',ponto:pontoDe(cp0).map(x=>({...x,horas:''})),itens:itensProd(cp0).map(it=>({peca:it.peca,ordem:'',qtd:'',refugo:''}))}
-    :{data:hojeISO(),turno:'Dia inteiro',clima:'Sol',ocorrencia:'Nenhuma',ponto:null,itens:[{peca:pre.peca||pecas()[0].rowid,ordem:pre.ordem||'',qtd:'',refugo:''}]};
+  const b=reg?{...reg,...(()=>{const c2=climaDe(reg);return {clima_manha:c2.manha,clima_tarde:c2.tarde};})(),itens:itensProd(reg)}:cp0?{data:hojeISO(),clima_manha:'',clima_tarde:'',ocorrencia:'Nenhuma',ponto:pontoDe(cp0).map(x=>({...x,horas:''})),itens:itensProd(cp0).map(it=>({peca:it.peca,ordem:'',qtd:'',refugo:''}))}
+    :{data:hojeISO(),clima_manha:'',clima_tarde:'',ocorrencia:'Nenhuma',ponto:null,itens:[{peca:pre.peca||pecas()[0].rowid,ordem:pre.ordem||'',qtd:'',refugo:''}]};
+  const fechadoJa=!!reg&&(diaFechado(reg)||!!(c.fechado_ate&&reg.data<=c.fechado_ate)),fx=(reg&&reg.fechado)||{};
   const pts=b.ponto?pontoDe(b):[],ptDe=n=>pts.find(x=>x.nome===n),avulsos=pts.filter(x=>!equipe.some(e=>e.nome===x.nome));
   const opsOrd=(pid,sel)=>`<option value="">— sem ordem (estoque) —</option>`+ordens().filter(o=>String(o.peca)===String(pid)&&(o.status==='planejada'||o.status==='producao'||String(o.rowid)===String(sel))).map(o=>`<option value="${o.rowid}" ${String(o.rowid)===String(sel)?'selected':''}>OP nº ${o.numero} — ${nf(prodDaOrdem(o.rowid),0)} de ${nf(num(o.qtd),0)}</option>`).join('');
   const cpPad=pid=>pedeCP(tipoDePeca(pecaDe(pid)||{}))?2:'';
   const linIt=it=>`<tr data-item ${it.lote?`data-lote="${fe(it.lote)}"`:''}><td style="width:66px">${thumbBt(it.peca)}</td><td><select data-i="peca">${pecas().map(p=>`<option value="${p.rowid}" ${String(p.rowid)===String(it.peca)?'selected':''}>${fe(p.nome)}</option>`).join('')}</select>${it.lote?`<small class="pm-mini">lote ${fe(it.lote)}</small>`:''}</td>
-    <td><select data-i="ordem">${opsOrd(it.peca,it.ordem)}</select></td><td><input data-i="qtd" inputmode="numeric" value="${fe(String(it.qtd||''))}" placeholder="0"></td><td><input data-i="refugo" inputmode="numeric" value="${fe(String(it.refugo||''))}" placeholder="0"></td>
-    <td><input data-i="cp" inputmode="numeric" data-sem-mascara="1" value="${fe(String(it.cp!=null&&it.cp!==''?it.cp:(it.lote?'':cpPad(it.peca))))}" placeholder="0" title="Corpos de prova moldados com o concreto desta peça"></td><td><button type="button" class="pm-x" data-pmf="it-x"><i class="fas fa-xmark"></i></button></td></tr>`;
-  const linP=(x,avulso)=>{const pt=ptDe(x.nome)||{},st=pt.status||(b.ponto?'falta':'presente');return `<div class="pm-pt" data-p ${avulso?'data-avulso="1"':''} data-nome="${fe(x.nome||'')}" data-funcao="${fe(x.funcao||'')}">
+    <td><select data-i="ordem">${opsOrd(it.peca,it.ordem)}</select></td><td><input data-i="qtd" inputmode="numeric" data-num="int" value="${fe(String(it.qtd||''))}" placeholder="0"></td><td><input data-i="refugo" inputmode="numeric" data-num="int" value="${fe(String(it.refugo||''))}" placeholder="0"></td>
+    <td><input data-i="cp" inputmode="numeric" data-num="int" data-sem-mascara="1" value="${fe(String(it.cp!=null&&it.cp!==''?it.cp:(it.lote?'':cpPad(it.peca))))}" placeholder="0" title="Corpos de prova moldados com o concreto desta peça"></td><td><button type="button" class="pm-x" data-pmf="it-x"><i class="fas fa-xmark"></i></button></td></tr>`;
+  // ponto obrigatório: no dia novo ninguém vem marcado — cada pessoa tem de ser marcada (presente, falta, atestado ou folga)
+  const linP=(x,avulso)=>{const pt=ptDe(x.nome)||{},st=pt.status||(b.ponto?'falta':'');return `<div class="pm-pt" data-p ${avulso?'data-avulso="1"':''} data-nome="${fe(x.nome||'')}" data-funcao="${fe(x.funcao||'')}">
     <span class="pm-av">${fe(iniciais(x.nome)||'+')}</span>
     <div class="pm-pt-nm">${avulso?`<input data-pn value="${fe(x.nome||'')}" placeholder="Nome (diarista, visitante)"><select data-pf>${[...new Set([x.funcao||'Ajudante',...FUNCOES])].map(f=>`<option ${f===(x.funcao||'Ajudante')?'selected':''}>${f}</option>`).join('')}</select>`:`<b>${fe(x.nome)}</b><small>${fe(x.funcao||'')}</small>`}</div>
-    <select data-pst class="pm-pt-st">${Object.entries(SIT_PT).map(([k,[l]])=>`<option value="${k}" ${k===st?'selected':''}>${l}</option>`).join('')}</select>
+    <select data-pst class="pm-pt-st"><option value="" ${st?'':'selected'}>— marcar —</option>${Object.entries(SIT_PT).map(([k,[l]])=>`<option value="${k}" ${k===st?'selected':''}>${l}</option>`).join('')}</select>
     <label class="pm-pt-h"><small>Entrada</small><input type="time" data-pe value="${fe(pt.entrada||jr.entrada)}"></label><label class="pm-pt-h"><small>Saída</small><input type="time" data-ps value="${fe(pt.saida||jr.saida)}"></label>
-    <label class="pm-pt-h"><small>Intervalo</small><input data-pi inputmode="numeric" data-sem-mascara="1" value="${fe(String(pt.intervalo!=null&&pt.intervalo!==''?pt.intervalo:jr.intervalo))}" title="minutos"></label>
+    <label class="pm-pt-h"><small>Intervalo</small><input data-pi inputmode="numeric" data-num="int" data-sem-mascara="1" value="${fe(String(pt.intervalo!=null&&pt.intervalo!==''?pt.intervalo:jr.intervalo))}" title="minutos"></label>
     <div class="pm-pt-r" data-ph></div>${avulso?'<button type="button" class="pm-x" data-pmf="p-x"><i class="fas fa-xmark"></i></button>':'<span></span>'}</div>`;};
-  const sel=(k,ops,v)=>`<select data-k="${k}">${ops.map(x=>`<option ${x===v?'selected':''}>${x}</option>`).join('')}</select>`;
-  const j=janela(reg?'Editar o dia de produção':cp0?'Registrar o dia (repetindo equipe e peças)':'Registrar o dia de produção',`<div class="fin-linha">
-      <div class="fin-fld"><label>Data <span class="obg">*</span></label><input type="date" data-k="data" value="${fe(b.data||'')}" max="${hojeISO()}"></div>
-      <div class="fin-fld"><label>Turno</label>${sel('turno',TURNOS,b.turno||'Dia inteiro')}</div><div class="fin-fld"><label>Clima</label>${sel('clima',CLIMAS,b.clima||'Sol')}</div>
-      <div class="fin-fld"><label>Betonadas feitas</label><input data-k="betonadas" inputmode="numeric" value="${fe(String(b.betonadas||''))}" placeholder="0"></div>
-      <div class="fin-fld" style="grid-column:span 2"><label>Ocorrência</label>${sel('ocorrencia',OCORR,b.ocorrencia||'Nenhuma')}</div></div>
+  const sel=(k,ops,v,vazio)=>`<select data-k="${k}">${vazio?`<option value="" ${v?'':'selected'}>${vazio}</option>`:''}${ops.map(x=>`<option ${x===v?'selected':''}>${x}</option>`).join('')}</select>`;
+  const dd=dt(b.data),tit=reg?`${fechadoJa?'Diário fechado':'Alterar o diário'} — ${SEM_PT[dd.getDay()]}, ${brDe(dd)}`:cp0?'Registrar o dia (repetindo equipe e peças)':'Registrar o dia de produção';
+  const j=janela(tit,`${fechadoJa?`<div class="fin-aviso" style="margin:0 0 10px;background:#F2F4F7;border-color:#E4E7EC"><div><i class="fas fa-lock"></i> <b>Dia fechado</b>${diaFechado(reg)?` ${fx.auto?'automaticamente às 19h':'por '+fe(fx.por||'')}${fx.em?' em '+fe(brDe(dt(String(fx.em).slice(0,10))))+' '+fe(String(fx.em).slice(11,16)):''}`:' junto com o mês (Parâmetros › Fechamento do mês)'}. Nada pode ser alterado${diaFechado(reg)?'; só o Administrador reabre':''}.</div></div>`
+      :reg&&reg.data===hojeISO()?`<div class="fin-aviso" style="margin:0 0 10px"><div><i class="fas fa-clock"></i> Este diário <b>fecha sozinho às 19h</b>. Depois disso, só o Administrador reabre.</div></div>`:''}
+    <div class="fin-linha">
+      <div class="fin-fld"><label>Data <span class="obg">*</span></label><input type="date" data-k="data" value="${fe(b.data||'')}" max="${hojeISO()}"><small class="pm-mini" data-dt-aviso style="color:#B42318"></small></div>
+      <div class="fin-fld"><label>Clima de manhã <span class="obg">*</span></label>${sel('clima_manha',CLIMAS,b.clima_manha,'— escolha —')}</div><div class="fin-fld"><label>Clima à tarde <span class="obg">*</span></label>${sel('clima_tarde',CLIMAS,b.clima_tarde,'— escolha —')}</div>
+      <div class="fin-fld"><label>Betonadas feitas <span class="obg">*</span></label><input data-k="betonadas" inputmode="numeric" data-num="int" value="${fe(String(b.betonadas||''))}" placeholder="0"></div>
+      <div class="fin-fld" style="grid-column:span 2"><label>Ocorrência <span class="obg">*</span></label>${sel('ocorrencia',OCORR,b.ocorrencia||'Nenhuma')}</div></div>
     <div class="pm-bloco" style="margin-top:10px"><div class="pm-pt-cab"><h5 style="margin:0"><i class="fas fa-user-clock"></i> Equipe presente — ponto do dia</h5>
         <div class="pm-pt-acoes"><button type="button" class="gf-bt mini" data-pmf="p-todos"><i class="fas fa-user-check"></i> Todos presentes</button><button type="button" class="gf-bt mini" data-pmf="p-jornada"><i class="fas fa-clock-rotate-left"></i> Jornada padrão (${fe(jr.entrada)}–${fe(jr.saida)})</button></div></div>
       <div class="pm-pt-tot" data-p-tot></div>
@@ -1357,16 +1441,33 @@ function formProducao(reg,pre){
       <button type="button" class="gf-bt mini" data-pmf="it-add" style="margin-top:6px"><i class="fas fa-plus"></i> Outra peça</button><p class="pm-mini" style="margin:6px 0 0">Cada peça do dia vira um lote — por palete (peças pequenas) ou por unidade (peças grandes). <b>CPs</b> = corpos de prova moldados (sugestão: 2 em tubos, postes, tampas, lajes e peças estruturais).</p></div>
     <div class="fin-fld"><label>Observações</label><input data-k="obs" value="${fe(b.obs||'')}" placeholder="Ex.: forma 3 trincada, faltou brita à tarde"></div>
     <div class="fin-aviso" style="margin-top:8px"><div data-pr-prev></div></div>`,
-    [...(reg?[{html:'<i class="fas fa-trash"></i> Excluir',acao:async()=>{setTimeout(()=>apagarReg(reg,`Produção de ${brDe(dt(reg.data))}`),60);}}]:[]),
-     {html:'<i class="fas fa-floppy-disk"></i> Salvar o dia',cls:'pri',acao:async jj=>{
+    fechadoJa?(diaFechado(reg)&&ehAdm()?[{html:'<i class="fas fa-lock-open"></i> Reabrir o dia',cls:'pri',acao:async()=>{setTimeout(()=>reabrirDia(reg),60);}}]:[])
+    :[...(reg?[{html:'<i class="fas fa-trash"></i> Excluir',acao:async()=>{setTimeout(()=>apagarReg(reg,`Produção de ${brDe(dt(reg.data))}`),60);}}]:[]),
+      {html:'<i class="fas fa-lock"></i> Salvar e fechar o dia',cls:'valida',acao:async jj=>salvarDia(jj,true)},
+      {html:'<i class="fas fa-floppy-disk"></i> Salvar o dia',cls:'pri',acao:async jj=>salvarDia(jj,false)}],1040);
+  // dia fechado: só leitura
+  if(fechadoJa)j.querySelectorAll('.fin-jan-corpo input,.fin-jan-corpo select,.fin-jan-corpo textarea,.fin-jan-corpo [data-pmf]').forEach(e=>{if(!e.closest('[data-pm="lote"]'))e.disabled=true;});
+  async function salvarDia(jj,fechar){
       if(reg&&GS.podeMexer&&!GS.podeMexer(reg))throw new Error(GS.MSG_DONO);
+      if(reg&&diaFechado(reg))throw new Error('Este dia está fechado: só o Administrador reabre.');
       const g=k=>String(jj.querySelector(`[data-k="${k}"]`).value||'').trim(),o=reg?{...reg}:{tipo:'producao',data_lancamento:todayDateTime()};
-      ['data','turno','clima','ocorrencia','obs'].forEach(k=>o[k]=g(k));o.betonadas=num(g('betonadas'));
-      o.ponto=lerPonto(jj);o.equipe=o.ponto.filter(x=>x.status==='presente').map(x=>x.nome);
+      ['data','clima_manha','clima_tarde','ocorrencia','obs'].forEach(k=>o[k]=g(k));o.betonadas=num(g('betonadas'));delete o.turno;delete o.clima;
+      o.ponto=lerPonto(jj);o.equipe=o.ponto.filter(x=>x.status==='presente').map(x=>x.nome);o.alterado_em=todayDateTime();o.alterado_por=eu();
       if(!o.data)throw new Error('Informe a data.');if(o.data>hojeISO())throw new Error('A data não pode ser no futuro.');
       {const tm=travaMes(o,reg);if(tm)return trava('Período fechado',[{ok:false,txt:tm}]);}
+      // um diário por dia: o dia já registrado só se altera
+      {const outro=T('producao').find(r=>r.data===o.data&&(!reg||String(r.rowid)!==String(reg.rowid)));
+        if(outro)return trava(`Já existe o diário de ${brDe(dt(o.data))}`,[{ok:false,txt:`Cada dia tem um diário só. ${diaFechado(outro)?'Esse dia já está fechado (só o Administrador reabre).':'Abra o dia registrado para alterar.'}`}],diaFechado(outro)?null:{rot:'Abrir o dia registrado',f:()=>formProducao(outro)});}
+      // depois das 19h (ou dia passado) o diário novo só com o Administrador
+      if(!reg&&passouHora(o.data)){if(!ehAdm())return trava('Dia encerrado',[{ok:false,txt:`O diário de ${brDe(dt(o.data))} encerrou às 19h. Peça ao Administrador para registrar este dia.`}]);o.aberto_ate=new Date(Date.now()+3600e3).toISOString();}
+      if(!o.clima_manha||!o.clima_tarde)throw new Error('Informe o clima de manhã e à tarde.');
+      // ponto: todo mundo da lista marcado
+      {const sem=o.ponto.filter(x=>!x.status);jj.querySelectorAll('[data-p]').forEach(row=>row.classList.toggle('pend',!row.querySelector('[data-pst]').value));
+        if(sem.length)return trava('Falta marcar o ponto',[{ok:false,txt:`Marque o ponto de: <b>${sem.map(x=>fe(x.nome)).join(', ')}</b> — Presente, Falta, Atestado ou Folga (use "Todos presentes" se todos vieram).`}]);
+        if(!o.ponto.length)return trava('Falta o ponto do dia',[{ok:false,txt:'Ninguém no ponto: cadastre a equipe em Parâmetros › Equipe da fábrica ou inclua uma Pessoa avulsa.'}]);}
       const ruim=o.ponto.find(x=>x.status==='presente'&&!(x.horas>0));if(ruim)throw new Error(`Confira o ponto de ${ruim.nome}: entrada e saída não dão horas trabalhadas.`);
       const its=lerItensProd(jj);if(!its.length)throw new Error('Informe ao menos uma peça com quantidade.');
+      if(its.some(it=>it.qtd>0)&&!(o.betonadas>=1))throw new Error('Informe quantas betonadas foram feitas (só números).');
       if(its.some(it=>it.qtd>0)&&!o.ponto.some(x=>x.status==='presente'))return trava('Produção sem equipe presente',[{ok:false,txt:'Marque quem trabalhou no dia (Presente) — produção sem ninguém no ponto não fecha com as horas e o custo da mão de obra.'}]);
       // não se produz sem material: o consumo do dia tem de caber no estoque de insumos (na edição, o consumo antigo volta)
       const devolve={};if(reg)itensProd(reg).forEach(it=>Object.entries(it.consumo||{}).forEach(([k,q])=>devolve[k]=(devolve[k]||0)+num(q)));
@@ -1382,19 +1483,23 @@ function formProducao(reg,pre){
       o.itens=its.map(it=>{const p=pecaDe(it.peca),x=calc(p,it.qtd+it.refugo),u=calc(p,1),cons={};Object.entries(x.est).forEach(([k,q])=>cons[k]=Math.round(q*10000)/10000);
         const old=reg&&it.lote?itensProd(reg).find(z=>z.lote===it.lote):null,ml=old&&old.lmodo?{modo:old.lmodo,pp:old.lpp}:modoLote(p);return {...it,lote:it.lote||prox(),lmodo:ml.modo,lpp:ml.pp,consumo:cons,custo_un:r2(u.un),custo_mat_un:r2(u.custo.mat),m3:Math.round(x.Vt*10000)/10000};});
       ['peca','ordem','qtd','refugo','consumo','custo_un','custo_mat_un','m3'].forEach(k=>delete o[k]);
+      if(fechar){if(!(await simNao(`Fechar o dia ${brDe(dt(o.data))}?`,msgFechar(o),'Sim, fechar','fa-lock')))return false;o.fechado={em:todayDateTime(),por:eu(),auto:false};o.aberto_ate='';}
       PM.mes=mesKey(dt(o.data));PM.dVista='dias';   // a lista do diário passa a mostrar o mês do dia registrado
       await gravar(o,reg?reg.rowid:null);
       const mud=[];new Set(o.itens.map(it=>it.ordem).filter(Boolean)).forEach(id=>{const op=ordens().find(z=>String(z.rowid)===String(id));if(!op)return;
         if(op.status!=='concluida'&&prodDaOrdem(op.rowid)>=num(op.qtd))mud.push([{...op,status:'concluida',concluida_em:o.data},op.rowid]);else if(op.status==='planejada')mud.push([{...op,status:'producao',inicio:op.inicio||o.data},op.rowid]);});
       if(mud.length)await gravarVarios(mud);
-      toast(`Dia registrado: ${o.itens.length} lote(s) — ${o.itens.map(it=>it.lote).join(', ')}.`,'success');}}],1040);
-  const atPonto=()=>{let t=0,n=0,ex=0,aus=0;j.querySelectorAll('[data-p]').forEach(row=>{const nome=row.dataset.avulso?String((row.querySelector('[data-pn]')||{}).value||'').trim():row.dataset.nome,st=row.querySelector('[data-pst]').value,on=st==='presente'&&!!nome;
-      row.querySelectorAll('[data-pe],[data-ps],[data-pi]').forEach(e=>e.disabled=!on);row.classList.toggle('off',!on);
+      toast(`Dia ${fechar?'registrado e fechado':'registrado'}: ${o.itens.length} lote(s) — ${o.itens.map(it=>it.lote).join(', ')}.`,'success');}
+  const atPonto=()=>{let t=0,n=0,ex=0,aus=0,sm=0;j.querySelectorAll('[data-p]').forEach(row=>{const nome=row.dataset.avulso?String((row.querySelector('[data-pn]')||{}).value||'').trim():row.dataset.nome,st=row.querySelector('[data-pst]').value,on=st==='presente'&&!!nome;
+      if(!fechadoJa)row.querySelectorAll('[data-pe],[data-ps],[data-pi]').forEach(e=>e.disabled=!on);row.classList.toggle('off',!on);if(st)row.classList.remove('pend');
       const hh=on?horasDe(row.querySelector('[data-pe]').value,row.querySelector('[data-ps]').value,row.querySelector('[data-pi]').value):0,xe=Math.max(0,hh-jr.horas),atr=on&&minDe(row.querySelector('[data-pe]').value)>minDe(jr.entrada)+10;
-      row.querySelector('[data-ph]').innerHTML=on?`<b>${nf(hh,1)} h</b>${xe>0.01?`<span class="x">+${nf(xe,1)} extra</span>`:''}${atr?'<span class="a">atraso</span>':''}`:`<span class="pm-mini">${fe(SIT_PT[st][0])}</span>`;
-      if(on){t+=hh;n++;ex+=xe;}else if(nome&&st!=='folga')aus++;});
-    const e=j.querySelector('[data-p-tot]');if(e)e.innerHTML=`<span><b>${n}</b> presente(s)</span><span><b>${nf(t,1)} h</b> no dia</span>${ex>0.01?`<span class="x"><b>${nf(ex,1)} h</b> extras</span>`:''}${aus?`<span class="a"><b>${aus}</b> ausência(s)</span>`:''}`;};
-  const at=()=>{atPonto();const its=lerItensProd(j),e=j.querySelector('[data-pr-prev]');if(!e)return;if(!its.length){e.innerHTML='Informe as peças feitas para ver o que sai do estoque de insumos.';return;}
+      row.querySelector('[data-ph]').innerHTML=on?`<b>${nf(hh,1)} h</b>${xe>0.01?`<span class="x">+${nf(xe,1)} extra</span>`:''}${atr?'<span class="a">atraso</span>':''}`:`<span class="pm-mini" style="${st?'':'color:#B54708;font-weight:700'}">${fe(st?SIT_PT[st][0]:'falta marcar')}</span>`;
+      if(on){t+=hh;n++;ex+=xe;}else if(nome&&!st)sm++;else if(nome&&st!=='folga')aus++;});
+    const e=j.querySelector('[data-p-tot]');if(e)e.innerHTML=`<span><b>${n}</b> presente(s)</span><span><b>${nf(t,1)} h</b> no dia</span>${ex>0.01?`<span class="x"><b>${nf(ex,1)} h</b> extras</span>`:''}${aus?`<span class="a"><b>${aus}</b> ausência(s)</span>`:''}${sm?`<span class="a"><b>${sm}</b> sem marcar</span>`:''}`;};
+  const at=()=>{atPonto();
+    {const av=j.querySelector('[data-dt-aviso]'),dv=(j.querySelector('[data-k="data"]')||{}).value;if(av&&!fechadoJa){const ou=dv&&T('producao').find(r=>r.data===dv&&(!reg||String(r.rowid)!==String(reg.rowid)));
+      av.textContent=ou?'Este dia já tem diário: abra o dia registrado para alterar.':(!reg&&dv&&passouHora(dv))?(ehAdm()?'Dia já encerrado às 19h: registrando como Administrador.':'Dia encerrado às 19h: só o Administrador registra.'):'';}}
+    const its=lerItensProd(j),e=j.querySelector('[data-pr-prev]');if(!e)return;if(!its.length){e.innerHTML='Informe as peças feitas para ver o que sai do estoque de insumos.';return;}
     const tot={};its.forEach(it=>{const x=calc(pecaDe(it.peca),it.qtd+it.refugo);Object.entries(x.est).forEach(([k,q])=>tot[k]=(tot[k]||0)+q);});const ei=estoqueInsumos();
     e.innerHTML='Sai do estoque: '+INS.filter(i=>tot[i.k]).map(i=>{const f=ei[i.k].saldo<tot[i.k];return `<span style="${f?'color:#B42318;font-weight:700':''}">${i.nome.split(' (')[0].toLowerCase()} ${nf(tot[i.k],2)} ${i.un}${f?' (estoque insuficiente)':''}</span>`;}).join(' · ')+'.';};
   const corpo=j.querySelector('.fin-jan-corpo');
@@ -1410,7 +1515,7 @@ function formProducao(reg,pre){
 }
 function lerPonto(j){return [...j.querySelectorAll('[data-p]')].map(row=>{const av=!!row.dataset.avulso,nome=av?String((row.querySelector('[data-pn]')||{}).value||'').trim():row.dataset.nome;if(!nome)return null;
   const status=row.querySelector('[data-pst]').value,funcao=av?(row.querySelector('[data-pf]')||{}).value||'Avulso':row.dataset.funcao;
-  if(status!=='presente')return {nome,funcao,status};const entrada=row.querySelector('[data-pe]').value,saida=row.querySelector('[data-ps]').value,intervalo=num(row.querySelector('[data-pi]').value);
+  if(status!=='presente')return {nome,funcao,status};   /* status vazio = não marcado (o Salvar cobra) */const entrada=row.querySelector('[data-pe]').value,saida=row.querySelector('[data-ps]').value,intervalo=num(row.querySelector('[data-pi]').value);
   return {nome,funcao,status,entrada,saida,intervalo,horas:Math.round(horasDe(entrada,saida,intervalo)*100)/100};}).filter(Boolean);}
 function lerItensProd(j){return [...j.querySelectorAll('[data-item]')].map(tr=>({peca:tr.querySelector('[data-i="peca"]').value,ordem:tr.querySelector('[data-i="ordem"]').value,qtd:num(tr.querySelector('[data-i="qtd"]').value),refugo:num(tr.querySelector('[data-i="refugo"]').value),cp:num((tr.querySelector('[data-i="cp"]')||{}).value),lote:tr.dataset.lote||''})).filter(it=>pecaDe(it.peca)&&(it.qtd>0||it.refugo>0));}
 
@@ -1458,9 +1563,9 @@ function formAvaria(reg,pecaPre,pre){
   const j=janela(reg?'Editar avaria':'Registrar avaria (peça quebrada)',`<div class="fin-linha">
       <div class="fin-fld"><label>Data <span class="obg">*</span></label><input type="date" data-k="data" value="${fe(b.data||'')}" max="${hojeISO()}"></div>
       <div class="fin-fld" style="grid-column:span 2"><label>Peça <span class="obg">*</span></label><select data-k="peca">${pecas().map(p=>`<option value="${p.rowid}" ${String(p.rowid)===String(b.peca)?'selected':''}>${fe(p.nome)}</option>`).join('')}</select></div>
-      <div class="fin-fld"><label>Quantidade <span class="obg">*</span></label><input data-k="qtd" inputmode="numeric" value="${fe(String(b.qtd||''))}"></div>
+      <div class="fin-fld"><label>Quantidade <span class="obg">*</span></label><input data-k="qtd" inputmode="numeric" data-num="int" value="${fe(String(b.qtd||''))}"></div>
       <div class="fin-fld" style="grid-column:span 2"><label>Onde quebrou</label><select data-k="origem">${Object.entries(ORIG_AV).filter(([k])=>k!=='cliente'||b.origem==='cliente').map(([k,l])=>`<option value="${k}" ${k===b.origem?'selected':''}>${l}</option>`).join('')}</select></div>
-      <div class="fin-fld" style="grid-column:1/-1"><label>Causa</label><input data-k="causa" value="${fe(b.causa||'')}" placeholder="Ex.: queda da empilhadeira, desforma antes da hora, estrada ruim"></div>
+      <div class="fin-fld" style="grid-column:1/-1"><label>Causa <span class="obg">*</span></label><input data-k="causa" value="${fe(b.causa||'')}" placeholder="Ex.: queda da empilhadeira, desforma antes da hora, estrada ruim"></div>
       <div class="fin-fld" style="grid-column:1/-1"><label>Venda (se aconteceu numa entrega)</label><select data-k="venda"><option value="">—</option>${vendas().filter(v=>v.status!=='cancelada').slice(-60).reverse().map(v=>`<option value="${v.rowid}" ${String(v.rowid)===String(b.venda||'')?'selected':''}>Venda nº ${v.numero} — ${fe(v.cliente||'')}</option>`).join('')}</select></div>
       ${reg?'':`<label class="nfc-amb" data-av-repor hidden style="grid-column:1/-1"><input type="checkbox" data-k="repor" checked><span><b>Repor as peças ao cliente</b> — sai do estoque a mesma quantidade (peças novas no lugar das quebradas)</span></label>`}</div>
       <div class="fin-aviso" style="margin-top:8px"><div data-av-prev></div></div>`,
@@ -1490,9 +1595,9 @@ function formCompra(reg,insPre){
   const j=janela(reg?'Editar entrada de insumo':'Entrada de insumo (compra)',`<div class="fin-linha">
       <div class="fin-fld"><label>Data da compra <span class="obg">*</span></label><input type="date" data-k="data" value="${fe(b.data||'')}"></div>
       <div class="fin-fld"><label>Insumo <span class="obg">*</span></label><select data-k="insumo">${INS.map(i=>`<option value="${i.k}" ${i.k===b.insumo?'selected':''}>${fe(i.nome)}</option>`).join('')}</select></div>
-      <div class="fin-fld"><label>Quantidade <span data-un></span> <span class="obg">*</span></label><input data-k="qtd" inputmode="decimal" value="${b.qtd?fe(String(b.qtd).replace('.',',')):''}"></div>
+      <div class="fin-fld"><label>Quantidade <span data-un></span> <span class="obg">*</span></label><input data-k="qtd" inputmode="decimal" data-num="dec" value="${b.qtd?fe(String(b.qtd).replace('.',',')):''}"></div>
       <div class="fin-fld"><label>Valor total (R$) <span class="obg">*</span></label><input data-k="valor" value="${b.valor?fe(String(b.valor)):''}"></div>
-      <div class="fin-fld"><label>Fornecedor</label><input data-k="fornecedor" value="${fe(b.fornecedor||'')}" list="vx-forn-pm"></div>
+      <div class="fin-fld"><label>Fornecedor <span class="obg">*</span></label><input data-k="fornecedor" value="${fe(b.fornecedor||'')}" list="vx-forn-pm"></div>
       <div class="fin-fld"><label>Nº da nota</label><input data-k="nf" value="${fe(b.nf||'')}"></div>
       <div class="fin-fld"><label>Vencimento</label><input type="date" data-k="vencimento" value="${fe(b.vencimento||'')}"></div>
       <div class="fin-fld"><label>Pago em</label><input type="date" data-k="pago_em" value="${fe(b.pago_em||'')}"></div></div>
@@ -1520,8 +1625,8 @@ function formAjuste(reg,itemPre){
     <div class="fin-linha" style="margin-top:8px"><div class="fin-fld"><label>Data <span class="obg">*</span></label><input type="date" data-k="data" value="${fe(b.data||'')}"></div>
       <div class="fin-fld"><label>Item <span class="obg">*</span></label><select data-k="item">${ops}</select></div>
       <div class="fin-fld"><label>Saldo no sistema</label><input data-k="sist" readonly></div>
-      <div class="fin-fld"><label>Contagem física <span class="obg">*</span></label><input data-k="fisico" inputmode="decimal" value="${reg?fe(String(r2(saldoDe(reg.item))).replace('.',',')):''}"></div>
-      <div class="fin-fld" style="grid-column:1/-1"><label>Motivo</label><input data-k="motivo" value="${fe(b.motivo||'')}" placeholder="Ex.: inventário do mês, saco de cimento empedrado"></div></div>
+      <div class="fin-fld"><label>Contagem física <span class="obg">*</span></label><input data-k="fisico" inputmode="decimal" data-num="dec" value="${reg?fe(String(r2(saldoDe(reg.item))).replace('.',',')):''}"></div>
+      <div class="fin-fld" style="grid-column:1/-1"><label>Motivo <span class="obg">*</span></label><input data-k="motivo" value="${fe(b.motivo||'')}" placeholder="Ex.: inventário do mês, saco de cimento empedrado"></div></div>
       <div class="fin-aviso" style="margin-top:8px"><div data-aj-prev></div></div>`,
     [...(reg?[{html:'<i class="fas fa-trash"></i> Excluir',acao:async()=>{setTimeout(()=>apagarReg(reg,'Acerto de inventário'),60);}}]:[]),
      {html:'<i class="fas fa-floppy-disk"></i> Lançar acerto',cls:'pri',acao:async jj=>{
@@ -1635,7 +1740,7 @@ function formCliente(reg){
   const linP=x=>`<tr data-pr><td style="width:66px">${thumbBt(x.peca)}</td><td><select data-pp data-prev="${fe(String(x.peca))}">${pecas().map(p=>`<option value="${p.rowid}" ${String(p.rowid)===String(x.peca)?'selected':''}>${fe(p.nome)}</option>`).join('')}</select></td><td><input data-pv data-mask="moeda" value="${x.preco?fe(R(num(x.preco))):''}" placeholder="R$ 0,00"></td><td class="pm-mini" data-pref></td><td><button type="button" class="pm-x" data-pmf="pr-x"><i class="fas fa-xmark"></i></button></td></tr>`;
   const j=janela(reg?`Cliente — ${b.nome}`:'Novo cliente',`<div class="fin-linha">
       <div class="fin-fld" style="grid-column:span 2"><label>Nome / razão social <span class="obg">*</span></label><input data-k="nome" value="${fe(b.nome||'')}"></div>
-      <div class="fin-fld"><label>CPF / CNPJ</label><input data-k="doc" value="${fe(b.doc||'')}"></div><div class="fin-fld"><label>Telefone / WhatsApp</label><input data-k="telefone" value="${fe(b.telefone||'')}"></div>
+      <div class="fin-fld"><label>CPF / CNPJ</label><input data-k="doc" value="${fe(b.doc||'')}"></div><div class="fin-fld"><label>Telefone / WhatsApp <span class="obg">*</span></label><input data-k="telefone" value="${fe(b.telefone||'')}"></div>
       <div class="fin-fld"><label>E-mail</label><input data-k="email" value="${fe(b.email||'')}"></div>
       <div class="fin-fld"><label>Canal</label><select data-k="canal"><option value="varejo" ${b.canal!=='atacado'?'selected':''}>Varejo</option><option value="atacado" ${b.canal==='atacado'?'selected':''}>Atacado</option></select></div>
       <div class="fin-fld"><label>Vendedor</label><select data-k="vendedor"><option value="">—</option>${vends.map(x=>`<option ${x.nome===b.vendedor?'selected':''}>${fe(x.nome)}</option>`).join('')}</select></div>
@@ -1674,7 +1779,7 @@ function comissoesMes(k){
 }
 function telaVendedores(sub){
   const c=CFG(),k=PM.mes,cm=comissoesMes(k),vends=c.vendedores||[];
-  const linV=x=>`<div class="fin-linha" data-lin="vend" style="margin-bottom:6px;grid-template-columns:1fr 140px 170px 36px"><div class="fin-fld"><input data-vn value="${fe(x.nome||'')}" placeholder="Nome"></div><div class="fin-fld"><input data-vp value="${x.pct!=null&&x.pct!==''?fe(String(x.pct).replace('.',',')):''}" placeholder="Comissão %" data-sem-mascara="1" inputmode="decimal"></div><div class="fin-fld"><input data-vt value="${fe(x.telefone||'')}" placeholder="Telefone"></div><button type="button" class="pm-x" data-pm="cfg-x"><i class="fas fa-xmark"></i></button></div>`;
+  const linV=x=>`<div class="fin-linha" data-lin="vend" style="margin-bottom:6px;grid-template-columns:1fr 140px 170px 36px"><div class="fin-fld"><input data-vn value="${fe(x.nome||'')}" placeholder="Nome"></div><div class="fin-fld"><input data-vp value="${x.pct!=null&&x.pct!==''?fe(String(x.pct).replace('.',',')):''}" placeholder="Comissão %" data-sem-mascara="1" inputmode="decimal" data-num="dec"></div><div class="fin-fld"><input data-vt value="${fe(x.telefone||'')}" placeholder="Telefone"></div><button type="button" class="pm-x" data-pm="cfg-x"><i class="fas fa-xmark"></i></button></div>`;
   PM._linVend=linV;
   const nomes=[...new Set(vends.map(x=>x.nome).filter(Boolean).concat(Object.keys(cm)))];
   return cabG('Vendedores e comissões','A comissão é calculada sobre o valor das peças entregues no mês (sem o frete e descontadas as devoluções), pelo percentual gravado em cada venda. Ao pagar, o valor sai no fluxo de caixa.',GS.selMes(k,'data-pm-mes',12,0))+sub+
@@ -1772,7 +1877,7 @@ function formVenda(reg){
   const ops=reg?opsDaVenda(reg):[],iniciada=ops.some(opIniciada),travarItens=!!reg&&(iniciada||['entregue','devolvida','cancelada'].includes(reg.status)||(reg.status==='reservado'&&reg.tipo_venda==='pronta'&&pagoDe(reg)>0));
   const clientes=T('cliente'),vends=(c.vendedores||[]).filter(x=>x&&x.nome);
   const itemLin=it=>`<tr data-item><td style="width:66px">${thumbBt(it.peca)}</td><td><select data-i="peca" data-prev="${fe(String(it.peca))}" ${travarItens?'disabled':''}>${pecas().map(p=>`<option value="${p.rowid}" ${String(p.rowid)===String(it.peca)?'selected':''}>${fe(p.nome)}</option>`).join('')}</select></td>
-    <td><input data-i="qtd" inputmode="numeric" value="${fe(String(it.qtd||''))}" placeholder="0" ${travarItens?'readonly':''}></td><td><input data-i="preco" data-mask="moeda" value="${it.preco!==''&&it.preco!=null?fe(R(num(it.preco))):''}" ${travarItens?'readonly':''}></td>
+    <td><input data-i="qtd" inputmode="numeric" data-num="int" value="${fe(String(it.qtd||''))}" placeholder="0" ${travarItens?'readonly':''}></td><td><input data-i="preco" data-mask="moeda" value="${it.preco!==''&&it.preco!=null?fe(R(num(it.preco))):''}" ${travarItens?'readonly':''}></td>
     <td data-i="disp" class="pm-mini" style="min-width:150px"></td><td class="n" data-i="tot" style="white-space:nowrap;text-align:right"></td><td>${travarItens?'':'<button type="button" class="pm-x" data-pmf="item-x"><i class="fas fa-xmark"></i></button>'}</td></tr>`;
   const e=b.end||{},sel=(k,ops2,v)=>`<select data-k="${k}">${ops2.map(([a,l])=>`<option value="${a}" ${a===v?'selected':''}>${l}</option>`).join('')}</select>`;
   const j=janela(reg?`Editar venda nº ${reg.numero}`:'Nova venda',`${travarItens&&reg?`<div class="fin-aviso laranja"><div>${iniciada?'A produção desta venda <b>já começou</b>: os itens não podem mais ser mudados (só contato, endereço, prazo e observações).':'Os itens desta venda não podem mais ser mudados.'}</div></div>`:''}
@@ -1780,12 +1885,12 @@ function formVenda(reg){
       <div class="fin-fld"><label>Tipo de venda</label>${sel('tipo_venda',[['encomenda','Encomenda (reserva com sinal)'],['pronta','Pronta entrega (peça pronta)']],b.tipo_venda||'encomenda')}</div>
       <div class="fin-fld"><label>Canal / tabela de preço</label>${sel('canal',[['varejo','Varejo'],['atacado','Atacado']],b.canal||'varejo')}</div>
       <div class="fin-fld"><label>Data do pedido <span class="obg">*</span></label><input type="date" data-k="data" value="${fe(b.data||'')}"></div>
-      <div class="fin-fld"><label>Entrega prevista</label><input type="date" data-k="prazo_entrega" value="${fe(b.prazo_entrega||'')}"></div>
+      <div class="fin-fld"><label>Entrega prevista <span class="obg" data-obg-enc>*</span></label><input type="date" data-k="prazo_entrega" value="${fe(b.prazo_entrega||'')}"></div>
       <div class="fin-fld"><label>Vendedor</label><select data-k="vendedor"><option value="">— sem vendedor —</option>${vends.concat(b.vendedor&&!vends.some(x=>x.nome===b.vendedor)?[{nome:b.vendedor}]:[]).map(x=>`<option ${x.nome===b.vendedor?'selected':''}>${fe(x.nome)}</option>`).join('')}</select></div>
       <div class="fin-fld"><label>Comissão (%)</label><input data-k="comissao_pct" value="${b.comissao_pct!=null&&b.comissao_pct!==''?fe(String(b.comissao_pct)):''}"></div></div>
     <div class="pm-bloco" style="margin-top:10px"><h5><i class="fas fa-user"></i> Cliente</h5><div class="fin-linha">
       <div class="fin-fld" style="grid-column:span 2"><label>Nome / razão social <span class="obg">*</span></label><input data-k="cliente" value="${fe(b.cliente||'')}" list="pm-clientes" placeholder="cliente do cadastro ou novo"></div>
-      <div class="fin-fld"><label>CPF / CNPJ</label><input data-k="doc" value="${fe(b.doc||'')}"></div><div class="fin-fld"><label>Telefone / WhatsApp</label><input data-k="telefone" value="${fe(b.telefone||'')}"></div>
+      <div class="fin-fld"><label>CPF / CNPJ</label><input data-k="doc" value="${fe(b.doc||'')}"></div><div class="fin-fld"><label>Telefone / WhatsApp <span class="obg" data-obg-enc>*</span></label><input data-k="telefone" value="${fe(b.telefone||'')}"></div>
       <div class="fin-fld"><label>CEP</label><input data-k="cep" value="${fe(e.cep||'')}" placeholder="00000-000"></div>
       <div class="fin-fld" style="grid-column:span 2"><label>Endereço de entrega (rua)</label><input data-k="logradouro" value="${fe(e.logradouro||'')}" placeholder="digite a rua: o sistema sugere o endereço com o CEP" autocomplete="off"></div>
       <div class="fin-fld"><label>Número</label><input data-k="numero" value="${fe(e.numero||'')}"></div><div class="fin-fld"><label>Complemento</label><input data-k="complemento" value="${fe(e.complemento||'')}"></div>
@@ -1840,7 +1945,9 @@ function formVenda(reg){
       if(v)setTimeout(()=>fichaVenda(v),120);}}],1040);
   const cliAtual=()=>cliDe((j.querySelector('[data-k="cliente"]')||{}).value),canalAtual=()=>(j.querySelector('[data-k="canal"]')||{}).value||'varejo';
   const atVis=()=>{const tp=j.querySelector('[data-k="tipo_venda"]').value,pg=j.querySelector('[data-pg]');if(pg){j.querySelector('[data-pg-tit]').textContent=tp==='pronta'?'Pagamento (pronta entrega: tem que estar pago)':`Sinal recebido agora (mínimo ${nf(num(c.sinal),0)}% para reservar)`;j.querySelector('[data-pg-levou]').hidden=tp!=='pronta';}
-    j.querySelector('[data-nf-num]').hidden=j.querySelector('[data-k="nf_quer"]').value!=='sim';};
+    j.querySelector('[data-nf-num]').hidden=j.querySelector('[data-k="nf_quer"]').value!=='sim';
+    // encomenda: telefone e entrega prevista são obrigatórios (balcão/pronta entrega não)
+    j.querySelectorAll('[data-obg-enc]').forEach(s=>s.hidden=tp==='pronta');};
   const at=()=>{if(!j.isConnected||!j.querySelector('[data-v-tot]'))return;const its=lerItens(j),cli=cliAtual(),canal=canalAtual();
     j.querySelectorAll('[data-item]').forEach(tr=>{const p=pecaDe(tr.querySelector('[data-i="peca"]').value),q=num(tr.querySelector('[data-i="qtd"]').value),pr=num(tr.querySelector('[data-i="preco"]').value),x=E.P[String(p&&p.rowid)]||{livre:0,emProd:0};
       tr.querySelector('[data-i="tot"]').textContent=q?R(q*pr):'';if(!p)return;
@@ -1978,7 +2085,7 @@ function entregar(v){
     <div class="fin-linha" style="margin-top:8px"><div class="fin-fld"><label>Data da entrega <span class="obg">*</span></label><input type="date" data-k="entrega" value="${hojeISO()}" max="${hojeISO()}"></div>
     ${(v.nf||{}).quer?`<div class="fin-fld"><label>Nº da nota fiscal</label><input data-k="nf" value="${fe((v.nf||{}).numero||'')}"></div>`:''}
     <div class="fin-fld"><label>Caminhão</label><select data-k="caminhao"><option value="">—</option>${(CFG().caminhoes||[]).filter(x=>x&&x.nome).map(x=>`<option ${v.agenda&&v.agenda.caminhao===x.nome?'selected':''}>${fe(x.nome)}</option>`).join('')}</select></div>
-    <div class="fin-fld" style="grid-column:1/-1"><label>Quem recebeu</label><input data-k="recebedor" placeholder="nome de quem recebeu as peças"></div></div>
+    <div class="fin-fld" style="grid-column:1/-1"><label>Quem recebeu <span class="obg">*</span></label><input data-k="recebedor" placeholder="nome de quem recebeu as peças"></div></div>
     <p class="pm-mini">Peça quebrada no caminho: registre depois em <b>Avaria na entrega</b>.</p>`,
     [{html:'<i class="fas fa-truck"></i> Confirmar entrega',cls:'pri',acao:async j=>{const e=j.querySelector('[data-k="entrega"]').value;if(!e)throw new Error('Informe a data da entrega.');
       if(v.data&&e<v.data)throw new Error('A entrega não pode ser antes da data do pedido.');
@@ -2081,7 +2188,7 @@ function excluirPecaCascata(p,cas){
       toast('Peça e histórico excluídos.','success');});}
 function devolver(v){
   const ja={};(v.devolucoes||[]).forEach(dv=>(dv.itens||[]).forEach(it=>ja[it.peca]=(ja[it.peca]||0)+num(it.qtd)));
-  const lin=(v.itens||[]).map((it,i)=>{const max=num(it.qtd)-(ja[it.peca]||0);return `<tr data-dv="${i}"><td>${fe(nomePeca(it.peca))}<small>máx. ${nf(max,0)}</small></td><td><input data-d="qtd" inputmode="numeric" placeholder="0" data-max="${max}"></td><td><select data-d="destino"><option value="estoque">Volta ao estoque (peça boa)</option><option value="avaria">Avariada (perda)</option></select></td></tr>`;}).join('');
+  const lin=(v.itens||[]).map((it,i)=>{const max=num(it.qtd)-(ja[it.peca]||0);return `<tr data-dv="${i}"><td>${fe(nomePeca(it.peca))}<small>máx. ${nf(max,0)}</small></td><td><input data-d="qtd" inputmode="numeric" data-num="int" placeholder="0" data-max="${max}"></td><td><select data-d="destino"><option value="estoque">Volta ao estoque (peça boa)</option><option value="avaria">Avariada (perda)</option></select></td></tr>`;}).join('');
   const j=janela(`Devolução — venda nº ${v.numero}`,`<p class="pm-mini">Informe o que o cliente devolveu. Peça boa volta ao estoque; peça avariada entra nas perdas. O estorno sai do caixa.</p>
     <div class="pm-rolar"><table class="pm-itens"><thead><tr><th>Peça</th><th style="width:90px">Devolvidas</th><th>Destino</th></tr></thead><tbody>${lin}</tbody></table></div>
     <div class="fin-linha" style="margin-top:8px">${selMotivo()}<div class="fin-fld"><label>Estorno ao cliente (R$)</label><input data-k="estorno" data-mask="moeda"></div><div class="fin-fld"><label>Forma</label><select data-k="forma">${FORMAS_PG.map(x=>`<option>${x}</option>`).join('')}</select></div></div>
@@ -2184,7 +2291,7 @@ function formCusto(reg){
   janela(reg?'Editar custo da fábrica':'Custo da fábrica',`<div class="fin-aviso"><div>Custos do mês da fábrica: mão de obra, energia, água, aluguel, manutenção… Entram no fluxo de caixa e no custo real por m³.</div></div><div class="fin-linha" style="margin-top:8px">
       <div class="fin-fld"><label>Categoria <span class="obg">*</span></label><select data-k="categoria">${CAT_CUSTO.map(x=>`<option ${x===b.categoria?'selected':''}>${x}</option>`).join('')}</select></div>
       <div class="fin-fld"><label>Valor (R$) <span class="obg">*</span></label><input data-k="valor" value="${b.valor?fe(R(num(b.valor))):''}"></div>
-      <div class="fin-fld" style="grid-column:1/-1"><label>Descrição</label><input data-k="descricao" value="${fe(b.descricao||'')}" placeholder="Ex.: folha de outubro — 3 pessoas"></div>
+      <div class="fin-fld" style="grid-column:1/-1"><label>Descrição <span class="obg">*</span></label><input data-k="descricao" value="${fe(b.descricao||'')}" placeholder="Ex.: folha de outubro — 3 pessoas"></div>
       <div class="fin-fld"><label>Competência (data) <span class="obg">*</span></label><input type="date" data-k="data" value="${fe(b.data||'')}"></div>
       <div class="fin-fld"><label>Vencimento</label><input type="date" data-k="vencimento" value="${fe(b.vencimento||'')}"></div>
       <div class="fin-fld"><label>Pago em</label><input type="date" data-k="pago_em" value="${fe(b.pago_em||'')}"></div></div>`,
@@ -2264,7 +2371,7 @@ function telaParametros(){
   const linEq=x=>`<div class="fin-linha" data-lin="equipe" style="margin-bottom:6px;grid-template-columns:1fr 190px 36px"><div class="fin-fld"><input data-eqn value="${fe(x.nome||'')}" placeholder="Nome"></div><div class="fin-fld"><select data-eqf>${FUNCOES.map(fn=>`<option ${fn===x.funcao?'selected':''}>${fn}</option>`).join('')}</select></div><button type="button" class="pm-x" data-pm="cfg-x"><i class="fas fa-xmark"></i></button></div>`;
   const fr={origem:{},cidades:[],...(c.frete||{})},fis=c.fiscal||{};fr.origem=fr.origem||{};
   const linCid=x=>`<div class="fin-linha" data-lin="cid" style="margin-bottom:6px;grid-template-columns:1fr 70px 150px 36px"><div class="fin-fld"><input data-cn value="${fe(cidUF(x.cidade,x.uf))}" placeholder="Cidade (ex.: Potiraguá, BA)" autocomplete="off"></div><div class="fin-fld"><input data-cu value="${fe(x.uf||'')}" placeholder="UF" maxlength="2" readonly tabindex="-1" style="background:#F8FAFC"></div><div class="fin-fld"><input data-cv data-mask="moeda" value="${x.valor?fe(R(num(x.valor))):''}" placeholder="R$ 0,00"></div><button type="button" class="pm-x" data-pm="cfg-x"><i class="fas fa-xmark"></i></button></div>`;
-  const linCam=x=>`<div class="fin-linha" data-lin="cam" style="margin-bottom:6px;grid-template-columns:1fr 130px 1fr 36px"><div class="fin-fld"><input data-kn value="${fe(x.nome||'')}" placeholder="Ex.: Munck ABC-1234"></div><div class="fin-fld"><input data-kc inputmode="numeric" data-sem-mascara="1" value="${x.cap_kg?fe(String(x.cap_kg)):''}" placeholder="Carga (kg)"></div><div class="fin-fld"><input data-km value="${fe(x.motorista||'')}" placeholder="Motorista"></div><button type="button" class="pm-x" data-pm="cfg-x"><i class="fas fa-xmark"></i></button></div>`;
+  const linCam=x=>`<div class="fin-linha" data-lin="cam" style="margin-bottom:6px;grid-template-columns:1fr 130px 1fr 36px"><div class="fin-fld"><input data-kn value="${fe(x.nome||'')}" placeholder="Ex.: Munck ABC-1234"></div><div class="fin-fld"><input data-kc inputmode="numeric" data-num="int" data-sem-mascara="1" value="${x.cap_kg?fe(String(x.cap_kg)):''}" placeholder="Carga (kg)"></div><div class="fin-fld"><input data-km value="${fe(x.motorista||'')}" placeholder="Motorista"></div><button type="button" class="pm-x" data-pm="cfg-x"><i class="fas fa-xmark"></i></button></div>`;
   PM._linFixo=linFixo;PM._linEq=linEq;PM._linCid=linCid;PM._linCam=linCam;
   return cabG('Parâmetros e preços','A base de todos os cálculos: preço dos insumos, características dos materiais, equipe, betoneira, custos rateados por m³ e as regras de venda.',`<button type="button" class="gf-bt pri" data-pm="cfg-salvar"><i class="fas fa-floppy-disk"></i> Salvar parâmetros</button>`)+
     `<div class="gf-duas">
@@ -2274,21 +2381,21 @@ function telaParametros(){
        ${mo('precos.aditivo','Aditivo — kg',pr.aditivo)}${mo('precos.desmoldante','Desmoldante — litro',pr.desmoldante)}${mo('precos.agua','Água — m³',pr.agua)}${mo('precos.energia','Energia — kWh',pr.energia)}</div></section>
      <section class="gf-sec"><div class="gf-sec-cab"><div><h3>Rateio previsto por m³</h3><p>Quanto cada m³ de concreto carrega de mão de obra, equipamento, energia, água e custos fixos.</p></div></div>
        <table class="pm-tab2" data-sem-ordem><tbody><tr><td>Mão de obra</td><td class="n">${R(ra.mao)}</td></tr><tr><td>Betoneira (depreciação + manutenção)</td><td class="n">${R(ra.betoneira)}</td></tr><tr><td>Energia (${nf(ra.kwh,2)} kWh/m³)</td><td class="n">${R(ra.energia)}</td></tr><tr><td>Água de cura</td><td class="n">${R(ra.agua)}</td></tr><tr><td>Custos fixos</td><td class="n">${R(ra.fixos)}</td></tr><tr class="t"><td>Total por m³ (sem materiais)</td><td class="n">${R(ra.total)}</td></tr></tbody></table>
-       <div class="fin-linha" style="margin-top:12px">${f('prod_m3','Produção prevista por mês (m³)',c.prod_m3,'inputmode="decimal"')}${f('equipe.pessoas','Pessoas na produção',c.equipe.pessoas,'inputmode="numeric"')}${mo('equipe.custo','Custo mensal por pessoa (com encargos)',c.equipe.custo)}</div></section></div>
+       <div class="fin-linha" style="margin-top:12px">${f('prod_m3','Produção prevista por mês (m³)',c.prod_m3,'inputmode="decimal" data-num="dec"')}${f('equipe.pessoas','Pessoas na produção',c.equipe.pessoas,'inputmode="numeric" data-num="int"')}${mo('equipe.custo','Custo mensal por pessoa (com encargos)',c.equipe.custo)}</div></section></div>
     <div class="gf-duas">
      <section class="gf-sec"><div class="gf-sec-cab"><div><h3>Equipe da fábrica</h3><p>Aparece no diário de produção para marcar quem esteve presente.</p></div><button type="button" class="gf-bt mini" data-pm="cfg-equipe-add"><i class="fas fa-plus"></i> Pessoa</button></div>
        <div data-equipe>${(c.equipe_lista||[]).map(linEq).join('')||'<p class="pm-mini" data-vazio>Ninguém cadastrado.</p>'}</div>
        <p class="pm-mini" style="margin:10px 0 4px"><b>Jornada padrão</b> (já vem preenchida no ponto do diário):</p><div class="fin-linha">
        <div class="fin-fld"><label>Entrada</label><input type="time" data-cfg="jornada.entrada" value="${fe((c.jornada||{}).entrada||'07:00')}"></div><div class="fin-fld"><label>Saída</label><input type="time" data-cfg="jornada.saida" value="${fe((c.jornada||{}).saida||'17:00')}"></div>
-       ${f('jornada.intervalo','Intervalo (minutos)',(c.jornada||{}).intervalo!=null?c.jornada.intervalo:60,'inputmode="numeric" data-sem-mascara="1"')}</div></section>
+       ${f('jornada.intervalo','Intervalo (minutos)',(c.jornada||{}).intervalo!=null?c.jornada.intervalo:60,'inputmode="numeric" data-num="int" data-sem-mascara="1"')}</div></section>
      <section class="gf-sec"><div class="gf-sec-cab"><div><h3>Vendas e endereços</h3><p>Regras de venda e a cidade padrão para sugerir endereços.</p></div></div><div class="fin-linha" data-end>
        ${f('sinal','Sinal mínimo para reservar encomenda (%)',c.sinal)}${f('impostos','Impostos sobre a venda (%)',c.impostos)}${f('margem','Margem desejada (%)',c.margem)}
-       ${f('cidade','Cidade padrão dos clientes',cidUF(c.cidade,c.uf),'data-k="cidade" placeholder="Ex.: Itarantim, BA"')}${f('uf','UF padrão',c.uf,'maxlength="2" data-k="uf"')}${f('lata','Lata usada na produção (litros)',c.lata,'inputmode="numeric"')}</div></section></div>
+       ${f('cidade','Cidade padrão dos clientes',cidUF(c.cidade,c.uf),'data-k="cidade" placeholder="Ex.: Itarantim, BA"')}${f('uf','UF padrão',c.uf,'maxlength="2" data-k="uf"')}${f('lata','Lata usada na produção (litros)',c.lata,'inputmode="numeric" data-num="int"')}</div></section></div>
     <div class="gf-duas">
      <section class="gf-sec"><div class="gf-sec-cab"><div><h3>Entregas e frete</h3><p>Frete por km (distância pelo mapa até o endereço do cliente) ou valor fixo por cidade — a tabela de cidades vale primeiro.</p></div></div><div class="fin-linha" data-end>
        ${f('frete.origem.cep','CEP da fábrica',fr.origem.cep||'','data-k="cep"')}${f('frete.origem.logradouro','Endereço da fábrica (rua)',fr.origem.logradouro||'','data-k="logradouro" autocomplete="off" placeholder="digite a rua: o sistema sugere"')}${f('frete.origem.numero','Número',fr.origem.numero||'','data-k="numero"')}
        ${f('frete.origem.bairro','Bairro',fr.origem.bairro||'','data-k="bairro"')}${f('frete.origem.cidade','Cidade da fábrica',cidUF(fr.origem.cidade||c.cidade||'',fr.origem.uf||c.uf||''),'data-k="cidade" placeholder="Ex.: Itarantim, BA"')}${f('frete.origem.uf','UF',fr.origem.uf||c.uf||'','maxlength="2" data-k="uf"')}
-       ${mo('frete.rs_km','Valor por km rodado',fr.rs_km)}${f('frete.km_min','Km mínimo cobrado',fr.km_min,'inputmode="numeric" data-sem-mascara="1"')}
+       ${mo('frete.rs_km','Valor por km rodado',fr.rs_km)}${f('frete.km_min','Km mínimo cobrado',fr.km_min,'inputmode="numeric" data-num="int" data-sem-mascara="1"')}
        <label class="nfc-amb" style="grid-column:1/-1"><input type="checkbox" data-cfg-ck="frete.ida_volta" ${fr.ida_volta!==false?'checked':''}><span>Cobrar ida e volta (o caminhão volta vazio)</span></label></div>
        <p class="pm-mini" style="margin:10px 0 4px"><b>Valor fixo por cidade</b></p><div data-cids>${(fr.cidades||[]).map(linCid).join('')}</div><button type="button" class="gf-bt mini" data-pm="cfg-cid-add"><i class="fas fa-plus"></i> Cidade</button></section>
      <section class="gf-sec"><div class="gf-sec-cab"><div><h3>Caminhões</h3><p>Para a agenda de entregas: a carga de cada dia é conferida com a capacidade.</p></div><button type="button" class="gf-bt mini" data-pm="cfg-cam-add"><i class="fas fa-plus"></i> Caminhão</button></div>
@@ -2299,24 +2406,24 @@ function telaParametros(){
     <section class="gf-sec"><div class="gf-sec-cab"><div><h3>Nota fiscal das vendas de peças</h3><p>Venda de peça é venda de <b>produto</b>: a nota é a NF-e, autorizada pela SEFAZ-BA (não é a nota de serviço da prefeitura).</p></div></div>
       <div class="fin-aviso" style="margin-bottom:10px"><div>Para o sistema emitir a NF-e sozinho são necessários: <b>Inscrição Estadual</b> da empresa na SEFAZ-BA, o <b>certificado A1</b> (o mesmo já usado nas assinaturas) e a confirmação do contador sobre o regime e o CFOP.
         Enquanto isso, emita a nota no emissor do contador (ou a NFA-e, nota avulsa da SEFAZ-BA) e use <b>Anexar nota fiscal</b> na venda: o número e a chave entram sozinhos no comprovante. O NCM de cada peça já sai preenchido pelo tipo (pode mudar no cadastro da peça).</div></div>
-      <div class="fin-linha">${f('fiscal.ie','Inscrição Estadual (IE)',fis.ie||'','placeholder="ainda não tem"')}${f('fiscal.regime','Regime tributário',fis.regime||'Simples Nacional')}${f('fiscal.cfop_dentro','CFOP — venda na Bahia',fis.cfop_dentro||'5101','inputmode="numeric"')}${f('fiscal.cfop_fora','CFOP — venda para outro estado',fis.cfop_fora||'6101','inputmode="numeric"')}
+      <div class="fin-linha">${f('fiscal.ie','Inscrição Estadual (IE)',fis.ie||'','placeholder="ainda não tem"')}${f('fiscal.regime','Regime tributário',fis.regime||'Simples Nacional')}${f('fiscal.cfop_dentro','CFOP — venda na Bahia',fis.cfop_dentro||'5101','inputmode="numeric" data-num="int"')}${f('fiscal.cfop_fora','CFOP — venda para outro estado',fis.cfop_fora||'6101','inputmode="numeric" data-num="int"')}
         <div class="fin-fld" style="grid-column:1/-1"><label>Observação no comprovante de venda</label><input data-cfg="fiscal.obs" value="${fe(fis.obs||'')}" placeholder="Ex.: garantia de 5 anos contra defeito de fabricação"></div></div></section>
     <div class="gf-duas">
      <section class="gf-sec"><div class="gf-sec-cab"><div><h3>Betoneira e vibrador</h3><p>Energia por m³ = potência × tempo das traçadas; depreciação pela vida útil.</p></div></div><div class="fin-linha">
-       ${f('betoneira.cap','Capacidade da betoneira (litros)',c.betoneira.cap,'inputmode="numeric"')}${f('betoneira.util','Aproveitamento por traçada (%)',c.betoneira.util)}${f('betoneira.kw','Potência da betoneira (kW)',c.betoneira.kw,'inputmode="decimal"')}${f('betoneira.min','Minutos por traçada',c.betoneira.min,'inputmode="decimal"')}
-       ${mo('betoneira.valor','Valor da betoneira',c.betoneira.valor)}${f('betoneira.vida','Vida útil (meses)',c.betoneira.vida,'inputmode="numeric"')}${mo('betoneira.manut','Manutenção por mês',c.betoneira.manut)}
-       ${f('vibrador.kw','Potência do vibrador (kW)',c.vibrador.kw,'inputmode="decimal"')}${f('vibrador.min','Minutos de vibração por m³',c.vibrador.min,'inputmode="decimal"')}</div></section>
+       ${f('betoneira.cap','Capacidade da betoneira (litros)',c.betoneira.cap,'inputmode="numeric" data-num="int"')}${f('betoneira.util','Aproveitamento por traçada (%)',c.betoneira.util)}${f('betoneira.kw','Potência da betoneira (kW)',c.betoneira.kw,'inputmode="decimal" data-num="dec"')}${f('betoneira.min','Minutos por traçada',c.betoneira.min,'inputmode="decimal" data-num="dec"')}
+       ${mo('betoneira.valor','Valor da betoneira',c.betoneira.valor)}${f('betoneira.vida','Vida útil (meses)',c.betoneira.vida,'inputmode="numeric" data-num="int"')}${mo('betoneira.manut','Manutenção por mês',c.betoneira.manut)}
+       ${f('vibrador.kw','Potência do vibrador (kW)',c.vibrador.kw,'inputmode="decimal" data-num="dec"')}${f('vibrador.min','Minutos de vibração por m³',c.vibrador.min,'inputmode="decimal" data-num="dec"')}</div></section>
      <section class="gf-sec"><div class="gf-sec-cab"><div><h3>Custos fixos mensais (rateados)</h3><p>Aluguel, manutenção de formas, EPIs… divididos pela produção prevista.</p></div><button type="button" class="gf-bt mini" data-pm="cfg-fixo-add"><i class="fas fa-plus"></i> Custo fixo</button></div>
        <div data-fixos>${(c.fixos||[]).map(linFixo).join('')}</div></section></div>
     <div class="gf-duas">
      <section class="gf-sec"><div class="gf-sec-cab"><div><h3>Materiais e perdas</h3><p>Massas específicas (traço), unitárias (compra em m³ e latas), perdas e consumos.</p></div></div><div class="fin-linha">
-       ${f('dens.cimento','Massa específica do cimento (t/m³)',c.dens.cimento,'inputmode="decimal"')}${f('dens.areia','Massa específica da areia (t/m³)',c.dens.areia,'inputmode="decimal"')}${f('dens.po','Massa específica do pó de pedra (t/m³)',c.dens.po,'inputmode="decimal"')}${f('dens.brita','Massa específica da brita (t/m³)',c.dens.brita,'inputmode="decimal"')}
-       ${f('unit.areia','Massa unitária da areia (t/m³)',c.unit.areia,'inputmode="decimal"')}${f('unit.po','Massa unitária do pó de pedra (t/m³)',c.unit.po,'inputmode="decimal"')}${f('unit.brita','Massa unitária da brita (t/m³)',c.unit.brita,'inputmode="decimal"')}${f('ar','Ar incorporado no concreto (%)',c.ar)}
+       ${f('dens.cimento','Massa específica do cimento (t/m³)',c.dens.cimento,'inputmode="decimal" data-num="dec"')}${f('dens.areia','Massa específica da areia (t/m³)',c.dens.areia,'inputmode="decimal" data-num="dec"')}${f('dens.po','Massa específica do pó de pedra (t/m³)',c.dens.po,'inputmode="decimal" data-num="dec"')}${f('dens.brita','Massa específica da brita (t/m³)',c.dens.brita,'inputmode="decimal" data-num="dec"')}
+       ${f('unit.areia','Massa unitária da areia (t/m³)',c.unit.areia,'inputmode="decimal" data-num="dec"')}${f('unit.po','Massa unitária do pó de pedra (t/m³)',c.unit.po,'inputmode="decimal" data-num="dec"')}${f('unit.brita','Massa unitária da brita (t/m³)',c.unit.brita,'inputmode="decimal" data-num="dec"')}${f('ar','Ar incorporado no concreto (%)',c.ar)}
        ${f('perdas.concreto','Perda de concreto (%)',c.perdas.concreto)}${f('perdas.aco','Perda de aço — pontas e transpasse (%)',c.perdas.aco)}${f('perdas.malha','Perda / transpasse de malha (%)',c.perdas.malha)}${f('arame_pct','Arame de amarração (% do aço)',c.arame_pct)}
-       ${f('cura_l','Água de cura (litros por m³)',c.cura_l,'inputmode="decimal"')}${f('desm_lm2','Desmoldante (litros por m² de forma)',c.desm_lm2,'inputmode="decimal"')}${f('malha_m2','Área do painel de malha (m²)',c.malha_m2,'inputmode="decimal"')}
-       ${f('massa.simples','Peso do concreto simples (kg/m³)',c.massa.simples,'inputmode="numeric"')}${f('massa.armado','Peso do concreto armado (kg/m³)',c.massa.armado,'inputmode="numeric"')}</div></section>
+       ${f('cura_l','Água de cura (litros por m³)',c.cura_l,'inputmode="decimal" data-num="dec"')}${f('desm_lm2','Desmoldante (litros por m² de forma)',c.desm_lm2,'inputmode="decimal" data-num="dec"')}${f('malha_m2','Área do painel de malha (m²)',c.malha_m2,'inputmode="decimal" data-num="dec"')}
+       ${f('massa.simples','Peso do concreto simples (kg/m³)',c.massa.simples,'inputmode="numeric" data-num="int"')}${f('massa.armado','Peso do concreto armado (kg/m³)',c.massa.armado,'inputmode="numeric" data-num="int"')}</div></section>
      <section class="gf-sec"><div class="gf-sec-cab"><div><h3>Estoque mínimo e caixa</h3><p>Abaixo do mínimo, o painel avisa. Saldo inicial do caixa da fábrica.</p></div></div><div class="fin-linha">
-       ${INS.map(i=>f('minimos.'+i.k,`${i.nome.split(' (')[0]} — mínimo (${i.unL})`,(c.minimos||{})[i.k],'inputmode="decimal"')).join('')}
+       ${INS.map(i=>f('minimos.'+i.k,`${i.nome.split(' (')[0]} — mínimo (${i.unL})`,(c.minimos||{})[i.k],'inputmode="decimal" data-num="dec"')).join('')}
        ${mo('saldo_inicial','Saldo inicial do caixa',c.saldo_inicial)}<div class="fin-fld"><label>Data do saldo inicial</label><input type="date" data-cfg="saldo_data" value="${fe(c.saldo_data||'')}"></div></div></section></div>
     <div style="display:flex;justify-content:flex-end"><button type="button" class="gf-bt pri" data-pm="cfg-salvar"><i class="fas fa-floppy-disk"></i> Salvar parâmetros</button></div>`;
 }
@@ -2340,5 +2447,5 @@ async function salvarParametros(){
   try{await gravar(r?{...r,cfg:{...((r&&r.cfg)||{}),...c}}:{tipo:'config',cfg:c,data_lancamento:todayDateTime()},r?r.rowid:null);toast('Parâmetros salvos: os custos das peças foram recalculados.','success');}catch(e){toast(e.message,'error',false);}
 }
 
-window.PM_FABRICA={opSolta,cascataPeca,planoExcluirVenda,excluirVenda,depsExcluir2:depsExcluir,apagarReg,formOrdem,ordens,T,vendas,vendaDe,fichaVenda,cancelarVenda,devolver,registrarPagamento,entregar,moverVenda,formVenda,pendenciasProducao,andamentoOP,encerrada,depsVenda,depsOrdem,faltaInsumos,lerXmlNfe,catalogoPDF,imprimirVenda,depsExcluir,lotes,rastreio,comissoesMes,precoPara,calcularFrete,situacaoLote,pesoVenda,romaneio,imprimirEtiquetas,escolherPeca,calc,receita,traco1m3,rateio,estoque,estoqueInsumos,CFG,render,irAba,resumoMes,necessidade,caixaMes,faseVenda,totalVenda,pagoDe,reposicao,fichaHtml,tiposTodos,armPeca};
+window.PM_FABRICA={fecharDiasVencidos,confirmarFecharDia,reabrirDia,formProducao,diaFechado,passouHora,opSolta,cascataPeca,planoExcluirVenda,excluirVenda,depsExcluir2:depsExcluir,apagarReg,formOrdem,ordens,T,vendas,vendaDe,fichaVenda,cancelarVenda,devolver,registrarPagamento,entregar,moverVenda,formVenda,pendenciasProducao,andamentoOP,encerrada,depsVenda,depsOrdem,faltaInsumos,lerXmlNfe,catalogoPDF,imprimirVenda,depsExcluir,lotes,rastreio,comissoesMes,precoPara,calcularFrete,situacaoLote,pesoVenda,romaneio,imprimirEtiquetas,escolherPeca,calc,receita,traco1m3,rateio,estoque,estoqueInsumos,CFG,render,irAba,resumoMes,necessidade,caixaMes,faseVenda,totalVenda,pagoDe,reposicao,fichaHtml,tiposTodos,armPeca};
 })();
