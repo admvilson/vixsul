@@ -360,28 +360,32 @@ function estilo(){
 .pm-cal .d{display:block;font:800 26px/1 Manrope,Inter,sans-serif;color:#101828;padding:7px 0 2px;}
 .pm-cal .s{display:block;font:600 10.5px Inter,sans-serif;color:#667085;padding:0 0 7px;}
 .pm-cal.fech{border-color:#E4E7EC;box-shadow:none;} .pm-cal.fech .m{background:linear-gradient(135deg,#475467,#98A2B3);} .pm-cal.fech .d{color:#475467;}
-/* calendário para escolher o dia do diário */
-/* cabeçalho do calendário: o mês como título que abre a lista (alinhado com a grade), e o resumo à direita */
-.pm-cl-cab{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:14px 16px 12px;}
-.pm-cl-cab .gf-mes{border:0;background:transparent;border-radius:10px;padding:0 2px 0 8px;margin-left:-8px;gap:8px;transition:background .12s;}
-.pm-cl-cab .gf-mes:hover{background:#F2F4F7;} .pm-cl-cab .gf-mes i{font-size:16px;color:#1652D8;}
-.pm-cl-cab .gf-mes select{font:800 19px Manrope,Inter,sans-serif;letter-spacing:-.01em;color:#101828;padding:6px 30px 6px 0;min-width:0;}
-.pm-cl-res{font-size:12px;color:#667085;white-space:nowrap;} .pm-cl-res b{color:#101828;}
-.pm-pop ~ .gf-lista-pop{z-index:10070;}
-.pm-cl-sem,.pm-cl-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;padding:0 16px;}
-.pm-cl-sem span{font:700 10.5px Inter,sans-serif;color:#667085;text-transform:uppercase;text-align:center;letter-spacing:.04em;}
-.pm-cl-grid{padding:6px 16px 12px;}
-.pm-cd{position:relative;height:60px;border:1px solid #E4E7EC;border-radius:12px;background:#fff;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:2px;padding:7px 3px 4px;cursor:pointer;color:#101828;transition:background .12s,border-color .12s,box-shadow .12s;font-family:Inter,sans-serif;}
-.pm-cd b{font:800 16px/1 Manrope,Inter,sans-serif;} .pm-cd small{font:600 9px/1.1 Inter,sans-serif;text-align:center;max-height:20px;overflow:hidden;color:#667085;}
-.pm-cd.livre:hover{border-color:#1652D8;background:#EEF4FF;box-shadow:0 6px 12px -8px rgba(22,82,216,.7);}
+/* calendário para escolher o dia do diário: o mês aparece no título (só sinaliza; quem troca é o seletor do diário) */
+.pm-cl .pm-pop-cab{padding:14px 16px 12px;}
+.pm-cl-tit{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font:800 15.5px Manrope,Inter,sans-serif;color:#101828;}
+.pm-cl-chip{display:inline-flex;align-items:center;gap:7px;background:linear-gradient(135deg,#1652D8,#2E90FA);color:#fff;border-radius:10px;padding:6px 12px;font:800 13px Inter,sans-serif;letter-spacing:.01em;box-shadow:0 6px 14px -8px rgba(22,82,216,.9);}
+.pm-cl-chip i{font-size:12px;opacity:.9;}
+.pm-cl-sem,.pm-cl-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:7px;padding:0 18px;}
+.pm-cl-sem{padding-top:14px;}
+.pm-cl-sem span{font:700 10.5px Inter,sans-serif;color:#475467;text-transform:uppercase;text-align:center;letter-spacing:.06em;padding-bottom:2px;}
+.pm-cl-sem span.fs{color:#98A2B3;}
+.pm-cl-grid{padding:8px 18px 16px;}
+.pm-cd{position:relative;height:62px;border:1px solid #EAECF0;border-radius:12px;background:#fff;display:flex;flex-direction:column;align-items:flex-start;justify-content:space-between;padding:7px 8px 6px;cursor:pointer;color:#101828;text-align:left;font-family:Inter,sans-serif;transition:background .12s,border-color .12s,box-shadow .12s,transform .12s;}
+.pm-cd b{font:800 15px/1 Manrope,Inter,sans-serif;}
+.pm-cd small{font:600 9.5px/1.15 Inter,sans-serif;color:#667085;max-height:22px;overflow:hidden;}
+.pm-cd.livre:hover{border-color:#1652D8;background:#F5F8FF;box-shadow:0 8px 16px -10px rgba(22,82,216,.8);transform:translateY(-1px);}
 .pm-cd.vz{border:0;background:transparent;cursor:default;}
-.pm-cd.fds{background:#F2F4F7;} .pm-cd.fer{background:#FEF3F2;border-color:#FECDCA;} .pm-cd.fer small,.pm-cd.fer b{color:#B42318;}
-.pm-cd.reg{background:#ECFDF3;border-color:#ABEFC6;cursor:not-allowed;} .pm-cd.reg b{color:#067647;} .pm-cd.reg i{position:absolute;top:5px;right:6px;font-size:11px;color:#12B76A;}
-.pm-cd.fut,.pm-cd.enc{opacity:.4;cursor:not-allowed;}
-.pm-cd.hoje{box-shadow:inset 0 0 0 2px #1652D8;} .pm-cd.hoje small{color:#1652D8;}
-.pm-cl-leg{display:flex;flex-wrap:wrap;gap:6px 14px;padding:10px 16px 14px;border-top:1px solid #F2F4F7;font-size:11.5px;color:#475467;}
+.pm-cd.fds{background:#F2F4F7;border-color:#E4E7EC;} .pm-cd.fds b{color:#475467;}
+.pm-cd.fer{background:#FFF5F4;border-color:#FECDCA;} .pm-cd.fer b,.pm-cd.fer small{color:#B42318;}
+.pm-cd.reg{background:#ECFDF3;border-color:#ABEFC6;cursor:not-allowed;} .pm-cd.reg b{color:#067647;} .pm-cd.reg small{color:#079455;}
+.pm-cd.reg i{position:absolute;top:7px;right:7px;font-size:12px;color:#12B76A;}
+.pm-cd.fut,.pm-cd.enc{opacity:.38;cursor:not-allowed;}
+.pm-cd.hoje{border-color:#1652D8;box-shadow:inset 0 0 0 1px #1652D8;} .pm-cd.hoje small{color:#1652D8;font-weight:800;}
+.pm-cl-leg{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px 14px;padding:11px 18px 14px;border-top:1px solid #F2F4F7;font-size:11.5px;color:#475467;}
+.pm-cl-leg>div{display:flex;flex-wrap:wrap;gap:6px 14px;}
 .pm-cl-leg span::before{content:'';display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:5px;vertical-align:-1px;background:var(--c);border:1px solid var(--b);}
-@media (max-width:560px){.pm-cd{height:50px;} .pm-cd small{display:none;} .pm-cl-sem,.pm-cl-grid{gap:4px;padding-left:10px;padding-right:10px;}}
+.pm-cl-leg em{font-style:normal;color:#667085;white-space:nowrap;} .pm-cl-leg em b{color:#101828;}
+@media (max-width:560px){.pm-cd{height:50px;padding:6px;} .pm-cd small{display:none;} .pm-cl-sem,.pm-cl-grid{gap:4px;padding-left:10px;padding-right:10px;}}
 .pm-dia2-tit{display:flex;align-items:center;gap:8px;flex-wrap:wrap;} .pm-dia2-tit>b{font:800 15px Manrope,Inter,sans-serif;color:#101828;}
 .pm-dia2.fech{background:#FCFCFD;}
 .pm-st-dia{display:inline-flex;align-items:center;gap:5px;font:700 11px Inter,sans-serif;border-radius:99px;padding:3px 9px;}
@@ -1396,9 +1400,11 @@ function feriadosDe(a){const m={};
   String(CFG().feriados_cidade||'').split(/\n+/).forEach(l=>{const x=l.match(/^\s*(\d{1,2})\/(\d{1,2})\s*[-–:]?\s*(.*)$/);if(x)m[`${a}-${x[2].padStart(2,'0')}-${x[1].padStart(2,'0')}`]=x[3].trim()||'Feriado da cidade';});
   return m;}
 /* calendário para escolher o dia do diário: dia já registrado não dá para escolher; sábado, domingo e feriado aparecem marcados */
+// o mês vem do seletor do diário (no calendário ele só aparece, para sinalizar)
 function escolherDiaProducao(aoEscolher,kIni){
   const adm=ehAdm(),hj=hojeISO(),kHoje=hj.slice(0,7);let k=kIni||PM.mes||kHoje;if(k>kHoje)k=kHoje;
-  const p=sobre(`<div class="pm-pop-box pm-cl" style="max-width:560px"><div class="pm-pop-cab"><b><i class="fas fa-calendar-day" style="color:#1652D8"></i> Qual dia vai registrar?</b><button type="button" class="pm-x" data-pop-x><i class="fas fa-xmark"></i></button></div><div data-cl></div></div>`,
+  const [y0,m0]=k.split('-').map(Number),rotMes=`${MESES_PT[m0-1].replace(/^./,c=>c.toUpperCase())} de ${y0}`;
+  const p=sobre(`<div class="pm-pop-box pm-cl" style="max-width:580px"><div class="pm-pop-cab"><b class="pm-cl-tit"><span class="pm-cl-chip"><i class="fas fa-calendar"></i> ${fe(rotMes)}</span>Qual dia vai registrar?</b><button type="button" class="pm-x" data-pop-x><i class="fas fa-xmark"></i></button></div><div data-cl></div></div>`,
     (ev,fechar)=>{const b=ev.target.closest('[data-dia]');if(b&&!b.disabled){fechar();(aoEscolher||(iso=>formProducao(null,{data:iso})))(b.dataset.dia);}});
   function pintar(){
     const [y,m]=k.split('-').map(Number),ini=new Date(y,m-1,1),nd=new Date(y,m,0).getDate(),fer=feriadosDe(y),reg=new Map(T('producao').filter(r=>String(r.data||'').startsWith(k)).map(r=>[r.data,r]));
@@ -1406,17 +1412,13 @@ function escolherDiaProducao(aoEscolher,kIni){
     for(let d=1;d<=nd;d++){const iso=`${k}-${String(d).padStart(2,'0')}`,dw=new Date(y,m-1,d).getDay(),r=reg.get(iso),fr=fer[iso],fut=iso>hj,enc=!adm&&!r&&passouHora(iso),fds=dw===0||dw===6;
       const st=r?'reg':fut?'fut':enc?'enc':'livre';if(st==='livre')livres++;
       const tit=r?`Já registrado${diaFechado(r)?' e fechado':''}: abra o dia na lista do diário para ver ou alterar`:fut?'Este dia ainda não chegou':enc?'Encerrado às 19h: só o Administrador registra este dia':'Registrar este dia';
-      cel+=`<button type="button" class="pm-cd ${st}${fds?' fds':''}${fr?' fer':''}${iso===hj?' hoje':''}" data-dia="${iso}" ${st!=='livre'?'disabled':''} title="${fe(tit+(fr?' · Feriado: '+fr:fds?' · '+(dw===0?'Domingo':'Sábado'):''))}"><b>${d}</b>${r?'<i class="fas fa-circle-check"></i>':''}<small>${fr?fe(fr):fds?(dw===0?'domingo':'sábado'):iso===hj?'hoje':''}</small></button>`;}
-    const nReg=reg.size,mesN=MESES_PT[m-1];
-    // um jeito só de trocar o mês: a lista de meses (a mesma do diário)
-    p.d.querySelector('[data-cl]').innerHTML=`<div class="pm-cl-cab">${GS.selMes(k,'data-cl-sel',24,0)}<span class="pm-cl-res"><b>${nReg}</b> registrado${nReg===1?'':'s'} · <b>${livres}</b> livre${livres===1?'':'s'}</span></div>
-      <div class="pm-cl-sem">${['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'].map(x=>`<span>${x}</span>`).join('')}</div><div class="pm-cl-grid">${cel}</div>
-      <div class="pm-cl-leg"><span style="--c:#ECFDF3;--b:#ABEFC6">Já registrado (${nReg})</span><span style="--c:#F2F4F7;--b:#D0D5DD">Sábado e domingo</span><span style="--c:#FEF3F2;--b:#FECDCA">Feriado</span><span style="--c:#fff;--b:#1652D8">Hoje</span>${adm?'':'<span style="--c:#fff;--b:#EAECF0">Apagado = ainda não chegou ou encerrado às 19h</span>'}</div>
-      ${livres?'':`<p class="pm-mini" style="margin:0 16px 14px">Nenhum dia livre neste mês para você registrar.</p>`}`;
-    // a seta da lista fica logo depois do nome do mês (largura do texto escolhido)
-    const sl=p.d.querySelector('[data-cl-sel]');if(sl){const cv=document.createElement('canvas').getContext('2d'),cs=getComputedStyle(sl);cv.font=`${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;sl.style.width=Math.ceil(cv.measureText(sl.options[sl.selectedIndex].text).width*1.04+50)+'px';}}
-  // trocar o mês no calendário também troca o mês mostrado no diário
-  p.d.addEventListener('change',ev=>{if(ev.target.matches('[data-cl-sel]')){k=ev.target.value;pintar();PM.mes=k;try{if(document.querySelector('#pm-app'))render();}catch(e){}}});
+      cel+=`<button type="button" class="pm-cd ${st}${fds?' fds':''}${fr?' fer':''}${iso===hj?' hoje':''}" data-dia="${iso}" ${st!=='livre'?'disabled':''} title="${fe(tit+(fr?' · Feriado: '+fr:fds?' · '+(dw===0?'Domingo':'Sábado'):''))}"><b>${d}</b>${r?'<i class="fas fa-circle-check"></i>':''}<small>${fr?fe(fr):r?'registrado':iso===hj?'hoje':''}</small></button>`;}
+    const nReg=reg.size;
+    p.d.querySelector('[data-cl]').innerHTML=`<div class="pm-cl-sem">${['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'].map((x,i)=>`<span class="${i===0||i===6?'fs':''}">${x}</span>`).join('')}</div><div class="pm-cl-grid">${cel}</div>
+      <div class="pm-cl-leg"><div><span style="--c:#ECFDF3;--b:#ABEFC6">Registrado</span><span style="--c:#F2F4F7;--b:#E4E7EC">Sábado e domingo</span><span style="--c:#FEF3F2;--b:#FECDCA">Feriado</span><span style="--c:#fff;--b:#1652D8">Hoje</span></div>
+        <em><b>${nReg}</b> registrado${nReg===1?'':'s'} · <b>${livres}</b> livre${livres===1?'':'s'}</em></div>
+      ${adm?'':'<p class="pm-mini" style="margin:-6px 18px 12px">Dia apagado: ainda não chegou ou já encerrou às 19h (só o Administrador registra).</p>'}
+      ${livres?'':`<p class="pm-mini" style="margin:0 18px 14px">Nenhum dia livre neste mês para você registrar. Para outro mês, troque o mês no diário.</p>`}`;}
   pintar();return p;}
 // pergunta com "Sim, …" e "Não" (janela por cima, sem fechar a que está aberta) — devolve true/false
 function simNao(titulo,msg,rotSim,icone){return new Promise(ok=>{let r=false;const p=sobre(`<div class="pm-pop-box" style="max-width:460px"><div class="pm-pop-cab"><b>${icone?`<i class="fas ${icone}" style="color:#1652D8"></i> `:''}${fe(titulo)}</b><button type="button" class="pm-x" data-pop-x><i class="fas fa-xmark"></i></button></div>
@@ -1477,9 +1479,9 @@ function telaProducao(){
   const nDias=new Set(L.map(r=>r.data)).size,pm=pontoMes(k),horas=pm.reduce((s,x)=>s+x.horas,0),faltas=pm.reduce((s,x)=>s+x.falta,0);
   const lts=lotes(),comCP=lts.filter(l=>l.cp>0).map(l=>({l,st:situacaoLote(l)})),pend=comCP.filter(x=>x.st&&x.st.k!=='aprovado'),lim=addD(h,-45);
   const sub=`<div class="pm-sub">${[['dias','fa-calendar-days','Dias de produção'],['lotes','fa-tags','Lotes e cura'],['ponto','fa-user-clock','Ponto do mês'],['ensaios','fa-flask',`Ensaios${pend.length?` (${pend.length})`:''}`]].map(([v,ic,l])=>`<button type="button" class="gf-bt ${vista===v?'pri':''}" data-pm="dvista" data-v="${v}"><i class="fas ${ic}"></i> ${l}</button>`).join('')}</div>`;
-  // o mês é escolhido no calendário do "Registrar o dia" (um seletor só)
-  const cab=cabG('Diário de produção',`O dia da fábrica: equipe e ponto, betonadas, clima, ocorrências e as peças feitas. Cada peça do dia vira um lote (por palete ou por unidade), baixa os insumos e entra em cura. Mostrando <b>${fe(mesNome(k))}</b> — para ver outro mês, troque no calendário do <b>Registrar o dia</b>.`,
-      `<button type="button" class="gf-bt pri" data-pm="prod-nova"><i class="fas fa-plus"></i> Registrar o dia</button>`)+
+  // o mês escolhido aqui vale para a lista e para o calendário do "Registrar o dia"
+  const cab=cabG('Diário de produção','O dia da fábrica: equipe e ponto, betonadas, clima, ocorrências e as peças feitas. Cada peça do dia vira um lote (por palete ou por unidade), baixa os insumos e entra em cura.',
+      `${GS.selMes(k,'data-pm-mes',12,0)}<button type="button" class="gf-bt pri" data-pm="prod-nova"><i class="fas fa-plus"></i> Registrar o dia</button>`)+
     `<div class="gf-kpis">${kpiG('','fa-cubes','Peças produzidas',nf(tot,0),`${nDias} dia(s) de produção no mês`)}${kpiG('','fa-fill-drip','Concreto',nf(m3,2)+' m³',nDias?`média ${nf(m3/nDias,2)} m³ por dia`:'—')}
       ${kpiG(ref&&ref/(tot+ref)>0.03?'vermelho':'verde','fa-heart-crack','Refugo',nf(ref,0)+' peças',tot+ref?`${nf(ref/(tot+ref)*100,1)}% da produção`:'—')}
       ${kpiG('roxo','fa-user-clock','Horas trabalhadas',nf(horas,1)+' h',horas?`${nf(tot/horas,1)} peças por hora · ${faltas} falta(s) no mês`:'marque o ponto no registro do dia')}
