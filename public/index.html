@@ -10726,6 +10726,8 @@ window.onload=()=>{
 .fin-lote label:hover{background:var(--bg);}
 .fin-lote input{width:16px;height:16px;flex-shrink:0;}
 .fin-lote .v{margin-left:auto;font-weight:700;white-space:nowrap;padding-left:10px;}
+.fin-lote label[hidden]{display:none;} .cc-varias label>span:first-of-type{min-width:0;line-height:1.3;} .cc-varias label b{color:var(--text-1);overflow-wrap:anywhere;} .cc-varias label small{display:block;color:var(--text-3);font-size:11.5px;margin-top:1px;}
+.cc-varias label:has(input:checked){background:#EFF4FF;} .cc-nada{margin:0;padding:16px;text-align:center;color:var(--text-3);font-size:12.5px;} .cc-nada[hidden]{display:none;}
 @media (max-width:900px){.fin-linha{grid-template-columns:minmax(0,1fr);} .fin-tab{font-size:12px;} .fin-esconder-cel{display:none;} .fin-filtros{width:100%;} .fin-filtros select{flex:1 1 100%;min-width:0!important;width:100%;}}
 </style>
 <div class="fin-ov" id="fin-ov"><div class="fin-jan" id="fin-jan" role="dialog" aria-modal="true"></div></div>
@@ -11315,7 +11317,7 @@ const Fin=(function(){
       else if(p.st==='feito')alvo=`<span>${fe(p.nota)}</span>`;
       const marcavel=['ok','confira','vincular'].includes(p.st),selSem=p.st==='sem';
       const bt=(acao,txt,cls)=>`<button type="button" class="fin-bt mini ${cls||''}" data-cc="${acao}" data-i="${i}">${txt}</button>`;
-      const acoes=p.st==='sem'?(p.t.valor<0?bt('escolher','Escolher…')+bt('conta','Lançar em Contas a pagar')+bt('ignorar','Ignorar')
+      const acoes=p.st==='sem'?(p.t.valor<0?bt('escolher','Escolher…')+bt('varias','Várias contas…')+bt('conta','Lançar em Contas a pagar')+bt('ignorar','Ignorar')
           :bt('escolher','Escolher…')+bt('lote','Várias notas…')+bt('aporte','É aporte')+bt('ignorar','Ignorar'))
         :p.st==='feito'?bt('desfazer','Desfazer'):p.st==='ignorado'?bt('voltar','Voltar para a conferência'):'';
       return `<tr><td>${marcavel?`<input type="checkbox" data-cc-marca="${i}" ${CONC.marcados.has(p.t.id)?'checked':''}>`:selSem?`<input type="checkbox" data-cc-sem="${i}" title="Marcar para ignorar junto com outras" ${CONC.selSem.has(p.t.id)?'checked':''}>`:''}</td>
@@ -11391,6 +11393,7 @@ const Fin=(function(){
       if(a==='voltar'){const s=ignorados();s.delete(p.t.id);gravarIgn(s);renderConciliacao();return;}
       if(a==='escolher')return escolher(p);
       if(a==='lote')return lote(p);
+      if(a==='varias')return variasContas(p);
       if(a==='aporte')return aporte(p);
       if(a==='conta')return lancarConta(p);
       if(a==='desfazer')return desfazer(p);
@@ -11545,27 +11548,85 @@ const Fin=(function(){
      mesmas categorias, descrição, fornecedor e forma de pagamento das contas. Sugere pelo que já foi lançado antes para
      o mesmo favorecido (ou o mesmo texto do banco) — o sistema aprende a cada conciliação. */
   // várias saídas do banco de uma vez (tarifas, impostos, taxas): cada linha vira uma conta paga na data dela,
-  // com o destino e a categoria escolhidos uma vez só, já ligada ao extrato
+  // com o destino (obra, empresa ou rateio entre obras) e a categoria escolhidos uma vez só, já ligada ao extrato
   function lancarMarcados(lista){
-    if(!lista.length)return;const C=GS.contas,EMP=C.EMP,tot=lista.reduce((s,p)=>s-p.t.valor,0);
+    if(!lista.length)return;const C=GS.contas,EMP=C.EMP,RAT='__rateio__',tot=Math.round(lista.reduce((s,p)=>s-p.t.valor,0)*100)/100;
     const j=janela(`Lançar ${lista.length} saída(s) em Contas a pagar`,`<div class="fin-resumo">${lista.length} linha(s) do banco · total <b>${fmt(tot)}</b><br><small>${lista.slice(0,6).map(p=>`${fe(p.t.data.slice(0,5))} ${fe(p.t.desc)} · ${fmt(-p.t.valor)}`).join('<br>')}${lista.length>6?`<br>+ ${lista.length-6} linha(s)`:''}</small></div>
       <div class="fin-linha">
-        <div class="fin-fld" style="grid-column:1/-1"><label>Para onde vai o gasto <span class="obg">*</span></label>${GS.destino.html('data-k="centro"',C.podeEmpresa()?EMP:'',{rateio:false})}</div>
+        <div class="fin-fld" style="grid-column:1/-1"><label>Para onde vai o gasto <span class="obg">*</span></label>${GS.destino.html('data-k="centro"',C.podeEmpresa()?EMP:'')}</div>
+        <div style="grid-column:1/-1">${GS.rateio.htmlRateio()}</div>
         <div class="fin-fld" style="grid-column:1/-1"><label>Categoria › Descrição <span class="obg">*</span></label>${GS.comboGasto.html('data-k="cat"','data-k="desc"','','')}</div>
         <div class="fin-fld"><label>Fornecedor / favorecido</label><input data-k="forn" data-maiusc list="vx-forn-lista" autocomplete="off" placeholder="em branco: o nome que veio do banco"></div>
         <div class="fin-fld"><label>Forma de pagamento</label><select data-k="forma"><option value="">Pelo texto do banco</option>${FORMAS_PAGAMENTO_DESPESA.map(x=>`<option>${fe(x)}</option>`).join('')}</select></div></div>
-      <div class="fin-aviso"><div>Cada linha vira uma conta <b>paga na data do banco</b>, ligada ao extrato.</div></div>`,
+      <div class="fin-aviso"><div>Cada linha vira uma conta <b>paga na data do banco</b>, ligada ao extrato. No rateio, cada linha é dividida entre as obras marcadas.</div></div>`,
       [{html:'<i class="fas fa-floppy-disk"></i> Lançar e conciliar',cls:'pri',acao:async jj=>{
-        const g=k=>(jj.querySelector(`[data-k="${k}"]`).value||'').trim(),centro=g('centro'),cat=g('cat'),desc=g('desc');
-        if(!centro)throw new Error('Escolha a obra ou Custo indireto (Empresa).');if(!cat||!desc)throw new Error('Escolha a categoria › descrição.');
+        const g=k=>(jj.querySelector(`[data-k="${k}"]`).value||'').trim(),centro=g('centro'),cat=g('cat'),desc=g('desc'),rat=centro===RAT,obrasR=rat?RT.obras():[];
+        if(!centro)throw new Error('Escolha a obra, Custo indireto (Empresa) ou Ratear entre obras.');if(rat&&obrasR.length<2)throw new Error('Marque pelo menos 2 obras para o rateio.');if(!cat||!desc)throw new Error('Escolha a categoria › descrição.');
         GS.comboGasto.registrar(centro===EMP,cat,desc);const ops=[],T0=Date.now().toString(36);
-        lista.forEach((p,i)=>{const iso=isoDeBR(p.t.data),v=-p.t.valor;
-          const u={centro,tipo:'Real',venc:iso,pago:iso,total:dinheiro(v),forn:(g('forn')||p.t.quem||'').toLocaleUpperCase('pt-BR'),cat,forma:g('forma')||formaDoExtrato(p.t.desc),desc,obs:'Lançada pela conciliação bancária',qtd:'',fator:'',pUnit:'',lanc:'',compra:'cb'+T0+'_'+i,dataCompra:iso};
-          C.finalizarConta(u);C.montarConta(u,null).forEach(op=>{Object.assign(op.dados,{conciliacao:p.t.id,conciliacao_baixa:p.t.id,extrato_desc:p.t.desc});ops.push(op);});});
+        lista.forEach((p,i)=>{const iso=isoDeBR(p.t.data),v=-p.t.valor,rid=rat?'rt'+T0+'_'+i:'';
+          const partes=rat?GS.rateio.partesRateio(v,obrasR):[{obra:centro,valor:v,pct:100}];
+          partes.forEach(dd=>{if(!(dd.valor>0))return;
+            const u={centro:dd.obra,tipo:'Real',venc:iso,pago:iso,total:dinheiro(dd.valor),forn:(g('forn')||p.t.quem||'').toLocaleUpperCase('pt-BR'),cat,forma:g('forma')||formaDoExtrato(p.t.desc),desc,
+              obs:[rat?`Rateio: ${GS.rateio.pctTxt(dd.pct)} de ${fmt(v)} (pelo orçamento)`:'','Lançada pela conciliação bancária'].filter(Boolean).join(' · '),qtd:'',fator:'',pUnit:'',lanc:'',compra:'cb'+T0+'_'+i,dataCompra:iso};
+            if(rid)u.rateio=rid;
+            C.finalizarConta(u);C.montarConta(u,null).forEach(op=>{Object.assign(op.dados,{conciliacao:p.t.id,conciliacao_baixa:p.t.id,extrato_desc:p.t.desc});ops.push(op);});});});
         await executar(async()=>{for(const op of ops)await salvar(op.aba,op.dados,null);});
         lista.forEach(p=>CONC.selSem.delete(p.t.id));
-        toast(`${lista.length} saída(s) lançada(s) em Contas a pagar e conciliada(s).`,'success');}}],640);
+        toast(`${lista.length} saída(s) lançada(s) em Contas a pagar${rat?` (rateadas entre ${obrasR.length} obras)`:''} e conciliada(s).`,'success');}}],720);
+    // rateio: a lista de obras aparece quando escolhe "Ratear entre obras"; a categoria da empresa não vale para obra (e vice-versa)
+    const ce=j.querySelector('[data-k="centro"]'),rb=j.querySelector('[data-rat]'),RT=GS.rateio.ligarRateio(rb,()=>tot);
+    ce.addEventListener('change',()=>{rb.hidden=ce.value!==RAT;const ca=j.querySelector('[data-k="cat"]'),cs=ce.value===EMP?C.CATD():C.CATC();if(ca.value&&!cs.includes(ca.value))GS.comboGasto.limpar(ca.closest('.cg'));});
     try{Eng.datalistFornecedores();}catch(e){}
+  }
+  /* Uma saída do banco pagando várias contas (um PIX ou TED para o mesmo fornecedor, pagamento em lote): marca as contas
+     — as em aberto ganham a baixa na data do banco; as já pagas e ainda soltas do extrato só são ligadas a ele. O sistema
+     soma e mostra a diferença para o valor que saiu. */
+  // em aberto primeiro (vencimento mais perto da data do banco; sem vencimento no fim), depois as já pagas
+  function contasParaLigar(td){
+    const dist=m=>{const d=m.pago?m.dataBaixa:m.venc;return d?Math.abs(dias(d,td)):99999;};
+    return movimentos().filter(m=>m.sent<0&&(!m.pago||(!m.r.conciliacao&&m.dataBaixa&&Math.abs(dias(m.dataBaixa,td))<=30)))
+      .sort((a,b)=>(a.pago?1:0)-(b.pago?1:0)||dist(a)-dist(b));
+  }
+  async function ligarContas(t,alvos){
+    const ab=alvos.filter(m=>!m.pago),pg=alvos.filter(m=>m.pago),lote=[];
+    if(ab.length)lote.push({t,acao:'baixar',alvos:ab});if(pg.length)lote.push({t,acao:'vincular',alvos:pg});
+    const r=await executar(()=>aplicar(lote));if(r.falhas.length)throw new Error(r.falhas[0]);
+  }
+  function variasContas(p){
+    const v=-p.t.valor,ms=contasParaLigar(dt(p.t.data));
+    if(!ms.length)return toast('Não há contas em aberto (nem pagas e ainda soltas do extrato) para escolher.','error');
+    const j=janela('Uma saída, várias contas',`<div class="fin-resumo">${fe(p.t.data)} · ${fe(p.t.desc)}<br>Saiu do banco: <b>${fmt(v)}</b></div>
+      <div class="fin-fld"><input type="search" data-k="busca" placeholder="Pesquisar: fornecedor, obra, descrição ou valor…" autocomplete="off"></div>
+      <div class="fin-lote cc-varias">${ms.map((m,i)=>`<label data-busca="${fe(cn([m.quem,m.desc,m.origem,fmt(m.valor),n2c(m.valor)].join(' ')))}"><input type="checkbox" data-i="${i}"><span><b>${fe(m.quem||m.desc)}</b><small>${m.quem?fe(m.desc)+' · ':''}${fe(m.origem)} · ${m.pago?`já paga em ${brDe(m.dataBaixa)} — só liga ao extrato`:m.venc?'vence '+brDe(m.venc):'sem vencimento'}</small></span><span class="v">${fmt(m.valor)}</span></label>`).join('')}<p class="cc-nada" hidden>Nada encontrado.</p></div>
+      <div class="fin-resumo" data-k="total">Marque as contas que esta saída pagou.</div>`,
+      [{html:'<i class="fas fa-link"></i> Conciliar as marcadas',cls:'pri',acao:async jj=>{
+        const sel=[...jj.querySelectorAll('[data-i]:checked')].map(x=>ms[+x.dataset.i]);
+        if(!sel.length)throw new Error('Marque as contas que esta saída pagou.');
+        await ligarContas(p.t,sel);
+        toast(`${sel.length} conta${sel.length>1?'s conciliadas':' conciliada'} com esta saída do banco.`,'success');}}],720);
+    const total=()=>{const sel=[...j.querySelectorAll('[data-i]:checked')].map(x=>ms[+x.dataset.i]),s=sel.reduce((a,m)=>a+m.valor,0),dif=Math.round((v-s)*100)/100;
+      j.querySelector('[data-k="total"]').innerHTML=sel.length?`${sel.length} conta${sel.length>1?'s':''}: <b>${fmt(s)}</b> · saiu do banco ${fmt(v)} · diferença <b class="${Math.abs(dif)<0.01?'t-ok':'t-err'}">${fmt(dif)}</b>${Math.abs(dif)>=0.01?'<br><small>Saiu a mais costuma ser juros ou multa; a menos, desconto. A baixa é feita mesmo assim, na data do banco — confira depois.</small>':''}`:'Marque as contas que esta saída pagou.';};
+    j.onchange=total;
+    j.oninput=ev=>{if(!ev.target.matches('[data-k="busca"]'))return;const q=cn(ev.target.value).split(' ').filter(Boolean);let n=0;j.querySelectorAll('.fin-lote label').forEach(l=>{l.hidden=!q.every(w=>l.dataset.busca.includes(w));if(!l.hidden)n++;});j.querySelector('.cc-nada').hidden=n>0;};
+  }
+  /* Do quadro de Contas a pagar ("Selecionar várias" → Conciliar com o extrato): as contas marcadas saíram numa só linha do
+     banco. Usa o extrato aberto na Conciliação — as saídas de valor mais perto da soma aparecem primeiro. */
+  function conciliarContas(L,depois){
+    const ext=CONC.extrato;
+    if(!ext)return confirmar('Falta o extrato do banco','Para conciliar, abra <b>Conciliação bancária</b> e importe o extrato do banco. Depois volte aqui, marque as contas e clique em <b>Conciliar com o extrato</b> de novo.','Ir para a Conciliação',async()=>{setTimeout(()=>UI.nav('conciliacao'),60);});
+    const ms=movimentos(),alvos=L.map(o=>ms.find(m=>(o._t==='c'?m.tipo==='custo':m.tipo==='despesa')&&String(m.r.rowid)===String(o.rowid))).filter(Boolean);
+    if(!alvos.length)return toast('Não encontrei essas contas — atualize a página e tente de novo.','error');
+    const ja=alvos.filter(m=>m.r.conciliacao);if(ja.length)return toast(`${ja.length} das contas marcadas já ${ja.length>1?'estão ligadas':'está ligada'} ao extrato — desmarque ou desfaça na Conciliação.`,'error');
+    const soma=Math.round(alvos.reduce((s,m)=>s+m.valor,0)*100)/100;
+    const linhas=conciliar(ext).filter(p=>p.t.valor<0&&p.st!=='feito'&&p.st!=='ignorado').map(p=>p.t).sort((a,b)=>Math.abs(-a.valor-soma)-Math.abs(-b.valor-soma)).slice(0,80);
+    if(!linhas.length)return toast('No extrato aberto não sobrou saída para conciliar.','error');
+    janela('Conciliar com o extrato',`<div class="fin-resumo">${alvos.length} conta${alvos.length>1?'s':''} marcada${alvos.length>1?'s':''} · total <b>${fmt(soma)}</b><br><small>Extrato aberto: ${fe(ext.nome||'')}</small></div>
+      <div class="fin-fld"><label>Saída do banco que pagou estas contas — as de valor mais perto primeiro</label><select data-k="linha">${linhas.map((t,i)=>`<option value="${i}">${fe(t.data)} · ${fe(t.desc)} · ${fmt(-t.valor)}${Math.abs(-t.valor-soma)<0.01?' · mesmo valor':''}</option>`).join('')}</select></div>
+      <div class="fin-aviso laranja"><div>As contas em aberto ficam pagas na data do banco; as já pagas só são ligadas ao extrato. Se o valor for diferente, confira depois juros, multa ou desconto.</div></div>`,
+      [{html:'<i class="fas fa-link"></i> Conciliar',cls:'pri',acao:async j=>{
+        const t=linhas[+j.querySelector('[data-k="linha"]').value];if(!t)throw new Error('Escolha a saída do banco.');
+        if(depois)depois();await ligarContas(t,alvos);
+        toast(`${alvos.length} conta${alvos.length>1?'s conciliadas':' conciliada'} com a saída de ${fmt(-t.valor)} do dia ${t.data}.`,'success');}}],660);
   }
   // saída do banco sem conta: abre a "Nova conta" em modo compra — vários itens (ou a nota lida), somando o valor do banco
   function lancarConta(p){
@@ -11605,7 +11666,7 @@ const Fin=(function(){
     if(document.getElementById('view-contas')?.classList.contains('active'))renderContas();
     if(document.getElementById('view-conciliacao')?.classList.contains('active')&&!document.getElementById('fin-ov')?.classList.contains('open'))renderConciliacao();
   }
-  return {renderContas,renderConciliacao,aoAtualizar,movimentos,prazoReceb,lerSaldo,_conciliar:conciliar,_lerOFX:lerOFX,_lerCSV:lerCSVExtrato,
+  return {renderContas,renderConciliacao,aoAtualizar,movimentos,prazoReceb,lerSaldo,conciliarContas,_conciliar:conciliar,_lerOFX:lerOFX,_lerCSV:lerCSVExtrato,
     // utilitários compartilhados com os módulos de engenharia (Eng)
     util:{janela,confirmar,executar,salvar,excluir,fe,cn,dt,brDe,isoDe,isoDeBR,hoje0,addD,dias,col,kRow,dinheiro,val}};
 })();
@@ -15667,6 +15728,19 @@ const PL2=(function(){
 .vk-card{background:#fff;border-radius:14px;padding:11px 12px;border:1px solid #e8e8ed;box-shadow:0 2px 6px rgba(20,20,60,.05);cursor:pointer;border-left:4px solid var(--cor);transition:transform .15s,box-shadow .15s;}
 .vk-card:hover,.vk-card:focus-visible{transform:translateY(-2px);box-shadow:0 10px 22px -12px rgba(20,20,60,.35);outline:none;}
 .vk-card[draggable="true"]{cursor:grab;} .vk-card.arrastando{opacity:.45;}
+/* modo "Selecionar várias" (Contas a pagar): quadradinho no cartão + barra de baixo com as ações */
+.vk-card.vk-sel{cursor:pointer;} .vk-sel .vk-top{justify-content:flex-start;} .vk-sel .vk-top b{flex:1;min-width:0;}
+.vk-marca{flex:none;width:20px;height:20px;border-radius:6px;border:2px solid #C4C9D4;background:#fff;display:grid;place-items:center;color:transparent;font-size:11px;margin-top:-1px;transition:background .12s,border-color .12s;}
+.vk-sel:hover .vk-marca{border-color:#1652D8;}
+.vk-sel.on{box-shadow:0 0 0 2px #1652D8;background:#F5F8FF;} .vk-sel.on .vk-marca{background:#1652D8;border-color:#1652D8;color:#fff;}
+.vk-sel.meio .vk-marca{background:#D1E0FF;border-color:#1652D8;color:#1652D8;}
+.gf-bt.on{background:#EEF4FF;border-color:#84ADFF;color:#1652D8;} .gf-bt:disabled{opacity:.45;cursor:not-allowed;}
+.vk-selbar{position:sticky;bottom:12px;z-index:6;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px 16px;background:#101828;color:#fff;border-radius:16px;padding:12px 16px;box-shadow:0 16px 32px -12px rgba(16,24,40,.6);}
+.vk-selbar-txt b{display:block;font-size:14px;} .vk-selbar-txt span{display:block;font-size:12px;color:#D0D5DD;}
+.vk-selbar-bts{display:flex;flex-wrap:wrap;gap:8px;}
+.vk-selbar .gf-bt{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.25);color:#fff;} .vk-selbar .gf-bt:hover{background:rgba(255,255,255,.18);}
+.vk-selbar .gf-bt.pri{background:#fff;border-color:#fff;color:#1652D8;} .vk-selbar .gf-bt.pri:hover{background:#EEF4FF;}
+@media (max-width:560px){.vk-selbar{bottom:8px;padding:10px 12px;gap:8px;} .vk-selbar-bts{gap:6px;width:100%;} .vk-selbar-bts .gf-bt{flex:1 1 40%;justify-content:center;padding:7px 10px;font-size:12.5px;white-space:normal;text-align:center;}}
 .vk-top{display:flex;justify-content:space-between;gap:6px 8px;align-items:flex-start;}
 .vk-top b{font-size:13.5px;line-height:1.3;overflow-wrap:anywhere;color:var(--text-1);}
 .vk-sub{font-size:12px;color:#6e6e73;margin:3px 0 6px;overflow-wrap:anywhere;}
@@ -15862,7 +15936,7 @@ const Mascara=(function(){
   const {janela,confirmar,executar,salvar,excluir,fe,cn,dt,brDe,isoDe,hoje0,addD,dias,dinheiro,val}=U;
   const C=GS.contas,Fa=GS.fat,EMP=C.EMP;
   const FORMAS=typeof FORMAS_PAGAMENTO_DESPESA!=='undefined'?FORMAS_PAGAMENTO_DESPESA:['PIX','Boleto','Transferência/TED','Dinheiro'];
-  const QC={busca:'',obra:'',mes:'',antigas:false,aprovar:false,semForn:false,ord:'',cat:'',forma:''},QF={busca:'',obra:'',mes:'',antigas:false,semNF:false,ord:''};
+  const QC={busca:'',obra:'',mes:'',antigas:false,aprovar:false,semForn:false,ord:'',cat:'',forma:'',selModo:false,sel:new Set()},QF={busca:'',obra:'',mes:'',antigas:false,semNF:false,ord:''};
   // ordem dos cartões dentro de cada coluna (o padrão de cada quadro é a data)
   const selOrd=(atr,v,ops)=>`<select ${atr} title="Ordem dos cartões em cada coluna">${ops.map(([k,r])=>`<option value="${k}" ${v===k?'selected':''}>${r}</option>`).join('')}</select>`;
   const cmpTxt=(a,b)=>String(a||'').localeCompare(String(b||''),'pt-BR',{sensitivity:'base',numeric:true});
@@ -15909,10 +15983,12 @@ const Mascara=(function(){
   const acharConta=id=>todasContas().find(o=>idC(o)===id);
   const souAdmin=C.souAdmin;
   const podeEditarConta=o=>GS.ehAdm()||pode('contas')&&!pagoC(o)&&GS.podeMexer(o._r,o.lancPor)&&(souAdmin()||o.tipo!=='Real'||o.aprov==='pendente');
+  // modo "Selecionar várias": o clique marca o cartão (o cartão de uma compra marca todos os itens dela)
+  const marcaSel=ids=>{if(!QC.selModo)return {cls:'',html:''};const n=ids.filter(id=>QC.sel.has(id)).length;return {cls:n&&n===ids.length?' vk-sel on':n?' vk-sel meio':' vk-sel',html:'<span class="vk-marca" aria-hidden="true"><i class="fas fa-check"></i></span>'};};
   function cartaoConta(o){
-    const col=colConta(o),pc=parcDe(o.desc);
-    return `<article class="vk-card" style="--cor:${COLS_CP.find(c=>c.k===col).cor}" draggable="${pode('contas')?'true':'false'}" data-card="${idC(o)}" tabindex="0">
-      <div class="vk-top"><b>${fe(o.forn||C.limparParc(o.desc)||'Conta')}</b>${o.centro===EMP?pill('empresa','info'):''}</div>
+    const col=colConta(o),pc=parcDe(o.desc),ms=marcaSel([idC(o)]);
+    return `<article class="vk-card${ms.cls}" style="--cor:${COLS_CP.find(c=>c.k===col).cor}" draggable="${pode('contas')&&!QC.selModo?'true':'false'}" data-card="${idC(o)}" tabindex="0">
+      <div class="vk-top">${ms.html}<b>${fe(o.forn||C.limparParc(o.desc)||'Conta')}</b>${o.centro===EMP?pill('empresa','info'):''}</div>
       ${o.forn&&o.desc?`<div class="vk-sub">${fe(C.limparParc(o.desc))}${pc?' '+pill(pc,''):''}</div>`:pc?`<div class="vk-sub">${pill(pc,'')}</div>`:''}
       ${o.centro!==EMP?`<div class="vk-obra" title="${fe(o.centro)}"><i class="fas fa-helmet-safety"></i>${fe(o.centro)}</div>`:''}
       <div class="vk-val"><span>${fe(o.cat||'')}</span><b>${fmt(val(o.total))}</b></div>
@@ -15929,10 +16005,10 @@ const Mascara=(function(){
     lista.forEach(o=>{const k=chaveCompra(o);if(!k){out.push(o);return;}let g=mapa.get(k);if(!g){g={_compra:true,id:'g:'+k,lista:[]};mapa.set(k,g);out.push(g);}g.lista.push(o);});
     return out.map(g=>g._compra&&g.lista.length===1?g.lista[0]:g);}
   function cartaoCompra(g){
-    const L=g.lista,o=L[0],col=colConta(o),tot=L.reduce((s,x)=>s+val(x.total),0),obras=[...new Set(L.map(x=>x.centro))],dc=diaCompra(o),rat=L.some(x=>x.rateio);
+    const L=g.lista,o=L[0],col=colConta(o),tot=L.reduce((s,x)=>s+val(x.total),0),obras=[...new Set(L.map(x=>x.centro))],dc=diaCompra(o),rat=L.some(x=>x.rateio),ms=marcaSel(L.map(idC));
     (App._vkCompras=App._vkCompras||{})[g.id]=L;
-    return `<article class="vk-card vk-compra" style="--cor:${COLS_CP.find(c=>c.k===col).cor}" draggable="${pode('contas')?'true':'false'}" data-card="${fe(g.id)}" tabindex="0">
-      <div class="vk-top"><b>${fe(o.forn||'Compra')}</b>${obras.length===1&&obras[0]===EMP?pill('empresa','info'):''}</div>
+    return `<article class="vk-card vk-compra${ms.cls}" style="--cor:${COLS_CP.find(c=>c.k===col).cor}" draggable="${pode('contas')&&!QC.selModo?'true':'false'}" data-card="${fe(g.id)}" tabindex="0">
+      <div class="vk-top">${ms.html}<b>${fe(o.forn||'Compra')}</b>${obras.length===1&&obras[0]===EMP?pill('empresa','info'):''}</div>
       <div class="vk-sub"><i class="fas fa-basket-shopping"></i> ${L.length} itens${dc?` · compra de ${brDe(dt(dc))}`:''}</div>
       ${obras.some(x=>x!==EMP)?`<div class="vk-obra" title="${fe(obras.join(' · '))}"><i class="fas fa-helmet-safety"></i>${fe(obras.length===1?obras[0]:obras.length+' obras')}</div>`:''}
       <ul class="vk-itens">${L.slice(0,5).map(x=>`<li><span>${fe(C.limparParc(x.desc)||x.cat||'Item')}</span><b>${fmt(val(x.total))}</b></li>`).join('')}${L.length>5?`<li class="mais">+ ${L.length-5} item(ns)</li>`:''}</ul>
@@ -16022,11 +16098,11 @@ const Mascara=(function(){
     const temPrev=todas.some(o=>colConta(o)==='previstas');
     const cols=COLS_CP.filter(c=>c.k!=='previstas'||temPrev).map(c=>{const itens=visiveis.filter(o=>colConta(o)===c.k).sort(ordemCartoes(f.ord,o=>val(o.total),o=>o.forn||C.limparParc(o.desc))||(f.ord==='rec'?(a,b)=>(+b.rowid||0)-(+a.rowid||0):c.k==='paga'?(a,b)=>String(b.pago).localeCompare(String(a.pago)):ordV));return {c:c.k==='previstas'?{...c,rot:'Estimativas antigas'}:c,itens:agruparCompras(itens),total:S(itens),sub:`${itens.length} ${itens.length===1?'item':'itens'} · ${fmt(S(itens))}`};});
     App._vkCompras={};
-    App._vkContas=filtradas;
+    App._vkContas=filtradas;App._vkVisiveis=visiveis;
     const filtroAtivo=f.busca||f.obra||f.mes||f.aprovar||f.semForn||f.cat||f.forma||f.ord;
     const catsF=[...new Set(C.CATC().concat(C.podeEmpresa()?C.CATD():[]).concat(todas.map(o=>o.cat).filter(Boolean)))],formasF=[...new Set(FORMAS.concat(todas.map(o=>o.forma).filter(Boolean)))];
     box.innerHTML=`<div class="gf">
-      ${cabG('Contas a pagar','Tudo o que a empresa paga: compras e serviços de cada obra e as despesas da Empresa — só contas que já existem (a previsão de custo das obras vem do CAP). Um Administrador aprova (conta lançada por Administrador já nasce aprovada) e, quando pagar, arraste o cartão para <b>Paga</b>. Clique no cartão para ver e corrigir todos os dados.','<button type="button" class="gf-bt" data-vk="imprimir"><i class="fas fa-print"></i> Imprimir</button><button type="button" class="gf-bt" data-vk="exportar"><i class="fas fa-file-excel"></i> Exportar</button>'+(pode('contas')?'<button type="button" class="gf-bt pri" data-vk="nova"><i class="fas fa-plus"></i> Nova conta</button>':''))}
+      ${cabG('Contas a pagar','Tudo o que a empresa paga: compras e serviços de cada obra e as despesas da Empresa — só contas que já existem (a previsão de custo das obras vem do CAP). Um Administrador aprova (conta lançada por Administrador já nasce aprovada) e, quando pagar, arraste o cartão para <b>Paga</b>. Clique no cartão para ver e corrigir todos os dados.','<button type="button" class="gf-bt" data-vk="imprimir"><i class="fas fa-print"></i> Imprimir</button><button type="button" class="gf-bt" data-vk="exportar"><i class="fas fa-file-excel"></i> Exportar</button>'+(pode('contas')?`<button type="button" class="gf-bt${f.selModo?' on':''}" data-vk="selecionar" title="Marcar várias contas para ratear entre obras ou conciliar com o extrato de uma vez"><i class="fas fa-square-check"></i> ${f.selModo?'Sair da seleção':'Selecionar várias'}</button><button type="button" class="gf-bt pri" data-vk="nova"><i class="fas fa-plus"></i> Nova conta</button>`:''))}
       ${semAprov.length&&souAdmin()?`<div class="vk-aviso"><i class="fas fa-signature"></i><div><b>${semAprov.length} conta(s) esperando a sua aprovação</b> — ${fmt(S(semAprov))}. Abra o cartão (ou arraste para "Aprovada") para aprovar.</div><button type="button" class="gf-bt mini" data-vk="so-aprovar">${f.aprovar?'Ver todas':'Ver só elas'}</button></div>`:''}
       <div class="gf-kpis">
         ${kpiG(vencidas.length?'vermelho':'verde','fa-triangle-exclamation','Vencidas',Rk(S(vencidas)),vencidas.length?`${vencidas.length} conta(s) em atraso — juros e multa correndo`:'nenhuma conta atrasada')}
@@ -16044,9 +16120,54 @@ const Mascara=(function(){
         <label class="vk-chk"><input type="checkbox" data-vkf="semForn" ${f.semForn?'checked':''}> Sem fornecedor</label>
         ${filtroAtivo?'<a href="#" class="vk-chk" data-vk="limpar"><i class="fas fa-xmark"></i> Limpar filtros</a>':''}</div>
       ${colunasHtml(cols,cartaoQuadro,{previstas:'Estimativas de custo (ainda sem conta) ficam aqui',aprovar:'Nenhuma conta esperando aprovação',pagar:'Contas aprovadas aparecem aqui até serem pagas',paga:'Arraste para cá a conta que foi paga'})}
+      ${f.selModo?'<div class="vk-selbar" data-vk-selbar></div>':''}
       ${analiseContas(todas)}
     </div>`;
+    pintarSel(box);
     ligarQuadroContas(box);
+  }
+  // barra de baixo do modo "Selecionar várias": quantas contas, o total e o que dá para fazer com elas
+  const contasMarcadas=()=>todasContas().filter(o=>QC.sel.has(idC(o)));
+  function pintarSel(box){const bar=box.querySelector('[data-vk-selbar]');if(!bar)return;
+    const L=contasMarcadas(),n=L.length,tot=L.reduce((s,o)=>s+val(o.total),0);
+    bar.innerHTML=`<div class="vk-selbar-txt"><b>${n?`${n} conta${n>1?'s':''} marcada${n>1?'s':''}`:'Clique nos cartões para marcar'}</b><span>${n?'total '+fmt(tot):'o cartão de uma compra marca todos os itens dela'}</span></div>
+      <div class="vk-selbar-bts"><button type="button" class="gf-bt" data-vk="sel-todas"><i class="fas fa-check-double"></i> Marcar todas da tela</button>${n?'<button type="button" class="gf-bt" data-vk="sel-nenhuma"><i class="fas fa-xmark"></i> Desmarcar</button>':''}
+        <button type="button" class="gf-bt pri" data-vk="sel-ratear" ${n?'':'disabled'}><i class="fas fa-chart-pie"></i> Ratear entre obras</button>${pode('conciliacao')?`<button type="button" class="gf-bt pri" data-vk="sel-conciliar" ${n?'':'disabled'}><i class="fas fa-building-columns"></i> Conciliar com o extrato</button>`:''}</div>`;}
+  function alternarSel(box,c){const id=c.dataset.card,ids=String(id).startsWith('g:')?((App._vkCompras||{})[id]||[]).map(idC):[id];if(!ids.length)return;
+    const todos=ids.every(x=>QC.sel.has(x));ids.forEach(x=>todos?QC.sel.delete(x):QC.sel.add(x));
+    c.classList.toggle('on',!todos);c.classList.remove('meio');pintarSel(box);}
+  const sairSel=()=>{QC.sel.clear();QC.selModo=false;};
+  /* RATEIO de várias contas de uma vez: cada conta marcada é dividida entre as obras escolhidas, pela proporção do
+     orçamento (a mesma regra da Nova conta). A conta vira a parte da 1ª obra e as outras partes nascem com os mesmos
+     dados — fornecedor, vencimento, pagamento, aprovação e ligação com o extrato. */
+  const COPIA_RAT=['aprovacao','aprovado_por','aprovado_em','lancado_por','criado_por_id','conciliacao','conciliacao_baixa','extrato_desc'];
+  function ratearContas(L){
+    L=L.map(x=>acharConta(idC(x))||x);const fora=[],ok=[];
+    L.forEach(o=>{const m=o.rateio?'já faz parte de um rateio':!(val(o.total)>0)?'sem valor':!podeEditarConta(o)?(!GS.podeMexer(o._r,o.lancPor)?'lançada por outra pessoa':pagoC(o)?'já paga — só o Administrador mexe':'já aprovada — só o Administrador mexe'):'';m?fora.push([o,m]):ok.push(o);});
+    const nome=o=>fe(o.forn||C.limparParc(o.desc)||'Conta');
+    if(!ok.length)return toast(`Nenhuma das contas marcadas pode ser rateada: ${fora.slice(0,3).map(([o,m])=>`${o.forn||C.limparParc(o.desc)||'conta'} (${m})`).join('; ')}.`,'error');
+    const tot=Math.round(ok.reduce((s,o)=>s+val(o.total),0)*100)/100;
+    const j=janela(`Ratear ${ok.length} conta${ok.length>1?'s':''} entre obras`,`<div class="fin-resumo">${ok.length} conta${ok.length>1?'s':''} · total <b>${fmt(tot)}</b><br><small>${ok.slice(0,6).map(o=>`${nome(o)} · ${fe(C.limparParc(o.desc)||o.cat||'')} · ${fe(o.centro)} · ${fmt(val(o.total))}`).join('<br>')}${ok.length>6?`<br>+ ${ok.length-6} conta(s)`:''}</small></div>
+      ${fora.length?`<div class="fin-aviso laranja"><div><b>${fora.length} conta${fora.length>1?'s ficam':' fica'} de fora:</b> ${fora.slice(0,5).map(([o,m])=>`${nome(o)} (${m})`).join(' · ')}${fora.length>5?' …':''}</div></div>`:''}
+      ${htmlRateio()}
+      <div class="fin-aviso"><div>Cada conta é dividida entre as obras marcadas, na proporção do orçamento de cada uma. Fornecedor, vencimento, pagamento e aprovação continuam os mesmos.</div></div>`,
+      [{html:'<i class="fas fa-chart-pie"></i> Ratear',cls:'pri',acao:async()=>{
+        const obras=RT.obras();if(obras.length<2)throw new Error('Marque pelo menos 2 obras para o rateio.');
+        const T0=Date.now().toString(36),ops=[];
+        ok.forEach((o,i)=>{const v=val(o.total),partes=partesRateio(v,obras);if(!partes)return;const rid='rt'+T0+'_'+i,q0=o.centro!==EMP&&val(o.qtd)>0?val(o.qtd):0;
+          // conta da Empresa que vai para as obras ganha a categoria de obra (Materiais, Mão de obra…)
+          const cat=C.CATC().includes(o.cat)?o.cat:categoriaDe(C.limparParc(o.desc),o.forn,false);
+          partes.forEach((dd,k)=>{const vt=dd.valor;if(!(vt>0))return;
+            const q4=q0?(Math.round(q0*vt/v*10000)/10000||1):1;
+            const u={...o,centro:dd.obra,cat,total:dinheiro(vt),qtd:String(q4),fator:o.centro!==EMP&&o.fator?o.fator:'UN',pUnit:String(Math.round(vt/q4*1e6)/1e6),desconto:'',rateio:rid,grupo:o.grupo?o.grupo+'_r'+k:'',
+              obs:[o.obs,`Rateio: ${pctTxt(dd.pct)} de ${fmt(v)} (pelo orçamento)`].filter(Boolean).join(' · ')};
+            C.finalizarConta(u);
+            // as partes novas (e a conta que mudou de tabela) levam aprovação, autor e ligação com o extrato da original
+            C.montarConta(u,k===0?o:null).forEach(op=>{if(op.dados&&!op.rowid)COPIA_RAT.forEach(c=>{if(o._r[c]!=null&&o._r[c]!=='')op.dados[c]=o._r[c];});ops.push(op);});});});
+        sairSel();   /* antes de gravar: a recarga no fim já desenha o quadro sem a seleção */
+        await executar(async()=>{for(const x of ops)await(x.excluir?excluir(x.aba,x.rowid):salvar(x.aba,x.dados,x.rowid||null));});
+        toast(`${ok.length} conta${ok.length>1?'s rateadas':' rateada'} entre ${obras.length} obras.`,'success');}}],780);
+    const rb=j.querySelector('[data-rat]');rb.hidden=false;const RT=ligarRateio(rb,()=>tot);
   }
   function analiseContas(todas){
     const h=hoje0(),ini=addD(h,-90),pagas=todas.filter(o=>pagoC(o)&&dt(o.pago)>=ini),S=a=>a.reduce((s,o)=>s+val(o.total),0),tot=S(pagas);
@@ -16074,14 +16195,19 @@ const Mascara=(function(){
     box.onclick=ev=>{
       const b=ev.target.closest('[data-vk]');if(b){ev.preventDefault();const a=b.dataset.vk;
         if(a==='nova')return fichaLote();
+        if(a==='selecionar'){if(QC.selModo)sairSel();else QC.selModo=true;return re();}
+        if(a==='sel-todas'){(App._vkVisiveis||[]).forEach(o=>QC.sel.add(idC(o)));return re();}
+        if(a==='sel-nenhuma'){QC.sel.clear();return re();}
+        if(a==='sel-ratear'){const L=contasMarcadas();if(L.length)ratearContas(L);return;}
+        if(a==='sel-conciliar'){const L=contasMarcadas();if(L.length)Fin.conciliarContas(L,sairSel);return;}
         if(a==='so-aprovar'){QC.aprovar=!QC.aprovar;return re();}
         if(a==='limpar'){Object.assign(QC,{busca:'',obra:'',mes:'',aprovar:false,semForn:false,ord:'',cat:'',forma:''});return re();}
         if(a==='exportar')return exportarContas();
         if(a==='imprimir')return imprimirContas();
         return;}
-      const c=ev.target.closest('[data-card]');if(c)abrirCartao(c.dataset.card);
+      const c=ev.target.closest('[data-card]');if(c){if(QC.selModo)return alternarSel(box,c);abrirCartao(c.dataset.card);}
     };
-    box.onkeydown=ev=>{if(ev.key!=='Enter')return;const c=ev.target.closest('[data-card]');if(c)abrirCartao(c.dataset.card);};
+    box.onkeydown=ev=>{if(ev.key!=='Enter')return;const c=ev.target.closest('[data-card]');if(c){if(QC.selModo)return alternarSel(box,c);abrirCartao(c.dataset.card);}};
     if(!box._arraste){box._arraste=1;ligarArraste(box,(id,col)=>{
       if(String(id).startsWith('g:')){const L=(App._vkCompras||{})[id];if(!L)return;const de=colConta(L[0]);if(de===col)return;
         if(!pode('contas'))return toast('Seu perfil não mexe em contas a pagar.','error');
@@ -16467,15 +16593,38 @@ const Mascara=(function(){
   function partesRateio(total,obras){const vs=obras.map(valorOrcObra),s=vs.reduce((a,b)=>a+b,0);if(!(s>0))return null;const cent=Math.round(total*100);let acum=0;
     return obras.map((ob,i)=>{const c=i<obras.length-1?Math.round(cent*vs[i]/s):cent-acum;acum+=c;return {obra:ob,valor:c/100,pct:vs[i]/s*100};});}
   const pctTxt=p=>p.toLocaleString('pt-BR',{maximumFractionDigits:1})+'%';
-  const htmlRateio=()=>`<div class="rat" data-rat hidden><b><i class="fas fa-chart-pie"></i> Ratear entre obras — pela proporção do orçamento de cada uma</b>
-    <div class="rat-l">${opsObra().map(ob=>{const v=valorOrcObra(ob);return `<label class="${v>0?'':'sem'}"><input type="checkbox" value="${fe(ob)}" ${v>0?'':'disabled'}><span>${fe(ob)}</span><em>${v>0?'orçamento '+fmt(v):'sem orçamento'}</em></label>`;}).join('')}</div><small data-rat-tot></small></div>`;
+  /* lista das obras do rateio: pesquisa pelo nome, filtro pela situação, "marcar as da lista" / "desmarcar todas" e, embaixo,
+     as obras escolhidas com o nome inteiro, a porcentagem e o valor de cada uma (dá para tirar uma obra ali mesmo).
+     Obra marcada que some no filtro continua marcada. */
+  const FASE_ROT={execucao:'Em execução',ganha:'Ganha · aguardando início',entregue:'Entregue'};
+  const htmlRateio=()=>{const obs=opsObra().map(ob=>({ob,v:valorOrcObra(ob),f:faseObra(ob)})).sort((a,b)=>(b.v>0)-(a.v>0)||a.ob.localeCompare(b.ob,'pt-BR'));
+    return `<div class="rat" data-rat hidden><div class="rat-cab"><b><i class="fas fa-chart-pie"></i> Ratear entre obras</b><span>pela proporção do orçamento de cada uma — a de orçamento maior fica com a parte maior</span></div>
+    <div class="rat-barra"><div class="rat-busca"><i class="fas fa-magnifying-glass"></i><input type="search" data-rat-q placeholder="Pesquisar a obra pelo nome…" autocomplete="off"></div>
+      <select data-rat-fase title="Filtrar as obras pela situação">${FASES_OB.map(([k,r])=>`<option value="${k}">${r}</option>`).join('')}</select>
+      <button type="button" class="fin-bt mini" data-rat-todas><i class="fas fa-check-double"></i> Marcar as da lista</button><button type="button" class="fin-bt mini" data-rat-limpar><i class="fas fa-xmark"></i> Desmarcar todas</button></div>
+    <div class="rat-l">${obs.map(x=>`<label class="${x.v>0?'':'sem'}" data-busca="${fe(cn(x.ob))}" data-fase="${x.f}"><input type="checkbox" value="${fe(x.ob)}" ${x.v>0?'':'disabled'}><span class="rat-nome">${fe(x.ob)}<small>${[FASE_ROT[x.f],x.v>0?'orçamento '+fmt(x.v):'sem orçamento — não entra no rateio'].filter(Boolean).join(' · ')}</small></span><em></em></label>`).join('')}<p class="rat-nada" hidden>Nenhuma obra com esse filtro.</p></div>
+    <div class="rat-sel" data-rat-sel hidden></div><small data-rat-tot></small></div>`;};
   function ligarRateio(box,totalFn){
-    const obras=()=>[...box.querySelectorAll('input:checked')].map(i=>i.value);
+    const chks=()=>[...box.querySelectorAll('.rat-l input[type="checkbox"]')];
+    const obras=()=>chks().filter(i=>i.checked).map(i=>i.value);
+    const filtrar=()=>{const q=cn(box.querySelector('[data-rat-q]').value).split(' ').filter(Boolean),f=box.querySelector('[data-rat-fase]').value;let n=0;
+      box.querySelectorAll('.rat-l label').forEach(l=>{const ok=(!f||l.dataset.fase===f)&&q.every(p=>l.dataset.busca.includes(p));l.hidden=!ok;if(ok)n++;});
+      box.querySelector('.rat-nada').hidden=n>0;};
     const pintar=()=>{const sel=obras(),tot=totalFn()||0,p=sel.length?partesRateio(tot||100,sel):null;
-      box.querySelectorAll('label').forEach(l=>{const i=l.querySelector('input'),em=l.querySelector('em'),x=p&&p.find(y=>y.obra===i.value),v=valorOrcObra(i.value);
-        em.textContent=x?`${pctTxt(x.pct)}${tot?' · '+fmt(x.valor):''}`:v>0?'orçamento '+fmt(v):'sem orçamento';l.classList.toggle('on',!!x);});
-      box.querySelector('[data-rat-tot]').textContent=sel.length<2?'Marque as obras (pelo menos 2). Só entram obras com orçamento.':`${sel.length} obras — a de orçamento maior fica com a parte maior.`;};
-    box.addEventListener('change',pintar);pintar();return {obras,pintar};
+      box.querySelectorAll('.rat-l label').forEach(l=>{const i=l.querySelector('input'),x=p&&p.find(y=>y.obra===i.value);l.querySelector('em').textContent=x?`${pctTxt(x.pct)}${tot?' · '+fmt(x.valor):''}`:'';l.classList.toggle('on',!!x);});
+      const sb=box.querySelector('[data-rat-sel]');sb.hidden=!p;
+      sb.innerHTML=p?`<div class="rat-sel-cab"><b>Obras escolhidas (${p.length})</b>${tot?`<span>${fmt(tot)} divididos assim</span>`:''}</div><ol>${p.map(x=>`<li><span class="rat-nome">${fe(x.obra)}</span><em>${pctTxt(x.pct)}</em>${tot?`<b>${fmt(x.valor)}</b>`:''}<button type="button" data-rat-tira="${fe(x.obra)}" title="Tirar esta obra do rateio" aria-label="Tirar esta obra do rateio"><i class="fas fa-xmark"></i></button></li>`).join('')}</ol>`:'';
+      box.querySelector('[data-rat-tot]').textContent=sel.length<2?'Marque as obras (pelo menos 2). Só entram obras com orçamento.':'';};
+    box.addEventListener('input',ev=>{if(ev.target.matches('[data-rat-q]'))filtrar();});
+    box.addEventListener('keydown',ev=>{if(ev.key==='Enter'&&ev.target.matches('[data-rat-q]'))ev.preventDefault();});
+    box.addEventListener('change',ev=>{if(ev.target.matches('[data-rat-fase]'))return filtrar();if(ev.target.matches('[data-rat-q]'))return;pintar();});
+    box.addEventListener('click',ev=>{const b=ev.target.closest('button');if(!b)return;
+      if(b.matches('[data-rat-todas]'))box.querySelectorAll('.rat-l label:not([hidden]) input:not(:disabled)').forEach(i=>{i.checked=true;});
+      else if(b.matches('[data-rat-limpar]'))chks().forEach(i=>{i.checked=false;});
+      else if(b.dataset.ratTira!=null){const i=chks().find(x=>x.value===b.dataset.ratTira);if(i)i.checked=false;}
+      else return;
+      pintar();});
+    pintar();return {obras,pintar};
   }
   // sócios / investidores já usados nos aportes
   const socios=()=>[...new Set((typeof QUEM_APORTOU!=='undefined'?QUEM_APORTOU:[]).concat((D().aportes||[]).map(r=>getFuzzy(r,['quem_aportou','quem'])).filter(Boolean)))];
@@ -20950,11 +21099,26 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
 }
 .lote-tab tr.conferir td{background:#FFFAEB;} .lote-tab small.lote-conf{color:#B54708;font-weight:600;}
 .rat{border:1px solid #D1E0FF;background:#F5F8FF;border-radius:12px;padding:10px 12px;font-size:12.5px;color:#344054;}
-.rat>b{display:flex;align-items:center;gap:6px;color:#1849A9;margin-bottom:6px;} .rat small{display:block;color:#667085;font-size:11.5px;margin-top:6px;}
-.rat-l{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:6px;}
-.rat-l label{display:flex;align-items:center;gap:8px;background:#fff;border:1px solid #E4E9F2;border-radius:10px;padding:6px 9px;cursor:pointer;min-width:0;}
-.rat-l label span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600;} .rat-l label em{font-style:normal;font-size:11px;color:#667085;white-space:nowrap;}
-.rat-l label.on{border-color:#84ADFF;background:#EFF4FF;} .rat-l label.on em{color:#1849A9;font-weight:700;} .rat-l label.sem{opacity:.55;cursor:not-allowed;}
+.rat small{display:block;color:#667085;font-size:11.5px;margin-top:6px;} .rat small:empty{display:none;}
+.rat-cab{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 10px;margin-bottom:8px;} .rat-cab b{display:flex;align-items:center;gap:6px;color:#1849A9;font-size:13px;} .rat-cab span{font-size:11.5px;color:#667085;}
+.rat-barra{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:8px;}
+.rat-busca{flex:1 1 220px;display:flex;align-items:center;gap:7px;background:#fff;border:1px solid #D0D5DD;border-radius:10px;padding:0 10px;min-width:0;} .rat-busca:focus-within{border-color:#84ADFF;box-shadow:0 0 0 3px rgba(22,82,216,.12);}
+.rat-busca i{color:#98A2B3;font-size:12px;} #fin-jan .rat-busca input,.rat-busca input{border:0!important;outline:0!important;box-shadow:none!important;padding:8px 0!important;margin:0!important;background:transparent!important;font:13px Inter,sans-serif;width:100%;min-width:0;height:auto!important;}
+.rat-barra select{flex:0 1 auto;padding:8px 10px;border:1px solid #D0D5DD;border-radius:10px;font:13px Inter,sans-serif;background:#fff;max-width:100%;width:auto;}
+.rat-l{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:6px;max-height:264px;overflow-y:auto;padding:2px;align-content:start;}
+.rat-l label{display:flex;align-items:flex-start;gap:9px;background:#fff;border:1px solid #E4E9F2;border-radius:10px;padding:8px 10px;cursor:pointer;min-width:0;margin:0;text-transform:none;letter-spacing:0;font-size:12.5px;color:#344054;}
+.rat-l label[hidden]{display:none;} .rat-l label input{margin:2px 0 0;flex:none;width:16px;height:16px;}
+.rat-nome{flex:1;min-width:0;font-weight:600;line-height:1.3;overflow-wrap:anywhere;color:#101828;} .rat .rat-nome small{display:block;font-weight:500;font-size:11px;color:#667085;margin-top:2px;}
+.rat-l label em{font-style:normal;font-size:11.5px;color:#1849A9;font-weight:800;white-space:nowrap;} .rat-l label em:empty{display:none;}
+.rat-l label.on{border-color:#84ADFF;background:#EFF4FF;} .rat-l label.sem{opacity:.55;cursor:not-allowed;}
+.rat-nada{grid-column:1/-1;margin:0;padding:14px;text-align:center;color:#667085;font-size:12.5px;} .rat-nada[hidden]{display:none;}
+.rat-sel{margin-top:10px;background:#fff;border:1px solid #D1E0FF;border-radius:10px;padding:8px 10px;} .rat-sel[hidden]{display:none;}
+.rat-sel-cab{display:flex;flex-wrap:wrap;justify-content:space-between;gap:2px 10px;align-items:baseline;margin-bottom:2px;} .rat-sel-cab b{font-size:12.5px;color:#1849A9;} .rat-sel-cab span{font-size:11.5px;color:#667085;}
+.rat-sel ol{margin:0;padding:0;list-style:none;}
+.rat-sel li{display:flex;align-items:center;gap:10px;padding:6px 0;border-top:1px solid #F2F4F7;font-size:12.5px;} .rat-sel li:first-child{border-top:0;}
+.rat-sel li em{font-style:normal;font-weight:700;color:#475467;white-space:nowrap;} .rat-sel li b{white-space:nowrap;color:#101828;min-width:96px;text-align:right;font-variant-numeric:tabular-nums;}
+.rat-sel li button{border:0;background:#F2F4F7;color:#667085;width:26px;height:26px;border-radius:7px;cursor:pointer;flex:none;display:grid;place-items:center;padding:0;} .rat-sel li button:hover{background:#FEE4E2;color:#B42318;}
+@media (max-width:560px){.rat-l{grid-template-columns:1fr;} .rat-sel li b{min-width:0;}}
 .lote-parc{display:flex;flex-wrap:wrap;gap:6px;align-items:center;border:1px solid #D1E0FF;background:#F5F8FF;border-radius:12px;padding:8px 10px;margin:6px 0;font-size:12.5px;color:#344054;}
 .lote-parc>b{color:#1849A9;margin-right:4px;} .lote-parc span{background:#fff;border:1px solid #D1E0FF;border-radius:999px;padding:2px 9px;} .lote-parc small{flex-basis:100%;color:#667085;font-size:11px;}
 .nfa-pend{border:1px solid #FECDCA;background:#FEF3F2;border-radius:10px;padding:8px 10px;font-size:12.5px;color:#B42318;display:flex;flex-direction:column;gap:3px;margin-bottom:6px;} .nfa-pend span{color:#344054;}
