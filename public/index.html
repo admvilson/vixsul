@@ -10692,6 +10692,7 @@ window.onload=()=>{
 .fin-conc-alvo>span{display:block;font-size:12px;}
 .fin-conc-alvo select{max-width:440px;width:100%;font-size:12px;padding:6px 8px;border:1px solid var(--border);border-radius:8px;background:#fff;}
 .cc-barra{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:4px 0 10px;} .cc-barra .pl2-busca{flex:1;min-width:220px;} .cc-barra select{border:1px solid #D0D5DD;border-radius:10px;padding:7px 10px;font:600 12.5px Inter,sans-serif;background:#fff;}
+.cc-cartao{display:inline-flex;align-items:center;gap:4px;font:700 10.5px Inter,sans-serif;color:#1849A9;background:#EEF4FF;border:1px solid #D1E0FF;border-radius:99px;padding:1px 7px;margin-right:4px;vertical-align:1px;white-space:nowrap;}
 .cc-mostra{font-size:12px;color:#667085;margin-left:auto;}
 .cc-per{display:inline-flex;align-items:center;gap:6px;font:600 12px Inter,sans-serif;color:#475467;} .cc-per input{border:1px solid #D0D5DD;border-radius:10px;padding:6px 8px;font:600 12.5px Inter,sans-serif;}
 .cc-prog{margin:4px 0 8px;font-size:12.5px;color:#344054;} .cc-prog em{display:block;height:8px;border-radius:999px;background:#EAECF0;margin-top:6px;overflow:hidden;} .cc-prog em i{display:block;height:100%;background:linear-gradient(90deg,#12B76A,#039855);border-radius:999px;transition:width .3s;}
@@ -11036,7 +11037,7 @@ const Fin=(function(){
      Leitura do extrato portada do sistema de gestão da VTC (OFX, CSV de qualquer banco,
      Excel) — o arquivo é lido só no navegador; vão para o sistema apenas as baixas
      confirmadas. */
-  const CONC={extrato:null,escolhas:{},marcados:null,props:[],f:{busca:'',tipo:'',ordem:'',de:'',ate:''},selSem:new Set(),fechados:new Set()};
+  const CONC={extrato:null,escolhas:{},marcados:null,props:[],f:{busca:'',tipo:'',ordem:'',de:'',ate:'',cartao:''},selSem:new Set(),fechados:new Set()};
   const IGN='vx_conc_ignorados',SALDO='vx_saldo_banco';
   const ignorados=()=>{try{return new Set(JSON.parse(localStorage.getItem(IGN)||'[]'));}catch(e){return new Set();}};
   const gravarIgn=s=>{try{localStorage.setItem(IGN,JSON.stringify([...s].slice(-5000)));}catch(e){}};
@@ -11157,7 +11158,7 @@ const Fin=(function(){
     const ehValor=s=>/^[-+(]?\s*(R\$)?\s*-?[\d.,]*[.,]\d{1,2}\s*\)?\s*[DC+-]?$/i.test(String(s||'').trim());
     const semTexto=s=>/^[\d\s.,()+\-/:R$*•xX]*$/.test(s)||/^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(s);
     const hi=linhas.findIndex(l=>/data|dt_?mov/i.test(l)&&/(valor|cr[eé]dito|d[eé]bito|montante|quantia)/i.test(l));
-    let iData,iValor,iCred=-1,iDeb=-1,iDC=-1,iDoc=-1,iQuem=-1,iLegado=-1,iSaldo=-1,fora;
+    let iData,iValor,iCred=-1,iDeb=-1,iDC=-1,iDoc=-1,iQuem=-1,iLegado=-1,iSaldo=-1,iCartao=-1,fora;
     if(hi>=0){
       const cab=partir(linhas[hi]).map(cn),achar=rx=>cab.findIndex(c=>rx.test(c));
       // valor em reais (a coluna em dólar da fatura do cartão — "Valor U$$" — não serve)
@@ -11168,8 +11169,8 @@ const Fin=(function(){
       iDC=achar(/^(d\/c|c\/d|dc|cd|natureza|tipo|sinal|tipo (de )?(lancamento|transacao|movimento|operacao))$|deb.?cred|cred.?deb/);
       iDoc=achar(/documento|^docto|^doc\b|^n[uo]mero|^nr\b|^num\b|^n[°º.]/);
       iQuem=achar(/favorecid|beneficiari|pagador|remetente|contraparte|^nome|destinat|origem.destino/);
-      iLegado=achar(/hist|descri|lancamento|memo|detalhe|estabelec/);iSaldo=achar(/^saldo/);
-      fora=cab.map((c,i)=>[iData,iValor,iCred,iDeb,iDC,iDoc].includes(i)||/saldo|^data|^dt\b|^dt_|hora|agencia|^ag\b|^conta|identificador|^id$|situac|status|moeda|cotac|categoria|^cpf|^cnpj/.test(c));
+      iLegado=achar(/hist|descri|lancamento|memo|detalhe|estabelec/);iSaldo=achar(/^saldo/);iCartao=achar(/^cartao$/);
+      fora=cab.map((c,i)=>[iData,iValor,iCred,iDeb,iDC,iDoc].includes(i)||/saldo|^data|^dt\b|^dt_|hora|agencia|^ag\b|^conta|identificador|^id$|situac|status|moeda|cotac|categoria|^cpf|^cnpj|^cartao$/.test(c));
     }else{
       const amo=linhas.slice(0,40).map(partir),nCol=Math.max(...amo.map(r=>r.length));
       const conta=f=>Array.from({length:nCol},(_,i)=>amo.filter(r=>f(r[i]||'')).length);
@@ -11199,7 +11200,7 @@ const Fin=(function(){
       // linha de saldo (saldo anterior / do dia) não é lançamento, mas serve de ponto de partida para o sinal
       if(ehSaldo||isNaN(valor)||!valor){if(!isNaN(sd)||(ehSaldo&&!isNaN(valor)))brutos.push({semente:true,d,sd:!isNaN(sd)?sd:valor,valor:0,partes:[]});return;}
       if(iDC>=0&&/^(d|saida|debito)/.test(cn(c[iDC]))&&valor>0)valor=-valor;
-      ultimo={d,valor:Math.round(valor*100)/100,sd,expl:(iValor>=0&&temSinal(c[iValor]))||iCred>=0||iDeb>=0||iDC>=0,partes:textos,cont:0,legado:iLegado>=0?c[iLegado]||'':'',doc:iDoc>=0?c[iDoc]||'':'',quem:iQuem>=0?c[iQuem]||'':''};
+      ultimo={d,valor:Math.round(valor*100)/100,sd,expl:(iValor>=0&&temSinal(c[iValor]))||iCred>=0||iDeb>=0||iDC>=0,partes:textos,cont:0,legado:iLegado>=0?c[iLegado]||'':'',doc:iDoc>=0?c[iDoc]||'':'',quem:iQuem>=0?c[iQuem]||'':'',cartao:iCartao>=0?c[iCartao]||'':''};
       brutos.push(ultimo);
     });
     brutos.forEach(b=>{if(!b.semente)b.desc=b.partes.join(' ');});
@@ -11212,7 +11213,7 @@ const Fin=(function(){
       if(/^\s*(saldo|s a l d o|sdo)\b/i.test(desc)||/\bsaldo (anterior|do dia|final|atual|disponivel|em conta|total)\b/.test(cn(desc)))return;
       let id=`${b.d}|${b.valor}|${b.legado}|${b.doc}`;
       vistos[id]=(vistos[id]||0)+1;if(vistos[id]>1)id+='#'+vistos[id];
-      itens.push({id:'csv:'+id,data:b.d,valor:b.valor,desc:desc||(b.valor>0?'Crédito':'Débito'),quem:quemDoExtrato(b.quem,...ps)});
+      itens.push({id:'csv:'+id,data:b.d,valor:b.valor,desc:desc||(b.valor>0?'Crédito':'Débito'),quem:quemDoExtrato(b.quem,...ps),cartao:b.cartao||''});
     });
     return {itens,saldo:null,saldoData:'',banco:'',conta:''};
   }
@@ -11308,7 +11309,9 @@ const Fin=(function(){
     if(!ext){box.innerHTML=`<div class="fin-wrap">${cab}${zona}${ajuda}</div>`;ligarArquivo(box);box.onclick=null;box.onchange=null;return;}
     const F=CONC.f,qb=cn(F.busca),props0=conciliar(ext),g={ok:[],confira:[],vincular:[],sem:[],feito:[],ignorado:[]};
     // filtro da barra: tipo (entrada/saída) e busca no banco e no sistema (nome, descrição ou valor)
-    const props=props0.filter(p=>(!F.tipo||(F.tipo==='sai'?p.t.valor<0:p.t.valor>0))&&(!F.de||isoDeBR(p.t.data)>=F.de)&&(!F.ate||isoDeBR(p.t.data)<=F.ate)&&(!qb||cn([p.t.desc,p.t.quem,fmt(Math.abs(p.t.valor)),n2c(Math.abs(p.t.valor)),(p.alvos||[]).map(rotulo).join(' '),p.nota||''].join(' ')).includes(qb)));
+    // fatura com vários cartões: filtro pelo cartão (o escolhido fica lembrado neste computador)
+    const cartoes=[...new Set(ext.itens.map(t=>t.cartao).filter(Boolean))].sort();if(F.cartao&&!cartoes.includes(F.cartao))F.cartao='';
+    const props=props0.filter(p=>(!F.cartao||p.t.cartao===F.cartao)&&(!F.tipo||(F.tipo==='sai'?p.t.valor<0:p.t.valor>0))&&(!F.de||isoDeBR(p.t.data)>=F.de)&&(!F.ate||isoDeBR(p.t.data)<=F.ate)&&(!qb||cn([p.t.desc,p.t.quem,fmt(Math.abs(p.t.valor)),n2c(Math.abs(p.t.valor)),(p.alvos||[]).map(rotulo).join(' '),p.nota||''].join(' ')).includes(qb)));
     if(F.ordem)props.sort((a,b)=>F.ordem==='valor-'?Math.abs(b.t.valor)-Math.abs(a.t.valor):Math.abs(a.t.valor)-Math.abs(b.t.valor));
     props.forEach(p=>g[p.st].push(p));
     if(!CONC.marcados)CONC.marcados=new Set([...g.ok,...g.vincular].map(p=>p.t.id));
@@ -11330,7 +11333,7 @@ const Fin=(function(){
         :p.st==='feito'?bt('desfazer','Desfazer'):p.st==='ignorado'?bt('voltar','Voltar para a conferência'):'';
       return `<tr><td>${marcavel?`<input type="checkbox" data-cc-marca="${i}" ${CONC.marcados.has(p.t.id)?'checked':''}>`:selSem?`<input type="checkbox" data-cc-sem="${i}" title="Marcar para ignorar junto com outras" ${CONC.selSem.has(p.t.id)?'checked':''}>`:''}</td>
         <td style="white-space:nowrap">${fe(p.t.data.slice(0,5))}</td>
-        <td class="fin-conc-desc">${fe(p.t.desc)}${p.t.quem?`<small>${fe(p.t.quem)}</small>`:''}</td>
+        <td class="fin-conc-desc">${p.t.cartao?`<span class="cc-cartao" title="Cartão final ${fe(p.t.cartao)}"><i class="fas fa-credit-card"></i> ${fe(p.t.cartao)}</span> `:''}${fe(p.t.desc)}${p.t.quem?`<small>${fe(p.t.quem)}</small>`:''}</td>
         <td class="num ${p.t.valor<0?'t-err':'t-ok'}"><b>${p.t.valor<0?'−':'+'} ${fmt(Math.abs(p.t.valor))}</b></td>
         <td class="fin-conc-alvo">${alvo}${p.st!=='sem'&&p.st!=='feito'?difDias(p):''}${p.nota&&p.st!=='feito'?`<small class="t-warn">${fe(p.nota)}</small>`:''}${acoes?`<div class="fin-conc-acoes">${acoes}</div>`:''}</td></tr>`;
     };
@@ -11350,10 +11353,11 @@ const Fin=(function(){
       </div>
       ${(()=>{const tot=props0.length,res=props0.filter(p=>p.st==='feito'||p.st==='ignorado').length,pc=tot?Math.round(res/tot*100):0;return `<div class="cc-prog"><div><b>Conferência do extrato:</b> ${res} de ${tot} linhas resolvidas (${pc}%)${tot-res?` · faltam <b>${tot-res}</b>`:' · <b>tudo conferido</b>'}</div><em><i style="width:${pc}%"></i></em></div>`;})()}
       <div class="cc-barra"><div class="pl2-busca"><i class="fas fa-magnifying-glass"></i><input type="search" data-cc-f="busca" value="${fe(F.busca)}" placeholder="Buscar no banco ou no sistema: nome, descrição, valor…"></div>
+        ${cartoes.length>1?`<select data-cc-f="cartao" title="Fatura com vários cartões: mostrar só um"><option value="">Todos os cartões</option>${cartoes.map(c=>{const L=ext.itens.filter(t=>t.cartao===c);return `<option value="${fe(c)}" ${F.cartao===c?'selected':''}>Cartão ${fe(c)} — ${L.length} lanç. · ${fmt(Math.abs(L.reduce((s,t)=>s+t.valor,0)))}</option>`;}).join('')}</select>`:''}
         <select data-cc-f="tipo"><option value="">Entradas e saídas</option><option value="sai" ${F.tipo==='sai'?'selected':''}>Só saídas</option><option value="ent" ${F.tipo==='ent'?'selected':''}>Só entradas</option></select>
         <label class="cc-per">De <input type="date" data-cc-f="de" value="${fe(F.de)}"></label><label class="cc-per">até <input type="date" data-cc-f="ate" value="${fe(F.ate)}"></label>
         <select data-cc-f="ordem"><option value="">Ordem: data</option><option value="valor-" ${F.ordem==='valor-'?'selected':''}>Ordem: maior valor</option><option value="valor+" ${F.ordem==='valor+'?'selected':''}>Ordem: menor valor</option></select>
-        ${F.busca||F.tipo||F.ordem||F.de||F.ate?'<button type="button" class="fin-bt mini" data-cc-limpar><i class="fas fa-xmark"></i> Limpar</button>':''}<span class="cc-mostra">${props.length} de ${props0.length} linhas</span></div>
+        ${F.busca||F.tipo||F.ordem||F.de||F.ate||F.cartao?'<button type="button" class="fin-bt mini" data-cc-limpar><i class="fas fa-xmark"></i> Limpar</button>':''}<span class="cc-mostra">${props.length} de ${props0.length} linhas</span></div>
       ${bloco('Prontos para dar baixa','Valor idêntico e data batendo com um lançamento só — já vêm marcados.',g.ok,'ok','ok')}
       ${bloco('Confira antes','Valor IDÊNTICO, mas com mais de um lançamento possível ou data distante. Escolha o certo na lista e marque.',g.confira,'warn','confira')}
       ${bloco('Já estavam baixados — só ligar ao extrato','O sistema já tinha o pagamento/recebimento; marcar liga a linha do banco para ela não aparecer de novo.',g.vincular,'info','vincular')}
@@ -11366,14 +11370,14 @@ const Fin=(function(){
     ligarArquivo(box);
     box.oninput=ev=>{const fi=ev.target.closest('[data-cc-f="busca"]');if(!fi)return;CONC.f.busca=fi.value;clearTimeout(CONC._t);CONC._t=setTimeout(()=>{renderConciliacao();const n=box.querySelector('[data-cc-f="busca"]');if(n){n.focus();n.setSelectionRange(n.value.length,n.value.length);}},300);};
     box.onchange=ev=>{
-      const fs=ev.target.closest('select[data-cc-f],input[type="date"][data-cc-f]');if(fs){CONC.f[fs.dataset.ccF]=fs.value;return renderConciliacao();}
+      const fs=ev.target.closest('select[data-cc-f],input[type="date"][data-cc-f]');if(fs){CONC.f[fs.dataset.ccF]=fs.value;if(fs.dataset.ccF==='cartao')try{localStorage.setItem('vx_conc_cartao',fs.value);}catch(e){}return renderConciliacao();}
       const cs=ev.target.closest('[data-cc-sem]');if(cs){const p=CONC.props[+cs.dataset.ccSem];if(p){cs.checked?CONC.selSem.add(p.t.id):CONC.selSem.delete(p.t.id);renderConciliacao();}return;}
       const c=ev.target.closest('[data-cc-marca]');if(c){const p=CONC.props[+c.dataset.ccMarca];if(p){c.checked?CONC.marcados.add(p.t.id):CONC.marcados.delete(p.t.id);renderConciliacao();}return;}
       const s=ev.target.closest('[data-cc-escolha]');if(s){const p=CONC.props[+s.dataset.ccEscolha];if(p){CONC.escolhas[p.t.id]=+s.value;renderConciliacao();}}
     };
     box.onclick=async ev=>{
       const b=ev.target.closest('button');if(!b)return;
-      if(b.matches('[data-cc-limpar]')){CONC.f={busca:'',tipo:'',ordem:'',de:'',ate:''};return renderConciliacao();}
+      if(b.matches('[data-cc-limpar]')){CONC.f={busca:'',tipo:'',ordem:'',de:'',ate:'',cartao:''};return renderConciliacao();}
       if(b.dataset.ccRec){const k=b.dataset.ccRec;CONC.fechados.has(k)?CONC.fechados.delete(k):CONC.fechados.add(k);return renderConciliacao();}
       if(b.matches('[data-cc-semnenhum]')){g.sem.forEach(p=>CONC.selSem.delete(p.t.id));return renderConciliacao();}
       if(b.matches('[data-cc-voltartodos]')){const s=ignorados(),n=g.ignorado.length;g.ignorado.forEach(p=>s.delete(p.t.id));gravarIgn(s);toast(`${n} linha(s) voltaram para a conferência.`,'success');return renderConciliacao();}
@@ -11444,22 +11448,32 @@ const Fin=(function(){
     // "data de vencimento… valor" (texto da fatura) não conta — só se nada melhor aparecer, e com 3 colunas ou mais
     const celData=i=>{const c=cn(i.s).trim();return /^(data|dt|dia)\b/.test(c)&&c.length<=22&&!/venc|document|process|nasc|emiss|validade/.test(c);};
     const celOutra=i=>!celData(i)&&/(valor|credito|debito|lancamento|movimento|historico|descricao)/.test(cn(i.s));
-    let hi=rows.findIndex(r=>r.some(celData)&&r.some(celOutra));
-    if(hi<0)hi=rows.findIndex(r=>{const t=cn(txtDe(r));return r.length>=3&&/\bdata\b|\bdt\b/.test(t)&&/(valor|credito|debito|lancamento|movimento)/.test(t);});
-    const cols=hi>=0?rows[hi].map(i=>({x:i.x,c:i.x+i.w/2,s:i.s})):null;
+    const ehCab=r=>r.some(celData)&&r.some(celOutra);
+    let hi=rows.findIndex(ehCab),solto=false;
+    if(hi<0){hi=rows.findIndex(r=>{const t=cn(txtDe(r));return r.length>=3&&/\bdata\b|\bdt\b/.test(t)&&/(valor|credito|debito|lancamento|movimento)/.test(t);});solto=hi>=0;}
+    // colunas de um cabeçalho: da célula "Data" até a última de valor/crédito (o que está na outra metade da página fica de fora)
+    const colsDe=r=>{let a=0,b=r.length-1;if(!solto){a=r.findIndex(celData);r.forEach((it,j)=>{if(j>a&&celOutra(it))b=j;});}return r.slice(a,b+1).map(it=>({x:it.x,c:it.x+it.w/2,s:it.s,w:it.w}));};
+    const base=hi>=0?colsDe(rows[hi]):null,fimDe=cs=>{const u=cs[cs.length-1];return u.x+(u.w||0);};
+    // fatura com vários cartões: cada lançamento leva o cartão da seção em que está ("COMPRAS (Cartão 3434)", "…XXXX.3434")
+    const RX_CART=/\(cart[aã]o\s*(?:final\s*)?(\d{4})\)|(?:X{4,}|\*{4,})\.?(\d{4})\b/i,temCartao=!!base&&rows.some(r=>RX_CART.test(txtDe(r)));
     const ehNum=s=>/^[-+(]?\s*(R\$)?\s*-?[\d.]*\d,\d{2}\s*\)?\s*[CD+-]?$/i.test(s)||/^[CD]$/i.test(s);
+    let cols=base,dir=base?fimDe(base):0,cart='';
     const linhas=rows.map((r,i)=>{
-      // com cabeçalho de colunas, o que vem antes dele é resumo/boleto (código de barras, totais) — não é lançamento
-      if(cols&&i<hi)return '';
-      // texto que começa bem à esquerda da 1ª coluna é da lateral da página ("Pontos Fatura", "Para o cálculo do CET…") — fica de fora
-      if(cols&&i>hi){const out=cols.map(()=>[]);r.forEach(it=>{if(it.x<cols[0].x-20)return;let k=0;
+      const mc=temCartao&&txtDe(r).match(RX_CART);if(mc)cart=mc[1]||mc[2];
+      if(!base){let out='',fim=null;r.forEach(it=>{if(fim!==null)out+=it.x-fim>10?';':' ';out+=it.s;fim=it.x+it.w;});return out;}
+      // o que vem antes do 1º cabeçalho é resumo/boleto (código de barras, totais) — não é lançamento
+      if(i<hi)return '';
+      if(i===hi)return base.map(h=>h.s).concat(temCartao?['Cartão']:[]).join(';');
+      // outro cabeçalho (outra seção, outra página ou a tabela na outra metade da página): as colunas passam a ser as dele
+      if(!solto&&ehCab(r)){const c=colsDe(r);if(c.length===base.length){cols=c;dir=fimDe(c);}return '';}
+      // fora da tabela (lateral da página: "Pontos Fatura", "Para o cálculo do CET…", "Valor total desta fatura") fica de fora
+      const out=base.map(()=>[]);r.forEach(it=>{if(it.x<cols[0].x-20||it.x>dir+15)return;let k=0;
         if(ehNum(it.s)){const c=it.x+it.w/2;let d=1e9;cols.forEach((h,j)=>{const dd=Math.abs(h.c-c);if(dd<d){d=dd;k=j;}});}
         else cols.forEach((h,j)=>{if(h.x<=it.x+3)k=j;});   // texto: a coluna onde ele começa (histórico comprido não invade o valor)
-        out[k].push(it.s);});return out.map(a=>a.join(' ')).join(';');}
-      if(cols&&i===hi)return cols.map(h=>h.s).join(';');
-      let out='',fim=null;r.forEach(it=>{if(fim!==null)out+=it.x-fim>10?';':' ';out+=it.s;fim=it.x+it.w;});return out;
+        out[k].push(it.s);});
+      return out.map(a=>a.join(' ')).concat(temCartao?[out.some(a=>a.length)?cart:'']:[]).join(';');
     }).map(l=>l.replace(/[ \t]+/g,' ').trim());
-    const txt=linhas.join('\n');pdfParaCsv.comColunas=!!cols;
+    const txt=linhas.join('\n');pdfParaCsv.comColunas=!!base;
     const ano=+((txt.match(/\b\d{2}\/\d{2}\/(20\d{2})\b/)||[])[1]||new Date().getFullYear()),hj=hoje0();
     // data sem ano ganha o ano do extrato — e o ano anterior quando ficaria no futuro (compra de dezembro numa fatura de janeiro em diante)
     return linhas.filter(l=>l!=='').map(l=>l.replace(/^(\d{2})\/(\d{2})(?!\/\d)(?=[\s;]|$)/,(m,d,mo)=>`${d}/${mo}/${new Date(ano,+mo-1,+d)>hj?ano-1:ano}`)).join('\n');
@@ -11476,11 +11490,15 @@ const Fin=(function(){
   function ajustarFaturaCartao(ext){
     const antes=ext.itens.length;ext.itens=ext.itens.filter(t=>!FORA_CARTAO.test(String(t.desc||'')));
     if(!ext.itens.some(t=>t.valor<0))ext.itens.forEach(t=>{t.valor=CRED_CARTAO.test(String(t.desc||''))?Math.abs(t.valor):-Math.abs(t.valor);});
-    const ds=ext.itens.map(t=>dt(isoDeBR(t.data))).filter(Boolean),max=ds.length?new Date(Math.max(...ds)):null;
-    ext.itens.forEach(t=>{const m=String(t.desc||'').match(/(?:^|\s)(\d{1,2})\s*(?:DE|\/)\s*(\d{1,2})(?=\s|$)|\s(\d{2})\s(\d{2})\s*$/i);if(!m||!max)return;
-      const n=+(m[1]||m[3]),tot=+(m[2]||m[4]),d=dt(isoDeBR(t.data));if(!(n>=2&&tot>=2&&n<=tot&&tot<=48)||!d||dias(d,max)<=45)return;
-      const nd=new Date(d.getFullYear(),d.getMonth()+n-1,1);nd.setDate(Math.min(d.getDate(),new Date(nd.getFullYear(),nd.getMonth()+1,0).getDate()));
-      t.desc=`${t.desc} · parcela ${n} de ${tot} (compra de ${t.data})`;t.data=brDe(nd);});
+    // período da fatura = datas das compras à vista (e das 1ªs parcelas); a parcela que tem data da compra ANTES do período
+    // vai para o mês da cobrança (compra + n−1 meses), se cair até 35 dias depois do fim do período
+    const parc=t=>{const m=String(t.desc||'').match(/(?:^|\s)(\d{1,2})\s*(?:DE|\/)\s*(\d{1,2})(?=\s|$)|\s(\d{2})\s(\d{2})\s*$/i);if(!m)return null;const n=+(m[1]||m[3]),tot=+(m[2]||m[4]);return n>=1&&tot>=2&&n<=tot&&tot<=48?{n,tot}:null;};
+    const dde=t=>dt(isoDeBR(t.data)),ref=ext.itens.filter(t=>{const p=parc(t);return !p||p.n===1;}).map(dde).filter(Boolean),todas=ext.itens.map(dde).filter(Boolean),per=ref.length?ref:todas;
+    const ini=per.length?new Date(Math.min(...per)):null,fim=per.length?new Date(Math.max(...per)):null;
+    ext.itens.forEach(t=>{const p=parc(t),d=dde(t);if(!p||p.n<2||!d||!ini)return;
+      const nd=new Date(d.getFullYear(),d.getMonth()+p.n-1,1);nd.setDate(Math.min(d.getDate(),new Date(nd.getFullYear(),nd.getMonth()+1,0).getDate()));
+      if(!(dias(d,ini)>=1&&dias(fim,nd)<=35))return;
+      t.desc=`${t.desc} · parcela ${p.n} de ${p.tot} (compra de ${t.data})`;t.data=brDe(nd);});
     ext.banco=ext.banco||'Cartão de crédito';ext.saldo=null;ext.foraCartao=antes-ext.itens.length;
     return ext;
   }
@@ -11488,9 +11506,10 @@ const Fin=(function(){
   function lerLinhasPdf(txt,cartao){
     const temSaldo=!cartao&&/saldo/i.test(txt),brutos=[],VAL=/^[-(]?(R\$)?-?\d{1,3}(\.\d{3})*,\d{2}\)?[CD-]?$/i;
     // fatura no formato do aplicativo: "12/01   188,87" numa linha e o nome da loja na linha de baixo
-    let espera=null;
+    // fatura com vários cartões: a seção de cada um começa com o número mascarado ("JANICIA … - 553096XXXXXX3434")
+    let espera=null,cart='';const RX_CART=/\(cart[aã]o\s*(?:final\s*)?(\d{4})\)|(?:X{4,}|\*{4,})\.?(\d{4})\b/i;
     txt.split('\n').forEach(l=>{
-      const d=dataBanco(l);
+      const d=dataBanco(l),mc=cartao&&l.match(RX_CART);if(mc&&!d){cart=mc[1]||mc[2];espera=null;return;}
       if(!d){const t=l.replace(/;/g,' ').trim();if(espera&&t&&!/^(movimenta|\*|n[aã]o foram|saldo|total|cota[cç])/i.test(t)&&!t.split(/\s+/).some(x=>VAL.test(x)))espera.desc=t;espera=null;return;}
       espera=null;
       const toks=l.split(/[;\s]+/),vals=[];let marca=false;
@@ -11502,13 +11521,13 @@ const Fin=(function(){
       if(!cartao&&/saldo (anterior|do dia|final|em)|^saldo\b/i.test(desc)){brutos.push({semente:true,d,sd:vals[vals.length-1],valor:0});return;}
       const v=temSaldo&&vals.length>=2?vals[vals.length-2]:vals[vals.length-1],sd=temSaldo&&vals.length>=2?vals[vals.length-1]:NaN;
       if(!v||isNaN(v))return;
-      const b={d,valor:v,sd,expl:marca,desc};brutos.push(b);if(!desc)espera=b;
+      const b={d,valor:v,sd,expl:marca,desc,cartao:cart};brutos.push(b);if(!desc)espera=b;
     });
     if(cartao)brutos.forEach(b=>{if(b.valor<0&&CRED_CARTAO.test(b.desc||''))b.valor=Math.abs(b.valor);});
     else{sinaisPeloSaldo(brutos);sinaisPelaDescricao(brutos);}
     const itens=[],vistos={};
     brutos.filter(b=>!b.semente).forEach(b=>{const v=Math.round(b.valor*100)/100;let id=`${b.d}|${v}|${b.desc}`;vistos[id]=(vistos[id]||0)+1;if(vistos[id]>1)id+='#'+vistos[id];
-      itens.push({id:'pdf:'+id,data:b.d,valor:v,desc:b.desc,quem:quemDoExtrato(b.desc)});});
+      itens.push({id:'pdf:'+id,data:b.d,valor:v,desc:b.desc,quem:quemDoExtrato(b.desc),cartao:b.cartao||''});});
     return {itens,saldo:null,saldoData:'',banco:'',conta:''};
   }
   async function abrirArquivo(arq){
@@ -11525,9 +11544,10 @@ const Fin=(function(){
       else ext=!ehExcel&&/<OFX>|OFXHEADER|<STMTTRN>/i.test(txt)?lerOFX(txt):lerCSVExtrato(txt);
       if(cartao)ajustarFaturaCartao(ext);
       if(!ext.itens.length)throw new Error('Não encontrei lançamentos nesse arquivo.');
-      ext.nome=arq.name;CONC.extrato=ext;CONC.marcados=null;CONC.escolhas={};
+      ext.nome=arq.name;CONC.extrato=ext;CONC.marcados=null;CONC.escolhas={};{let c='';try{c=localStorage.getItem('vx_conc_cartao')||'';}catch(e){}CONC.f.cartao=ext.itens.some(t=>t.cartao===c)?c:'';}
       if(ext.saldo!=null){try{localStorage.setItem(SALDO,JSON.stringify({valor:ext.saldo,data:ext.saldoData||brDe(hoje0())}));}catch(e){}}
-      toast(`${ext.itens.length} lançamento(s) lidos do extrato${cartao?` — fatura de cartão: as compras entram como gasto${ext.foraCartao?` (${ext.foraCartao} linha(s) da fatura anterior e do pagamento dela ficaram de fora)`:''}`:''}.`,'success');
+      const cts=[...new Set(ext.itens.map(t=>t.cartao).filter(Boolean))].sort();
+      toast(`${ext.itens.length} lançamento(s) lidos do extrato${cartao?` — fatura de cartão: as compras entram como gasto${ext.foraCartao?` (${ext.foraCartao} linha(s) da fatura anterior e do pagamento dela ficaram de fora)`:''}`:''}${cts.length>1?`. ${cts.length} cartões nesta fatura (${cts.join(', ')}) — para ver só um, escolha no filtro "Todos os cartões"${CONC.f.cartao?` (mostrando o ${CONC.f.cartao})`:''}`:''}.`,'success');
       renderConciliacao();
     }catch(err){toast((err&&err.message)||'Não consegui ler o extrato.','error');}
   }
