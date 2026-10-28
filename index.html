@@ -11079,10 +11079,11 @@ const Fin=(function(){
     // vale a palavra de operação que aparece primeiro ("ENVIO PIX DEPOSITO SAO JOSE" é saída: o nome vem depois)
     movs.forEach(b=>{const t=cn(b.desc||''),d=t.search(DEB_EXT),c=t.search(CRED_EXT);if(d>=0&&(c<0||d<c))b.valor=-Math.abs(b.valor);});
   }
+  // só data de verdade: ano 19xx/20xx, mês 1–12 e dia 1–31 (nome de loja que começa com números — "54631728MARCEL O" — não é data)
   function dataBanco(s){
     const t=String(s||'').trim();
-    let m=t.match(/^(\d{4})-?(\d{2})-?(\d{2})/);if(m)return `${m[3]}/${m[2]}/${m[1]}`;
-    m=t.match(/^(\d{1,2})[/.-](\d{1,2})[/.-](\d{2,4})/);if(m)return `${z2(+m[1])}/${z2(+m[2])}/${m[3].length===2?'20'+m[3]:m[3]}`;
+    let m=t.match(/^((?:19|20)\d{2})-?(0[1-9]|1[0-2])-?(0[1-9]|[12]\d|3[01])(?!\d)/);if(m)return `${m[3]}/${m[2]}/${m[1]}`;
+    m=t.match(/^(\d{1,2})[/.-](\d{1,2})[/.-](\d{4}|\d{2})(?!\d)/);if(m&&+m[1]>=1&&+m[1]<=31&&+m[2]>=1&&+m[2]<=12)return `${z2(+m[1])}/${z2(+m[2])}/${m[3].length===2?'20'+m[3]:m[3]}`;
     return '';
   }
   /* Quem mandou ou recebeu o dinheiro: o texto do banco é quebrado nos separadores, saem
@@ -11159,8 +11160,11 @@ const Fin=(function(){
     let iData,iValor,iCred=-1,iDeb=-1,iDC=-1,iDoc=-1,iQuem=-1,iLegado=-1,iSaldo=-1,fora;
     if(hi>=0){
       const cab=partir(linhas[hi]).map(cn),achar=rx=>cab.findIndex(c=>rx.test(c));
-      iData=achar(/^data|^dt\b|^dt_|data (do )?lanc|^dia$/);iValor=achar(/^valor|montante|quantia|^vlr/);
+      // valor em reais (a coluna em dólar da fatura do cartão — "Valor U$$" — não serve)
+      iData=achar(/^data|^dt\b|^dt_|data (do )?lanc|^dia$/);iValor=cab.findIndex(c=>/^valor|montante|quantia|^vlr/.test(c)&&!/u\$|us\$|usd|dolar|cotac/.test(c));
       iCred=achar(/credito|entrada/);iDeb=achar(/debito|saida/);
+      // uma coluna só para crédito e débito ("Crédito/Débito": 96,00D · 5.548,49C) é o valor, com o sinal pela letra
+      if(iCred>=0&&iCred===iDeb){iValor=iCred;iCred=-1;iDeb=-1;}
       iDC=achar(/^(d\/c|c\/d|dc|cd|natureza|tipo|sinal|tipo (de )?(lancamento|transacao|movimento|operacao))$|deb.?cred|cred.?deb/);
       iDoc=achar(/documento|^docto|^doc\b|^n[uo]mero|^nr\b|^num\b|^n[°º.]/);
       iQuem=achar(/favorecid|beneficiari|pagador|remetente|contraparte|^nome|destinat|origem.destino/);
@@ -11436,35 +11440,72 @@ const Fin=(function(){
     // com cabeçalho (Data · Histórico · Valor · Saldo…): cada pedaço vai para a coluna de centro mais próximo,
     // o que funciona com valores alinhados à direita ou à esquerda; sem cabeçalho, separa pelos espaços grandes
     const txtDe=r=>r.map(i=>i.s).join(' ');
-    const hi=rows.findIndex(r=>{const t=cn(txtDe(r));return /\bdata\b|\bdt\b/.test(t)&&/(valor|credito|debito|lancamento|movimento)/.test(t);});
+    // cabeçalho = uma célula "Data" (ou "Dt. Movimento"…) e outra com valor/crédito/histórico; frase comprida que fala em
+    // "data de vencimento… valor" (texto da fatura) não conta — só se nada melhor aparecer, e com 3 colunas ou mais
+    const celData=i=>{const c=cn(i.s).trim();return /^(data|dt|dia)\b/.test(c)&&c.length<=22&&!/venc|document|process|nasc|emiss|validade/.test(c);};
+    const celOutra=i=>!celData(i)&&/(valor|credito|debito|lancamento|movimento|historico|descricao)/.test(cn(i.s));
+    let hi=rows.findIndex(r=>r.some(celData)&&r.some(celOutra));
+    if(hi<0)hi=rows.findIndex(r=>{const t=cn(txtDe(r));return r.length>=3&&/\bdata\b|\bdt\b/.test(t)&&/(valor|credito|debito|lancamento|movimento)/.test(t);});
     const cols=hi>=0?rows[hi].map(i=>({x:i.x,c:i.x+i.w/2,s:i.s})):null;
     const ehNum=s=>/^[-+(]?\s*(R\$)?\s*-?[\d.]*\d,\d{2}\s*\)?\s*[CD+-]?$/i.test(s)||/^[CD]$/i.test(s);
     const linhas=rows.map((r,i)=>{
-      if(cols&&i>hi){const out=cols.map(()=>[]);r.forEach(it=>{let k=0;
+      // com cabeçalho de colunas, o que vem antes dele é resumo/boleto (código de barras, totais) — não é lançamento
+      if(cols&&i<hi)return '';
+      // texto que começa bem à esquerda da 1ª coluna é da lateral da página ("Pontos Fatura", "Para o cálculo do CET…") — fica de fora
+      if(cols&&i>hi){const out=cols.map(()=>[]);r.forEach(it=>{if(it.x<cols[0].x-20)return;let k=0;
         if(ehNum(it.s)){const c=it.x+it.w/2;let d=1e9;cols.forEach((h,j)=>{const dd=Math.abs(h.c-c);if(dd<d){d=dd;k=j;}});}
         else cols.forEach((h,j)=>{if(h.x<=it.x+3)k=j;});   // texto: a coluna onde ele começa (histórico comprido não invade o valor)
         out[k].push(it.s);});return out.map(a=>a.join(' ')).join(';');}
       if(cols&&i===hi)return cols.map(h=>h.s).join(';');
       let out='',fim=null;r.forEach(it=>{if(fim!==null)out+=it.x-fim>10?';':' ';out+=it.s;fim=it.x+it.w;});return out;
     }).map(l=>l.replace(/[ \t]+/g,' ').trim());
-    const txt=linhas.join('\n');
-    const ano=(txt.match(/\b\d{2}\/\d{2}\/(20\d{2})\b/)||[])[1]||String(new Date().getFullYear());
-    return linhas.map(l=>l.replace(/^(\d{2}\/\d{2})(?!\/\d)(?=[\s;]|$)/,'$1/'+ano)).join('\n');   // data sem ano ganha o ano do extrato
+    const txt=linhas.join('\n');pdfParaCsv.comColunas=!!cols;
+    const ano=+((txt.match(/\b\d{2}\/\d{2}\/(20\d{2})\b/)||[])[1]||new Date().getFullYear()),hj=hoje0();
+    // data sem ano ganha o ano do extrato — e o ano anterior quando ficaria no futuro (compra de dezembro numa fatura de janeiro em diante)
+    return linhas.filter(l=>l!=='').map(l=>l.replace(/^(\d{2})\/(\d{2})(?!\/\d)(?=[\s;]|$)/,(m,d,mo)=>`${d}/${mo}/${new Date(ano,+mo-1,+d)>hj?ano-1:ano}`)).join('\n');
   }
-  function lerLinhasPdf(txt){
-    const temSaldo=/saldo/i.test(txt),brutos=[],VAL=/^[-(]?(R\$)?-?\d{1,3}(\.\d{3})*,\d{2}\)?[CD-]?$/i;
+  /* FATURA DE CARTÃO DE CRÉDITO: o valor sem sinal é GASTO (sai do caixa); crédito vem marcado (C, "-", estorno,
+     pagamento). O texto da fatura tem frases que extrato de conta não tem ("PAGTO FATURA CARTAO" de um extrato de conta
+     não conta). */
+  const ehFaturaCartao=txt=>/pr[oó]xima fatura|fatura atual|(valor )?total (desta|da) fatura|vencimento da fatura|movimenta[cç][oõ]es nacionais|saldo dispon[ií]vel de cr[eé]dito|limite (total|dispon[ií]vel)|melhor data para compra/i.test(txt);
+  const CRED_CARTAO=/\b(estorno|estornad[oa]|cr[eé]dito|devolu\w*|reembolso|cashback|ressarc\w*)\b/i;
+  const FORA_CARTAO=/total da fatura anterior|saldo (da fatura )?anterior|obrigado pelo pagamento|pagamento (efetuado|recebido)|pagto (de )?fatura|pgto fatura/i;
+  /* Ajustes da fatura: a fatura anterior e o pagamento dela ficam de fora (o pagamento já está no extrato da conta),
+     sem sinal vira gasto e a PARCELA (“08 12”, “06 DE 10”) passa para o mês em que foi cobrada — a fatura mostra a data
+     da compra; aqui fica a data da parcela, com a compra anotada. Só desloca quando a data é bem anterior às outras. */
+  function ajustarFaturaCartao(ext){
+    const antes=ext.itens.length;ext.itens=ext.itens.filter(t=>!FORA_CARTAO.test(String(t.desc||'')));
+    if(!ext.itens.some(t=>t.valor<0))ext.itens.forEach(t=>{t.valor=CRED_CARTAO.test(String(t.desc||''))?Math.abs(t.valor):-Math.abs(t.valor);});
+    const ds=ext.itens.map(t=>dt(isoDeBR(t.data))).filter(Boolean),max=ds.length?new Date(Math.max(...ds)):null;
+    ext.itens.forEach(t=>{const m=String(t.desc||'').match(/(?:^|\s)(\d{1,2})\s*(?:DE|\/)\s*(\d{1,2})(?=\s|$)|\s(\d{2})\s(\d{2})\s*$/i);if(!m||!max)return;
+      const n=+(m[1]||m[3]),tot=+(m[2]||m[4]),d=dt(isoDeBR(t.data));if(!(n>=2&&tot>=2&&n<=tot&&tot<=48)||!d||dias(d,max)<=45)return;
+      const nd=new Date(d.getFullYear(),d.getMonth()+n-1,1);nd.setDate(Math.min(d.getDate(),new Date(nd.getFullYear(),nd.getMonth()+1,0).getDate()));
+      t.desc=`${t.desc} · parcela ${n} de ${tot} (compra de ${t.data})`;t.data=brDe(nd);});
+    ext.banco=ext.banco||'Cartão de crédito';ext.saldo=null;ext.foraCartao=antes-ext.itens.length;
+    return ext;
+  }
+  // cartao: fatura de cartão de crédito — o valor sem marca é gasto; "C", "-" ou parênteses é crédito (estorno, pagamento)
+  function lerLinhasPdf(txt,cartao){
+    const temSaldo=!cartao&&/saldo/i.test(txt),brutos=[],VAL=/^[-(]?(R\$)?-?\d{1,3}(\.\d{3})*,\d{2}\)?[CD-]?$/i;
+    // fatura no formato do aplicativo: "12/01   188,87" numa linha e o nome da loja na linha de baixo
+    let espera=null;
     txt.split('\n').forEach(l=>{
-      const d=dataBanco(l);if(!d)return;
+      const d=dataBanco(l);
+      if(!d){const t=l.replace(/;/g,' ').trim();if(espera&&t&&!/^(movimenta|\*|n[aã]o foram|saldo|total|cota[cç])/i.test(t)&&!t.split(/\s+/).some(x=>VAL.test(x)))espera.desc=t;espera=null;return;}
+      espera=null;
       const toks=l.split(/[;\s]+/),vals=[];let marca=false;
-      toks.forEach((t,i)=>{if(VAL.test(t)){let v=numBanco(t);const prox=toks[i+1]||'';if(/^D$/i.test(prox))v=-Math.abs(v);if(/^[CD]$/i.test(prox)||temSinal(t))marca=true;vals.push(v);}});
+      toks.forEach((t,i)=>{if(VAL.test(t)){let v=numBanco(t);const prox=toks[i+1]||'';if(/^D$/i.test(prox))v=-Math.abs(v);if(/^[CD]$/i.test(prox)||temSinal(t))marca=true;
+        if(cartao){const cr=/\d\s*C$/i.test(t)||/^C$/i.test(prox)||/^[-(]|-$/.test(t),db=/\d\s*D$/i.test(t)||/^D$/i.test(prox);v=cr&&!db?Math.abs(v):-Math.abs(v);marca=true;}
+        vals.push(v);}});
       if(!vals.length)return;
       const desc=toks.slice(1).filter(t=>!VAL.test(t)&&!/^[CD]$/i.test(t)).join(' ').trim();
-      if(/saldo (anterior|do dia|final|em)|^saldo\b/i.test(desc)){brutos.push({semente:true,d,sd:vals[vals.length-1],valor:0});return;}
+      if(!cartao&&/saldo (anterior|do dia|final|em)|^saldo\b/i.test(desc)){brutos.push({semente:true,d,sd:vals[vals.length-1],valor:0});return;}
       const v=temSaldo&&vals.length>=2?vals[vals.length-2]:vals[vals.length-1],sd=temSaldo&&vals.length>=2?vals[vals.length-1]:NaN;
       if(!v||isNaN(v))return;
-      brutos.push({d,valor:v,sd,expl:marca,desc});
+      const b={d,valor:v,sd,expl:marca,desc};brutos.push(b);if(!desc)espera=b;
     });
-    sinaisPeloSaldo(brutos);sinaisPelaDescricao(brutos);
+    if(cartao)brutos.forEach(b=>{if(b.valor<0&&CRED_CARTAO.test(b.desc||''))b.valor=Math.abs(b.valor);});
+    else{sinaisPeloSaldo(brutos);sinaisPelaDescricao(brutos);}
     const itens=[],vistos={};
     brutos.filter(b=>!b.semente).forEach(b=>{const v=Math.round(b.valor*100)/100;let id=`${b.d}|${v}|${b.desc}`;vistos[id]=(vistos[id]||0)+1;if(vistos[id]>1)id+='#'+vistos[id];
       itens.push({id:'pdf:'+id,data:b.d,valor:v,desc:b.desc,quem:quemDoExtrato(b.desc)});});
@@ -11478,12 +11519,15 @@ const Fin=(function(){
       if(ehPdf)toast('Lendo o PDF do extrato…','');
       const txt=ehPdf?await pdfParaCsv(await arq.arrayBuffer()):ehExcel?await excelParaCsv(await arq.arrayBuffer()):decodificarExtrato(await arq.arrayBuffer());
       let ext;
-      if(ehPdf){try{ext=lerCSVExtrato(txt,';');}catch(e){ext=null;}if(!ext||!ext.itens.length)ext=lerLinhasPdf(txt);}
+      const cartao=ehFaturaCartao(txt);
+      // fatura do cartão no formato do aplicativo (sem cabeçalho de colunas): direto o leitor de linhas, com a descrição da linha de baixo
+      if(ehPdf){if(!(cartao&&!pdfParaCsv.comColunas)){try{ext=lerCSVExtrato(txt,';');}catch(e){ext=null;}}if(!ext||!ext.itens.length)ext=lerLinhasPdf(txt,cartao);}
       else ext=!ehExcel&&/<OFX>|OFXHEADER|<STMTTRN>/i.test(txt)?lerOFX(txt):lerCSVExtrato(txt);
+      if(cartao)ajustarFaturaCartao(ext);
       if(!ext.itens.length)throw new Error('Não encontrei lançamentos nesse arquivo.');
       ext.nome=arq.name;CONC.extrato=ext;CONC.marcados=null;CONC.escolhas={};
       if(ext.saldo!=null){try{localStorage.setItem(SALDO,JSON.stringify({valor:ext.saldo,data:ext.saldoData||brDe(hoje0())}));}catch(e){}}
-      toast(`${ext.itens.length} lançamento(s) lidos do extrato.`,'success');
+      toast(`${ext.itens.length} lançamento(s) lidos do extrato${cartao?` — fatura de cartão: as compras entram como gasto${ext.foraCartao?` (${ext.foraCartao} linha(s) da fatura anterior e do pagamento dela ficaram de fora)`:''}`:''}.`,'success');
       renderConciliacao();
     }catch(err){toast((err&&err.message)||'Não consegui ler o extrato.','error');}
   }
@@ -11691,7 +11735,7 @@ const Fin=(function(){
     if(document.getElementById('view-contas')?.classList.contains('active'))renderContas();
     if(document.getElementById('view-conciliacao')?.classList.contains('active')&&!document.getElementById('fin-ov')?.classList.contains('open'))renderConciliacao();
   }
-  return {renderContas,renderConciliacao,aoAtualizar,movimentos,prazoReceb,lerSaldo,_conciliar:conciliar,_lerOFX:lerOFX,_lerCSV:lerCSVExtrato,
+  return {renderContas,renderConciliacao,aoAtualizar,movimentos,prazoReceb,lerSaldo,_conciliar:conciliar,_lerOFX:lerOFX,_lerCSV:lerCSVExtrato,_pdfParaCsv:pdfParaCsv,_lerLinhasPdf:lerLinhasPdf,
     // utilitários compartilhados com os módulos de engenharia (Eng)
     util:{janela,confirmar,executar,salvar,excluir,fe,cn,dt,brDe,isoDe,isoDeBR,hoje0,addD,dias,col,kRow,dinheiro,val}};
 })();
