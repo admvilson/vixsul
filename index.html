@@ -16069,6 +16069,20 @@ const PL2=(function(){
 .vk-card{background:#fff;border-radius:14px;padding:11px 12px;border:1px solid #e8e8ed;box-shadow:0 2px 6px rgba(20,20,60,.05);cursor:pointer;border-left:4px solid var(--cor);transition:transform .15s,box-shadow .15s;}
 .vk-card:hover,.vk-card:focus-visible{transform:translateY(-2px);box-shadow:0 10px 22px -12px rgba(20,20,60,.35);outline:none;}
 .vk-card[draggable="true"]{cursor:grab;} .vk-card.arrastando{opacity:.45;}
+/* modo "Excluir várias" (Contas a pagar): quadradinho no cartão + barra de baixo */
+.vk-card.vk-sel{cursor:pointer;} .vk-sel .vk-top{justify-content:flex-start;} .vk-sel .vk-top b{flex:1;min-width:0;}
+.vk-marca{flex:none;width:20px;height:20px;border-radius:6px;border:2px solid #C4C9D4;background:#fff;display:grid;place-items:center;color:transparent;font-size:11px;margin-top:-1px;transition:background .12s,border-color .12s;}
+.vk-sel:hover .vk-marca{border-color:#D92D20;}
+.vk-sel.on{box-shadow:0 0 0 2px #D92D20;background:#FFFBFA;} .vk-sel.on .vk-marca{background:#D92D20;border-color:#D92D20;color:#fff;}
+.vk-sel.meio .vk-marca{background:#FEE4E2;border-color:#D92D20;color:#D92D20;}
+.gf-bt.on{background:#FEF3F2;border-color:#FDA29B;color:#B42318;} .gf-bt:disabled{opacity:.45;cursor:not-allowed;}
+.vk-selbar{position:sticky;bottom:12px;z-index:6;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px 16px;background:#101828;color:#fff;border-radius:16px;padding:12px 16px;box-shadow:0 16px 32px -12px rgba(16,24,40,.6);}
+.vk-selbar-txt b{display:block;font-size:14px;} .vk-selbar-txt span{display:block;font-size:12px;color:#D0D5DD;}
+.vk-selbar-bts{display:flex;flex-wrap:wrap;gap:8px;}
+.vk-selbar .gf-bt{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.25);color:#fff;} .vk-selbar .gf-bt:hover{background:rgba(255,255,255,.18);}
+.vk-selbar .gf-bt.vk-excluir{background:#D92D20;border-color:#D92D20;color:#fff;} .vk-selbar .gf-bt.vk-excluir:hover{background:#B42318;}
+.vk-exc-lista{margin:8px 0;padding:0;list-style:none;max-height:220px;overflow:auto;border:1px solid #F2F4F7;border-radius:10px;} .vk-exc-lista li{display:flex;justify-content:space-between;gap:10px;padding:6px 10px;border-top:1px solid #F2F4F7;font-size:12.5px;} .vk-exc-lista li:first-child{border-top:0;} .vk-exc-lista li b{white-space:nowrap;}
+@media (max-width:560px){.vk-selbar{bottom:8px;padding:10px 12px;gap:8px;} .vk-selbar-bts{gap:6px;width:100%;} .vk-selbar-bts .gf-bt{flex:1 1 40%;justify-content:center;padding:7px 10px;font-size:12.5px;white-space:normal;text-align:center;}}
 .vk-top{display:flex;justify-content:space-between;gap:6px 8px;align-items:flex-start;}
 .vk-top b{font-size:13.5px;line-height:1.3;overflow-wrap:anywhere;color:var(--text-1);}
 .vk-sub{font-size:12px;color:#6e6e73;margin:3px 0 6px;overflow-wrap:anywhere;}
@@ -16273,7 +16287,7 @@ const Mascara=(function(){
   const {janela,confirmar,executar,salvar,excluir,fe,cn,dt,brDe,isoDe,hoje0,addD,dias,dinheiro,val}=U;
   const C=GS.contas,Fa=GS.fat,EMP=C.EMP;
   const FORMAS=typeof FORMAS_PAGAMENTO_DESPESA!=='undefined'?FORMAS_PAGAMENTO_DESPESA:['PIX','Boleto','Transferência/TED','Dinheiro'];
-  const QC={busca:'',obra:'',mes:'',antigas:false,aprovar:false,semForn:false,ord:'',cat:'',forma:''},QF={busca:'',obra:'',mes:'',antigas:false,semNF:false,ord:''};
+  const QC={busca:'',obra:'',mes:'',antigas:false,aprovar:false,semForn:false,ord:'',cat:'',forma:'',selModo:false,sel:new Set()},QF={busca:'',obra:'',mes:'',antigas:false,semNF:false,ord:''};
   // ordem dos cartões dentro de cada coluna (o padrão de cada quadro é a data)
   const selOrd=(atr,v,ops)=>`<select ${atr} title="Ordem dos cartões em cada coluna">${ops.map(([k,r])=>`<option value="${k}" ${v===k?'selected':''}>${r}</option>`).join('')}</select>`;
   const cmpTxt=(a,b)=>String(a||'').localeCompare(String(b||''),'pt-BR',{sensitivity:'base',numeric:true});
@@ -16320,10 +16334,12 @@ const Mascara=(function(){
   const acharConta=id=>todasContas().find(o=>idC(o)===id);
   const souAdmin=C.souAdmin;
   const podeEditarConta=o=>GS.ehAdm()||pode('contas')&&!pagoC(o)&&GS.podeMexer(o._r,o.lancPor)&&(souAdmin()||o.tipo!=='Real'||o.aprov==='pendente');
+  // modo "Excluir várias": o clique marca o cartão (o cartão de uma compra marca todos os itens dela)
+  const marcaSel=ids=>{if(!QC.selModo)return {cls:'',html:''};const n=ids.filter(id=>QC.sel.has(id)).length;return {cls:n&&n===ids.length?' vk-sel on':n?' vk-sel meio':' vk-sel',html:'<span class="vk-marca" aria-hidden="true"><i class="fas fa-check"></i></span>'};};
   function cartaoConta(o){
-    const col=colConta(o),pc=parcDe(o.desc);
-    return `<article class="vk-card" style="--cor:${COLS_CP.find(c=>c.k===col).cor}" draggable="${pode('contas')?'true':'false'}" data-card="${idC(o)}" tabindex="0">
-      <div class="vk-top"><b>${fe(o.forn||C.limparParc(o.desc)||'Conta')}</b>${o.centro===EMP?pill('empresa','info'):''}</div>
+    const col=colConta(o),pc=parcDe(o.desc),ms=marcaSel([idC(o)]);
+    return `<article class="vk-card${ms.cls}" style="--cor:${COLS_CP.find(c=>c.k===col).cor}" draggable="${pode('contas')&&!QC.selModo?'true':'false'}" data-card="${idC(o)}" tabindex="0">
+      <div class="vk-top">${ms.html}<b>${fe(o.forn||C.limparParc(o.desc)||'Conta')}</b>${o.centro===EMP?pill('empresa','info'):''}</div>
       ${o.forn&&o.desc?`<div class="vk-sub">${fe(C.limparParc(o.desc))}${pc?' '+pill(pc,''):''}</div>`:pc?`<div class="vk-sub">${pill(pc,'')}</div>`:''}
       ${o.centro!==EMP?`<div class="vk-obra" title="${fe(o.centro)}"><i class="fas fa-helmet-safety"></i>${fe(o.centro)}</div>`:''}
       <div class="vk-val"><span>${fe(o.cat||'')}</span><b>${fmt(val(o.total))}</b></div>
@@ -16340,10 +16356,10 @@ const Mascara=(function(){
     lista.forEach(o=>{const k=chaveCompra(o);if(!k){out.push(o);return;}let g=mapa.get(k);if(!g){g={_compra:true,id:'g:'+k,lista:[]};mapa.set(k,g);out.push(g);}g.lista.push(o);});
     return out.map(g=>g._compra&&g.lista.length===1?g.lista[0]:g);}
   function cartaoCompra(g){
-    const L=g.lista,o=L[0],col=colConta(o),tot=L.reduce((s,x)=>s+val(x.total),0),obras=[...new Set(L.map(x=>x.centro))],dc=diaCompra(o),rat=L.some(x=>x.rateio);
+    const L=g.lista,o=L[0],col=colConta(o),tot=L.reduce((s,x)=>s+val(x.total),0),obras=[...new Set(L.map(x=>x.centro))],dc=diaCompra(o),rat=L.some(x=>x.rateio),ms=marcaSel(L.map(idC));
     (App._vkCompras=App._vkCompras||{})[g.id]=L;
-    return `<article class="vk-card vk-compra" style="--cor:${COLS_CP.find(c=>c.k===col).cor}" draggable="${pode('contas')?'true':'false'}" data-card="${fe(g.id)}" tabindex="0">
-      <div class="vk-top"><b>${fe(o.forn||'Compra')}</b>${obras.length===1&&obras[0]===EMP?pill('empresa','info'):''}</div>
+    return `<article class="vk-card vk-compra${ms.cls}" style="--cor:${COLS_CP.find(c=>c.k===col).cor}" draggable="${pode('contas')&&!QC.selModo?'true':'false'}" data-card="${fe(g.id)}" tabindex="0">
+      <div class="vk-top">${ms.html}<b>${fe(o.forn||'Compra')}</b>${obras.length===1&&obras[0]===EMP?pill('empresa','info'):''}</div>
       <div class="vk-sub"><i class="fas fa-basket-shopping"></i> ${L.length} itens${dc?` · compra de ${brDe(dt(dc))}`:''}</div>
       ${obras.some(x=>x!==EMP)?`<div class="vk-obra" title="${fe(obras.join(' · '))}"><i class="fas fa-helmet-safety"></i>${fe(obras.length===1?obras[0]:obras.length+' obras')}</div>`:''}
       <ul class="vk-itens">${L.slice(0,5).map(x=>`<li><span>${fe(C.limparParc(x.desc)||x.cat||'Item')}</span><b>${fmt(val(x.total))}</b></li>`).join('')}${L.length>5?`<li class="mais">+ ${L.length-5} item(ns)</li>`:''}</ul>
@@ -16437,7 +16453,7 @@ const Mascara=(function(){
     const filtroAtivo=f.busca||f.obra||f.mes||f.aprovar||f.semForn||f.cat||f.forma||f.ord;
     const catsF=[...new Set(C.CATC().concat(C.podeEmpresa()?C.CATD():[]).concat(todas.map(o=>o.cat).filter(Boolean)))],formasF=[...new Set(FORMAS.concat(todas.map(o=>o.forma).filter(Boolean)))];
     box.innerHTML=`<div class="gf">
-      ${cabG('Contas a pagar','Tudo o que a empresa paga: compras e serviços de cada obra e as despesas da Empresa — só contas que já existem (a previsão de custo das obras vem do CAP). Um Administrador aprova (conta lançada por Administrador já nasce aprovada) e, quando pagar, arraste o cartão para <b>Paga</b>. Clique no cartão para ver e corrigir todos os dados.',(()=>{const n=gruposDupContas().length;return `<button type="button" class="gf-bt${n?' dup-on':''}" data-vk="dup" title="Procura contas lançadas em dobro (mesmo fornecedor, destino e valor em datas próximas)"><i class="fas fa-clone"></i> Verificar duplicados${n?` <b class="vk-badge">${n}</b>`:''}</button>`;})()+'<button type="button" class="gf-bt" data-vk="imprimir"><i class="fas fa-print"></i> Imprimir</button><button type="button" class="gf-bt" data-vk="exportar"><i class="fas fa-file-excel"></i> Exportar</button>'+(pode('contas')?'<button type="button" class="gf-bt pri" data-vk="nova"><i class="fas fa-plus"></i> Nova conta</button>':''))}
+      ${cabG('Contas a pagar','Tudo o que a empresa paga: compras e serviços de cada obra e as despesas da Empresa — só contas que já existem (a previsão de custo das obras vem do CAP). Um Administrador aprova (conta lançada por Administrador já nasce aprovada) e, quando pagar, arraste o cartão para <b>Paga</b>. Clique no cartão para ver e corrigir todos os dados.',(()=>{const n=gruposDupContas().length;return `<button type="button" class="gf-bt${n?' dup-on':''}" data-vk="dup" title="Procura contas lançadas em dobro (mesmo fornecedor, destino e valor em datas próximas)"><i class="fas fa-clone"></i> Verificar duplicados${n?` <b class="vk-badge">${n}</b>`:''}</button>`;})()+'<button type="button" class="gf-bt" data-vk="imprimir"><i class="fas fa-print"></i> Imprimir</button><button type="button" class="gf-bt" data-vk="exportar"><i class="fas fa-file-excel"></i> Exportar</button>'+(pode('contas')?`<button type="button" class="gf-bt${f.selModo?' on':''}" data-vk="selecionar" title="Marcar várias contas e excluir todas de uma vez"><i class="fas ${f.selModo?'fa-xmark':'fa-square-check'}"></i> ${f.selModo?'Sair da seleção':'Excluir várias'}</button><button type="button" class="gf-bt pri" data-vk="nova"><i class="fas fa-plus"></i> Nova conta</button>`:''))}
       ${semAprov.length&&souAdmin()?`<div class="vk-aviso"><i class="fas fa-signature"></i><div><b>${semAprov.length} conta(s) esperando a sua aprovação</b> — ${fmt(S(semAprov))}. Abra o cartão (ou arraste para "Aprovada") para aprovar.</div><button type="button" class="gf-bt mini" data-vk="so-aprovar">${f.aprovar?'Ver todas':'Ver só elas'}</button></div>`:''}
       <div class="gf-kpis">
         ${kpiG(vencidas.length?'vermelho':'verde','fa-triangle-exclamation','Vencidas',Rk(S(vencidas)),vencidas.length?`${vencidas.length} conta(s) em atraso — juros e multa correndo`:'nenhuma conta atrasada')}
@@ -16455,9 +16471,32 @@ const Mascara=(function(){
         <label class="vk-chk"><input type="checkbox" data-vkf="semForn" ${f.semForn?'checked':''}> Sem fornecedor</label>
         ${filtroAtivo?'<a href="#" class="vk-chk" data-vk="limpar"><i class="fas fa-xmark"></i> Limpar filtros</a>':''}</div>
       ${colunasHtml(cols,cartaoQuadro,{previstas:'Estimativas de custo (ainda sem conta) ficam aqui',aprovar:'Nenhuma conta esperando aprovação',pagar:'Contas aprovadas aparecem aqui até serem pagas',paga:'Arraste para cá a conta que foi paga'})}
+      ${f.selModo?'<div class="vk-selbar" data-vk-selbar></div>':''}
       ${analiseContas(todas)}
     </div>`;
+    App._vkVisiveis=visiveis;pintarSel(box);
     ligarQuadroContas(box);
+  }
+  // barra de baixo do modo "Excluir várias": quantas contas, o total e o botão de excluir
+  const contasMarcadas=()=>todasContas().filter(o=>QC.sel.has(idC(o)));
+  function pintarSel(box){const bar=box.querySelector('[data-vk-selbar]');if(!bar)return;
+    const L=contasMarcadas(),n=L.length,tot=L.reduce((s,o)=>s+val(o.total),0);
+    bar.innerHTML=`<div class="vk-selbar-txt"><b>${n?`${n} conta${n>1?'s':''} marcada${n>1?'s':''}`:'Clique nos cartões que quer excluir'}</b><span>${n?'total '+fmt(tot):'o cartão de uma compra marca todos os itens dela'}</span></div>
+      <div class="vk-selbar-bts"><button type="button" class="gf-bt" data-vk="sel-todas"><i class="fas fa-check-double"></i> Marcar todas da tela</button>${n?'<button type="button" class="gf-bt" data-vk="sel-nenhuma"><i class="fas fa-xmark"></i> Desmarcar</button>':''}
+        <button type="button" class="gf-bt vk-excluir" data-vk="sel-excluir" ${n?'':'disabled'}><i class="fas fa-trash"></i> Excluir as marcadas${n?` (${n})`:''}</button></div>`;}
+  function alternarSel(box,c){const id=c.dataset.card,ids=String(id).startsWith('g:')?((App._vkCompras||{})[id]||[]).map(idC):[id];if(!ids.length)return;
+    const todos=ids.every(x=>QC.sel.has(x));ids.forEach(x=>todos?QC.sel.delete(x):QC.sel.add(x));
+    c.classList.toggle('on',!todos);c.classList.remove('meio');pintarSel(box);}
+  const sairSel=()=>{QC.sel.clear();QC.selModo=false;};
+  // mesma regra do Excluir da ficha da conta: Administrador exclui tudo; os demais, só o que lançaram e ainda não foi pago
+  const podeExcluirConta=o=>pode('contas')&&(GS.ehAdm()||(!pagoC(o)&&GS.podeMexer(o._r,o.lancPor)&&(souAdmin()||podeEditarConta(o))));
+  function excluirMarcadas(){
+    const L=contasMarcadas(),ok=L.filter(podeExcluirConta),fora=L.filter(o=>!podeExcluirConta(o));
+    if(!ok.length)return toast(`Nenhuma das contas marcadas pode ser excluída por você (contas já pagas ou lançadas por outra pessoa — só um Administrador exclui).`,'error');
+    const tot=ok.reduce((s,o)=>s+val(o.total),0),conc=ok.filter(o=>o._r.conciliacao).length,rat=ok.filter(o=>o.rateio).length;
+    confirmar('Excluir as contas marcadas',`<b>${ok.length} conta${ok.length>1?'s':''}</b> · ${fmt(tot)} ${ok.length>1?'serão excluídas':'será excluída'} de vez:<ul class="vk-exc-lista">${ok.slice(0,8).map(o=>`<li>${fe(o.forn||C.limparParc(o.desc)||'Conta')} · ${fe(C.limparParc(o.desc)||o.cat||'')} · ${fe(o.centro)}<b>${fmt(val(o.total))}</b></li>`).join('')}${ok.length>8?`<li>+ ${ok.length-8} conta(s)</li>`:''}</ul>
+      ${fora.length?`<small>${fora.length} conta${fora.length>1?'s ficam':' fica'} de fora (já paga${fora.length>1?'s':''} ou lançada${fora.length>1?'s':''} por outra pessoa — só um Administrador exclui).</small><br>`:''}${conc?`<small>${conc} ${conc>1?'estão ligadas':'está ligada'} ao extrato do banco: essa${conc>1?'s linhas voltam':' linha volta'} para a conferência na Conciliação.</small><br>`:''}${rat?`<small>${rat} ${rat>1?'são partes':'é parte'} de rateio: as outras partes (nas outras obras) continuam.</small>`:''}`,
+      `Sim, excluir ${ok.length}`,async()=>{sairSel();await executar(async()=>{for(const o of ok)await excluir(o._t==='c'?'Custos':'Despesas',o.rowid);});toast(`${ok.length} conta${ok.length>1?'s excluídas':' excluída'}.`,'success');});
   }
   function analiseContas(todas){
     const h=hoje0(),ini=addD(h,-90),pagas=todas.filter(o=>pagoC(o)&&dt(o.pago)>=ini),S=a=>a.reduce((s,o)=>s+val(o.total),0),tot=S(pagas);
@@ -16486,14 +16525,18 @@ const Mascara=(function(){
       const b=ev.target.closest('[data-vk]');if(b){ev.preventDefault();const a=b.dataset.vk;
         if(a==='nova')return fichaLote();
         if(a==='dup')return verDupContas();
+        if(a==='selecionar'){if(QC.selModo)sairSel();else QC.selModo=true;return re();}
+        if(a==='sel-todas'){(App._vkVisiveis||[]).forEach(o=>QC.sel.add(idC(o)));return re();}
+        if(a==='sel-nenhuma'){QC.sel.clear();return re();}
+        if(a==='sel-excluir')return excluirMarcadas();
         if(a==='so-aprovar'){QC.aprovar=!QC.aprovar;return re();}
         if(a==='limpar'){Object.assign(QC,{busca:'',obra:'',mes:'',aprovar:false,semForn:false,ord:'',cat:'',forma:''});return re();}
         if(a==='exportar')return exportarContas();
         if(a==='imprimir')return imprimirContas();
         return;}
-      const c=ev.target.closest('[data-card]');if(c)abrirCartao(c.dataset.card);
+      const c=ev.target.closest('[data-card]');if(c){if(QC.selModo)return alternarSel(box,c);abrirCartao(c.dataset.card);}
     };
-    box.onkeydown=ev=>{if(ev.key!=='Enter')return;const c=ev.target.closest('[data-card]');if(c)abrirCartao(c.dataset.card);};
+    box.onkeydown=ev=>{if(ev.key!=='Enter')return;const c=ev.target.closest('[data-card]');if(c){if(QC.selModo)return alternarSel(box,c);abrirCartao(c.dataset.card);}};
     if(!box._arraste){box._arraste=1;ligarArraste(box,(id,col)=>{
       if(String(id).startsWith('g:')){const L=(App._vkCompras||{})[id];if(!L)return;const de=colConta(L[0]);if(de===col)return;
         if(!pode('contas'))return toast('Seu perfil não mexe em contas a pagar.','error');
