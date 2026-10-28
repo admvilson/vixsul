@@ -10689,6 +10689,11 @@ window.onload=()=>{
 .fin-conc-bloco.ok{border-left-color:var(--green);} .fin-conc-bloco.warn{border-left-color:var(--orange);} .fin-conc-bloco.err{border-left-color:var(--red);} .fin-conc-bloco.info{border-left-color:var(--blue);} .fin-conc-bloco.cinza{border-left-color:var(--text-3);}
 .fin-conc-desc{max-width:340px;word-break:break-word;}
 .fin-conc-alvo{min-width:240px;}
+/* textos compridos (descrição do banco, "parecida: …") quebram dentro da coluna — a regra geral "tbody td{nowrap}" fazia vazar */
+.fin-conc-bloco .fin-tab{min-width:0;}
+.fin-conc-bloco tbody td.fin-conc-desc,.fin-conc-bloco tbody td.fin-conc-alvo{white-space:normal;overflow-wrap:anywhere;line-height:1.4;}
+.fin-conc-bloco td.fin-conc-desc{min-width:200px;max-width:360px;} .fin-conc-bloco td.fin-conc-alvo{min-width:260px;max-width:480px;}
+.fin-conc-desc small,.fin-conc-alvo small{display:block;line-height:1.35;margin-top:2px;}
 .fin-conc-alvo>span{display:block;font-size:12px;}
 .fin-conc-alvo select{max-width:440px;width:100%;font-size:12px;padding:6px 8px;border:1px solid var(--border);border-radius:8px;background:#fff;}
 .cc-barra{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:4px 0 10px;} .cc-barra .pl2-busca{flex:1;min-width:220px;} .cc-barra select{border:1px solid #D0D5DD;border-radius:10px;padding:7px 10px;font:600 12.5px Inter,sans-serif;background:#fff;}
@@ -11158,7 +11163,7 @@ const Fin=(function(){
     const ehValor=s=>/^[-+(]?\s*(R\$)?\s*-?[\d.,]*[.,]\d{1,2}\s*\)?\s*[DC+-]?$/i.test(String(s||'').trim());
     const semTexto=s=>/^[\d\s.,()+\-/:R$*•xX]*$/.test(s)||/^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(s);
     const hi=linhas.findIndex(l=>/data|dt_?mov/i.test(l)&&/(valor|cr[eé]dito|d[eé]bito|montante|quantia)/i.test(l));
-    let iData,iValor,iCred=-1,iDeb=-1,iDC=-1,iDoc=-1,iQuem=-1,iLegado=-1,iSaldo=-1,iCartao=-1,fora;
+    let iData,iValor,iCred=-1,iDeb=-1,iDC=-1,iDoc=-1,iQuem=-1,iLegado=-1,iSaldo=-1,iCartao=-1,iCidade=-1,fora;
     if(hi>=0){
       const cab=partir(linhas[hi]).map(cn),achar=rx=>cab.findIndex(c=>rx.test(c));
       // valor em reais (a coluna em dólar da fatura do cartão — "Valor U$$" — não serve)
@@ -11169,8 +11174,9 @@ const Fin=(function(){
       iDC=achar(/^(d\/c|c\/d|dc|cd|natureza|tipo|sinal|tipo (de )?(lancamento|transacao|movimento|operacao))$|deb.?cred|cred.?deb/);
       iDoc=achar(/documento|^docto|^doc\b|^n[uo]mero|^nr\b|^num\b|^n[°º.]/);
       iQuem=achar(/favorecid|beneficiari|pagador|remetente|contraparte|^nome|destinat|origem.destino/);
-      iLegado=achar(/hist|descri|lancamento|memo|detalhe|estabelec/);iSaldo=achar(/^saldo/);iCartao=achar(/^cartao$/);
-      fora=cab.map((c,i)=>[iData,iValor,iCred,iDeb,iDC,iDoc].includes(i)||/saldo|^data|^dt\b|^dt_|hora|agencia|^ag\b|^conta|identificador|^id$|situac|status|moeda|cotac|categoria|^cpf|^cnpj|^cartao$/.test(c));
+      iLegado=achar(/hist|descri|lancamento|memo|detalhe|estabelec/);iSaldo=achar(/^saldo/);iCartao=achar(/^cartao$/);iCidade=achar(/^cidade/);
+      // cartão e cidade (fatura do cartão) ficam fora da descrição: vão em campos próprios
+      fora=cab.map((c,i)=>[iData,iValor,iCred,iDeb,iDC,iDoc].includes(i)||/saldo|^data|^dt\b|^dt_|hora|agencia|^ag\b|^conta|identificador|^id$|situac|status|moeda|cotac|categoria|^cpf|^cnpj|^cartao$|^cidade/.test(c));
     }else{
       const amo=linhas.slice(0,40).map(partir),nCol=Math.max(...amo.map(r=>r.length));
       const conta=f=>Array.from({length:nCol},(_,i)=>amo.filter(r=>f(r[i]||'')).length);
@@ -11200,7 +11206,7 @@ const Fin=(function(){
       // linha de saldo (saldo anterior / do dia) não é lançamento, mas serve de ponto de partida para o sinal
       if(ehSaldo||isNaN(valor)||!valor){if(!isNaN(sd)||(ehSaldo&&!isNaN(valor)))brutos.push({semente:true,d,sd:!isNaN(sd)?sd:valor,valor:0,partes:[]});return;}
       if(iDC>=0&&/^(d|saida|debito)/.test(cn(c[iDC]))&&valor>0)valor=-valor;
-      ultimo={d,valor:Math.round(valor*100)/100,sd,expl:(iValor>=0&&temSinal(c[iValor]))||iCred>=0||iDeb>=0||iDC>=0,partes:textos,cont:0,legado:iLegado>=0?c[iLegado]||'':'',doc:iDoc>=0?c[iDoc]||'':'',quem:iQuem>=0?c[iQuem]||'':'',cartao:iCartao>=0?c[iCartao]||'':''};
+      ultimo={d,valor:Math.round(valor*100)/100,sd,expl:(iValor>=0&&temSinal(c[iValor]))||iCred>=0||iDeb>=0||iDC>=0,partes:textos,cont:0,legado:iLegado>=0?c[iLegado]||'':'',doc:iDoc>=0?c[iDoc]||'':'',quem:iQuem>=0?c[iQuem]||'':'',cartao:iCartao>=0?c[iCartao]||'':'',cidade:iCidade>=0?c[iCidade]||'':''};
       brutos.push(ultimo);
     });
     brutos.forEach(b=>{if(!b.semente)b.desc=b.partes.join(' ');});
@@ -11213,7 +11219,7 @@ const Fin=(function(){
       if(/^\s*(saldo|s a l d o|sdo)\b/i.test(desc)||/\bsaldo (anterior|do dia|final|atual|disponivel|em conta|total)\b/.test(cn(desc)))return;
       let id=`${b.d}|${b.valor}|${b.legado}|${b.doc}`;
       vistos[id]=(vistos[id]||0)+1;if(vistos[id]>1)id+='#'+vistos[id];
-      itens.push({id:'csv:'+id,data:b.d,valor:b.valor,desc:desc||(b.valor>0?'Crédito':'Débito'),quem:quemDoExtrato(b.quem,...ps),cartao:b.cartao||''});
+      itens.push({id:'csv:'+id,data:b.d,valor:b.valor,desc:desc||(b.valor>0?'Crédito':'Débito'),quem:quemDoExtrato(b.quem,...ps),cartao:b.cartao||'',cidade:b.cidade||''});
     });
     return {itens,saldo:null,saldoData:'',banco:'',conta:''};
   }
@@ -11311,7 +11317,7 @@ const Fin=(function(){
     // filtro da barra: tipo (entrada/saída) e busca no banco e no sistema (nome, descrição ou valor)
     // fatura com vários cartões: filtro pelo cartão (o escolhido fica lembrado neste computador)
     const cartoes=[...new Set(ext.itens.map(t=>t.cartao).filter(Boolean))].sort();if(F.cartao&&!cartoes.includes(F.cartao))F.cartao='';
-    const props=props0.filter(p=>(!F.cartao||p.t.cartao===F.cartao)&&(!F.tipo||(F.tipo==='sai'?p.t.valor<0:p.t.valor>0))&&(!F.de||isoDeBR(p.t.data)>=F.de)&&(!F.ate||isoDeBR(p.t.data)<=F.ate)&&(!qb||cn([p.t.desc,p.t.quem,fmt(Math.abs(p.t.valor)),n2c(Math.abs(p.t.valor)),(p.alvos||[]).map(rotulo).join(' '),p.nota||''].join(' ')).includes(qb)));
+    const props=props0.filter(p=>(!F.cartao||p.t.cartao===F.cartao)&&(!F.tipo||(F.tipo==='sai'?p.t.valor<0:p.t.valor>0))&&(!F.de||isoDeBR(p.t.data)>=F.de)&&(!F.ate||isoDeBR(p.t.data)<=F.ate)&&(!qb||cn([p.t.desc,p.t.quem,p.t.detalhe||'',p.t.cartao||'',fmt(Math.abs(p.t.valor)),n2c(Math.abs(p.t.valor)),(p.alvos||[]).map(rotulo).join(' '),p.nota||''].join(' ')).includes(qb)));
     if(F.ordem)props.sort((a,b)=>F.ordem==='valor-'?Math.abs(b.t.valor)-Math.abs(a.t.valor):Math.abs(a.t.valor)-Math.abs(b.t.valor));
     props.forEach(p=>g[p.st].push(p));
     if(!CONC.marcados)CONC.marcados=new Set([...g.ok,...g.vincular].map(p=>p.t.id));
@@ -11333,7 +11339,7 @@ const Fin=(function(){
         :p.st==='feito'?bt('desfazer','Desfazer'):p.st==='ignorado'?bt('voltar','Voltar para a conferência'):'';
       return `<tr><td>${marcavel?`<input type="checkbox" data-cc-marca="${i}" ${CONC.marcados.has(p.t.id)?'checked':''}>`:selSem?`<input type="checkbox" data-cc-sem="${i}" title="Marcar para ignorar junto com outras" ${CONC.selSem.has(p.t.id)?'checked':''}>`:''}</td>
         <td style="white-space:nowrap">${fe(p.t.data.slice(0,5))}</td>
-        <td class="fin-conc-desc">${p.t.cartao?`<span class="cc-cartao" title="Cartão final ${fe(p.t.cartao)}"><i class="fas fa-credit-card"></i> ${fe(p.t.cartao)}</span> `:''}${fe(p.t.desc)}${p.t.quem?`<small>${fe(p.t.quem)}</small>`:''}</td>
+        <td class="fin-conc-desc">${p.t.cartao?`<span class="cc-cartao" title="Cartão final ${fe(p.t.cartao)}"><i class="fas fa-credit-card"></i> ${fe(p.t.cartao)}</span> `:''}${fe(p.t.desc)}${p.t.detalhe?`<small>${fe(p.t.detalhe)}</small>`:p.t.quem?`<small>${fe(p.t.quem)}</small>`:''}</td>
         <td class="num ${p.t.valor<0?'t-err':'t-ok'}"><b>${p.t.valor<0?'−':'+'} ${fmt(Math.abs(p.t.valor))}</b></td>
         <td class="fin-conc-alvo">${alvo}${p.st!=='sem'&&p.st!=='feito'?difDias(p):''}${p.nota&&p.st!=='feito'?`<small class="t-warn">${fe(p.nota)}</small>`:''}${acoes?`<div class="fin-conc-acoes">${acoes}</div>`:''}</td></tr>`;
     };
@@ -11495,10 +11501,14 @@ const Fin=(function(){
     const parc=t=>{const m=String(t.desc||'').match(/(?:^|\s)(\d{1,2})\s*(?:DE|\/)\s*(\d{1,2})(?=\s|$)|\s(\d{2})\s(\d{2})\s*$/i);if(!m)return null;const n=+(m[1]||m[3]),tot=+(m[2]||m[4]);return n>=1&&tot>=2&&n<=tot&&tot<=48?{n,tot}:null;};
     const dde=t=>dt(isoDeBR(t.data)),ref=ext.itens.filter(t=>{const p=parc(t);return !p||p.n===1;}).map(dde).filter(Boolean),todas=ext.itens.map(dde).filter(Boolean),per=ref.length?ref:todas;
     const ini=per.length?new Date(Math.min(...per)):null,fim=per.length?new Date(Math.max(...per)):null;
-    ext.itens.forEach(t=>{const p=parc(t),d=dde(t);if(!p||p.n<2||!d||!ini)return;
-      const nd=new Date(d.getFullYear(),d.getMonth()+p.n-1,1);nd.setDate(Math.min(d.getDate(),new Date(nd.getFullYear(),nd.getMonth()+1,0).getDate()));
-      if(!(dias(d,ini)>=1&&dias(fim,nd)<=35))return;
-      t.desc=`${t.desc} · parcela ${p.n} de ${p.tot} (compra de ${t.data})`;t.data=brDe(nd);});
+    // cada linha: o nome da loja em cima; embaixo a cidade, a data da compra e a parcela (quando tem)
+    const RX_PARC=/(?:^|\s)(\d{1,2})\s*(?:DE|\/)\s*(\d{1,2})(?=\s|$)|\s(\d{2})\s(\d{2})\s*$/i;
+    const titulo=s=>String(s).toLowerCase().replace(/(^|\s)(\S)/g,(m,a,b)=>a+b.toUpperCase()).replace(/\s(Da|De|Do|Das|Dos|E)(?=\s|$)/g,x=>x.toLowerCase());
+    ext.itens.forEach(t=>{const p=parc(t),d=dde(t);t.compra=t.data;
+      if(p){t.parcela=`${p.n} de ${p.tot}`;t.desc=String(t.desc||'').replace(RX_PARC,' ').replace(/\s{2,}/g,' ').replace(/^\s*·\s*|\s*·\s*$/g,'').trim()||t.desc;}
+      if(p&&p.n>=2&&d&&ini){const nd=new Date(d.getFullYear(),d.getMonth()+p.n-1,1);nd.setDate(Math.min(d.getDate(),new Date(nd.getFullYear(),nd.getMonth()+1,0).getDate()));
+        if(dias(d,ini)>=1&&dias(fim,nd)<=35)t.data=brDe(nd);}
+      t.detalhe=[t.cidade?titulo(t.cidade):'',`compra de ${t.compra}`,t.parcela?`parcela ${t.parcela}`:''].filter(Boolean).join(' · ');});
     ext.banco=ext.banco||'Cartão de crédito';ext.saldo=null;ext.foraCartao=antes-ext.itens.length;
     return ext;
   }
@@ -11629,7 +11639,7 @@ const Fin=(function(){
     const LN=lista.map(p=>({p,s:sugestaoConta(p,todas)}));
     const cs=[...new Set(LN.filter(x=>x.s).map(x=>x.s.centro))],centro0=cs.length===1&&LN.every(x=>x.s)?cs[0]:(C.podeEmpresa()?EMP:'');
     const linhaHtml=(x,i)=>{const p=x.p,s=x.s,forma=s&&s.forma?s.forma:formaDoExtrato(p.t.desc),fo=String((s&&s.forn)||p.t.quem||'').toLocaleUpperCase('pt-BR');
-      return `<tr data-ln="${i}"><td class="cc-lt-banco"><b>${fe(p.t.data.slice(0,5))}</b> ${fe(p.t.desc)}${p.t.quem?`<small>${fe(p.t.quem)}</small>`:''}</td>
+      return `<tr data-ln="${i}"><td class="cc-lt-banco"><b>${fe(p.t.data.slice(0,5))}</b> ${fe(p.t.desc)}${p.t.detalhe?`<small>${fe(p.t.detalhe)}</small>`:p.t.quem?`<small>${fe(p.t.quem)}</small>`:''}</td>
         <td><input data-i="forn" data-maiusc list="vx-forn-lista" autocomplete="off" value="${fe(fo)}" placeholder="fornecedor"></td>
         <td>${GS.comboGasto.html('data-i="cat"','data-i="desc"',s?s.cat:'',s?C.limparParc(s.desc):'')}</td>
         <td><select data-i="forma">${FORMAS.concat(FORMAS.includes(forma)?[]:[forma]).map(f=>`<option ${f===forma?'selected':''}>${fe(f)}</option>`).join('')}</select></td>
