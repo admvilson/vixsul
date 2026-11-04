@@ -1099,7 +1099,7 @@ tbody tr:hover td{background:rgba(0,113,227,.02);}
         <div class="toolbar-left">
           <div style="font-size:12px;color:var(--text-3);max-width:520px;line-height:1.5">Obras excluídas ficam aqui por até <strong>15 dias</strong> antes de serem apagadas em definitivo — dá pra restaurar a qualquer momento dentro desse prazo.</div>
         </div>
-        <button id="btn-lixeira-esvaziar" class="btn-primary" style="background:var(--red)" onclick="App._lixeiraEsvaziar()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2M19 6l-1 14a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1L5 6"/></svg>Esvaziar lixeira</button>
+        <div class="lx-bts"><button type="button" id="btn-lixeira-restaurar" class="gf-bt" data-lx="modo" style="display:none" title="Marcar vários itens e restaurar todos de uma vez"></button><button id="btn-lixeira-esvaziar" class="btn-primary" style="background:var(--red)" onclick="App._lixeiraEsvaziar()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2M19 6l-1 14a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1L5 6"/></svg>Esvaziar lixeira</button></div>
       </div>
       <div class="cards-scroll"><div class="obras-grid" id="grid-lixeira"></div></div>
     </div>
@@ -3955,8 +3955,8 @@ const App={
     const nome=getFuzzy(o,['titulo_obra','nome_obra','titulo'])||`Obra #${o.visualId||o.rowid}`;
     const dias=this._lixeiraDiasRestantes(o);
     const nItens=this._lixeiraContarItens(o.rowid);
-    return `<div class="lanc-card">
-      <div class="lanc-card-header"><span class="lanc-name">${nome}</span></div>
+    return `<div class="lanc-card" data-lx-id="o:${o.rowid}">
+      <div class="lanc-card-header"><span class="vk-marca lx-marca" aria-hidden="true"><i class="fas fa-check"></i></span><span class="lanc-name">${nome}</span></div>
       <div style="font-size:11px;color:var(--text-3);margin-bottom:2px">Excluída em ${dateBR(o._lixeira_em.slice(0,10))} · ${nItens} registro${nItens!==1?'s':''} vinculado${nItens!==1?'s':''}</div>
       <div style="font-size:11px;font-weight:700;color:${dias<=3?'var(--red)':'var(--orange,#FF9500)'};margin-bottom:12px">${dias>0?`Exclusão automática em ${dias} dia${dias!==1?'s':''}`:'Será excluída em definitivo em breve'}</div>
       <div style="display:flex;gap:8px">
@@ -18590,6 +18590,18 @@ const Mascara=(function(){
 .ar-tag{display:inline-block;font-size:10.5px;font-weight:800;padding:1px 7px;border-radius:99px;background:#EEF4FF;color:#1652D8;margin-left:4px;}
 .ar-tag.av{background:#FFFAEB;color:#B54708;}
 .lx-sec{grid-column:1/-1;font:800 11px Inter,sans-serif;text-transform:uppercase;letter-spacing:.06em;color:#6e6e73;margin:14px 0 2px;}
+/* "Restaurar vários" da Lixeira: o cartão marca em verde (restaurar não é excluir) e a barra de baixo é a mesma dos quadros */
+.lx-bts{display:flex;flex-wrap:wrap;gap:8px;align-items:center;}
+#grid-lixeira .lx-marca{display:none;} #grid-lixeira.lx-sel .lx-marca{display:grid;}
+#grid-lixeira.lx-sel .lanc-card-header{justify-content:flex-start;gap:9px;}
+#grid-lixeira.lx-sel .lanc-card .pw-btn{display:none;}
+#grid-lixeira.lx-sel .lanc-card:hover .vk-marca{border-color:#067647;}
+#grid-lixeira.lx-sel .lanc-card.on{box-shadow:0 0 0 2px #067647;background:#F6FEF9;}
+#grid-lixeira.lx-sel .lanc-card.on .vk-marca{background:#067647;border-color:#067647;color:#fff;}
+#grid-lixeira.lx-sel .lanc-card:focus-visible{outline:2px solid #84ADFF;outline-offset:2px;}
+#lx-selbar{margin-top:14px;}
+.vk-selbar .gf-bt.lx-restaurar{background:#067647;border-color:#067647;color:#fff;} .vk-selbar .gf-bt.lx-restaurar:hover{background:#05603A;}
+@media (max-width:560px){#lx-selbar [data-lx="obras"],#lx-selbar [data-lx="lancs"]{display:none;}}
 </style>
 <script>
 (function(){
@@ -18825,19 +18837,66 @@ const Mascara=(function(){
     return out.sort((a,b)=>new Date(b[1]._lixeira_em)-new Date(a[1]._lixeira_em));
   }
   let _lx=[];
+  /* "Restaurar vários": clicar no cartão marca; a barra de baixo marca tudo (ou só as obras / só os lançamentos) e restaura.
+     Cada item volta do mesmo jeito do botão Restaurar do cartão: a obra volta com tudo o que está ligado a ela. */
+  const LX={sel:false,marc:new Set()};
+  const itensLx=()=>((D().lixeira||{}).obras||[]).map(o=>({id:'o:'+o.rowid,k:'obra',o})).concat(avulsos().map(([t,r])=>({id:'a:'+t+':'+r.rowid,k:'lanc',t,r})));
+  function pintarLx(){
+    const grid=document.getElementById('grid-lixeira'),bt=document.getElementById('btn-lixeira-restaurar');if(!grid)return;
+    const L=itensLx(),existem=new Set(L.map(x=>x.id));if(!L.length)LX.sel=false;
+    [...LX.marc].forEach(id=>{if(!existem.has(id))LX.marc.delete(id);});
+    if(bt){bt.style.display=L.length?'':'none';bt.classList.toggle('on',LX.sel);bt.innerHTML=`<i class="fas ${LX.sel?'fa-xmark':'fa-square-check'}"></i> ${LX.sel?'Sair da seleção':'Restaurar vários'}`;}
+    grid.classList.toggle('lx-sel',LX.sel);
+    grid.querySelectorAll('[data-lx-id]').forEach(c=>{c.classList.toggle('on',LX.sel&&LX.marc.has(c.dataset.lxId));if(LX.sel)c.tabIndex=0;else c.removeAttribute('tabindex');});
+    let bar=document.getElementById('lx-selbar');
+    if(!LX.sel){if(bar)bar.remove();return;}
+    const be=document.getElementById('btn-lixeira-esvaziar');if(be)be.style.display='none';
+    if(!bar){bar=document.createElement('div');bar.id='lx-selbar';bar.className='vk-selbar';grid.insertAdjacentElement('afterend',bar);}
+    const n=LX.marc.size,ob=L.filter(x=>x.k==='obra'),la=L.filter(x=>x.k==='lanc'),nO=ob.filter(x=>LX.marc.has(x.id)).length,nL=n-nO;
+    const chip=(a,rot,lista,qt)=>{const tudo=qt===lista.length;return `<button type="button" class="gf-bt${tudo?' on':''}" data-lx="${a}"><i class="fas ${tudo?'fa-xmark':'fa-check'}"></i> ${tudo?'Desmarcar':'Marcar'} ${rot} (${lista.length})</button>`;};
+    bar.innerHTML=`<div class="vk-selbar-txt"><b>${n?`${n} ${n>1?'itens marcados':'item marcado'}`:'Clique nos cartões que quer restaurar'}</b><span>${n?[nO?`${nO} obra${nO>1?'s':''}`:'',nL?`${nL} lançamento${nL>1?'s':''}`:''].filter(Boolean).join(' · '):'cada obra volta com tudo o que está ligado a ela'}</span></div>
+      <div class="vk-selbar-bts">${ob.length&&la.length?chip('obras','as obras',ob,nO)+chip('lancs','os lançamentos',la,nL):''}<button type="button" class="gf-bt" data-lx="todos"><i class="fas fa-check-double"></i> Marcar tudo</button>${n?'<button type="button" class="gf-bt" data-lx="nenhum"><i class="fas fa-xmark"></i> Desmarcar</button>':''}
+        <button type="button" class="gf-bt lx-restaurar" data-lx="restaurar" ${n?'':'disabled'}><i class="fas fa-rotate-left"></i> Restaurar os marcados${n?` (${n})`:''}</button></div>`;
+  }
+  const restaurarReg=r=>{const {_lixeira_em,_lixeira_obra_id,_lixeira_motivo,...limpo}=r;return salvar(r._aba,limpo,r.rowid);};
+  function restaurarMarcados(){
+    const L=itensLx().filter(x=>LX.marc.has(x.id));if(!L.length)return;
+    const ob=L.filter(x=>x.k==='obra'),regs=ob.flatMap(x=>App._lixeiraItensDaObra(x.o.rowid)).concat(L.filter(x=>x.k==='lanc').map(x=>x.r));
+    const linha=x=>x.k==='obra'?`<li>Obra · ${fe(getFuzzy(x.o,['titulo_obra','nome_obra','titulo'])||'#'+x.o.rowid)}<b>${App._lixeiraContarItens(x.o.rowid)} registro(s)</b></li>`:`<li>${ROT[x.t]||'Lançamento'} · ${resumoReg(x.t,x.r)}</li>`;
+    confirmar('Restaurar os marcados',`<b>${L.length} ${L.length>1?'itens voltam':'item volta'}</b> para as telas de onde ${L.length>1?'saíram':'saiu'}:<ul class="vk-exc-lista">${L.slice(0,8).map(linha).join('')}${L.length>8?`<li>+ ${L.length-8} item(ns)</li>`:''}</ul>${ob.length?'<small>Cada obra volta com tudo o que está ligado a ela.</small>':''}`,
+      `Sim, restaurar ${L.length}`,async()=>{LX.sel=false;LX.marc.clear();
+        // de 20 em 20: uma obra pode ter muitos registros, e um a um demoraria demais
+        try{await executar(async()=>{for(let i=0;i<regs.length;i+=20)await Promise.all(regs.slice(i,i+20).map(restaurarReg));});}
+        finally{App._renderLixeira();App._lixeiraAtualizarBadge();}
+        toast(`${L.length} ${L.length>1?'itens restaurados':'item restaurado'}.`,'success');});
+  }
+  function alternarLx(c){const id=c.dataset.lxId;if(LX.marc.has(id))LX.marc.delete(id);else LX.marc.add(id);pintarLx();}
+  document.addEventListener('click',ev=>{
+    const b=ev.target.closest('[data-lx]');
+    if(b){ev.preventDefault();const a=b.dataset.lx,L=itensLx();
+      if(a==='modo'){LX.sel=!LX.sel;LX.marc.clear();return App._renderLixeira();}
+      if(a==='nenhum'){LX.marc.clear();return pintarLx();}
+      if(a==='todos'){L.forEach(x=>LX.marc.add(x.id));return pintarLx();}
+      if(a==='obras'||a==='lancs'){const ids=L.filter(x=>x.k===(a==='obras'?'obra':'lanc')).map(x=>x.id),tudo=ids.every(id=>LX.marc.has(id));ids.forEach(id=>tudo?LX.marc.delete(id):LX.marc.add(id));return pintarLx();}
+      if(a==='restaurar')return restaurarMarcados();
+      return;}
+    const c=LX.sel&&ev.target.closest('#grid-lixeira [data-lx-id]');if(c)alternarLx(c);
+  });
+  document.addEventListener('keydown',ev=>{if(!LX.sel||(ev.key!=='Enter'&&ev.key!==' '))return;const c=ev.target.closest&&ev.target.closest('#grid-lixeira [data-lx-id]');if(c&&ev.target===c){ev.preventDefault();alternarLx(c);}});
   const rl=App._renderLixeira;
   App._renderLixeira=function(){
     rl.apply(this,arguments);
     const grid=document.getElementById('grid-lixeira');if(!grid)return;
-    _lx=avulsos();if(!_lx.length)return;
+    _lx=avulsos();if(!_lx.length)return pintarLx();
     if(!((D().lixeira||{}).obras||[]).length)grid.innerHTML='';
     grid.insertAdjacentHTML('beforeend',`<div class="lx-sec">Lançamentos que saíram (repetidos e contratos unificados)</div>`+_lx.map(([t,r],i)=>{const dias=this._lixeiraDiasRestantes(r);
-      return `<div class="lanc-card"><div class="lanc-card-header"><span class="lanc-name">${ROT[t]||'Lançamento'} · ${resumoReg(t,r)}</span></div>
+      return `<div class="lanc-card" data-lx-id="a:${t}:${r.rowid}"><div class="lanc-card-header"><span class="vk-marca lx-marca" aria-hidden="true"><i class="fas fa-check"></i></span><span class="lanc-name">${ROT[t]||'Lançamento'} · ${resumoReg(t,r)}</span></div>
         <div style="font-size:11px;color:var(--text-3);margin-bottom:2px">${fe(getFuzzy(r,['titulo_obra','descricao'])||'')}${r._lixeira_motivo?' · '+fe(r._lixeira_motivo):''}</div>
         <div style="font-size:11px;font-weight:700;color:${dias<=3?'var(--red)':'var(--orange,#FF9500)'};margin-bottom:12px">${dias>0?`Exclusão automática em ${dias} dia${dias!==1?'s':''}`:'Será excluído em definitivo em breve'}</div>
         <div style="display:flex;gap:8px"><button type="button" class="pw-btn pw-btn-primary" style="flex:1;padding:9px;font-size:12.5px" data-lxa="r" data-i="${i}">Restaurar</button>
         <button type="button" class="pw-btn" style="flex:1;padding:9px;font-size:12.5px;background:rgba(255,59,48,.08);color:var(--red)" data-lxa="x" data-i="${i}">Excluir de vez</button></div></div>`;}).join(''));
     const be=document.getElementById('btn-lixeira-esvaziar');if(be&&!((D().lixeira||{}).obras||[]).length)be.style.display='none';
+    pintarLx();
   };
   document.addEventListener('click',ev=>{
     const b=ev.target.closest('[data-lxa]');if(!b)return;const it=_lx[+b.dataset.i];if(!it)return;const [t,r]=it;
