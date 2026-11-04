@@ -16070,7 +16070,7 @@ const PL2=(function(){
 .vk-card:hover,.vk-card:focus-visible{transform:translateY(-2px);box-shadow:0 10px 22px -12px rgba(20,20,60,.35);outline:none;}
 .vk-card[draggable="true"]{cursor:grab;} .vk-card.arrastando{opacity:.45;}
 /* modo "Excluir várias" (Contas a pagar): quadradinho no cartão + barra de baixo */
-.vk-card.vk-sel{cursor:pointer;} .vk-sel .vk-top{justify-content:flex-start;} .vk-sel .vk-top b{flex:1;min-width:0;}
+.vk-card.vk-sel{cursor:pointer;} .vk-sel .vk-top{justify-content:flex-start;flex-wrap:wrap;} .vk-sel .vk-top b{flex:1 1 110px;min-width:0;}
 .vk-marca{flex:none;width:20px;height:20px;border-radius:6px;border:2px solid #C4C9D4;background:#fff;display:grid;place-items:center;color:transparent;font-size:11px;margin-top:-1px;transition:background .12s,border-color .12s;}
 .vk-sel:hover .vk-marca{border-color:#D92D20;}
 .vk-sel.on{box-shadow:0 0 0 2px #D92D20;background:#FFFBFA;} .vk-sel.on .vk-marca{background:#D92D20;border-color:#D92D20;color:#fff;}
@@ -16082,6 +16082,16 @@ const PL2=(function(){
 .vk-selbar .gf-bt{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.25);color:#fff;} .vk-selbar .gf-bt:hover{background:rgba(255,255,255,.18);}
 .vk-selbar .gf-bt.vk-excluir{background:#D92D20;border-color:#D92D20;color:#fff;} .vk-selbar .gf-bt.vk-excluir:hover{background:#B42318;}
 .vk-exc-lista{margin:8px 0;padding:0;list-style:none;max-height:220px;overflow:auto;border:1px solid #F2F4F7;border-radius:10px;} .vk-exc-lista li{display:flex;justify-content:space-between;gap:10px;padding:6px 10px;border-top:1px solid #F2F4F7;font-size:12.5px;} .vk-exc-lista li:first-child{border-top:0;} .vk-exc-lista li b{white-space:nowrap;}
+/* "Excluir vários": marcar a coluna inteira (no topo de cada coluna) e cartão que não pode sair */
+.vk-col header.vk-col-sel{flex-wrap:wrap;} .vk-col-sel>div{flex:1 1 0;min-width:0;}
+.vk-col-marca{flex:1 1 100%;display:flex;align-items:center;gap:8px;border:1px solid #D0D5DD;background:#fff;border-radius:10px;padding:6px 9px;font:600 12px Inter,sans-serif;color:#344054;cursor:pointer;text-align:left;}
+.vk-col-marca:hover{border-color:#FDA29B;background:#FFFBFA;} .vk-col-marca:focus-visible{outline:2px solid #84ADFF;outline-offset:2px;}
+.vk-col-marca small{margin-left:auto;font-weight:600;}
+.vk-col-marca.on{border-color:#D92D20;background:#FEF3F2;color:#B42318;} .vk-col-marca.on .vk-marca{background:#D92D20;border-color:#D92D20;color:#fff;}
+.vk-col-marca.meio .vk-marca{background:#FEE4E2;border-color:#D92D20;color:#D92D20;}
+.vk-col-trava{flex:1 1 100%;display:flex;align-items:center;gap:7px;font-size:11.5px;line-height:1.3;color:#667085;padding:2px 2px 0;}
+.vk-sel.vk-trava{cursor:not-allowed;opacity:.6;} .vk-trava .vk-marca,.vk-sel.vk-trava:hover .vk-marca{background:#F2F4F7;border-color:#E4E7EC;color:#98A2B3;}
+.vk-selbar .gf-bt.on{background:rgba(253,162,155,.28);border-color:#FDA29B;color:#fff;}
 @media (max-width:560px){.vk-selbar{bottom:8px;padding:10px 12px;gap:8px;} .vk-selbar-bts{gap:6px;width:100%;} .vk-selbar-bts .gf-bt{flex:1 1 40%;justify-content:center;padding:7px 10px;font-size:12.5px;white-space:normal;text-align:center;}}
 .vk-top{display:flex;justify-content:space-between;gap:6px 8px;align-items:flex-start;}
 .vk-top b{font-size:13.5px;line-height:1.3;overflow-wrap:anywhere;color:var(--text-1);}
@@ -16287,7 +16297,7 @@ const Mascara=(function(){
   const {janela,confirmar,executar,salvar,excluir,fe,cn,dt,brDe,isoDe,hoje0,addD,dias,dinheiro,val}=U;
   const C=GS.contas,Fa=GS.fat,EMP=C.EMP;
   const FORMAS=typeof FORMAS_PAGAMENTO_DESPESA!=='undefined'?FORMAS_PAGAMENTO_DESPESA:['PIX','Boleto','Transferência/TED','Dinheiro'];
-  const QC={busca:'',obra:'',mes:'',antigas:false,aprovar:false,semForn:false,ord:'',cat:'',forma:'',selModo:false,sel:new Set()},QF={busca:'',obra:'',mes:'',antigas:false,semNF:false,ord:''};
+  const QC={busca:'',obra:'',mes:'',antigas:false,aprovar:false,semForn:false,ord:'',cat:'',forma:'',selModo:false,sel:new Set()},QF={busca:'',obra:'',mes:'',antigas:false,semNF:false,ord:'',selModo:false,sel:new Set()};
   // ordem dos cartões dentro de cada coluna (o padrão de cada quadro é a data)
   const selOrd=(atr,v,ops)=>`<select ${atr} title="Ordem dos cartões em cada coluna">${ops.map(([k,r])=>`<option value="${k}" ${v===k?'selected':''}>${r}</option>`).join('')}</select>`;
   const cmpTxt=(a,b)=>String(a||'').localeCompare(String(b||''),'pt-BR',{sensitivity:'base',numeric:true});
@@ -16312,12 +16322,20 @@ const Mascara=(function(){
     w.addEventListener('drop',ev=>{const col=ev.target.closest('.vk-col');if(!col||!arr)return;ev.preventDefault();col.classList.remove('alvo');const id=arr;arr=null;aoSoltar(id,col.dataset.coluna);});
   }
   GS.ligarArraste=ligarArraste;
-  const colunasHtml=(cols,cartao,vazio)=>`<div class="vk-quadro" style="--n:${cols.length};grid-template-columns:repeat(var(--n),minmax(240px,1fr))">${cols.map(({c,itens,total,sub})=>`
+  const colunasHtml=(cols,cartao,vazio)=>`<div class="vk-quadro" style="--n:${cols.length};grid-template-columns:repeat(var(--n),minmax(240px,1fr))">${cols.map(({c,itens,total,sub,topo})=>`
     <section class="vk-col" data-coluna="${c.k}" style="--cor:${c.cor}">
-      <header><span class="vk-col-ico"><i class="fas ${c.ico}"></i></span><div><b>${c.rot}</b><small>${sub!=null?sub:`${itens.length} · ${fmt(total)}`}</small></div></header>
+      <header${topo?' class="vk-col-sel"':''}><span class="vk-col-ico"><i class="fas ${c.ico}"></i></span><div><b>${c.rot}</b><small>${sub!=null?sub:`${itens.length} · ${fmt(total)}`}</small></div>${topo||''}</header>
       <div class="vk-corpo">${itens.map(cartao).join('')||`<p class="vk-vazia">${vazio[c.k]||'—'}</p>`}</div>
     </section>`).join('')}</div>`;
   GS.colunasHtml=colunasHtml;
+  /* modo "Excluir vários" dos quadros: "Marcar a coluna" (no topo) marca os cartões que estão na tela naquela coluna, com
+     os filtros aplicados. pintarMarcaColunas acerta o botão (marcada / em parte), também ao clicar num cartão só. */
+  const marcaColuna=k=>`<button type="button" class="vk-col-marca" data-vk="sel-coluna" data-col="${k}" aria-pressed="false" title="Marca ou desmarca todos os cartões que estão aparecendo nesta coluna"><span class="vk-marca" aria-hidden="true"><i class="fas fa-check"></i></span><span data-rot>Marcar a coluna</span><small data-qtd></small></button>`;
+  function pintarMarcaColunas(box,idsDe,sel){box.querySelectorAll('[data-vk="sel-coluna"]').forEach(b=>{const ids=idsDe(b.dataset.col),n=ids.filter(id=>sel.has(id)).length,tudo=ids.length>0&&n===ids.length;
+    b.classList.toggle('on',tudo);b.classList.toggle('meio',n>0&&!tudo);b.setAttribute('aria-pressed',tudo?'true':'false');b.querySelector('[data-rot]').textContent=tudo?'Desmarcar a coluna':'Marcar a coluna';b.querySelector('[data-qtd]').textContent=ids.length;});}
+  function alternarColuna(ids,sel){const tudo=ids.length>0&&ids.every(id=>sel.has(id));ids.forEach(id=>tudo?sel.delete(id):sel.add(id));}
+  // redesenha o quadro sem perder a rolagem de dentro das colunas
+  function redesenharQuadro(box,redesenhar){const y={};box.querySelectorAll('.vk-col').forEach(c=>{const p=c.querySelector('.vk-corpo');if(p)y[c.dataset.coluna]=p.scrollTop;});redesenhar();box.querySelectorAll('.vk-col').forEach(c=>{const p=c.querySelector('.vk-corpo');if(p&&y[c.dataset.coluna])p.scrollTop=y[c.dataset.coluna];});}
   // impressão da lista filtrada (o que a planilha imprimia)
   function imprimirLista(titulo,sub,cab,linhas,total){
     if(!linhas.length)return toast('Nada para imprimir neste filtro.','error');
@@ -16447,7 +16465,7 @@ const Mascara=(function(){
     // "Previstas" (estimativas lançadas à mão) saiu: a previsão de custo vem do CAP. A coluna só aparece
     // enquanto houver estimativa antiga, para virar conta ("A conta chegou") ou ser excluída.
     const temPrev=todas.some(o=>colConta(o)==='previstas');
-    const cols=COLS_CP.filter(c=>c.k!=='previstas'||temPrev).map(c=>{const itens=visiveis.filter(o=>colConta(o)===c.k).sort(ordemCartoes(f.ord,o=>val(o.total),o=>o.forn||C.limparParc(o.desc))||(f.ord==='rec'?(a,b)=>(+b.rowid||0)-(+a.rowid||0):c.k==='paga'?(a,b)=>String(b.pago).localeCompare(String(a.pago)):ordV));return {c:c.k==='previstas'?{...c,rot:'Estimativas antigas'}:c,itens:agruparCompras(itens),total:S(itens),sub:`${itens.length} ${itens.length===1?'item':'itens'} · ${fmt(S(itens))}`};});
+    const cols=COLS_CP.filter(c=>c.k!=='previstas'||temPrev).map(c=>{const itens=visiveis.filter(o=>colConta(o)===c.k).sort(ordemCartoes(f.ord,o=>val(o.total),o=>o.forn||C.limparParc(o.desc))||(f.ord==='rec'?(a,b)=>(+b.rowid||0)-(+a.rowid||0):c.k==='paga'?(a,b)=>String(b.pago).localeCompare(String(a.pago)):ordV));return {c:c.k==='previstas'?{...c,rot:'Estimativas antigas'}:c,itens:agruparCompras(itens),total:S(itens),sub:`${itens.length} ${itens.length===1?'item':'itens'} · ${fmt(S(itens))}`,topo:f.selModo&&itens.length?marcaColuna(c.k):''};});
     App._vkCompras={};
     App._vkContas=filtradas;
     const filtroAtivo=f.busca||f.obra||f.mes||f.aprovar||f.semForn||f.cat||f.forma||f.ord;
@@ -16479,7 +16497,8 @@ const Mascara=(function(){
   }
   // barra de baixo do modo "Excluir várias": quantas contas, o total e o botão de excluir
   const contasMarcadas=()=>todasContas().filter(o=>QC.sel.has(idC(o)));
-  function pintarSel(box){const bar=box.querySelector('[data-vk-selbar]');if(!bar)return;
+  const idsColunaC=k=>(App._vkVisiveis||[]).filter(o=>colConta(o)===k).map(idC);
+  function pintarSel(box){const bar=box.querySelector('[data-vk-selbar]');if(!bar)return;pintarMarcaColunas(box,idsColunaC,QC.sel);
     const L=contasMarcadas(),n=L.length,tot=L.reduce((s,o)=>s+val(o.total),0);
     bar.innerHTML=`<div class="vk-selbar-txt"><b>${n?`${n} conta${n>1?'s':''} marcada${n>1?'s':''}`:'Clique nos cartões que quer excluir'}</b><span>${n?'total '+fmt(tot):'o cartão de uma compra marca todos os itens dela'}</span></div>
       <div class="vk-selbar-bts"><button type="button" class="gf-bt" data-vk="sel-todas"><i class="fas fa-check-double"></i> Marcar todas da tela</button>${n?'<button type="button" class="gf-bt" data-vk="sel-nenhuma"><i class="fas fa-xmark"></i> Desmarcar</button>':''}
@@ -16526,8 +16545,9 @@ const Mascara=(function(){
         if(a==='nova')return fichaLote();
         if(a==='dup')return verDupContas();
         if(a==='selecionar'){if(QC.selModo)sairSel();else QC.selModo=true;return re();}
-        if(a==='sel-todas'){(App._vkVisiveis||[]).forEach(o=>QC.sel.add(idC(o)));return re();}
-        if(a==='sel-nenhuma'){QC.sel.clear();return re();}
+        if(a==='sel-coluna'){alternarColuna(idsColunaC(b.dataset.col),QC.sel);return redesenharQuadro(box,re);}
+        if(a==='sel-todas'){(App._vkVisiveis||[]).forEach(o=>QC.sel.add(idC(o)));return redesenharQuadro(box,re);}
+        if(a==='sel-nenhuma'){QC.sel.clear();return redesenharQuadro(box,re);}
         if(a==='sel-excluir')return excluirMarcadas();
         if(a==='so-aprovar'){QC.aprovar=!QC.aprovar;return re();}
         if(a==='limpar'){Object.assign(QC,{busca:'',obra:'',mes:'',aprovar:false,semForn:false,ord:'',cat:'',forma:''});return re();}
@@ -17313,10 +17333,10 @@ const Mascara=(function(){
   function fatorLiq(ob){const K=KF(),p=Fa.pctObra(ob,K);return 1-(p.inss+p.irpf+(p.iss||0))/100;}
   const STM={'Em elaboração':['em elaboração',''],'Enviada à fiscalização':['na fiscalização','info']};
   function cartaoFat(x){
-    const K=KF(),cc=COLS_F.find(c=>c.k===x.col),r=x.r;
+    const K=KF(),cc=COLS_F.find(c=>c.k===x.col),r=x.r,ms=marcaSelF(x),arrasta=pode('faturamento')&&!QF.selModo?'true':'false';
     if(x.k==='m'){const d=dt(r.data_aprovacao)||dt(r.data_medicao),parado=x.col==='faturar'&&d?dias(d,hoje0()):0;
-      return `<article class="vk-card" style="--cor:${cc.cor}" draggable="${pode('faturamento')?'true':'false'}" data-card="${x.id}" tabindex="0">
-        <div class="vk-top"><b>Medição nº ${fe(r.numero||'?')}</b>${pill(x.col==='faturar'?'aprovada':(STM[r.status]||[r.status||'medição'])[0],x.col==='faturar'?'ok':(STM[r.status]||['',''])[1],'fa-ruler-combined')}</div>
+      return `<article class="vk-card${ms.cls}"${ms.tit} style="--cor:${cc.cor}" draggable="${arrasta}" data-card="${x.id}" tabindex="0">
+        <div class="vk-top">${ms.html}<b>Medição nº ${fe(r.numero||'?')}</b>${pill(x.col==='faturar'?'aprovada':(STM[r.status]||[r.status||'medição'])[0],x.col==='faturar'?'ok':(STM[r.status]||['',''])[1],'fa-ruler-combined')}</div>
         <div class="vk-obra" title="${fe(x.obra)}"><i class="fas fa-helmet-safety"></i>${fe(x.obra)}</div>
         ${r.periodo_ini||r.periodo_fim?`<div class="vk-sub">período ${r.periodo_ini?brDe(dt(r.periodo_ini)).slice(0,5):'—'} a ${r.periodo_fim?brDe(dt(r.periodo_fim)).slice(0,5):'—'}</div>`:''}
         <div class="vk-val"><span>bruto</span><b>${fmt(x.bruto)}</b></div>
@@ -17325,8 +17345,8 @@ const Mascara=(function(){
         <div class="vk-pe">${x.col==='faturar'?(parado>5?pill(`aprovada há ${parado} dias sem nota`,'err'):pill('emitir a nota','warn','fa-file-pen')):pill(d?'medida em '+brDe(d).slice(0,5):'medição','')}</div>
       </article>`;}
     const venc=Fa.vencF(r,K);
-    return `<article class="vk-card" style="--cor:${cc.cor}" draggable="${pode('faturamento')?'true':'false'}" data-card="${x.id}" tabindex="0">
-      <div class="vk-top"><b>${r[K.nf]?'NF '+fe(r[K.nf]):r.medicao_numero?'Medição nº '+fe(r.medicao_numero):'Faturamento previsto'}</b>${r.medicao_numero&&r[K.nf]?pill('med. '+fe(r.medicao_numero),''):''}</div>
+    return `<article class="vk-card${ms.cls}"${ms.tit} style="--cor:${cc.cor}" draggable="${arrasta}" data-card="${x.id}" tabindex="0">
+      <div class="vk-top">${ms.html}<b>${r[K.nf]?'NF '+fe(r[K.nf]):r.medicao_numero?'Medição nº '+fe(r.medicao_numero):'Faturamento previsto'}</b>${r.medicao_numero&&r[K.nf]?pill('med. '+fe(r.medicao_numero),''):''}</div>
       <div class="vk-obra" title="${fe(x.obra)}"><i class="fas fa-helmet-safety"></i>${fe(x.obra||'—')}</div>
       ${r.antecipada==='sim'?`<div class="vk-sub">${pill('antecipada'+(x.col!=='recebida'&&dt(r.antec_previsto||r[K.rec])?' · previsto '+brDe(dt(r.antec_previsto||r[K.rec])).slice(0,5):''),'info','fa-forward-fast')}</div>`:''}
       <div class="vk-val"><span>bruto ${fmt(x.bruto)}</span><b>${fmt(x.liq)}</b></div>
@@ -17345,11 +17365,11 @@ const Mascara=(function(){
     const aRec=todos.filter(x=>x.col==='receber'),atr=aRec.filter(x=>{const v=Fa.vencF(x.r,K);return v&&v<h;}),em30=aRec.filter(x=>{const v=Fa.vencF(x.r,K);return v&&v>=h&&v<=addD(h,30);});
     const aFat=todos.filter(x=>x.col==='faturar'),parados=aFat.filter(x=>x.k==='m'&&x.data&&dias(x.data,h)>5),recMes=todos.filter(x=>x.col==='recebida'&&isoDe(dt(x.r[K.rec])).slice(0,7)===mesHoje());
     const filtrados=filtrarFat(todos),lim=addD(h,-30),vis=filtrados.filter(x=>x.col!=='recebida'||f.antigas||f.mes||dt(x.r[K.rec])>=lim);
-    const cols=COLS_F.map(c=>{const itens=vis.filter(x=>x.col===c.k).sort(ordemCartoes(f.ord,x=>x.bruto||0,x=>x.obra)||(c.k==='recebida'?(a,b)=>(b.data||0)-(a.data||0):(a,b)=>(a.data||0)-(b.data||0)));const tb=c.k==='medicao'||c.k==='faturar';return {c,itens,total:tb?SB(itens):S(itens),sub:`${itens.length} · ${fmt(tb?SB(itens):S(itens))}${tb?' bruto':''}`};});
-    App._vkFat=filtrados;
+    const cols=COLS_F.map(c=>{const itens=vis.filter(x=>x.col===c.k).sort(ordemCartoes(f.ord,x=>x.bruto||0,x=>x.obra)||(c.k==='recebida'?(a,b)=>(b.data||0)-(a.data||0):(a,b)=>(a.data||0)-(b.data||0)));const tb=c.k==='medicao'||c.k==='faturar';return {c,itens,total:tb?SB(itens):S(itens),sub:`${itens.length} · ${fmt(tb?SB(itens):S(itens))}${tb?' bruto':''}`,topo:f.selModo?topoColF(c.k,itens):''};});
+    App._vkFat=filtrados;App._vkFatVis=vis;
     const filtroAtivo=f.busca||f.obra||f.mes||f.semNF||f.ord;
     box.innerHTML=`<div class="gf">
-      ${cabG('Faturamento e recebimentos','O caminho do dinheiro das obras, ligado às medições: a medição lançada aparece em <b>Medição em andamento</b>; aprovada pela fiscalização, vai para <b>A faturar</b>; ao emitir a nota (arraste ou abra o cartão) ela vira <b>Nota emitida</b>; quando o dinheiro entra, arraste para <b>Recebida</b>. Sem data combinada, o sistema espera o dinheiro no prazo médio que aquela obra costuma pagar (30 dias, enquanto não há histórico).','<button type="button" class="gf-bt" data-vk="imprimir"><i class="fas fa-print"></i> Imprimir</button><button type="button" class="gf-bt" data-vk="exportar"><i class="fas fa-file-excel"></i> Exportar</button>')}
+      ${cabG('Faturamento e recebimentos','O caminho do dinheiro das obras, ligado às medições: a medição lançada aparece em <b>Medição em andamento</b>; aprovada pela fiscalização, vai para <b>A faturar</b>; ao emitir a nota (arraste ou abra o cartão) ela vira <b>Nota emitida</b>; quando o dinheiro entra, arraste para <b>Recebida</b>. Sem data combinada, o sistema espera o dinheiro no prazo médio que aquela obra costuma pagar (30 dias, enquanto não há histórico).','<button type="button" class="gf-bt" data-vk="imprimir"><i class="fas fa-print"></i> Imprimir</button><button type="button" class="gf-bt" data-vk="exportar"><i class="fas fa-file-excel"></i> Exportar</button>'+(pode('faturamento')?`<button type="button" class="gf-bt${f.selModo?' on':''}" data-vk="selecionar" title="Marcar vários lançamentos e excluir todos de uma vez"><i class="fas ${f.selModo?'fa-xmark':'fa-square-check'}"></i> ${f.selModo?'Sair da seleção':'Excluir vários'}</button>`:''))}
       ${parados.length?`<div class="vk-aviso" style="background:#FEF3F2;color:#912018"><i class="fas fa-triangle-exclamation"></i><div><b>${parados.length} medição(ões) aprovada(s) há mais de 5 dias sem nota</b> — ${fmt(SB(parados))} parado. Cada dia sem nota atrasa o recebimento um dia.</div></div>`:''}
       <div class="gf-kpis">
         ${kpiG(atr.length?'vermelho':'verde','fa-triangle-exclamation','Recebimento atrasado',Rk(S(atr)),atr.length?`${atr.length} nota(s) — cobrar a contratante`:'nenhuma nota atrasada')}
@@ -17365,8 +17385,10 @@ const Mascara=(function(){
         <label class="vk-chk"><input type="checkbox" data-vkf="semNF" ${f.semNF?'checked':''}> Nota sem número</label>
         ${filtroAtivo?'<a href="#" class="vk-chk" data-vk="limpar"><i class="fas fa-xmark"></i> Limpar filtros</a>':''}</div>
       ${colunasHtml(cols,cartaoFat,{medicao:'Medições lançadas e ainda não aprovadas aparecem aqui',faturar:'Medição aprovada esperando a nota fiscal',receber:'Notas emitidas aparecem aqui até o dinheiro entrar',recebida:'Arraste para cá a nota que foi paga'})}
+      ${f.selModo?'<div class="vk-selbar" data-vk-selbar></div>':''}
       ${analiseFat(todos)}
     </div>`;
+    pintarSelF(box);
     ligarQuadroFat(box);
   }
   function analiseFat(todos){
@@ -17393,6 +17415,43 @@ const Mascara=(function(){
       </div></div>`;
   }
   const acharF=id=>itensFat().find(x=>x.id===id);
+  /* "Excluir vários" do Faturamento: a mesma regra de cada cartão. Sai por aqui só o que ainda não virou nota: medição
+     (como na tela Medições) e faturamento previsto (como na ficha), de quem lançou ou do Administrador. Nota emitida só
+     sai cancelando a NF (o cancelamento avisa a Receita e tira os anexos) e a recebida, desfazendo o recebimento antes. */
+  const nfsePendF=id=>{if(!id)return null;try{return GS.docs&&GS.docs.emitidasPendentes?GS.docs.emitidasPendentes().find(q=>String(q.medicao_rowid||'')===String(id)):null;}catch(e){return null;}};
+  const travaExcF=x=>{
+    if(x.col==='recebida')return 'Nota recebida não se exclui: abra o cartão, desfaça o recebimento e cancele a NF.';
+    if(x.col==='receber')return 'Nota emitida só sai cancelando: abra o cartão e use "Cancelar NF".';
+    if(nfsePendF(x.k==='m'?x.r.rowid:x.r.medicao_rowid))return 'Esta medição já tem NFS-e emitida: abra o cartão e conclua a nota.';
+    return GS.podeMexer(x.r)?'':GS.MSG_DONO;};
+  const marcaSelF=x=>{if(!QF.selModo)return {cls:'',html:'',tit:''};const t=travaExcF(x);
+    if(t)return {cls:' vk-sel vk-trava',html:'<span class="vk-marca" aria-hidden="true"><i class="fas fa-lock"></i></span>',tit:` title="${fe(t)}"`};
+    return {cls:QF.sel.has(x.id)?' vk-sel on':' vk-sel',html:'<span class="vk-marca" aria-hidden="true"><i class="fas fa-check"></i></span>',tit:''};};
+  const idsColunaF=k=>(App._vkFatVis||[]).filter(x=>x.col===k&&!travaExcF(x)).map(x=>x.id);
+  const topoColF=(k,itens)=>itens.some(x=>!travaExcF(x))?marcaColuna(k):itens.length&&(k==='receber'||k==='recebida')?`<span class="vk-col-trava"><i class="fas fa-lock"></i> ${k==='receber'?'Nota emitida só sai cancelando a NF':'Nota recebida não se exclui por aqui'}</span>`:'';
+  const marcadasF=()=>itensFat().filter(x=>QF.sel.has(x.id));
+  const sairSelF=()=>{QF.sel.clear();QF.selModo=false;};
+  function pintarSelF(box){const bar=box.querySelector('[data-vk-selbar]');if(!bar)return;pintarMarcaColunas(box,idsColunaF,QF.sel);
+    const L=marcadasF(),n=L.length,tot=L.reduce((s,x)=>s+x.bruto,0);
+    bar.innerHTML=`<div class="vk-selbar-txt"><b>${n?`${n} lançamento${n>1?'s':''} marcado${n>1?'s':''}`:'Clique nos cartões que quer excluir'}</b><span>${n?'total bruto '+fmt(tot):'nota emitida ou recebida não entra: só sai cancelando a NF'}</span></div>
+      <div class="vk-selbar-bts"><button type="button" class="gf-bt" data-vk="sel-todas"><i class="fas fa-check-double"></i> Marcar tudo da tela</button>${n?'<button type="button" class="gf-bt" data-vk="sel-nenhuma"><i class="fas fa-xmark"></i> Desmarcar</button>':''}
+        <button type="button" class="gf-bt vk-excluir" data-vk="sel-excluir" ${n?'':'disabled'}><i class="fas fa-trash"></i> Excluir os marcados${n?` (${n})`:''}</button></div>`;}
+  function alternarSelF(box,c){const x=acharF(c.dataset.card);if(!x)return;const t=travaExcF(x);if(t)return toast(t,'error');
+    const on=!QF.sel.has(x.id);if(on)QF.sel.add(x.id);else QF.sel.delete(x.id);c.classList.toggle('on',on);pintarSelF(box);}
+  function excluirMarcadasF(){
+    const L=marcadasF(),ok=L.filter(x=>!travaExcF(x)),fora=L.length-ok.length;
+    if(!ok.length)return toast('Nenhum dos lançamentos marcados pode ser excluído por você.','error');
+    const tot=ok.reduce((s,x)=>s+x.bruto,0),meds=ok.filter(x=>x.k==='m'),ligadas=ok.filter(x=>x.k==='f'&&x.r.medicao_rowid),idsM=new Set(meds.map(x=>String(x.r.rowid)));
+    // a mesma conta da tela Medições: a medição lançada depois de uma que sai perde esse valor no acumulado anterior
+    const depois=(D().medicoes||[]).filter(m=>!idsM.has(String(m.rowid))&&meds.some(x=>x.obra===m.titulo_obra&&(+m.numero||0)>(+x.r.numero||0))).length;
+    const nome=x=>x.k==='m'?`Medição nº ${fe(x.r.numero||'?')}`:x.r.medicao_numero?`Faturamento da medição nº ${fe(x.r.medicao_numero)}`:'Faturamento previsto';
+    confirmar('Excluir os lançamentos marcados',`<b>${ok.length} lançamento${ok.length>1?'s':''}</b> · ${fmt(tot)} bruto ${ok.length>1?'serão excluídos':'será excluído'} de vez:<ul class="vk-exc-lista">${ok.slice(0,8).map(x=>`<li>${nome(x)} · ${fe(x.obra||'—')}<b>${fmt(x.bruto)}</b></li>`).join('')}${ok.length>8?`<li>+ ${ok.length-8} lançamento(s)</li>`:''}</ul>
+      ${fora?`<small>${fora} ${fora>1?'ficam':'fica'} de fora (nota emitida ou lançamento de outra pessoa).</small><br>`:''}${ligadas.length?`<small>${ligadas.length>1?`${ligadas.length} vieram de medições: elas voltam`:'1 veio de uma medição: ela volta'} para "A faturar".</small><br>`:''}${depois?`<small>⚠ ${depois>1?`Existem ${depois} medições`:'Existe 1 medição'} depois das que serão excluídas, na mesma obra: o acumulado anterior ${depois>1?'delas':'dela'} vai diminuir.</small>`:''}`,
+      `Sim, excluir ${ok.length}`,async()=>{sairSelF();await executar(async()=>{for(const x of ok){
+        if(x.k==='m'){await excluir('Medições',x.r.rowid);continue;}
+        await excluir('Faturamentos',x.r.rowid);const m=x.r.medicao_rowid&&(D().medicoes||[]).find(y=>String(y.rowid)===String(x.r.medicao_rowid));if(m)await salvar('Medições',{...copiaF(m),status:'Aprovada',faturado_em:''},m.rowid);}});
+        toast(`${ok.length} lançamento${ok.length>1?'s excluídos':' excluído'}.`,'success');});
+  }
   function ligarQuadroFat(box){
     const re=()=>renderQuadroFat();
     box.oninput=ev=>{const t=ev.target.closest('[data-vkf="busca"]');if(t){QF.busca=t.value;clearTimeout(QF._t);QF._t=setTimeout(()=>{re();const i=document.querySelector('#gs-faturamento-q [data-vkf="busca"]');if(i){i.focus();i.setSelectionRange(i.value.length,i.value.length);}},280);}};
@@ -17400,13 +17459,18 @@ const Mascara=(function(){
     box.onclick=ev=>{
       const b=ev.target.closest('[data-vk]');if(b){ev.preventDefault();const a=b.dataset.vk;
         if(a==='medicao'){Eng._ME.edit=null;if(QF.obra)Eng._ME.obra=QF.obra;return UI.nav('medicoes');}
+        if(a==='selecionar'){if(QF.selModo)sairSelF();else QF.selModo=true;return re();}
+        if(a==='sel-coluna'){alternarColuna(idsColunaF(b.dataset.col),QF.sel);return redesenharQuadro(box,re);}
+        if(a==='sel-todas'){(App._vkFatVis||[]).filter(x=>!travaExcF(x)).forEach(x=>QF.sel.add(x.id));return redesenharQuadro(box,re);}
+        if(a==='sel-nenhuma'){QF.sel.clear();return redesenharQuadro(box,re);}
+        if(a==='sel-excluir')return excluirMarcadasF();
         if(a==='limpar'){Object.assign(QF,{busca:'',obra:'',mes:'',semNF:false,ord:''});return re();}
         if(a==='exportar')return exportarFat();
         if(a==='imprimir')return imprimirFat();
         return;}
-      const c=ev.target.closest('[data-card]');if(c){const x=acharF(c.dataset.card);if(x)(x.k==='m'?fichaMedicao(x):fichaNota(x.r));}
+      const c=ev.target.closest('[data-card]');if(c){if(QF.selModo)return alternarSelF(box,c);const x=acharF(c.dataset.card);if(x)(x.k==='m'?fichaMedicao(x):fichaNota(x.r));}
     };
-    box.onkeydown=ev=>{if(ev.key!=='Enter')return;const c=ev.target.closest('[data-card]');if(c){const x=acharF(c.dataset.card);if(x)(x.k==='m'?fichaMedicao(x):fichaNota(x.r));}};
+    box.onkeydown=ev=>{if(ev.key!=='Enter')return;const c=ev.target.closest('[data-card]');if(c){if(QF.selModo)return alternarSelF(box,c);const x=acharF(c.dataset.card);if(x)(x.k==='m'?fichaMedicao(x):fichaNota(x.r));}};
     if(!box._arraste){box._arraste=1;ligarArraste(box,(id,col)=>{const x=acharF(id);if(!x)return;const de=x.col;if(de===col)return;
       if(!pode('faturamento'))return toast('Seu perfil não mexe no faturamento.','error');
       if(x.k==='m'){
@@ -21407,6 +21471,12 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
 .so2-ac{display:flex;gap:4px;justify-content:flex-end;}
 .so2-filtros{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0;}
 .so2-filtros select{border:1px solid #D0D5DD;border-radius:10px;padding:7px 10px;font:600 12.5px Inter,sans-serif;background:#fff;}
+/* "Excluir vários" do livro dos sócios: a linha inteira marca; a barra de baixo é a mesma dos quadros */
+.so2-lin{cursor:pointer;} .so2-lin:hover td{background:#FFFBFA;} .so2-lin:hover .vk-marca{border-color:#D92D20;} .so2-lin:focus-visible{outline:2px solid #84ADFF;outline-offset:-2px;}
+.so2-lin.on td{background:#FEF3F2;} .so2-lin.on .vk-marca{background:#D92D20;border-color:#D92D20;color:#fff;}
+.so2-lin.trava{cursor:not-allowed;} .so2-lin.trava td{opacity:.6;background:transparent;} .so2-lin.trava .vk-marca{background:#F2F4F7;border-color:#E4E7EC;color:#98A2B3;}
+.so2-dt-sel{display:flex;align-items:center;gap:9px;}
+@media (max-width:560px){.vk-selbar [data-so2="sel-tipo"]{display:none;}}
 .idle-ov{position:fixed;inset:0;z-index:2147483000;background:rgba(16,24,40,.55);display:none;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(3px);}
 .idle-ov.open{display:flex;}
 .idle-box{background:#fff;border-radius:20px;max-width:420px;width:100%;padding:24px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.25);}
@@ -22925,7 +22995,7 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
   };
 
   /* ═══════════════ SÓCIOS E INVESTIMENTOS: aportes entram, retiradas e devoluções saem ═══════════════ */
-  const SO2={aba:'mov',obra:'',quem:'',tipo:'',ano:''};
+  const SO2={aba:'mov',obra:'',quem:'',tipo:'',ano:'',selModo:false,sel:new Set()};
   const kAp=(cands,fb)=>{const m=(D().metadata&&D().metadata.aportes)||[];return cands.map(c=>m.find(k=>k===c)).find(Boolean)||cands.map(c=>m.find(k=>k.includes(c))).find(Boolean)||fb;};
   const KAp=()=>({obra:kAp(['titulo_obra'],'titulo_obra'),quem:kAp(['quem_aportou','quem'],'quem_aportou'),data:kAp(['data_aporte'],'data_aporte'),valor:kAp(['valor_aportado','valor_aporte','valor'],'valor_aportado'),obs:kAp(['observacao','observ','obs'],'observacao'),lanc:kAp(['data_lancamento','lancamento'],'data_lancamento')});
   const ehSaida=r=>{const K=KAp();return /retir|devolu/i.test(r.movimento||'')||val(r[K.valor])<0;};
@@ -23041,6 +23111,33 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
       excluir:y=>excluir('Aportes financeiros',y.x.r.rowid),
       marcar:async(itens,sig)=>{for(const y of itens)await salvar('Aportes financeiros',{...limpo(y.x.r),dup_ok:sig},y.x.r.rowid);}});
   }
+  /* "Excluir vários" do livro dos sócios: a mesma regra do Excluir de cada linha (quem lançou ou o Administrador).
+     As retiradas antigas, lançadas em Contas a pagar, são excluídas lá. */
+  const travaSo=x=>x.fonte!=='ap'?'Esta retirada foi lançada em Contas a pagar: exclua por lá.':pode('socios')&&GS.podeMexer(x.r)?'':GS.MSG_DONO;
+  const idSo=x=>String(x.r.rowid);
+  const marcadosSo=()=>(App._so2Todos||[]).filter(x=>x.fonte==='ap'&&SO2.sel.has(idSo(x)));
+  // o que está na tela e pode ser marcado (a caixa "Filtrar nesta tabela" esconde linhas sem redesenhar)
+  const linhasSo=box=>[...box.querySelectorAll('tr[data-so2-lin]')].filter(tr=>!tr.hidden).map(tr=>App._so2[+tr.dataset.so2Lin]).filter(x=>x&&!travaSo(x));
+  const TIPOS_SEL=[['Aporte','os aportes'],['Retirada','as retiradas'],['Devolução de aporte','as devoluções']];
+  function pintarSelSo(box){const bar=box.querySelector('[data-so2-selbar]');if(!bar)return;
+    box.querySelectorAll('tr[data-so2-lin]').forEach(tr=>{const x=App._so2[+tr.dataset.so2Lin],on=!!x&&x.fonte==='ap'&&SO2.sel.has(idSo(x));tr.classList.toggle('on',on);tr.setAttribute('aria-selected',on?'true':'false');});
+    const L=marcadosSo(),n=L.length,S=a=>a.reduce((s,x)=>s+x.valor,0),ent=S(L.filter(x=>!x.sai)),sai=S(L.filter(x=>x.sai));
+    const vis=linhasSo(box),tipos=TIPOS_SEL.map(([t,r])=>({t,r,ids:vis.filter(x=>x.tipo===t).map(idSo)})).filter(z=>z.ids.length);
+    bar.innerHTML=`<div class="vk-selbar-txt"><b>${n?`${n} lançamento${n>1?'s':''} marcado${n>1?'s':''}`:'Clique nas linhas que quer excluir'}</b><span>${n?[ent?'entradas '+fmt(ent):'',sai?'saídas '+fmt(sai):''].filter(Boolean).join(' · '):'ou use os botões para marcar de uma vez'}</span></div>
+      <div class="vk-selbar-bts">${tipos.length>1?tipos.map(z=>{const tudo=z.ids.every(id=>SO2.sel.has(id));return `<button type="button" class="gf-bt${tudo?' on':''}" data-so2="sel-tipo" data-tipo="${fe(z.t)}"><i class="fas ${tudo?'fa-xmark':'fa-check'}"></i> ${tudo?'Desmarcar':'Marcar'} ${z.r} (${z.ids.length})</button>`;}).join(''):''}<button type="button" class="gf-bt" data-so2="sel-todos"><i class="fas fa-check-double"></i> Marcar todos da tela</button>${n?'<button type="button" class="gf-bt" data-so2="sel-nenhum"><i class="fas fa-xmark"></i> Desmarcar</button>':''}
+        <button type="button" class="gf-bt vk-excluir" data-so2="sel-excluir" ${n?'':'disabled'}><i class="fas fa-trash"></i> Excluir os marcados${n?` (${n})`:''}</button></div>`;}
+  function alternarSelSo(box,tr){const x=App._so2[+tr.dataset.so2Lin];if(!x)return;const t=travaSo(x);if(t)return toast(t,'error');
+    const id=idSo(x);if(SO2.sel.has(id))SO2.sel.delete(id);else SO2.sel.add(id);pintarSelSo(box);}
+  function excluirMarcadosSo(){
+    const L=marcadosSo(),ok=L.filter(x=>!travaSo(x)),fora=L.length-ok.length;
+    if(!ok.length)return toast('Nenhum dos lançamentos marcados pode ser excluído por você. '+GS.MSG_DONO,'error');
+    const ids=new Set(ok.map(idSo)),T=App._so2Todos||[],S=a=>a.reduce((s,x)=>s+x.valor,0),ent=S(ok.filter(x=>!x.sai)),sai=S(ok.filter(x=>x.sai));
+    // aporte que tem devolução lançada e não marcada: a devolução continua no livro, sem o aporte de origem
+    const comDev=ok.filter(x=>!x.sai&&T.some(y=>y.dev&&y.fonte==='ap'&&String(y.ref)===idSo(x)&&!ids.has(idSo(y)))).length,conc=ok.filter(x=>x.r.conciliacao).length,rat=ok.filter(x=>x.rateio).length;
+    confirmar('Excluir os lançamentos marcados',`<b>${ok.length} lançamento${ok.length>1?'s':''}</b> ${ok.length>1?'serão excluídos':'será excluído'} de vez${[ent?'entradas '+fmt(ent):'',sai?'saídas '+fmt(sai):''].filter(Boolean).length?' ('+[ent?'entradas '+fmt(ent):'',sai?'saídas '+fmt(sai):''].filter(Boolean).join(' · ')+')':''}:<ul class="vk-exc-lista">${ok.slice(0,8).map(x=>`<li>${fe(x.dev?'Devolução':x.tipo)} · ${fe(x.quem)} · ${fe(x.obra)}<b>${fmt(x.valor)}</b></li>`).join('')}${ok.length>8?`<li>+ ${ok.length-8} lançamento(s)</li>`:''}</ul>
+      ${fora?`<small>${fora} ${fora>1?'ficam':'fica'} de fora (lançado${fora>1?'s':''} por outra pessoa — só um Administrador exclui).</small><br>`:''}${comDev?`<small>⚠ ${comDev>1?`${comDev} aportes têm devolução lançada`:'1 aporte tem devolução lançada'} que não foi marcada: a devolução continua no livro, sem o aporte de origem.</small><br>`:''}${conc?`<small>${conc} ${conc>1?'estão ligados':'está ligado'} ao extrato do banco: ${conc>1?'essas linhas voltam':'essa linha volta'} para a conferência na Conciliação.</small><br>`:''}${rat?`<small>${rat} ${rat>1?'são partes':'é parte'} de rateio: as outras partes (nas outras obras) continuam.</small>`:''}`,
+      `Sim, excluir ${ok.length}`,async()=>{SO2.sel.clear();SO2.selModo=false;await executar(async()=>{for(const x of ok)await excluir('Aportes financeiros',x.r.rowid);});toast(`${ok.length} lançamento${ok.length>1?'s excluídos':' excluído'}.`,'success');});
+  }
   GS.renderSocios=function(){
     const box=document.getElementById('gs-socios');if(!box)return;
     const L=livro(),h=hoje0(),ms=Fin.movimentos();
@@ -23059,17 +23156,18 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
           <select data-so2f="quem"><option value="">Todos os sócios</option>${[...new Set(L.map(x=>x.quem))].map(q=>`<option ${f.quem===q?'selected':''}>${fe(q)}</option>`).join('')}</select>
           <select data-so2f="tipo"><option value="">Entradas e saídas</option>${['Aporte','Retirada','Devolução de aporte'].map(t=>`<option ${f.tipo===t?'selected':''}>${t}</option>`).join('')}</select>
           <select data-so2f="ano"><option value="">Todos os anos</option>${anos.map(a=>`<option ${f.ano===String(a)?'selected':''}>${a}</option>`).join('')}</select>
-          ${podeEd?(()=>{const n=GS.dup.grupos(itensDupSocios()).length;return `<button type="button" class="gf-bt mini${n?' dup-on':''}" data-so2="dup" title="Procura lançamentos em dobro (mesmo sócio, obra e valor em datas próximas)"><i class="fas fa-clone"></i> Verificar duplicados${n?` <b class="vk-badge">${n}</b>`:''}</button>`;})():''}</div>
+          ${podeEd?(()=>{const n=GS.dup.grupos(itensDupSocios()).length;return `<button type="button" class="gf-bt mini${n?' dup-on':''}" data-so2="dup" title="Procura lançamentos em dobro (mesmo sócio, obra e valor em datas próximas)"><i class="fas fa-clone"></i> Verificar duplicados${n?` <b class="vk-badge">${n}</b>`:''}</button>`;})():''}${podeEd?`<button type="button" class="gf-bt mini${f.selModo?' on':''}" data-so2="selecionar" title="Marcar vários lançamentos e excluir todos de uma vez"><i class="fas ${f.selModo?'fa-xmark':'fa-square-check'}"></i> ${f.selModo?'Sair da seleção':'Excluir vários'}</button>`:''}</div>
         ${vis.length?`<div class="gf-rolar"><table class="so2-tab so2-mov"><thead><tr><th>Data / período</th><th>Movimento</th><th>Sócio · obra</th><th style="text-align:right">Valor</th><th style="text-align:right">Devolvido ao sócio</th><th>Observação</th><th></th></tr></thead><tbody>
           ${vis.map((x,i)=>{const sd=!x.sai&&x.fonte==='ap'?saldoAporte(x,L):0,per=x.ini&&x.fim&&isoDe(x.ini)!==isoDe(x.fim)?`${brDe(x.ini).slice(0,5)} a<br>${brDe(x.fim)}`:x.data?brDe(x.data):'—';
             const sit=x.sai||x.fonte!=='ap'?'':sd<=0.004?'<span class="so2-sit ok">devolvido</span>':sd<x.valor-0.004?`<span class="so2-sit parc">falta ${fmt(sd)}</span>`:'';
-            return `<tr><td class="so2-dt" data-ord-valor="${x.data?brDe(x.data):''}">${per}</td>
+            const trav=f.selModo?travaSo(x):'';
+            return `<tr${f.selModo?` class="so2-lin${trav?' trava':''}" data-so2-lin="${i}" tabindex="0"${trav?` title="${fe(trav)}"`:''}`:''}><td class="so2-dt" data-ord-valor="${x.data?brDe(x.data):''}">${f.selModo?`<div class="so2-dt-sel"><span class="vk-marca" aria-hidden="true"><i class="fas ${trav?'fa-lock':'fa-check'}"></i></span><span>${per}</span></div>`:per}</td>
             <td><span class="so2-tipo ${!x.sai?'ent':x.dev?'dev':'sai'}"><i class="fas ${!x.sai?'fa-arrow-down':'fa-arrow-up'}"></i> ${x.dev?'Devolução':x.tipo}</span>${x.forma?`<small class="so2-l2">${fe(x.forma)}</small>`:''}</td>
             <td class="so2-quem"><b>${fe(x.quem)}</b><small class="so2-l2" title="${fe(x.obra)}">${fe(x.obra)}${x.rateio?' <span class="so2-mini">rateio</span>':''}</small></td>
             <td class="num ${x.sai?'sai':'ent'}" data-ord-valor="${x.sai?'-':''}${x.valor.toFixed(2).replace('.',',')}">${x.sai?'−':'+'} ${fmt(x.valor)}</td>
             <td class="num" data-ord-valor="${!x.sai&&x.fonte==='ap'?(x.valor-sd).toFixed(2).replace('.',','):''}">${!x.sai&&x.fonte==='ap'?`${x.valor-sd>0.004?fmt(x.valor-sd):'—'}${sit?`<div>${sit}</div>`:''}`:''}</td>
             <td class="so2-obs"><div title="${fe(x.obs)}">${fe(x.obs)}</div></td>
-            <td><div class="so2-ac">${x.fonte==='ap'&&podeEd&&GS.podeMexer(x.r)?`${!x.sai&&sd>0.004?`<button type="button" class="so2-ic dev" data-so2="devolver" data-i="${i}" title="Devolver este aporte (todo ou uma parte)" aria-label="Devolver"><i class="fas fa-rotate-left"></i></button>`:''}<button type="button" class="so2-ic" data-so2="editar" data-i="${i}" title="Editar" aria-label="Editar"><i class="fas fa-pen"></i></button><button type="button" class="so2-ic err" data-so2="excluir" data-i="${i}" title="Excluir" aria-label="Excluir"><i class="fas fa-trash"></i></button>`:x.fonte==='cp'?'<span class="gf-pill" title="Lançada em Contas a pagar">contas</span>':''}</div></td></tr>`;}).join('')}
+            <td><div class="so2-ac">${f.selModo?'':x.fonte==='ap'&&podeEd&&GS.podeMexer(x.r)?`${!x.sai&&sd>0.004?`<button type="button" class="so2-ic dev" data-so2="devolver" data-i="${i}" title="Devolver este aporte (todo ou uma parte)" aria-label="Devolver"><i class="fas fa-rotate-left"></i></button>`:''}<button type="button" class="so2-ic" data-so2="editar" data-i="${i}" title="Editar" aria-label="Editar"><i class="fas fa-pen"></i></button><button type="button" class="so2-ic err" data-so2="excluir" data-i="${i}" title="Excluir" aria-label="Excluir"><i class="fas fa-trash"></i></button>`:x.fonte==='cp'?'<span class="gf-pill" title="Lançada em Contas a pagar">contas</span>':''}</div></td></tr>`;}).join('')}
           </tbody><tfoot><tr><td colspan="3" style="font-weight:800">Saldo do filtro</td><td class="num">${fmt(S(vis.filter(x=>!x.sai))-S(vis.filter(x=>x.sai)))}</td><td class="num">${fmt(S(vis.filter(x=>x.dev)))}</td><td colspan="2" style="color:#667085;font-size:12px">entradas ${fmt(S(vis.filter(x=>!x.sai)))} · saídas ${fmt(S(vis.filter(x=>x.sai)))}</td></tr></tfoot></table></div>`:'<div class="gf-vazio"><i class="fas fa-piggy-bank"></i><p>Nenhum lançamento neste filtro.</p></div>'}</div>`;
     }else if(f.aba==='socio'){
       const g={};L.forEach(x=>{const k=x.quem;(g[k]=g[k]||{ap:0,ret:0,dev:0});if(!x.sai)g[k].ap+=x.valor;else if(x.dev)g[k].dev+=x.valor;else g[k].ret+=x.valor;});
@@ -23080,7 +23178,7 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
       const lin=obras.map(ob=>{const mo=ms.filter(m=>m.origem===ob&&m.tipo!=='despesa'&&m.tipo!=='aporte'&&m.tipo!=='retirada'),ap=S(L.filter(x=>x.obra===ob&&!x.sai)),sa=S(L.filter(x=>x.obra===ob&&x.sai));const rc=mo.filter(m=>m.tipo==='fat'&&m.pago).reduce((s,m)=>s+m.valor,0),pg=mo.filter(m=>m.sent<0&&m.pago).reduce((s,m)=>s+m.valor,0);return {ob,ap,sa,rc,pg,cx:rc-pg};}).filter(x=>x.ap||x.sa||x.rc||x.pg).sort((a,b)=>a.cx-b.cx);
       corpo=`<div class="gf-sec"><div class="gf-sec-cab"><div><h3>Por obra</h3><p>O que os sócios colocaram e tiraram por obra, ao lado do caixa que a obra já gerou (recebido − pago).</p></div></div>${lin.length?`<div class="gf-rolar"><table class="so2-tab"><thead><tr><th>Obra</th><th style="text-align:right">Aportes</th><th style="text-align:right">Retiradas e devoluções</th><th style="text-align:right">Recebido</th><th style="text-align:right">Pago</th><th style="text-align:right">Caixa da obra</th></tr></thead><tbody>${lin.map(x=>`<tr><td><b>${fe(x.ob)}</b></td><td class="num ent">${fmt(x.ap)}</td><td class="num sai">${fmt(x.sa)}</td><td class="num">${fmt(x.rc)}</td><td class="num">${fmt(x.pg)}</td><td class="num ${x.cx<0?'sai':'ent'}">${fmt(x.cx)}</td></tr>`).join('')}</tbody></table></div>`:'<div class="gf-vazio"><i class="fas fa-helmet-safety"></i><p>Sem movimento nas obras.</p></div>'}</div>`;
     }
-    App._so2=vis;
+    App._so2=vis;App._so2Todos=L;
     box.innerHTML=`<div class="gf">
       ${cabG('Sócios e investimentos','Um livro só para o dinheiro dos sócios: <b>aportes</b> entram no caixa; <b>retiradas</b> (pró-labore, lucro) e <b>devoluções de aporte</b> saem — sem passar por Contas a pagar. Cada lançamento leva a obra de referência.',abas)}
       <div class="gf-kpis">
@@ -23088,10 +23186,16 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
         ${kpiG('laranja','fa-rotate-left','Devolvido aos sócios',Rk(devol),capital?`${Math.round(devol/capital*100)}% do capital · falta ${Rk(Math.max(0,capital-devol))}`:'')}
         ${kpiG('vermelho','fa-arrow-up','Retiradas',Rk(retir),'pró-labore e distribuição de lucro')}
         ${kpiG(gerado<0?'vermelho':'','fa-wallet','Caixa gerado pela operação',Rk(gerado),`recebido ${Rk(recebido)} − pago ${Rk(pagoOp)}`)}
-      </div>${corpo}</div>`;
+      </div>${corpo}${f.selModo&&f.aba==='mov'?'<div class="vk-selbar" data-so2-selbar></div>':''}</div>`;
+    pintarSelSo(box);
     box.onclick=ev=>{
-      const a=ev.target.closest('[data-so2-aba]');if(a){SO2.aba=a.dataset.so2Aba;return GS.renderSocios();}
-      const b=ev.target.closest('[data-so2]');if(!b)return;const ac=b.dataset.so2,x=App._so2[+b.dataset.i];
+      const a=ev.target.closest('[data-so2-aba]');if(a){SO2.aba=a.dataset.so2Aba;SO2.selModo=false;SO2.sel.clear();return GS.renderSocios();}
+      const b=ev.target.closest('[data-so2]');if(!b){const l=SO2.selModo&&ev.target.closest('[data-so2-lin]');if(l)alternarSelSo(box,l);return;}const ac=b.dataset.so2,x=App._so2[+b.dataset.i];
+      if(ac==='selecionar'){SO2.selModo=!SO2.selModo;SO2.sel.clear();return GS.renderSocios();}
+      if(ac==='sel-todos'){linhasSo(box).forEach(y=>SO2.sel.add(idSo(y)));return pintarSelSo(box);}
+      if(ac==='sel-tipo'){const ids=linhasSo(box).filter(y=>y.tipo===b.dataset.tipo).map(idSo),tudo=ids.every(id=>SO2.sel.has(id));ids.forEach(id=>tudo?SO2.sel.delete(id):SO2.sel.add(id));return pintarSelSo(box);}
+      if(ac==='sel-nenhum'){SO2.sel.clear();return pintarSelSo(box);}
+      if(ac==='sel-excluir')return excluirMarcadosSo();
       if(ac==='aporte')return editarMov(null,'Aporte');if(ac==='retirada')return editarMov(null,'Retirada');if(ac==='devolucao')return editarMov(null,'Devolução de aporte');if(ac==='agrupar')return unificarAportes();if(ac==='dup')return verDupSocios();
       if(ac==='devolver'&&x)return editarMov(null,'Devolução de aporte',x);
       if((ac==='editar'||ac==='excluir')&&x&&!GS.podeMexer(x.r))return toast(GS.MSG_DONO,'error');
@@ -23099,6 +23203,9 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
       if(ac==='excluir'&&x)return confirmar('Excluir lançamento',`${x.tipo} de <b>${fe(x.quem)}</b> · ${fmt(x.valor)} · ${x.data?brDe(x.data):''} será excluído de vez.`,'Sim, excluir',async()=>{await executar(()=>excluir('Aportes financeiros',x.r.rowid));toast('Lançamento excluído.','success');});
     };
     box.onchange=ev=>{const s=ev.target.closest('[data-so2f]');if(!s)return;SO2[s.dataset.so2f]=s.value;GS.renderSocios();};
+    box.onkeydown=ev=>{if(ev.key!=='Enter'&&ev.key!==' ')return;const l=SO2.selModo&&ev.target.closest('[data-so2-lin]');if(l&&ev.target===l){ev.preventDefault();alternarSelSo(box,l);}};
+    // a caixa "Filtrar nesta tabela" esconde linhas: os contadores da barra acompanham
+    box.oninput=ev=>{if(SO2.selModo&&ev.target.closest('.tb-filtro'))pintarSelSo(box);};
   };
 
   /* ═══════════════ INATIVIDADE: avisa 1 minuto antes e fecha tudo junto ═══════════════ */
