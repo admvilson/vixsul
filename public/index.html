@@ -11379,7 +11379,7 @@ const Fin=(function(){
       else if(p.st==='feito')alvo=`<span>${fe(p.nota)}</span>`;
       const marcavel=['ok','confira','vincular'].includes(p.st),selSem=p.st==='sem';
       const bt=(acao,txt,cls)=>`<button type="button" class="fin-bt mini ${cls||''}" data-cc="${acao}" data-i="${i}">${txt}</button>`;
-      const acoes=p.st==='sem'?(p.t.valor<0?bt('escolher','Associar à conta')+bt('conta','Lançar em Contas a pagar')+bt('retirada','Retirada do lucro / pró-labore')+bt('ignorar','Ignorar')
+      const acoes=p.st==='sem'?(p.t.valor<0?bt('escolher','Associar à conta')+bt('conta','Registrar saída')+bt('lucro','Retirada do lucro')+bt('prolabore','Pagamento de pró-labore')+bt('ignorar','Ignorar')
           :bt('receber','Registrar recebimento')+bt('aporte','É aporte')+bt('ignorar','Ignorar'))
         :p.st==='feito'?bt('desfazer','Desfazer'):p.st==='ignorado'?bt('voltar','Voltar para a conferência'):'';
       return `<tr><td>${marcavel?`<input type="checkbox" data-cc-marca="${i}" ${CONC.marcados.has(p.t.id)?'checked':''}>`:selSem?`<input type="checkbox" data-cc-sem="${i}" title="Selecionar esta linha" ${CONC.selSem.has(p.t.id)?'checked':''}>`:''}</td>
@@ -11401,7 +11401,7 @@ const Fin=(function(){
       <div class="fin-kpis">
         <div class="fin-kpi"><small>Lançamentos no extrato${F.cartao?` · cartão ${fe(F.cartao)}`:''}</small><b>${itensC.length}</b><span>entrou ${fmt(ent)} · saiu ${fmt(sai)}</span></div>
         <div class="fin-kpi verde"><small>Encontrados sozinhos</small><b>${cont('ok')+cont('vincular')}</b><span>${cont('confira')} para conferir antes</span></div>
-        <div class="fin-kpi ${cont('sem')?'vermelho':'verde'}"><small>Sem correspondência</small><b>${cont('sem')}</b><span>associe, lance ou ignore</span></div>
+        <div class="fin-kpi ${cont('sem')?'vermelho':'verde'}"><small>Sem correspondência</small><b>${cont('sem')}</b><span>associe, registre ou ignore</span></div>
         <div class="fin-kpi cinza"><small>Já conciliados</small><b>${cont('feito')}</b><span>${cont('ignorado')} ignorado${cont('ignorado')!==1?'s':''}</span></div>
       </div>
       ${conf.length?`<div class="cc-conf"><div class="cc-conf-cab"><b><i class="fas fa-scale-balanced"></i> Conferência com a fatura</b><small>soma de todas as linhas do cartão (em qualquer bloco abaixo) × total impresso no PDF</small></div><ul>${conf.map(x=>{const ok=x.dif!=null&&Math.abs(x.dif)<0.01,ruim=x.dif!=null&&!ok;
@@ -11417,7 +11417,7 @@ const Fin=(function(){
       ${bloco(ehSai?'Prontos para dar baixa':'Prontos para receber',`Valor idêntico e data batendo com ${ehSai?'um lançamento só':'uma nota emitida só'} — já vêm marcados.`,g.ok,'ok','ok')}
       ${bloco('Confira antes','Valor IDÊNTICO, mas com mais de um lançamento possível ou data distante. Escolha o certo na lista e marque.',g.confira,'warn','confira')}
       ${bloco('Já estavam baixados — só ligar ao extrato','O sistema já tinha o pagamento/recebimento; marcar liga a linha do banco para ela não aparecer de novo.',g.vincular,'info','vincular')}
-      ${bloco('Sem correspondência',ehSai?'Não há conta em aberto com esse valor exato. Associe a uma conta, lance o que faltou, registre a retirada do lucro ou o pró-labore, ou ignore (tarifa, transferência entre contas, aplicação…).':'Não há nota a receber com esse valor exato. Registre o recebimento na nota emitida, marque como aporte ou ignore (transferência entre contas, aplicação…).',g.sem,'err','sem')}
+      ${bloco('Sem correspondência',ehSai?'Não há conta em aberto com esse valor exato. Associe a uma conta, registre a saída, a retirada do lucro ou o pagamento de pró-labore, ou ignore (tarifa, transferência entre contas, aplicação…).':'Não há nota a receber com esse valor exato. Registre o recebimento na nota emitida, marque como aporte ou ignore (transferência entre contas, aplicação…).',g.sem,'err','sem')}
       ${bloco('Já conciliados','Baixados ou ligados em importações anteriores deste mesmo extrato.',g.feito,'cinza')}
       ${bloco('Ignorados','Linhas que você marcou para ignorar (ficam guardadas neste computador).',g.ignorado,'cinza')}
       ${zona}
@@ -11471,7 +11471,7 @@ const Fin=(function(){
       if(a==='escolher')return escolher(p);
       if(a==='receber')return receberLinhas([p]);
       if(a==='aporte')return GS.socios.editarMov(null,'Aporte',null,{conc:p.t});
-      if(a==='retirada')return GS.socios.editarMov(null,'Retirada',null,{conc:p.t});
+      if(a==='lucro'||a==='prolabore')return GS.socios.editarMov(null,'Retirada',null,{conc:p.t,sub:a});
       if(a==='conta')return lancarConta(p);
       if(a==='desfazer')return desfazer(p);
     };
@@ -11726,8 +11726,9 @@ const Fin=(function(){
     const j=janela(`Lançar ${lista.length} saída(s) em Contas a pagar`,`<div class="fin-resumo">Cada linha do banco vira uma conta <b>paga na data do banco</b>, ligada ao extrato. Fornecedor, categoria e forma já vêm do último lançamento do mesmo favorecido — confira linha por linha.</div>
       <div class="fin-linha">
         <div class="fin-fld" style="grid-column:1/-1"><label>Para onde vai o gasto <span class="obg">*</span></label>${GS.destino.html('data-k="centro"',centro0)}</div></div>
-      <div class="cc-todas"><span>Preencher todas as linhas:</span>${GS.comboGasto.html('data-k="catTodas"','data-k="descTodas"','','')}<select data-k="formaTodas" title="Forma de pagamento de todas as linhas"><option value="">Forma…</option>${FORMAS.map(f=>`<option>${fe(f)}</option>`).join('')}</select></div>
-      <div class="lote-tab cc-lt"><table data-sem-ordem><thead><tr><th>No banco</th><th>Fornecedor / quem recebe</th><th>Categoria › Descrição <span class="obg">*</span></th><th>Forma</th><th>Valor</th><th></th></tr></thead><tbody data-k="linhas">${LN.map(linhaHtml).join('')}</tbody></table></div>
+      <div class="lote-tab cc-lt"><table data-sem-ordem><thead><tr><th>No banco</th><th>Fornecedor / quem recebe</th><th>Categoria › Descrição <span class="obg">*</span></th><th>Forma</th><th>Valor</th><th></th></tr></thead>
+        <tbody class="cc-lt-todas"><tr><td>Preencher todas as linhas:</td><td></td><td>${GS.comboGasto.html('data-k="catTodas"','data-k="descTodas"','','')}</td><td><select data-k="formaTodas" title="Forma de pagamento de todas as linhas"><option value="">Forma…</option>${FORMAS.map(f=>`<option>${fe(f)}</option>`).join('')}</select></td><td></td><td></td></tr></tbody>
+        <tbody data-k="linhas">${LN.map(linhaHtml).join('')}</tbody></table></div>
       <div class="lote-tot" data-k="tot"></div>
       <div class="lote-socio"><label class="nfc-amb"><input type="checkbox" data-k="socio"><span><b>Pago com dinheiro do sócio</b> (cartão, PIX ou conta pessoal) — as contas ficam pagas na data do banco e o valor também entra em <b>Sócios e investimentos</b> como aporte</span></label>
         <div class="fin-linha" data-k="socio-box" hidden><div class="fin-fld"><label>Sócio / investidor <span class="obg">*</span></label><input data-k="quem" list="cc-quem" autocomplete="off"><datalist id="cc-quem">${GS.rateio.socios().map(s=>`<option value="${fe(s)}">`).join('')}</datalist></div></div></div>`,
@@ -17175,7 +17176,7 @@ const Mascara=(function(){
           <div class="fin-fld" ${cc?'hidden':''}><label>Pago em <span class="obg">*</span></label><input type="date" data-l="pagoem" max="${isoDe(hoje0())}" value="${fe(cc?cc.data:isoDe(hoje0()))}"></div></div></div></div>`;
     // parcelas lidas da nota (duplicatas/boleto) e CNPJ do fornecedor lido
     let PARC=[],CNPJ_LIDO='',RT=null;
-    janela('Nova conta a pagar',corpo,[{html:'<i class="fas fa-cart-arrow-down"></i> Lançar',cls:'pri',acao:async j=>{
+    janela(cc?'Registrar saída':'Nova conta a pagar',corpo,[{html:'<i class="fas fa-cart-arrow-down"></i> Lançar',cls:'pri',acao:async j=>{
       const g=k=>(j.querySelector(`[data-l="${k}"]`).value||'').trim(),centro0=g('centro'),rat=centro0===RAT,rep=g('rep'),forma=g('forma');
       const socio=q('socio').checked,quem=g('quem'),pagoEm=g('pagoem'),obrasR=rat?RT.obras():[];
       if(!centro0)throw new Error('Marque a obra (ou Custo indireto).');if(rat&&erroRateio(obrasR))throw new Error(erroRateio(obrasR));
@@ -21609,13 +21610,14 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
 .lote-socio{margin-top:10px;border-top:1px dashed #E4E9F2;padding-top:10px;}
 /* conciliação › Lançar marcados: uma linha da tabela por saída do banco */
 .lote-tab.cc-lt table{min-width:900px;} .lote-tab.cc-lt td:nth-child(n){width:auto;min-width:0;}
-.lote-tab.cc-lt td:nth-child(1){width:220px;} .lote-tab.cc-lt td:nth-child(2){width:190px;} .lote-tab.cc-lt td:nth-child(3){min-width:240px;} .lote-tab.cc-lt td:nth-child(4){width:175px;} .lote-tab.cc-lt td:nth-child(5){width:104px;} .lote-tab.cc-lt td:nth-child(6){width:40px;}
+.lote-tab.cc-lt td:nth-child(1){width:220px;} .lote-tab.cc-lt td:nth-child(2){width:190px;} .lote-tab.cc-lt td:nth-child(3){min-width:240px;} .lote-tab.cc-lt td:nth-child(4){width:190px;} .lote-tab.cc-lt td:nth-child(5){width:104px;} .lote-tab.cc-lt td:nth-child(6){width:40px;}
 .lote-tab.cc-lt td.cc-lt-banco{font-size:12px;color:#344054;line-height:1.35;padding:7px 6px;overflow-wrap:anywhere;} .lote-tab.cc-lt td.num{text-align:right;white-space:nowrap;padding:9px 8px;font-variant-numeric:tabular-nums;}
 .lote-tab.cc-lr table{min-width:760px;} .lote-tab.cc-lr td:nth-child(1){width:220px;} .lote-tab.cc-lr td:nth-child(2){width:auto;} .lote-tab.cc-lr td:nth-child(3){width:104px;min-width:0;} .lote-tab.cc-lr td:nth-child(4){width:130px;} .lote-tab.cc-lr td:nth-child(5){width:40px;}
-.cc-todas{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;margin:12px 0 8px;font-size:12.5px;color:#475467;font-weight:600;} .cc-todas .cg{flex:1 1 300px;min-width:0;}
-.cc-todas select{flex:0 1 190px;min-width:150px;padding:8px 10px;border:1px solid #D0D5DD;border-radius:10px;font:500 13px Inter,sans-serif;background:#fff;}
-@media (max-width:560px){.cc-todas>span{flex-basis:100%;} .cc-todas select{flex:1 1 100%;}}
+/* campos da mesma linha com a mesma altura; "Preencher todas as linhas" fica na própria tabela, cada campo em cima da sua coluna */
+.lote-tab.cc-lt{margin-top:12px;} .lote-tab.cc-lt td input,.lote-tab.cc-lt td select{min-height:34px;}
+.cc-lt-todas td{background:#F5F8FF;vertical-align:middle;font-size:12.5px;font-weight:600;color:#344054;}
 @media (max-width:640px){
+  table.cel-cartao tbody.cc-lt-todas tr{background:#F5F8FF;} table.cel-cartao tbody.cc-lt-todas td{background:none;} table.cel-cartao tbody.cc-lt-todas td:first-child::before{content:none;} table.cel-cartao tbody.cc-lt-todas td:empty{display:none;}
   .fin-jan-corpo .fin-bt,.fin-jan-corpo .gf-bt{white-space:normal;max-width:100%;text-align:left;}
   .fin-jan-corpo{padding:14px 14px;}
   table.cel-cartao{min-width:0!important;width:100%;}
@@ -23121,8 +23123,8 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
       corpo=`${banco}<div class="fin-linha">${socio}${forma}${destino(!x&&!conc)}<div class="fin-fld"><label>Período (mês) <span class="obg">*</span></label><select data-k="mes" ${conc?'disabled title="O mês vem da data do extrato"':''}>${opsMes(mesIni)}</select></div>${valor}${obs}</div>
         <div class="fin-resumo" data-ap-ja hidden></div>
         <div class="fin-aviso"><div>Os aportes ficam por período: o que o mesmo sócio aporta na mesma obra dentro do mês <b>soma</b> no lançamento que já existe — fica um lançamento por mês e obra.</div></div>`;}
-    else if(tp==='Retirada'){titulo=x?'Editar retirada':subIni==='lucro'?'Retirada do lucro':subIni==='prolabore'?'Pagamento do pró-labore':'Retirada do lucro ou pró-labore';
-      corpo=`${banco}<div class="fin-linha"><div class="fin-fld" style="grid-column:1/-1"><label>Tipo da saída <span class="obg">*</span></label><select data-k="subtipo"><option value="">Escolha…</option><option value="lucro" ${subIni==='lucro'?'selected':''}>Retirada do lucro</option><option value="prolabore" ${subIni==='prolabore'?'selected':''}>Pagamento do pró-labore</option></select></div>${socio}${forma}${destino(false)}<div class="fin-fld"><label>Data <span class="obg">*</span></label><input type="date" data-k="data" ${conc?`readonly class="lote-calc" title="A data vem do extrato" value="${isoBanco}"`:`max="${hj}" value="${x&&x.data?isoDe(x.data):hj}"`}></div>${valor}${obs}</div>
+    else if(tp==='Retirada'){titulo=x?'Editar retirada':subIni==='lucro'?'Retirada do lucro':subIni==='prolabore'?'Pagamento de pró-labore':'Retirada do lucro ou pró-labore';
+      corpo=`${banco}<div class="fin-linha"><div class="fin-fld" style="grid-column:1/-1"><label>Tipo da saída <span class="obg">*</span></label><select data-k="subtipo"><option value="">Escolha…</option><option value="lucro" ${subIni==='lucro'?'selected':''}>Retirada do lucro</option><option value="prolabore" ${subIni==='prolabore'?'selected':''}>Pagamento de pró-labore</option></select></div>${socio}${forma}${destino(false)}<div class="fin-fld"><label>Data <span class="obg">*</span></label><input type="date" data-k="data" ${conc?`readonly class="lote-calc" title="A data vem do extrato" value="${isoBanco}"`:`max="${hj}" value="${x&&x.data?isoDe(x.data):hj}"`}></div>${valor}${obs}</div>
         <div class="fin-aviso"><div><b>Retirada do lucro</b> e <b>pró-labore</b> saem do caixa. Para devolver dinheiro que o sócio aportou, use <b>Devolução de aporte</b>.</div></div>`;}
     else{titulo=x?'Editar devolução de aporte':'Devolução de aporte';
       if(!aps.length&&!x)return toast('Não há aporte com valor a devolver.','error');
@@ -23144,7 +23146,7 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
       // lançamento que veio de uma linha do extrato fica ligado a ela (o Desfazer da Conciliação sabe tirar)
       const liga=o=>{if(conc){o.conciliacao=U.juntarId(o.conciliacao,conc.id);o.conciliacao_baixa=U.juntarId(o.conciliacao_baixa,conc.id);}return o;};
       const obsTxt=[g('obs'),conc?U.obsDoExtrato(conc):''].filter(Boolean).join(' · ');
-      if(tp==='Retirada'){const d=conc?isoBanco:g('data'),sub=g('subtipo');if(!sub)throw new Error('Escolha se é retirada do lucro ou pagamento do pró-labore.');if(!d)throw new Error('Informe a data.');if(!conc&&d>hj)throw new Error('A data não pode ser no futuro.');
+      if(tp==='Retirada'){const d=conc?isoBanco:g('data'),sub=g('subtipo');if(!sub)throw new Error('Escolha se é retirada do lucro ou pagamento de pró-labore.');if(!d)throw new Error('Informe a data.');if(!conc&&d>hj)throw new Error('A data não pode ser no futuro.');
         const o=r?limpo(r):{[K.lanc]:todayDateTime()};
         Object.assign(o,{[K.quem]:q,[K.obra]:ob,[K.data]:d,[K.valor]:dinheiro(-v),movimento:'Retirada',tipo_retirada:sub,aporte_ref:'',forma_aporte:forma,periodo_ini:'',periodo_fim:'',[K.obs]:obsTxt});liga(o);
         await executar(()=>salvar('Aportes financeiros',o,r?r.rowid:null));return toast(sub==='prolabore'?`Pró-labore lançado${conc?' e ligado ao extrato':''}.`:`Retirada do lucro lançada${conc?' e ligada ao extrato':''}.`,'success');}
@@ -23251,7 +23253,7 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
     const podeEd=pode('socios');
     let corpo='';
     if(f.aba==='mov'){
-      corpo=`<div class="gf-sec"><div class="gf-sec-cab"><div><h3>Entradas e saídas dos sócios</h3><p>Aportes entram (verde); retiradas e devoluções saem (vermelho) — cada um com a obra de referência. Em cada aporte dá para lançar a devolução.</p></div>${podeEd?'<div class="so2-novos"><button type="button" class="so2-novo ent" data-so2="aporte"><i class="fas fa-arrow-down"></i><span><b>Novo aporte</b><small>dinheiro que entra</small></span></button><button type="button" class="so2-novo sai" data-so2="retirada" data-sub="lucro"><i class="fas fa-arrow-up"></i><span><b>Retirada do lucro</b><small>distribuição aos sócios</small></span></button><button type="button" class="so2-novo sai" data-so2="retirada" data-sub="prolabore"><i class="fas fa-user-tie"></i><span><b>Pagamento do pró-labore</b><small>remuneração do sócio</small></span></button><button type="button" class="so2-novo dev" data-so2="devolucao"><i class="fas fa-rotate-left"></i><span><b>Devolução de aporte</b><small>devolver ao sócio</small></span></button></div>':''}</div>
+      corpo=`<div class="gf-sec"><div class="gf-sec-cab"><div><h3>Entradas e saídas dos sócios</h3><p>Aportes entram (verde); retiradas e devoluções saem (vermelho) — cada um com a obra de referência. Em cada aporte dá para lançar a devolução.</p></div>${podeEd?'<div class="so2-novos"><button type="button" class="so2-novo ent" data-so2="aporte"><i class="fas fa-arrow-down"></i><span><b>Novo aporte</b><small>dinheiro que entra</small></span></button><button type="button" class="so2-novo sai" data-so2="retirada" data-sub="lucro"><i class="fas fa-arrow-up"></i><span><b>Retirada do lucro</b><small>distribuição aos sócios</small></span></button><button type="button" class="so2-novo sai" data-so2="retirada" data-sub="prolabore"><i class="fas fa-user-tie"></i><span><b>Pagamento de pró-labore</b><small>remuneração do sócio</small></span></button><button type="button" class="so2-novo dev" data-so2="devolucao"><i class="fas fa-rotate-left"></i><span><b>Devolução de aporte</b><small>devolver ao sócio</small></span></button></div>':''}</div>
         ${(()=>{if(!podeEd)return '';const gs=gruposAporte(),n=gs.filter(g=>g.itens.length>1).length+paraAjustarPeriodo(gs).length;return n?`<div class="vk-aviso"><i class="fas fa-layer-group"></i><div><b>Aportes para agrupar por período do mês</b> — ${n} grupo(s) com lançamentos do mesmo sócio e obra no mesmo mês, ou com um período que não é o mês inteiro.</div><button type="button" class="gf-bt mini" data-so2="agrupar">Agrupar agora</button></div>`:'';})()}
         <div class="so2-filtros"><select data-so2f="obra"><option value="">Todas as obras</option><option ${f.obra==='Empresa'?'selected':''}>Empresa</option>${obrasOps().map(o=>`<option ${f.obra===o?'selected':''}>${fe(o)}</option>`).join('')}</select>
           <select data-so2f="quem"><option value="">Todos os sócios</option>${[...new Set(L.map(x=>x.quem))].map(q=>`<option ${f.quem===q?'selected':''}>${fe(q)}</option>`).join('')}</select>
