@@ -396,10 +396,20 @@ tbody tr:hover td{background:rgba(0,113,227,.02);}
 .pw-btn-primary{background:var(--blue);color:#fff;}
 .pw-btn-ghost{background:var(--bg);color:var(--text-2);}
 .pw-code-input{width:100%;text-align:center;letter-spacing:10px;font-size:26px;font-weight:800;font-family:inherit;padding:12px;border:2px solid var(--border);border-radius:14px;background:var(--bg);color:var(--text-1);outline:none;}
-/* Checkbox de seleção das fotos (Imagens da Obra) — estilo custom (círculo, tipo Google/Apple Fotos), mais moderno e discreto que o checkbox nativo do navegador */
-.img-check{position:absolute;top:5px;right:5px;z-index:1;width:17px;height:17px;cursor:pointer;}
+/* CAIXA DE MARCAÇÃO — um padrão só no sistema todo: quadrada com os cantos arredondados (redondo fica para "escolher uma
+   opção só"), branca com borda cinza; marcada, azul com o visto branco. Vale para toda caixa do navegador (input checkbox)
+   e para as marcas desenhadas (.vk-marca dos cartões e linhas, .img-check das fotos). O !important é porque várias telas
+   dão largura 100%, borda e preenchimento a todo input — numa caixa de marcar isso a deformaria. */
+input[type=checkbox]{-webkit-appearance:none!important;appearance:none!important;box-sizing:border-box!important;width:18px!important;height:18px!important;min-width:18px!important;min-height:18px!important;max-width:18px!important;max-height:18px!important;padding:0!important;border:1.5px solid #D0D5DD!important;border-radius:5px!important;background:#fff no-repeat center/12px 12px!important;box-shadow:0 1px 2px rgba(16,24,40,.06);vertical-align:middle;cursor:pointer;transition:background-color .12s,border-color .12s,box-shadow .12s;}
+input[type=checkbox]:hover:not(:disabled){border-color:#1652D8!important;}
+input[type=checkbox]:checked{background-color:#1652D8!important;border-color:#1652D8!important;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.6 6.3l2.2 2.2 4.6-5' fill='none' stroke='%23fff' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")!important;}
+input[type=checkbox]:indeterminate{background-color:#1652D8!important;border-color:#1652D8!important;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M3 6h6' stroke='%23fff' stroke-width='1.9' stroke-linecap='round'/%3E%3C/svg%3E")!important;}
+input[type=checkbox]:focus-visible{outline:none;box-shadow:0 0 0 3px rgba(22,82,216,.22);}
+input[type=checkbox]:disabled{opacity:.45;cursor:not-allowed;}
+/* Caixa de seleção das fotos (Imagens da Obra): a mesma caixa, por cima da foto */
+.img-check{position:absolute;top:5px;right:5px;z-index:1;width:18px;height:18px;cursor:pointer;}
 .img-check input{position:absolute;opacity:0;width:100%;height:100%;margin:0;cursor:pointer;}
-.img-check .img-check-box{position:absolute;inset:0;border-radius:50%;background:rgba(0,0,0,.32);border:1.5px solid rgba(255,255,255,.9);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;transition:background .15s,border-color .15s,transform .12s;box-shadow:0 1px 3px rgba(0,0,0,.3);}
+.img-check .img-check-box{position:absolute;inset:0;border-radius:5px;background:rgba(0,0,0,.32);border:1.5px solid rgba(255,255,255,.9);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;transition:background .15s,border-color .15s,transform .12s;box-shadow:0 1px 3px rgba(0,0,0,.3);}
 .img-check .img-check-box svg{width:9px;height:9px;opacity:0;transform:scale(.4);transition:opacity .12s,transform .12s;stroke:#fff;}
 .img-check input:checked ~ .img-check-box{background:var(--blue);border-color:var(--blue);box-shadow:0 1px 4px rgba(0,113,227,.5);}
 .img-check input:checked ~ .img-check-box svg{opacity:1;transform:scale(1);}
@@ -10676,6 +10686,10 @@ window.onload=()=>{
 .fin-conc-alvo select{max-width:440px;width:100%;font-size:12px;padding:6px 8px;border:1px solid var(--border);border-radius:8px;background:#fff;}
 .cc-barra{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:4px 0 10px;} .cc-barra .pl2-busca{flex:1;min-width:220px;} .cc-barra select{border:1px solid #D0D5DD;border-radius:10px;padding:7px 10px;font:600 12.5px Inter,sans-serif;background:#fff;}
 .cc-cartao{display:inline-flex;align-items:center;gap:4px;font:700 10.5px Inter,sans-serif;color:#1849A9;background:#EEF4FF;border:1px solid #D1E0FF;border-radius:99px;padding:1px 7px;margin-right:4px;vertical-align:1px;white-space:nowrap;}
+/* tipo do arquivo na Conciliação: extrato do banco (azul) ou fatura do cartão de crédito (roxo) */
+.conc-arq{align-items:center;} .conc-tipo{flex:none;display:inline-flex;align-items:center;gap:6px;font:700 12px Inter,sans-serif;color:#1849A9;background:#EFF4FF;border:1px solid #B2CCFF;border-radius:999px;padding:4px 11px;white-space:nowrap;}
+.fin-aviso.cartao{background:#FAF7FF;border-color:#E9D7FE;} .fin-aviso.cartao .conc-tipo{color:#6941C6;background:#F4EBFF;border-color:#D6BBFB;}
+@media (max-width:560px){.conc-arq{flex-direction:column;align-items:flex-start;gap:6px;}}
 .cc-conf{border:1px solid #E4E9F2;border-radius:14px;background:#fff;padding:10px 14px;margin:0 0 12px;} .cc-conf-cab{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 10px;margin-bottom:6px;} .cc-conf-cab b{font-size:13.5px;color:#101828;} .cc-conf-cab b i{color:#1652D8;margin-right:4px;} .cc-conf-cab small{font-size:11.5px;color:#667085;}.cc-conf ul{list-style:none;margin:0;padding:0;display:grid;gap:4px;} .cc-conf li{display:flex;flex-wrap:wrap;align-items:center;gap:4px 14px;padding:7px 10px;border-radius:10px;background:#F8FAFC;font-size:12.5px;color:#475467;} .cc-conf li>b{min-width:110px;color:#101828;} .cc-conf li span b{color:#101828;font-variant-numeric:tabular-nums;}.cc-conf li em{margin-left:auto;font-style:normal;font-weight:800;white-space:nowrap;} .cc-conf li.ok{background:#ECFDF3;} .cc-conf li.ok em{color:#067647;} .cc-conf li.err{background:#FEF3F2;} .cc-conf li.err em{color:#B42318;} .cc-conf li em.sem{color:#667085;font-weight:600;}
 .cc-mostra{font-size:12px;color:#667085;margin-left:auto;}
 .cc-lados{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:2px 0 10px;}
@@ -11380,6 +11394,9 @@ const Fin=(function(){
     const ent=itensC.filter(t=>t.valor>0).reduce((s,t)=>s+t.valor,0),sai=-itensC.filter(t=>t.valor<0).reduce((s,t)=>s+t.valor,0);
     const datas=itensC.map(t=>dt(t.data)).filter(Boolean).sort((a,b)=>a-b);
     const conf=ext.cartaoFatura?conferenciaFatura(ext,F.cartao):[];
+    // fatura de cartão de crédito × extrato do banco: no cartão não existe retirada do lucro nem pró-labore (isso sai da
+    // conta do banco), então esses dois botões só aparecem no extrato do banco
+    const ehCartao=!!ext.cartaoFatura;
     const linha=p=>{
       const i=CONC.props.push(p)-1;
       let alvo='';
@@ -11390,7 +11407,7 @@ const Fin=(function(){
       else if(p.st==='feito')alvo=`<span>${fe(p.nota)}</span>`;
       const marcavel=['ok','confira','vincular'].includes(p.st),selSem=p.st==='sem';
       const bt=(acao,txt,cls)=>`<button type="button" class="fin-bt mini ${cls||''}" data-cc="${acao}" data-i="${i}">${txt}</button>`;
-      const acoes=p.st==='sem'?(p.t.valor<0?bt('escolher','Associar à conta')+bt('conta','Registrar saída')+bt('lucro','Retirada do lucro')+bt('prolabore','Pagamento de pró-labore')+bt('ignorar','Ignorar')
+      const acoes=p.st==='sem'?(p.t.valor<0?bt('escolher','Associar à conta')+bt('conta','Registrar saída')+(ehCartao?'':bt('lucro','Retirada do lucro')+bt('prolabore','Pagamento de pró-labore'))+bt('ignorar','Ignorar')
           :bt('receber','Registrar recebimento')+bt('aporte','É aporte')+bt('ignorar','Ignorar'))
         :p.st==='feito'?bt('desfazer','Desfazer'):p.st==='ignorado'?bt('voltar','Voltar para a conferência'):'';
       return `<tr><td>${marcavel?`<input type="checkbox" data-cc-marca="${i}" ${CONC.marcados.has(p.t.id)?'checked':''}>`:selSem?`<input type="checkbox" data-cc-sem="${i}" title="Selecionar esta linha" ${CONC.selSem.has(p.t.id)?'checked':''}>`:''}</td>
@@ -11408,16 +11425,16 @@ const Fin=(function(){
     const abaLado=(k,rot,ico,L)=>`<button type="button" class="cc-lado ${k}${F.tipo===k?' on':''}" data-cc-lado="${k}" aria-pressed="${F.tipo===k}"><i class="fas ${ico}"></i> ${rot} (${L.length})<small>${fmt(L.reduce((s,p)=>s+Math.abs(p.t.valor),0))}</small></button>`;
     box.innerHTML=`<div class="fin-wrap">
       ${cab}
-      <div class="fin-aviso"><div>Extrato <b>${fe(ext.nome||'')}</b>${ext.banco?' · banco '+fe(ext.banco):''}${ext.conta?' · conta '+fe(ext.conta):''}${datas.length?` · de ${brDe(datas[0])} a ${brDe(datas[datas.length-1])}`:''}${ext.saldo!=null?` · saldo no extrato <b>${fmt(ext.saldo)}</b>${ext.saldoData?' em '+fe(ext.saldoData):''} (usado como ponto de partida do fluxo de caixa)`:''}.</div></div>
+      <div class="fin-aviso conc-arq${ehCartao?' cartao':''}"><span class="conc-tipo"><i class="fas ${ehCartao?'fa-credit-card':'fa-building-columns'}"></i> ${ehCartao?'Fatura do cartão de crédito':'Extrato bancário'}</span><div><b>${fe(ext.nome||'')}</b>${ext.banco&&!(ehCartao&&ext.banco==='Cartão de crédito')?' · banco '+fe(ext.banco):''}${ext.conta?' · conta '+fe(ext.conta):''}${datas.length?` · de ${brDe(datas[0])} a ${brDe(datas[datas.length-1])}`:''}${ext.saldo!=null?` · saldo no extrato <b>${fmt(ext.saldo)}</b>${ext.saldoData?' em '+fe(ext.saldoData):''} (usado como ponto de partida do fluxo de caixa)`:''}.</div></div>
       <div class="fin-kpis">
-        <div class="fin-kpi"><small>Lançamentos no extrato${F.cartao?` · cartão ${fe(F.cartao)}`:''}</small><b>${itensC.length}</b><span>entrou ${fmt(ent)} · saiu ${fmt(sai)}</span></div>
+        <div class="fin-kpi"><small>Lançamentos ${ehCartao?'na fatura':'no extrato'}${F.cartao?` · cartão ${fe(F.cartao)}`:''}</small><b>${itensC.length}</b><span>entrou ${fmt(ent)} · saiu ${fmt(sai)}</span></div>
         <div class="fin-kpi verde"><small>Encontrados sozinhos</small><b>${cont('ok')+cont('vincular')}</b><span>${cont('confira')} para conferir antes</span></div>
         <div class="fin-kpi ${cont('sem')?'vermelho':'verde'}"><small>Sem correspondência</small><b>${cont('sem')}</b><span>associe, registre ou ignore</span></div>
         <div class="fin-kpi cinza"><small>Já conciliados</small><b>${cont('feito')}</b><span>${cont('ignorado')} ignorado${cont('ignorado')!==1?'s':''}</span></div>
       </div>
       ${conf.length?`<div class="cc-conf"><div class="cc-conf-cab"><b><i class="fas fa-scale-balanced"></i> Conferência com a fatura</b><small>soma de todas as linhas do cartão (em qualquer bloco abaixo) × total impresso no PDF</small></div><ul>${conf.map(x=>{const ok=x.dif!=null&&Math.abs(x.dif)<0.01,ruim=x.dif!=null&&!ok;
         return `<li class="${ok?'ok':ruim?'err':''}"><b>${x.c==='*'?'Fatura inteira':x.c?'Cartão '+fe(x.c):'Sem cartão'}</b><span>${x.n} linha${x.n!==1?'s':''} · soma <b>${fmt(x.s)}</b></span>${x.pdf!=null?`<span>${x.c==='*'?'valor total desta fatura':'total no PDF'} <b>${fmt(x.pdf)}</b></span><em>${ok?'<i class="fas fa-circle-check"></i> bate':`<i class="fas fa-triangle-exclamation"></i> ${x.dif>0?'faltam':'sobram'} ${fmt(Math.abs(x.dif))}`}</em>`:'<em class="sem">esta fatura não traz o total do cartão</em>'}</li>`;}).join('')}</ul></div>`:''}
-      ${(()=>{const tot=props0c.length,res=props0c.filter(p=>p.st==='feito'||p.st==='ignorado').length,pc=tot?Math.round(res/tot*100):0;return `<div class="cc-prog"><div><b>Conferência do extrato:</b> ${res} de ${tot} linhas resolvidas (${pc}%)${tot-res?` · faltam <b>${tot-res}</b>`:' · <b>tudo conferido</b>'}</div><em><i style="width:${pc}%"></i></em></div>`;})()}
+      ${(()=>{const tot=props0c.length,res=props0c.filter(p=>p.st==='feito'||p.st==='ignorado').length,pc=tot?Math.round(res/tot*100):0;return `<div class="cc-prog"><div><b>Conferência ${ehCartao?'da fatura':'do extrato'}:</b> ${res} de ${tot} linhas resolvidas (${pc}%)${tot-res?` · faltam <b>${tot-res}</b>`:' · <b>tudo conferido</b>'}</div><em><i style="width:${pc}%"></i></em></div>`;})()}
       <div class="cc-lados">${abaLado('sai','Saídas','fa-arrow-up',saidas)}${abaLado('ent','Entradas','fa-arrow-down',entradas)}</div>
       <div class="cc-barra"><div class="pl2-busca"><i class="fas fa-magnifying-glass"></i><input type="search" data-cc-f="busca" value="${fe(F.busca)}" placeholder="Buscar no banco ou no sistema: nome, descrição, valor…"></div>
         ${cartoes.length>1?`<select data-cc-f="cartao" title="Fatura com vários cartões: mostrar só um"><option value="">Todos os cartões</option>${cartoes.map(c=>{const L=ext.itens.filter(t=>t.cartao===c);return `<option value="${fe(c)}" ${F.cartao===c?'selected':''}>Cartão ${fe(c)} — ${L.length} lanç. · ${fmt(Math.abs(L.reduce((s,t)=>s+t.valor,0)))}</option>`;}).join('')}</select>`:''}
@@ -11428,7 +11445,7 @@ const Fin=(function(){
       ${bloco(ehSai?'Prontos para dar baixa':'Prontos para receber',`Valor idêntico e data batendo com ${ehSai?'um lançamento só':'uma nota emitida só'} — já vêm marcados.`,g.ok,'ok','ok')}
       ${bloco('Confira antes','Valor IDÊNTICO, mas com mais de um lançamento possível ou data distante. Escolha o certo na lista e marque.',g.confira,'warn','confira')}
       ${bloco('Já estavam baixados — só ligar ao extrato','O sistema já tinha o pagamento/recebimento; marcar liga a linha do banco para ela não aparecer de novo.',g.vincular,'info','vincular')}
-      ${bloco('Sem correspondência',ehSai?'Não há conta em aberto com esse valor exato. Associe a uma conta, registre a saída, a retirada do lucro ou o pagamento de pró-labore, ou ignore (tarifa, transferência entre contas, aplicação…).':'Não há nota a receber com esse valor exato. Registre o recebimento na nota emitida, marque como aporte ou ignore (transferência entre contas, aplicação…).',g.sem,'err','sem')}
+      ${bloco('Sem correspondência',ehSai?(ehCartao?'Não há conta em aberto com esse valor exato. Associe a uma conta, registre a saída ou ignore (compra repetida ou estornada…). Retirada do lucro e pró-labore não aparecem aqui: eles saem da conta do banco, não do cartão.':'Não há conta em aberto com esse valor exato. Associe a uma conta, registre a saída, a retirada do lucro ou o pagamento de pró-labore, ou ignore (tarifa, transferência entre contas, aplicação…).'):'Não há nota a receber com esse valor exato. Registre o recebimento na nota emitida, marque como aporte ou ignore (transferência entre contas, aplicação…).',g.sem,'err','sem')}
       ${bloco('Já conciliados','Baixados ou ligados em importações anteriores deste mesmo extrato.',g.feito,'cinza')}
       ${bloco('Ignorados','Linhas que você marcou para ignorar (ficam guardadas neste computador).',g.ignorado,'cinza')}
       ${zona}
@@ -11631,7 +11648,8 @@ const Fin=(function(){
       if(ehPdf)toast('Lendo o PDF do extrato…','');
       const txt=ehPdf?await pdfParaCsv(await arq.arrayBuffer()):ehExcel?await excelParaCsv(await arq.arrayBuffer()):decodificarExtrato(await arq.arrayBuffer());
       let ext;
-      const cartao=ehFaturaCartao(txt);
+      // fatura de cartão: pelas frases da fatura, ou o OFX do cartão (CCSTMTRS / CCACCTFROM, no lugar do BANKACCTFROM da conta)
+      const cartao=ehFaturaCartao(txt)||(!ehPdf&&!ehExcel&&/<CCSTMTRS>|<CCACCTFROM>|<CREDITCARDMSGSRSV1>/i.test(txt));
       // fatura do cartão no formato do aplicativo (sem cabeçalho de colunas): direto o leitor de linhas, com a descrição da linha de baixo
       if(ehPdf){if(!(cartao&&!pdfParaCsv.comColunas)){try{ext=lerCSVExtrato(txt,';');}catch(e){ext=null;}}if(!ext||!ext.itens.length)ext=lerLinhasPdf(txt,cartao);}
       else ext=!ehExcel&&/<OFX>|OFXHEADER|<STMTTRN>/i.test(txt)?lerOFX(txt):lerCSVExtrato(txt);
@@ -16129,9 +16147,10 @@ const PL2=(function(){
 .vk-card{background:#fff;border-radius:14px;padding:11px 12px;border:1px solid #e8e8ed;box-shadow:0 2px 6px rgba(20,20,60,.05);cursor:pointer;border-left:4px solid var(--cor);transition:transform .15s,box-shadow .15s;}
 .vk-card:hover,.vk-card:focus-visible{transform:translateY(-2px);box-shadow:0 10px 22px -12px rgba(20,20,60,.35);outline:none;}
 .vk-card[draggable="true"]{cursor:grab;} .vk-card.arrastando{opacity:.45;}
-/* SELEÇÃO EM LOTE (quadros, sócios, lixeira): bolinha de marcar no canto do cartão + barra flutuante com um botão só para marcar e desmarcar */
+/* SELEÇÃO EM LOTE (quadros, sócios, lixeira): caixa de marcar no canto do cartão (o mesmo desenho das caixas do sistema
+   todo: quadrada com cantos arredondados) + barra flutuante com um botão só para marcar e desmarcar */
 .vk-card.vk-sel{position:relative;cursor:pointer;} .vk-sel .vk-top{padding-right:30px;}
-.vk-marca{flex:none;width:22px;height:22px;border-radius:50%;border:2px solid #D0D5DD;background:#fff;display:grid;place-items:center;color:transparent;font-size:10px;box-shadow:0 1px 2px rgba(16,24,40,.08);transition:background .15s,border-color .15s,transform .15s;}
+.vk-marca{flex:none;width:20px;height:20px;border-radius:6px;border:1.5px solid #D0D5DD;background:#fff;display:grid;place-items:center;color:transparent;font-size:10px;box-shadow:0 1px 2px rgba(16,24,40,.08);transition:background .15s,border-color .15s,transform .15s;}
 .vk-sel .vk-marca{position:absolute;top:10px;right:10px;}
 .vk-sel:hover .vk-marca{border-color:#1652D8;transform:scale(1.06);}
 .vk-sel.on{box-shadow:0 0 0 2px #1652D8,0 12px 24px -14px rgba(22,82,216,.55);background:#F5F8FF;} .vk-sel.on .vk-marca{background:#1652D8;border-color:#1652D8;color:#fff;}
@@ -16578,7 +16597,7 @@ const Mascara=(function(){
   const idsColunaC=k=>(App._vkVisiveis||[]).filter(o=>colConta(o)===k).map(idC);
   function pintarSel(box){const bar=box.querySelector('[data-vk-selbar]');if(!bar)return;pintarMarcaColunas(box,idsColunaC,QC.sel);
     const L=contasMarcadas(),n=L.length,tot=L.reduce((s,o)=>s+val(o.total),0),vis=(App._vkVisiveis||[]).map(idC),tudo=vis.length>0&&vis.every(id=>QC.sel.has(id));
-    bar.innerHTML=selUI.barra(n,n?`${n} conta${n>1?'s':''} marcada${n>1?'s':''}`:'Toque nos cartões para marcar',n?'total '+fmt(tot):'o cartão de uma compra marca todos os itens dela',
+    bar.innerHTML=selUI.barra(n,n?`conta${n>1?'s':''} marcada${n>1?'s':''}`:'Toque nos cartões para marcar',n?'total '+fmt(tot):'o cartão de uma compra marca todos os itens dela',
       selUI.todos(tudo,'data-vk="sel-todas"',vis.length,'Marcar todas','Desmarcar todas')+`<button type="button" class="gf-bt vk-excluir" data-vk="sel-excluir" ${n?'':'disabled'}><i class="fas fa-trash"></i> Excluir${n?` (${n})`:''}</button>`,'data-vk="selecionar"');}
   function alternarSel(box,c){const id=c.dataset.card,ids=String(id).startsWith('g:')?((App._vkCompras||{})[id]||[]).map(idC):[id];if(!ids.length)return;
     const todos=ids.every(x=>QC.sel.has(x));ids.forEach(x=>todos?QC.sel.delete(x):QC.sel.add(x));
@@ -17539,7 +17558,7 @@ const Mascara=(function(){
   const sairSelF=()=>{QF.sel.clear();QF.selModo=false;};
   function pintarSelF(box){const bar=box.querySelector('[data-vk-selbar]');if(!bar)return;pintarMarcaColunas(box,idsColunaF,QF.sel);
     const L=marcadasF(),n=L.length,tot=L.reduce((s,x)=>s+x.bruto,0),vis=(App._vkFatVis||[]).filter(x=>!travaExcF(x)).map(x=>x.id),tudo=vis.length>0&&vis.every(id=>QF.sel.has(id));
-    bar.innerHTML=GS.sel.barra(n,n?`${n} lançamento${n>1?'s':''} marcado${n>1?'s':''}`:'Toque nos cartões para marcar',n?'total bruto '+fmt(tot):'nota emitida ou recebida não entra: só sai cancelando a NF',
+    bar.innerHTML=GS.sel.barra(n,n?`lançamento${n>1?'s':''} marcado${n>1?'s':''}`:'Toque nos cartões para marcar',n?'total bruto '+fmt(tot):'nota emitida ou recebida não entra: só sai cancelando a NF',
       GS.sel.todos(tudo,'data-vk="sel-todas"',vis.length)+`<button type="button" class="gf-bt vk-excluir" data-vk="sel-excluir" ${n?'':'disabled'}><i class="fas fa-trash"></i> Excluir${n?` (${n})`:''}</button>`,'data-vk="selecionar"');}
   function alternarSelF(box,c){const x=acharF(c.dataset.card);if(!x)return;const t=travaExcF(x);if(t)return toast(t,'error');
     const on=!QF.sel.has(x.id);if(on)QF.sel.add(x.id);else QF.sel.delete(x.id);c.classList.toggle('on',on);pintarSelF(box);}
@@ -18695,7 +18714,7 @@ const Mascara=(function(){
 .ar-tag{display:inline-block;font-size:10.5px;font-weight:800;padding:1px 7px;border-radius:99px;background:#EEF4FF;color:#1652D8;margin-left:4px;}
 .ar-tag.av{background:#FFFAEB;color:#B54708;}
 .lx-sec{grid-column:1/-1;font:800 11px Inter,sans-serif;text-transform:uppercase;letter-spacing:.06em;color:#6e6e73;margin:14px 0 2px;}
-/* "Restaurar vários" da Lixeira: a mesma seleção dos quadros (bolinha no canto do cartão e barra flutuante) */
+/* "Restaurar vários" da Lixeira: a mesma seleção dos quadros (caixa de marcar no canto do cartão e barra flutuante) */
 .lx-bts{display:flex;flex-wrap:wrap;gap:8px;align-items:center;}
 #grid-lixeira .lx-marca{display:none;} #grid-lixeira.lx-sel .lx-marca{display:grid;position:absolute;top:12px;right:12px;}
 #grid-lixeira.lx-sel .lanc-card{position:relative;cursor:pointer;} #grid-lixeira.lx-sel .lanc-card-header{padding-right:30px;}
@@ -18958,8 +18977,8 @@ const Mascara=(function(){
     const be=document.getElementById('btn-lixeira-esvaziar');if(be)be.style.display='none';
     if(!bar){bar=document.createElement('div');bar.id='lx-selbar';bar.className='vk-selbar';grid.insertAdjacentElement('afterend',bar);}
     const n=LX.marc.size,ob=L.filter(x=>x.k==='obra'),la=L.filter(x=>x.k==='lanc'),nO=ob.filter(x=>LX.marc.has(x.id)).length,nL=n-nO;
-    const chip=(a,rot,lista,qt)=>{const tudo=qt===lista.length;return `<button type="button" class="gf-bt${tudo?' on':''}" data-lx="${a}"><i class="fas ${tudo?'fa-square-minus':'fa-check'}"></i> ${tudo?'Desmarcar':'Marcar'} ${rot} (${lista.length})</button>`;};
-    bar.innerHTML=GS.sel.barra(n,n?`${n} ${n>1?'itens marcados':'item marcado'}`:'Toque nos cartões para marcar',n?[nO?`${nO} obra${nO>1?'s':''}`:'',nL?`${nL} lançamento${nL>1?'s':''}`:''].filter(Boolean).join(' · '):'cada obra volta com tudo o que está ligado a ela',
+    const chip=(a,rot,lista,qt)=>{const tudo=qt===lista.length;return `<button type="button" class="gf-bt${tudo?' on':''}" data-lx="${a}"><i class="fas ${tudo?'fa-square-minus':'fa-check'}"></i> ${tudo?'Desmarcar':'Marcar'} ${rot}${tudo?'':`<span class="vk-qtd"> (${lista.length})</span>`}</button>`;};
+    bar.innerHTML=GS.sel.barra(n,n?(n>1?'itens marcados':'item marcado'):'Toque nos cartões para marcar',n?[nO?`${nO} obra${nO>1?'s':''}`:'',nL?`${nL} lançamento${nL>1?'s':''}`:''].filter(Boolean).join(' · '):'cada obra volta com tudo o que está ligado a ela',
       (ob.length&&la.length?chip('obras','as obras',ob,nO)+chip('lancs','os lançamentos',la,nL):'')+GS.sel.todos(n===L.length&&L.length>0,'data-lx="todos"',L.length,'Marcar tudo','Desmarcar tudo')
       +`<button type="button" class="gf-bt lx-restaurar" data-lx="restaurar" ${n?'':'disabled'}><i class="fas fa-rotate-left"></i> Restaurar${n?` (${n})`:''}</button>`,'data-lx="modo"');
   }
@@ -23272,8 +23291,8 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
     box.querySelectorAll('tr[data-so2-lin]').forEach(tr=>{const x=App._so2[+tr.dataset.so2Lin],on=!!x&&x.fonte==='ap'&&SO2.sel.has(idSo(x));tr.classList.toggle('on',on);tr.setAttribute('aria-selected',on?'true':'false');});
     const L=marcadosSo(),n=L.length,S=a=>a.reduce((s,x)=>s+x.valor,0),ent=S(L.filter(x=>!x.sai)),sai=S(L.filter(x=>x.sai)),nDev=paraDevolver().length;
     const vis=linhasSo(box),tipos=TIPOS_SEL.map(([t,r])=>({t,r,ids:vis.filter(x=>x.tipo===t).map(idSo)})).filter(z=>z.ids.length),tudo=vis.length>0&&vis.every(x=>SO2.sel.has(idSo(x)));
-    bar.innerHTML=GS.sel.barra(n,n?`${n} lançamento${n>1?'s':''} marcado${n>1?'s':''}`:'Toque nas linhas para marcar',n?[ent?'entradas '+fmt(ent):'',sai?'saídas '+fmt(sai):''].filter(Boolean).join(' · '):'ou marque todos de uma vez',
-      (tipos.length>1?tipos.map(z=>{const t=z.ids.every(id=>SO2.sel.has(id));return `<button type="button" class="gf-bt${t?' on':''}" data-so2="sel-tipo" data-tipo="${fe(z.t)}"><i class="fas ${t?'fa-square-minus':'fa-check'}"></i> ${t?'Desmarcar':'Marcar'} ${z.r} (${z.ids.length})</button>`;}).join(''):'')+GS.sel.todos(tudo,'data-so2="sel-todos"',vis.length)
+    bar.innerHTML=GS.sel.barra(n,n?`lançamento${n>1?'s':''} marcado${n>1?'s':''}`:'Toque nas linhas para marcar',n?[ent?'entradas '+fmt(ent):'',sai?'saídas '+fmt(sai):''].filter(Boolean).join(' · '):'ou marque todos de uma vez',
+      (tipos.length>1?tipos.map(z=>{const t=z.ids.every(id=>SO2.sel.has(id));return `<button type="button" class="gf-bt${t?' on':''}" data-so2="sel-tipo" data-tipo="${fe(z.t)}"><i class="fas ${t?'fa-square-minus':'fa-check'}"></i> ${t?'Desmarcar':'Marcar'} ${z.r}${t?'':`<span class="vk-qtd"> (${z.ids.length})</span>`}</button>`;}).join(''):'')+GS.sel.todos(tudo,'data-so2="sel-todos"',vis.length)
       +`<button type="button" class="gf-bt vk-devolver" data-so2="sel-devolver" ${nDev?'':'disabled'} title="Devolver ao sócio os aportes marcados (o que falta devolver de cada um)"><i class="fas fa-rotate-left"></i> Devolver${nDev?` (${nDev})`:''}</button><button type="button" class="gf-bt vk-excluir" data-so2="sel-excluir" ${n?'':'disabled'}><i class="fas fa-trash"></i> Excluir${n?` (${n})`:''}</button>`,'data-so2="selecionar"');}
   // aportes marcados que ainda têm valor a devolver ao sócio
   const paraDevolver=()=>{const T=App._so2Todos||[];return marcadosSo().filter(x=>!x.sai).map(x=>({x,s:saldoAporte(x,T)})).filter(z=>z.s>0.004);};
