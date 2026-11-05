@@ -10678,6 +10678,12 @@ window.onload=()=>{
 .cc-cartao{display:inline-flex;align-items:center;gap:4px;font:700 10.5px Inter,sans-serif;color:#1849A9;background:#EEF4FF;border:1px solid #D1E0FF;border-radius:99px;padding:1px 7px;margin-right:4px;vertical-align:1px;white-space:nowrap;}
 .cc-conf{border:1px solid #E4E9F2;border-radius:14px;background:#fff;padding:10px 14px;margin:0 0 12px;} .cc-conf-cab{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 10px;margin-bottom:6px;} .cc-conf-cab b{font-size:13.5px;color:#101828;} .cc-conf-cab b i{color:#1652D8;margin-right:4px;} .cc-conf-cab small{font-size:11.5px;color:#667085;}.cc-conf ul{list-style:none;margin:0;padding:0;display:grid;gap:4px;} .cc-conf li{display:flex;flex-wrap:wrap;align-items:center;gap:4px 14px;padding:7px 10px;border-radius:10px;background:#F8FAFC;font-size:12.5px;color:#475467;} .cc-conf li>b{min-width:110px;color:#101828;} .cc-conf li span b{color:#101828;font-variant-numeric:tabular-nums;}.cc-conf li em{margin-left:auto;font-style:normal;font-weight:800;white-space:nowrap;} .cc-conf li.ok{background:#ECFDF3;} .cc-conf li.ok em{color:#067647;} .cc-conf li.err{background:#FEF3F2;} .cc-conf li.err em{color:#B42318;} .cc-conf li em.sem{color:#667085;font-weight:600;}
 .cc-mostra{font-size:12px;color:#667085;margin-left:auto;}
+.cc-lados{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:2px 0 10px;}
+.cc-lado{display:flex;align-items:center;gap:8px;min-width:0;padding:10px 14px;border:1px solid #D0D5DD;border-radius:12px;background:#fff;font:700 13.5px Inter,sans-serif;color:#344054;cursor:pointer;text-align:left;} .cc-lado:hover{border-color:#98A2B3;}
+.cc-lado small{margin-left:auto;font:600 12px Inter,sans-serif;color:#667085;font-variant-numeric:tabular-nums;white-space:nowrap;} .cc-lado.sai i{color:#B42318;} .cc-lado.ent i{color:#067647;}
+.cc-lado.on{border-color:#1652D8;background:#EFF4FF;color:#1849A9;box-shadow:inset 0 0 0 1px #1652D8;} .cc-lado.on small{color:#1849A9;}
+.cc-bloco-cab .fin-bt.pri{max-width:100%;height:auto;white-space:normal;text-align:left;line-height:1.3;}
+@media (max-width:560px){.cc-lado{flex-wrap:wrap;padding:9px 10px;} .cc-lado small{margin-left:0;flex-basis:100%;}}
 .cc-per{display:inline-flex;align-items:center;gap:6px;font:600 12px Inter,sans-serif;color:#475467;} .cc-per input{border:1px solid #D0D5DD;border-radius:10px;padding:6px 8px;font:600 12.5px Inter,sans-serif;}
 .cc-prog{margin:4px 0 8px;font-size:12.5px;color:#344054;} .cc-prog em{display:block;height:8px;border-radius:999px;background:#EAECF0;margin-top:6px;overflow:hidden;} .cc-prog em i{display:block;height:100%;background:linear-gradient(90deg,#12B76A,#039855);border-radius:999px;transition:width .3s;}
 .cc-rec{border:0;background:#F2F4F7;color:#475467;width:26px;height:26px;border-radius:8px;cursor:pointer;display:inline-grid;place-items:center;flex:0 0 auto;} .cc-rec:hover{background:#E4E7EC;}
@@ -10711,8 +10717,7 @@ window.onload=()=>{
 .fin-lote label:hover{background:var(--bg);}
 .fin-lote input{width:16px;height:16px;flex-shrink:0;}
 .fin-lote .v{margin-left:auto;font-weight:700;white-space:nowrap;padding-left:10px;}
-.fin-lote label[hidden]{display:none;} .cc-varias label>span:first-of-type{min-width:0;line-height:1.3;} .cc-varias label b{color:var(--text-1);overflow-wrap:anywhere;} .cc-varias label small{display:block;color:var(--text-3);font-size:11.5px;margin-top:1px;}
-.cc-varias label:has(input:checked){background:#EFF4FF;} .cc-nada{margin:0;padding:16px;text-align:center;color:var(--text-3);font-size:12.5px;} .cc-nada[hidden]{display:none;}
+.fin-lote label[hidden]{display:none;}
 @media (max-width:900px){.fin-linha{grid-template-columns:minmax(0,1fr);} .fin-tab{font-size:12px;} .fin-esconder-cel{display:none;} .fin-filtros{width:100%;} .fin-filtros select{flex:1 1 100%;min-width:0!important;width:100%;}}
 </style>
 <div class="fin-ov" id="fin-ov"><div class="fin-jan" id="fin-jan" role="dialog" aria-modal="true"></div></div>
@@ -10832,6 +10837,8 @@ const Fin=(function(){
     return out.filter(m=>m.valor>0);
   }
   const rotulo=m=>`${m.quem?m.quem+' · ':''}${m.desc} · ${m.origem} · ${m.pago?(m.sent<0?'pago ':'recebido ')+brDe(m.dataBaixa):m.venc?(m.sent<0?'vence ':'previsto ')+brDe(m.venc):'sem data'} · ${fmt(m.valor)}`;
+  // entrada do banco só recebe nota de "Nota emitida · a receber" (o que ainda está "a faturar" não tem nota)
+  const aReceber=m=>m.tipo==='fat'&&!m.pago&&cn(m.r[m.kTipo])==='real';
 
   /* ───── gravação ───── */
   // Tabela que ainda não existe no banco (SQL de instalação não rodado) → mensagem clara.
@@ -10861,9 +10868,12 @@ const Fin=(function(){
     else if(m.tipo==='despesa'){obj[m.kSt]='Pago';obj[m.kPg]=dataISO;obj[m.kTipo]='Real';}
     else if(m.tipo==='fat'){obj[m.kTipo]='Real';obj[m.kRec]=dataISO;if(r.antecipada==='sim')obj.antec_recebida='sim';if(extra.nf)obj[kRow(r,['n_nf'],'n_nf')]=extra.nf;
       // antecipada (Avançar Fornecedores): o desconto que vale é o que a EMBASA realmente descontou = líquido da nota − depósito
+      let ajustou=false;
       if(r.antecipada==='sim'&&extra.valor>0){const k=(kw,fb)=>kRow(r,kw,fb),kB=k(['faturamento_bruto','bruto'],'faturamento_bruto'),kA=k(['antecipacao_nf'],'antecipacao_nf'),kL=k(['faturamento_liquido','liquido'],'faturamento_liquido');
         const vf=val(r[kB])-val(r[k(['imposto_inss','inss'],'imposto_inss')])-val(r[k(['imposto_irpf','irpf'],'imposto_irpf')])-val(r.iss_retido)-val(r[k(['seguro_contrato','seguro'],'seguro_contrato')]),desc=Math.round((vf-extra.valor)*100)/100;
-        if(desc>=0&&desc<vf){obj[kA]=dinheiro(desc);obj[kL]=dinheiro(vf-desc);obj.antec_depositado=dinheiro(extra.valor);}}}
+        if(desc>=0&&desc<vf){obj[kA]=dinheiro(desc);obj[kL]=dinheiro(vf-desc);obj.antec_depositado=dinheiro(extra.valor);ajustou=true;}}
+      // recebimento registrado na Conciliação: o líquido da nota passa a ser o que entrou no banco (o esperado fica guardado para o Desfazer)
+      if(!ajustou&&extra.ajustar&&extra.valor>0&&Math.abs(extra.valor-m.valor)>=0.01){obj.liq_esperado=dinheiro(m.valor);obj[kRow(r,['faturamento_liquido','liquido'],'faturamento_liquido')]=dinheiro(extra.valor);}}
     if(extra.conc){obj.conciliacao=juntarId(r.conciliacao,extra.conc);obj.conciliacao_baixa=juntarId(r.conciliacao_baixa,extra.conc);}
     if(extra.desc&&m.tipo!=='fat')obj.extrato_desc=extra.desc;
     return salvar(r._aba||ABA[m.tipo],obj,r.rowid);
@@ -11223,7 +11233,7 @@ const Fin=(function(){
     const idm=m=>m.tipo+':'+m.r.rowid;
     const idsExt=ext.itens.map(t=>t.id);
     ms.forEach(m=>{const s=m.r.conciliacao;if(!s)return;idsExt.forEach(f=>{if(!temId(s,f))return;const x=feitos.get(f)||{rots:[],alvos:[]};x.rots.push((TIPO_ROT[m.tipo]||'Retirada')+': '+m.desc+' · '+m.origem);x.alvos.push(m);feitos.set(f,x);});});
-    const abertosS=ms.filter(m=>m.sent<0&&!m.pago),abertosE=ms.filter(m=>m.tipo==='fat'&&!m.pago);
+    const abertosS=ms.filter(m=>m.sent<0&&!m.pago),abertosE=ms.filter(aReceber);
     ext.itens.slice().sort((a,b)=>dt(a.data)-dt(b.data)).forEach(t=>{
       const td=dt(t.data),v=Math.abs(t.valor);
       if(feitos.has(t.id)){const x=feitos.get(t.id);return props.push({t,st:'feito',nota:x.rots.join(' · '),alvos:x.alvos});}
@@ -11272,7 +11282,7 @@ const Fin=(function(){
           if(vistos.has(id))throw new Error('o mesmo lançamento do sistema foi escolhido para duas linhas do extrato');
           vistos.add(id);
           if(p.acao==='vincular')await salvar(m.r._aba||ABA[m.tipo],{...m.r,conciliacao:juntarId(m.r.conciliacao,p.t.id)},m.r.rowid);
-          else await baixar(m,isoDeBR(p.t.data),{conc:p.t.id,desc:p.t.desc,valor:p.alvos.length===1?Math.abs(p.t.valor):0});
+          else await baixar(m,isoDeBR(p.t.data),{conc:p.t.id,desc:p.t.desc,valor:p.alvos.length===1?Math.abs(p.t.valor):0,ajustar:p.ajustar});
         }
         ok++;
       }catch(e){falhas.push(`${p.t.data} ${fmt(p.t.valor)}: ${(e&&e.message)||e}`);}
@@ -11293,19 +11303,24 @@ const Fin=(function(){
     const ajuda=`<div class="fin-card fin-ajuda"><h3>Como baixar o extrato</h3><ol><li>No internet banking da conta da empresa, abra o <b>extrato</b> do período.</li><li>Escolha <b>Exportar / Salvar como</b> → <b>OFX</b> (às vezes aparece como “Money” ou “Quicken”). Se o banco não tiver OFX, use <b>CSV</b>, <b>Excel</b> ou o <b>PDF</b> do extrato.</li><li>Arraste o arquivo para o quadro acima. Nada vai para o sistema até você confirmar as baixas.</li></ol><p class="fin-sub" style="margin:10px 0 0">Prefira o <b>OFX</b>: além dos lançamentos ele traz o saldo da conta, que passa a ser o ponto de partida do fluxo de caixa em Contas a pagar e receber.</p></div>`;
     if(!ext){box.innerHTML=`<div class="fin-wrap">${cab}${zona}${ajuda}</div>`;ligarArquivo(box);box.onclick=null;box.onchange=null;box.onfocusout=null;return;}
     const F=CONC.f,qb=cn(F.busca),props0=conciliar(ext),g={ok:[],confira:[],vincular:[],sem:[],feito:[],ignorado:[]};
-    // filtro da barra: tipo (entrada/saída) e busca no banco e no sistema (nome, descrição ou valor)
+    // filtro da barra: busca no banco e no sistema (nome, descrição ou valor)
     // fatura com vários cartões: filtro pelo cartão (o escolhido fica lembrado neste computador)
     const cartoes=[...new Set(ext.itens.map(t=>t.cartao).filter(Boolean))].sort();if(F.cartao&&!cartoes.includes(F.cartao))F.cartao='';
     // De / até: só dá para escolher dentro do período do extrato anexado (do cartão escolhido, se houver filtro)
     const isosExt=(F.cartao?ext.itens.filter(t=>t.cartao===F.cartao):ext.itens).map(t=>isoDeBR(t.data)).filter(Boolean).sort(),perIni=isosExt[0]||'',perFim=isosExt[isosExt.length-1]||'';
     if(F.de&&perIni&&(F.de<perIni||F.de>perFim))F.de='';if(F.ate&&perIni&&(F.ate<perIni||F.ate>perFim))F.ate='';
-    const props=props0.filter(p=>(!F.cartao||p.t.cartao===F.cartao)&&(!F.tipo||(F.tipo==='sai'?p.t.valor<0:p.t.valor>0))&&(!F.de||isoDeBR(p.t.data)>=F.de)&&(!F.ate||isoDeBR(p.t.data)<=F.ate)&&(!qb||cn([p.t.desc,p.t.quem,p.t.detalhe||'',p.t.cartao||'',fmt(Math.abs(p.t.valor)),n2c(Math.abs(p.t.valor)),(p.alvos||[]).map(rotulo).join(' '),p.nota||''].join(' ')).includes(qb)));
+    const props0c=F.cartao?props0.filter(p=>p.t.cartao===F.cartao):props0;
+    // saídas e entradas ficam separadas, cada lado na sua aba: não dá para marcar positivo junto com negativo
+    const saidas=props0c.filter(p=>p.t.valor<0),entradas=props0c.filter(p=>p.t.valor>0);
+    if(F.tipo!=='sai'&&F.tipo!=='ent')F.tipo=saidas.length||!entradas.length?'sai':'ent';
+    const ehSai=F.tipo==='sai',doLado=ehSai?saidas:entradas;
+    const props=doLado.filter(p=>(!F.de||isoDeBR(p.t.data)>=F.de)&&(!F.ate||isoDeBR(p.t.data)<=F.ate)&&(!qb||cn([p.t.desc,p.t.quem,p.t.detalhe||'',p.t.cartao||'',fmt(Math.abs(p.t.valor)),n2c(Math.abs(p.t.valor)),(p.alvos||[]).map(rotulo).join(' '),p.nota||''].join(' ')).includes(qb)));
     if(F.ordem)props.sort((a,b)=>F.ordem==='valor-'?Math.abs(b.t.valor)-Math.abs(a.t.valor):Math.abs(a.t.valor)-Math.abs(b.t.valor));
     props.forEach(p=>g[p.st].push(p));
-    if(!CONC.marcados)CONC.marcados=new Set([...g.ok,...g.vincular].map(p=>p.t.id));
+    if(!CONC.marcados)CONC.marcados=new Set(props0.filter(p=>p.st==='ok'||p.st==='vincular').map(p=>p.t.id));
     CONC.props=[];
     // números do topo: os do cartão escolhido no filtro (ou de todos)
-    const itensC=F.cartao?ext.itens.filter(t=>t.cartao===F.cartao):ext.itens,props0c=F.cartao?props0.filter(p=>p.t.cartao===F.cartao):props0;
+    const itensC=F.cartao?ext.itens.filter(t=>t.cartao===F.cartao):ext.itens,cont=st=>props0c.filter(p=>p.st===st).length;
     const ent=itensC.filter(t=>t.valor>0).reduce((s,t)=>s+t.valor,0),sai=-itensC.filter(t=>t.valor<0).reduce((s,t)=>s+t.valor,0);
     const datas=itensC.map(t=>dt(t.data)).filter(Boolean).sort((a,b)=>a-b);
     const conf=ext.cartaoFatura?conferenciaFatura(ext,F.cartao):[];
@@ -11320,7 +11335,7 @@ const Fin=(function(){
       const marcavel=['ok','confira','vincular'].includes(p.st),selSem=p.st==='sem';
       const bt=(acao,txt,cls)=>`<button type="button" class="fin-bt mini ${cls||''}" data-cc="${acao}" data-i="${i}">${txt}</button>`;
       const acoes=p.st==='sem'?(p.t.valor<0?bt('escolher','Escolher…')+bt('conta','Lançar em Contas a pagar')+bt('ignorar','Ignorar')
-          :bt('escolher','Escolher…')+bt('lote','Várias notas…')+bt('aporte','É aporte')+bt('ignorar','Ignorar'))
+          :bt('receber','Registrar recebimento')+bt('aporte','É aporte')+bt('ignorar','Ignorar'))
         :p.st==='feito'?bt('desfazer','Desfazer'):p.st==='ignorado'?bt('voltar','Voltar para a conferência'):'';
       return `<tr><td>${marcavel?`<input type="checkbox" data-cc-marca="${i}" ${CONC.marcados.has(p.t.id)?'checked':''}>`:selSem?`<input type="checkbox" data-cc-sem="${i}" title="Selecionar esta linha" ${CONC.selSem.has(p.t.id)?'checked':''}>`:''}</td>
         <td style="white-space:nowrap">${fe(p.t.data.slice(0,5))}</td>
@@ -11328,39 +11343,39 @@ const Fin=(function(){
         <td class="num ${p.t.valor<0?'t-err':'t-ok'}"><b>${p.t.valor<0?'−':'+'} ${fmt(Math.abs(p.t.valor))}</b></td>
         <td class="fin-conc-alvo">${alvo}${p.st!=='sem'&&p.st!=='feito'?difDias(p):''}${p.nota&&p.st!=='feito'?`<small class="t-warn">${fe(p.nota)}</small>`:''}${acoes?`<div class="fin-conc-acoes">${acoes}</div>`:''}</td></tr>`;
     };
-    const bloco=(titulo,sub,lista,tom,k)=>{const kf=k||titulo,fech=CONC.fechados.has(kf);return lista.length?`<div class="fin-card fin-conc-bloco ${tom}${fech?' cc-fechado':''}"><div class="cc-bloco-cab"><button type="button" class="cc-rec" data-cc-rec="${fe(kf)}" title="${fech?'Mostrar as linhas':'Recolher este bloco'}"><i class="fas fa-chevron-${fech?'right':'down'}"></i></button><h3>${titulo} (${lista.length})</h3><span class="cc-tot">${(()=>{const e=lista.filter(p=>p.t.valor>0).reduce((s,p)=>s+p.t.valor,0),sa=lista.filter(p=>p.t.valor<0).reduce((s,p)=>s-p.t.valor,0);return [e?'entrou '+fmt(e):'',sa?'saiu '+fmt(sa):''].filter(Boolean).join(' · ');})()}</span>
-        ${['ok','confira','vincular'].includes(k)?`<button type="button" class="fin-bt mini" data-cc-todos="${k}">Marcar todos</button><button type="button" class="fin-bt mini" data-cc-nenhum="${k}">Desmarcar</button>`:''}
-        ${k==='sem'?(()=>{const ms=lista.filter(p=>CONC.selSem.has(p.t.id)),nS=ms.filter(p=>p.t.valor<0).length;return `<button type="button" class="fin-bt mini" data-cc-semtodos>Marcar todos</button><button type="button" class="fin-bt mini" data-cc-semnenhum ${ms.length?'':'disabled'}>Desmarcar</button><button type="button" class="fin-bt mini" data-cc-ignmarc ${ms.length?'':'disabled'}>Ignorar marcados (${ms.length})</button><button type="button" class="fin-bt mini pri" data-cc-lancmarc ${nS?'':'disabled'} title="Cada saída marcada vira uma conta paga na data do banco, com a mesma categoria — bom para tarifas, impostos e taxas">Lançar marcados em Contas a pagar (${nS})</button>`;})():''}
+    // a soma do que está marcado fica no próprio botão que vai usar essas linhas
+    const qtdSoma=L=>L.length?`(${L.length}) · ${fmt(L.reduce((s,p)=>s+Math.abs(p.t.valor),0))}`:'(0)';
+    const bloco=(titulo,sub,lista,tom,k)=>{const kf=F.tipo+':'+(k||titulo),fech=CONC.fechados.has(kf);return lista.length?`<div class="fin-card fin-conc-bloco ${tom}${fech?' cc-fechado':''}"><div class="cc-bloco-cab"><button type="button" class="cc-rec" data-cc-rec="${fe(kf)}" title="${fech?'Mostrar as linhas':'Recolher este bloco'}"><i class="fas fa-chevron-${fech?'right':'down'}"></i></button><h3>${titulo} (${lista.length})</h3><span class="cc-tot">${(()=>{const e=lista.filter(p=>p.t.valor>0).reduce((s,p)=>s+p.t.valor,0),sa=lista.filter(p=>p.t.valor<0).reduce((s,p)=>s-p.t.valor,0);return [e?'entrou '+fmt(e):'',sa?'saiu '+fmt(sa):''].filter(Boolean).join(' · ');})()}</span>
+        ${['ok','confira','vincular'].includes(k)?(()=>{const ms=lista.filter(p=>CONC.marcados.has(p.t.id));return `<button type="button" class="fin-bt mini" data-cc-todos="${k}">Marcar todos</button><button type="button" class="fin-bt mini" data-cc-nenhum="${k}">Desmarcar</button><button type="button" class="fin-bt mini pri" data-cc-aplicar="${k}" ${ms.length?'':'disabled'} title="${k==='vincular'?'Ligar ao extrato as linhas marcadas':ehSai?'Dar baixa nas linhas marcadas':'Registrar recebimento das linhas marcadas'}">${k==='vincular'?'Ligar ao extrato os marcados':ehSai?'Dar baixa nos marcados':'Registrar recebimento dos marcados'} ${qtdSoma(ms)}</button>`;})():''}
+        ${k==='sem'?(()=>{const ms=lista.filter(p=>CONC.selSem.has(p.t.id));return `<button type="button" class="fin-bt mini" data-cc-semtodos>Marcar todos</button><button type="button" class="fin-bt mini" data-cc-semnenhum ${ms.length?'':'disabled'}>Desmarcar</button><button type="button" class="fin-bt mini" data-cc-ignmarc ${ms.length?'':'disabled'}>Ignorar marcados (${ms.length})</button>${ehSai?`<button type="button" class="fin-bt mini pri" data-cc-lancmarc ${ms.length?'':'disabled'} title="Lançar em Contas a pagar: cada saída marcada vira uma conta paga na data do banco, com a mesma categoria — bom para tarifas, impostos e taxas">Lançar marcados em Contas a pagar ${qtdSoma(ms)}</button>`:`<button type="button" class="fin-bt mini pri" data-cc-recmarc ${ms.length?'':'disabled'} title="Registrar recebimento: cada entrada marcada vai para uma nota emitida, na data do banco">Registrar recebimento dos marcados ${qtdSoma(ms)}</button>`}`;})():''}
         ${tom==='cinza'&&titulo==='Ignorados'?'<button type="button" class="fin-bt mini" data-cc-voltartodos>Voltar todos para a conferência</button>':''}</div><div class="fin-sub">${sub}</div>${fech?'':`<div class="fin-rolar"><table class="fin-tab"><thead><tr><th></th><th>Data</th><th>No banco</th><th class="num">Valor</th><th>No sistema</th></tr></thead><tbody>${lista.map(linha).join('')}</tbody></table></div>`}</div>`:'';};
-    const marcadosC=[...g.ok,...g.confira,...g.vincular].filter(p=>CONC.marcados.has(p.t.id)),nMarc=marcadosC.length;
-    // somatória do que está selecionado em qualquer bloco (só o que aparece com os filtros da barra)
-    const selTodas=marcadosC.concat(g.sem.filter(p=>CONC.selSem.has(p.t.id))),nSel=selTodas.length,somaSai=selTodas.filter(p=>p.t.valor<0).reduce((s,p)=>s-p.t.valor,0),somaEnt=selTodas.filter(p=>p.t.valor>0).reduce((s,p)=>s+p.t.valor,0);
+    const abaLado=(k,rot,ico,L)=>`<button type="button" class="cc-lado ${k}${F.tipo===k?' on':''}" data-cc-lado="${k}" aria-pressed="${F.tipo===k}"><i class="fas ${ico}"></i> ${rot} (${L.length})<small>${fmt(L.reduce((s,p)=>s+Math.abs(p.t.valor),0))}</small></button>`;
     box.innerHTML=`<div class="fin-wrap">
       ${cab}
       <div class="fin-aviso"><div>Extrato <b>${fe(ext.nome||'')}</b>${ext.banco?' · banco '+fe(ext.banco):''}${ext.conta?' · conta '+fe(ext.conta):''}${datas.length?` · de ${brDe(datas[0])} a ${brDe(datas[datas.length-1])}`:''}${ext.saldo!=null?` · saldo no extrato <b>${fmt(ext.saldo)}</b>${ext.saldoData?' em '+fe(ext.saldoData):''} (usado como ponto de partida do fluxo de caixa)`:''}.</div></div>
       <div class="fin-kpis">
         <div class="fin-kpi"><small>Lançamentos no extrato${F.cartao?` · cartão ${fe(F.cartao)}`:''}</small><b>${itensC.length}</b><span>entrou ${fmt(ent)} · saiu ${fmt(sai)}</span></div>
-        <div class="fin-kpi verde"><small>Encontrados sozinhos</small><b>${g.ok.length+g.vincular.length}</b><span>${g.confira.length} para conferir antes</span></div>
-        <div class="fin-kpi ${g.sem.length?'vermelho':'verde'}"><small>Sem correspondência</small><b>${g.sem.length}</b><span>escolha, lance ou ignore</span></div>
-        <div class="fin-kpi cinza"><small>Já conciliados</small><b>${g.feito.length}</b><span>${g.ignorado.length} ignorado${g.ignorado.length!==1?'s':''}</span></div>
+        <div class="fin-kpi verde"><small>Encontrados sozinhos</small><b>${cont('ok')+cont('vincular')}</b><span>${cont('confira')} para conferir antes</span></div>
+        <div class="fin-kpi ${cont('sem')?'vermelho':'verde'}"><small>Sem correspondência</small><b>${cont('sem')}</b><span>escolha, lance ou ignore</span></div>
+        <div class="fin-kpi cinza"><small>Já conciliados</small><b>${cont('feito')}</b><span>${cont('ignorado')} ignorado${cont('ignorado')!==1?'s':''}</span></div>
       </div>
       ${conf.length?`<div class="cc-conf"><div class="cc-conf-cab"><b><i class="fas fa-scale-balanced"></i> Conferência com a fatura</b><small>soma de todas as linhas do cartão (em qualquer bloco abaixo) × total impresso no PDF</small></div><ul>${conf.map(x=>{const ok=x.dif!=null&&Math.abs(x.dif)<0.01,ruim=x.dif!=null&&!ok;
         return `<li class="${ok?'ok':ruim?'err':''}"><b>${x.c==='*'?'Fatura inteira':x.c?'Cartão '+fe(x.c):'Sem cartão'}</b><span>${x.n} linha${x.n!==1?'s':''} · soma <b>${fmt(x.s)}</b></span>${x.pdf!=null?`<span>${x.c==='*'?'valor total desta fatura':'total no PDF'} <b>${fmt(x.pdf)}</b></span><em>${ok?'<i class="fas fa-circle-check"></i> bate':`<i class="fas fa-triangle-exclamation"></i> ${x.dif>0?'faltam':'sobram'} ${fmt(Math.abs(x.dif))}`}</em>`:'<em class="sem">esta fatura não traz o total do cartão</em>'}</li>`;}).join('')}</ul></div>`:''}
       ${(()=>{const tot=props0c.length,res=props0c.filter(p=>p.st==='feito'||p.st==='ignorado').length,pc=tot?Math.round(res/tot*100):0;return `<div class="cc-prog"><div><b>Conferência do extrato:</b> ${res} de ${tot} linhas resolvidas (${pc}%)${tot-res?` · faltam <b>${tot-res}</b>`:' · <b>tudo conferido</b>'}</div><em><i style="width:${pc}%"></i></em></div>`;})()}
+      <div class="cc-lados">${abaLado('sai','Saídas','fa-arrow-up',saidas)}${abaLado('ent','Entradas','fa-arrow-down',entradas)}</div>
       <div class="cc-barra"><div class="pl2-busca"><i class="fas fa-magnifying-glass"></i><input type="search" data-cc-f="busca" value="${fe(F.busca)}" placeholder="Buscar no banco ou no sistema: nome, descrição, valor…"></div>
         ${cartoes.length>1?`<select data-cc-f="cartao" title="Fatura com vários cartões: mostrar só um"><option value="">Todos os cartões</option>${cartoes.map(c=>{const L=ext.itens.filter(t=>t.cartao===c);return `<option value="${fe(c)}" ${F.cartao===c?'selected':''}>Cartão ${fe(c)} — ${L.length} lanç. · ${fmt(Math.abs(L.reduce((s,t)=>s+t.valor,0)))}</option>`;}).join('')}</select>`:''}
-        <select data-cc-f="tipo"><option value="">Entradas e saídas</option><option value="sai" ${F.tipo==='sai'?'selected':''}>Só saídas</option><option value="ent" ${F.tipo==='ent'?'selected':''}>Só entradas</option></select>
         <label class="cc-per" title="Só dentro do período do extrato anexado">De <input type="date" data-cc-f="de" ${perIni?`min="${perIni}" max="${F.ate||perFim}"`:''} value="${fe(F.de)}"></label><label class="cc-per" title="Só dentro do período do extrato anexado">até <input type="date" data-cc-f="ate" ${perIni?`min="${F.de||perIni}" max="${perFim}"`:''} value="${fe(F.ate)}"></label>
         <select data-cc-f="ordem"><option value="">Ordem: data</option><option value="valor-" ${F.ordem==='valor-'?'selected':''}>Ordem: maior valor</option><option value="valor+" ${F.ordem==='valor+'?'selected':''}>Ordem: menor valor</option></select>
-        ${F.busca||F.tipo||F.ordem||F.de||F.ate||F.cartao?'<button type="button" class="fin-bt mini" data-cc-limpar><i class="fas fa-xmark"></i> Limpar</button>':''}<span class="cc-mostra">${props.length} de ${props0c.length} linhas</span></div>
-      ${bloco('Prontos para dar baixa','Valor idêntico e data batendo com um lançamento só — já vêm marcados.',g.ok,'ok','ok')}
+        ${F.busca||F.ordem||F.de||F.ate||F.cartao?'<button type="button" class="fin-bt mini" data-cc-limpar><i class="fas fa-xmark"></i> Limpar</button>':''}<span class="cc-mostra">${props.length} de ${doLado.length} linhas</span></div>
+      ${props.length?'':`<div class="fin-card fin-vazio">${doLado.length?'Nenhuma linha com estes filtros.':ehSai?'Este extrato não tem saídas.':'Este extrato não tem entradas.'}</div>`}
+      ${bloco(ehSai?'Prontos para dar baixa':'Prontos para receber',`Valor idêntico e data batendo com ${ehSai?'um lançamento só':'uma nota emitida só'} — já vêm marcados.`,g.ok,'ok','ok')}
       ${bloco('Confira antes','Valor IDÊNTICO, mas com mais de um lançamento possível ou data distante. Escolha o certo na lista e marque.',g.confira,'warn','confira')}
       ${bloco('Já estavam baixados — só ligar ao extrato','O sistema já tinha o pagamento/recebimento; marcar liga a linha do banco para ela não aparecer de novo.',g.vincular,'info','vincular')}
-      ${bloco('Sem correspondência','Não há lançamento em aberto com esse valor exato. Escolha a qual pertence, lance o que faltou ou ignore (tarifa, transferência entre contas, aplicação…).',g.sem,'err','sem')}
+      ${bloco('Sem correspondência',ehSai?'Não há conta em aberto com esse valor exato. Escolha a qual pertence, lance o que faltou ou ignore (tarifa, transferência entre contas, aplicação…).':'Não há nota a receber com esse valor exato. Registre o recebimento na nota emitida, marque como aporte ou ignore (transferência entre contas, aplicação…).',g.sem,'err','sem')}
       ${bloco('Já conciliados','Baixados ou ligados em importações anteriores deste mesmo extrato.',g.feito,'cinza')}
       ${bloco('Ignorados','Linhas que você marcou para ignorar (ficam guardadas neste computador).',g.ignorado,'cinza')}
       ${zona}
-      ${(g.ok.length+g.confira.length+g.vincular.length+g.sem.length)?`<div class="fin-rodape"><span class="cc-soma">${nSel?`<b>${nSel} ${nSel>1?'contas selecionadas':'conta selecionada'}</b>${somaSai?` · saídas <b>${fmt(somaSai)}</b>`:''}${somaEnt?` · entradas <b>${fmt(somaEnt)}</b>`:''}`:'Nenhuma conta selecionada'}</span>${(g.ok.length+g.confira.length+g.vincular.length)?`<button type="button" class="fin-bt pri" data-cc-aplicar ${nMarc?'':'disabled'}>Dar baixa nos marcados${nMarc?` (${nMarc})`:''}</button>`:''}</div>`:''}
     </div>`;
     ligarArquivo(box);
     box.oninput=ev=>{const fi=ev.target.closest('[data-cc-f="busca"]');if(!fi)return;CONC.f.busca=fi.value;clearTimeout(CONC._t);CONC._t=setTimeout(()=>{renderConciliacao();const n=box.querySelector('[data-cc-f="busca"]');if(n){n.focus();n.setSelectionRange(n.value.length,n.value.length);}},300);};
@@ -11380,23 +11395,25 @@ const Fin=(function(){
     };
     box.onclick=async ev=>{
       const b=ev.target.closest('button');if(!b)return;
-      if(b.matches('[data-cc-limpar]')){CONC.f={busca:'',tipo:'',ordem:'',de:'',ate:'',cartao:''};return renderConciliacao();}
+      if(b.matches('[data-cc-limpar]')){CONC.f={busca:'',tipo:F.tipo,ordem:'',de:'',ate:'',cartao:''};return renderConciliacao();}
+      if(b.dataset.ccLado){CONC.f.tipo=b.dataset.ccLado;return renderConciliacao();}
       if(b.dataset.ccRec){const k=b.dataset.ccRec;CONC.fechados.has(k)?CONC.fechados.delete(k):CONC.fechados.add(k);return renderConciliacao();}
       if(b.matches('[data-cc-semnenhum]')){g.sem.forEach(p=>CONC.selSem.delete(p.t.id));return renderConciliacao();}
       if(b.matches('[data-cc-voltartodos]')){const s=ignorados(),n=g.ignorado.length;g.ignorado.forEach(p=>s.delete(p.t.id));gravarIgn(s);toast(`${n} linha(s) voltaram para a conferência.`,'success');return renderConciliacao();}
       if(b.matches('[data-cc-lancmarc]'))return lancarMarcados(g.sem.filter(p=>CONC.selSem.has(p.t.id)&&p.t.valor<0));
+      if(b.matches('[data-cc-recmarc]'))return receberLinhas(g.sem.filter(p=>CONC.selSem.has(p.t.id)&&p.t.valor>0));
       if(b.dataset.ccTodos){g[b.dataset.ccTodos].forEach(p=>CONC.marcados.add(p.t.id));return renderConciliacao();}
       if(b.dataset.ccNenhum){g[b.dataset.ccNenhum].forEach(p=>CONC.marcados.delete(p.t.id));return renderConciliacao();}
       if(b.matches('[data-cc-semtodos]')){g.sem.forEach(p=>CONC.selSem.add(p.t.id));return renderConciliacao();}
       if(b.matches('[data-cc-ignmarc]')){const ids=g.sem.filter(p=>CONC.selSem.has(p.t.id)).map(p=>p.t.id);if(!ids.length)return;
         return confirmar('Ignorar linhas do extrato',`${ids.length} linha(s) sem correspondência vão para "Ignorados" (tarifas, transferências entre contas, aplicações…). Dá para voltar depois.`,'Ignorar',async()=>{const s=ignorados();ids.forEach(id=>{s.add(id);CONC.selSem.delete(id);});gravarIgn(s);renderConciliacao();});}
       if(b.matches('[data-cc-cancelar]')){confirmar('Fechar este extrato?','O que já foi baixado continua baixado — só some esta conferência da tela.','Sim, fechar',async()=>{CONC.extrato=null;CONC.marcados=null;CONC.escolhas={};renderConciliacao();});return;}
-      if(b.matches('[data-cc-aplicar]')){
-        const sel=[...g.ok,...g.confira,...g.vincular].filter(p=>CONC.marcados.has(p.t.id));if(!sel.length)return;
-        b.disabled=true;toast('Dando baixa…','',false);
+      if(b.dataset.ccAplicar){
+        const sel=(g[b.dataset.ccAplicar]||[]).filter(p=>CONC.marcados.has(p.t.id));if(!sel.length)return;
+        b.disabled=true;toast(ehSai?'Dando baixa…':'Registrando o recebimento…','',false);
         try{
           const r=await executar(()=>aplicar(sel));
-          CONC.marcados=null;
+          sel.forEach(p=>CONC.marcados.delete(p.t.id));
           if(r.falhas.length)toast(`${r.ok} baixa(s) feita(s). Não deu em ${r.falhas.length}: ${r.falhas.join('; ')}`,'error',false);
           else toast(`${r.ok} lançamento(s) conciliado(s).`,'success');
         }catch(e){toast((e&&e.message)||'Não foi possível dar baixa.','error');}
@@ -11407,7 +11424,7 @@ const Fin=(function(){
       if(a==='ignorar'){const s=ignorados();s.add(p.t.id);gravarIgn(s);renderConciliacao();return;}
       if(a==='voltar'){const s=ignorados();s.delete(p.t.id);gravarIgn(s);renderConciliacao();return;}
       if(a==='escolher')return escolher(p);
-      if(a==='lote')return lote(p);
+      if(a==='receber')return receberLinhas([p]);
       if(a==='aporte')return aporte(p);
       if(a==='conta')return lancarConta(p);
       if(a==='desfazer')return desfazer(p);
@@ -11563,7 +11580,7 @@ const Fin=(function(){
       else ext=!ehExcel&&/<OFX>|OFXHEADER|<STMTTRN>/i.test(txt)?lerOFX(txt):lerCSVExtrato(txt);
       if(cartao){ajustarFaturaCartao(ext);ext.totaisPdf=ehPdf?totaisFatura(pdfParaCsv.bruto):{cartoes:{}};}
       if(!ext.itens.length)throw new Error('Não encontrei lançamentos nesse arquivo.');
-      ext.nome=arq.name;CONC.extrato=ext;CONC.marcados=null;CONC.escolhas={};{let c='';try{c=localStorage.getItem('vx_conc_cartao')||'';}catch(e){}CONC.f.cartao=ext.itens.some(t=>t.cartao===c)?c:'';}
+      ext.nome=arq.name;CONC.extrato=ext;CONC.marcados=null;CONC.escolhas={};CONC.f.tipo='';{let c='';try{c=localStorage.getItem('vx_conc_cartao')||'';}catch(e){}CONC.f.cartao=ext.itens.some(t=>t.cartao===c)?c:'';}
       if(ext.saldo!=null){try{localStorage.setItem(SALDO,JSON.stringify({valor:ext.saldo,data:ext.saldoData||brDe(hoje0())}));}catch(e){}}
       const cts=[...new Set(ext.itens.map(t=>t.cartao).filter(Boolean))].sort();
       // conferência: a soma de cada cartão tem que bater com o total impresso na fatura — se não bater, avisa na hora
@@ -11574,13 +11591,13 @@ const Fin=(function(){
     }catch(err){toast((err&&err.message)||'Não consegui ler o extrato.','error');}
   }
 
-  /* Linha sem correspondência: a pessoa diz a qual lançamento em aberto ela pertence. */
+  /* Saída sem correspondência: a pessoa diz a qual conta em aberto ela pertence. */
   function escolher(p){
-    const saida=p.t.valor<0,v=Math.abs(p.t.valor);
-    const ms=movimentos().filter(m=>!m.pago&&(saida?m.sent<0:m.tipo==='fat')).sort((a,b)=>Math.abs(a.valor-v)-Math.abs(b.valor-v)).slice(0,80);
-    if(!ms.length)return toast(saida?'Não há contas a pagar em aberto.':'Não há faturamentos a receber em aberto.','error');
+    const v=Math.abs(p.t.valor);
+    const ms=movimentos().filter(m=>!m.pago&&m.sent<0).sort((a,b)=>Math.abs(a.valor-v)-Math.abs(b.valor-v)).slice(0,80);
+    if(!ms.length)return toast('Não há contas a pagar em aberto.','error');
     janela('A qual lançamento pertence?',`<div class="fin-resumo">${fe(p.t.data)} · ${fe(p.t.desc)}<br>Valor no banco: <b>${fmt(p.t.valor)}</b></div>
-      <div class="fin-fld"><label>${saida?'Conta a pagar em aberto':'Faturamento a receber'} — os de valor mais próximo primeiro</label><select data-k="alvo">${ms.map((m,i)=>`<option value="${i}">${fe(rotulo(m))}</option>`).join('')}</select></div>
+      <div class="fin-fld"><label>Conta a pagar em aberto — os de valor mais próximo primeiro</label><select data-k="alvo">${ms.map((m,i)=>`<option value="${i}">${fe(rotulo(m))}</option>`).join('')}</select></div>
       <div class="fin-aviso laranja"><div>Se o valor for diferente, a baixa é feita mesmo assim, com a data do banco — confira depois juros, multa ou retenções.</div></div>`,
       [{html:'Cancelar'},{html:'Dar baixa',cls:'pri',acao:async j=>{
         const m=ms[+j.querySelector('[data-k="alvo"]').value];
@@ -11589,29 +11606,45 @@ const Fin=(function(){
         toast('Baixa feita.','success');
       }}],660);
   }
-  /* Um depósito pagando várias notas (comum em órgão público): marca as notas, o sistema
-     soma e mostra a diferença para o valor que entrou. */
-  function lote(p){
-    const v=p.t.valor;
-    const ms=movimentos().filter(m=>m.tipo==='fat'&&!m.pago).sort((a,b)=>(a.venc?a.venc.getTime():9e15)-(b.venc?b.venc.getTime():9e15));
-    if(!ms.length)return toast('Não há faturamentos a receber em aberto.','error');
-    const j=janela('Um depósito, várias notas',`<div class="fin-resumo">${fe(p.t.data)} · ${fe(p.t.desc)}<br>Entrou: <b>${fmt(v)}</b></div>
-      <div class="fin-fld"><input data-k="busca" placeholder="Filtrar por obra ou nota…"></div>
-      <div class="fin-lote">${ms.map((m,i)=>`<label data-busca="${fe(cn(m.desc+' '+m.origem))}"><input type="checkbox" data-i="${i}"><span>${fe(m.desc)}<small style="display:block;color:var(--text-3)">${fe(m.origem)}${m.venc?' · '+brDe(m.venc):''}</small></span><span class="v">${fmt(m.valor)}</span></label>`).join('')}</div>
-      <div class="fin-resumo" data-k="total">Marque as notas que este depósito paga.</div>`,
-      [{html:'Cancelar'},{html:'Dar baixa nas marcadas',cls:'verde',acao:async jj=>{
-        const sel=[...jj.querySelectorAll('[data-i]:checked')].map(x=>ms[+x.dataset.i]);
-        if(!sel.length)throw new Error('Marque as notas que estão no depósito.');
-        const r=await executar(()=>aplicar([{t:p.t,acao:'baixar',alvos:sel}]));
-        if(r.falhas.length)throw new Error(r.falhas[0]);
-        toast(`${sel.length} nota(s) recebida(s) neste depósito.`,'success');
-      }}],720);
-    const total=()=>{
-      const sel=[...j.querySelectorAll('[data-i]:checked')].map(x=>ms[+x.dataset.i]),s=sel.reduce((a,m)=>a+m.valor,0),dif=v-s;
-      j.querySelector('[data-k="total"]').innerHTML=sel.length?`${sel.length} nota(s): <b>${fmt(s)}</b> · depósito ${fmt(v)} · diferença <b class="${Math.abs(dif)<0.05?'t-ok':'t-err'}">${fmt(dif)}</b>${Math.abs(dif)>=0.05?'<br><small>Diferença costuma ser retenção (INSS, ISS, IR) ou uma nota faltando ou sobrando.</small>':''}`:'Marque as notas que este depósito paga.';
-    };
-    j.onchange=total;
-    j.oninput=ev=>{if(!ev.target.matches('[data-k="busca"]'))return;const q=cn(ev.target.value);j.querySelectorAll('.fin-lote label').forEach(l=>{l.hidden=!!q&&!l.dataset.busca.includes(q);});};
+  /* Entrada do banco sem nota encontrada: registra o recebimento numa nota de "Nota emitida · a receber". Cada linha do banco
+     vai para uma nota, na data do banco, e o recebimento fica com o valor que entrou: a diferença para o líquido esperado
+     aparece antes de confirmar, e o Desfazer devolve o líquido da nota. */
+  function receberLinhas(lista){
+    if(!lista.length)return;
+    const ms=movimentos().filter(aReceber),entrou=p=>Math.abs(p.t.valor);
+    if(!ms.length)return toast('Não há nota emitida a receber. Emita a nota em Faturamento e recebimentos e volte aqui.','error');
+    const linhaHtml=(p,i)=>{const v=entrou(p),ord=ms.map((m,k)=>({m,k})).sort((a,b)=>Math.abs(a.m.valor-v)-Math.abs(b.m.valor-v)).slice(0,80);
+      return `<tr data-ln="${i}"><td class="cc-lt-banco"><b>${fe(p.t.data.slice(0,5))}</b> ${fe(p.t.desc)}${p.t.detalhe?`<small>${fe(p.t.detalhe)}</small>`:p.t.quem?`<small>${fe(p.t.quem)}</small>`:''}</td>
+        <td><select data-i="nota" aria-label="Nota que recebeu este valor"><option value="">Escolha a nota…</option>${ord.map(x=>`<option value="${x.k}">${fe(rotulo(x.m))}</option>`).join('')}</select></td>
+        <td class="num"><b>${fmt(v)}</b></td><td class="num" data-i="dif">—</td>
+        <td><button type="button" class="bt-tirar" data-i="tirar" title="Tirar esta linha" aria-label="Tirar esta linha"><i class="fas fa-trash-can"></i></button></td></tr>`;};
+    const j=janela(lista.length>1?`Registrar ${lista.length} recebimentos`:'Registrar recebimento',`<div class="fin-resumo">Cada linha do banco registra o recebimento de uma nota de <b>Nota emitida · a receber</b>, na data do banco (as notas de valor mais próximo aparecem primeiro). O recebimento da nota fica com o valor que entrou no banco; se for diferente do líquido esperado, a diferença aparece na linha.</div>
+      <div class="lote-tab cc-lt cc-lr"><table data-sem-ordem><thead><tr><th>No banco</th><th>Nota a receber <span class="obg">*</span></th><th>Entrou</th><th>Diferença</th><th></th></tr></thead><tbody data-k="linhas">${lista.map(linhaHtml).join('')}</tbody></table></div>
+      <div class="lote-tot" data-k="tot"></div>`,
+      [{html:'<i class="fas fa-circle-check"></i> Registrar recebimento',cls:'pri',acao:async()=>{
+        const its=[...tb.rows].map(tr=>({p:lista[+tr.dataset.ln],k:tr.querySelector('[data-i="nota"]').value}));
+        if(!its.length)throw new Error('Não sobrou nenhuma linha.');
+        const falta=its.findIndex(x=>x.k==='');if(falta>=0)throw new Error(its.length>1?`Linha ${falta+1}: escolha a nota.`:'Escolha a nota que recebeu este valor.');
+        if(new Set(its.map(x=>x.k)).size<its.length)throw new Error('A mesma nota foi escolhida em duas linhas.');
+        const r=await executar(()=>aplicar(its.map(x=>({t:x.p.t,acao:'baixar',alvos:[ms[+x.k]],ajustar:true}))));
+        its.forEach(x=>CONC.selSem.delete(x.p.t.id));
+        if(r.falhas.length)toast(`${r.ok} recebimento(s) registrado(s). Não deu em ${r.falhas.length}: ${r.falhas.join('; ')}`,'error',false);
+        else toast(its.length>1?`${its.length} recebimentos registrados e conciliados.`:'Recebimento registrado e conciliado.','success');
+      }}],960);
+    const tb=j.querySelector('[data-k="linhas"]');
+    const pintar=()=>{const sels=[...tb.querySelectorAll('[data-i="nota"]')],usadas=new Set(sels.map(s=>s.value).filter(Boolean));let ent=0,esp=0,todas=sels.length>0;
+      [...tb.rows].forEach(tr=>{const s=tr.querySelector('[data-i="nota"]'),v=entrou(lista[+tr.dataset.ln]),m=s.value===''?null:ms[+s.value],c=tr.querySelector('[data-i="dif"]');ent+=v;
+        [...s.options].forEach(o=>{o.disabled=!!o.value&&o.value!==s.value&&usadas.has(o.value);});
+        if(!m){todas=false;c.textContent='—';return;}
+        esp+=m.valor;const d=Math.round((v-m.valor)*100)/100;
+        c.innerHTML=Math.abs(d)<0.01?'<b class="t-ok">bate</b>':`<b class="${d<0?'t-err':'t-warn'}">${d>0?'+':'−'} ${fmt(Math.abs(d))}</b><small>esperado ${fmt(m.valor)}</small>`;});
+      const n=tb.rows.length,dif=Math.round((ent-esp)*100)/100;
+      j.querySelector('[data-k="tot"]').innerHTML=n?`${n} linha${n>1?'s':''} · entrou <b>${fmt(ent)}</b>${todas?` · líquido esperado ${fmt(esp)}${Math.abs(dif)>=0.01?` · diferença <b>${dif>0?'+':'−'} ${fmt(Math.abs(dif))}</b>`:''}`:''}`:'<span class="t-err">Nenhuma linha — feche e marque as entradas de novo.</span>';};
+    // nota com o valor idêntico já vem escolhida (uma nota só para cada linha); o resto a pessoa escolhe
+    const ja=new Set();[...tb.rows].forEach(tr=>{const v=entrou(lista[+tr.dataset.ln]),k=ms.findIndex((m,i)=>!ja.has(i)&&Math.abs(m.valor-v)<=0.01);if(k>=0){ja.add(k);tr.querySelector('[data-i="nota"]').value=String(k);}});
+    j.onchange=pintar;
+    tb.addEventListener('click',ev=>{const b=ev.target.closest('[data-i="tirar"]');if(b){b.closest('tr').remove();pintar();}});
+    pintar();
   }
   // Crédito que é dinheiro dos sócios/de terceiros: registra o aporte já ligado ao banco.
   function aporte(p){
@@ -11733,7 +11766,9 @@ const Fin=(function(){
             o.conciliacao_baixa=tirarId(m.r.conciliacao_baixa,id);
             if(m.tipo==='custo'){o[m.kTipo]='Previsto';o[m.kData]='';}
             else if(m.tipo==='despesa'){o[m.kSt]='Pendente';o[m.kPg]='';o[m.kTipo]='Prevista';}
-            else if(m.tipo==='fat'){o[m.kRec]=m.r.antecipada==='sim'&&m.r.antec_previsto?m.r.antec_previsto:'';o.antec_recebida='';o.antec_depositado='';}
+            else if(m.tipo==='fat'){o[m.kRec]=m.r.antecipada==='sim'&&m.r.antec_previsto?m.r.antec_previsto:'';o.antec_recebida='';o.antec_depositado='';
+              // o recebimento tinha ajustado o líquido ao valor do banco: volta o esperado
+              if(m.r.liq_esperado){o[kRow(m.r,['faturamento_liquido','liquido'],'faturamento_liquido')]=m.r.liq_esperado;o.liq_esperado='';}}
           }
           await salvar(m.r._aba||ABA[m.tipo],o,m.r.rowid);
         }
@@ -17536,7 +17571,7 @@ const Mascara=(function(){
       await executar(async()=>{await salvar('Faturamentos',{...copiaF(r),_lixeira_em:new Date().toISOString(),_lixeira_obra_id:'avulso',_lixeira_motivo:'Faturamento desfeito (medição nº '+(m.numero||'')+' voltou para a fiscalização)'},r.rowid);
         await salvar('Medições',{...copiaF(m),status:'Enviada à fiscalização',faturado_em:''},m.rowid);});
       toast('Voltou para "Medição em andamento".','success');});}
-  function desfazerRecebimento(r){const K=KF();confirmar('Desfazer recebimento',`${r[K.nf]?'A NF '+fe(r[K.nf]):'A nota'} volta para "a receber".`,'Sim, desfazer',async()=>{const o=copiaF(r);o[K.rec]=r.antecipada==='sim'&&dt(r.antec_previsto)?r.antec_previsto:'';o.antec_recebida='';o.antec_depositado='';await executar(()=>salvar('Faturamentos',o,r.rowid));toast('Voltou para "a receber".','success');});}
+  function desfazerRecebimento(r){const K=KF();confirmar('Desfazer recebimento',`${r[K.nf]?'A NF '+fe(r[K.nf]):'A nota'} volta para "a receber".`,'Sim, desfazer',async()=>{const o=copiaF(r);o[K.rec]=r.antecipada==='sim'&&dt(r.antec_previsto)?r.antec_previsto:'';o.antec_recebida='';o.antec_depositado='';if(r.liq_esperado){o[K.liq]=r.liq_esperado;o.liq_esperado='';}o.conciliacao='';o.conciliacao_baixa='';await executar(()=>salvar('Faturamentos',o,r.rowid));toast('Voltou para "a receber".','success');});}
   function fichaMedicao(x){
     const m=x.r,rm=Eng.resumoMedicoes(m.titulo_obra),cc=COLS_F.find(c=>c.k===x.col);
     const corpo=`<div class="vk-ficha-cab"><span class="vk-etq" style="--cor:${cc.cor}"><i class="fas ${cc.ico}"></i> ${cc.rot}</span>
@@ -17572,7 +17607,7 @@ const Mascara=(function(){
     const resumoNota=`<div class="vk-infos">${info('Nº da nota',fe(r[K.nf]||'—'))}${info('Emissão',dt(r[K.em])?brDe(dt(r[K.em])):'—')}${info('Valor bruto',fmt(val(r[K.bruto])))}
       ${info('INSS retido',fmt(val(r[K.inss])))}${info('IRRF retido',fmt(val(r[K.irpf])))}${info('ISS retido',fmt(val(r[K.iss])))}
       ${val(r.deducao_materiais)?info('Dedução de materiais',fmt(val(r.deducao_materiais))):''}${val(r[K.seguro])?info('Garantia retida',fmt(val(r[K.seguro]))):''}${val(r[K.antec])?info('Desconto da antecipação'+(col==='receber'&&antecipada?' (estimado)':''),fmt(val(r[K.antec]))):''}
-      ${val(r[K.simples])?info('Simples (só informado)',fmt(val(r[K.simples]))):''}${antecipada&&dt(r[K.antecData])?info('Antecipada em',brDe(dt(r[K.antecData]))):''}${antecipada&&dt(r.vencimento_original)?info('Vencimento original',brDe(dt(r.vencimento_original))):''}</div>`;
+      ${val(r.liq_esperado)?info('Líquido esperado',fmt(val(r.liq_esperado)))+info('Diferença no recebimento',fmt(val(r[K.liq])-val(r.liq_esperado))):''}${val(r[K.simples])?info('Simples (só informado)',fmt(val(r[K.simples]))):''}${antecipada&&dt(r[K.antecData])?info('Antecipada em',brDe(dt(r[K.antecData]))):''}${antecipada&&dt(r.vencimento_original)?info('Vencimento original',brDe(dt(r.vencimento_original))):''}</div>`;
     const selObra=`<div class="fin-fld" style="grid-column:1/-1"><label>Obra <span class="obg">*</span></label><select data-k="obra" ${travaObra?'disabled title="A obra vem da medição"':''}><option value="">Escolha…</option>${opsObra().map(o=>`<option ${o===r[K.obra]?'selected':''}>${fe(o)}</option>`).join('')}${r[K.obra]&&!opsObra().includes(r[K.obra])?`<option selected>${fe(r[K.obra])}</option>`:''}</select>${travaObra?`<div class="capx-dica">A obra vem da medição nº ${fe(r.medicao_numero||'')} e não muda aqui.</div>`:''}</div>`;
     const inp=(k,rot,extra)=>`<div class="fin-fld"><label>${rot}</label><input data-k="${k}" data-mask="moeda" inputmode="numeric" value="${mo(k)}" ${extra||''}></div>`;
     let campos='';
@@ -21344,7 +21379,7 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
   /* ───── o guarda: "Ver" só consulta; sem "Excluir" não exclui ───── */
   const NORM=s=>String(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/\s+/g,' ').trim();
   const SEGURO=/(sem salvar|nao salvar|descartar|\bpdf\b|imprimir|exportar|baixar|planilha|\bcsv\b|filtr|buscar|pesquisar|sincroniz|fechar|^ver\b|^abrir\b|^voltar$|^atualizar$|minha senha|^sair\b|^anterior|^proxim|^hoje$)/;
-  const MUDA=/(^\+|\b(salvar|gravar|excluir|apagar|remover|novo|nova|novos|novas|adicionar|incluir|lancar|registrar|aprovar|desaprovar|emitir|faturar|confirmar|duplicar|parcelar|repetir|importar|gerar|aplicar|ajustar|renomear|criar|enviar|concluir|desfazer|restaurar|tirar|limpar|processar|marcar|pagar|cadastrar|editar|mover|juntar|arrumar|transformar|usar|renumerar|anexar|definir|trocar|recebid|a conta chegou|atualizar pelo|atualizar precos|voltar para|nao feita|reabrir|subitem|subgrupo)\b)/;
+  const MUDA=/(^\+|\b(salvar|gravar|excluir|apagar|remover|novo|nova|novos|novas|adicionar|incluir|lancar|registrar|aprovar|desaprovar|emitir|faturar|confirmar|duplicar|parcelar|repetir|importar|gerar|aplicar|ajustar|renomear|criar|enviar|concluir|desfazer|restaurar|tirar|limpar|processar|marcar|pagar|cadastrar|editar|mover|juntar|arrumar|transformar|usar|renumerar|anexar|definir|trocar|recebid|dar baixa|ligar ao extrato|a conta chegou|atualizar pelo|atualizar precos|voltar para|nao feita|reabrir|subitem|subgrupo)\b)/;
   const APAGA=/\b(excluir|apagar|remover|lixeira|limpar tabela|tirar so|tirar do|tirar da)\b/;
   // o que o botão diz: o texto dele (curto); botão só com ícone, a dica (title)
   const rotulo=el=>{const t=NORM(el.textContent);return t&&t.length<=48?t:NORM([el.getAttribute('title'),el.getAttribute('aria-label')].filter(Boolean).join(' '));};
@@ -21531,6 +21566,7 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
 .lote-tab.cc-lt table{min-width:900px;} .lote-tab.cc-lt td:nth-child(n){width:auto;min-width:0;}
 .lote-tab.cc-lt td:nth-child(1){width:220px;} .lote-tab.cc-lt td:nth-child(2){width:190px;} .lote-tab.cc-lt td:nth-child(3){min-width:240px;} .lote-tab.cc-lt td:nth-child(4){width:175px;} .lote-tab.cc-lt td:nth-child(5){width:104px;} .lote-tab.cc-lt td:nth-child(6){width:40px;}
 .lote-tab.cc-lt td.cc-lt-banco{font-size:12px;color:#344054;line-height:1.35;padding:7px 6px;overflow-wrap:anywhere;} .lote-tab.cc-lt td.num{text-align:right;white-space:nowrap;padding:9px 8px;font-variant-numeric:tabular-nums;}
+.lote-tab.cc-lr table{min-width:760px;} .lote-tab.cc-lr td:nth-child(1){width:220px;} .lote-tab.cc-lr td:nth-child(2){width:auto;} .lote-tab.cc-lr td:nth-child(3){width:104px;min-width:0;} .lote-tab.cc-lr td:nth-child(4){width:130px;} .lote-tab.cc-lr td:nth-child(5){width:40px;}
 .cc-todas{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;margin:12px 0 8px;font-size:12.5px;color:#475467;font-weight:600;} .cc-todas .cg{flex:1 1 300px;min-width:0;}
 .cc-todas select{flex:0 1 190px;min-width:150px;padding:8px 10px;border:1px solid #D0D5DD;border-radius:10px;font:500 13px Inter,sans-serif;background:#fff;}
 @media (max-width:560px){.cc-todas>span{flex-basis:100%;} .cc-todas select{flex:1 1 100%;}}
