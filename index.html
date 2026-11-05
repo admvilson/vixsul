@@ -10684,6 +10684,7 @@ window.onload=()=>{
 .cc-lado.on{border-color:#1652D8;background:#EFF4FF;color:#1849A9;box-shadow:inset 0 0 0 1px #1652D8;} .cc-lado.on small{color:#1849A9;}
 .cc-bloco-cab .fin-bt.pri{max-width:100%;height:auto;white-space:normal;text-align:left;line-height:1.3;}
 @media (max-width:560px){.cc-lado{flex-wrap:wrap;padding:9px 10px;} .cc-lado small{margin-left:0;flex-basis:100%;}}
+.cc-assoc-lista{max-height:46vh;overflow:auto;margin-bottom:10px;} .cc-assoc+.cc-assoc{margin-top:10px;} .cc-assoc>b{display:block;font-size:13px;color:#101828;overflow-wrap:anywhere;} .cc-assoc>small{display:block;font-size:11.5px;color:#667085;margin-top:2px;line-height:1.35;} .cc-assoc-dif b{color:#B42318;}
 .cc-per{display:inline-flex;align-items:center;gap:6px;font:600 12px Inter,sans-serif;color:#475467;} .cc-per input{border:1px solid #D0D5DD;border-radius:10px;padding:6px 8px;font:600 12.5px Inter,sans-serif;}
 .cc-prog{margin:4px 0 8px;font-size:12.5px;color:#344054;} .cc-prog em{display:block;height:8px;border-radius:999px;background:#EAECF0;margin-top:6px;overflow:hidden;} .cc-prog em i{display:block;height:100%;background:linear-gradient(90deg,#12B76A,#039855);border-radius:999px;transition:width .3s;}
 .cc-rec{border:0;background:#F2F4F7;color:#475467;width:26px;height:26px;border-radius:8px;cursor:pointer;display:inline-grid;place-items:center;flex:0 0 auto;} .cc-rec:hover{background:#E4E7EC;}
@@ -10765,7 +10766,7 @@ const Fin=(function(){
   const temId=(lista,id)=>!!id&&(','+String(lista||'')+',').includes(','+id+',');
   const juntarId=(atual,novo)=>temId(atual,novo)?String(atual):[String(atual||''),novo].filter(Boolean).join(',');
   const tirarId=(atual,id)=>{let s=','+String(atual||'')+',';const k=','+id+',';while(s.includes(k))s=s.replace(k,',');return s.slice(1,-1);};
-  const ABA={custo:'Custos',despesa:'Despesas',fat:'Faturamentos',aporte:'Aportes financeiros'};
+  const ABA={custo:'Custos',despesa:'Despesas',fat:'Faturamentos',aporte:'Aportes financeiros',retirada:'Aportes financeiros'};
   const TIPO_ROT={custo:'Custo de obra',despesa:'Despesa da empresa',fat:'Faturamento',aporte:'Aporte'};
   const ICO_ARQ='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M12 18v-6M9 15l3-3 3 3"/></svg>';
   // chave do registro: o nome exato primeiro, depois um que contenha o termo (o banco é
@@ -10832,13 +10833,49 @@ const Fin=(function(){
       // negativo e o campo "movimento" — saem do caixa (antes eram lançadas em Contas a pagar)
       const sai=/retir|devolu/i.test(r.movimento||'')||bruto<0;
       out.push({tipo:sai?'retirada':'aporte',sent:sai?-1:1,r,valor:Math.abs(bruto),venc:da,pago:true,dataBaixa:da,
-        desc:(sai?(/devolu/i.test(r.movimento||'')?'Devolução de aporte':'Retirada'):'Aporte')+(quem?' · '+quem:''),origem:getFuzzy(r,['titulo_obra'])||'—',quem:quem||''});
+        desc:(sai?(/devolu/i.test(r.movimento||'')?'Devolução de aporte':r.tipo_retirada==='prolabore'?'Pró-labore':r.tipo_retirada==='lucro'?'Retirada do lucro':'Retirada'):'Aporte')+(quem?' · '+quem:''),origem:getFuzzy(r,['titulo_obra'])||'—',quem:quem||''});
     });
     return out.filter(m=>m.valor>0);
   }
   const rotulo=m=>`${m.quem?m.quem+' · ':''}${m.desc} · ${m.origem} · ${m.pago?(m.sent<0?'pago ':'recebido ')+brDe(m.dataBaixa):m.venc?(m.sent<0?'vence ':'previsto ')+brDe(m.venc):'sem data'} · ${fmt(m.valor)}`;
   // entrada do banco só recebe nota de "Nota emitida · a receber" (o que ainda está "a faturar" não tem nota)
   const aReceber=m=>m.tipo==='fat'&&!m.pago&&cn(m.r[m.kTipo])==='real';
+  // valor ajustado na conciliação: ficam registrados o valor lançado, o que passou pelo banco e a diferença
+  const ajusteDe=r=>{const o=val(r.valor_original)||val(r.liq_esperado);if(!o)return null;const n=val(r.valor_ajustado)||val(getFuzzy(r,['faturamento_liquido','liquido']));return {orig:o,novo:n,dif:Math.round((n-o)*100)/100};};
+  const txtDif=d=>`${d>0?'+':'−'} ${fmt(Math.abs(d))}`;
+  const CAMPOS_AJUSTE={valor_original:'',valor_ajustado:'',valor_diferenca:'',p_unit_original:'',liq_esperado:''};
+  // o Desfazer volta o valor lançado e apaga o registro do ajuste
+  function voltarAjuste(o,m){const r=m.r;if(!ajusteDe(r))return;
+    if(m.tipo==='custo'){o[kRow(r,['p_total','ptotal'],'p_total')]=r.valor_original;if(r.p_unit_original)o[kRow(r,['p_unit','punit'],'p_unit')]=r.p_unit_original;}
+    else if(m.tipo==='despesa')o[kRow(r,['valor'],'valor')]=r.valor_original;
+    else if(m.tipo==='fat'&&r.liq_esperado)o[kRow(r,['faturamento_liquido','liquido'],'faturamento_liquido')]=r.liq_esperado;
+    Object.assign(o,CAMPOS_AJUSTE);}
+  // aviso antes de associar uma linha do banco a um lançamento: mostra o lançado, o do banco e a diferença; só grava se a pessoa confirmar
+  function confirmarAssociacao(itens,titulo){return new Promise(res=>{
+    const ov=document.createElement('div');ov.className='confirm-overlay open rat-aviso';
+    const bloco=x=>{const v=Math.abs(x.t.valor),d=Math.round((v-x.m.valor)*100)/100,tem=Math.abs(d)>=0.01;
+      return `<div class="cc-assoc"><b>${fe(x.t.data.slice(0,5))} · ${fe(x.t.desc)}</b><small>${fe(rotulo(x.m))}</small>
+        <ul class="vk-exc-lista">${tem?`<li><span>Valor lançado</span><b>${fmt(x.m.valor)}</b></li><li><span>Valor ajustado (banco)</span><b>${fmt(v)}</b></li><li class="cc-assoc-dif"><span>Diferença</span><b>${txtDif(d)}</b></li>`:`<li><span>Valor (igual ao lançado)</span><b>${fmt(v)}</b></li>`}</ul></div>`;};
+    const algum=itens.some(x=>Math.abs(Math.abs(x.t.valor)-x.m.valor)>=0.01);
+    ov.innerHTML=`<div class="confirm-box" role="alertdialog" aria-modal="true"><div class="confirm-title"><i class="fas fa-circle-question"></i> ${fe(titulo)}</div>
+      <div class="confirm-msg"><div class="cc-assoc-lista">${itens.map(bloco).join('')}</div>${algum?'O lançamento passa a ter o valor do banco. O valor lançado, o ajustado e a diferença ficam registrados. ':''}Está certo deste lançamento?</div>
+      <div class="confirm-actions"><button type="button" class="confirm-no" data-nao>Não, voltar</button><button type="button" class="confirm-yes" data-sim style="background:var(--blue)">Sim, lançar</button></div></div>`;
+    ov.addEventListener('click',ev=>{const s=ev.target.closest('[data-sim]'),n=ev.target.closest('[data-nao]');if(!s&&!n)return;ov.remove();res(!!s);});
+    document.body.appendChild(ov);ov.querySelector('[data-nao]').focus();});}
+  /* APORTES POR PERÍODO: tudo o que o mesmo sócio aporta na mesma obra dentro do mês fica num lançamento só, com o período do mês.
+     A data do aporte é a do último dinheiro que entrou nele. */
+  const periodoMes=m=>{const a=+m.slice(0,4),n=+m.slice(5,7);return {ini:isoDe(new Date(a,n-1,1)),fim:isoDe(new Date(a,n,0))};};
+  const mesDoAporte=(r,K)=>{const d=dt(r.periodo_fim)||dt(r[K.data]);return d?isoDe(d).slice(0,7):'';};
+  const KAporte=()=>({obra:col('aportes',['titulo_obra'],'titulo_obra'),quem:col('aportes',['quem_aportou','quem'],'quem_aportou'),data:col('aportes',['data_aporte'],'data_aporte'),valor:col('aportes',['valor_aportado','valor_aporte','valor'],'valor_aportado'),obs:col('aportes',['observacao','observ','obs'],'observacao'),lanc:col('aportes',['data_lancamento','lancamento'],'data_lancamento')});
+  // a:{obra,quem,data(iso),valor,forma,obs,origem,conc}
+  async function somarAporte(a){const K=KAporte(),mes=a.data.slice(0,7),per=periodoMes(mes);
+    const ja=(D().aportes||[]).find(r=>!/retir|devolu/i.test(r.movimento||'')&&val(r[K.valor])>0&&cn(r[K.quem])===cn(a.quem)&&cn(r[K.obra])===cn(a.obra)&&mesDoAporte(r,K)===mes);
+    const liga=o=>{if(a.conc){o.conciliacao=juntarId(o.conciliacao,a.conc);o.conciliacao_baixa=juntarId(o.conciliacao_baixa,a.conc);}return o;};
+    if(ja){const fj=ja.forma_aporte||'',dj=isoDe(dt(ja[K.data])||dt(a.data));
+      return salvar(ja._aba||ABA.aporte,liga({...ja,[K.valor]:dinheiro(val(ja[K.valor])+a.valor),[K.data]:dj>a.data?dj:a.data,forma_aporte:fj&&a.forma&&fj!==a.forma?'Várias':(fj||a.forma||''),[K.obs]:[ja[K.obs],a.obs].filter(Boolean).join(' | '),periodo_ini:per.ini,periodo_fim:per.fim}),ja.rowid);}
+    return salvar(ABA.aporte,liga({[K.lanc]:todayDateTime(),[K.obra]:a.obra,[K.quem]:a.quem,[K.data]:a.data,[K.valor]:dinheiro(a.valor),movimento:'Aporte',aporte_ref:'',forma_aporte:a.forma||'',[K.obs]:a.obs||'',periodo_ini:per.ini,periodo_fim:per.fim,origem_aporte:a.origem||''}),null);}
+  // o que fica escrito no lançamento dos sócios que veio de uma linha do extrato
+  const obsDoExtrato=t=>`Extrato ${t.data} · ${t.desc}`;
 
   /* ───── gravação ───── */
   // Tabela que ainda não existe no banco (SQL de instalação não rodado) → mensagem clara.
@@ -10874,6 +10911,14 @@ const Fin=(function(){
         if(desc>=0&&desc<vf){obj[kA]=dinheiro(desc);obj[kL]=dinheiro(vf-desc);obj.antec_depositado=dinheiro(extra.valor);ajustou=true;}}
       // recebimento registrado na Conciliação: o líquido da nota passa a ser o que entrou no banco (o esperado fica guardado para o Desfazer)
       if(!ajustou&&extra.ajustar&&extra.valor>0&&Math.abs(extra.valor-m.valor)>=0.01){obj.liq_esperado=dinheiro(m.valor);obj[kRow(r,['faturamento_liquido','liquido'],'faturamento_liquido')]=dinheiro(extra.valor);}}
+    // associação com valor diferente: o lançamento passa a ter o valor do banco e ficam registrados o lançado, o ajustado e a diferença
+    if(extra.ajustar&&extra.valor>0&&Math.abs(extra.valor-m.valor)>=0.01){
+      Object.assign(obj,{valor_original:dinheiro(m.valor),valor_ajustado:dinheiro(extra.valor),valor_diferenca:dinheiro(extra.valor-m.valor)});
+      if(m.tipo==='custo'){const kQ=kRow(r,['qtd','quantidade'],'qtd'),kU=kRow(r,['p_unit','punit'],'p_unit');obj[kRow(r,['p_total','ptotal'],'p_total')]=dinheiro(extra.valor);
+        if(val(r[kQ])>0){obj.p_unit_original=String(r[kU]==null?'':r[kU]);obj[kU]=String(Math.round((extra.valor+val(r.desconto_item))/val(r[kQ])*1e6)/1e6);}}
+      else if(m.tipo==='despesa')obj[kRow(r,['valor'],'valor')]=dinheiro(extra.valor);}
+    // como estava antes da baixa: o Desfazer devolve (uma conta a pagar não vira estimativa)
+    if(extra.conc&&(m.tipo==='custo'||m.tipo==='despesa'))obj.tipo_antes_conc=r[m.kTipo]||'';
     if(extra.conc){obj.conciliacao=juntarId(r.conciliacao,extra.conc);obj.conciliacao_baixa=juntarId(r.conciliacao_baixa,extra.conc);}
     if(extra.desc&&m.tipo!=='fat')obj.extrato_desc=extra.desc;
     return salvar(r._aba||ABA[m.tipo],obj,r.rowid);
@@ -11232,7 +11277,7 @@ const Fin=(function(){
     const ms=movimentos(),feitos=new Map(),usados=new Set(),props=[],ign=ignorados();
     const idm=m=>m.tipo+':'+m.r.rowid;
     const idsExt=ext.itens.map(t=>t.id);
-    ms.forEach(m=>{const s=m.r.conciliacao;if(!s)return;idsExt.forEach(f=>{if(!temId(s,f))return;const x=feitos.get(f)||{rots:[],alvos:[]};x.rots.push((TIPO_ROT[m.tipo]||'Retirada')+': '+m.desc+' · '+m.origem);x.alvos.push(m);feitos.set(f,x);});});
+    ms.forEach(m=>{const s=m.r.conciliacao;if(!s)return;const aj=ajusteDe(m.r);idsExt.forEach(f=>{if(!temId(s,f))return;const x=feitos.get(f)||{rots:[],alvos:[]};x.rots.push((m.tipo==='retirada'||m.tipo==='aporte'?'':(TIPO_ROT[m.tipo]||'Retirada')+': ')+m.desc+' · '+m.origem+(aj?` · valor lançado ${fmt(aj.orig)}, ajustado para ${fmt(aj.novo)} (diferença ${txtDif(aj.dif)})`:''));x.alvos.push(m);feitos.set(f,x);});});
     const abertosS=ms.filter(m=>m.sent<0&&!m.pago),abertosE=ms.filter(aReceber);
     ext.itens.slice().sort((a,b)=>dt(a.data)-dt(b.data)).forEach(t=>{
       const td=dt(t.data),v=Math.abs(t.valor);
@@ -11250,7 +11295,7 @@ const Fin=(function(){
         const ja=ms.find(m=>m.sent<0&&m.pago&&!m.r.conciliacao&&!usados.has(idm(m))&&Math.abs(m.valor-v)<=0.01&&m.dataBaixa&&Math.abs(dias(m.dataBaixa,td))<=3);
         if(ja){usados.add(idm(ja));return props.push({t,st:'vincular',acao:'vincular',alvos:[ja],nota:'já estava pago no sistema'});}
         const juros=abertosS.find(m=>!usados.has(idm(m))&&m.valor<v&&v<=m.valor*1.1&&perto(m,0,60));
-        if(juros)return props.push({t,st:'sem',nota:`parecida: ${rotulo(juros)} — saiu ${fmt(v-juros.valor)} a mais (juros ou multa?). Se for ela, use "Escolher…".`});
+        if(juros)return props.push({t,st:'sem',nota:`parecida: ${rotulo(juros)} — saiu ${fmt(v-juros.valor)} a mais (juros ou multa?). Se for ela, use "Associar à conta".`});
         return props.push({t,st:'sem'});
       }
       const liq=m=>Math.abs(m.valor-v)<=0.01;
@@ -11334,7 +11379,7 @@ const Fin=(function(){
       else if(p.st==='feito')alvo=`<span>${fe(p.nota)}</span>`;
       const marcavel=['ok','confira','vincular'].includes(p.st),selSem=p.st==='sem';
       const bt=(acao,txt,cls)=>`<button type="button" class="fin-bt mini ${cls||''}" data-cc="${acao}" data-i="${i}">${txt}</button>`;
-      const acoes=p.st==='sem'?(p.t.valor<0?bt('escolher','Escolher…')+bt('conta','Lançar em Contas a pagar')+bt('ignorar','Ignorar')
+      const acoes=p.st==='sem'?(p.t.valor<0?bt('escolher','Associar à conta')+bt('conta','Lançar em Contas a pagar')+bt('retirada','Retirada do lucro / pró-labore')+bt('ignorar','Ignorar')
           :bt('receber','Registrar recebimento')+bt('aporte','É aporte')+bt('ignorar','Ignorar'))
         :p.st==='feito'?bt('desfazer','Desfazer'):p.st==='ignorado'?bt('voltar','Voltar para a conferência'):'';
       return `<tr><td>${marcavel?`<input type="checkbox" data-cc-marca="${i}" ${CONC.marcados.has(p.t.id)?'checked':''}>`:selSem?`<input type="checkbox" data-cc-sem="${i}" title="Selecionar esta linha" ${CONC.selSem.has(p.t.id)?'checked':''}>`:''}</td>
@@ -11356,7 +11401,7 @@ const Fin=(function(){
       <div class="fin-kpis">
         <div class="fin-kpi"><small>Lançamentos no extrato${F.cartao?` · cartão ${fe(F.cartao)}`:''}</small><b>${itensC.length}</b><span>entrou ${fmt(ent)} · saiu ${fmt(sai)}</span></div>
         <div class="fin-kpi verde"><small>Encontrados sozinhos</small><b>${cont('ok')+cont('vincular')}</b><span>${cont('confira')} para conferir antes</span></div>
-        <div class="fin-kpi ${cont('sem')?'vermelho':'verde'}"><small>Sem correspondência</small><b>${cont('sem')}</b><span>escolha, lance ou ignore</span></div>
+        <div class="fin-kpi ${cont('sem')?'vermelho':'verde'}"><small>Sem correspondência</small><b>${cont('sem')}</b><span>associe, lance ou ignore</span></div>
         <div class="fin-kpi cinza"><small>Já conciliados</small><b>${cont('feito')}</b><span>${cont('ignorado')} ignorado${cont('ignorado')!==1?'s':''}</span></div>
       </div>
       ${conf.length?`<div class="cc-conf"><div class="cc-conf-cab"><b><i class="fas fa-scale-balanced"></i> Conferência com a fatura</b><small>soma de todas as linhas do cartão (em qualquer bloco abaixo) × total impresso no PDF</small></div><ul>${conf.map(x=>{const ok=x.dif!=null&&Math.abs(x.dif)<0.01,ruim=x.dif!=null&&!ok;
@@ -11372,7 +11417,7 @@ const Fin=(function(){
       ${bloco(ehSai?'Prontos para dar baixa':'Prontos para receber',`Valor idêntico e data batendo com ${ehSai?'um lançamento só':'uma nota emitida só'} — já vêm marcados.`,g.ok,'ok','ok')}
       ${bloco('Confira antes','Valor IDÊNTICO, mas com mais de um lançamento possível ou data distante. Escolha o certo na lista e marque.',g.confira,'warn','confira')}
       ${bloco('Já estavam baixados — só ligar ao extrato','O sistema já tinha o pagamento/recebimento; marcar liga a linha do banco para ela não aparecer de novo.',g.vincular,'info','vincular')}
-      ${bloco('Sem correspondência',ehSai?'Não há conta em aberto com esse valor exato. Escolha a qual pertence, lance o que faltou ou ignore (tarifa, transferência entre contas, aplicação…).':'Não há nota a receber com esse valor exato. Registre o recebimento na nota emitida, marque como aporte ou ignore (transferência entre contas, aplicação…).',g.sem,'err','sem')}
+      ${bloco('Sem correspondência',ehSai?'Não há conta em aberto com esse valor exato. Associe a uma conta, lance o que faltou, registre a retirada do lucro ou o pró-labore, ou ignore (tarifa, transferência entre contas, aplicação…).':'Não há nota a receber com esse valor exato. Registre o recebimento na nota emitida, marque como aporte ou ignore (transferência entre contas, aplicação…).',g.sem,'err','sem')}
       ${bloco('Já conciliados','Baixados ou ligados em importações anteriores deste mesmo extrato.',g.feito,'cinza')}
       ${bloco('Ignorados','Linhas que você marcou para ignorar (ficam guardadas neste computador).',g.ignorado,'cinza')}
       ${zona}
@@ -11425,7 +11470,8 @@ const Fin=(function(){
       if(a==='voltar'){const s=ignorados();s.delete(p.t.id);gravarIgn(s);renderConciliacao();return;}
       if(a==='escolher')return escolher(p);
       if(a==='receber')return receberLinhas([p]);
-      if(a==='aporte')return aporte(p);
+      if(a==='aporte')return GS.socios.editarMov(null,'Aporte',null,{conc:p.t});
+      if(a==='retirada')return GS.socios.editarMov(null,'Retirada',null,{conc:p.t});
       if(a==='conta')return lancarConta(p);
       if(a==='desfazer')return desfazer(p);
     };
@@ -11591,20 +11637,27 @@ const Fin=(function(){
     }catch(err){toast((err&&err.message)||'Não consegui ler o extrato.','error');}
   }
 
-  /* Saída sem correspondência: a pessoa diz a qual conta em aberto ela pertence. */
+  /* Saída sem correspondência: a pessoa associa a linha do banco a uma conta em aberto. Se o valor for diferente, a conta passa a ter
+     o valor do banco e ficam registrados o valor lançado, o ajustado e a diferença. Sempre pergunta se está certo antes de gravar. */
   function escolher(p){
     const v=Math.abs(p.t.valor);
     const ms=movimentos().filter(m=>!m.pago&&m.sent<0).sort((a,b)=>Math.abs(a.valor-v)-Math.abs(b.valor-v)).slice(0,80);
     if(!ms.length)return toast('Não há contas a pagar em aberto.','error');
-    janela('A qual lançamento pertence?',`<div class="fin-resumo">${fe(p.t.data)} · ${fe(p.t.desc)}<br>Valor no banco: <b>${fmt(p.t.valor)}</b></div>
-      <div class="fin-fld"><label>Conta a pagar em aberto — os de valor mais próximo primeiro</label><select data-k="alvo">${ms.map((m,i)=>`<option value="${i}">${fe(rotulo(m))}</option>`).join('')}</select></div>
-      <div class="fin-aviso laranja"><div>Se o valor for diferente, a baixa é feita mesmo assim, com a data do banco — confira depois juros, multa ou retenções.</div></div>`,
-      [{html:'Cancelar'},{html:'Dar baixa',cls:'pri',acao:async j=>{
-        const m=ms[+j.querySelector('[data-k="alvo"]').value];
-        const r=await executar(()=>aplicar([{t:p.t,acao:'baixar',alvos:[m]}]));
+    const exata=ms.findIndex(m=>Math.abs(m.valor-v)<=0.01);
+    const j=janela('A qual lançamento pertence?',`<div class="fin-resumo">${fe(p.t.data)} · ${fe(p.t.desc)}<br>Valor no banco: <b>${fmt(v)}</b></div>
+      <div class="fin-fld"><label>Conta a pagar em aberto <span class="obg">*</span></label><select data-k="alvo"><option value="">Escolha a conta…</option>${ms.map((m,i)=>`<option value="${i}" ${i===exata?'selected':''}>${fe(rotulo(m))}</option>`).join('')}</select><div class="capx-dica">As de valor mais próximo aparecem primeiro.</div></div>
+      <div data-k="dif"></div>`,
+      [{html:'<i class="fas fa-link"></i> Associar e dar baixa',cls:'pri',acao:async jj=>{
+        const k=jj.querySelector('[data-k="alvo"]').value;if(k==='')throw new Error('Escolha a conta.');const m=ms[+k];
+        if(!(await confirmarAssociacao([{t:p.t,m}],'Esta saída vai dar baixa nesta conta')))return false;
+        const r=await executar(()=>aplicar([{t:p.t,acao:'baixar',alvos:[m],ajustar:true}]));
         if(r.falhas.length)throw new Error(r.falhas[0]);
-        toast('Baixa feita.','success');
+        toast(Math.abs(v-m.valor)>=0.01?`Baixa feita. A conta passou de ${fmt(m.valor)} para ${fmt(v)} e a diferença ficou registrada.`:'Baixa feita.','success');
       }}],660);
+    const pintar=()=>{const sel=j.querySelector('[data-k="alvo"]'),box=j.querySelector('[data-k="dif"]'),m=sel.value===''?null:ms[+sel.value];if(!m){box.innerHTML='';return;}
+      const d=Math.round((v-m.valor)*100)/100;
+      box.innerHTML=Math.abs(d)<0.01?'<div class="fin-aviso"><div>O valor da conta é igual ao do banco.</div></div>':`<div class="fin-aviso laranja"><div>Valor lançado <b>${fmt(m.valor)}</b> · valor do banco <b>${fmt(v)}</b> · diferença <b>${txtDif(d)}</b>. A conta passa a ter o valor do banco, e o valor lançado, o ajustado e a diferença ficam registrados.</div></div>`;};
+    j.onchange=pintar;pintar();
   }
   /* Entrada do banco sem nota encontrada: registra o recebimento numa nota de "Nota emitida · a receber". Cada linha do banco
      vai para uma nota, na data do banco, e o recebimento fica com o valor que entrou: a diferença para o líquido esperado
@@ -11626,6 +11679,7 @@ const Fin=(function(){
         if(!its.length)throw new Error('Não sobrou nenhuma linha.');
         const falta=its.findIndex(x=>x.k==='');if(falta>=0)throw new Error(its.length>1?`Linha ${falta+1}: escolha a nota.`:'Escolha a nota que recebeu este valor.');
         if(new Set(its.map(x=>x.k)).size<its.length)throw new Error('A mesma nota foi escolhida em duas linhas.');
+        if(!(await confirmarAssociacao(its.map(x=>({t:x.p.t,m:ms[+x.k]})),its.length>1?`Estas ${its.length} entradas vão registrar o recebimento`:'Esta entrada vai registrar o recebimento')))return false;
         const r=await executar(()=>aplicar(its.map(x=>({t:x.p.t,acao:'baixar',alvos:[ms[+x.k]],ajustar:true}))));
         its.forEach(x=>CONC.selSem.delete(x.p.t.id));
         if(r.falhas.length)toast(`${r.ok} recebimento(s) registrado(s). Não deu em ${r.falhas.length}: ${r.falhas.join('; ')}`,'error',false);
@@ -11645,27 +11699,6 @@ const Fin=(function(){
     j.onchange=pintar;
     tb.addEventListener('click',ev=>{const b=ev.target.closest('[data-i="tirar"]');if(b){b.closest('tr').remove();pintar();}});
     pintar();
-  }
-  // Crédito que é dinheiro dos sócios/de terceiros: registra o aporte já ligado ao banco.
-  function aporte(p){
-    const obras=(D().obras||[]).map(o=>getFuzzy(o,['titulo_obra','nome_obra','titulo'])).filter(Boolean).sort((a,b)=>a.localeCompare(b,'pt-BR'));
-    if(!obras.length)return toast('Cadastre uma obra antes de lançar aportes.','error');
-    janela('Registrar aporte',`<div class="fin-resumo">${fe(p.t.data)} · ${fe(p.t.desc)}<br>Entrou: <b>${fmt(p.t.valor)}</b></div>
-      <div class="fin-fld"><label>Obra</label><select data-k="obra"><option value="">Selecione…</option>${obras.map(o=>`<option>${fe(o)}</option>`).join('')}</select></div>
-      <div class="fin-fld"><label>Quem aportou?</label><select data-k="quem">${QUEM_APORTOU.map(q=>`<option>${fe(q)}</option>`).join('')}</select></div>`,
-      [{html:'Cancelar'},{html:'Registrar',cls:'pri',acao:async j=>{
-        const obra=j.querySelector('[data-k="obra"]').value;if(!obra)throw new Error('Escolha a obra do aporte.');
-        const o={};const iso=isoDeBR(p.t.data);
-        o[col('aportes',['titulo_obra'],'titulo_obra')]=obra;
-        o[col('aportes',['data_lancamento','lancamento'],'data_lancamento')]=todayDateTime();
-        o[col('aportes',['quem_aportou','quem'],'quem_aportou')]=j.querySelector('[data-k="quem"]').value;
-        o[col('aportes',['data_aporte'],'data_aporte')]=iso;
-        o[col('aportes',['valor_aportado','valor_aporte','valor'],'valor_aportado')]=dinheiro(p.t.valor);
-        o.movimento='Aporte';o.forma_aporte=/pix/i.test(p.t.desc)?'PIX':/ted|doc|transf|tev/i.test(p.t.desc)?'Transferência':/dep/i.test(p.t.desc)?'Dinheiro':'';o.periodo_ini=iso;o.periodo_fim=iso;
-        o.conciliacao=p.t.id;
-        await executar(()=>salvar('Aportes financeiros',o,null));
-        toast('Aporte registrado e conciliado.','success');
-      }}]);
   }
   /* Débito que não estava lançado → conta JÁ PAGA em Contas a pagar (obra, empresa ou rateio entre obras), com as
      mesmas categorias, descrição, fornecedor e forma de pagamento das contas. Sugere pelo que já foi lançado antes para
@@ -11713,16 +11746,16 @@ const Fin=(function(){
               obs:[rat?`Rateio: ${GS.rateio.pctTxt(dd.pct)} de ${fmt(v)} (pelo orçamento)`:'',socio?`Paga por ${quem} (aporte)`:'','Lançada pela conciliação bancária'].filter(Boolean).join(' · '),qtd:'',fator:'',pUnit:'',lanc:'',compra:'cb'+T0+'_'+i,dataCompra:iso};
             if(rid)u.rateio=rid;
             C.finalizarConta(u);C.montarConta(u,null).forEach(op=>{Object.assign(op.dados,{conciliacao:p.t.id,conciliacao_baixa:p.t.id,extrato_desc:p.t.desc});ops.push(op);});
-            if(socio){const a=aps[dd.obra]=aps[dd.obra]||{valor:0,ini:iso,fim:iso};a.valor+=dd.valor;if(iso<a.ini)a.ini=iso;if(iso>a.fim)a.fim=iso;}});});
-        // aporte do sócio: um por obra (ou Empresa), com o período das linhas
+            if(socio){const k=dd.obra+'|'+iso.slice(0,7),a=aps[k]=aps[k]||{obra:dd.obra,valor:0,data:iso};a.valor+=dd.valor;if(iso>a.data)a.data=iso;}});});
+        // aporte do sócio: soma no lançamento do mês dele em cada obra (ou Empresa)
         const forns=[...new Set(its.map(x=>x.forn).filter(Boolean))],formas=[...new Set(its.map(x=>x.forma).filter(Boolean))];
-        const regsAp=Object.entries(aps).map(([ob,a])=>GS.rateio.registroAporte({obra:ob,quem,data:a.fim,ini:a.ini,fim:a.fim,valor:Math.round(a.valor*100)/100,forma:formas.length===1?formas[0]:formas.length?'Várias':'',
+        const regsAp=Object.values(aps).map(a=>({obra:a.obra,quem,data:a.data,valor:Math.round(a.valor*100)/100,forma:formas.length===1?formas[0]:formas.length?'Várias':'',origem:'contas',
           obs:`Pagou ${forns.slice(0,4).join(', ')||'contas'}${forns.length>4?' e outros':''} (${its.length} saída${its.length>1?'s':''} do extrato, lançadas em Contas a pagar)`}));
         // fornecedores novos entram no cadastro; descrições novas entram em Categoria › Descrição
         const podeF=!UI._allowedViews||UI._allowedViews.includes('fornecedores');
         for(const fo of forns)if(podeF&&!(D().fornecedores||[]).some(f=>cn(f.nome)===cn(fo))){try{await salvar('Fornecedores',{nome:fo,tipo:centro===EMP?'Escritório / administrativo':'Material de construção',situacao:'Ativo',data_lancamento:todayDateTime()},null);}catch(e){}}
         const gastos=[...new Map(its.map(x=>[cn(x.cat)+'|'+cn(x.desc),x])).values()];for(const x of gastos)await GS.comboGasto.registrar(centro===EMP,x.cat,x.desc);
-        await executar(async()=>{for(const op of ops)await salvar(op.aba,op.dados,null);for(const a of regsAp)await salvar('Aportes financeiros',a,null);});
+        await executar(async()=>{for(const op of ops)await salvar(op.aba,op.dados,null);for(const a of regsAp)await somarAporte(a);});
         lista.forEach(p=>CONC.selSem.delete(p.t.id));
         toast(`${its.length} saída(s) lançada(s) em Contas a pagar${rat?` (rateadas entre ${obrasR.length} obras)`:''} e conciliada(s)${socio?` · aporte de ${quem} registrado em Sócios e investimentos`:''}.`,'success');}}],1080);
     const tb=j.querySelector('[data-k="linhas"]'),ce=j.querySelector('[data-k="centro"]'),rb=j.querySelector('[data-rat]');
@@ -11755,22 +11788,31 @@ const Fin=(function(){
      conciliação baixou (conciliacao_baixa); o que já estava pago e só foi ligado ao
      extrato apenas se solta. */
   function desfazer(p){
-    const alvos=p.alvos||[],id=p.t.id;
-    const baixados=alvos.filter(m=>temId(m.r.conciliacao_baixa,id));
-    const efeito=baixados.length?`${baixados.length} lançamento(s) voltam para "em aberto" (sem data de pagamento/recebimento)`:'Só a ligação com o extrato é desfeita — os lançamentos continuam pagos';
+    const alvos=p.alvos||[],id=p.t.id,v=Math.abs(p.t.valor),K=KAporte();
+    const baixados=alvos.filter(m=>temId(m.r.conciliacao_baixa,id)),dosSocios=baixados.filter(m=>m.tipo==='aporte'||m.tipo==='retirada'),nContas=baixados.length-dosSocios.length;
+    const efeitos=[];
+    if(nContas)efeitos.push(`${nContas} lançamento(s) voltam para "em aberto" (sem data de pagamento/recebimento)`);
+    if(baixados.some(m=>ajusteDe(m.r)))efeitos.push('o valor lançado volta a valer');
+    dosSocios.forEach(m=>efeitos.push(m.tipo==='retirada'?`o lançamento "${fe(m.desc)}" de ${fmt(m.valor)} é excluído`:`${fmt(v)} sai do aporte de ${fe(m.quem)} deste período`));
+    const efeito=efeitos.length?efeitos.join('; '):'Só a ligação com o extrato é desfeita — os lançamentos continuam pagos';
     confirmar('Desfazer conciliação?',`${efeito}. A linha de ${fmt(p.t.valor)} de ${fe(p.t.data)} volta para a conferência.`,'Sim, desfazer',async()=>{
+      // o aporte já devolvido ao sócio não pode ficar menor que a devolução
+      for(const m of dosSocios)if(m.tipo==='aporte'){const dev=(D().aportes||[]).filter(r=>String(r.aporte_ref)===String(m.r.rowid)).reduce((s,r)=>s+Math.abs(val(r[K.valor])),0);if(dev>Math.max(m.valor-v,0)+0.004)throw new Error('Este aporte já teve devolução maior do que sobraria. Desfaça a devolução antes.');}
       await executar(async()=>{
         for(const m of alvos){
-          const o={...m.r,conciliacao:tirarId(m.r.conciliacao,id)};
+          const o={...m.r,conciliacao:tirarId(m.r.conciliacao,id)},aba=m.r._aba||ABA[m.tipo];
           if(temId(m.r.conciliacao_baixa,id)){
             o.conciliacao_baixa=tirarId(m.r.conciliacao_baixa,id);
-            if(m.tipo==='custo'){o[m.kTipo]='Previsto';o[m.kData]='';}
-            else if(m.tipo==='despesa'){o[m.kSt]='Pendente';o[m.kPg]='';o[m.kTipo]='Prevista';}
-            else if(m.tipo==='fat'){o[m.kRec]=m.r.antecipada==='sim'&&m.r.antec_previsto?m.r.antec_previsto:'';o.antec_recebida='';o.antec_depositado='';
-              // o recebimento tinha ajustado o líquido ao valor do banco: volta o esperado
-              if(m.r.liq_esperado){o[kRow(m.r,['faturamento_liquido','liquido'],'faturamento_liquido')]=m.r.liq_esperado;o.liq_esperado='';}}
+            // a retirada nasceu desta linha do banco: sai junto. O aporte é do mês inteiro: sai só o valor desta linha
+            if(m.tipo==='retirada'){await excluir(aba,m.r.rowid);continue;}
+            if(m.tipo==='aporte'){const resto=Math.round((m.valor-v)*100)/100;if(resto<=0){await excluir(aba,m.r.rowid);continue;}
+              o[K.valor]=dinheiro(resto);o[K.obs]=String(m.r[K.obs]||'').split(' | ').filter(s=>!s.includes(obsDoExtrato(p.t))).join(' | ');}
+            if(m.tipo==='custo'){o[m.kTipo]=m.r.tipo_antes_conc||'Previsto';o[m.kData]='';o.tipo_antes_conc='';}
+            else if(m.tipo==='despesa'){o[m.kSt]='Pendente';o[m.kPg]='';o[m.kTipo]=m.r.tipo_antes_conc||'Prevista';o.tipo_antes_conc='';}
+            else if(m.tipo==='fat'){o[m.kRec]=m.r.antecipada==='sim'&&m.r.antec_previsto?m.r.antec_previsto:'';o.antec_recebida='';o.antec_depositado='';}
+            voltarAjuste(o,m);
           }
-          await salvar(m.r._aba||ABA[m.tipo],o,m.r.rowid);
+          await salvar(aba,o,m.r.rowid);
         }
       });
       toast('Conciliação desfeita — a linha voltou para a conferência.','success');
@@ -11781,9 +11823,9 @@ const Fin=(function(){
     if(document.getElementById('view-contas')?.classList.contains('active'))renderContas();
     if(document.getElementById('view-conciliacao')?.classList.contains('active')&&!document.getElementById('fin-ov')?.classList.contains('open'))renderConciliacao();
   }
-  return {renderContas,renderConciliacao,aoAtualizar,movimentos,prazoReceb,lerSaldo,_conciliar:conciliar,_lerOFX:lerOFX,_lerCSV:lerCSVExtrato,_pdfParaCsv:pdfParaCsv,_lerLinhasPdf:lerLinhasPdf,
+  return {renderContas,renderConciliacao,aoAtualizar,movimentos,prazoReceb,lerSaldo,somarAporte,_conciliar:conciliar,_lerOFX:lerOFX,_lerCSV:lerCSVExtrato,_pdfParaCsv:pdfParaCsv,_lerLinhasPdf:lerLinhasPdf,
     // utilitários compartilhados com os módulos de engenharia (Eng)
-    util:{janela,confirmar,executar,salvar,excluir,fe,cn,dt,brDe,isoDe,isoDeBR,hoje0,addD,dias,col,kRow,dinheiro,val}};
+    util:{janela,confirmar,executar,salvar,excluir,fe,cn,dt,brDe,isoDe,isoDeBR,hoje0,addD,dias,col,kRow,dinheiro,val,juntarId,ajusteDe,txtDif,periodoMes,obsDoExtrato}};
 })();
 App._renderContas=()=>Fin.renderContas();
 App._renderConciliacao=()=>Fin.renderConciliacao();
@@ -15842,6 +15884,8 @@ const PL2=(function(){
       Object.assign(base,aprovCampos(o,orig));
       ops.push({aba:'Despesas',dados:base,rowid:mesmo?orig.rowid:null});}
     if(orig&&!mesmo)ops.push({excluir:true,aba:orig._t==='c'?'Custos':'Despesas',rowid:orig.rowid});
+    // pagamento desfeito: a conta solta do extrato e o registro do ajuste de valor deixa de valer
+    if(o.limparConc)ops.forEach(op=>{if(op.dados)Object.assign(op.dados,{conciliacao:'',conciliacao_baixa:'',tipo_antes_conc:'',valor_original:'',valor_ajustado:'',valor_diferenca:'',p_unit_original:''});});
     return ops;
   }
   function finalizarConta(o){
@@ -16355,7 +16399,7 @@ const Mascara=(function(){
       ${o.forn&&o.desc?`<div class="vk-sub">${fe(C.limparParc(o.desc))}${pc?' '+pill(pc,''):''}</div>`:pc?`<div class="vk-sub">${pill(pc,'')}</div>`:''}
       ${o.centro!==EMP?`<div class="vk-obra" title="${fe(o.centro)}"><i class="fas fa-helmet-safety"></i>${fe(o.centro)}</div>`:''}
       <div class="vk-val"><span>${fe(o.cat||'')}</span><b>${fmt(val(o.total))}</b></div>
-      ${o.forma||o.rateio?`<div class="vk-sub">${o.forma?pill(o.forma,'','fa-credit-card'):''}${o.rateio?pill('rateio','info','fa-chart-pie'):''}</div>`:''}
+      ${o.forma||o.rateio||val(o._r.valor_original)?`<div class="vk-sub">${o.forma?pill(o.forma,'','fa-credit-card'):''}${o.rateio?pill('rateio','info','fa-chart-pie'):''}${val(o._r.valor_original)?pill('valor ajustado','warn','fa-scale-balanced'):''}</div>`:''}
       <div class="vk-pe">${col==='aprovar'?pill('aguarda aprovação','roxo','fa-signature'):col==='previstas'?pill('estimativa','',''):''}${col==='previstas'&&!o.venc?'':vencePill(o.venc,pagoC(o)?o.pago:'')}</div>
     </article>`;
   }
@@ -16422,7 +16466,7 @@ const Mascara=(function(){
         const d=j.querySelector('[data-k="data"]').value,forma=j.querySelector('[data-k="forma"]').value;if(!d)throw new Error('Informe a data do pagamento.');if(d>isoDe(hoje0()))throw new Error('A data do pagamento não pode ser depois de hoje.');
         await gravarVarias(L.map(x=>{const u={...x,pago:d,tipo:'Real',venc:x.venc||d,forma};if(x.aprov==='pendente'&&souAdmin()){u.aprov='aprovada';u.aprovPor=C.quem();u.aprovMudou=true;}if(soc)u.obs=[u.obs,`Paga por ${quem} (aporte)`].filter(Boolean).join(' · ');return [u,x];}));
         if(soc){const porObra={};L.forEach(x=>{porObra[x.centro]=(porObra[x.centro]||0)+val(x.total);});
-          await executar(async()=>{for(const [ob,v] of Object.entries(porObra))await salvar('Aportes financeiros',{titulo_obra:ob,quem_aportou:quem,data_aporte:d,periodo_ini:d,periodo_fim:d,valor_aportado:dinheiro(v),movimento:'Aporte',forma_aporte:forma,observacao:`Pagou a compra de ${o.forn||'fornecedor'} (Contas a pagar)`,origem_aporte:'contas',data_lancamento:todayDateTime()},null);});}
+          await executar(async()=>{for(const [ob,v] of Object.entries(porObra))await Fin.somarAporte({obra:ob,quem,data:d,valor:v,forma,obs:`Pagou a compra de ${o.forn||'fornecedor'} (Contas a pagar)`,origem:'contas'});});}
         toast(soc?`Pagamento registrado e aporte de ${quem} lançado.`:`Pagamento da compra registrado (${L.length} itens).`,'success');}}],560);
     const jj=jan(),sc=jj.querySelector('[data-k="socio"]');sc.addEventListener('change',()=>{jj.querySelector('[data-socio-box]').hidden=!sc.checked;});
   }
@@ -16432,8 +16476,10 @@ const Mascara=(function(){
     confirmar(aprovar?'Aprovar a compra':'Desaprovar a compra',aprovar?`Aprovar os ${L.length} itens da compra de <b>${fe(L[0].forn||'fornecedor')}</b> (${fmt(tot)})? Com a aprovação ela fica liberada para pagamento.`:`Tirar a aprovação dos ${L.length} itens (${fmt(tot)})? Eles voltam para "Aguardando aprovação".`,aprovar?'Sim, aprovar':'Sim, desaprovar',
       async()=>{await gravarVarias(L.filter(x=>!pagoC(x)).map(x=>[{...x,aprov:aprovar?'aprovada':'pendente',aprovPor:C.quem(),aprovMudou:true},x]));toast(aprovar?'Compra aprovada.':'Aprovação retirada.','success');});
   }
+  // pagamento desfeito: volta para "a pagar", com o valor lançado se a conciliação tinha ajustado
+  const contaDesfeita=x=>{const u={...x,pago:'',venc:x.venc||x.pago,limparConc:true};if(val(x._r.valor_original)){u.total=x._r.valor_original;if(x._r.p_unit_original)u.pUnit=x._r.p_unit_original;}return u;};
   function desfazerPagCompra(L){
-    confirmar('Desfazer pagamento',`Os ${L.length} itens da compra de <b>${fe(L[0].forn||'fornecedor')}</b> (pagos em ${brDe(dt(L[0].pago))}) voltam para "a pagar".`,'Sim, desfazer',async()=>{await gravarVarias(L.map(x=>[{...x,pago:'',venc:x.venc||x.pago},x]));toast('Voltou para "a pagar".','success');});
+    confirmar('Desfazer pagamento',`Os ${L.length} itens da compra de <b>${fe(L[0].forn||'fornecedor')}</b> (pagos em ${brDe(dt(L[0].pago))}) voltam para "a pagar".`,'Sim, desfazer',async()=>{await gravarVarias(L.map(x=>[contaDesfeita(x),x]));toast('Voltou para "a pagar".','success');});
   }
   function excluirCompra(L){
     if(!GS.ehAdm()&&!L.every(x=>GS.podeMexer(x._r,x.lancPor)))return toast(GS.MSG_DONO,'error');
@@ -16620,12 +16666,12 @@ const Mascara=(function(){
         if(o.aprov==='pendente'&&souAdmin()){u.aprov='aprovada';u.aprovPor=C.quem();u.aprovMudou=true;}
         if(soc)u.obs=[u.obs,`Paga por ${quem} (aporte)`].filter(Boolean).join(' · ');
         await gravarConta(u,o);
-        if(soc)await executar(()=>salvar('Aportes financeiros',{titulo_obra:o.centro,quem_aportou:quem,data_aporte:d,periodo_ini:d,periodo_fim:d,valor_aportado:dinheiro(t),movimento:'Aporte',forma_aporte:u.forma,observacao:`Pagou ${o.forn||C.limparParc(o.desc)||'a conta'} (Contas a pagar)`,origem_aporte:'contas',data_lancamento:todayDateTime()},null));
+        if(soc)await executar(()=>Fin.somarAporte({obra:o.centro,quem,data:d,valor:t,forma:u.forma,obs:`Pagou ${o.forn||C.limparParc(o.desc)||'a conta'} (Contas a pagar)`,origem:'contas'}));
         toast(soc?`Pagamento registrado e aporte de ${quem} lançado em Sócios e investimentos.`:'Pagamento registrado.','success');}}],560);
     const jj=jan(),sc=jj.querySelector('[data-k="socio"]');sc.addEventListener('change',()=>{jj.querySelector('[data-socio-box]').hidden=!sc.checked;});
   }
   function desfazerPagamento(o){
-    confirmar('Desfazer pagamento',`A conta de <b>${fe(o.forn||o.desc)}</b> (${fmt(val(o.total))}, paga em ${brDe(dt(o.pago))}) volta para "a pagar".`,'Sim, desfazer',async()=>{await gravarConta({...o,pago:'',venc:o.venc||o.pago},o);toast('Voltou para "a pagar".','success');});
+    confirmar('Desfazer pagamento',`A conta de <b>${fe(o.forn||o.desc)}</b> (${fmt(val(o.total))}, paga em ${brDe(dt(o.pago))}) volta para "a pagar".${val(o._r.valor_original)?` O valor volta a ser o lançado: <b>${fmt(val(o._r.valor_original))}</b>.`:''}`,'Sim, desfazer',async()=>{await gravarConta(contaDesfeita(o),o);toast('Voltou para "a pagar".','success');});
   }
   // todos os campos da conta (o que a planilha tinha)
   function camposConta(o,nova){
@@ -16992,15 +17038,13 @@ const Mascara=(function(){
     document.body.appendChild(ov);ov.querySelector('[data-nao]').focus();});}
   // sócios / investidores já usados nos aportes
   const socios=()=>[...new Set((typeof QUEM_APORTOU!=='undefined'?QUEM_APORTOU:[]).concat((D().aportes||[]).map(r=>getFuzzy(r,['quem_aportou','quem'])).filter(Boolean)))];
-  // aporte lançado a partir de uma conta paga com dinheiro do sócio
-  const registroAporte=a=>({titulo_obra:a.obra,quem_aportou:a.quem,data_aporte:a.data,periodo_ini:a.ini||a.data,periodo_fim:a.fim||a.data,valor_aportado:dinheiro(a.valor),movimento:'Aporte',forma_aporte:a.forma||'',observacao:a.obs||'',origem_aporte:'contas',data_lancamento:todayDateTime()});
   GS.ehAdm=()=>{const s=Auth._session||{};return !!UI._ehAdmin(s.perfil);};
   // só quem lançou (ou o Administrador) edita/exclui qualquer lançamento; registro antigo, sem autor guardado, só o Administrador
   GS.podeMexer=(r,nome)=>{if(GS.ehAdm())return true;r=r||{};const s=Auth._session||{},eu=[s.uid,s.cpf,s.email,s.nome].filter(Boolean).map(String),dono=r.criado_por_id||r.enviado_por_id;
     if(dono)return eu.includes(String(dono));const quem=nome||r.lancado_por||r.criado_por||r.enviado_por||'';return quem?cn(quem)===cn(s.nome||''):false;};
   GS.MSG_DONO='Só quem lançou (ou um Administrador) pode editar ou excluir.';
-  GS.rateio={valorOrcObra,partesRateio,ligarRateio,socios,pctTxt,registroAporte,erroRateio,confirmarRateio};
-  /* DESTINO do gasto (ou do aporte): Obra · Custo indireto (Empresa). Em "Obra" fica a lista de obras (acima): uma marcada, o
+  GS.rateio={valorOrcObra,partesRateio,ligarRateio,socios,pctTxt,erroRateio,confirmarRateio};
+  /* DESTINO do gasto (ou do aporte): Custo direto (Obra) · Custo indireto (Empresa). Em "Obra" fica a lista de obras (acima): uma marcada, o
      valor vai para ela; duas ou mais, rateio. Quem edita um lançamento só (rateio:false) escolhe uma obra numa lista simples, com
      filtro pela situação. O valor fica num campo escondido com o atributo de sempre (data-l/data-k="centro": a obra, a Empresa ou
      "__rateio__"), então o resto da tela continua igual. */
@@ -17008,9 +17052,9 @@ const Mascara=(function(){
   const faseObra=ob=>{const o=(D().obras||[]).find(x=>Eng.nomeObra(x)===ob),t=cn(o?Eng.statusObra(o):'');return t.includes('finalizada')?'entregue':t.includes('andamento')?'execucao':t.includes('ganha')?'ganha':'outra';};
   let DESTN=0;
   const opsObraDe=(fase,atual)=>{const l=opsObra().filter(ob=>!fase||faseObra(ob)===fase);if(atual&&atual!==EMP&&atual!=='__rateio__'&&!l.includes(atual))l.unshift(atual);return `<option value="">Escolha a obra…</option>${l.map(ob=>`<option ${ob===atual?'selected':''}>${fe(ob)}</option>`).join('')}`;};
-  function htmlDestino(attr,valor,op){op={rateio:true,empresa:C.podeEmpresa(),...(op||{})};const n=++DESTN;
+  function htmlDestino(attr,valor,op){op={rateio:true,empresa:C.podeEmpresa(),rotObra:'Custo direto (Obra)',...(op||{})};const n=++DESTN;
     const modo=valor===EMP?'emp':'obra';
-    const ms=[['obra','fa-helmet-safety','Obra'],op.empresa?['emp','fa-building','Custo indireto (Empresa)']:null].filter(Boolean);
+    const ms=[['obra','fa-helmet-safety',op.rotObra],op.empresa?['emp','fa-building','Custo indireto (Empresa)']:null].filter(Boolean);
     return `<div class="dest" data-dest><input type="hidden" ${attr} value="${fe(valor||'')}">
       ${ms.length>1?`<div class="dest-modos" role="radiogroup">${ms.map(([k,ic,r])=>`<label class="${modo===k?'on':''}"><input type="radio" name="dest-${n}" value="${k}" ${modo===k?'checked':''}><i class="fas ${ic}"></i> ${r}</label>`).join('')}</div>`:''}
       ${op.rateio?htmlRateio(valor,modo!=='obra'):`<div class="dest-obra" ${modo==='obra'?'':'hidden'}><select data-dest-fase title="Filtrar as obras pela situação">${FASES_OB.map(([k,r])=>`<option value="${k}">${r}</option>`).join('')}</select><select data-dest-obra>${opsObraDe('',modo==='obra'?valor:'')}</select></div>`}</div>`;}
@@ -17172,8 +17216,8 @@ const Mascara=(function(){
       for(const fo of forns)if(!(D().fornecedores||[]).some(f=>cn(f.nome)===cn(fo))&&pode('fornecedores')){try{await salvar('Fornecedores',{nome:fo,cnpj:CNPJ_LIDO,tipo:centro0===EMP?'Escritório / administrativo':'Material de construção',situacao:'Ativo',data_lancamento:todayDateTime()},null);}catch(e){}}
       for(const x of its)await registrarGasto(centro0===EMP,x.cat,x.desc);
       const nfs=[...new Set(its.map(x=>x.num).filter(Boolean))];
-      const regsAp=Object.entries(aps).map(([ob,v])=>registroAporte({obra:ob,quem,data:pagoEm,valor:Math.round(v*100)/100,forma,obs:`Pagou ${forns.join(', ')||'a conta'}${nfs.length?' · nota nº '+nfs.join(', '):''} (lançado em Contas a pagar)`}));
-      await executar(async()=>{await Promise.all(ops.map(x=>salvar(x.aba,x.dados,null)));for(const a of regsAp)await salvar('Aportes financeiros',a,null);});
+      const regsAp=Object.entries(aps).map(([ob,v])=>({obra:ob,quem,data:pagoEm,valor:Math.round(v*100)/100,forma,origem:'contas',obs:`Pagou ${forns.join(', ')||'a conta'}${nfs.length?' · nota nº '+nfs.join(', '):''} (lançado em Contas a pagar)`}));
+      await executar(async()=>{await Promise.all(ops.map(x=>salvar(x.aba,x.dados,null)));for(const a of regsAp)await Fin.somarAporte(a);});
       if(cc){toast(`Compra lançada (${ops.length} ${ops.length>1?'itens':'item'}) e conciliada com o extrato${socio?` · aporte de ${quem} registrado em Sócios e investimentos`:''}.`,'success');return;}
       toast(`${ops.length>1?ops.length+' contas lançadas':'Conta lançada'}${socio?` e ${regsAp.length>1?regsAp.length+' aportes':'o aporte'} de ${fe(quem)} registrado${regsAp.length>1?'s':''}`:''}${souAdmin()||socio?'.':' — aguardando a aprovação (de um Administrador ou de quem tem permissão para aprovar).'}`,'success');}}],1240);
     const j=jan(),q=k=>j.querySelector(`[data-l="${k}"]`),tb=q('itens');
@@ -17242,6 +17286,7 @@ const Mascara=(function(){
         <li><i class="fas fa-calendar-day"></i> Vencimento ${brDe(dt(o.venc))}${o.forma?' · '+fe(o.forma):''}${o.lancPor?` · lançada por ${fe(o.lancPor)}`:''}</li>
         ${pagoC(o)?`<li><i class="fas fa-circle-check"></i> Paga em ${brDe(dt(o.pago))}</li>`:''}
         ${o.tipo==='Real'?`<li><i class="fas fa-signature"></i> ${o.aprov==='pendente'?'Aguardando aprovação':o.aprovPor?`Aprovada por ${fe(o.aprovPor)}${o.aprovEm?' em '+brDe(dt(o.aprovEm)):''}`:'Aprovada'}</li>`:''}
+        ${(()=>{const a=Fin.util.ajusteDe(o._r);return a?`<li><i class="fas fa-scale-balanced"></i> Valor ajustado na conciliação: lançado <b>${fmt(a.orig)}</b> · banco <b>${fmt(a.novo)}</b> · diferença <b>${Fin.util.txtDif(a.dif)}</b></li>`:'';})()}
         ${o.obs?`<li><i class="fas fa-note-sticky"></i> ${fe(o.obs)}</li>`:''}
       </ul>
       ${ed?camposConta(o,false):!GS.podeMexer(o._r,o.lancPor)?`<p class="vk-dica"><i class="fas fa-lock"></i> Só quem lançou esta conta${o.lancPor?' ('+fe(o.lancPor)+')':''} ou um Administrador pode alterar ou excluir.</p>`:!pagoC(o)?'<p class="vk-dica"><i class="fas fa-lock"></i> Conta aprovada fica travada. Para corrigir, peça a um Administrador.</p>':''}`;
@@ -17571,7 +17616,7 @@ const Mascara=(function(){
       await executar(async()=>{await salvar('Faturamentos',{...copiaF(r),_lixeira_em:new Date().toISOString(),_lixeira_obra_id:'avulso',_lixeira_motivo:'Faturamento desfeito (medição nº '+(m.numero||'')+' voltou para a fiscalização)'},r.rowid);
         await salvar('Medições',{...copiaF(m),status:'Enviada à fiscalização',faturado_em:''},m.rowid);});
       toast('Voltou para "Medição em andamento".','success');});}
-  function desfazerRecebimento(r){const K=KF();confirmar('Desfazer recebimento',`${r[K.nf]?'A NF '+fe(r[K.nf]):'A nota'} volta para "a receber".`,'Sim, desfazer',async()=>{const o=copiaF(r);o[K.rec]=r.antecipada==='sim'&&dt(r.antec_previsto)?r.antec_previsto:'';o.antec_recebida='';o.antec_depositado='';if(r.liq_esperado){o[K.liq]=r.liq_esperado;o.liq_esperado='';}o.conciliacao='';o.conciliacao_baixa='';await executar(()=>salvar('Faturamentos',o,r.rowid));toast('Voltou para "a receber".','success');});}
+  function desfazerRecebimento(r){const K=KF();confirmar('Desfazer recebimento',`${r[K.nf]?'A NF '+fe(r[K.nf]):'A nota'} volta para "a receber".`,'Sim, desfazer',async()=>{const o=copiaF(r);o[K.rec]=r.antecipada==='sim'&&dt(r.antec_previsto)?r.antec_previsto:'';o.antec_recebida='';o.antec_depositado='';if(r.liq_esperado){o[K.liq]=r.liq_esperado;o.liq_esperado='';}Object.assign(o,{conciliacao:'',conciliacao_baixa:'',valor_original:'',valor_ajustado:'',valor_diferenca:''});await executar(()=>salvar('Faturamentos',o,r.rowid));toast('Voltou para "a receber".','success');});}
   function fichaMedicao(x){
     const m=x.r,rm=Eng.resumoMedicoes(m.titulo_obra),cc=COLS_F.find(c=>c.k===x.col);
     const corpo=`<div class="vk-ficha-cab"><span class="vk-etq" style="--cor:${cc.cor}"><i class="fas ${cc.ico}"></i> ${cc.rot}</span>
@@ -23029,13 +23074,15 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
   const kAp=(cands,fb)=>{const m=(D().metadata&&D().metadata.aportes)||[];return cands.map(c=>m.find(k=>k===c)).find(Boolean)||cands.map(c=>m.find(k=>k.includes(c))).find(Boolean)||fb;};
   const KAp=()=>({obra:kAp(['titulo_obra'],'titulo_obra'),quem:kAp(['quem_aportou','quem'],'quem_aportou'),data:kAp(['data_aporte'],'data_aporte'),valor:kAp(['valor_aportado','valor_aporte','valor'],'valor_aportado'),obs:kAp(['observacao','observ','obs'],'observacao'),lanc:kAp(['data_lancamento','lancamento'],'data_lancamento')});
   const ehSaida=r=>{const K=KAp();return /retir|devolu/i.test(r.movimento||'')||val(r[K.valor])<0;};
+  // a retirada é do lucro ou pagamento do pró-labore (as antigas não dizem qual)
+  const rotRetirada=t=>t==='prolabore'?'Pró-labore':t==='lucro'?'Retirada do lucro':'Retirada';
   function livro(){
     const K=KAp(),L=[];
     (D().aportes||[]).forEach(r=>{const sai=ehSaida(r),dev=/devolu/i.test(r.movimento||'');
-      L.push({r,fonte:'ap',data:dt(r[K.data]),tipo:sai?(dev?'Devolução de aporte':'Retirada'):'Aporte',sai,dev,quem:r[K.quem]||'—',obra:r[K.obra]||'—',valor:Math.abs(val(r[K.valor])),obs:r[K.obs]||'',ref:r.aporte_ref||'',forma:r.forma_aporte||'',ini:dt(r.periodo_ini),fim:dt(r.periodo_fim),rateio:r.rateio_id||''});});
+      L.push({r,fonte:'ap',data:dt(r[K.data]),tipo:sai?(dev?'Devolução de aporte':'Retirada'):'Aporte',rot:sai&&!dev?rotRetirada(r.tipo_retirada):'',sai,dev,quem:r[K.quem]||'—',obra:r[K.obra]||'—',valor:Math.abs(val(r[K.valor])),obs:r[K.obs]||'',ref:r.aporte_ref||'',forma:r.forma_aporte||'',ini:dt(r.periodo_ini),fim:dt(r.periodo_fim),rateio:r.rateio_id||''});});
     // retiradas antigas, lançadas em Contas a pagar (Empresa, categorias de pró-labore / retirada / devolução)
     Fin.movimentos().filter(m=>m.tipo==='despesa'&&GS.ehRetirada(m)&&m.pago).forEach(m=>{const cat=getFuzzy(m.r,['categoria'])||'',dev=/devolu/i.test(cat);
-      L.push({r:m.r,fonte:'cp',data:m.dataBaixa,tipo:dev?'Devolução de aporte':'Retirada',sai:true,dev,quem:m.quem||'—',obra:'Empresa',valor:m.valor,obs:(m.desc||'')+' · lançada em Contas a pagar'});});
+      L.push({r:m.r,fonte:'cp',data:m.dataBaixa,tipo:dev?'Devolução de aporte':'Retirada',rot:dev?'':/pr[oó]-?labore/i.test(cat)?'Pró-labore':/lucro|distribui/i.test(cat)?'Retirada do lucro':'Retirada',sai:true,dev,quem:m.quem||'—',obra:'Empresa',valor:m.valor,obs:(m.desc||'')+' · lançada em Contas a pagar'});});
     return L.filter(x=>x.valor>0).sort((a,b)=>(b.data||0)-(a.data||0));
   }
   const saldoAporte=(x,L)=>x.valor-L.filter(y=>y.dev&&y.fonte==='ap'&&String(y.ref)===String(x.r.rowid)).reduce((s,y)=>s+y.valor,0);
@@ -23044,30 +23091,39 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
   const FORMAS_AP=['PIX','Transferência','Cartão de Crédito','Cartão de Débito','Dinheiro','Boleto','Cheque'];
   // período de um aporte antigo (sem período): o mês da data dele
   const periodoDe=x=>{if(x.ini&&x.fim)return [isoDe(x.ini),isoDe(x.fim)];const d=x.data;if(!d)return ['',''];return [isoDe(new Date(d.getFullYear(),d.getMonth(),1)),isoDe(new Date(d.getFullYear(),d.getMonth()+1,0))];};
-  const chaveAporte=(quem,obra,ini,fim)=>[cn(quem),cn(obra),ini,fim].join('|');
+  // mês do aporte: o do fim do período (ou o da data, nos antigos). O período é sempre o mês inteiro
+  const mesDe=y=>{const d=y.fim||y.data;return d?isoDe(d).slice(0,7):'';};
+  const ehMesInteiro=y=>{const m=mesDe(y);if(!m||!y.ini||!y.fim)return false;const p=U.periodoMes(m);return isoDe(y.ini)===p.ini&&isoDe(y.fim)===p.fim;};
+  const acharDoMes=(L,quem,obra,mes,fora)=>L.find(y=>y.fonte==='ap'&&!y.sai&&(!fora||String(y.r.rowid)!==String(fora.rowid))&&cn(y.quem)===cn(quem)&&cn(y.obra)===cn(obra)&&mesDe(y)===mes);
+  const opsMes=atual=>{const ks=[];for(let i=0;i<36;i++)ks.push(GS.mesDesloc(GS.mesHoje(),-i));if(atual&&!ks.includes(atual))ks.push(atual);ks.sort().reverse();return ks.map(k=>`<option value="${k}" ${k===atual?'selected':''}>${fe(GS.cap(GS.mesNome(k)))}</option>`).join('');};
+  const formaDoBanco=d=>/pix/i.test(d)?'PIX':/ted|doc|transf|tev/i.test(d)?'Transferência':/dep/i.test(d)?'Dinheiro':'';
   /* Cada movimento tem o seu formulário:
-     Aporte — período das compras que ele cobre (de/até); aporte do mesmo sócio, na mesma obra e no mesmo período
-       SOMA no que já existe (fica um lançamento por período e obra); pode ser rateado entre obras.
-     Retirada — pró-labore / distribuição de lucro, com a data.
-     Devolução de aporte — escolhe o aporte e devolve tudo ou uma parte (nunca mais do que falta devolver). */
-  function editarMov(x,tipo,de){
+     Aporte — sempre no período do mês: o que o mesmo sócio aporta na mesma obra dentro do mês SOMA no que já existe
+       (fica um lançamento por mês e obra); pode ser rateado entre obras.
+     Retirada — retirada do lucro ou pagamento do pró-labore, com a data.
+     Devolução de aporte — escolhe o aporte e devolve tudo ou uma parte (nunca mais do que falta devolver).
+     op.conc: linha do extrato (Conciliação): o valor e a data vêm do banco e o lançamento fica ligado a ela. op.sub: lucro ou prolabore. */
+  function editarMov(x,tipo,de,op){
+    op=op||{};const conc=op.conc||null,isoBanco=conc?U.isoDeBR(conc.data):'';
     const K=KAp(),r=x?x.r:null,L=livro(),tp=x?x.tipo:(tipo||'Aporte'),RAT='__rateio__',hj=isoDe(hoje0());
     const aps=L.filter(y=>y.fonte==='ap'&&!y.sai).map(y=>({y,s:saldoAporte(y,L)+(x&&String(x.ref)===String(y.r.rowid)?x.valor:0)})).filter(z=>z.s>0.004||(x&&String(x.ref)===String(z.y.r.rowid)));
     const sel=(k,ops,v,vazio)=>`<select data-k="${k}">${vazio!=null?`<option value="">${vazio}</option>`:''}${ops.map(o=>`<option ${o===v?'selected':''}>${fe(o)}</option>`).join('')}${v&&!ops.includes(v)?`<option selected>${fe(v)}</option>`:''}</select>`;
-    const quemIni=x?x.quem:(de?de.quem:''),obraIni=x?x.obra:'',vIni=x?x.valor:(de?saldoAporte(de,L):0);
-    const pIni=x?(x.r.periodo_ini||(x.data?isoDe(x.data):hj)):hj,pFim=x?(x.r.periodo_fim||(x.data?isoDe(x.data):hj)):hj,formaIni=x?(x.forma||''):'';
+    const quemIni=x?x.quem:(de?de.quem:''),obraIni=x?x.obra:(tp==='Retirada'?'Empresa':''),vIni=x?x.valor:conc?Math.abs(conc.valor):(de?saldoAporte(de,L):0);
+    const mesIni=x?(mesDe(x)||hj.slice(0,7)):conc?isoBanco.slice(0,7):hj.slice(0,7),formaIni=x?(x.forma||''):conc?formaDoBanco(conc.desc):'',subIni=x?(x.r.tipo_retirada||''):(op.sub||'');
+    const banco=conc?`<div class="fin-resumo">${fe(conc.data)} · ${fe(conc.desc)}<br>Valor no banco: <b>${fmt(Math.abs(conc.valor))}</b></div>`:'';
     const socio=`<div class="fin-fld"><label>Sócio / investidor <span class="obg">*</span></label><input data-k="quem" list="so2-quem" value="${fe(quemIni==='—'?'':quemIni)}" autocomplete="off"><datalist id="so2-quem">${quemOps().map(q=>`<option value="${fe(q)}">`).join('')}</datalist></div>`;
-    const destino=rat=>`<div class="fin-fld" style="grid-column:1/-1"><label>Obra de referência <span class="obg">*</span></label>${GS.destino.html('data-k="obra"',obraIni==='—'?'':obraIni,{rateio:rat,empresa:true})}</div>`;
+    const destino=rat=>`<div class="fin-fld" style="grid-column:1/-1"><label>Obra de referência <span class="obg">*</span></label>${GS.destino.html('data-k="obra"',obraIni==='—'?'':obraIni,{rateio:rat,empresa:true,rotObra:'Obra'})}</div>`;
     const forma=`<div class="fin-fld"><label>Forma</label>${sel('forma',FORMAS_AP,formaIni,'—')}</div>`;
-    const valor=`<div class="fin-fld"><label>Valor (R$) <span class="obg">*</span></label><input data-k="valor" data-mask="moeda" inputmode="numeric" value="${vIni?fmt(vIni):''}"></div>`;
+    const valor=`<div class="fin-fld"><label>Valor (R$) <span class="obg">*</span></label><input data-k="valor" ${conc?'readonly class="lote-calc" title="O valor vem do extrato"':'data-mask="moeda" inputmode="numeric"'} value="${vIni?fmt(vIni):''}"></div>`;
     const obs=`<div class="fin-fld" style="grid-column:1/-1"><label>Observação</label><input data-k="obs" value="${fe(x?x.obs:'')}"></div>`;
     let corpo,titulo;
-    if(tp==='Aporte'){titulo=x?'Editar aporte':'Novo aporte';
-      corpo=`<div class="fin-linha">${socio}${forma}${destino(!x)}<div class="fin-fld"><label>Período das compras — de <span class="obg">*</span></label><input type="date" data-k="ini" value="${fe(pIni)}"></div><div class="fin-fld"><label>até <span class="obg">*</span></label><input type="date" data-k="fim" max="${hj}" value="${fe(pFim)}"></div>${valor}${obs}</div>
-        <div class="fin-aviso"><div>Aporte do mesmo sócio, na mesma obra e no mesmo período <b>soma</b> no lançamento que já existe — fica um lançamento por período e obra.</div></div>`;}
-    else if(tp==='Retirada'){titulo=x?'Editar retirada':'Nova retirada';
-      corpo=`<div class="fin-linha">${socio}${forma}${destino(false)}<div class="fin-fld"><label>Data <span class="obg">*</span></label><input type="date" data-k="data" max="${hj}" value="${x&&x.data?isoDe(x.data):hj}"></div>${valor}${obs}</div>
-        <div class="fin-aviso"><div><b>Retirada</b> = pró-labore ou distribuição de lucro: sai do caixa. Para devolver dinheiro que o sócio aportou, use <b>Devolução de aporte</b>.</div></div>`;}
+    if(tp==='Aporte'){titulo=x?'Editar aporte':conc?'Registrar aporte':'Novo aporte';
+      corpo=`${banco}<div class="fin-linha">${socio}${forma}${destino(!x&&!conc)}<div class="fin-fld"><label>Período (mês) <span class="obg">*</span></label><select data-k="mes" ${conc?'disabled title="O mês vem da data do extrato"':''}>${opsMes(mesIni)}</select></div>${valor}${obs}</div>
+        <div class="fin-resumo" data-ap-ja hidden></div>
+        <div class="fin-aviso"><div>Os aportes ficam por período: o que o mesmo sócio aporta na mesma obra dentro do mês <b>soma</b> no lançamento que já existe — fica um lançamento por mês e obra.</div></div>`;}
+    else if(tp==='Retirada'){titulo=x?'Editar retirada':subIni==='lucro'?'Retirada do lucro':subIni==='prolabore'?'Pagamento do pró-labore':'Retirada do lucro ou pró-labore';
+      corpo=`${banco}<div class="fin-linha"><div class="fin-fld" style="grid-column:1/-1"><label>Tipo da saída <span class="obg">*</span></label><select data-k="subtipo"><option value="">Escolha…</option><option value="lucro" ${subIni==='lucro'?'selected':''}>Retirada do lucro</option><option value="prolabore" ${subIni==='prolabore'?'selected':''}>Pagamento do pró-labore</option></select></div>${socio}${forma}${destino(false)}<div class="fin-fld"><label>Data <span class="obg">*</span></label><input type="date" data-k="data" ${conc?`readonly class="lote-calc" title="A data vem do extrato" value="${isoBanco}"`:`max="${hj}" value="${x&&x.data?isoDe(x.data):hj}"`}></div>${valor}${obs}</div>
+        <div class="fin-aviso"><div><b>Retirada do lucro</b> e <b>pró-labore</b> saem do caixa. Para devolver dinheiro que o sócio aportou, use <b>Devolução de aporte</b>.</div></div>`;}
     else{titulo=x?'Editar devolução de aporte':'Devolução de aporte';
       if(!aps.length&&!x)return toast('Não há aporte com valor a devolver.','error');
       const refIni=x?String(x.ref||''):(de?String(de.r.rowid):'');
@@ -23085,50 +23141,64 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
         Object.assign(o,{[K.quem]:z.y.quem,[K.obra]:z.y.obra==='—'?'Empresa':z.y.obra,[K.data]:d,[K.valor]:dinheiro(-v),movimento:'Devolução de aporte',aporte_ref:ref,forma_aporte:forma,periodo_ini:'',periodo_fim:'',[K.obs]:g('obs')});
         await executar(()=>salvar('Aportes financeiros',o,r?r.rowid:null));return toast(`Devolução de ${fmt(v)} lançada${z.s-v>0.004?` — falta devolver ${fmt(z.s-v)} desse aporte`:' — aporte devolvido por completo'}.`,'success');}
       const q=g('quem'),ob=g('obra');if(!q)throw new Error('Informe o sócio / investidor.');if(!ob)throw new Error('Marque a obra de referência (ou Custo indireto).');
-      if(tp==='Retirada'){const d=g('data');if(!d)throw new Error('Informe a data.');if(d>hj)throw new Error('A data não pode ser no futuro.');
+      // lançamento que veio de uma linha do extrato fica ligado a ela (o Desfazer da Conciliação sabe tirar)
+      const liga=o=>{if(conc){o.conciliacao=U.juntarId(o.conciliacao,conc.id);o.conciliacao_baixa=U.juntarId(o.conciliacao_baixa,conc.id);}return o;};
+      const obsTxt=[g('obs'),conc?U.obsDoExtrato(conc):''].filter(Boolean).join(' · ');
+      if(tp==='Retirada'){const d=conc?isoBanco:g('data'),sub=g('subtipo');if(!sub)throw new Error('Escolha se é retirada do lucro ou pagamento do pró-labore.');if(!d)throw new Error('Informe a data.');if(!conc&&d>hj)throw new Error('A data não pode ser no futuro.');
         const o=r?limpo(r):{[K.lanc]:todayDateTime()};
-        Object.assign(o,{[K.quem]:q,[K.obra]:ob,[K.data]:d,[K.valor]:dinheiro(-v),movimento:'Retirada',aporte_ref:'',forma_aporte:forma,periodo_ini:'',periodo_fim:'',[K.obs]:g('obs')});
-        await executar(()=>salvar('Aportes financeiros',o,r?r.rowid:null));return toast('Retirada lançada.','success');}
-      // aporte
-      const ini=g('ini'),fim=g('fim');if(!ini||!fim)throw new Error('Informe o período do aporte (de / até).');if(ini>fim)throw new Error('O início do período tem que ser antes do fim.');if(fim>hj)throw new Error('O fim do período não pode ser no futuro.');
+        Object.assign(o,{[K.quem]:q,[K.obra]:ob,[K.data]:d,[K.valor]:dinheiro(-v),movimento:'Retirada',tipo_retirada:sub,aporte_ref:'',forma_aporte:forma,periodo_ini:'',periodo_fim:'',[K.obs]:obsTxt});liga(o);
+        await executar(()=>salvar('Aportes financeiros',o,r?r.rowid:null));return toast(sub==='prolabore'?`Pró-labore lançado${conc?' e ligado ao extrato':''}.`:`Retirada do lucro lançada${conc?' e ligada ao extrato':''}.`,'success');}
+      // aporte: sempre no período do mês
+      const mes=g('mes');if(!mes)throw new Error('Escolha o mês do aporte.');if(!conc&&mes>hj.slice(0,7))throw new Error('O mês do aporte não pode ser no futuro.');
+      const {ini,fim}=U.periodoMes(mes),dataNova=conc?isoBanco:(fim<hj?fim:hj);
       const rat=ob===RAT,obrasR=rat&&RT?RT.obras():[];if(rat&&GS.rateio.erroRateio(obrasR))throw new Error(GS.rateio.erroRateio(obrasR));
       if(rat&&!(await GS.rateio.confirmarRateio(obrasR,v,'Este aporte vai ser rateado')))return false;
       const partes=rat?GS.rateio.partesRateio(v,obrasR).map(p=>({obra:p.obra,valor:p.valor,obs:`Rateio: ${GS.rateio.pctTxt(p.pct)} de ${fmt(v)} (pelo orçamento)`})):[{obra:ob,valor:v,obs:''}];
-      const obsTxt=g('obs');
+      const devs=L.filter(y=>y.fonte==='ap'&&y.dev);
       await executar(async()=>{for(const p of partes){
-        // mesmo sócio + obra + período: soma no aporte que já existe (na edição, só o próprio)
-        const ja=!r&&L.find(y=>y.fonte==='ap'&&!y.sai&&chaveAporte(y.quem,y.obra,...periodoDe(y))===chaveAporte(q,p.obra,ini,fim));
-        if(ja){const o=limpo(ja.r);const obsJ=[ja.obs,[p.obs,obsTxt].filter(Boolean).join(' · ')].filter(Boolean).join(' | ');
-          Object.assign(o,{[K.valor]:dinheiro(ja.valor+p.valor),forma_aporte:ja.forma&&forma&&ja.forma!==forma?'Várias':(ja.forma||forma),[K.obs]:obsJ,periodo_ini:ini,periodo_fim:fim,[K.data]:fim});
-          await salvar('Aportes financeiros',o,ja.r.rowid);}
-        else{const o=r?limpo(r):{[K.lanc]:todayDateTime()};
-          Object.assign(o,{[K.quem]:q,[K.obra]:p.obra,[K.data]:fim,[K.valor]:dinheiro(p.valor),movimento:'Aporte',aporte_ref:'',forma_aporte:forma,periodo_ini:ini,periodo_fim:fim,[K.obs]:[p.obs,obsTxt].filter(Boolean).join(' · ')});
+        // mesmo sócio + obra + mês: fica tudo num lançamento só, com o período do mês
+        const ja=acharDoMes(L,q,p.obra,mes,r);
+        if(ja){const o=limpo(ja.r),dj=ja.data?isoDe(ja.data):'',obsJ=[ja.obs,[p.obs,obsTxt].filter(Boolean).join(' · ')].filter(Boolean).join(' | ');
+          Object.assign(o,{[K.valor]:dinheiro(ja.valor+p.valor),forma_aporte:ja.forma&&forma&&ja.forma!==forma?'Várias':(ja.forma||forma),[K.obs]:obsJ,periodo_ini:ini,periodo_fim:fim,[K.data]:dj>dataNova?dj:dataNova});liga(o);
+          // editou e caiu no mês de outro lançamento: os dois viram um só; a devolução e a ligação com o extrato vão junto
+          if(r)['conciliacao','conciliacao_baixa'].forEach(k=>{if(r[k])o[k]=[o[k],r[k]].filter(Boolean).join(',');});
+          await salvar('Aportes financeiros',o,ja.r.rowid);
+          if(r){for(const d of devs.filter(d=>String(d.ref)===String(r.rowid)))await salvar('Aportes financeiros',{...limpo(d.r),aporte_ref:String(ja.r.rowid)},d.r.rowid);await excluir('Aportes financeiros',r.rowid);}}
+        else{const o=r?limpo(r):{[K.lanc]:todayDateTime()},dx=x&&x.data?isoDe(x.data):'';
+          Object.assign(o,{[K.quem]:q,[K.obra]:p.obra,[K.data]:dx&&dx.slice(0,7)===mes?dx:dataNova,[K.valor]:dinheiro(p.valor),movimento:'Aporte',aporte_ref:'',forma_aporte:forma,periodo_ini:ini,periodo_fim:fim,[K.obs]:[p.obs,obsTxt].filter(Boolean).join(' · ')});liga(o);
           await salvar('Aportes financeiros',o,r?r.rowid:null);}}});
-      toast(partes.length>1?`Aporte rateado entre ${partes.length} obras.`:'Aporte lançado.','success');}}],680);
+      toast(partes.length>1?`Aporte rateado entre ${partes.length} obras.`:conc?'Aporte registrado no período do mês e ligado ao extrato.':'Aporte lançado no período do mês.','success');}}],680);
     const j=document.getElementById('fin-jan'),rbox=j.querySelector('[data-rat]');
     var RT=rbox?GS.rateio.ligarRateio(rbox,()=>num(j.querySelector('[data-k="valor"]').value)):null;
     if(rbox)j.querySelector('[data-k="valor"]').addEventListener('input',()=>RT&&RT.pintar());
+    // antes de salvar, mostra que vai somar no lançamento que já existe naquele mês
+    const jaBox=j.querySelector('[data-ap-ja]');
+    if(jaBox){const pintarJa=()=>{const gv=k=>((j.querySelector(`[data-k="${k}"]`)||{}).value||'').trim(),q=gv('quem'),ob=gv('obra'),y=q&&ob&&ob!==RAT?acharDoMes(L,q,ob,gv('mes'),r):null;jaBox.hidden=!y;if(y)jaBox.innerHTML=`<b>${fe(y.quem)}</b> já tem <b>${fmt(y.valor)}</b> neste mês nesta obra. ${x?'Este lançamento se junta a ele':'O valor soma nele'} e fica <b>${fmt(y.valor+num(gv('valor')))}</b>.`;};
+      j.oninput=pintarJa;j.onchange=pintarJa;pintarJa();}
     const rs=j.querySelector('[data-k="ref"]');
     if(rs){const info=()=>{const z=aps.find(a=>String(a.y.r.rowid)===rs.value),el=j.querySelector('[data-dev-info]');el.innerHTML=z?`Aporte de <b>${fmt(z.y.valor)}</b> · já devolvido <b>${fmt(z.y.valor-z.s)}</b> · falta <b>${fmt(z.s)}</b>.`:'';
         const vi=j.querySelector('[data-k="valor"]');if(z&&!x&&!num(vi.value))vi.value=fmt(z.s);};rs.addEventListener('change',info);info();}
   }
-  /* Unificar: aportes do mesmo sócio, obra e período viram um lançamento só (os antigos, sem período, entram no mês
-     da data). As devoluções passam a apontar para o lançamento que fica. */
+  GS.socios={editarMov};
+  /* Agrupar: aportes do mesmo sócio e obra dentro do mês viram um lançamento só, com o período do mês (os antigos entram no mês
+     em que o período termina, ou no mês da data). As devoluções e a ligação com o extrato passam para o lançamento que fica. */
   function gruposAporte(){const L=livro().filter(y=>y.fonte==='ap'&&!y.sai),g=new Map();
-    L.forEach(y=>{const [a,b]=periodoDe(y),k=chaveAporte(y.quem,y.obra,a,b);if(!g.has(k))g.set(k,{ini:a,fim:b,itens:[]});g.get(k).itens.push(y);});
+    L.forEach(y=>{const m=mesDe(y),k=[cn(y.quem),cn(y.obra),m].join('|');if(!g.has(k))g.set(k,{...(m?U.periodoMes(m):{ini:'',fim:''}),itens:[]});g.get(k).itens.push(y);});
     return [...g.values()];}
+  const paraAjustarPeriodo=gs=>gs.filter(x=>x.itens.length===1&&x.ini&&!ehMesInteiro(x.itens[0]));
   function unificarAportes(){
-    const gs=gruposAporte(),juntar=gs.filter(x=>x.itens.length>1),semPer=gs.filter(x=>x.itens.length===1&&!(x.itens[0].ini&&x.itens[0].fim));
-    if(!juntar.length&&!semPer.length)return toast('Os aportes já estão agrupados por período e obra.','success');
-    confirmar('Agrupar os aportes por período e obra',`${juntar.length?`<b>${juntar.reduce((s,x)=>s+x.itens.length,0)} aportes</b> do mesmo sócio, obra e período viram <b>${juntar.length}</b> lançamento(s) (os valores somam). `:''}${semPer.length?`${semPer.length} aporte(s) antigo(s) ganham o período do mês da data. `:''}As devoluções continuam ligadas.`,'Agrupar',async()=>{
+    const gs=gruposAporte(),juntar=gs.filter(x=>x.itens.length>1),semPer=paraAjustarPeriodo(gs);
+    if(!juntar.length&&!semPer.length)return toast('Os aportes já estão agrupados por mês e obra.','success');
+    confirmar('Agrupar os aportes por período do mês',`${juntar.length?`<b>${juntar.reduce((s,x)=>s+x.itens.length,0)} aportes</b> do mesmo sócio e obra dentro do mesmo mês viram <b>${juntar.length}</b> lançamento(s) (os valores somam). `:''}${semPer.length?`${semPer.length} aporte(s) passam a ter o período do mês inteiro. `:''}As devoluções e as ligações com o extrato continuam valendo.`,'Agrupar',async()=>{
       const K=KAp(),devs=livro().filter(y=>y.fonte==='ap'&&y.dev);
       await executar(async()=>{
         for(const gp of juntar.concat(semPer)){const it=gp.itens.slice().sort((a,b)=>(+a.r.rowid||0)-(+b.r.rowid||0)),fica=it[0],sai=it.slice(1),tot=it.reduce((s,y)=>s+y.valor,0);
           const formas=[...new Set(it.map(y=>y.forma).filter(Boolean))],obsU=[...new Set(it.map(y=>y.obs).filter(Boolean))].join(' | ');
-          await salvar('Aportes financeiros',{...limpo(fica.r),[K.valor]:dinheiro(tot),periodo_ini:gp.ini,periodo_fim:gp.fim,[K.data]:gp.fim,forma_aporte:formas.length>1?'Várias':(formas[0]||''),[K.obs]:obsU},fica.r.rowid);
+          const ids=k=>[...new Set(it.map(y=>y.r[k]).filter(Boolean))].join(','),dataU=it.map(y=>y.data?isoDe(y.data):'').sort().pop()||gp.fim;
+          await salvar('Aportes financeiros',{...limpo(fica.r),[K.valor]:dinheiro(tot),periodo_ini:gp.ini,periodo_fim:gp.fim,[K.data]:dataU,forma_aporte:formas.length>1?'Várias':(formas[0]||''),[K.obs]:obsU,conciliacao:ids('conciliacao'),conciliacao_baixa:ids('conciliacao_baixa')},fica.r.rowid);
           for(const y of sai){for(const d of devs.filter(d=>String(d.ref)===String(y.r.rowid)))await salvar('Aportes financeiros',{...limpo(d.r),aporte_ref:String(fica.r.rowid)},d.r.rowid);
             await excluir('Aportes financeiros',y.r.rowid);}}});
-      toast('Aportes agrupados por período e obra.','success');});
+      toast('Aportes agrupados por mês e obra.','success');});
   }
   // verificação de duplicidade dos lançamentos dos sócios (as retiradas antigas, vindas de Contas a pagar, são conferidas lá)
   const itensDupSocios=()=>livro().filter(x=>x.fonte==='ap').map(x=>({x,id:'a'+x.r.rowid,chave:[x.tipo,cn(x.quem),cn(x.obra),Math.round(x.valor*100)].join('|'),
@@ -23176,16 +23246,16 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
     const capital=S(ent),devol=S(sai.filter(x=>x.dev)),retir=S(sai.filter(x=>!x.dev));
     const recebido=ms.filter(m=>m.tipo==='fat'&&m.pago).reduce((s,m)=>s+m.valor,0),pagoOp=ms.filter(m=>m.sent<0&&m.pago&&!GS.ehRetirada(m)).reduce((s,m)=>s+m.valor,0),gerado=recebido-pagoOp;
     const anos=[...new Set(L.map(x=>x.data&&x.data.getFullYear()).filter(Boolean))].sort((a,b)=>b-a);
-    const f=SO2,vis=L.filter(x=>(!f.obra||x.obra===f.obra)&&(!f.quem||x.quem===f.quem)&&(!f.tipo||x.tipo===f.tipo)&&(!f.ano||(x.data&&String(x.data.getFullYear())===f.ano)));
+    const f=SO2,vis=L.filter(x=>(!f.obra||x.obra===f.obra)&&(!f.quem||x.quem===f.quem)&&(!f.tipo||x.tipo===f.tipo||x.rot===f.tipo)&&(!f.ano||(x.data&&String(x.data.getFullYear())===f.ano)));
     const abas=`<div class="gf-abas"><button type="button" class="gf-aba ${f.aba==='mov'?'on':''}" data-so2-aba="mov"><i class="fas fa-right-left"></i> Movimentos</button><button type="button" class="gf-aba ${f.aba==='socio'?'on':''}" data-so2-aba="socio"><i class="fas fa-user-tie"></i> Por sócio</button><button type="button" class="gf-aba ${f.aba==='obra'?'on':''}" data-so2-aba="obra"><i class="fas fa-helmet-safety"></i> Por obra</button></div>`;
     const podeEd=pode('socios');
     let corpo='';
     if(f.aba==='mov'){
-      corpo=`<div class="gf-sec"><div class="gf-sec-cab"><div><h3>Entradas e saídas dos sócios</h3><p>Aportes entram (verde); retiradas e devoluções saem (vermelho) — cada um com a obra de referência. Em cada aporte dá para lançar a devolução.</p></div>${podeEd?'<div class="so2-novos"><button type="button" class="so2-novo ent" data-so2="aporte"><i class="fas fa-arrow-down"></i><span><b>Novo aporte</b><small>dinheiro que entra</small></span></button><button type="button" class="so2-novo sai" data-so2="retirada"><i class="fas fa-arrow-up"></i><span><b>Nova retirada</b><small>pró-labore ou lucro</small></span></button><button type="button" class="so2-novo dev" data-so2="devolucao"><i class="fas fa-rotate-left"></i><span><b>Devolução de aporte</b><small>devolver ao sócio</small></span></button></div>':''}</div>
-        ${(()=>{if(!podeEd)return '';const gs=gruposAporte(),n=gs.filter(g=>g.itens.length>1).length+gs.filter(g=>g.itens.length===1&&!(g.itens[0].ini&&g.itens[0].fim)).length;return n?`<div class="vk-aviso"><i class="fas fa-layer-group"></i><div><b>Aportes para agrupar por período e obra</b> — ${n} grupo(s) com lançamentos do mesmo sócio, obra e mês/período (ou sem período).</div><button type="button" class="gf-bt mini" data-so2="agrupar">Agrupar agora</button></div>`:'';})()}
+      corpo=`<div class="gf-sec"><div class="gf-sec-cab"><div><h3>Entradas e saídas dos sócios</h3><p>Aportes entram (verde); retiradas e devoluções saem (vermelho) — cada um com a obra de referência. Em cada aporte dá para lançar a devolução.</p></div>${podeEd?'<div class="so2-novos"><button type="button" class="so2-novo ent" data-so2="aporte"><i class="fas fa-arrow-down"></i><span><b>Novo aporte</b><small>dinheiro que entra</small></span></button><button type="button" class="so2-novo sai" data-so2="retirada" data-sub="lucro"><i class="fas fa-arrow-up"></i><span><b>Retirada do lucro</b><small>distribuição aos sócios</small></span></button><button type="button" class="so2-novo sai" data-so2="retirada" data-sub="prolabore"><i class="fas fa-user-tie"></i><span><b>Pagamento do pró-labore</b><small>remuneração do sócio</small></span></button><button type="button" class="so2-novo dev" data-so2="devolucao"><i class="fas fa-rotate-left"></i><span><b>Devolução de aporte</b><small>devolver ao sócio</small></span></button></div>':''}</div>
+        ${(()=>{if(!podeEd)return '';const gs=gruposAporte(),n=gs.filter(g=>g.itens.length>1).length+paraAjustarPeriodo(gs).length;return n?`<div class="vk-aviso"><i class="fas fa-layer-group"></i><div><b>Aportes para agrupar por período do mês</b> — ${n} grupo(s) com lançamentos do mesmo sócio e obra no mesmo mês, ou com um período que não é o mês inteiro.</div><button type="button" class="gf-bt mini" data-so2="agrupar">Agrupar agora</button></div>`:'';})()}
         <div class="so2-filtros"><select data-so2f="obra"><option value="">Todas as obras</option><option ${f.obra==='Empresa'?'selected':''}>Empresa</option>${obrasOps().map(o=>`<option ${f.obra===o?'selected':''}>${fe(o)}</option>`).join('')}</select>
           <select data-so2f="quem"><option value="">Todos os sócios</option>${[...new Set(L.map(x=>x.quem))].map(q=>`<option ${f.quem===q?'selected':''}>${fe(q)}</option>`).join('')}</select>
-          <select data-so2f="tipo"><option value="">Entradas e saídas</option>${['Aporte','Retirada','Devolução de aporte'].map(t=>`<option ${f.tipo===t?'selected':''}>${t}</option>`).join('')}</select>
+          <select data-so2f="tipo"><option value="">Entradas e saídas</option>${['Aporte','Retirada','Retirada do lucro','Pró-labore','Devolução de aporte'].map(t=>`<option value="${t}" ${f.tipo===t?'selected':''}>${t==='Retirada'?'Todas as retiradas':t}</option>`).join('')}</select>
           <select data-so2f="ano"><option value="">Todos os anos</option>${anos.map(a=>`<option ${f.ano===String(a)?'selected':''}>${a}</option>`).join('')}</select>
           ${podeEd?(()=>{const n=GS.dup.grupos(itensDupSocios()).length;return `<button type="button" class="gf-bt mini${n?' dup-on':''}" data-so2="dup" title="Procura lançamentos em dobro (mesmo sócio, obra e valor em datas próximas)"><i class="fas fa-clone"></i> Verificar duplicados${n?` <b class="vk-badge">${n}</b>`:''}</button>`;})():''}${podeEd?`<button type="button" class="gf-bt mini${f.selModo?' on':''}" data-so2="selecionar" title="Marcar vários lançamentos e excluir todos de uma vez"><i class="fas ${f.selModo?'fa-xmark':'fa-square-check'}"></i> ${f.selModo?'Sair da seleção':'Excluir vários'}</button>`:''}</div>
         ${vis.length?`<div class="gf-rolar"><table class="so2-tab so2-mov"><thead><tr><th>Data / período</th><th>Movimento</th><th>Sócio · obra</th><th style="text-align:right">Valor</th><th style="text-align:right">Devolvido ao sócio</th><th>Observação</th><th></th></tr></thead><tbody>
@@ -23193,7 +23263,7 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
             const sit=x.sai||x.fonte!=='ap'?'':sd<=0.004?'<span class="so2-sit ok">devolvido</span>':sd<x.valor-0.004?`<span class="so2-sit parc">falta ${fmt(sd)}</span>`:'';
             const trav=f.selModo?travaSo(x):'';
             return `<tr${f.selModo?` class="so2-lin${trav?' trava':''}" data-so2-lin="${i}" tabindex="0"${trav?` title="${fe(trav)}"`:''}`:''}><td class="so2-dt" data-ord-valor="${x.data?brDe(x.data):''}">${f.selModo?`<div class="so2-dt-sel"><span class="vk-marca" aria-hidden="true"><i class="fas ${trav?'fa-lock':'fa-check'}"></i></span><span>${per}</span></div>`:per}</td>
-            <td><span class="so2-tipo ${!x.sai?'ent':x.dev?'dev':'sai'}"><i class="fas ${!x.sai?'fa-arrow-down':'fa-arrow-up'}"></i> ${x.dev?'Devolução':x.tipo}</span>${x.forma?`<small class="so2-l2">${fe(x.forma)}</small>`:''}</td>
+            <td><span class="so2-tipo ${!x.sai?'ent':x.dev?'dev':'sai'}"><i class="fas ${!x.sai?'fa-arrow-down':'fa-arrow-up'}"></i> ${x.dev?'Devolução':(x.rot||x.tipo)}</span>${x.forma?`<small class="so2-l2">${fe(x.forma)}</small>`:''}</td>
             <td class="so2-quem"><b>${fe(x.quem)}</b><small class="so2-l2" title="${fe(x.obra)}">${fe(x.obra)}${x.rateio?' <span class="so2-mini">rateio</span>':''}</small></td>
             <td class="num ${x.sai?'sai':'ent'}" data-ord-valor="${x.sai?'-':''}${x.valor.toFixed(2).replace('.',',')}">${x.sai?'−':'+'} ${fmt(x.valor)}</td>
             <td class="num" data-ord-valor="${!x.sai&&x.fonte==='ap'?(x.valor-sd).toFixed(2).replace('.',','):''}">${!x.sai&&x.fonte==='ap'?`${x.valor-sd>0.004?fmt(x.valor-sd):'—'}${sit?`<div>${sit}</div>`:''}`:''}</td>
@@ -23215,7 +23285,7 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
       <div class="gf-kpis">
         ${kpiG('verde','fa-arrow-down','Aportado',Rk(capital),`${ent.length} aporte(s)`)}
         ${kpiG('laranja','fa-rotate-left','Devolvido aos sócios',Rk(devol),capital?`${Math.round(devol/capital*100)}% do capital · falta ${Rk(Math.max(0,capital-devol))}`:'')}
-        ${kpiG('vermelho','fa-arrow-up','Retiradas',Rk(retir),'pró-labore e distribuição de lucro')}
+        ${(()=>{const lu=S(sai.filter(x=>x.rot==='Retirada do lucro')),pl=S(sai.filter(x=>x.rot==='Pró-labore'));return kpiG('vermelho','fa-arrow-up','Retiradas',Rk(retir),lu||pl?`lucro ${Rk(lu)} · pró-labore ${Rk(pl)}`:'pró-labore e distribuição de lucro');})()}
         ${kpiG(gerado<0?'vermelho':'','fa-wallet','Caixa gerado pela operação',Rk(gerado),`recebido ${Rk(recebido)} − pago ${Rk(pagoOp)}`)}
       </div>${corpo}${f.selModo&&f.aba==='mov'?'<div class="vk-selbar" data-so2-selbar></div>':''}</div>`;
     pintarSelSo(box);
@@ -23227,11 +23297,11 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
       if(ac==='sel-tipo'){const ids=linhasSo(box).filter(y=>y.tipo===b.dataset.tipo).map(idSo),tudo=ids.every(id=>SO2.sel.has(id));ids.forEach(id=>tudo?SO2.sel.delete(id):SO2.sel.add(id));return pintarSelSo(box);}
       if(ac==='sel-nenhum'){SO2.sel.clear();return pintarSelSo(box);}
       if(ac==='sel-excluir')return excluirMarcadosSo();
-      if(ac==='aporte')return editarMov(null,'Aporte');if(ac==='retirada')return editarMov(null,'Retirada');if(ac==='devolucao')return editarMov(null,'Devolução de aporte');if(ac==='agrupar')return unificarAportes();if(ac==='dup')return verDupSocios();
+      if(ac==='aporte')return editarMov(null,'Aporte');if(ac==='retirada')return editarMov(null,'Retirada',null,{sub:b.dataset.sub});if(ac==='devolucao')return editarMov(null,'Devolução de aporte');if(ac==='agrupar')return unificarAportes();if(ac==='dup')return verDupSocios();
       if(ac==='devolver'&&x)return editarMov(null,'Devolução de aporte',x);
       if((ac==='editar'||ac==='excluir')&&x&&!GS.podeMexer(x.r))return toast(GS.MSG_DONO,'error');
       if(ac==='editar'&&x)return editarMov(x);
-      if(ac==='excluir'&&x)return confirmar('Excluir lançamento',`${x.tipo} de <b>${fe(x.quem)}</b> · ${fmt(x.valor)} · ${x.data?brDe(x.data):''} será excluído de vez.`,'Sim, excluir',async()=>{await executar(()=>excluir('Aportes financeiros',x.r.rowid));toast('Lançamento excluído.','success');});
+      if(ac==='excluir'&&x)return confirmar('Excluir lançamento',`${x.rot||x.tipo} de <b>${fe(x.quem)}</b> · ${fmt(x.valor)} · ${x.data?brDe(x.data):''} será excluído de vez.`,'Sim, excluir',async()=>{await executar(()=>excluir('Aportes financeiros',x.r.rowid));toast('Lançamento excluído.','success');});
     };
     box.onchange=ev=>{const s=ev.target.closest('[data-so2f]');if(!s)return;SO2[s.dataset.so2f]=s.value;GS.renderSocios();};
     box.onkeydown=ev=>{if(ev.key!=='Enter'&&ev.key!==' ')return;const l=SO2.selModo&&ev.target.closest('[data-so2-lin]');if(l&&ev.target===l){ev.preventDefault();alternarSelSo(box,l);}};
