@@ -10683,6 +10683,7 @@ window.onload=()=>{
 .cc-lado small{margin-left:auto;font:600 12px Inter,sans-serif;color:#667085;font-variant-numeric:tabular-nums;white-space:nowrap;} .cc-lado.sai i{color:#B42318;} .cc-lado.ent i{color:#067647;}
 .cc-lado.on{border-color:#1652D8;background:#EFF4FF;color:#1849A9;box-shadow:inset 0 0 0 1px #1652D8;} .cc-lado.on small{color:#1849A9;}
 .cc-bloco-cab .fin-bt.pri{max-width:100%;height:auto;white-space:normal;text-align:left;line-height:1.3;}
+.fin-bt.on:not(.pri){background:#EFF4FF;border-color:#B2CCFF;color:#1849A9;}
 @media (max-width:560px){.cc-lado{flex-wrap:wrap;padding:9px 10px;} .cc-lado small{margin-left:0;flex-basis:100%;}}
 .cc-assoc-lista{max-height:46vh;overflow:auto;margin-bottom:10px;} .cc-assoc+.cc-assoc{margin-top:10px;} .cc-assoc>b{display:block;font-size:13px;color:#101828;overflow-wrap:anywhere;} .cc-assoc>small{display:block;font-size:11.5px;color:#667085;margin-top:2px;line-height:1.35;} .cc-assoc-dif b{color:#B42318;}
 .cc-per{display:inline-flex;align-items:center;gap:6px;font:600 12px Inter,sans-serif;color:#475467;} .cc-per input{border:1px solid #D0D5DD;border-radius:10px;padding:6px 8px;font:600 12.5px Inter,sans-serif;}
@@ -11401,8 +11402,8 @@ const Fin=(function(){
     // a soma do que está marcado fica no próprio botão que vai usar essas linhas
     const qtdSoma=L=>L.length?`(${L.length}) · ${fmt(L.reduce((s,p)=>s+Math.abs(p.t.valor),0))}`:'(0)';
     const bloco=(titulo,sub,lista,tom,k)=>{const kf=F.tipo+':'+(k||titulo),fech=CONC.fechados.has(kf);return lista.length?`<div class="fin-card fin-conc-bloco ${tom}${fech?' cc-fechado':''}"><div class="cc-bloco-cab"><button type="button" class="cc-rec" data-cc-rec="${fe(kf)}" title="${fech?'Mostrar as linhas':'Recolher este bloco'}"><i class="fas fa-chevron-${fech?'right':'down'}"></i></button><h3>${titulo} (${lista.length})</h3><span class="cc-tot">${(()=>{const e=lista.filter(p=>p.t.valor>0).reduce((s,p)=>s+p.t.valor,0),sa=lista.filter(p=>p.t.valor<0).reduce((s,p)=>s-p.t.valor,0);return [e?'entrou '+fmt(e):'',sa?'saiu '+fmt(sa):''].filter(Boolean).join(' · ');})()}</span>
-        ${['ok','confira','vincular'].includes(k)?(()=>{const ms=lista.filter(p=>CONC.marcados.has(p.t.id));return `<button type="button" class="fin-bt mini" data-cc-todos="${k}">Marcar todos</button><button type="button" class="fin-bt mini" data-cc-nenhum="${k}">Desmarcar</button><button type="button" class="fin-bt mini pri" data-cc-aplicar="${k}" ${ms.length?'':'disabled'} title="${k==='vincular'?'Ligar ao extrato as linhas marcadas':ehSai?'Dar baixa nas linhas marcadas':'Registrar recebimento das linhas marcadas'}">${k==='vincular'?'Ligar ao extrato os marcados':ehSai?'Dar baixa nos marcados':'Registrar recebimento dos marcados'} ${qtdSoma(ms)}</button>`;})():''}
-        ${k==='sem'?(()=>{const ms=lista.filter(p=>CONC.selSem.has(p.t.id));return `<button type="button" class="fin-bt mini" data-cc-semtodos>Marcar todos</button><button type="button" class="fin-bt mini" data-cc-semnenhum ${ms.length?'':'disabled'}>Desmarcar</button><button type="button" class="fin-bt mini" data-cc-ignmarc ${ms.length?'':'disabled'}>Ignorar marcados (${ms.length})</button>${ehSai?`<button type="button" class="fin-bt mini pri" data-cc-lancmarc ${ms.length?'':'disabled'} title="Lançar em Contas a pagar: cada saída marcada vira uma conta paga na data do banco, com a mesma categoria — bom para tarifas, impostos e taxas">Lançar marcados em Contas a pagar ${qtdSoma(ms)}</button>`:`<button type="button" class="fin-bt mini pri" data-cc-recmarc ${ms.length?'':'disabled'} title="Registrar recebimento: cada entrada marcada vai para uma nota emitida, na data do banco">Registrar recebimento dos marcados ${qtdSoma(ms)}</button>`}`;})():''}
+        ${['ok','confira','vincular'].includes(k)?(()=>{const ms=lista.filter(p=>CONC.marcados.has(p.t.id)),tudo=ms.length===lista.length;return `<button type="button" class="fin-bt mini${tudo?' on':''}" data-cc-todos="${k}">${tudo?'Desmarcar todos':'Marcar todos'}</button><button type="button" class="fin-bt mini pri" data-cc-aplicar="${k}" ${ms.length?'':'disabled'} title="${k==='vincular'?'Ligar ao extrato as linhas marcadas':ehSai?'Dar baixa nas linhas marcadas':'Registrar recebimento das linhas marcadas'}">${k==='vincular'?'Ligar ao extrato os marcados':ehSai?'Dar baixa nos marcados':'Registrar recebimento dos marcados'} ${qtdSoma(ms)}</button>`;})():''}
+        ${k==='sem'?(()=>{const ms=lista.filter(p=>CONC.selSem.has(p.t.id)),tudo=ms.length===lista.length;return `<button type="button" class="fin-bt mini${tudo?' on':''}" data-cc-semtodos>${tudo?'Desmarcar todos':'Marcar todos'}</button><button type="button" class="fin-bt mini" data-cc-ignmarc ${ms.length?'':'disabled'}>Ignorar marcados (${ms.length})</button>${ehSai?`<button type="button" class="fin-bt mini pri" data-cc-lancmarc ${ms.length?'':'disabled'} title="Lançar em Contas a pagar: cada saída marcada vira uma conta paga na data do banco, com a mesma categoria — bom para tarifas, impostos e taxas">Lançar marcados em Contas a pagar ${qtdSoma(ms)}</button>`:`<button type="button" class="fin-bt mini pri" data-cc-recmarc ${ms.length?'':'disabled'} title="Registrar recebimento: cada entrada marcada vai para uma nota emitida, na data do banco">Registrar recebimento dos marcados ${qtdSoma(ms)}</button>`}`;})():''}
         ${tom==='cinza'&&titulo==='Ignorados'?'<button type="button" class="fin-bt mini" data-cc-voltartodos>Voltar todos para a conferência</button>':''}</div><div class="fin-sub">${sub}</div>${fech?'':`<div class="fin-rolar"><table class="fin-tab"><thead><tr><th></th><th>Data</th><th>No banco</th><th class="num">Valor</th><th>No sistema</th></tr></thead><tbody>${lista.map(linha).join('')}</tbody></table></div>`}</div>`:'';};
     const abaLado=(k,rot,ico,L)=>`<button type="button" class="cc-lado ${k}${F.tipo===k?' on':''}" data-cc-lado="${k}" aria-pressed="${F.tipo===k}"><i class="fas ${ico}"></i> ${rot} (${L.length})<small>${fmt(L.reduce((s,p)=>s+Math.abs(p.t.valor),0))}</small></button>`;
     box.innerHTML=`<div class="fin-wrap">
@@ -11457,9 +11458,9 @@ const Fin=(function(){
       if(b.matches('[data-cc-voltartodos]')){const s=ignorados(),n=g.ignorado.length;g.ignorado.forEach(p=>s.delete(p.t.id));gravarIgn(s);toast(`${n} linha(s) voltaram para a conferência.`,'success');return renderConciliacao();}
       if(b.matches('[data-cc-lancmarc]'))return lancarMarcados(g.sem.filter(p=>CONC.selSem.has(p.t.id)&&p.t.valor<0));
       if(b.matches('[data-cc-recmarc]'))return receberLinhas(g.sem.filter(p=>CONC.selSem.has(p.t.id)&&p.t.valor>0));
-      if(b.dataset.ccTodos){g[b.dataset.ccTodos].forEach(p=>CONC.marcados.add(p.t.id));return renderConciliacao();}
+      if(b.dataset.ccTodos){const L=g[b.dataset.ccTodos],tudo=L.every(p=>CONC.marcados.has(p.t.id));L.forEach(p=>tudo?CONC.marcados.delete(p.t.id):CONC.marcados.add(p.t.id));return renderConciliacao();}
       if(b.dataset.ccNenhum){g[b.dataset.ccNenhum].forEach(p=>CONC.marcados.delete(p.t.id));return renderConciliacao();}
-      if(b.matches('[data-cc-semtodos]')){g.sem.forEach(p=>CONC.selSem.add(p.t.id));return renderConciliacao();}
+      if(b.matches('[data-cc-semtodos]')){const tudo=g.sem.every(p=>CONC.selSem.has(p.t.id));g.sem.forEach(p=>tudo?CONC.selSem.delete(p.t.id):CONC.selSem.add(p.t.id));return renderConciliacao();}
       if(b.matches('[data-cc-ignmarc]')){const ids=g.sem.filter(p=>CONC.selSem.has(p.t.id)).map(p=>p.t.id);if(!ids.length)return;
         return confirmar('Ignorar linhas do extrato',`${ids.length} linha(s) sem correspondência vão para "Ignorados" (tarifas, transferências entre contas, aplicações…). Dá para voltar depois.`,'Ignorar',async()=>{const s=ignorados();ids.forEach(id=>{s.add(id);CONC.selSem.delete(id);});gravarIgn(s);renderConciliacao();});}
       if(b.matches('[data-cc-cancelar]')){confirmar('Fechar este extrato?','O que já foi baixado continua baixado — só some esta conferência da tela.','Sim, fechar',async()=>{CONC.extrato=null;CONC.marcados=null;CONC.escolhas={};renderConciliacao();});return;}
@@ -15742,7 +15743,7 @@ const PL2=(function(){
     const usadas=cab.map((c,i)=>i).filter(i=>String(cab[i]||'').trim()!==''||linhas.some(l=>String(l[i]==null?'':l[i]).trim()!==''));
     Fin.util.janela('Exportar para o Excel',`<div class="fin-resumo"><b>${linhas.length} linha(s)</b> — exatamente as que estão na tela com os filtros aplicados. Escolha as colunas:</div>
       <div class="xls-cols">${usadas.map(i=>`<label><input type="checkbox" value="${i}" ${!lembradas||lembradas.includes(String(cab[i]))?'checked':''}><span>${fe0(cab[i]||'(sem título)')}</span></label>`).join('')}</div>
-      <div class="xls-bts"><button type="button" class="fin-bt mini" data-xls="1">Marcar todas</button><button type="button" class="fin-bt mini" data-xls="0">Desmarcar todas</button></div>`,
+      <div class="xls-bts"><button type="button" class="fin-bt mini" data-xls="1">Marcar todas</button></div>`,
       [{html:'<i class="fas fa-file-excel"></i> Baixar planilha',cls:'pri',acao:j=>{
         const idx=[...j.querySelectorAll('.xls-cols input:checked')].map(i=>+i.value);if(!idx.length)throw new Error('Marque pelo menos uma coluna.');
         try{localStorage.setItem(chave,JSON.stringify(idx.map(i=>String(cab[i]))));}catch(e){}
@@ -15752,7 +15753,10 @@ const PL2=(function(){
         a.download=String(nome||'planilha').normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^\w-]+/g,'-').toLowerCase()+'-'+isoDe(hoje0())+'.csv';
         document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},500);
         toast(`${linhas.length} linha(s) e ${idx.length} coluna(s) exportada(s) — abra o arquivo no Excel.`,'success');}}],560);
-    const jj=document.getElementById('fin-jan');jj.querySelector('.xls-bts').addEventListener('click',ev=>{const b=ev.target.closest('[data-xls]');if(b)jj.querySelectorAll('.xls-cols input').forEach(i=>i.checked=b.dataset.xls==='1');});
+    // um botão só: marca todas as colunas; com todas marcadas, desmarca
+    const jj=document.getElementById('fin-jan'),btX=jj.querySelector('[data-xls]'),cxs=()=>[...jj.querySelectorAll('.xls-cols input')];
+    const pintarX=()=>{const tudo=cxs().every(i=>i.checked);btX.textContent=tudo?'Desmarcar todas':'Marcar todas';btX.classList.toggle('on',tudo);};
+    btX.addEventListener('click',()=>{const tudo=cxs().every(i=>i.checked);cxs().forEach(i=>i.checked=!tudo);pintarX();});jj.querySelector('.xls-cols').addEventListener('change',pintarX);pintarX();
   }
   function exportar(T){
     const ok=T._linhas.filter(o=>filtrada(T,o));if(!ok.length)return toast('Nada para exportar neste filtro.','error');
@@ -16125,30 +16129,37 @@ const PL2=(function(){
 .vk-card{background:#fff;border-radius:14px;padding:11px 12px;border:1px solid #e8e8ed;box-shadow:0 2px 6px rgba(20,20,60,.05);cursor:pointer;border-left:4px solid var(--cor);transition:transform .15s,box-shadow .15s;}
 .vk-card:hover,.vk-card:focus-visible{transform:translateY(-2px);box-shadow:0 10px 22px -12px rgba(20,20,60,.35);outline:none;}
 .vk-card[draggable="true"]{cursor:grab;} .vk-card.arrastando{opacity:.45;}
-/* modo "Excluir várias" (Contas a pagar): quadradinho no cartão + barra de baixo */
-.vk-card.vk-sel{cursor:pointer;} .vk-sel .vk-top{justify-content:flex-start;flex-wrap:wrap;} .vk-sel .vk-top b{flex:1 1 110px;min-width:0;}
-.vk-marca{flex:none;width:20px;height:20px;border-radius:6px;border:2px solid #C4C9D4;background:#fff;display:grid;place-items:center;color:transparent;font-size:11px;margin-top:-1px;transition:background .12s,border-color .12s;}
-.vk-sel:hover .vk-marca{border-color:#D92D20;}
-.vk-sel.on{box-shadow:0 0 0 2px #D92D20;background:#FFFBFA;} .vk-sel.on .vk-marca{background:#D92D20;border-color:#D92D20;color:#fff;}
-.vk-sel.meio .vk-marca{background:#FEE4E2;border-color:#D92D20;color:#D92D20;}
+/* SELEÇÃO EM LOTE (quadros, sócios, lixeira): bolinha de marcar no canto do cartão + barra flutuante com um botão só para marcar e desmarcar */
+.vk-card.vk-sel{position:relative;cursor:pointer;} .vk-sel .vk-top{padding-right:30px;}
+.vk-marca{flex:none;width:22px;height:22px;border-radius:50%;border:2px solid #D0D5DD;background:#fff;display:grid;place-items:center;color:transparent;font-size:10px;box-shadow:0 1px 2px rgba(16,24,40,.08);transition:background .15s,border-color .15s,transform .15s;}
+.vk-sel .vk-marca{position:absolute;top:10px;right:10px;}
+.vk-sel:hover .vk-marca{border-color:#1652D8;transform:scale(1.06);}
+.vk-sel.on{box-shadow:0 0 0 2px #1652D8,0 12px 24px -14px rgba(22,82,216,.55);background:#F5F8FF;} .vk-sel.on .vk-marca{background:#1652D8;border-color:#1652D8;color:#fff;}
+.vk-sel.meio .vk-marca{background:#D1E0FF;border-color:#1652D8;color:#1652D8;}
 .gf-bt.on{background:#FEF3F2;border-color:#FDA29B;color:#B42318;} .gf-bt:disabled{opacity:.45;cursor:not-allowed;}
-.vk-selbar{position:sticky;bottom:12px;z-index:6;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px 16px;background:#101828;color:#fff;border-radius:16px;padding:12px 16px;box-shadow:0 16px 32px -12px rgba(16,24,40,.6);}
-.vk-selbar-txt b{display:block;font-size:14px;} .vk-selbar-txt span{display:block;font-size:12px;color:#D0D5DD;}
-.vk-selbar-bts{display:flex;flex-wrap:wrap;gap:8px;}
-.vk-selbar .gf-bt{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.25);color:#fff;} .vk-selbar .gf-bt:hover{background:rgba(255,255,255,.18);}
-.vk-selbar .gf-bt.vk-excluir{background:#D92D20;border-color:#D92D20;color:#fff;} .vk-selbar .gf-bt.vk-excluir:hover{background:#B42318;}
+.vk-selbar{position:sticky;bottom:18px;z-index:20;width:fit-content;max-width:calc(100% - 16px);margin:18px auto 0;display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:8px 18px;padding:8px 8px 8px 10px;background:rgba(255,255,255,.95);-webkit-backdrop-filter:blur(14px) saturate(1.4);backdrop-filter:blur(14px) saturate(1.4);border:1px solid #E4E7EC;border-radius:999px;color:#101828;box-shadow:0 22px 44px -20px rgba(16,24,40,.45),0 2px 8px rgba(16,24,40,.06);animation:vkSelIn .2s ease-out;}
+@keyframes vkSelIn{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:none;}}
+.vk-selbar-txt{display:flex;align-items:center;gap:10px;min-width:0;} .vk-selbar-txt>div{min-width:0;}
+.vk-sel-n{flex:none;min-width:32px;height:32px;padding:0 9px;border-radius:999px;display:grid;place-items:center;background:#F2F4F7;color:#667085;font:800 13px Inter,sans-serif;} .vk-sel-n.tem{background:#1652D8;color:#fff;}
+.vk-selbar-txt b{display:block;font-size:13.5px;color:#101828;line-height:1.25;} .vk-selbar-txt div span{display:block;font-size:11.5px;color:#667085;line-height:1.3;}
+.vk-selbar-bts{display:flex;flex-wrap:wrap;align-items:center;gap:6px;}
+.vk-selbar .gf-bt{border-radius:999px;background:#F2F4F7;border:1px solid transparent;color:#344054;padding:8px 14px;font-weight:600;box-shadow:none;} .vk-selbar .gf-bt:hover{background:#E4E7EC;}
+.vk-selbar .gf-bt.vk-excluir{background:#D92D20;color:#fff;} .vk-selbar .gf-bt.vk-excluir:hover{background:#B42318;}
+.vk-selbar .gf-bt.vk-devolver{background:#F79009;color:#fff;} .vk-selbar .gf-bt.vk-devolver:hover{background:#DC6803;}
+.vk-sel-sair{flex:none;width:34px;height:34px;border-radius:50%;border:0;background:transparent;color:#667085;cursor:pointer;display:grid;place-items:center;font-size:14px;} .vk-sel-sair:hover{background:#F2F4F7;color:#101828;}
+.gf-bt.vk-modo-sel.ativo{background:#EFF4FF;border-color:#84ADFF;color:#1849A9;}
 .vk-exc-lista{margin:8px 0;padding:0;list-style:none;max-height:220px;overflow:auto;border:1px solid #F2F4F7;border-radius:10px;} .vk-exc-lista li{display:flex;justify-content:space-between;gap:10px;padding:6px 10px;border-top:1px solid #F2F4F7;font-size:12.5px;} .vk-exc-lista li:first-child{border-top:0;} .vk-exc-lista li b{white-space:nowrap;}
 /* "Excluir vários": marcar a coluna inteira (no topo de cada coluna) e cartão que não pode sair */
-.vk-col header.vk-col-sel{flex-wrap:wrap;} .vk-col-sel>div{flex:1 1 0;min-width:0;}
-.vk-col-marca{flex:1 1 100%;display:flex;align-items:center;gap:8px;border:1px solid #D0D5DD;background:#fff;border-radius:10px;padding:6px 9px;font:600 12px Inter,sans-serif;color:#344054;cursor:pointer;text-align:left;}
-.vk-col-marca:hover{border-color:#FDA29B;background:#FFFBFA;} .vk-col-marca:focus-visible{outline:2px solid #84ADFF;outline-offset:2px;}
-.vk-col-marca small{margin-left:auto;font-weight:600;}
-.vk-col-marca.on{border-color:#D92D20;background:#FEF3F2;color:#B42318;} .vk-col-marca.on .vk-marca{background:#D92D20;border-color:#D92D20;color:#fff;}
-.vk-col-marca.meio .vk-marca{background:#FEE4E2;border-color:#D92D20;color:#D92D20;}
+.vk-col header.vk-col-sel{flex-wrap:wrap;row-gap:8px;} .vk-col-sel>div{flex:1 1 150px;min-width:0;}
+.vk-col-marca{flex:0 0 auto;margin-left:auto;display:inline-flex;align-items:center;gap:6px;border:1px solid #D0D5DD;background:#fff;border-radius:999px;padding:5px 6px 5px 11px;font:600 12px Inter,sans-serif;color:#344054;cursor:pointer;white-space:nowrap;transition:background .15s,border-color .15s;}
+.vk-col-marca:hover{border-color:#84ADFF;background:#F5F8FF;} .vk-col-marca:focus-visible{outline:2px solid #84ADFF;outline-offset:2px;}
+.vk-col-marca i{color:#1652D8;} .vk-col-marca small{background:#F2F4F7;color:#475467;border-radius:999px;padding:1px 7px;font-weight:700;}
+.vk-col-marca.on{border-color:#84ADFF;background:#EFF4FF;color:#1849A9;} .vk-col-marca.on small{background:#D1E0FF;color:#1849A9;}
+.vk-col-marca.meio{border-color:#B2CCFF;}
 .vk-col-trava{flex:1 1 100%;display:flex;align-items:center;gap:7px;font-size:11.5px;line-height:1.3;color:#667085;padding:2px 2px 0;}
 .vk-sel.vk-trava{cursor:not-allowed;opacity:.6;} .vk-trava .vk-marca,.vk-sel.vk-trava:hover .vk-marca{background:#F2F4F7;border-color:#E4E7EC;color:#98A2B3;}
-.vk-selbar .gf-bt.on{background:rgba(253,162,155,.28);border-color:#FDA29B;color:#fff;}
-@media (max-width:560px){.vk-selbar{bottom:8px;padding:10px 12px;gap:8px;} .vk-selbar-bts{gap:6px;width:100%;} .vk-selbar-bts .gf-bt{flex:1 1 40%;justify-content:center;padding:7px 10px;font-size:12.5px;white-space:normal;text-align:center;}}
+.vk-selbar .gf-bt.on{background:#EFF4FF;border-color:#B2CCFF;color:#1849A9;}
+@media (max-width:560px){.vk-selbar{border-radius:18px;bottom:10px;width:calc(100% - 16px);padding:10px 44px 10px 10px;justify-content:flex-start;gap:8px;} .vk-selbar-bts{gap:6px;width:100%;margin-right:-34px;} .vk-selbar-bts .gf-bt{flex:1 1 40%;justify-content:center;padding:8px 10px;font-size:12.5px;white-space:nowrap;text-align:center;} .vk-selbar .vk-qtd{display:none;} .vk-sel-sair{position:absolute;top:8px;right:8px;}}
 .vk-top{display:flex;justify-content:space-between;gap:6px 8px;align-items:flex-start;}
 .vk-top b{font-size:13.5px;line-height:1.3;overflow-wrap:anywhere;color:var(--text-1);}
 .vk-sub{font-size:12px;color:#6e6e73;margin:3px 0 6px;overflow-wrap:anywhere;}
@@ -16386,9 +16397,18 @@ const Mascara=(function(){
   GS.colunasHtml=colunasHtml;
   /* modo "Excluir vários" dos quadros: "Marcar a coluna" (no topo) marca os cartões que estão na tela naquela coluna, com
      os filtros aplicados. pintarMarcaColunas acerta o botão (marcada / em parte), também ao clicar num cartão só. */
-  const marcaColuna=k=>`<button type="button" class="vk-col-marca" data-vk="sel-coluna" data-col="${k}" aria-pressed="false" title="Marca ou desmarca todos os cartões que estão aparecendo nesta coluna"><span class="vk-marca" aria-hidden="true"><i class="fas fa-check"></i></span><span data-rot>Marcar a coluna</span><small data-qtd></small></button>`;
+  const marcaColuna=k=>`<button type="button" class="vk-col-marca" data-vk="sel-coluna" data-col="${k}" aria-pressed="false" title="Marca ou desmarca todos os cartões que estão aparecendo nesta coluna"><i class="fas fa-check-double" aria-hidden="true"></i><span data-rot>Marcar todas</span><small data-qtd></small></button>`;
   function pintarMarcaColunas(box,idsDe,sel){box.querySelectorAll('[data-vk="sel-coluna"]').forEach(b=>{const ids=idsDe(b.dataset.col),n=ids.filter(id=>sel.has(id)).length,tudo=ids.length>0&&n===ids.length;
-    b.classList.toggle('on',tudo);b.classList.toggle('meio',n>0&&!tudo);b.setAttribute('aria-pressed',tudo?'true':'false');b.querySelector('[data-rot]').textContent=tudo?'Desmarcar a coluna':'Marcar a coluna';b.querySelector('[data-qtd]').textContent=ids.length;});}
+    b.classList.toggle('on',tudo);b.classList.toggle('meio',n>0&&!tudo);b.setAttribute('aria-pressed',tudo?'true':'false');b.querySelector('[data-rot]').textContent=tudo?'Desmarcar todas':'Marcar todas';const ic=b.querySelector('i');if(ic)ic.className='fas '+(tudo?'fa-square-minus':'fa-check-double');b.querySelector('[data-qtd]').textContent=ids.length;});}
+  /* SELEÇÃO EM LOTE: o mesmo jeito em todas as telas — botão "Selecionar" no topo, barra flutuante com a contagem, um botão
+     só que marca todos e, com tudo marcado, desmarca, e o X para sair. */
+  const selUI={
+    modo:(ativo,attr,dica,cls)=>`<button type="button" class="gf-bt vk-modo-sel${cls?' '+cls:''}${ativo?' ativo':''}" ${attr} title="${fe(dica||'')}" aria-pressed="${ativo?'true':'false'}"><i class="fas ${ativo?'fa-xmark':'fa-list-check'}"></i> ${ativo?'Cancelar seleção':'Selecionar'}</button>`,
+    todos:(tudo,attr,qtd,rotM,rotD)=>`<button type="button" class="gf-bt${tudo?' on':''}" ${attr} aria-pressed="${tudo?'true':'false'}" ${qtd?'':'disabled'}><i class="fas ${tudo?'fa-square-minus':'fa-check-double'}"></i> ${tudo?(rotD||'Desmarcar todos'):(rotM||'Marcar todos')}${!tudo&&qtd?`<span class="vk-qtd"> (${qtd})</span>`:''}</button>`,
+    barra:(n,titulo,sub,botoes,sairAttr)=>`<div class="vk-selbar-txt"><span class="vk-sel-n${n?' tem':''}">${n}</span><div><b>${titulo}</b><span>${sub}</span></div></div><div class="vk-selbar-bts">${botoes}<button type="button" class="vk-sel-sair" ${sairAttr} title="Sair da seleção" aria-label="Sair da seleção"><i class="fas fa-xmark"></i></button></div>`};
+  GS.sel=selUI;
+  // marca todos os que estão na tela; se já estão todos marcados, desmarca
+  const alternarTodos=(ids,sel)=>{const tudo=ids.length>0&&ids.every(id=>sel.has(id));ids.forEach(id=>tudo?sel.delete(id):sel.add(id));};
   function alternarColuna(ids,sel){const tudo=ids.length>0&&ids.every(id=>sel.has(id));ids.forEach(id=>tudo?sel.delete(id):sel.add(id));}
   // redesenha o quadro sem perder a rolagem de dentro das colunas
   function redesenharQuadro(box,redesenhar){const y={};box.querySelectorAll('.vk-col').forEach(c=>{const p=c.querySelector('.vk-corpo');if(p)y[c.dataset.coluna]=p.scrollTop;});redesenhar();box.querySelectorAll('.vk-col').forEach(c=>{const p=c.querySelector('.vk-corpo');if(p&&y[c.dataset.coluna])p.scrollTop=y[c.dataset.coluna];});}
@@ -16529,7 +16549,7 @@ const Mascara=(function(){
     const filtroAtivo=f.busca||f.obra||f.mes||f.aprovar||f.semForn||f.cat||f.forma||f.ord;
     const catsF=[...new Set(C.CATC().concat(C.podeEmpresa()?C.CATD():[]).concat(todas.map(o=>o.cat).filter(Boolean)))],formasF=[...new Set(FORMAS.concat(todas.map(o=>o.forma).filter(Boolean)))];
     box.innerHTML=`<div class="gf">
-      ${cabG('Contas a pagar','Tudo o que a empresa paga: compras e serviços de cada obra e as despesas da Empresa — só contas que já existem (a previsão de custo das obras vem do CAP). Um Administrador aprova (conta lançada por Administrador já nasce aprovada) e, quando pagar, arraste o cartão para <b>Paga</b>. Clique no cartão para ver e corrigir todos os dados.',(()=>{const n=gruposDupContas().length;return `<button type="button" class="gf-bt${n?' dup-on':''}" data-vk="dup" title="Procura contas lançadas em dobro (mesmo fornecedor, destino e valor em datas próximas)"><i class="fas fa-clone"></i> Verificar duplicados${n?` <b class="vk-badge">${n}</b>`:''}</button>`;})()+'<button type="button" class="gf-bt" data-vk="imprimir"><i class="fas fa-print"></i> Imprimir</button><button type="button" class="gf-bt" data-vk="exportar"><i class="fas fa-file-excel"></i> Exportar</button>'+(pode('contas')?`<button type="button" class="gf-bt${f.selModo?' on':''}" data-vk="selecionar" title="Marcar várias contas e excluir todas de uma vez"><i class="fas ${f.selModo?'fa-xmark':'fa-square-check'}"></i> ${f.selModo?'Sair da seleção':'Excluir várias'}</button><button type="button" class="gf-bt pri" data-vk="nova"><i class="fas fa-plus"></i> Nova conta</button>`:''))}
+      ${cabG('Contas a pagar','Tudo o que a empresa paga: compras e serviços de cada obra e as despesas da Empresa — só contas que já existem (a previsão de custo das obras vem do CAP). Um Administrador aprova (conta lançada por Administrador já nasce aprovada) e, quando pagar, arraste o cartão para <b>Paga</b>. Clique no cartão para ver e corrigir todos os dados.',(()=>{const n=gruposDupContas().length;return `<button type="button" class="gf-bt${n?' dup-on':''}" data-vk="dup" title="Procura contas lançadas em dobro (mesmo fornecedor, destino e valor em datas próximas)"><i class="fas fa-clone"></i> Verificar duplicados${n?` <b class="vk-badge">${n}</b>`:''}</button>`;})()+'<button type="button" class="gf-bt" data-vk="imprimir"><i class="fas fa-print"></i> Imprimir</button><button type="button" class="gf-bt" data-vk="exportar"><i class="fas fa-file-excel"></i> Exportar</button>'+(pode('contas')?`${selUI.modo(f.selModo,'data-vk="selecionar"','Marcar várias contas para excluir de uma vez')}<button type="button" class="gf-bt pri" data-vk="nova"><i class="fas fa-plus"></i> Nova conta</button>`:''))}
       ${semAprov.length&&souAdmin()?`<div class="vk-aviso"><i class="fas fa-signature"></i><div><b>${semAprov.length} conta(s) esperando a sua aprovação</b> — ${fmt(S(semAprov))}. Abra o cartão (ou arraste para "Aprovada") para aprovar.</div><button type="button" class="gf-bt mini" data-vk="so-aprovar">${f.aprovar?'Ver todas':'Ver só elas'}</button></div>`:''}
       <div class="gf-kpis">
         ${kpiG(vencidas.length?'vermelho':'verde','fa-triangle-exclamation','Vencidas',Rk(S(vencidas)),vencidas.length?`${vencidas.length} conta(s) em atraso — juros e multa correndo`:'nenhuma conta atrasada')}
@@ -16557,10 +16577,9 @@ const Mascara=(function(){
   const contasMarcadas=()=>todasContas().filter(o=>QC.sel.has(idC(o)));
   const idsColunaC=k=>(App._vkVisiveis||[]).filter(o=>colConta(o)===k).map(idC);
   function pintarSel(box){const bar=box.querySelector('[data-vk-selbar]');if(!bar)return;pintarMarcaColunas(box,idsColunaC,QC.sel);
-    const L=contasMarcadas(),n=L.length,tot=L.reduce((s,o)=>s+val(o.total),0);
-    bar.innerHTML=`<div class="vk-selbar-txt"><b>${n?`${n} conta${n>1?'s':''} marcada${n>1?'s':''}`:'Clique nos cartões que quer excluir'}</b><span>${n?'total '+fmt(tot):'o cartão de uma compra marca todos os itens dela'}</span></div>
-      <div class="vk-selbar-bts"><button type="button" class="gf-bt" data-vk="sel-todas"><i class="fas fa-check-double"></i> Marcar todas da tela</button>${n?'<button type="button" class="gf-bt" data-vk="sel-nenhuma"><i class="fas fa-xmark"></i> Desmarcar</button>':''}
-        <button type="button" class="gf-bt vk-excluir" data-vk="sel-excluir" ${n?'':'disabled'}><i class="fas fa-trash"></i> Excluir as marcadas${n?` (${n})`:''}</button></div>`;}
+    const L=contasMarcadas(),n=L.length,tot=L.reduce((s,o)=>s+val(o.total),0),vis=(App._vkVisiveis||[]).map(idC),tudo=vis.length>0&&vis.every(id=>QC.sel.has(id));
+    bar.innerHTML=selUI.barra(n,n?`${n} conta${n>1?'s':''} marcada${n>1?'s':''}`:'Toque nos cartões para marcar',n?'total '+fmt(tot):'o cartão de uma compra marca todos os itens dela',
+      selUI.todos(tudo,'data-vk="sel-todas"',vis.length,'Marcar todas','Desmarcar todas')+`<button type="button" class="gf-bt vk-excluir" data-vk="sel-excluir" ${n?'':'disabled'}><i class="fas fa-trash"></i> Excluir${n?` (${n})`:''}</button>`,'data-vk="selecionar"');}
   function alternarSel(box,c){const id=c.dataset.card,ids=String(id).startsWith('g:')?((App._vkCompras||{})[id]||[]).map(idC):[id];if(!ids.length)return;
     const todos=ids.every(x=>QC.sel.has(x));ids.forEach(x=>todos?QC.sel.delete(x):QC.sel.add(x));
     c.classList.toggle('on',!todos);c.classList.remove('meio');pintarSel(box);}
@@ -16604,7 +16623,7 @@ const Mascara=(function(){
         if(a==='dup')return verDupContas();
         if(a==='selecionar'){if(QC.selModo)sairSel();else QC.selModo=true;return re();}
         if(a==='sel-coluna'){alternarColuna(idsColunaC(b.dataset.col),QC.sel);return redesenharQuadro(box,re);}
-        if(a==='sel-todas'){(App._vkVisiveis||[]).forEach(o=>QC.sel.add(idC(o)));return redesenharQuadro(box,re);}
+        if(a==='sel-todas'){alternarTodos((App._vkVisiveis||[]).map(idC),QC.sel);return redesenharQuadro(box,re);}
         if(a==='sel-nenhuma'){QC.sel.clear();return redesenharQuadro(box,re);}
         if(a==='sel-excluir')return excluirMarcadas();
         if(a==='so-aprovar'){QC.aprovar=!QC.aprovar;return re();}
@@ -17456,7 +17475,7 @@ const Mascara=(function(){
     App._vkFat=filtrados;App._vkFatVis=vis;
     const filtroAtivo=f.busca||f.obra||f.mes||f.semNF||f.ord;
     box.innerHTML=`<div class="gf">
-      ${cabG('Faturamento e recebimentos','O caminho do dinheiro das obras, ligado às medições: a medição lançada aparece em <b>Medição em andamento</b>; aprovada pela fiscalização, vai para <b>A faturar</b>; ao emitir a nota (arraste ou abra o cartão) ela vira <b>Nota emitida</b>; quando o dinheiro entra, arraste para <b>Recebida</b>. Sem data combinada, o sistema espera o dinheiro no prazo médio que aquela obra costuma pagar (30 dias, enquanto não há histórico).','<button type="button" class="gf-bt" data-vk="imprimir"><i class="fas fa-print"></i> Imprimir</button><button type="button" class="gf-bt" data-vk="exportar"><i class="fas fa-file-excel"></i> Exportar</button>'+(pode('faturamento')?`<button type="button" class="gf-bt${f.selModo?' on':''}" data-vk="selecionar" title="Marcar vários lançamentos e excluir todos de uma vez"><i class="fas ${f.selModo?'fa-xmark':'fa-square-check'}"></i> ${f.selModo?'Sair da seleção':'Excluir vários'}</button>`:''))}
+      ${cabG('Faturamento e recebimentos','O caminho do dinheiro das obras, ligado às medições: a medição lançada aparece em <b>Medição em andamento</b>; aprovada pela fiscalização, vai para <b>A faturar</b>; ao emitir a nota (arraste ou abra o cartão) ela vira <b>Nota emitida</b>; quando o dinheiro entra, arraste para <b>Recebida</b>. Sem data combinada, o sistema espera o dinheiro no prazo médio que aquela obra costuma pagar (30 dias, enquanto não há histórico).','<button type="button" class="gf-bt" data-vk="imprimir"><i class="fas fa-print"></i> Imprimir</button><button type="button" class="gf-bt" data-vk="exportar"><i class="fas fa-file-excel"></i> Exportar</button>'+(pode('faturamento')?`${selUI.modo(f.selModo,'data-vk="selecionar"','Marcar vários lançamentos para excluir de uma vez')}`:''))}
       ${parados.length?`<div class="vk-aviso" style="background:#FEF3F2;color:#912018"><i class="fas fa-triangle-exclamation"></i><div><b>${parados.length} medição(ões) aprovada(s) há mais de 5 dias sem nota</b> — ${fmt(SB(parados))} parado. Cada dia sem nota atrasa o recebimento um dia.</div></div>`:''}
       <div class="gf-kpis">
         ${kpiG(atr.length?'vermelho':'verde','fa-triangle-exclamation','Recebimento atrasado',Rk(S(atr)),atr.length?`${atr.length} nota(s) — cobrar a contratante`:'nenhuma nota atrasada')}
@@ -17519,10 +17538,9 @@ const Mascara=(function(){
   const marcadasF=()=>itensFat().filter(x=>QF.sel.has(x.id));
   const sairSelF=()=>{QF.sel.clear();QF.selModo=false;};
   function pintarSelF(box){const bar=box.querySelector('[data-vk-selbar]');if(!bar)return;pintarMarcaColunas(box,idsColunaF,QF.sel);
-    const L=marcadasF(),n=L.length,tot=L.reduce((s,x)=>s+x.bruto,0);
-    bar.innerHTML=`<div class="vk-selbar-txt"><b>${n?`${n} lançamento${n>1?'s':''} marcado${n>1?'s':''}`:'Clique nos cartões que quer excluir'}</b><span>${n?'total bruto '+fmt(tot):'nota emitida ou recebida não entra: só sai cancelando a NF'}</span></div>
-      <div class="vk-selbar-bts"><button type="button" class="gf-bt" data-vk="sel-todas"><i class="fas fa-check-double"></i> Marcar tudo da tela</button>${n?'<button type="button" class="gf-bt" data-vk="sel-nenhuma"><i class="fas fa-xmark"></i> Desmarcar</button>':''}
-        <button type="button" class="gf-bt vk-excluir" data-vk="sel-excluir" ${n?'':'disabled'}><i class="fas fa-trash"></i> Excluir os marcados${n?` (${n})`:''}</button></div>`;}
+    const L=marcadasF(),n=L.length,tot=L.reduce((s,x)=>s+x.bruto,0),vis=(App._vkFatVis||[]).filter(x=>!travaExcF(x)).map(x=>x.id),tudo=vis.length>0&&vis.every(id=>QF.sel.has(id));
+    bar.innerHTML=GS.sel.barra(n,n?`${n} lançamento${n>1?'s':''} marcado${n>1?'s':''}`:'Toque nos cartões para marcar',n?'total bruto '+fmt(tot):'nota emitida ou recebida não entra: só sai cancelando a NF',
+      GS.sel.todos(tudo,'data-vk="sel-todas"',vis.length)+`<button type="button" class="gf-bt vk-excluir" data-vk="sel-excluir" ${n?'':'disabled'}><i class="fas fa-trash"></i> Excluir${n?` (${n})`:''}</button>`,'data-vk="selecionar"');}
   function alternarSelF(box,c){const x=acharF(c.dataset.card);if(!x)return;const t=travaExcF(x);if(t)return toast(t,'error');
     const on=!QF.sel.has(x.id);if(on)QF.sel.add(x.id);else QF.sel.delete(x.id);c.classList.toggle('on',on);pintarSelF(box);}
   function excluirMarcadasF(){
@@ -17548,7 +17566,7 @@ const Mascara=(function(){
         if(a==='medicao'){Eng._ME.edit=null;if(QF.obra)Eng._ME.obra=QF.obra;return UI.nav('medicoes');}
         if(a==='selecionar'){if(QF.selModo)sairSelF();else QF.selModo=true;return re();}
         if(a==='sel-coluna'){alternarColuna(idsColunaF(b.dataset.col),QF.sel);return redesenharQuadro(box,re);}
-        if(a==='sel-todas'){(App._vkFatVis||[]).filter(x=>!travaExcF(x)).forEach(x=>QF.sel.add(x.id));return redesenharQuadro(box,re);}
+        if(a==='sel-todas'){const ids=(App._vkFatVis||[]).filter(x=>!travaExcF(x)).map(x=>x.id),tudo=ids.length>0&&ids.every(id=>QF.sel.has(id));ids.forEach(id=>tudo?QF.sel.delete(id):QF.sel.add(id));return redesenharQuadro(box,re);}
         if(a==='sel-nenhuma'){QF.sel.clear();return redesenharQuadro(box,re);}
         if(a==='sel-excluir')return excluirMarcadasF();
         if(a==='limpar'){Object.assign(QF,{busca:'',obra:'',mes:'',semNF:false,ord:''});return re();}
@@ -18677,17 +18695,17 @@ const Mascara=(function(){
 .ar-tag{display:inline-block;font-size:10.5px;font-weight:800;padding:1px 7px;border-radius:99px;background:#EEF4FF;color:#1652D8;margin-left:4px;}
 .ar-tag.av{background:#FFFAEB;color:#B54708;}
 .lx-sec{grid-column:1/-1;font:800 11px Inter,sans-serif;text-transform:uppercase;letter-spacing:.06em;color:#6e6e73;margin:14px 0 2px;}
-/* "Restaurar vários" da Lixeira: o cartão marca em verde (restaurar não é excluir) e a barra de baixo é a mesma dos quadros */
+/* "Restaurar vários" da Lixeira: a mesma seleção dos quadros (bolinha no canto do cartão e barra flutuante) */
 .lx-bts{display:flex;flex-wrap:wrap;gap:8px;align-items:center;}
-#grid-lixeira .lx-marca{display:none;} #grid-lixeira.lx-sel .lx-marca{display:grid;}
-#grid-lixeira.lx-sel .lanc-card-header{justify-content:flex-start;gap:9px;}
+#grid-lixeira .lx-marca{display:none;} #grid-lixeira.lx-sel .lx-marca{display:grid;position:absolute;top:12px;right:12px;}
+#grid-lixeira.lx-sel .lanc-card{position:relative;cursor:pointer;} #grid-lixeira.lx-sel .lanc-card-header{padding-right:30px;}
 #grid-lixeira.lx-sel .lanc-card .pw-btn{display:none;}
-#grid-lixeira.lx-sel .lanc-card:hover .vk-marca{border-color:#067647;}
-#grid-lixeira.lx-sel .lanc-card.on{box-shadow:0 0 0 2px #067647;background:#F6FEF9;}
-#grid-lixeira.lx-sel .lanc-card.on .vk-marca{background:#067647;border-color:#067647;color:#fff;}
+#grid-lixeira.lx-sel .lanc-card:hover .vk-marca{border-color:#1652D8;}
+#grid-lixeira.lx-sel .lanc-card.on{box-shadow:0 0 0 2px #1652D8;background:#F5F8FF;}
+#grid-lixeira.lx-sel .lanc-card.on .vk-marca{background:#1652D8;border-color:#1652D8;color:#fff;}
 #grid-lixeira.lx-sel .lanc-card:focus-visible{outline:2px solid #84ADFF;outline-offset:2px;}
 #lx-selbar{margin-top:14px;}
-.vk-selbar .gf-bt.lx-restaurar{background:#067647;border-color:#067647;color:#fff;} .vk-selbar .gf-bt.lx-restaurar:hover{background:#05603A;}
+.vk-selbar .gf-bt.lx-restaurar{background:#067647;border-color:transparent;color:#fff;} .vk-selbar .gf-bt.lx-restaurar:hover{background:#05603A;}
 @media (max-width:560px){#lx-selbar [data-lx="obras"],#lx-selbar [data-lx="lancs"]{display:none;}}
 </style>
 <script>
@@ -18932,7 +18950,7 @@ const Mascara=(function(){
     const grid=document.getElementById('grid-lixeira'),bt=document.getElementById('btn-lixeira-restaurar');if(!grid)return;
     const L=itensLx(),existem=new Set(L.map(x=>x.id));if(!L.length)LX.sel=false;
     [...LX.marc].forEach(id=>{if(!existem.has(id))LX.marc.delete(id);});
-    if(bt){bt.style.display=L.length?'':'none';bt.classList.toggle('on',LX.sel);bt.innerHTML=`<i class="fas ${LX.sel?'fa-xmark':'fa-square-check'}"></i> ${LX.sel?'Sair da seleção':'Restaurar vários'}`;}
+    if(bt){bt.style.display=L.length?'':'none';bt.classList.add('vk-modo-sel');bt.classList.toggle('ativo',LX.sel);bt.title='Marcar vários itens para restaurar de uma vez';bt.innerHTML=`<i class="fas ${LX.sel?'fa-xmark':'fa-list-check'}"></i> ${LX.sel?'Cancelar seleção':'Selecionar'}`;}
     grid.classList.toggle('lx-sel',LX.sel);
     grid.querySelectorAll('[data-lx-id]').forEach(c=>{c.classList.toggle('on',LX.sel&&LX.marc.has(c.dataset.lxId));if(LX.sel)c.tabIndex=0;else c.removeAttribute('tabindex');});
     let bar=document.getElementById('lx-selbar');
@@ -18940,10 +18958,10 @@ const Mascara=(function(){
     const be=document.getElementById('btn-lixeira-esvaziar');if(be)be.style.display='none';
     if(!bar){bar=document.createElement('div');bar.id='lx-selbar';bar.className='vk-selbar';grid.insertAdjacentElement('afterend',bar);}
     const n=LX.marc.size,ob=L.filter(x=>x.k==='obra'),la=L.filter(x=>x.k==='lanc'),nO=ob.filter(x=>LX.marc.has(x.id)).length,nL=n-nO;
-    const chip=(a,rot,lista,qt)=>{const tudo=qt===lista.length;return `<button type="button" class="gf-bt${tudo?' on':''}" data-lx="${a}"><i class="fas ${tudo?'fa-xmark':'fa-check'}"></i> ${tudo?'Desmarcar':'Marcar'} ${rot} (${lista.length})</button>`;};
-    bar.innerHTML=`<div class="vk-selbar-txt"><b>${n?`${n} ${n>1?'itens marcados':'item marcado'}`:'Clique nos cartões que quer restaurar'}</b><span>${n?[nO?`${nO} obra${nO>1?'s':''}`:'',nL?`${nL} lançamento${nL>1?'s':''}`:''].filter(Boolean).join(' · '):'cada obra volta com tudo o que está ligado a ela'}</span></div>
-      <div class="vk-selbar-bts">${ob.length&&la.length?chip('obras','as obras',ob,nO)+chip('lancs','os lançamentos',la,nL):''}<button type="button" class="gf-bt" data-lx="todos"><i class="fas fa-check-double"></i> Marcar tudo</button>${n?'<button type="button" class="gf-bt" data-lx="nenhum"><i class="fas fa-xmark"></i> Desmarcar</button>':''}
-        <button type="button" class="gf-bt lx-restaurar" data-lx="restaurar" ${n?'':'disabled'}><i class="fas fa-rotate-left"></i> Restaurar os marcados${n?` (${n})`:''}</button></div>`;
+    const chip=(a,rot,lista,qt)=>{const tudo=qt===lista.length;return `<button type="button" class="gf-bt${tudo?' on':''}" data-lx="${a}"><i class="fas ${tudo?'fa-square-minus':'fa-check'}"></i> ${tudo?'Desmarcar':'Marcar'} ${rot} (${lista.length})</button>`;};
+    bar.innerHTML=GS.sel.barra(n,n?`${n} ${n>1?'itens marcados':'item marcado'}`:'Toque nos cartões para marcar',n?[nO?`${nO} obra${nO>1?'s':''}`:'',nL?`${nL} lançamento${nL>1?'s':''}`:''].filter(Boolean).join(' · '):'cada obra volta com tudo o que está ligado a ela',
+      (ob.length&&la.length?chip('obras','as obras',ob,nO)+chip('lancs','os lançamentos',la,nL):'')+GS.sel.todos(n===L.length&&L.length>0,'data-lx="todos"',L.length,'Marcar tudo','Desmarcar tudo')
+      +`<button type="button" class="gf-bt lx-restaurar" data-lx="restaurar" ${n?'':'disabled'}><i class="fas fa-rotate-left"></i> Restaurar${n?` (${n})`:''}</button>`,'data-lx="modo"');
   }
   const restaurarReg=r=>{const {_lixeira_em,_lixeira_obra_id,_lixeira_motivo,...limpo}=r;return salvar(r._aba,limpo,r.rowid);};
   function restaurarMarcados(){
@@ -18963,7 +18981,7 @@ const Mascara=(function(){
     if(b){ev.preventDefault();const a=b.dataset.lx,L=itensLx();
       if(a==='modo'){LX.sel=!LX.sel;LX.marc.clear();return App._renderLixeira();}
       if(a==='nenhum'){LX.marc.clear();return pintarLx();}
-      if(a==='todos'){L.forEach(x=>LX.marc.add(x.id));return pintarLx();}
+      if(a==='todos'){const tudo=L.length>0&&L.every(x=>LX.marc.has(x.id));L.forEach(x=>tudo?LX.marc.delete(x.id):LX.marc.add(x.id));return pintarLx();}
       if(a==='obras'||a==='lancs'){const ids=L.filter(x=>x.k===(a==='obras'?'obra':'lanc')).map(x=>x.id),tudo=ids.every(id=>LX.marc.has(id));ids.forEach(id=>tudo?LX.marc.delete(id):LX.marc.add(id));return pintarLx();}
       if(a==='restaurar')return restaurarMarcados();
       return;}
@@ -21570,8 +21588,8 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
 .so2-filtros{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0;}
 .so2-filtros select{border:1px solid #D0D5DD;border-radius:10px;padding:7px 10px;font:600 12.5px Inter,sans-serif;background:#fff;}
 /* "Excluir vários" do livro dos sócios: a linha inteira marca; a barra de baixo é a mesma dos quadros */
-.so2-lin{cursor:pointer;} .so2-lin:hover td{background:#FFFBFA;} .so2-lin:hover .vk-marca{border-color:#D92D20;} .so2-lin:focus-visible{outline:2px solid #84ADFF;outline-offset:-2px;}
-.so2-lin.on td{background:#FEF3F2;} .so2-lin.on .vk-marca{background:#D92D20;border-color:#D92D20;color:#fff;}
+.so2-lin{cursor:pointer;} .so2-lin:hover td{background:#F8FAFF;} .so2-lin:hover .vk-marca{border-color:#1652D8;} .so2-lin:focus-visible{outline:2px solid #84ADFF;outline-offset:-2px;}
+.so2-lin.on td{background:#EFF4FF;} .so2-lin.on .vk-marca{background:#1652D8;border-color:#1652D8;color:#fff;}
 .so2-lin.trava{cursor:not-allowed;} .so2-lin.trava td{opacity:.6;background:transparent;} .so2-lin.trava .vk-marca{background:#F2F4F7;border-color:#E4E7EC;color:#98A2B3;}
 .so2-dt-sel{display:flex;align-items:center;gap:9px;}
 @media (max-width:560px){.vk-selbar [data-so2="sel-tipo"]{display:none;}}
@@ -23252,11 +23270,39 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
   const TIPOS_SEL=[['Aporte','os aportes'],['Retirada','as retiradas'],['Devolução de aporte','as devoluções']];
   function pintarSelSo(box){const bar=box.querySelector('[data-so2-selbar]');if(!bar)return;
     box.querySelectorAll('tr[data-so2-lin]').forEach(tr=>{const x=App._so2[+tr.dataset.so2Lin],on=!!x&&x.fonte==='ap'&&SO2.sel.has(idSo(x));tr.classList.toggle('on',on);tr.setAttribute('aria-selected',on?'true':'false');});
-    const L=marcadosSo(),n=L.length,S=a=>a.reduce((s,x)=>s+x.valor,0),ent=S(L.filter(x=>!x.sai)),sai=S(L.filter(x=>x.sai));
-    const vis=linhasSo(box),tipos=TIPOS_SEL.map(([t,r])=>({t,r,ids:vis.filter(x=>x.tipo===t).map(idSo)})).filter(z=>z.ids.length);
-    bar.innerHTML=`<div class="vk-selbar-txt"><b>${n?`${n} lançamento${n>1?'s':''} marcado${n>1?'s':''}`:'Clique nas linhas que quer excluir'}</b><span>${n?[ent?'entradas '+fmt(ent):'',sai?'saídas '+fmt(sai):''].filter(Boolean).join(' · '):'ou use os botões para marcar de uma vez'}</span></div>
-      <div class="vk-selbar-bts">${tipos.length>1?tipos.map(z=>{const tudo=z.ids.every(id=>SO2.sel.has(id));return `<button type="button" class="gf-bt${tudo?' on':''}" data-so2="sel-tipo" data-tipo="${fe(z.t)}"><i class="fas ${tudo?'fa-xmark':'fa-check'}"></i> ${tudo?'Desmarcar':'Marcar'} ${z.r} (${z.ids.length})</button>`;}).join(''):''}<button type="button" class="gf-bt" data-so2="sel-todos"><i class="fas fa-check-double"></i> Marcar todos da tela</button>${n?'<button type="button" class="gf-bt" data-so2="sel-nenhum"><i class="fas fa-xmark"></i> Desmarcar</button>':''}
-        <button type="button" class="gf-bt vk-excluir" data-so2="sel-excluir" ${n?'':'disabled'}><i class="fas fa-trash"></i> Excluir os marcados${n?` (${n})`:''}</button></div>`;}
+    const L=marcadosSo(),n=L.length,S=a=>a.reduce((s,x)=>s+x.valor,0),ent=S(L.filter(x=>!x.sai)),sai=S(L.filter(x=>x.sai)),nDev=paraDevolver().length;
+    const vis=linhasSo(box),tipos=TIPOS_SEL.map(([t,r])=>({t,r,ids:vis.filter(x=>x.tipo===t).map(idSo)})).filter(z=>z.ids.length),tudo=vis.length>0&&vis.every(x=>SO2.sel.has(idSo(x)));
+    bar.innerHTML=GS.sel.barra(n,n?`${n} lançamento${n>1?'s':''} marcado${n>1?'s':''}`:'Toque nas linhas para marcar',n?[ent?'entradas '+fmt(ent):'',sai?'saídas '+fmt(sai):''].filter(Boolean).join(' · '):'ou marque todos de uma vez',
+      (tipos.length>1?tipos.map(z=>{const t=z.ids.every(id=>SO2.sel.has(id));return `<button type="button" class="gf-bt${t?' on':''}" data-so2="sel-tipo" data-tipo="${fe(z.t)}"><i class="fas ${t?'fa-square-minus':'fa-check'}"></i> ${t?'Desmarcar':'Marcar'} ${z.r} (${z.ids.length})</button>`;}).join(''):'')+GS.sel.todos(tudo,'data-so2="sel-todos"',vis.length)
+      +`<button type="button" class="gf-bt vk-devolver" data-so2="sel-devolver" ${nDev?'':'disabled'} title="Devolver ao sócio os aportes marcados (o que falta devolver de cada um)"><i class="fas fa-rotate-left"></i> Devolver${nDev?` (${nDev})`:''}</button><button type="button" class="gf-bt vk-excluir" data-so2="sel-excluir" ${n?'':'disabled'}><i class="fas fa-trash"></i> Excluir${n?` (${n})`:''}</button>`,'data-so2="selecionar"');}
+  // aportes marcados que ainda têm valor a devolver ao sócio
+  const paraDevolver=()=>{const T=App._so2Todos||[];return marcadosSo().filter(x=>!x.sai).map(x=>({x,s:saldoAporte(x,T)})).filter(z=>z.s>0.004);};
+  /* Devolver vários aportes de uma vez: cada aporte marcado recebe a sua devolução (já vem o que falta devolver; dá para mudar),
+     todas na mesma data e forma. A mesma regra da devolução de um só: nunca mais do que falta devolver. */
+  function devolverMarcados(){
+    const D0=paraDevolver(),fora=marcadosSo().length-D0.length,K=KAp(),hj=isoDe(hoje0());
+    if(!D0.length)return toast('Nenhum dos lançamentos marcados é aporte com valor a devolver.','error');
+    const per=x=>{const [a,b]=periodoDe(x);return a?`${brDe(dt(a)).slice(0,5)} a ${brDe(dt(b))}`:x.data?brDe(x.data):'—';};
+    const j=janela(`Devolver ${D0.length} aporte${D0.length>1?'s':''}`,`<div class="fin-resumo">Cada aporte marcado recebe a devolução do valor da coluna <b>Devolver agora</b> — já vem o que falta devolver; dá para devolver só uma parte. Todas ficam na mesma data e forma.</div>
+      <div class="lote-tab cc-lt cc-dv"><table data-sem-ordem><thead><tr><th>Aporte</th><th>Período</th><th>Falta devolver</th><th>Devolver agora</th><th></th></tr></thead><tbody data-k="linhas">${D0.map((z,i)=>`<tr data-ln="${i}"><td class="cc-lt-banco"><b>${fe(z.x.quem)}</b> ${fe(z.x.obra)}<small>aporte de ${fmt(z.x.valor)}</small></td><td class="cc-lt-banco">${per(z.x)}</td><td class="num">${fmt(z.s)}</td><td><input data-i="v" data-mask="moeda" inputmode="numeric" value="${fmt(z.s)}" aria-label="Valor a devolver"></td><td><button type="button" class="bt-tirar" data-i="tirar" title="Tirar este aporte" aria-label="Tirar este aporte"><i class="fas fa-trash-can"></i></button></td></tr>`).join('')}</tbody></table></div>
+      <div class="lote-tot" data-k="tot"></div>
+      <div class="fin-linha"><div class="fin-fld"><label>Data da devolução <span class="obg">*</span></label><input type="date" data-k="data" max="${hj}" value="${hj}"></div><div class="fin-fld"><label>Forma</label><select data-k="forma"><option value="">—</option>${FORMAS_AP.map(x=>`<option>${fe(x)}</option>`).join('')}</select></div>
+        <div class="fin-fld" style="grid-column:1/-1"><label>Observação</label><input data-k="obs" placeholder="opcional — vale para todas"></div></div>
+      ${fora?`<p class="vk-dica"><i class="fas fa-circle-info"></i> ${fora} lançamento${fora>1?'s':''} marcado${fora>1?'s ficam':' fica'} de fora: não ${fora>1?'são aportes':'é aporte'} com valor a devolver.</p>`:''}`,
+      [{html:'<i class="fas fa-rotate-left"></i> Devolver',cls:'pri',acao:async jj=>{
+        const its=[...tb.rows].map(tr=>({z:D0[+tr.dataset.ln],v:num(tr.querySelector('[data-i="v"]').value)}));if(!its.length)throw new Error('Não sobrou nenhum aporte para devolver.');
+        const d=jj.querySelector('[data-k="data"]').value,forma=jj.querySelector('[data-k="forma"]').value,obs=(jj.querySelector('[data-k="obs"]').value||'').trim();
+        if(!d)throw new Error('Informe a data da devolução.');if(d>hj)throw new Error('A data não pode ser no futuro.');
+        const zero=its.findIndex(x=>!(x.v>0));if(zero>=0)throw new Error(`Linha ${zero+1}: informe o valor a devolver.`);
+        const passa=its.findIndex(x=>x.v>x.z.s+0.004);if(passa>=0)throw new Error(`Linha ${passa+1}: desse aporte falta devolver ${fmt(its[passa].z.s)} — a devolução não pode passar disso.`);
+        SO2.sel.clear();SO2.selModo=false;
+        await executar(async()=>{for(const x of its){const a=x.z.x;await salvar('Aportes financeiros',{[K.lanc]:todayDateTime(),[K.quem]:a.quem,[K.obra]:a.obra==='—'?'Empresa':a.obra,[K.data]:d,[K.valor]:dinheiro(-x.v),movimento:'Devolução de aporte',aporte_ref:String(a.r.rowid),forma_aporte:forma,periodo_ini:'',periodo_fim:'',[K.obs]:obs},null);}});
+        GS.renderSocios();
+        const tot=its.reduce((s,x)=>s+x.v,0);toast(`${its.length} devoluç${its.length>1?'ões lançadas':'ão lançada'} — ${fmt(tot)} devolvido${its.length>1?'s':''} aos sócios.`,'success');}}],860);
+    const tb=j.querySelector('[data-k="linhas"]');
+    const pintarTot=()=>{const L=[...tb.rows].map(tr=>num(tr.querySelector('[data-i="v"]').value)),n=L.length;j.querySelector('[data-k="tot"]').innerHTML=n?`${n} aporte${n>1?'s':''} · devolver <b>${fmt(L.reduce((s,v)=>s+v,0))}</b>`:'<span class="t-err">Nenhum aporte — feche e marque de novo.</span>';};
+    tb.addEventListener('input',pintarTot);tb.addEventListener('click',ev=>{const b=ev.target.closest('[data-i="tirar"]');if(b){b.closest('tr').remove();pintarTot();}});pintarTot();
+  }
   function alternarSelSo(box,tr){const x=App._so2[+tr.dataset.so2Lin];if(!x)return;const t=travaSo(x);if(t)return toast(t,'error');
     const id=idSo(x);if(SO2.sel.has(id))SO2.sel.delete(id);else SO2.sel.add(id);pintarSelSo(box);}
   function excluirMarcadosSo(){
@@ -23300,7 +23346,7 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
           <select data-so2f="quem"><option value="">Todos os sócios</option>${[...new Set(L.map(x=>x.quem))].map(q=>`<option ${f.quem===q?'selected':''}>${fe(q)}</option>`).join('')}</select>
           <select data-so2f="tipo"><option value="">Entradas e saídas</option>${['Aporte','Retirada','Retirada do lucro','Pró-labore','Devolução de aporte'].map(t=>`<option value="${t}" ${f.tipo===t?'selected':''}>${t==='Retirada'?'Todas as retiradas':t}</option>`).join('')}</select>
           <select data-so2f="ano"><option value="">Todos os anos</option>${anos.map(a=>`<option ${f.ano===String(a)?'selected':''}>${a}</option>`).join('')}</select>
-          ${podeEd?(()=>{const n=GS.dup.grupos(itensDupSocios()).length;return `<button type="button" class="gf-bt mini${n?' dup-on':''}" data-so2="dup" title="Procura lançamentos em dobro (mesmo sócio, obra e valor em datas próximas)"><i class="fas fa-clone"></i> Verificar duplicados${n?` <b class="vk-badge">${n}</b>`:''}</button>`;})():''}${podeEd?`<button type="button" class="gf-bt mini${f.selModo?' on':''}" data-so2="selecionar" title="Marcar vários lançamentos e excluir todos de uma vez"><i class="fas ${f.selModo?'fa-xmark':'fa-square-check'}"></i> ${f.selModo?'Sair da seleção':'Excluir vários'}</button>`:''}</div>
+          ${podeEd?(()=>{const n=GS.dup.grupos(itensDupSocios()).length;return `<button type="button" class="gf-bt mini${n?' dup-on':''}" data-so2="dup" title="Procura lançamentos em dobro (mesmo sócio, obra e valor em datas próximas)"><i class="fas fa-clone"></i> Verificar duplicados${n?` <b class="vk-badge">${n}</b>`:''}</button>`;})():''}${podeEd?GS.sel.modo(f.selModo,'data-so2="selecionar"','Marcar vários lançamentos para devolver ou excluir de uma vez','mini'):''}</div>
         ${vis.length?`<div class="gf-rolar"><table class="so2-tab so2-mov"><thead><tr><th>Data / período</th><th>Movimento</th><th>Sócio · obra</th><th style="text-align:right">Valor</th><th style="text-align:right">Devolvido ao sócio</th><th>Observação</th><th></th></tr></thead><tbody>
           ${linhasMov.map(z=>z.itens&&z.itens.length>1?linhaGrupo(z):((x,i)=>{const sd=!x.sai&&x.fonte==='ap'?saldoAporte(x,L):0,per=x.ini&&x.fim&&isoDe(x.ini)!==isoDe(x.fim)?`${brDe(x.ini).slice(0,5)} a<br>${brDe(x.fim)}`:x.data?brDe(x.data):'—';
             const sit=x.sai||x.fonte!=='ap'?'':sd<=0.004?'<span class="so2-sit ok">devolvido</span>':sd<x.valor-0.004?`<span class="so2-sit parc">falta ${fmt(sd)}</span>`:'';
@@ -23338,7 +23384,8 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
       const a=ev.target.closest('[data-so2-aba]');if(a){SO2.aba=a.dataset.so2Aba;SO2.selModo=false;SO2.sel.clear();return GS.renderSocios();}
       const b=ev.target.closest('[data-so2]');if(!b){const l=SO2.selModo&&ev.target.closest('[data-so2-lin]');if(l)alternarSelSo(box,l);return;}const ac=b.dataset.so2,x=App._so2[+b.dataset.i];
       if(ac==='selecionar'){SO2.selModo=!SO2.selModo;SO2.sel.clear();return GS.renderSocios();}
-      if(ac==='sel-todos'){linhasSo(box).forEach(y=>SO2.sel.add(idSo(y)));return pintarSelSo(box);}
+      if(ac==='sel-todos'){const ids=linhasSo(box).map(idSo),tudo=ids.length>0&&ids.every(id=>SO2.sel.has(id));ids.forEach(id=>tudo?SO2.sel.delete(id):SO2.sel.add(id));return pintarSelSo(box);}
+      if(ac==='sel-devolver')return devolverMarcados();
       if(ac==='sel-tipo'){const ids=linhasSo(box).filter(y=>y.tipo===b.dataset.tipo).map(idSo),tudo=ids.every(id=>SO2.sel.has(id));ids.forEach(id=>tudo?SO2.sel.delete(id):SO2.sel.add(id));return pintarSelSo(box);}
       if(ac==='sel-nenhum'){SO2.sel.clear();return pintarSelSo(box);}
       if(ac==='sel-excluir')return excluirMarcadosSo();
