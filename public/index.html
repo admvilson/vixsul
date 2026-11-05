@@ -53,7 +53,7 @@ input[data-maiusc]{text-transform:uppercase;} input[data-maiusc]::placeholder{te
 .seg-ac{font:800 11px Inter,sans-serif;border-radius:999px;padding:2px 8px;} .seg-ac.ok{background:#ECFDF3;color:#067647;} .seg-ac.info{background:#EFF8FF;color:#175CD3;} .seg-ac.err{background:#FEF3F2;color:#B42318;}
 .seg-passos{margin:0 0 10px 18px;padding:0;font-size:13px;line-height:1.55;} .seg-qr{display:flex;justify-content:center;margin:8px 0;} .seg-qr img,.seg-qr canvas{border:8px solid #fff;box-shadow:0 0 0 1px #E4E9F2;border-radius:8px;}
 .seg-chave{font-family:ui-monospace,Consolas,monospace;letter-spacing:.06em;user-select:all;} .seg-reservas{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:10px;} .seg-reservas code{font:700 15px ui-monospace,Consolas,monospace;background:#F2F4F7;border-radius:8px;padding:8px;text-align:center;letter-spacing:.06em;}
-.usr-tab.sem-nome th:first-child,.usr-tab.sem-nome td:first-child{display:none;} .usr-nome-bt{margin-left:auto;} .usr-card-cab{flex-wrap:wrap;}
+.usr-nome-bt{margin-left:auto;} .usr-card-cab{flex-wrap:wrap;}
 .vx-olho .vx-olho-f{display:none;} body.vx-oculto .vx-olho .vx-olho-a{display:none;} body.vx-oculto .vx-olho .vx-olho-f{display:block;} body.vx-oculto .vx-olho{color:var(--blue);background:rgba(0,113,227,.08);}
 body.vx-oculto .vx-money{filter:blur(7px);user-select:none;-webkit-user-select:none;}
 body.vx-oculto input[data-mask="moeda"]:not(:focus),body.vx-oculto input.lote-calc:not(:focus){color:transparent!important;text-shadow:0 0 9px rgba(16,24,40,.55);}
@@ -317,7 +317,7 @@ tbody tr:hover td{background:rgba(0,113,227,.02);}
 .confirm-overlay.open{display:flex;}
 .confirm-box{background:white;border-radius:22px;padding:36px 40px;max-width:420px;width:100%;text-align:center;box-shadow:0 40px 100px rgba(0,0,0,.2);animation:zoomIn .2s ease;margin:auto;flex-shrink:0;max-height:calc(100dvh - 24px);overflow-y:auto;overscroll-behavior:contain;}
 @media (max-width:520px){.confirm-box{padding:24px 18px;border-radius:18px;}}
-@media (max-width:440px){#modal-usuario .usr-par{flex-direction:column;} #usr-obras,#usr-acessos{grid-template-columns:1fr!important;}}
+@media (max-width:440px){#modal-usuario .usr-par{flex-direction:column;} #usr-acessos{grid-template-columns:1fr!important;}}
 /* o formulário de usuário rola por dentro (no celular a janela é mais alta que a tela): o X fica sempre no alto e o Salvar sempre embaixo */
 #modal-usuario .confirm-box{max-height:calc(100vh - 24px);max-height:calc(100dvh - 24px);overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;}
 #modal-usuario .usr-x{position:sticky!important;top:0!important;float:right;margin:-6px -6px 0 0;z-index:3;background:#fff;}
@@ -1311,7 +1311,7 @@ tbody tr:hover td{background:rgba(0,113,227,.02);}
   <div class="confirm-box" style="max-width:480px;text-align:left;padding:24px;position:relative">
     <button class="close-btn usr-x" onclick="UI.closeUsuario()" title="Fechar" style="position:absolute;top:18px;right:18px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
     <div class="confirm-title" id="usr-modal-title" style="text-align:left;margin-bottom:4px;padding-right:34px">Novo Usuário</div>
-    <div style="font-size:12px;color:var(--text-3);margin-bottom:16px">Defina os dados de acesso e o perfil. O que cada perfil pode ver e fazer fica em <b>Permissões de acesso</b>, nesta mesma tela.</div>
+    <div style="font-size:12px;color:var(--text-3);margin-bottom:16px">Defina os dados de acesso. As telas e as obras que o usuário pode ver ficam no botão <b>Permissões</b>, na lista de usuários.</div>
     <input type="hidden" id="usr-id">
     <div style="display:flex;flex-direction:column;gap:12px">
       <div><div style="font-size:12px;font-weight:700;color:var(--text-2);margin-bottom:4px">Nome</div><input id="usr-nome" class="field-input" style="width:100%" placeholder="Nome completo"></div>
@@ -1325,12 +1325,7 @@ tbody tr:hover td{background:rgba(0,113,227,.02);}
         <div style="flex:1"><div style="font-size:12px;font-weight:700;color:var(--text-2);margin-bottom:4px">Status</div><select id="usr-status" class="field-input field-select" style="width:100%"><option value="ativo">Ativo</option><option value="inativo">Inativo</option></select></div>
       </div>
       <div id="usr-perfil-wrap" style="flex:1"><div style="font-size:12px;font-weight:700;color:var(--text-2);margin-bottom:4px">Perfil</div><select id="usr-perfil" class="field-input field-select" style="width:100%" onchange="UI._usrPerfilChange()"><option value="Usuário">Usuário</option><option value="Gestão">Gestão</option><option value="Sócio">Sócio</option><option value="admin">Administrador</option></select><div id="usr-perfil-nota" class="usr-perfil-nota" style="display:none"></div></div>
-      <div id="usr-externo-aviso" style="display:none;font-size:12px;color:var(--text-3);background:rgba(0,113,227,.06);border:1px solid rgba(0,113,227,.18);border-radius:8px;padding:10px 12px">O Usuário Externo entra com <strong>e-mail e senha</strong> e só vê as <strong>obras marcadas abaixo</strong>. As telas que ele pode ver e o que pode fazer ficam no perfil <strong>Externo</strong>, em <strong>Permissões de acesso</strong> (enquanto o perfil não for configurado: Obras → Avanço &amp; Gantt e o Cronograma físico-financeiro).</div>
-      <div id="usr-obras-wrap" style="display:none">
-        <div style="font-size:12px;font-weight:700;color:var(--text-2);margin-bottom:6px">Obras que pode ver</div>
-        <div id="usr-obras-modo" style="display:flex;gap:16px;flex-wrap:wrap;font-size:12.5px;margin-bottom:8px"><label style="display:flex;gap:6px;align-items:center;cursor:pointer"><input type="radio" name="usr-obras-modo" value="todas" onchange="UI._usrObrasModo()"> Todas as obras</label><label style="display:flex;gap:6px;align-items:center;cursor:pointer"><input type="radio" name="usr-obras-modo" value="marcadas" onchange="UI._usrObrasModo()"> Só as obras marcadas (vê só o que é delas)</label></div>
-        <div id="usr-obras" style="display:grid;grid-template-columns:1fr 1fr;gap:6px 14px;max-height:160px;overflow-y:auto"></div>
-      </div>
+      <div id="usr-externo-aviso" style="display:none;font-size:12px;color:var(--text-3);background:rgba(0,113,227,.06);border:1px solid rgba(0,113,227,.18);border-radius:8px;padding:10px 12px">O Usuário Externo entra com <strong>e-mail e senha</strong> e só vê as <strong>obras marcadas em Permissões</strong>. Ao salvar, a janela de Permissões abre para você marcar as obras e as telas.</div>
       <div id="usr-acessos-wrap" style="display:none">
         <div style="font-size:12px;font-weight:700;color:var(--text-2);margin-bottom:6px">Seções que pode acessar</div>
         <div id="usr-acessos" style="display:grid;grid-template-columns:1fr 1fr;gap:6px 14px"></div>
@@ -4222,16 +4217,9 @@ const UI={
     document.getElementById('usr-perfil').value=u?this._usrPerfilValor(u.perfil):'Usuário';
     document.getElementById('usr-status').value=(u&&String(u.status||'ativo').toLowerCase()==='inativo')?'inativo':'ativo';
     document.getElementById('usr-tipo').value=(u&&u.tipoUsuario==='externo')?'externo':'interno';
-    // O que o usuário pode fazer vem do PERFIL (Permissões de acesso, como na VTC). A lista antiga de
-    // telas marcadas no cadastro fica gravada como estava: vale só enquanto o perfil não é configurado.
+    // As telas e as obras que o usuário pode ver ficam na janela Permissões (botão na lista de usuários).
+    // A lista antiga de telas do cadastro e as obras já marcadas ficam gravadas como estavam.
     this._usrEditando=u||null;
-    // obras permitidas (só usado por Usuário Externo): lista todas as obras cadastradas.
-    const obrasSel=u?(Array.isArray(u.obrasPermitidas)?u.obrasPermitidas.map(String):[]):[];
-    const obras=App.state.data.obras||[];
-    document.getElementById('usr-obras').innerHTML=obras.length
-      ?obras.map(o=>{const nome=getFuzzy(o,['titulo_obra','nome_obra','titulo'])||`Obra #${o.rowid}`;return `<label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer"><input type="checkbox" class="usr-obra" value="${o.rowid}" ${obrasSel.includes(String(o.rowid))?'checked':''}>${nome.replace(/</g,'&lt;')}</label>`;}).join('')
-      :'<div style="font-size:12px;color:var(--text-3)">Nenhuma obra cadastrada ainda.</div>';
-    {const marc=u&&Array.isArray(u.obrasPermitidas)&&u.obrasPermitidas.length>0;document.querySelectorAll('input[name="usr-obras-modo"]').forEach(r=>{r.checked=r.value===(marc?'marcadas':'todas');});}
     document.getElementById('usr-del-btn').style.display=u?'inline-flex':'none';
     const errEl=document.getElementById('usr-err');errEl.style.display='none';errEl.textContent='';
     this._usrTipoChange();
@@ -4242,9 +4230,6 @@ const UI={
     document.getElementById('usr-cpf-wrap').style.display=ext?'none':'';
     document.getElementById('usr-perfil-wrap').style.display=ext?'none':'';
     document.getElementById('usr-externo-aviso').style.display=ext?'':'none';
-    document.getElementById('usr-obras-wrap').style.display='';
-    document.getElementById('usr-obras-modo').style.display=ext?'none':'flex';
-    this._usrObrasModo();
     if(ext){
       document.getElementById('usr-cpf').classList.remove('err');
       document.getElementById('usr-perfil').value='Usuário';
@@ -4261,24 +4246,14 @@ const UI={
     const n=String(p||'').trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
     return n==='socio'?'Sócio':n==='gestao'?'Gestão':n.includes('externo')?'Externo':'Usuário';
   },
-  // obras: a lista de marcar só aparece para quem vê "só as obras marcadas" (externo: sempre); administrador vê todas
-  _usrObrasModo(){
-    const ext=document.getElementById('usr-tipo').value==='externo',admin=!ext&&document.getElementById('usr-perfil').value==='admin';
-    const marc=ext||(document.querySelector('input[name="usr-obras-modo"]:checked')||{}).value==='marcadas';
-    document.getElementById('usr-obras-wrap').style.display=admin?'none':'';
-    document.getElementById('usr-obras').style.display=marc?'grid':'none';
-  },
   _usrPerfilChange(){
     const v=document.getElementById('usr-perfil').value,admin=v==='admin';
-    try{this._usrObrasModo();}catch(e){}
     document.getElementById('usr-acessos-wrap').style.display='none';
     document.getElementById('usr-acessos-admin').style.display=admin?'':'none';
     const nota=document.getElementById('usr-perfil-nota');if(!nota)return;
     if(admin){nota.style.display='none';return;}
-    const conf=UI.permPerfilConfigurado&&UI.permPerfilConfigurado(v);
-    nota.className='usr-perfil-nota'+(conf?'':' aviso');
-    nota.innerHTML=conf?`O que o perfil <b>${v}</b> pode ver e fazer está em <b>Permissões de acesso</b>, abaixo da lista de usuários.`
-      :`O perfil <b>${v}</b> ainda não tem permissões definidas: enquanto isso, ${this._usrEditando&&Array.isArray(this._usrEditando.acessos)?'este usuário continua com as telas que já tinha':'este usuário vê <b>todas as telas</b>'}. Defina o perfil em <b>Permissões de acesso</b>, abaixo da lista.`;
+    nota.className='usr-perfil-nota';
+    nota.innerHTML='As telas e as obras que este usuário pode ver ficam no botão <b>Permissões</b>, na lista de usuários.';
     nota.style.display='';
   },
   closeUsuario(){document.getElementById('modal-usuario').classList.remove('open');},
@@ -4297,15 +4272,16 @@ const UI={
       tipoUsuario:tipoUsuario,
       // a lista antiga de telas do usuário fica como estava (vale só enquanto o perfil não é configurado)
       acessos:tipoUsuario==='externo'?['obras','relatorios']:(perfil==='admin'?null:(this._usrEditando&&Array.isArray(this._usrEditando.acessos)?this._usrEditando.acessos:null)),
-      obrasPermitidas:(tipoUsuario==='externo'||(perfil!=='admin'&&(document.querySelector('input[name="usr-obras-modo"]:checked')||{}).value==='marcadas'))?[...document.querySelectorAll('#usr-obras .usr-obra:checked')].map(c=>c.value):[]
+      // as obras são escolhidas na janela Permissões: aqui só mantém as que já estavam marcadas
+      obrasPermitidas:(tipoUsuario==='interno'&&perfil==='admin')?[]:(this._usrEditando&&Array.isArray(this._usrEditando.obrasPermitidas)?this._usrEditando.obrasPermitidas:[])
     };
     const fail=m=>{errEl.textContent=m;errEl.style.display='block';};
     if(!dados.nome)return fail('Informe o nome.');
     if(tipoUsuario==='interno'&&!this._validarCPF(dados.cpf)){document.getElementById('usr-cpf').classList.add('err');return fail('CPF inválido. Digite um CPF válido.');}
     if(!dados.email||!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(dados.email)){document.getElementById('usr-email').classList.add('err');return fail('Informe um e-mail válido (usado na recuperação de senha).');}
     if(!id&&!dados.senha)return fail('Defina uma senha para o novo usuário.');
-    if(tipoUsuario==='externo'&&dados.obrasPermitidas.length===0)return fail('Selecione ao menos uma obra que o usuário externo pode acessar.');
-    if(tipoUsuario==='interno'&&perfil!=='admin'&&(document.querySelector('input[name="usr-obras-modo"]:checked')||{}).value==='marcadas'&&dados.obrasPermitidas.length===0)return fail('Marque as obras que o usuário pode ver (ou escolha "Todas as obras").');
+    // usuário externo só existe com obra marcada (sem nenhuma ele veria tudo; o servidor recusa): termina na janela Permissões
+    if(tipoUsuario==='externo'&&dados.obrasPermitidas.length===0){this.closeUsuario();return this.permissoesUsuario(id||null,{...dados,id:id?Number(id):null});}
     const btn=document.querySelector('#modal-usuario .confirm-yes');const prev=btn.innerHTML;btn.disabled=true;btn.innerHTML='Salvando…';
     google.script.run
       .withSuccessHandler(res=>{
@@ -4315,6 +4291,8 @@ const UI={
         this.renderUsuarios();
         this.closeUsuario();
         toast('Usuário salvo.','success');
+        // usuário novo: já abre a janela para definir as telas e as obras dele
+        if(!id&&perfil!=='admin'){const cpf=String(dados.cpf||'').replace(/\D/g,''),novo=this._usuarios.find(x=>String(x.cpf||'').replace(/\D/g,'')===cpf);if(novo)this.permissoesUsuario(novo.id);}
       })
       .withFailureHandler(()=>{btn.disabled=false;btn.innerHTML=prev;fail('Erro de conexão ao salvar.');})
       .salvarUsuario(dados,id?Number(id):null);
@@ -11313,11 +11291,14 @@ const Fin=(function(){
     const cab=`<div class="fin-cab"><div><h2>Conciliação bancária</h2><p>Importe o extrato do banco: o sistema encontra sozinho cada custo, despesa e faturamento que bate com o banco e dá a baixa com a data certa. O que não bater fica separado para você escolher a qual lançamento pertence, lançar o que faltou ou ignorar (tarifa, transferência entre contas…).</p></div>${ext?'<button type="button" class="fin-bt" data-cc-cancelar>Fechar este extrato</button>':''}</div>`;
     const zona=`<label class="fin-drop" id="fin-drop"><input type="file" id="fin-arq" accept=".ofx,.qfx,.csv,.txt,.xls,.xlsx,.pdf" hidden>${ICO_ARQ}<b>${ext?'Importar outro extrato':'Arraste o extrato do banco aqui (OFX, CSV, Excel ou PDF)'}</b><small>ou clique para escolher o arquivo — ele é lido só neste computador</small></label>`;
     const ajuda=`<div class="fin-card fin-ajuda"><h3>Como baixar o extrato</h3><ol><li>No internet banking da conta da empresa, abra o <b>extrato</b> do período.</li><li>Escolha <b>Exportar / Salvar como</b> → <b>OFX</b> (às vezes aparece como “Money” ou “Quicken”). Se o banco não tiver OFX, use <b>CSV</b>, <b>Excel</b> ou o <b>PDF</b> do extrato.</li><li>Arraste o arquivo para o quadro acima. Nada vai para o sistema até você confirmar as baixas.</li></ol><p class="fin-sub" style="margin:10px 0 0">Prefira o <b>OFX</b>: além dos lançamentos ele traz o saldo da conta, que passa a ser o ponto de partida do fluxo de caixa em Contas a pagar e receber.</p></div>`;
-    if(!ext){box.innerHTML=`<div class="fin-wrap">${cab}${zona}${ajuda}</div>`;ligarArquivo(box);box.onclick=null;box.onchange=null;return;}
+    if(!ext){box.innerHTML=`<div class="fin-wrap">${cab}${zona}${ajuda}</div>`;ligarArquivo(box);box.onclick=null;box.onchange=null;box.onfocusout=null;return;}
     const F=CONC.f,qb=cn(F.busca),props0=conciliar(ext),g={ok:[],confira:[],vincular:[],sem:[],feito:[],ignorado:[]};
     // filtro da barra: tipo (entrada/saída) e busca no banco e no sistema (nome, descrição ou valor)
     // fatura com vários cartões: filtro pelo cartão (o escolhido fica lembrado neste computador)
     const cartoes=[...new Set(ext.itens.map(t=>t.cartao).filter(Boolean))].sort();if(F.cartao&&!cartoes.includes(F.cartao))F.cartao='';
+    // De / até: só dá para escolher dentro do período do extrato anexado (do cartão escolhido, se houver filtro)
+    const isosExt=(F.cartao?ext.itens.filter(t=>t.cartao===F.cartao):ext.itens).map(t=>isoDeBR(t.data)).filter(Boolean).sort(),perIni=isosExt[0]||'',perFim=isosExt[isosExt.length-1]||'';
+    if(F.de&&perIni&&(F.de<perIni||F.de>perFim))F.de='';if(F.ate&&perIni&&(F.ate<perIni||F.ate>perFim))F.ate='';
     const props=props0.filter(p=>(!F.cartao||p.t.cartao===F.cartao)&&(!F.tipo||(F.tipo==='sai'?p.t.valor<0:p.t.valor>0))&&(!F.de||isoDeBR(p.t.data)>=F.de)&&(!F.ate||isoDeBR(p.t.data)<=F.ate)&&(!qb||cn([p.t.desc,p.t.quem,p.t.detalhe||'',p.t.cartao||'',fmt(Math.abs(p.t.valor)),n2c(Math.abs(p.t.valor)),(p.alvos||[]).map(rotulo).join(' '),p.nota||''].join(' ')).includes(qb)));
     if(F.ordem)props.sort((a,b)=>F.ordem==='valor-'?Math.abs(b.t.valor)-Math.abs(a.t.valor):Math.abs(a.t.valor)-Math.abs(b.t.valor));
     props.forEach(p=>g[p.st].push(p));
@@ -11338,10 +11319,10 @@ const Fin=(function(){
       else if(p.st==='feito')alvo=`<span>${fe(p.nota)}</span>`;
       const marcavel=['ok','confira','vincular'].includes(p.st),selSem=p.st==='sem';
       const bt=(acao,txt,cls)=>`<button type="button" class="fin-bt mini ${cls||''}" data-cc="${acao}" data-i="${i}">${txt}</button>`;
-      const acoes=p.st==='sem'?(p.t.valor<0?bt('escolher','Escolher…')+bt('varias','Várias contas…')+bt('conta','Lançar em Contas a pagar')+bt('ignorar','Ignorar')
+      const acoes=p.st==='sem'?(p.t.valor<0?bt('escolher','Escolher…')+bt('conta','Lançar em Contas a pagar')+bt('ignorar','Ignorar')
           :bt('escolher','Escolher…')+bt('lote','Várias notas…')+bt('aporte','É aporte')+bt('ignorar','Ignorar'))
         :p.st==='feito'?bt('desfazer','Desfazer'):p.st==='ignorado'?bt('voltar','Voltar para a conferência'):'';
-      return `<tr><td>${marcavel?`<input type="checkbox" data-cc-marca="${i}" ${CONC.marcados.has(p.t.id)?'checked':''}>`:selSem?`<input type="checkbox" data-cc-sem="${i}" title="Marcar para ignorar junto com outras" ${CONC.selSem.has(p.t.id)?'checked':''}>`:''}</td>
+      return `<tr><td>${marcavel?`<input type="checkbox" data-cc-marca="${i}" ${CONC.marcados.has(p.t.id)?'checked':''}>`:selSem?`<input type="checkbox" data-cc-sem="${i}" title="Selecionar esta linha" ${CONC.selSem.has(p.t.id)?'checked':''}>`:''}</td>
         <td style="white-space:nowrap">${fe(p.t.data.slice(0,5))}</td>
         <td class="fin-conc-desc">${p.t.cartao?`<span class="cc-cartao" title="Cartão final ${fe(p.t.cartao)}"><i class="fas fa-credit-card"></i> ${fe(p.t.cartao)}</span> `:''}${fe(p.t.desc)}${p.t.detalhe?`<small>${fe(p.t.detalhe)}</small>`:p.t.quem?`<small>${fe(p.t.quem)}</small>`:''}</td>
         <td class="num ${p.t.valor<0?'t-err':'t-ok'}"><b>${p.t.valor<0?'−':'+'} ${fmt(Math.abs(p.t.valor))}</b></td>
@@ -11351,7 +11332,9 @@ const Fin=(function(){
         ${['ok','confira','vincular'].includes(k)?`<button type="button" class="fin-bt mini" data-cc-todos="${k}">Marcar todos</button><button type="button" class="fin-bt mini" data-cc-nenhum="${k}">Desmarcar</button>`:''}
         ${k==='sem'?(()=>{const ms=lista.filter(p=>CONC.selSem.has(p.t.id)),nS=ms.filter(p=>p.t.valor<0).length;return `<button type="button" class="fin-bt mini" data-cc-semtodos>Marcar todos</button><button type="button" class="fin-bt mini" data-cc-semnenhum ${ms.length?'':'disabled'}>Desmarcar</button><button type="button" class="fin-bt mini" data-cc-ignmarc ${ms.length?'':'disabled'}>Ignorar marcados (${ms.length})</button><button type="button" class="fin-bt mini pri" data-cc-lancmarc ${nS?'':'disabled'} title="Cada saída marcada vira uma conta paga na data do banco, com a mesma categoria — bom para tarifas, impostos e taxas">Lançar marcados em Contas a pagar (${nS})</button>`;})():''}
         ${tom==='cinza'&&titulo==='Ignorados'?'<button type="button" class="fin-bt mini" data-cc-voltartodos>Voltar todos para a conferência</button>':''}</div><div class="fin-sub">${sub}</div>${fech?'':`<div class="fin-rolar"><table class="fin-tab"><thead><tr><th></th><th>Data</th><th>No banco</th><th class="num">Valor</th><th>No sistema</th></tr></thead><tbody>${lista.map(linha).join('')}</tbody></table></div>`}</div>`:'';};
-    const nMarc=[...g.ok,...g.confira,...g.vincular].filter(p=>CONC.marcados.has(p.t.id)).length;
+    const marcadosC=[...g.ok,...g.confira,...g.vincular].filter(p=>CONC.marcados.has(p.t.id)),nMarc=marcadosC.length;
+    // somatória do que está selecionado em qualquer bloco (só o que aparece com os filtros da barra)
+    const selTodas=marcadosC.concat(g.sem.filter(p=>CONC.selSem.has(p.t.id))),nSel=selTodas.length,somaSai=selTodas.filter(p=>p.t.valor<0).reduce((s,p)=>s-p.t.valor,0),somaEnt=selTodas.filter(p=>p.t.valor>0).reduce((s,p)=>s+p.t.valor,0);
     box.innerHTML=`<div class="fin-wrap">
       ${cab}
       <div class="fin-aviso"><div>Extrato <b>${fe(ext.nome||'')}</b>${ext.banco?' · banco '+fe(ext.banco):''}${ext.conta?' · conta '+fe(ext.conta):''}${datas.length?` · de ${brDe(datas[0])} a ${brDe(datas[datas.length-1])}`:''}${ext.saldo!=null?` · saldo no extrato <b>${fmt(ext.saldo)}</b>${ext.saldoData?' em '+fe(ext.saldoData):''} (usado como ponto de partida do fluxo de caixa)`:''}.</div></div>
@@ -11367,7 +11350,7 @@ const Fin=(function(){
       <div class="cc-barra"><div class="pl2-busca"><i class="fas fa-magnifying-glass"></i><input type="search" data-cc-f="busca" value="${fe(F.busca)}" placeholder="Buscar no banco ou no sistema: nome, descrição, valor…"></div>
         ${cartoes.length>1?`<select data-cc-f="cartao" title="Fatura com vários cartões: mostrar só um"><option value="">Todos os cartões</option>${cartoes.map(c=>{const L=ext.itens.filter(t=>t.cartao===c);return `<option value="${fe(c)}" ${F.cartao===c?'selected':''}>Cartão ${fe(c)} — ${L.length} lanç. · ${fmt(Math.abs(L.reduce((s,t)=>s+t.valor,0)))}</option>`;}).join('')}</select>`:''}
         <select data-cc-f="tipo"><option value="">Entradas e saídas</option><option value="sai" ${F.tipo==='sai'?'selected':''}>Só saídas</option><option value="ent" ${F.tipo==='ent'?'selected':''}>Só entradas</option></select>
-        <label class="cc-per">De <input type="date" data-cc-f="de" value="${fe(F.de)}"></label><label class="cc-per">até <input type="date" data-cc-f="ate" value="${fe(F.ate)}"></label>
+        <label class="cc-per" title="Só dentro do período do extrato anexado">De <input type="date" data-cc-f="de" ${perIni?`min="${perIni}" max="${F.ate||perFim}"`:''} value="${fe(F.de)}"></label><label class="cc-per" title="Só dentro do período do extrato anexado">até <input type="date" data-cc-f="ate" ${perIni?`min="${F.de||perIni}" max="${perFim}"`:''} value="${fe(F.ate)}"></label>
         <select data-cc-f="ordem"><option value="">Ordem: data</option><option value="valor-" ${F.ordem==='valor-'?'selected':''}>Ordem: maior valor</option><option value="valor+" ${F.ordem==='valor+'?'selected':''}>Ordem: menor valor</option></select>
         ${F.busca||F.tipo||F.ordem||F.de||F.ate||F.cartao?'<button type="button" class="fin-bt mini" data-cc-limpar><i class="fas fa-xmark"></i> Limpar</button>':''}<span class="cc-mostra">${props.length} de ${props0c.length} linhas</span></div>
       ${bloco('Prontos para dar baixa','Valor idêntico e data batendo com um lançamento só — já vêm marcados.',g.ok,'ok','ok')}
@@ -11377,12 +11360,20 @@ const Fin=(function(){
       ${bloco('Já conciliados','Baixados ou ligados em importações anteriores deste mesmo extrato.',g.feito,'cinza')}
       ${bloco('Ignorados','Linhas que você marcou para ignorar (ficam guardadas neste computador).',g.ignorado,'cinza')}
       ${zona}
-      ${(g.ok.length+g.confira.length+g.vincular.length)?`<div class="fin-rodape"><span>${nMarc} marcado${nMarc!==1?'s':''}</span><button type="button" class="fin-bt pri" data-cc-aplicar ${nMarc?'':'disabled'}>Dar baixa nos marcados</button></div>`:''}
+      ${(g.ok.length+g.confira.length+g.vincular.length+g.sem.length)?`<div class="fin-rodape"><span class="cc-soma">${nSel?`<b>${nSel} ${nSel>1?'contas selecionadas':'conta selecionada'}</b>${somaSai?` · saídas <b>${fmt(somaSai)}</b>`:''}${somaEnt?` · entradas <b>${fmt(somaEnt)}</b>`:''}`:'Nenhuma conta selecionada'}</span>${(g.ok.length+g.confira.length+g.vincular.length)?`<button type="button" class="fin-bt pri" data-cc-aplicar ${nMarc?'':'disabled'}>Dar baixa nos marcados${nMarc?` (${nMarc})`:''}</button>`:''}</div>`:''}
     </div>`;
     ligarArquivo(box);
     box.oninput=ev=>{const fi=ev.target.closest('[data-cc-f="busca"]');if(!fi)return;CONC.f.busca=fi.value;clearTimeout(CONC._t);CONC._t=setTimeout(()=>{renderConciliacao();const n=box.querySelector('[data-cc-f="busca"]');if(n){n.focus();n.setSelectionRange(n.value.length,n.value.length);}},300);};
+    // De / até: o navegador avisa a cada número digitado (ano 0002, 0020…) e redesenhar a tela no meio apagaria o que a pessoa digita.
+    // Por isso a data só vale depois de uma pausa ou ao sair do campo; fora do período do extrato não entra (o calendário já nem oferece).
+    const aplicarData=fs=>{clearTimeout(CONC._tData);if(!fs.isConnected)return;const k=fs.dataset.ccF,v=fs.value,antes=CONC.f[k]||'';if(v===antes)return;
+      if(v&&!fs.checkValidity()){toast(v<perIni||v>perFim?`Escolha uma data dentro do período do extrato: de ${brDe(dt(perIni))} a ${brDe(dt(perFim))}.`:k==='de'?'A data "De" não pode ficar depois da data "até".':'A data "até" não pode ficar antes da data "De".','error');fs.value=antes;return;}
+      CONC.f[k]=v;const foco=document.activeElement===fs;renderConciliacao();if(foco){const n=box.querySelector(`[data-cc-f="${k}"]`);if(n)n.focus();}};
+    box.onfocusout=ev=>{const fs=ev.target.closest('input[type="date"][data-cc-f]');if(fs)setTimeout(()=>aplicarData(fs),0);};
     box.onchange=ev=>{
-      const fs=ev.target.closest('select[data-cc-f],input[type="date"][data-cc-f]');if(fs){CONC.f[fs.dataset.ccF]=fs.value;if(fs.dataset.ccF==='cartao')try{localStorage.setItem('vx_conc_cartao',fs.value);}catch(e){}return renderConciliacao();}
+      const fs=ev.target.closest('select[data-cc-f],input[type="date"][data-cc-f]');if(fs){
+        if(fs.type==='date'){clearTimeout(CONC._tData);CONC._tData=setTimeout(()=>{if(fs.value&&+fs.value.slice(0,4)<1000)return;aplicarData(fs);},700);return;}
+        CONC.f[fs.dataset.ccF]=fs.value;if(fs.dataset.ccF==='cartao')try{localStorage.setItem('vx_conc_cartao',fs.value);}catch(e){}return renderConciliacao();}
       const cs=ev.target.closest('[data-cc-sem]');if(cs){const p=CONC.props[+cs.dataset.ccSem];if(p){cs.checked?CONC.selSem.add(p.t.id):CONC.selSem.delete(p.t.id);renderConciliacao();}return;}
       const c=ev.target.closest('[data-cc-marca]');if(c){const p=CONC.props[+c.dataset.ccMarca];if(p){c.checked?CONC.marcados.add(p.t.id):CONC.marcados.delete(p.t.id);renderConciliacao();}return;}
       const s=ev.target.closest('[data-cc-escolha]');if(s){const p=CONC.props[+s.dataset.ccEscolha];if(p){CONC.escolhas[p.t.id]=+s.value;renderConciliacao();}}
@@ -11417,7 +11408,6 @@ const Fin=(function(){
       if(a==='voltar'){const s=ignorados();s.delete(p.t.id);gravarIgn(s);renderConciliacao();return;}
       if(a==='escolher')return escolher(p);
       if(a==='lote')return lote(p);
-      if(a==='varias')return variasContas(p);
       if(a==='aporte')return aporte(p);
       if(a==='conta')return lancarConta(p);
       if(a==='desfazer')return desfazer(p);
@@ -11669,8 +11659,7 @@ const Fin=(function(){
         <td><button type="button" class="bt-tirar" data-i="tirar" title="Tirar esta linha do lançamento" aria-label="Tirar esta linha do lançamento"><i class="fas fa-trash-can"></i></button></td></tr>`;};
     const j=janela(`Lançar ${lista.length} saída(s) em Contas a pagar`,`<div class="fin-resumo">Cada linha do banco vira uma conta <b>paga na data do banco</b>, ligada ao extrato. Fornecedor, categoria e forma já vêm do último lançamento do mesmo favorecido — confira linha por linha.</div>
       <div class="fin-linha">
-        <div class="fin-fld" style="grid-column:1/-1"><label>Para onde vai o gasto <span class="obg">*</span></label>${GS.destino.html('data-k="centro"',centro0)}</div>
-        <div style="grid-column:1/-1">${GS.rateio.htmlRateio()}</div></div>
+        <div class="fin-fld" style="grid-column:1/-1"><label>Para onde vai o gasto <span class="obg">*</span></label>${GS.destino.html('data-k="centro"',centro0)}</div></div>
       <div class="cc-todas"><span>Preencher todas as linhas:</span>${GS.comboGasto.html('data-k="catTodas"','data-k="descTodas"','','')}<select data-k="formaTodas" title="Forma de pagamento de todas as linhas"><option value="">Forma…</option>${FORMAS.map(f=>`<option>${fe(f)}</option>`).join('')}</select></div>
       <div class="lote-tab cc-lt"><table data-sem-ordem><thead><tr><th>No banco</th><th>Fornecedor / quem recebe</th><th>Categoria › Descrição <span class="obg">*</span></th><th>Forma</th><th>Valor</th><th></th></tr></thead><tbody data-k="linhas">${LN.map(linhaHtml).join('')}</tbody></table></div>
       <div class="lote-tot" data-k="tot"></div>
@@ -11678,10 +11667,11 @@ const Fin=(function(){
         <div class="fin-linha" data-k="socio-box" hidden><div class="fin-fld"><label>Sócio / investidor <span class="obg">*</span></label><input data-k="quem" list="cc-quem" autocomplete="off"><datalist id="cc-quem">${GS.rateio.socios().map(s=>`<option value="${fe(s)}">`).join('')}</datalist></div></div></div>`,
       [{html:'<i class="fas fa-floppy-disk"></i> Lançar e conciliar',cls:'pri',acao:async jj=>{
         const g=k=>(jj.querySelector(`[data-k="${k}"]`).value||'').trim(),centro=g('centro'),rat=centro===RAT,obrasR=rat?RT.obras():[],socio=jj.querySelector('[data-k="socio"]').checked,quem=g('quem');
-        if(!centro)throw new Error('Escolha a obra, Custo indireto (Empresa) ou Ratear entre obras.');if(rat&&obrasR.length<2)throw new Error('Marque pelo menos 2 obras para o rateio.');
+        if(!centro)throw new Error('Marque a obra (ou Custo indireto).');if(rat&&GS.rateio.erroRateio(obrasR))throw new Error(GS.rateio.erroRateio(obrasR));
         if(socio&&!quem)throw new Error('Informe o sócio que pagou.');
         const its=lerLinhas();if(!its.length)throw new Error('Não sobrou nenhuma linha para lançar.');
         const ruim=its.findIndex(x=>!x.cat||!x.desc);if(ruim>=0)throw new Error(`Linha ${ruim+1}: escolha a categoria › descrição.`);
+        if(rat&&!(await GS.rateio.confirmarRateio(obrasR,total(),its.length>1?`Estas ${its.length} saídas vão ser rateadas`:'Esta saída vai ser rateada')))return false;
         const ops=[],aps={},T0=Date.now().toString(36);
         its.forEach((x,i)=>{const p=x.p,iso=isoDeBR(p.t.data),v=-p.t.valor,rid=rat?'rt'+T0+'_'+i:'';
           const partes=rat?GS.rateio.partesRateio(v,obrasR):[{obra:centro,valor:v,pct:100}];
@@ -11712,7 +11702,7 @@ const Fin=(function(){
       tb.querySelectorAll('tr').forEach(tr=>{const box=tr.querySelector('.cg'),cat=tr.querySelector('[data-i="cat"]').value,desc=tr.querySelector('[data-i="desc"]').value,forn=tr.querySelector('[data-i="forn"]').value;
         if(cat&&!cats.includes(cat)){const nc=GS.comboGasto.categoriaDe(desc,forn,emp);nc&&cats.includes(nc)?GS.comboGasto.definir(box,nc,desc):GS.comboGasto.limpar(box);}});
       const top=j.querySelector('[data-k="catTodas"]');if(top.value&&!cats.includes(top.value))GS.comboGasto.limpar(top.closest('.cg'));};
-    ce.addEventListener('change',()=>{rb.hidden=ce.value!==RAT;ajustarCats();});
+    ce.addEventListener('change',ajustarCats);
     j.onchange=ev=>{
       if(ev.target.matches('[data-k="descTodas"]')){const cat=j.querySelector('[data-k="catTodas"]').value,desc=ev.target.value;if(cat&&desc)tb.querySelectorAll('.cg').forEach(b=>GS.comboGasto.definir(b,cat,desc));}
       else if(ev.target.matches('[data-k="formaTodas"]')){const f=ev.target.value;if(f)tb.querySelectorAll('[data-i="forma"]').forEach(s=>{s.value=f;});}
@@ -11720,37 +11710,6 @@ const Fin=(function(){
     tb.addEventListener('click',ev=>{const b=ev.target.closest('[data-i="tirar"]');if(b){b.closest('tr').remove();pintarTot();}});
     ajustarCats();pintarTot();
     try{Eng.datalistFornecedores();}catch(e){}
-  }
-  /* Uma saída do banco pagando várias contas (um PIX ou TED para o mesmo fornecedor, pagamento em lote): marca as contas
-     — as em aberto ganham a baixa na data do banco; as já pagas e ainda soltas do extrato só são ligadas a ele. O sistema
-     soma e mostra a diferença para o valor que saiu. */
-  // em aberto primeiro (vencimento mais perto da data do banco; sem vencimento no fim), depois as já pagas
-  function contasParaLigar(td){
-    const dist=m=>{const d=m.pago?m.dataBaixa:m.venc;return d?Math.abs(dias(d,td)):99999;};
-    return movimentos().filter(m=>m.sent<0&&(!m.pago||(!m.r.conciliacao&&m.dataBaixa&&Math.abs(dias(m.dataBaixa,td))<=30)))
-      .sort((a,b)=>(a.pago?1:0)-(b.pago?1:0)||dist(a)-dist(b));
-  }
-  async function ligarContas(t,alvos){
-    const ab=alvos.filter(m=>!m.pago),pg=alvos.filter(m=>m.pago),lote=[];
-    if(ab.length)lote.push({t,acao:'baixar',alvos:ab});if(pg.length)lote.push({t,acao:'vincular',alvos:pg});
-    const r=await executar(()=>aplicar(lote));if(r.falhas.length)throw new Error(r.falhas[0]);
-  }
-  function variasContas(p){
-    const v=-p.t.valor,ms=contasParaLigar(dt(p.t.data));
-    if(!ms.length)return toast('Não há contas em aberto (nem pagas e ainda soltas do extrato) para escolher.','error');
-    const j=janela('Uma saída, várias contas',`<div class="fin-resumo">${fe(p.t.data)} · ${fe(p.t.desc)}<br>Saiu do banco: <b>${fmt(v)}</b></div>
-      <div class="fin-fld"><input type="search" data-k="busca" placeholder="Pesquisar: fornecedor, obra, descrição ou valor…" autocomplete="off"></div>
-      <div class="fin-lote cc-varias">${ms.map((m,i)=>`<label data-busca="${fe(cn([m.quem,m.desc,m.origem,fmt(m.valor),n2c(m.valor)].join(' ')))}"><input type="checkbox" data-i="${i}"><span><b>${fe(m.quem||m.desc)}</b><small>${m.quem?fe(m.desc)+' · ':''}${fe(m.origem)} · ${m.pago?`já paga em ${brDe(m.dataBaixa)} — só liga ao extrato`:m.venc?'vence '+brDe(m.venc):'sem vencimento'}</small></span><span class="v">${fmt(m.valor)}</span></label>`).join('')}<p class="cc-nada" hidden>Nada encontrado.</p></div>
-      <div class="fin-resumo" data-k="total">Marque as contas que esta saída pagou.</div>`,
-      [{html:'<i class="fas fa-link"></i> Conciliar as marcadas',cls:'pri',acao:async jj=>{
-        const sel=[...jj.querySelectorAll('[data-i]:checked')].map(x=>ms[+x.dataset.i]);
-        if(!sel.length)throw new Error('Marque as contas que esta saída pagou.');
-        await ligarContas(p.t,sel);
-        toast(`${sel.length} conta${sel.length>1?'s conciliadas':' conciliada'} com esta saída do banco.`,'success');}}],720);
-    const total=()=>{const sel=[...j.querySelectorAll('[data-i]:checked')].map(x=>ms[+x.dataset.i]),s=sel.reduce((a,m)=>a+m.valor,0),dif=Math.round((v-s)*100)/100;
-      j.querySelector('[data-k="total"]').innerHTML=sel.length?`${sel.length} conta${sel.length>1?'s':''}: <b>${fmt(s)}</b> · saiu do banco ${fmt(v)} · diferença <b class="${Math.abs(dif)<0.01?'t-ok':'t-err'}">${fmt(dif)}</b>${Math.abs(dif)>=0.01?'<br><small>Saiu a mais costuma ser juros ou multa; a menos, desconto. A baixa é feita mesmo assim, na data do banco — confira depois.</small>':''}`:'Marque as contas que esta saída pagou.';};
-    j.onchange=total;
-    j.oninput=ev=>{if(!ev.target.matches('[data-k="busca"]'))return;const q=cn(ev.target.value).split(' ').filter(Boolean);let n=0;j.querySelectorAll('.fin-lote label').forEach(l=>{l.hidden=!q.every(w=>l.dataset.busca.includes(w));if(!l.hidden)n++;});j.querySelector('.cc-nada').hidden=n>0;};
   }
   // saída do banco sem conta: abre a "Nova conta" em modo compra — vários itens (ou a nota lida), somando o valor do banco
   function lancarConta(p){
@@ -16942,39 +16901,60 @@ const Mascara=(function(){
   function partesRateio(total,obras){const vs=obras.map(valorOrcObra),s=vs.reduce((a,b)=>a+b,0);if(!(s>0))return null;const cent=Math.round(total*100);let acum=0;
     return obras.map((ob,i)=>{const c=i<obras.length-1?Math.round(cent*vs[i]/s):cent-acum;acum+=c;return {obra:ob,valor:c/100,pct:vs[i]/s*100};});}
   const pctTxt=p=>p.toLocaleString('pt-BR',{maximumFractionDigits:1})+'%';
-  /* lista das obras do rateio: pesquisa pelo nome, filtro pela situação, "marcar as da lista" / "desmarcar todas" e, embaixo,
-     as obras escolhidas com o nome inteiro, a porcentagem e o valor de cada uma (dá para tirar uma obra ali mesmo).
-     Obra marcada que some no filtro continua marcada. */
+  /* OBRA do gasto (ou do aporte): uma lista só. Marcou uma obra, o valor vai todo para ela; marcou duas ou mais, o valor é
+     rateado na proporção do orçamento de cada uma. Pesquisa pelo nome, filtro pela situação e um botão só, que marca ou
+     desmarca as obras da lista. Embaixo, as obras escolhidas com a porcentagem e o valor (dá para tirar uma ali mesmo).
+     Obra marcada que some no filtro continua marcada. Obra sem orçamento só pode ir sozinha: sem ele não há como calcular a parte dela. */
   const FASE_ROT={execucao:'Em execução',ganha:'Ganha · aguardando início',entregue:'Entregue'};
-  const htmlRateio=()=>{const obs=opsObra().map(ob=>({ob,v:valorOrcObra(ob),f:faseObra(ob)})).sort((a,b)=>(b.v>0)-(a.v>0)||a.ob.localeCompare(b.ob,'pt-BR'));
-    return `<div class="rat" data-rat hidden><div class="rat-cab"><b><i class="fas fa-chart-pie"></i> Ratear entre obras</b><span>pela proporção do orçamento de cada uma — a de orçamento maior fica com a parte maior</span></div>
+  const htmlRateio=(valor,oculto)=>{const atual=valor&&valor!==EMP&&valor!=='__rateio__'?valor:'',nomes=opsObra();if(atual&&!nomes.includes(atual))nomes.unshift(atual);
+    const obs=nomes.map(ob=>({ob,v:valorOrcObra(ob),f:faseObra(ob)})).sort((a,b)=>(b.v>0)-(a.v>0)||a.ob.localeCompare(b.ob,'pt-BR'));
+    return `<div class="rat" data-rat ${oculto?'hidden':''}>
     <div class="rat-barra"><div class="rat-busca"><i class="fas fa-magnifying-glass"></i><input type="search" data-rat-q placeholder="Pesquisar a obra pelo nome…" autocomplete="off"></div>
       <select data-rat-fase title="Filtrar as obras pela situação">${FASES_OB.map(([k,r])=>`<option value="${k}">${r}</option>`).join('')}</select>
-      <button type="button" class="fin-bt mini" data-rat-todas><i class="fas fa-check-double"></i> Marcar as da lista</button><button type="button" class="fin-bt mini" data-rat-limpar><i class="fas fa-xmark"></i> Desmarcar todas</button></div>
-    <div class="rat-l">${obs.map(x=>`<label class="${x.v>0?'':'sem'}" data-busca="${fe(cn(x.ob))}" data-fase="${x.f}"><input type="checkbox" value="${fe(x.ob)}" ${x.v>0?'':'disabled'}><span class="rat-nome">${fe(x.ob)}<small>${[FASE_ROT[x.f],x.v>0?'orçamento '+fmt(x.v):'sem orçamento — não entra no rateio'].filter(Boolean).join(' · ')}</small></span><em></em></label>`).join('')}<p class="rat-nada" hidden>Nenhuma obra com esse filtro.</p></div>
+      <button type="button" class="fin-bt mini" data-rat-todas></button></div>
+    <div class="rat-l">${obs.map(x=>`<label class="${x.v>0?'':'sem'}" data-busca="${fe(cn(x.ob))}" data-fase="${x.f}"><input type="checkbox" value="${fe(x.ob)}" ${x.ob===atual?'checked':''}><span class="rat-nome">${fe(x.ob)}<small>${[FASE_ROT[x.f],x.v>0?'orçamento '+fmt(x.v):'sem orçamento — não entra em rateio'].filter(Boolean).join(' · ')}</small></span><em></em></label>`).join('')}<p class="rat-nada" hidden>Nenhuma obra com esse filtro.</p></div>
     <div class="rat-sel" data-rat-sel hidden></div><small data-rat-tot></small></div>`;};
+  const semOrcamento=obras=>obras.filter(ob=>!(valorOrcObra(ob)>0));
+  const erroRateio=obras=>{const s=semOrcamento(obras);return s.length?`${s.join(', ')} não ${s.length>1?'têm':'tem'} orçamento e não ${s.length>1?'entram':'entra'} em rateio: desmarque ou deixe uma obra só.`:'';};
   function ligarRateio(box,totalFn){
     const chks=()=>[...box.querySelectorAll('.rat-l input[type="checkbox"]')];
     const obras=()=>chks().filter(i=>i.checked).map(i=>i.value);
+    // o campo escondido de sempre: a obra marcada ou, com duas ou mais, o rateio
+    const dest=box.closest('[data-dest]'),valor=()=>{const s=obras();return s.length>1?'__rateio__':s[0]||'';};
+    if(dest)dest._valorObra=valor;
+    const emObra=()=>{const r=dest&&dest.querySelector('.dest-modos input:checked');return !r||r.value==='obra';};
+    const daLista=()=>[...box.querySelectorAll('.rat-l label:not([hidden]):not(.sem) input')];
+    const pintarBt=()=>{const L=daLista(),tudo=L.length>0&&L.every(i=>i.checked),b=box.querySelector('[data-rat-todas]');b.disabled=!L.length;b.innerHTML=tudo?'<i class="fas fa-xmark"></i> Desmarcar as da lista':'<i class="fas fa-check-double"></i> Marcar as da lista';};
     const filtrar=()=>{const q=cn(box.querySelector('[data-rat-q]').value).split(' ').filter(Boolean),f=box.querySelector('[data-rat-fase]').value;let n=0;
       box.querySelectorAll('.rat-l label').forEach(l=>{const ok=(!f||l.dataset.fase===f)&&q.every(p=>l.dataset.busca.includes(p));l.hidden=!ok;if(ok)n++;});
-      box.querySelector('.rat-nada').hidden=n>0;};
-    const pintar=()=>{const sel=obras(),tot=totalFn()||0,p=sel.length?partesRateio(tot||100,sel):null;
-      box.querySelectorAll('.rat-l label').forEach(l=>{const i=l.querySelector('input'),x=p&&p.find(y=>y.obra===i.value);l.querySelector('em').textContent=x?`${pctTxt(x.pct)}${tot?' · '+fmt(x.valor):''}`:'';l.classList.toggle('on',!!x);});
-      const sb=box.querySelector('[data-rat-sel]');sb.hidden=!p;
-      sb.innerHTML=p?`<div class="rat-sel-cab"><b>Obras escolhidas (${p.length})</b>${tot?`<span>${fmt(tot)} divididos assim</span>`:''}</div><ol>${p.map(x=>`<li><span class="rat-nome">${fe(x.obra)}</span><em>${pctTxt(x.pct)}</em>${tot?`<b>${fmt(x.valor)}</b>`:''}<button type="button" data-rat-tira="${fe(x.obra)}" title="Tirar esta obra do rateio" aria-label="Tirar esta obra do rateio"><i class="fas fa-xmark"></i></button></li>`).join('')}</ol>`:'';
-      box.querySelector('[data-rat-tot]').textContent=sel.length<2?'Marque as obras (pelo menos 2). Só entram obras com orçamento.':'';};
+      box.querySelector('.rat-nada').hidden=n>0;pintarBt();};
+    const pintar=()=>{const sel=obras(),tot=totalFn()||0,rat=sel.length>1,err=rat?erroRateio(sel):'',p=rat&&!err?partesRateio(tot||100,sel):null;
+      box.querySelectorAll('.rat-l label').forEach(l=>{const i=l.querySelector('input'),x=p&&p.find(y=>y.obra===i.value);l.querySelector('em').textContent=x?`${pctTxt(x.pct)}${tot?' · '+fmt(x.valor):''}`:'';l.classList.toggle('on',i.checked);});
+      const tira=ob=>`<button type="button" data-rat-tira="${fe(ob)}" title="Desmarcar esta obra" aria-label="Desmarcar esta obra"><i class="fas fa-xmark"></i></button>`;
+      const sb=box.querySelector('[data-rat-sel]');sb.hidden=!sel.length;
+      sb.innerHTML=!sel.length?'':p?`<div class="rat-sel-cab"><b><i class="fas fa-chart-pie"></i> Rateio entre ${p.length} obras</b><span>${tot?fmt(tot)+' divididos':'dividido'} pela proporção do orçamento</span></div><ol>${p.map(x=>`<li><span class="rat-nome">${fe(x.obra)}</span><em>${pctTxt(x.pct)}</em>${tot?`<b>${fmt(x.valor)}</b>`:''}${tira(x.obra)}</li>`).join('')}</ol>`
+        :`<div class="rat-sel-cab"><b>${rat?`${sel.length} obras marcadas`:'Vai tudo para esta obra'}</b>${!rat&&tot?`<span>${fmt(tot)}</span>`:''}</div><ol>${sel.map(ob=>`<li><span class="rat-nome">${fe(ob)}</span>${tira(ob)}</li>`).join('')}</ol>`;
+      box.querySelector('[data-rat-tot]').innerHTML=err?`<span class="rat-err"><i class="fas fa-triangle-exclamation"></i> ${fe(err)}</span>`:sel.length?'':'Marque uma obra e o valor vai todo para ela. Marque duas ou mais e o valor é rateado pela proporção do orçamento.';
+      pintarBt();if(dest&&emObra())mudouDestino(dest,valor());};
     box.addEventListener('input',ev=>{if(ev.target.matches('[data-rat-q]'))filtrar();});
     box.addEventListener('keydown',ev=>{if(ev.key==='Enter'&&ev.target.matches('[data-rat-q]'))ev.preventDefault();});
     box.addEventListener('change',ev=>{if(ev.target.matches('[data-rat-fase]'))return filtrar();if(ev.target.matches('[data-rat-q]'))return;pintar();});
     box.addEventListener('click',ev=>{const b=ev.target.closest('button');if(!b)return;
-      if(b.matches('[data-rat-todas]'))box.querySelectorAll('.rat-l label:not([hidden]) input:not(:disabled)').forEach(i=>{i.checked=true;});
-      else if(b.matches('[data-rat-limpar]'))chks().forEach(i=>{i.checked=false;});
+      if(b.matches('[data-rat-todas]')){const L=daLista(),tudo=L.every(i=>i.checked);L.forEach(i=>{i.checked=!tudo;});}
       else if(b.dataset.ratTira!=null){const i=chks().find(x=>x.value===b.dataset.ratTira);if(i)i.checked=false;}
       else return;
       pintar();});
     pintar();return {obras,pintar};
   }
+  // aviso antes de gravar um rateio: dá para ter marcado mais de uma obra sem querer. Devolve true se a pessoa confirmar.
+  function confirmarRateio(obras,total,titulo){return new Promise(res=>{
+    const p=partesRateio(total||100,obras)||[],ov=document.createElement('div');ov.className='confirm-overlay open rat-aviso';
+    ov.innerHTML=`<div class="confirm-box" role="alertdialog" aria-modal="true"><div class="confirm-title"><i class="fas fa-chart-pie"></i> ${fe(titulo)}</div>
+      <div class="confirm-msg">${total?`<b>${fmt(total)}</b> serão divididos`:'O valor será dividido'} entre <b>${p.length} obras</b>, pela proporção do orçamento de cada uma:
+      <ul class="vk-exc-lista">${p.map(x=>`<li><span>${fe(x.obra)}</span><b>${pctTxt(x.pct)}${total?' · '+fmt(x.valor):''}</b></li>`).join('')}</ul>Está certo? Se não quiser ratear, clique em <b>Não</b> e deixe marcada só uma obra.</div>
+      <div class="confirm-actions"><button type="button" class="confirm-no" data-nao>Não, voltar</button><button type="button" class="confirm-yes" data-sim style="background:var(--blue)">Sim, ratear</button></div></div>`;
+    ov.addEventListener('click',ev=>{const s=ev.target.closest('[data-sim]'),n=ev.target.closest('[data-nao]');if(!s&&!n)return;ov.remove();res(!!s);});
+    document.body.appendChild(ov);ov.querySelector('[data-nao]').focus();});}
   // sócios / investidores já usados nos aportes
   const socios=()=>[...new Set((typeof QUEM_APORTOU!=='undefined'?QUEM_APORTOU:[]).concat((D().aportes||[]).map(r=>getFuzzy(r,['quem_aportou','quem'])).filter(Boolean)))];
   // aporte lançado a partir de uma conta paga com dinheiro do sócio
@@ -16984,24 +16964,26 @@ const Mascara=(function(){
   GS.podeMexer=(r,nome)=>{if(GS.ehAdm())return true;r=r||{};const s=Auth._session||{},eu=[s.uid,s.cpf,s.email,s.nome].filter(Boolean).map(String),dono=r.criado_por_id||r.enviado_por_id;
     if(dono)return eu.includes(String(dono));const quem=nome||r.lancado_por||r.criado_por||r.enviado_por||'';return quem?cn(quem)===cn(s.nome||''):false;};
   GS.MSG_DONO='Só quem lançou (ou um Administrador) pode editar ou excluir.';
-  GS.rateio={valorOrcObra,partesRateio,htmlRateio,ligarRateio,socios,pctTxt,registroAporte};
-  /* DESTINO do gasto (ou do aporte): três escolhas fora da lista — Obra · Custo indireto (Empresa) · Ratear entre obras.
-     Em "Obra", a lista de obras tem um filtro pela situação (Em execução, Ganha · aguardando início, Entregue). O valor fica
-     num campo escondido com o atributo de sempre (data-l/data-k="centro"), então o resto da tela continua igual. */
+  GS.rateio={valorOrcObra,partesRateio,ligarRateio,socios,pctTxt,registroAporte,erroRateio,confirmarRateio};
+  /* DESTINO do gasto (ou do aporte): Obra · Custo indireto (Empresa). Em "Obra" fica a lista de obras (acima): uma marcada, o
+     valor vai para ela; duas ou mais, rateio. Quem edita um lançamento só (rateio:false) escolhe uma obra numa lista simples, com
+     filtro pela situação. O valor fica num campo escondido com o atributo de sempre (data-l/data-k="centro": a obra, a Empresa ou
+     "__rateio__"), então o resto da tela continua igual. */
   const FASES_OB=[['','Todas as obras'],['execucao','Em execução'],['ganha','Ganha · aguardando início'],['entregue','Entregue']];
   const faseObra=ob=>{const o=(D().obras||[]).find(x=>Eng.nomeObra(x)===ob),t=cn(o?Eng.statusObra(o):'');return t.includes('finalizada')?'entregue':t.includes('andamento')?'execucao':t.includes('ganha')?'ganha':'outra';};
   let DESTN=0;
   const opsObraDe=(fase,atual)=>{const l=opsObra().filter(ob=>!fase||faseObra(ob)===fase);if(atual&&atual!==EMP&&atual!=='__rateio__'&&!l.includes(atual))l.unshift(atual);return `<option value="">Escolha a obra…</option>${l.map(ob=>`<option ${ob===atual?'selected':''}>${fe(ob)}</option>`).join('')}`;};
   function htmlDestino(attr,valor,op){op={rateio:true,empresa:C.podeEmpresa(),...(op||{})};const n=++DESTN;
-    const modo=valor===EMP?'emp':valor==='__rateio__'?'rat':'obra';
-    const ms=[['obra','fa-helmet-safety','Obra'],op.empresa?['emp','fa-building','Custo indireto (Empresa)']:null,op.rateio?['rat','fa-chart-pie','Ratear entre obras']:null].filter(Boolean);
+    const modo=valor===EMP?'emp':'obra';
+    const ms=[['obra','fa-helmet-safety','Obra'],op.empresa?['emp','fa-building','Custo indireto (Empresa)']:null].filter(Boolean);
     return `<div class="dest" data-dest><input type="hidden" ${attr} value="${fe(valor||'')}">
-      <div class="dest-modos" role="radiogroup">${ms.map(([k,ic,r])=>`<label class="${modo===k?'on':''}"><input type="radio" name="dest-${n}" value="${k}" ${modo===k?'checked':''}><i class="fas ${ic}"></i> ${r}</label>`).join('')}</div>
-      <div class="dest-obra" ${modo==='obra'?'':'hidden'}><select data-dest-fase title="Filtrar as obras pela situação">${FASES_OB.map(([k,r])=>`<option value="${k}">${r}</option>`).join('')}</select><select data-dest-obra>${opsObraDe('',modo==='obra'?valor:'')}</select></div></div>`;}
+      ${ms.length>1?`<div class="dest-modos" role="radiogroup">${ms.map(([k,ic,r])=>`<label class="${modo===k?'on':''}"><input type="radio" name="dest-${n}" value="${k}" ${modo===k?'checked':''}><i class="fas ${ic}"></i> ${r}</label>`).join('')}</div>`:''}
+      ${op.rateio?htmlRateio(valor,modo!=='obra'):`<div class="dest-obra" ${modo==='obra'?'':'hidden'}><select data-dest-fase title="Filtrar as obras pela situação">${FASES_OB.map(([k,r])=>`<option value="${k}">${r}</option>`).join('')}</select><select data-dest-obra>${opsObraDe('',modo==='obra'?valor:'')}</select></div>`}</div>`;}
   const mudouDestino=(box,v)=>{const h=box.querySelector('input[type="hidden"]');if(h.value===v)return;h.value=v;h.dispatchEvent(new Event('input',{bubbles:true}));h.dispatchEvent(new Event('change',{bubbles:true}));};
   document.addEventListener('change',ev=>{const box=ev.target.closest('[data-dest]');if(!box||ev.target.type==='hidden')return;
-    if(ev.target.type==='radio'){const k=ev.target.value;box.querySelectorAll('.dest-modos label').forEach(l=>l.classList.toggle('on',l.querySelector('input').checked));box.querySelector('.dest-obra').hidden=k!=='obra';
-      mudouDestino(box,k==='emp'?EMP:k==='rat'?'__rateio__':box.querySelector('[data-dest-obra]').value);}
+    if(ev.target.type==='radio'){const k=ev.target.value,lista=box.querySelector('[data-rat]'),simples=box.querySelector('.dest-obra');box.querySelectorAll('.dest-modos label').forEach(l=>l.classList.toggle('on',l.querySelector('input').checked));
+      if(lista)lista.hidden=k!=='obra';if(simples)simples.hidden=k!=='obra';
+      mudouDestino(box,k==='emp'?EMP:box._valorObra?box._valorObra():simples?box.querySelector('[data-dest-obra]').value:'');}
     else if(ev.target.matches('[data-dest-fase]')){const so=box.querySelector('[data-dest-obra]'),at=so.value;so.innerHTML=opsObraDe(ev.target.value,'');if([...so.options].some(o=>o.value===at))so.value=at;mudouDestino(box,so.value);}
     else if(ev.target.matches('[data-dest-obra]'))mudouDestino(box,ev.target.value);});
   GS.destino={html:htmlDestino};
@@ -17100,7 +17082,6 @@ const Mascara=(function(){
       ${cc?`<div class="fin-resumo">Saiu do banco em <b>${fe(cc.dataBR||brDe(dt(cc.data)))}</b>: <b>${fmt(cc.valor)}</b> · ${fe(cc.desc)}${pre.dica?`<br><small>${pre.dica}</small>`:''}<br><small>Lance os itens desta compra (dá para ler a nota ou o cupom). A soma tem que fechar com o valor do banco; tudo entra <b>pago em ${fe(cc.dataBR||brDe(dt(cc.data)))}</b> e ligado a esta linha do extrato.</small></div>`:''}
       <div class="fin-linha">
         <div class="fin-fld" style="grid-column:1/-1"><label>Para onde vai o gasto <span class="obg">*</span></label>${htmlDestino('data-l="centro"',pre.centro!=null?pre.centro:(QC.obra||''))}</div>
-        <div style="grid-column:1/-1">${htmlRateio()}</div>
         <div class="fin-fld"><label>Compra/aquisição <span class="obg">*</span></label><input type="date" data-l="dcompra" max="${isoDe(hoje0())}" value="${fe(cc?cc.data:isoDe(hoje0()))}"></div>
         <div class="fin-fld"><label>Forma de pagamento</label><select data-l="forma"><option value="">—</option>${FORMAS.map(x=>`<option ${pre.forma===x?'selected':''}>${fe(x)}</option>`).join('')}</select></div>
         <div class="fin-fld" ${cc?'hidden':''}><label>Repete?</label><select data-l="rep"><option value="">Não — conta única</option><option value="parc">Compra parcelada (divide o valor)</option><option value="mes">Todo mês (conta fixa)</option></select></div>
@@ -17118,7 +17099,7 @@ const Mascara=(function(){
     janela('Nova conta a pagar',corpo,[{html:'<i class="fas fa-cart-arrow-down"></i> Lançar',cls:'pri',acao:async j=>{
       const g=k=>(j.querySelector(`[data-l="${k}"]`).value||'').trim(),centro0=g('centro'),rat=centro0===RAT,rep=g('rep'),forma=g('forma');
       const socio=q('socio').checked,quem=g('quem'),pagoEm=g('pagoem'),obrasR=rat?RT.obras():[];
-      if(!centro0)throw new Error('Escolha a obra (ou Custo indireto / Ratear).');if(rat&&obrasR.length<2)throw new Error('Marque pelo menos 2 obras para o rateio.');
+      if(!centro0)throw new Error('Marque a obra (ou Custo indireto).');if(rat&&erroRateio(obrasR))throw new Error(erroRateio(obrasR));
       const dCompra=g('dcompra');if(!dCompra)throw new Error('Informe a data da compra/aquisição.');if(dCompra>isoDe(hoje0()))throw new Error('A data da compra/aquisição não pode ser depois de hoje.');
       if(socio&&!quem)throw new Error('Informe o sócio que pagou.');if(socio&&(!pagoEm||pagoEm>isoDe(hoje0())))throw new Error('Informe a data em que o sócio pagou (até hoje).');
       const its=lerItens(j).filter(x=>x.desc||x.total);if(!its.length)throw new Error('Inclua pelo menos um item.');
@@ -17131,6 +17112,7 @@ const Mascara=(function(){
       const prods=its.some(x=>!x.extra)?its.filter(x=>!x.extra):its,dn=num(g('descnota')),somaIts=prods.reduce((a,x)=>a+x.total,0);if(dn&&dn>=somaIts-0.004)throw new Error('O desconto não pode ser maior que o valor dos itens.');
       let acD=0;its.forEach(x=>{x.dsc=0;});prods.forEach((x,i)=>{x.dsc=i<prods.length-1?Math.round(dn*x.total/somaIts*100)/100:Math.round((dn-acD)*100)/100;acD+=x.dsc;});its.forEach(x=>{x.liq=Math.round((x.total-x.dsc)*100)/100;});
       if(cc){const liq=Math.round((its.reduce((a,x)=>a+x.total,0)-dn)*100)/100;if(Math.abs(liq-cc.valor)>0.009)throw new Error(`A soma dos itens (${fmt(liq)}) tem que ser igual ao valor que saiu do banco (${fmt(cc.valor)}) — ${liq<cc.valor?'faltam':'sobram'} ${fmt(Math.abs(liq-cc.valor))}.`);}
+      if(rat&&!(await confirmarRateio(obrasR,Math.round(its.reduce((a,x)=>a+x.liq,0)*100)/100,'Esta conta vai ser rateada')))return false;
       const somaP=PARC.reduce((a,p)=>a+p.valor,0),ops=[],aps={},rid=rat?'rt'+Date.now().toString(36):'',T0=Date.now().toString(36),compra='cp'+T0;
       for(const x of its){
         const destinos=rat?partesRateio(x.liq,obrasR):[{obra:centro0,valor:x.liq,pct:100}];
@@ -17188,7 +17170,9 @@ const Mascara=(function(){
       if(k==='qtd'||k==='pu'){tr.classList.remove('conferir');const qd=nb(tr.querySelector('[data-i="qtd"]').value),pu=nb(tr.querySelector('[data-i="pu"]').value);tr.querySelector('[data-i="vt"]').value=qd>0&&pu>0?fmt(Math.round(qd*pu*100)/100):'';}soma();});
     tb.addEventListener('click',ev=>{const b=ev.target.closest('[data-i="tirar"]');if(b){b.closest('tr').remove();soma();}});
     q('add').addEventListener('click',()=>linha({}));
-    q('centro').addEventListener('change',()=>{const rat=q('centro').value===RAT;j.querySelector('[data-rat]').hidden=!rat;const cs=emp()?C.CATD():C.CATC(),its=lerItens(j);tb.innerHTML='';
+    // só quando muda entre obra e Empresa: as categorias e os campos da linha são outros (marcar mais uma obra não mexe nas linhas)
+    let eraEmp=emp();
+    q('centro').addEventListener('change',()=>{const e=emp();if(e===eraEmp)return;eraEmp=e;const cs=e?C.CATD():C.CATC(),its=lerItens(j);tb.innerHTML='';
       its.forEach(x=>linha({...x,cat:cs.includes(x.cat)?x.cat:categoriaDe(x.desc,x.forn,emp())}));if(!its.length)linha({});});
     q('arq').addEventListener('change',async()=>{const f=q('arq').files[0];if(!f)return;const st=q('st');st.textContent='Lendo…';
       try{const r=await lerArquivoNota(f,t=>{st.textContent=t;});
@@ -20994,6 +20978,10 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
 .usr-card-cab h3,.perm-tit h3{margin:0;font:800 15px Inter,sans-serif;color:var(--text-1);display:flex;align-items:center;gap:9px;}
 .usr-card-cab h3 i,.perm-tit h3 i{width:30px;height:30px;border-radius:9px;display:inline-grid;place-items:center;background:#101828;color:#fff;font-size:12px;}
 .usr-card-cab span{font-size:12px;color:#667085;font-weight:600;}
+.perm-obras{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:5px 14px;max-height:170px;overflow-y:auto;padding:8px 10px;border:1px solid #E4E9F2;border-radius:10px;margin-bottom:4px;} .perm-obras[hidden]{display:none;}
+.perm-obras label{display:flex;gap:7px;align-items:flex-start;font-size:12.5px;line-height:1.3;cursor:pointer;color:#344054;} .perm-obras input{flex:none;margin-top:1px;}
+.perm-obras-modo{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:12.5px;margin-bottom:8px;} .perm-obras-modo label{display:flex;gap:6px;align-items:center;cursor:pointer;color:#344054;}
+.perm-obras-nota{font-size:12px;color:#475467;margin:0 0 8px;}
 .usr-tab-wrap{overflow-x:auto;}
 .usr-tab{width:100%;border-collapse:collapse;font-size:13px;min-width:760px;}
 .usr-tab th{text-align:left;font:800 10px Inter,sans-serif;text-transform:uppercase;letter-spacing:.05em;color:#667085;background:#F8FAFC;padding:9px 14px;border-bottom:1px solid #EEF1F6;}
@@ -21039,18 +21027,16 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
 </style>
 <script>
 /* ═══════════════════════ USUÁRIOS E PERMISSÕES NA PEGADA DA VTC ═══════════════════════
-   Como no sistema da VTC: a tela "Usuários e permissões" tem a lista de quem usa o sistema e, para o
-   Administrador, as PERMISSÕES DE ACESSO POR PERFIL (Sócio, Gestão, Usuário), em cartões lado a lado.
-   Em cada tela: Nenhum (nem aparece no menu) · Ver (só consulta) · Editar (cria e altera) · + Excluir ·
-   + Aprovar (Contas a pagar); e os relatórios que o perfil pode abrir. O Administrador faz tudo.
-   Gravado na tabela "planejamento" ({tipo:'permissoes', perfil, acessos{tela:nível}, aprovar{}, relatorios{}}).
-   Perfil ainda não configurado: cada usuário segue a lista de telas que já tinha no cadastro (null = todas),
-   com acesso completo nelas — ninguém perde nem ganha acesso de repente.
+   A tela "Usuários e permissões" tem a lista de quem usa o sistema; o que cada um pode acessar é definido POR USUÁRIO,
+   no botão Permissões da lista: as obras que pode ver e, em cada tela, Nenhum (nem aparece no menu) · Ver (só consulta) ·
+   Editar (cria e altera) · + Excluir · + Aprovar (Contas a pagar); e os relatórios. O Administrador faz tudo.
+   Gravado na tabela "planejamento" ({tipo:'permissoes', usuario, acessos{tela:nível}, aprovar{}, relatorios{}}); as obras
+   ficam no cadastro do usuário. Quem ainda não tem permissões próprias segue o que já valia (a configuração antiga
+   do perfil ou a lista de telas do cadastro) — ninguém perde nem ganha acesso de repente.
    Ver/Excluir valem em todas as telas por um guarda único: com "Ver", botões de incluir, salvar, aprovar,
    lançar… e o arrastar dos quadros ficam travados; sem "Excluir", os de excluir/remover. */
 (function(){
   const fe=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-  const PERFIS=['Sócio','Gestão','Usuário','Externo'];
   const TELAS=[
     ['inicio','Início (painel)','fa-house'],['reunioes','Reuniões','fa-people-group'],['acoes','Tarefas e plano de ação','fa-list-check'],
     ['obras','Contratos e central da obra (orçamento, CAP)','fa-building'],['contratos','Ficha do contrato e aditivos','fa-file-signature'],
@@ -21089,7 +21075,6 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
   UI.podeExcluir=k=>UI.permNivel(k)==='excluir';
   UI.podeAprovar=k=>{if(ehAdm())return true;const cu=cfgUsr(sess());if(cu)return !!(cu.aprovar&&cu.aprovar[k]&&nivelCfg(cu,k)!=='nenhum');if(ehExt())return false;const cfg=cfgDe(perfilDe(sess().perfil));return !!(cfg&&cfg.aprovar&&cfg.aprovar[k]&&nivelCfg(cfg,k)!=='nenhum');};
   UI.podeRelatorio=r=>{if(ehAdm())return true;const cfg=cfgUsr(sess())||cfgDe(ehExt()?'Externo':perfilDe(sess().perfil));return !cfg||!cfg.relatorios||cfg.relatorios[r]!==false;};
-  UI.permPerfilConfigurado=p=>!!cfgDe(p);
 
   /* ───── menu: o que o perfil (ou o próprio usuário) vê ───── */
   UI._permAplicarMenu=function(navegar){
@@ -21117,7 +21102,7 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
     if(atual&&atual.disabled){const p=[...sel.options].find(o=>!o.disabled);if(p){sel.value=p.value;try{App._relatorioGerar();}catch(e){}}}
   }
   const navPerm=UI.nav;
-  UI.nav=function(v){const r=navPerm.apply(this,arguments);if(v==='relatorios')try{filtrarRelatorios();}catch(e){console.error(e);}return r;};
+  UI.nav=function(v){if(v==='usuarios')nomeVisivel=false;const r=navPerm.apply(this,arguments);if(v==='relatorios')try{filtrarRelatorios();}catch(e){console.error(e);}return r;};
   function relatoriosLista(){
     const sel=document.getElementById('rel-tipo');if(!sel)return [];
     return [...sel.querySelectorAll('optgroup')].map(g=>({grupo:g.label,itens:[...g.querySelectorAll('option')].map(o=>[o.value,o.textContent.trim()])})).filter(g=>g.itens.length);
@@ -21125,11 +21110,10 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
 
   /* ───── tela Usuários e permissões ───── */
   const cpfFmt=c=>{const d=String(c||'').replace(/\D/g,'');return d.length===11?d.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/,'$1.$2.$3-$4'):String(c||'');};
-  const doPerfil=p=>(UI._usuarios||[]).filter(u=>u.tipoUsuario!=='externo'&&!UI._ehAdmin(u.perfil)&&perfilDe(u.perfil)===p);
-  function linhaUsuario(u){
+  function linhaUsuario(u,semNome){
     const p=perfilDe(u.perfil),ext=u.tipoUsuario==='externo',ativo=String(u.status||'ativo').toLowerCase()==='ativo';
     const pf=ext?'Externo':p==='admin'?'Administrador':p;
-    return `<tr data-usr="${fe(u.id)}"><td><b>${fe(u.nome||'—')}</b></td><td>${ext?'—':fe(cpfFmt(u.cpf))||'—'}</td><td>${fe(u.email||'—')}</td>
+    return `<tr data-usr="${fe(u.id)}">${semNome?'':`<td><b>${fe(u.nome||'—')}</b></td>`}<td>${ext?'—':fe(cpfFmt(u.cpf))||'—'}</td><td>${fe(u.email||'—')}</td>
       <td><span class="usr-chip ${p==='admin'?'adm':ext?'ext':''}">${pf}</span></td><td>${ext?'Externo (entra com e-mail)':'Interno (entra com CPF)'}</td>
       <td><span class="usr-st ${ativo?'on':''}"><i></i>${ativo?'Ativo':'Inativo'}</span></td>
       <td>${p==='admin'?'<span class="usr-chip adm">Tudo</span>':cfgUsr(u)?'<span class="usr-chip" style="background:#FFFAEB;color:#B54708;border-color:#FEDF89"><i class="fas fa-user-gear"></i> Próprio</span>':`<span class="usr-chip">Segue o perfil</span>`}</td>
@@ -21141,11 +21125,21 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
   function nivelEfetivo(u,k){const cu=cfgUsr(u);if(cu)return nivelCfg(cu,k);
     if(u.tipoUsuario==='externo'){const ce=cfgDe('Externo');return ce?nivelCfg(ce,k):nivelAntigo(u.acessos,k);}
     const cfg=cfgDe(perfilDe(u.perfil));return cfg?nivelCfg(cfg,k):nivelAntigo(u.acessos,k);}
-  function permissoesUsuario(id){
-    const u=(UI._usuarios||[]).find(x=>String(x.id)===String(id));if(!u||!ehAdm())return;
+  /* pend: usuário externo ainda sem obra (novo, ou que acabou de virar externo): só é gravado aqui, junto com as obras */
+  function permissoesUsuario(id,pend){
+    const u=pend||(UI._usuarios||[]).find(x=>String(x.id)===String(id));if(!u||!ehAdm())return;
     if(!chaveUsr(u))return toast(u.tipoUsuario==='externo'?'Cadastre o e-mail deste usuário antes.':'Cadastre o CPF deste usuário antes.','error');
     const cu=cfgUsr(u),base=cu||(u.tipoUsuario==='externo'?cfgDe('Externo'):cfgDe(perfilDe(u.perfil))),rels=relatoriosLista();
-    const pf=u.tipoUsuario==='externo'?'Externo':perfilDe(u.perfil);
+    const pf=u.tipoUsuario==='externo'?'Externo':perfilDe(u.perfil),ext=u.tipoUsuario==='externo';
+    // obras que pode ver: externo sempre as marcadas; interno, todas ou só as marcadas
+    const obrasU=(Array.isArray(u.obrasPermitidas)?u.obrasPermitidas:[]).map(String),marc=ext||obrasU.length>0;
+    const obras=((App.state.data&&App.state.data.obras)||[]).map(o=>({id:String(o.rowid),nome:getFuzzy(o,['titulo_obra','nome_obra','titulo'])||`Obra #${o.rowid}`})).sort((a,b)=>a.nome.localeCompare(b.nome,'pt-BR',{numeric:true}));
+    const blocoObras=`<div class="perm-sub">Obras que pode ver</div>${ext?'<p class="perm-obras-nota">O usuário externo só vê as obras marcadas: marque pelo menos uma.</p>':`<div class="perm-obras-modo"><label><input type="radio" name="perm-obras" value="todas" ${marc?'':'checked'}> Todas as obras</label><label><input type="radio" name="perm-obras" value="marcadas" ${marc?'checked':''}> Só as obras marcadas (vê só o que é delas)</label></div>`}
+      <div class="perm-obras" data-perm-obras ${marc?'':'hidden'}>${obras.length?obras.map(o=>`<label><input type="checkbox" data-obra="${fe(o.id)}" ${obrasU.includes(o.id)?'checked':''}> <span>${fe(o.nome)}</span></label>`).join(''):'<p class="perm-obras-nota">Nenhuma obra cadastrada ainda.</p>'}</div>`;
+    // as obras ficam no cadastro do usuário (o servidor manda no banco por elas)
+    const gravarObras=lista=>new Promise((ok,er)=>{const d=pend?{...pend,obrasPermitidas:lista}:{nome:u.nome,cpf:u.cpf||'',email:u.email||'',senha:'',perfil:u.perfil,status:u.status,tipoUsuario:u.tipoUsuario||'interno',acessos:Array.isArray(u.acessos)?u.acessos:null,obrasPermitidas:lista};
+      delete d.id;google.script.run.withSuccessHandler(res=>{if(res&&res.ok){UI._usuarios=res.usuarios||[];ok(res);}else er(new Error((res&&res.msg)||'Não foi possível salvar as obras.'));})
+        .withFailureHandler(()=>er(new Error('Erro de conexão ao salvar as obras. Tente de novo.'))).salvarUsuario(d,pend?(pend.id||null):u.id);});
     const itens=TELAS.map(([k,t,ic])=>{const nv=nivelEfetivo(u,k),cur=nv==='excluir'?'editar':nv,apOn=!!(base&&base.aprovar&&base.aprovar[k]);
       return `<div class="perm-item"><span><i class="fas ${ic}"></i>${fe(t)}</span><div class="perm-ctrl">
         <select data-tela="${k}" data-v="${cur}">${NIVEIS.map(([v,l])=>`<option value="${v}" ${cur===v?'selected':''}>${l}</option>`).join('')}</select>
@@ -21154,54 +21148,25 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
     const rel=rels.map(g=>`<div class="perm-relg"><small>${fe(g.grupo)}</small>${g.itens.map(([k,t])=>`<label class="perm-rel"><input type="checkbox" data-rel="${fe(k)}" ${!base||!base.relatorios||base.relatorios[k]!==false?'checked':''}> ${fe(t)}</label>`).join('')}</div>`).join('');
     const gravarU=o=>new Promise((ok,er)=>google.script.run.withSuccessHandler(res=>{if(res&&res.ok){if(res.data){App.state.data=res.data;try{App.renderAll();}catch(e){console.error(e);}}try{UI.renderUsuarios();}catch(e){}ok(res);}else er(new Error((res&&res.msg)||'Não foi possível salvar.'));})
       .withFailureHandler(e=>er(new Error('Erro de conexão ao salvar as permissões. Tente de novo.'))).upsertRegistro('Planejamento',o,o.rowid||null));
-    const j=Fin.util.janela(`Permissões de ${u.nome||'usuário'}`,`<div class="perm-st ${cu?'ok':'aviso'}" style="margin-bottom:10px"><i class="fas ${cu?'fa-user-gear':'fa-circle-info'}"></i> ${cu?`Este usuário tem <b>permissões próprias</b> (não segue o perfil ${fe(pf)})${cu.atualizado_por?' · última mudança por '+fe(cu.atualizado_por):''}${cu.atualizado_em?' em '+fe(cu.atualizado_em):''}.`:`Hoje segue o perfil <b>${fe(pf)}</b> (o que aparece abaixo). Ao salvar, passa a valer só para este usuário o que você marcar aqui — sem mexer no perfil.`}</div>
-      <div class="perm-card" style="border:0;padding:0;box-shadow:none"><div class="perm-sub">Telas · nível de acesso e ações</div><div class="perm-grid">${itens}</div>
+    const j=Fin.util.janela(`Permissões de ${u.nome||'usuário'}`,`<div class="perm-st ${pend?'aviso':cu?'ok':'aviso'}" style="margin-bottom:10px"><i class="fas ${pend?'fa-triangle-exclamation':cu?'fa-user-gear':'fa-circle-info'}"></i> ${pend?'Marque as obras deste usuário externo e clique em <b>Salvar</b>: o cadastro só é gravado aqui.':cu?`Este usuário tem <b>permissões próprias</b>${cu.atualizado_por?' · última mudança por '+fe(cu.atualizado_por):''}${cu.atualizado_em?' em '+fe(cu.atualizado_em):''}.`:'Este usuário ainda não tem permissões próprias: o que aparece abaixo é o que ele vê hoje. Ao salvar, passa a valer o que você marcar aqui.'}</div>
+      <div class="perm-card" style="border:0;padding:0;box-shadow:none">${blocoObras}<div class="perm-sub">Telas · nível de acesso e ações</div><div class="perm-grid">${itens}</div>
       <div class="perm-sub">Relatórios que pode abrir</div><div class="perm-rels">${rel}</div></div>`,
-      [...(cu?[{html:'<i class="fas fa-rotate-left"></i> Voltar a seguir o perfil',acao:async()=>{await gravarU({...cu,desligado:true,atualizado_por:sess().nome||'',atualizado_em:todayDateTime()});toast(`${u.nome||'Usuário'} volta a seguir o perfil ${pf}.`,'success');}}]:[]),
-       {html:'<i class="fas fa-floppy-disk"></i> Salvar permissões do usuário',cls:'pri',acao:async jj=>{
+      [{html:'<i class="fas fa-floppy-disk"></i> Salvar permissões do usuário',cls:'pri',acao:async jj=>{
+        const modo=ext?'marcadas':(jj.querySelector('input[name="perm-obras"]:checked')||{}).value,marcadas=modo==='marcadas'?[...jj.querySelectorAll('[data-obra]:checked')].map(c=>c.dataset.obra):[];
+        if(modo==='marcadas'&&!marcadas.length)throw new Error(ext?'Marque pelo menos uma obra: o usuário externo só vê as obras marcadas.':'Marque as obras que o usuário pode ver (ou escolha "Todas as obras").');
         const acessos={},aprovar={},relatorios={};
         jj.querySelectorAll('select[data-tela]').forEach(s=>{let v=s.value;const ex=jj.querySelector(`[data-excluir="${s.dataset.tela}"]`);if(v==='editar'&&ex&&ex.checked)v='excluir';acessos[s.dataset.tela]=v;});
         jj.querySelectorAll('[data-aprov]').forEach(c=>aprovar[c.dataset.aprov]=c.checked);jj.querySelectorAll('[data-rel]').forEach(c=>relatorios[c.dataset.rel]=c.checked);
         if(!Object.values(acessos).some(v=>v!=='nenhum'))throw new Error('Libere ao menos uma tela (com nada liberado o usuário não consegue usar o sistema).');
+        if(pend||marcadas.slice().sort().join()!==obrasU.slice().sort().join())await gravarObras(marcadas);
         const r=cfgUsrDe(u),o={...(r||{}),tipo:'permissoes',usuario:chaveUsr(u),usuario_nome:u.nome||'',acessos,aprovar,relatorios,desligado:false,atualizado_por:sess().nome||'',atualizado_em:todayDateTime()};
         if(!r)o.data_lancamento=todayDateTime();delete o.perfil;
         await gravarU(o);toast(`Permissões de ${u.nome||'usuário'} salvas.`,'success');}}],920);
-    j.querySelector('.fin-jan-corpo').addEventListener('change',ev=>{const s=ev.target.closest('select[data-tela]');if(!s)return;s.dataset.v=s.value;const k=s.dataset.tela;
+    j.querySelector('.fin-jan-corpo').addEventListener('change',ev=>{if(ev.target.name==='perm-obras'){j.querySelector('[data-perm-obras]').hidden=ev.target.value!=='marcadas';return;}const s=ev.target.closest('select[data-tela]');if(!s)return;s.dataset.v=s.value;const k=s.dataset.tela;
       const ex=j.querySelector(`[data-excluir="${k}"]`);if(ex){const ok=s.value==='editar';ex.disabled=!ok;if(!ok)ex.checked=false;ex.closest('.perm-chk').classList.toggle('off',!ok);}
       const ap=j.querySelector(`[data-aprov="${k}"]`);if(ap){const ok=s.value!=='nenhum';ap.disabled=!ok;if(!ok)ap.checked=false;ap.closest('.perm-chk').classList.toggle('off',!ok);}});
   }
-  // o que o cartão mostra para um perfil ainda não configurado: as telas que os usuários dele já tinham
-  function nivelInicial(p){
-    const us=doPerfil(p);
-    if(!us.length||us.some(u=>!Array.isArray(u.acessos)))return ()=>'excluir';
-    return k=>us.some(u=>nivelAntigo(u.acessos,k)==='excluir')?'excluir':'nenhum';
-  }
-  function cartaoPerfil(p,rels){
-    const cfg=cfgDe(p),ini=cfg?null:nivelInicial(p),n=doPerfil(p).length;
-    const nivel=k=>cfg?nivelCfg(cfg,k):ini(k);
-    const itens=TELAS.map(([k,t,ic])=>{
-      const nv=nivel(k),cur=nv==='excluir'?'editar':nv;
-      const apOn=!!(cfg&&cfg.aprovar&&cfg.aprovar[k]);
-      return `<div class="perm-item"><span><i class="fas ${ic}"></i>${fe(t)}</span><div class="perm-ctrl">
-        <select data-tela="${k}" data-v="${cur}">${NIVEIS.map(([v,l])=>`<option value="${v}" ${cur===v?'selected':''}>${l}</option>`).join('')}</select>
-        <label class="perm-chk ${cur!=='editar'?'off':''}" title="Também pode excluir nesta tela (só com Editar)"><input type="checkbox" data-excluir="${k}" ${nv==='excluir'?'checked':''} ${cur!=='editar'?'disabled':''}> Excluir</label>
-        ${APROVA.includes(k)?`<label class="perm-chk ${cur==='nenhum'?'off':''}" title="Pode aprovar e desaprovar as contas a pagar"><input type="checkbox" data-aprov="${k}" ${apOn&&cur!=='nenhum'?'checked':''} ${cur==='nenhum'?'disabled':''}> Aprovar</label>`:''}
-      </div></div>`;}).join('');
-    const rel=rels.map(g=>`<div class="perm-relg"><small>${fe(g.grupo)}</small>${g.itens.map(([k,t])=>`<label class="perm-rel"><input type="checkbox" data-rel="${fe(k)}" ${!cfg||!cfg.relatorios||cfg.relatorios[k]!==false?'checked':''}> ${fe(t)}</label>`).join('')}</div>`).join('');
-    const st=cfg?`<div class="perm-st ok"><i class="fas fa-circle-check"></i> Configurado${cfg.atualizado_por?' · última mudança por '+fe(cfg.atualizado_por):''}${cfg.atualizado_em?' em '+fe(cfg.atualizado_em):''}</div>`
-      :`<div class="perm-st aviso"><i class="fas fa-triangle-exclamation"></i> Ainda não configurado: ${n?'cada usuário deste perfil segue as telas que já tinha no cadastro':'quem entrar com este perfil vê todas as telas'}. Ao mudar qualquer opção, passa a valer o que está aqui.</div>`;
-    const np=doPerfil(p).filter(u=>cfgUsr(u)).length;
-    return `<div class="perm-card" data-perfil="${fe(p)}"><div class="perm-card-cab"><b>${fe(p)}</b><span>${n} usuário${n===1?'':'s'}${np?` · ${np} com permissões próprias`:''}</span></div>${st}
-      <div class="perm-sub">Telas · nível de acesso e ações</div><div class="perm-grid">${itens}</div>
-      <div class="perm-sub">Relatórios que pode abrir</div><div class="perm-rels">${rel}</div></div>`;
-  }
-  function painelPermissoes(){
-    const rels=relatoriosLista();
-    return `<div class="perm-wrap"><div class="perm-tit"><h3><i class="fas fa-user-shield"></i>Permissões de acesso</h3>
-      <p>O <b>Administrador</b> tem acesso total. Configure abaixo, por perfil, o que cada usuário pode fazer. Para um usuário com acesso diferente do perfil dele, use o botão <b>Permissões</b> na linha do usuário, na lista acima. Cada mudança é salva na hora; quem estiver usando o sistema passa a ver a mudança na próxima atualização da tela.</p></div>
-      <div class="perm-legenda"><span><b>Nenhum</b> — nem aparece no menu</span><span><b>Ver</b> — só consulta</span><span><b>Editar</b> — cria e altera</span><span><b>Excluir</b> — também pode excluir (só com Editar)</span><span><b>Aprovar</b> — aprova e desaprova contas a pagar</span></div>
-      <div class="perm-cards">${PERFIS.map(p=>cartaoPerfil(p,rels)).join('')}</div></div>`;
-  }
+  UI.permissoesUsuario=permissoesUsuario;
   /* ═══════════ SEGURANÇA (só o Administrador) ═══════════
      • Verificação em duas etapas: além da senha, o código do aplicativo autenticador do celular (Google/Microsoft
        Authenticator). Mesmo quem descobrir a senha não entra sem o celular. Códigos reserva para emergência.
@@ -21354,60 +21319,27 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
     catch(e){toast('A cópia não foi concluída: '+((e&&e.message)||e),'error');}finally{UI._hideBusy();}}
   // tela Segurança (Configurações › Segurança): carrega a lista de usuários se ainda não veio e desenha o painel
   UI._abrirSeguranca=function(){if(!ehAdm())return;if(!UI._usuarios)UI.carregarUsuarios();pintarSeg();};
+  // a coluna "Nome" fica sempre escondida: só o Administrador mostra, quando quer, e volta a esconder ao sair da tela
+  let nomeVisivel=false;
   UI.renderUsuarios=function(){
     const grid=document.getElementById('grid-usuarios');if(!grid)return;
     grid.className='usr-pag';
     const q=(document.getElementById('find-usuarios')?.value||'').toLowerCase().trim();
     let lista=this._usuarios||[];
     if(q)lista=lista.filter(u=>(`${u.nome||''} ${u.cpf||''} ${u.email||''} ${u.perfil||''}`).toLowerCase().includes(q));
-    const n=(this._usuarios||[]).length;
-    // a coluna "Nome" pode ficar escondida (ex.: ao mostrar a tela para alguém); a escolha fica neste aparelho
-    let semNome=false;try{semNome=localStorage.getItem('vx_usr_sem_nome')==='1';}catch(e){}
+    const n=(this._usuarios||[]).length,semNome=!(ehAdm()&&nomeVisivel);
     grid.innerHTML=`<div class="usr-card"><div class="usr-card-cab"><h3><i class="fas fa-users"></i>Usuários</h3><span>${n} cadastrado${n===1?'':'s'} · clique numa linha para editar</span>
-        <button type="button" class="fin-bt mini usr-nome-bt" data-usr-nome>${semNome?'<i class="fas fa-eye"></i> Mostrar a coluna Nome':'<i class="fas fa-eye-slash"></i> Ocultar a coluna Nome'}</button></div>
-      <div class="usr-tab-wrap"><table class="usr-tab${semNome?' sem-nome':''}"><thead><tr><th>Nome</th><th>CPF</th><th>E-mail</th><th>Perfil</th><th>Tipo</th><th>Situação</th><th>Permissões</th><th></th></tr></thead>
-      <tbody>${lista.length?lista.map(linhaUsuario).join(''):'<tr><td colspan="8" class="usr-vazio">Nenhum usuário encontrado.</td></tr>'}</tbody></table></div></div>
-      ${ehAdm()?painelPermissoes():''}`;
+        ${ehAdm()?`<button type="button" class="fin-bt mini usr-nome-bt" data-usr-nome>${semNome?'<i class="fas fa-eye"></i> Mostrar a coluna Nome':'<i class="fas fa-eye-slash"></i> Ocultar a coluna Nome'}</button>`:''}</div>
+      <div class="usr-tab-wrap"><table class="usr-tab"><thead><tr>${semNome?'':'<th>Nome</th>'}<th>CPF</th><th>E-mail</th><th>Perfil</th><th>Tipo</th><th>Situação</th><th>Permissões</th><th></th></tr></thead>
+      <tbody>${lista.length?lista.map(u=>linhaUsuario(u,semNome)).join(''):`<tr><td colspan="${semNome?7:8}" class="usr-vazio">Nenhum usuário encontrado.</td></tr>`}</tbody></table></div></div>`;
     // a lista de usuários também serve à Segurança (quem tem as duas etapas ligadas): se ela estiver aberta, redesenha
     if(ehAdm()&&document.getElementById('view-seguranca')?.classList.contains('active'))pintarSeg();
     grid.onclick=ev=>{
       if(ev.target.closest('[data-seg],[data-aud]'))return;   // o painel de segurança cuida dos próprios cliques
-      if(ev.target.closest('[data-usr-nome]')){try{localStorage.setItem('vx_usr_sem_nome',semNome?'0':'1');}catch(e){}return UI.renderUsuarios();}
+      if(ev.target.closest('[data-usr-nome]')){nomeVisivel=!nomeVisivel;return UI.renderUsuarios();}
       const pb=ev.target.closest('[data-usr-perm]');if(pb)return permissoesUsuario(pb.dataset.usrPerm);
       const tr=ev.target.closest('tr[data-usr]');if(tr)UI.openUsuario(tr.dataset.usr);};
-    grid.onchange=ev=>{
-      const card=ev.target.closest('.perm-card');if(!card)return;
-      const s=ev.target.closest('select[data-tela]');
-      if(s){s.dataset.v=s.value;const k=s.dataset.tela;
-        const ex=card.querySelector(`[data-excluir="${k}"]`);if(ex){const ok=s.value==='editar';ex.disabled=!ok;if(!ok)ex.checked=false;ex.closest('.perm-chk').classList.toggle('off',!ok);}
-        const ap=card.querySelector(`[data-aprov="${k}"]`);if(ap){const ok=s.value!=='nenhum';ap.disabled=!ok;if(!ok)ap.checked=false;ap.closest('.perm-chk').classList.toggle('off',!ok);}}
-      agendar(card);
-    };
   };
-  // grava o cartão do perfil (um pouco depois da última mudança; uma gravação por vez)
-  const timers={};let fila=Promise.resolve();
-  function agendar(card){const p=card.dataset.perfil;clearTimeout(timers[p]);card.classList.add('salvando');timers[p]=setTimeout(()=>salvarPerfil(p,card),500);}
-  function salvarPerfil(p,card){
-    const acessos={},aprovar={},relatorios={};
-    card.querySelectorAll('select[data-tela]').forEach(s=>{let v=s.value;const ex=card.querySelector(`[data-excluir="${s.dataset.tela}"]`);if(v==='editar'&&ex&&ex.checked)v='excluir';acessos[s.dataset.tela]=v;});
-    card.querySelectorAll('[data-aprov]').forEach(c=>aprovar[c.dataset.aprov]=c.checked);
-    card.querySelectorAll('[data-rel]').forEach(c=>relatorios[c.dataset.rel]=c.checked);
-    fila=fila.then(()=>new Promise(fim=>{
-      const r=cfgDe(p);
-      const o={...(r||{}),tipo:'permissoes',perfil:p,acessos,aprovar,relatorios,atualizado_por:sess().nome||'',atualizado_em:todayDateTime()};
-      if(!r)o.data_lancamento=todayDateTime();
-      google.script.run.withSuccessHandler(res=>{
-        card.classList.remove('salvando');
-        if(res&&res.ok){
-          if(res.data){App.state.data=res.data;try{App.renderAll();}catch(e){console.error(e);}}
-          const st=card.querySelector('.perm-st');if(st){st.className='perm-st ok';st.innerHTML=`<i class="fas fa-circle-check"></i> Configurado · última mudança por ${fe(sess().nome||'')} agora`;}
-          toast('Permissões do perfil '+p+' salvas.','success');
-        }else toast((res&&res.msg)||'Não foi possível salvar as permissões.','error');
-        fim();
-      }).withFailureHandler(()=>{card.classList.remove('salvando');toast('Erro de conexão ao salvar as permissões. Tente de novo.','error');fim();})
-        .upsertRegistro('Planejamento',o,r?r.rowid:null);
-    }));
-  }
 
   /* ───── o guarda: "Ver" só consulta; sem "Excluir" não exclui ───── */
   const NORM=s=>String(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/\s+/g,' ').trim();
@@ -21631,7 +21563,10 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
 .rat-l label[hidden]{display:none;} .rat-l label input{margin:2px 0 0;flex:none;width:16px;height:16px;}
 .rat-nome{flex:1;min-width:0;font-weight:600;line-height:1.3;overflow-wrap:anywhere;color:#101828;} .rat .rat-nome small{display:block;font-weight:500;font-size:11px;color:#667085;margin-top:2px;}
 .rat-l label em{font-style:normal;font-size:11.5px;color:#1849A9;font-weight:800;white-space:nowrap;} .rat-l label em:empty{display:none;}
-.rat-l label.on{border-color:#84ADFF;background:#EFF4FF;} .rat-l label.sem{opacity:.55;cursor:not-allowed;}
+.rat-l label.on{border-color:#84ADFF;background:#EFF4FF;} .rat .rat-l label.sem .rat-nome small{color:#B54708;}
+.dest .rat{margin-top:8px;} .dest .rat-l{max-height:210px;} .rat-l label input{padding:0;}
+.rat-err{display:block;color:#B42318;font-weight:700;} .rat-sel-cab b i{margin-right:4px;}
+.confirm-overlay.rat-aviso{z-index:9700;} .rat-aviso .confirm-box{text-align:left;max-width:560px;padding:26px 28px;} .rat-aviso .confirm-title i{color:#1652D8;margin-right:4px;} .rat-aviso .confirm-actions{margin-top:18px;}
 .rat-nada{grid-column:1/-1;margin:0;padding:14px;text-align:center;color:#667085;font-size:12.5px;} .rat-nada[hidden]{display:none;}
 .rat-sel{margin-top:10px;background:#fff;border:1px solid #D1E0FF;border-radius:10px;padding:8px 10px;} .rat-sel[hidden]{display:none;}
 .rat-sel-cab{display:flex;flex-wrap:wrap;justify-content:space-between;gap:2px 10px;align-items:baseline;margin-bottom:2px;} .rat-sel-cab b{font-size:12.5px;color:#1849A9;} .rat-sel-cab span{font-size:11.5px;color:#667085;}
@@ -23086,7 +23021,7 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
     const quemIni=x?x.quem:(de?de.quem:''),obraIni=x?x.obra:'',vIni=x?x.valor:(de?saldoAporte(de,L):0);
     const pIni=x?(x.r.periodo_ini||(x.data?isoDe(x.data):hj)):hj,pFim=x?(x.r.periodo_fim||(x.data?isoDe(x.data):hj)):hj,formaIni=x?(x.forma||''):'';
     const socio=`<div class="fin-fld"><label>Sócio / investidor <span class="obg">*</span></label><input data-k="quem" list="so2-quem" value="${fe(quemIni==='—'?'':quemIni)}" autocomplete="off"><datalist id="so2-quem">${quemOps().map(q=>`<option value="${fe(q)}">`).join('')}</datalist></div>`;
-    const destino=rat=>`<div class="fin-fld" style="grid-column:1/-1"><label>Obra de referência <span class="obg">*</span></label>${GS.destino.html('data-k="obra"',obraIni==='—'?'':obraIni,{rateio:rat,empresa:true})}</div>${rat?`<div style="grid-column:1/-1" data-rat-box>${GS.rateio.htmlRateio()}</div>`:''}`;
+    const destino=rat=>`<div class="fin-fld" style="grid-column:1/-1"><label>Obra de referência <span class="obg">*</span></label>${GS.destino.html('data-k="obra"',obraIni==='—'?'':obraIni,{rateio:rat,empresa:true})}</div>`;
     const forma=`<div class="fin-fld"><label>Forma</label>${sel('forma',FORMAS_AP,formaIni,'—')}</div>`;
     const valor=`<div class="fin-fld"><label>Valor (R$) <span class="obg">*</span></label><input data-k="valor" data-mask="moeda" inputmode="numeric" value="${vIni?fmt(vIni):''}"></div>`;
     const obs=`<div class="fin-fld" style="grid-column:1/-1"><label>Observação</label><input data-k="obs" value="${fe(x?x.obs:'')}"></div>`;
@@ -23113,14 +23048,15 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
         const o=r?limpo(r):{[K.lanc]:todayDateTime()};
         Object.assign(o,{[K.quem]:z.y.quem,[K.obra]:z.y.obra==='—'?'Empresa':z.y.obra,[K.data]:d,[K.valor]:dinheiro(-v),movimento:'Devolução de aporte',aporte_ref:ref,forma_aporte:forma,periodo_ini:'',periodo_fim:'',[K.obs]:g('obs')});
         await executar(()=>salvar('Aportes financeiros',o,r?r.rowid:null));return toast(`Devolução de ${fmt(v)} lançada${z.s-v>0.004?` — falta devolver ${fmt(z.s-v)} desse aporte`:' — aporte devolvido por completo'}.`,'success');}
-      const q=g('quem'),ob=g('obra');if(!q)throw new Error('Informe o sócio / investidor.');if(!ob)throw new Error('Escolha a obra de referência (ou Custo indireto / Ratear).');
+      const q=g('quem'),ob=g('obra');if(!q)throw new Error('Informe o sócio / investidor.');if(!ob)throw new Error('Marque a obra de referência (ou Custo indireto).');
       if(tp==='Retirada'){const d=g('data');if(!d)throw new Error('Informe a data.');if(d>hj)throw new Error('A data não pode ser no futuro.');
         const o=r?limpo(r):{[K.lanc]:todayDateTime()};
         Object.assign(o,{[K.quem]:q,[K.obra]:ob,[K.data]:d,[K.valor]:dinheiro(-v),movimento:'Retirada',aporte_ref:'',forma_aporte:forma,periodo_ini:'',periodo_fim:'',[K.obs]:g('obs')});
         await executar(()=>salvar('Aportes financeiros',o,r?r.rowid:null));return toast('Retirada lançada.','success');}
       // aporte
       const ini=g('ini'),fim=g('fim');if(!ini||!fim)throw new Error('Informe o período do aporte (de / até).');if(ini>fim)throw new Error('O início do período tem que ser antes do fim.');if(fim>hj)throw new Error('O fim do período não pode ser no futuro.');
-      const rat=ob===RAT,obrasR=rat&&RT?RT.obras():[];if(rat&&obrasR.length<2)throw new Error('Marque pelo menos 2 obras para o rateio.');
+      const rat=ob===RAT,obrasR=rat&&RT?RT.obras():[];if(rat&&GS.rateio.erroRateio(obrasR))throw new Error(GS.rateio.erroRateio(obrasR));
+      if(rat&&!(await GS.rateio.confirmarRateio(obrasR,v,'Este aporte vai ser rateado')))return false;
       const partes=rat?GS.rateio.partesRateio(v,obrasR).map(p=>({obra:p.obra,valor:p.valor,obs:`Rateio: ${GS.rateio.pctTxt(p.pct)} de ${fmt(v)} (pelo orçamento)`})):[{obra:ob,valor:v,obs:''}];
       const obsTxt=g('obs');
       await executar(async()=>{for(const p of partes){
@@ -23133,9 +23069,9 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
           Object.assign(o,{[K.quem]:q,[K.obra]:p.obra,[K.data]:fim,[K.valor]:dinheiro(p.valor),movimento:'Aporte',aporte_ref:'',forma_aporte:forma,periodo_ini:ini,periodo_fim:fim,[K.obs]:[p.obs,obsTxt].filter(Boolean).join(' · ')});
           await salvar('Aportes financeiros',o,r?r.rowid:null);}}});
       toast(partes.length>1?`Aporte rateado entre ${partes.length} obras.`:'Aporte lançado.','success');}}],680);
-    const j=document.getElementById('fin-jan'),rbox=j.querySelector('[data-rat-box] [data-rat]'),so=j.querySelector('[data-k="obra"]');
+    const j=document.getElementById('fin-jan'),rbox=j.querySelector('[data-rat]');
     var RT=rbox?GS.rateio.ligarRateio(rbox,()=>num(j.querySelector('[data-k="valor"]').value)):null;
-    if(rbox&&so){const f=()=>{rbox.hidden=so.value!==RAT;};so.addEventListener('change',f);f();j.querySelector('[data-k="valor"]').addEventListener('input',()=>RT&&RT.pintar());}
+    if(rbox)j.querySelector('[data-k="valor"]').addEventListener('input',()=>RT&&RT.pintar());
     const rs=j.querySelector('[data-k="ref"]');
     if(rs){const info=()=>{const z=aps.find(a=>String(a.y.r.rowid)===rs.value),el=j.querySelector('[data-dev-info]');el.innerHTML=z?`Aporte de <b>${fmt(z.y.valor)}</b> · já devolvido <b>${fmt(z.y.valor-z.s)}</b> · falta <b>${fmt(z.s)}</b>.`:'';
         const vi=j.querySelector('[data-k="valor"]');if(z&&!x&&!num(vi.value))vi.value=fmt(z.s);};rs.addEventListener('change',info);info();}
