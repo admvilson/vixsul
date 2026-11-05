@@ -10840,6 +10840,13 @@ const Fin=(function(){
   const rotulo=m=>`${m.quem?m.quem+' · ':''}${m.desc} · ${m.origem} · ${m.pago?(m.sent<0?'pago ':'recebido ')+brDe(m.dataBaixa):m.venc?(m.sent<0?'vence ':'previsto ')+brDe(m.venc):'sem data'} · ${fmt(m.valor)}`;
   // entrada do banco só recebe nota de "Nota emitida · a receber" (o que ainda está "a faturar" não tem nota)
   const aReceber=m=>m.tipo==='fat'&&!m.pago&&cn(m.r[m.kTipo])==='real';
+  // parcela da linha do banco: a fatura do cartão já traz ("3 de 10"); no extrato, só quando está escrito PARC ou PARCELA
+  const parcelaDe=t=>{let m=String(t.parcela||'').match(/(\d{1,2})\s*de\s*(\d{1,2})/i);if(!m)m=String(t.desc||'').match(/\bparc(?:ela)?\.?\s*(\d{1,2})\s*(?:de|\/)\s*(\d{1,2})\b/i);if(!m)return null;const n=+m[1],tot=+m[2];return n>=1&&tot>=2&&n<=tot&&tot<=60?{n,tot}:null;};
+  // parcelas que ainda vão vencer: uma conta a pagar por mês, no mesmo dia da que está sendo conciliada
+  function parcelasFuturas(u,base,n,tot,iso,extra){const C=GS.contas,ops=[];
+    for(let k=n+1;k<=tot;k++){const f={...u,venc:isoDe(C.somaMes(dt(iso),k-n)),pago:'',desc:`${base} (${k}/${tot})`,obs:[u.obsBase||'','Parcela lançada pela conciliação bancária'].filter(Boolean).join(' · ')};delete f.obsBase;
+      C.finalizarConta(f);C.montarConta(f,null).forEach(op=>{if(op.dados)Object.assign(op.dados,extra||{});ops.push(op);});}
+    return ops;}
   // valor ajustado na conciliação: ficam registrados o valor lançado, o que passou pelo banco e a diferença
   const ajusteDe=r=>{const o=val(r.valor_original)||val(r.liq_esperado);if(!o)return null;const n=val(r.valor_ajustado)||val(getFuzzy(r,['faturamento_liquido','liquido']));return {orig:o,novo:n,dif:Math.round((n-o)*100)/100};};
   const txtDif=d=>`${d>0?'+':'−'} ${fmt(Math.abs(d))}`;
@@ -10921,7 +10928,10 @@ const Fin=(function(){
     if(extra.conc&&(m.tipo==='custo'||m.tipo==='despesa'))obj.tipo_antes_conc=r[m.kTipo]||'';
     if(extra.conc){obj.conciliacao=juntarId(r.conciliacao,extra.conc);obj.conciliacao_baixa=juntarId(r.conciliacao_baixa,extra.conc);}
     if(extra.desc&&m.tipo!=='fat')obj.extrato_desc=extra.desc;
-    return salvar(r._aba||ABA[m.tipo],obj,r.rowid);
+    const gravou=salvar(r._aba||ABA[m.tipo],obj,r.rowid);
+    // parcela de compra paga com dinheiro do sócio: ao dar baixa, o valor entra como aporte dele, ligado à mesma linha do extrato
+    if(r.pago_por_socio&&(m.tipo==='custo'||m.tipo==='despesa'))return gravou.then(()=>somarAporte({obra:m.tipo==='despesa'?'Empresa':m.origem,quem:r.pago_por_socio,data:dataISO,valor:extra.ajustar&&extra.valor>0?extra.valor:m.valor,forma:r.forma_pagamento||'',obs:`Pagou ${m.quem||'a conta'} · ${m.desc}`,origem:'contas',conc:extra.conc}));
+    return gravou;
   }
   // Uma gravação por vez no sistema inteiro (App.state._busy) e, no fim, recarrega tudo
   // do banco — Dashboard, Relatórios e a própria tela já aparecem com a baixa.
@@ -11716,8 +11726,9 @@ const Fin=(function(){
     if(!lista.length)return;const C=GS.contas,EMP=C.EMP,RAT='__rateio__',FORMAS=FORMAS_PAGAMENTO_DESPESA,todas=contasDoSistema();
     const LN=lista.map(p=>({p,s:sugestaoConta(p,todas)}));
     const cs=[...new Set(LN.filter(x=>x.s).map(x=>x.s.centro))],centro0=cs.length===1&&LN.every(x=>x.s)?cs[0]:(C.podeEmpresa()?EMP:'');
-    const linhaHtml=(x,i)=>{const p=x.p,s=x.s,forma=s&&s.forma?s.forma:formaDoExtrato(p.t.desc),fo=String((s&&s.forn)||p.t.quem||'').toLocaleUpperCase('pt-BR');
-      return `<tr data-ln="${i}"><td class="cc-lt-banco"><b>${fe(p.t.data.slice(0,5))}</b> ${fe(p.t.desc)}${p.t.detalhe?`<small>${fe(p.t.detalhe)}</small>`:p.t.quem?`<small>${fe(p.t.quem)}</small>`:''}</td>
+    const linhaHtml=(x,i)=>{const p=x.p,s=x.s,forma=s&&s.forma?s.forma:formaDoExtrato(p.t.desc),fo=String((s&&s.forn)||p.t.quem||'').toLocaleUpperCase('pt-BR'),pp=parcelaDe(p.t);
+      return `<tr data-ln="${i}"><td class="cc-lt-banco"><b>${fe(p.t.data.slice(0,5))}</b> ${fe(p.t.desc)}${p.t.detalhe?`<small>${fe(p.t.detalhe)}</small>`:p.t.quem?`<small>${fe(p.t.quem)}</small>`:''}
+        <div class="cc-lt-parc" title="Compra parcelada: esta saída é a parcela X de Y. As próximas entram em Contas a pagar, uma por mês. Deixe em branco se não for parcelada.">Parcela <input data-i="pn" inputmode="numeric" maxlength="2" value="${pp?pp.n:''}" aria-label="Número desta parcela"> de <input data-i="pt" inputmode="numeric" maxlength="2" value="${pp?pp.tot:''}" aria-label="Total de parcelas"></div></td>
         <td><input data-i="forn" data-maiusc list="vx-forn-lista" autocomplete="off" value="${fe(fo)}" placeholder="fornecedor"></td>
         <td>${GS.comboGasto.html('data-i="cat"','data-i="desc"',s?s.cat:'',s?C.limparParc(s.desc):'')}</td>
         <td><select data-i="forma">${FORMAS.concat(FORMAS.includes(forma)?[]:[forma]).map(f=>`<option ${f===forma?'selected':''}>${fe(f)}</option>`).join('')}</select></td>
@@ -11738,15 +11749,20 @@ const Fin=(function(){
         if(socio&&!quem)throw new Error('Informe o sócio que pagou.');
         const its=lerLinhas();if(!its.length)throw new Error('Não sobrou nenhuma linha para lançar.');
         const ruim=its.findIndex(x=>!x.cat||!x.desc);if(ruim>=0)throw new Error(`Linha ${ruim+1}: escolha a categoria › descrição.`);
+        const parcRuim=its.findIndex(x=>(x.pn||x.pt)&&!(x.pn>=1&&x.pt>=2&&x.pn<=x.pt&&x.pt<=60));if(parcRuim>=0)throw new Error(`Linha ${parcRuim+1}: a parcela vai de 1 até o total (de 2 a 60). Deixe em branco se não for parcelada.`);
         if(rat&&!(await GS.rateio.confirmarRateio(obrasR,total(),its.length>1?`Estas ${its.length} saídas vão ser rateadas`:'Esta saída vai ser rateada')))return false;
-        const ops=[],aps={},T0=Date.now().toString(36);
-        its.forEach((x,i)=>{const p=x.p,iso=isoDeBR(p.t.data),v=-p.t.valor,rid=rat?'rt'+T0+'_'+i:'';
+        const ops=[],aps={},T0=Date.now().toString(36);let nFut=0;
+        its.forEach((x,i)=>{const p=x.p,iso=isoDeBR(p.t.data),v=-p.t.valor,rid=rat?'rt'+T0+'_'+i:'',parc=x.pt>1;
           const partes=rat?GS.rateio.partesRateio(v,obrasR):[{obra:centro,valor:v,pct:100}];
-          partes.forEach(dd=>{if(!(dd.valor>0))return;
-            const u={centro:dd.obra,tipo:'Real',venc:iso,pago:iso,total:dinheiro(dd.valor),forn:x.forn,cat:x.cat,forma:x.forma,desc:x.desc,
-              obs:[rat?`Rateio: ${GS.rateio.pctTxt(dd.pct)} de ${fmt(v)} (pelo orçamento)`:'',socio?`Paga por ${quem} (aporte)`:'','Lançada pela conciliação bancária'].filter(Boolean).join(' · '),qtd:'',fator:'',pUnit:'',lanc:'',compra:'cb'+T0+'_'+i,dataCompra:iso};
+          partes.forEach((dd,pi)=>{if(!(dd.valor>0))return;
+            const obsRat=rat?`Rateio: ${GS.rateio.pctTxt(dd.pct)} de ${fmt(v)} (pelo orçamento)`:'';
+            const u={centro:dd.obra,tipo:'Real',venc:iso,pago:iso,total:dinheiro(dd.valor),forn:x.forn,cat:x.cat,forma:x.forma,desc:x.desc+(parc?` (${x.pn}/${x.pt})`:''),
+              obs:[obsRat,socio?`Paga por ${quem} (aporte)`:'','Lançada pela conciliação bancária'].filter(Boolean).join(' · '),qtd:'',fator:'',pUnit:'',lanc:'',compra:'cb'+T0+'_'+i,dataCompra:p.t.compra?isoDeBR(p.t.compra):iso};
             if(rid)u.rateio=rid;
+            if(parc)u.grupo='gp'+T0+'_'+i+'_'+pi;
             C.finalizarConta(u);C.montarConta(u,null).forEach(op=>{Object.assign(op.dados,{conciliacao:p.t.id,conciliacao_baixa:p.t.id,extrato_desc:p.t.desc});ops.push(op);});
+            // compra parcelada: as próximas parcelas ficam a pagar, uma por mês; no mês seguinte é só associar
+            if(parc){const fut=parcelasFuturas({...u,obsBase:[obsRat,socio?`Será paga por ${quem} (aporte)`:''].filter(Boolean).join(' · ')},x.desc,x.pn,x.pt,iso,{extrato_desc:p.t.desc,...(socio?{pago_por_socio:quem}:{})});nFut+=fut.length;ops.push(...fut);}
             if(socio){const k=dd.obra+'|'+iso.slice(0,7),a=aps[k]=aps[k]||{obra:dd.obra,valor:0,data:iso};a.valor+=dd.valor;if(iso>a.data)a.data=iso;}});});
         // aporte do sócio: soma no lançamento do mês dele em cada obra (ou Empresa)
         const forns=[...new Set(its.map(x=>x.forn).filter(Boolean))],formas=[...new Set(its.map(x=>x.forma).filter(Boolean))];
@@ -11758,12 +11774,13 @@ const Fin=(function(){
         const gastos=[...new Map(its.map(x=>[cn(x.cat)+'|'+cn(x.desc),x])).values()];for(const x of gastos)await GS.comboGasto.registrar(centro===EMP,x.cat,x.desc);
         await executar(async()=>{for(const op of ops)await salvar(op.aba,op.dados,null);for(const a of regsAp)await somarAporte(a);});
         lista.forEach(p=>CONC.selSem.delete(p.t.id));
-        toast(`${its.length} saída(s) lançada(s) em Contas a pagar${rat?` (rateadas entre ${obrasR.length} obras)`:''} e conciliada(s)${socio?` · aporte de ${quem} registrado em Sócios e investimentos`:''}.`,'success');}}],1080);
+        toast(`${its.length} saída(s) lançada(s) em Contas a pagar${rat?` (rateadas entre ${obrasR.length} obras)`:''} e conciliada(s)${nFut?` · ${nFut} parcela(s) futura(s) ficaram a pagar`:''}${socio?` · aporte de ${quem} registrado em Sócios e investimentos`:''}.`,'success');}}],1080);
     const tb=j.querySelector('[data-k="linhas"]'),ce=j.querySelector('[data-k="centro"]'),rb=j.querySelector('[data-rat]');
-    const lerLinhas=()=>[...tb.querySelectorAll('tr')].map(tr=>{const x=LN[+tr.dataset.ln],v=k=>((tr.querySelector(`[data-i="${k}"]`)||{}).value||'').trim();return {p:x.p,forn:v('forn').toLocaleUpperCase('pt-BR'),cat:v('cat'),desc:v('desc'),forma:v('forma')};});
+    const lerLinhas=()=>[...tb.querySelectorAll('tr')].map(tr=>{const x=LN[+tr.dataset.ln],v=k=>((tr.querySelector(`[data-i="${k}"]`)||{}).value||'').trim();return {p:x.p,forn:v('forn').toLocaleUpperCase('pt-BR'),cat:v('cat'),desc:v('desc'),forma:v('forma'),pn:Math.round(+v('pn')||0),pt:Math.round(+v('pt')||0)};});
     const total=()=>Math.round(lerLinhas().reduce((s,x)=>s-x.p.t.valor,0)*100)/100;
     const RT=GS.rateio.ligarRateio(rb,total);
-    const pintarTot=()=>{const n=tb.rows.length;j.querySelector('[data-k="tot"]').innerHTML=n?`${n} linha${n>1?'s':''} · total <b>${fmt(total())}</b>`:'<span class="t-err">Nenhuma linha — feche e marque as saídas de novo.</span>';RT.pintar();};
+    const pintarTot=()=>{const n=tb.rows.length,fut=lerLinhas().reduce((s,x)=>s+(x.pt>1&&x.pn>=1&&x.pn<x.pt&&x.pt<=60?x.pt-x.pn:0),0);j.querySelector('[data-k="tot"]').innerHTML=n?`${n} linha${n>1?'s':''} · total <b>${fmt(total())}</b>${fut?` · <b>${fut}</b> parcela${fut>1?'s':''} futura${fut>1?'s':''} vão para Contas a pagar`:''}`:'<span class="t-err">Nenhuma linha — feche e marque as saídas de novo.</span>';RT.pintar();};
+    tb.addEventListener('input',ev=>{if(ev.target.matches('[data-i="pn"],[data-i="pt"]'))pintarTot();});
     // categoria da empresa não vale para obra (e vice-versa): troca pela categoria certa, mantendo a descrição
     const ajustarCats=()=>{const emp=ce.value===EMP,cats=emp?C.CATD():C.CATC();
       tb.querySelectorAll('tr').forEach(tr=>{const box=tr.querySelector('.cg'),cat=tr.querySelector('[data-i="cat"]').value,desc=tr.querySelector('[data-i="desc"]').value,forn=tr.querySelector('[data-i="forn"]').value;
@@ -11781,7 +11798,7 @@ const Fin=(function(){
   // saída do banco sem conta: abre a "Nova conta" em modo compra — vários itens (ou a nota lida), somando o valor do banco
   function lancarConta(p){
     const C=GS.contas,v=Math.abs(p.t.valor),iso=isoDeBR(p.t.data),prev=sugestaoConta(p,contasDoSistema());
-    GS.lote({conc:{id:p.t.id,desc:p.t.desc,valor:v,data:iso,dataBR:p.t.data},centro:prev?prev.centro:'',cat:prev?prev.cat:'',desc:prev?C.limparParc(prev.desc):'',
+    GS.lote({conc:{id:p.t.id,desc:p.t.desc,valor:v,data:iso,dataBR:p.t.data,compra:p.t.compra?isoDeBR(p.t.compra):'',parc:parcelaDe(p.t)},centro:prev?prev.centro:'',cat:prev?prev.cat:'',desc:prev?C.limparParc(prev.desc):'',
       forn:prev?prev.forn:(p.t.quem||''),forma:prev&&prev.forma?prev.forma:formaDoExtrato(p.t.desc),
       dica:prev?`Preenchido como o último lançamento de <b>${fe(prev.forn||C.limparParc(prev.desc))}</b> (${fe(prev.centro)} · ${fe(prev.cat)}).`:''});
   }
@@ -11824,7 +11841,7 @@ const Fin=(function(){
     if(document.getElementById('view-contas')?.classList.contains('active'))renderContas();
     if(document.getElementById('view-conciliacao')?.classList.contains('active')&&!document.getElementById('fin-ov')?.classList.contains('open'))renderConciliacao();
   }
-  return {renderContas,renderConciliacao,aoAtualizar,movimentos,prazoReceb,lerSaldo,somarAporte,_conciliar:conciliar,_lerOFX:lerOFX,_lerCSV:lerCSVExtrato,_pdfParaCsv:pdfParaCsv,_lerLinhasPdf:lerLinhasPdf,
+  return {renderContas,renderConciliacao,aoAtualizar,movimentos,prazoReceb,lerSaldo,somarAporte,parcelasFuturas,_conciliar:conciliar,_lerOFX:lerOFX,_lerCSV:lerCSVExtrato,_pdfParaCsv:pdfParaCsv,_lerLinhasPdf:lerLinhasPdf,
     // utilitários compartilhados com os módulos de engenharia (Eng)
     util:{janela,confirmar,executar,salvar,excluir,fe,cn,dt,brDe,isoDe,isoDeBR,hoje0,addD,dias,col,kRow,dinheiro,val,juntarId,ajusteDe,txtDif,periodoMes,obsDoExtrato}};
 })();
@@ -16460,8 +16477,8 @@ const Mascara=(function(){
     janela('Registrar pagamento da compra',`<div class="fin-resumo"><b>${fe(o.forn||'Compra')}</b> · ${L.length} itens · vence ${brDe(dt(o.venc))}<br>Total: <b>${fmt(tot)}</b> — todos os itens ficam pagos na mesma data.</div>
       <div class="fin-linha"><div class="fin-fld"><label>Data do pagamento</label><input type="date" data-k="data" max="${isoDe(hoje0())}" value="${isoDe(hoje0())}"></div>
       <div class="fin-fld"><label>Forma</label><select data-k="forma">${FORMAS.map(x=>`<option ${x===(o.forma||'PIX')?'selected':''}>${fe(x)}</option>`).join('')}</select></div></div>
-      <label class="nfc-amb"><input type="checkbox" data-k="socio"><span><b>Pago com dinheiro do sócio</b> — o valor entra em <b>Sócios e investimentos</b> como aporte</span></label>
-      <div class="fin-fld" data-socio-box hidden><label>Sócio / investidor</label><input data-k="quem" list="pgc-quem" autocomplete="off"><datalist id="pgc-quem">${GS.rateio.socios().map(s=>`<option value="${fe(s)}">`).join('')}</datalist></div>`,
+      <label class="nfc-amb"><input type="checkbox" data-k="socio" ${o._r.pago_por_socio?'checked':''}><span><b>Pago com dinheiro do sócio</b> — o valor entra em <b>Sócios e investimentos</b> como aporte</span></label>
+      <div class="fin-fld" data-socio-box ${o._r.pago_por_socio?'':'hidden'}><label>Sócio / investidor</label><input data-k="quem" list="pgc-quem" autocomplete="off" value="${fe(o._r.pago_por_socio||'')}"><datalist id="pgc-quem">${GS.rateio.socios().map(s=>`<option value="${fe(s)}">`).join('')}</datalist></div>`,
       [{html:'<i class="fas fa-circle-check"></i> Confirmar pagamento',cls:'pri',acao:async j=>{
         const soc=j.querySelector('[data-k="socio"]').checked,quem=(j.querySelector('[data-k="quem"]').value||'').trim();if(soc&&!quem)throw new Error('Informe o sócio que pagou.');
         const d=j.querySelector('[data-k="data"]').value,forma=j.querySelector('[data-k="forma"]').value;if(!d)throw new Error('Informe a data do pagamento.');if(d>isoDe(hoje0()))throw new Error('A data do pagamento não pode ser depois de hoje.');
@@ -16656,8 +16673,8 @@ const Mascara=(function(){
       <div class="fin-linha"><div class="fin-fld"><label>Valor pago (R$)</label><input data-k="total" data-mask="moeda" inputmode="numeric" value="${fmt(val(o.total))}"></div>
       <div class="fin-fld"><label>Data do pagamento</label><input type="date" data-k="data" max="${isoDe(hoje0())}" value="${isoDe(hoje0())}"></div>
       <div class="fin-fld"><label>Forma</label><select data-k="forma">${FORMAS.map(x=>`<option ${x===(o.forma||'PIX')?'selected':''}>${fe(x)}</option>`).join('')}</select></div></div>
-      <label class="nfc-amb"><input type="checkbox" data-k="socio"><span><b>Pago com dinheiro do sócio</b> — o valor entra em <b>Sócios e investimentos</b> como aporte</span></label>
-      <div class="fin-fld" data-socio-box hidden><label>Sócio / investidor</label><input data-k="quem" list="pg-quem" autocomplete="off"><datalist id="pg-quem">${GS.rateio.socios().map(s=>`<option value="${fe(s)}">`).join('')}</datalist></div>
+      <label class="nfc-amb"><input type="checkbox" data-k="socio" ${o._r.pago_por_socio?'checked':''}><span><b>Pago com dinheiro do sócio</b> — o valor entra em <b>Sócios e investimentos</b> como aporte</span></label>
+      <div class="fin-fld" data-socio-box ${o._r.pago_por_socio?'':'hidden'}><label>Sócio / investidor</label><input data-k="quem" list="pg-quem" autocomplete="off" value="${fe(o._r.pago_por_socio||'')}"><datalist id="pg-quem">${GS.rateio.socios().map(s=>`<option value="${fe(s)}">`).join('')}</datalist></div>
       ${o.aprov==='pendente'||o.tipo!=='Real'?'<div class="fin-aviso"><div>A conta ainda não estava aprovada: ao confirmar o pagamento, ela fica aprovada por você.</div></div>':''}`,
       [{html:'Cancelar'},{html:'<i class="fas fa-circle-check"></i> Confirmar pagamento',cls:'pri',acao:async j=>{
         const soc=j.querySelector('[data-k="socio"]').checked,quem=(j.querySelector('[data-k="quem"]').value||'').trim();if(soc&&!quem)throw new Error('Informe o sócio que pagou.');
@@ -17162,7 +17179,8 @@ const Mascara=(function(){
       ${cc?`<div class="fin-resumo">Saiu do banco em <b>${fe(cc.dataBR||brDe(dt(cc.data)))}</b>: <b>${fmt(cc.valor)}</b> · ${fe(cc.desc)}${pre.dica?`<br><small>${pre.dica}</small>`:''}<br><small>Lance os itens desta compra (dá para ler a nota ou o cupom). A soma tem que fechar com o valor do banco; tudo entra <b>pago em ${fe(cc.dataBR||brDe(dt(cc.data)))}</b> e ligado a esta linha do extrato.</small></div>`:''}
       <div class="fin-linha">
         <div class="fin-fld" style="grid-column:1/-1"><label>Para onde vai o gasto <span class="obg">*</span></label>${htmlDestino('data-l="centro"',pre.centro!=null?pre.centro:(QC.obra||''))}</div>
-        <div class="fin-fld"><label>Compra/aquisição <span class="obg">*</span></label><input type="date" data-l="dcompra" max="${isoDe(hoje0())}" value="${fe(cc?cc.data:isoDe(hoje0()))}"></div>
+        <div class="fin-fld"><label>Compra/aquisição <span class="obg">*</span></label><input type="date" data-l="dcompra" max="${isoDe(hoje0())}" value="${fe(cc?(cc.compra||cc.data):isoDe(hoje0()))}"></div>
+        ${cc?`<div class="fin-fld"><label>Compra parcelada?</label><div class="cc-lt-parc lote-parc-cc">Parcela <input data-l="pn" inputmode="numeric" maxlength="2" value="${cc.parc?cc.parc.n:''}" aria-label="Número desta parcela"> de <input data-l="pt" inputmode="numeric" maxlength="2" value="${cc.parc?cc.parc.tot:''}" aria-label="Total de parcelas"></div><div class="capx-dica">Esta saída entra paga; as próximas parcelas ficam em Contas a pagar, uma por mês. Em branco = não é parcelada.</div></div>`:''}
         <div class="fin-fld"><label>Forma de pagamento</label><select data-l="forma"><option value="">—</option>${FORMAS.map(x=>`<option ${pre.forma===x?'selected':''}>${fe(x)}</option>`).join('')}</select></div>
         <div class="fin-fld" ${cc?'hidden':''}><label>Repete?</label><select data-l="rep"><option value="">Não — conta única</option><option value="parc">Compra parcelada (divide o valor)</option><option value="mes">Todo mês (conta fixa)</option></select></div>
         <div class="fin-fld" data-l="vezes-box" hidden><label>Quantas vezes</label><input type="number" data-l="vezes" min="2" max="60" value="3"></div></div>
@@ -17187,13 +17205,16 @@ const Mascara=(function(){
       const semV=its.findIndex(x=>!x.venc);if(semV>=0&&rep!=='nota'&&!cc)throw new Error(`Linha ${semV+1}: informe o vencimento.`);
       const n=rep==='nota'?PARC.length:rep?Math.round(+g('vezes')||0):1;
       if(rep&&rep!=='nota'&&!(n>=2&&n<=60))throw new Error('Informe de 2 a 60 vezes.');
+      // saída do banco que é parcela de uma compra: esta entra paga e as próximas ficam a pagar, uma por mês
+      const pn=cc?Math.round(+g('pn')||0):0,pt=cc?Math.round(+g('pt')||0):0,parcCC=pt>1;
+      if(cc&&(pn||pt)&&!(pn>=1&&pt>=2&&pn<=pt&&pt<=60))throw new Error('A parcela vai de 1 até o total (de 2 a 60). Deixe em branco se não for parcelada.');
       // desconto da nota: repartido pelos itens na proporção do valor de cada um (o preço unitário continua o do arquivo)
       // (só nos produtos: frete, IPI e outras despesas lidos da nota ficam inteiros)
       const prods=its.some(x=>!x.extra)?its.filter(x=>!x.extra):its,dn=num(g('descnota')),somaIts=prods.reduce((a,x)=>a+x.total,0);if(dn&&dn>=somaIts-0.004)throw new Error('O desconto não pode ser maior que o valor dos itens.');
       let acD=0;its.forEach(x=>{x.dsc=0;});prods.forEach((x,i)=>{x.dsc=i<prods.length-1?Math.round(dn*x.total/somaIts*100)/100:Math.round((dn-acD)*100)/100;acD+=x.dsc;});its.forEach(x=>{x.liq=Math.round((x.total-x.dsc)*100)/100;});
       if(cc){const liq=Math.round((its.reduce((a,x)=>a+x.total,0)-dn)*100)/100;if(Math.abs(liq-cc.valor)>0.009)throw new Error(`A soma dos itens (${fmt(liq)}) tem que ser igual ao valor que saiu do banco (${fmt(cc.valor)}) — ${liq<cc.valor?'faltam':'sobram'} ${fmt(Math.abs(liq-cc.valor))}.`);}
       if(rat&&!(await confirmarRateio(obrasR,Math.round(its.reduce((a,x)=>a+x.liq,0)*100)/100,'Esta conta vai ser rateada')))return false;
-      const somaP=PARC.reduce((a,p)=>a+p.valor,0),ops=[],aps={},rid=rat?'rt'+Date.now().toString(36):'',T0=Date.now().toString(36),compra='cp'+T0;
+      const somaP=PARC.reduce((a,p)=>a+p.valor,0),ops=[],aps={},rid=rat?'rt'+Date.now().toString(36):'',T0=Date.now().toString(36),compra='cp'+T0;let nFut=0;
       for(const x of its){
         const destinos=rat?partesRateio(x.liq,obrasR):[{obra:centro0,valor:x.liq,pct:100}];
         for(const dd of destinos){const centro=dd.obra,tot=Math.round(dd.valor*100);let acum=0;if(!tot)continue;const gid='gp'+T0+'_'+its.indexOf(x)+'_'+destinos.indexOf(dd);
@@ -17202,8 +17223,8 @@ const Mascara=(function(){
             const cent=rep==='nota'?(i<n-1?Math.round(tot*PARC[i].valor/somaP):tot-acum):rep==='parc'?(i<n-1?Math.floor(tot/n):tot-Math.floor(tot/n)*(n-1)):tot;acum+=cent;
             const vv=rep==='nota'?PARC[i].venc:rep?isoDe(C.somaMes(dt(x.venc),i)):x.venc,vt=cent/100;
             const obs=[x.num?'Nota/recibo nº '+x.num:'',rat?`Rateio: ${pctTxt(dd.pct)} de ${fmt(x.liq)} (pelo orçamento)`:'',socio?`Paga por ${quem} (aporte)`:''].filter(Boolean).join(' · ');
-            const u={centro,tipo:'Real',venc:cc?cc.data:vv,total:dinheiro(vt),forn:x.forn,cat:x.cat,forma,desc:(x.desc||x.cat)+(n>1?` (${i+1}/${n})`:''),obs:cc?[obs,'Lançada pela conciliação bancária'].filter(Boolean).join(' · '):obs,qtd:'',fator:'',pUnit:'',pago:cc?cc.data:socio?pagoEm:'',lanc:'',compra,dataCompra:dCompra};
-            if(n>1)u.grupo=gid;
+            const u={centro,tipo:'Real',venc:cc?cc.data:vv,total:dinheiro(vt),forn:x.forn,cat:x.cat,forma,desc:(x.desc||x.cat)+(n>1?` (${i+1}/${n})`:'')+(parcCC?` (${pn}/${pt})`:''),obs:cc?[obs,'Lançada pela conciliação bancária'].filter(Boolean).join(' · '):obs,qtd:'',fator:'',pUnit:'',pago:cc?cc.data:socio?pagoEm:'',lanc:'',compra,dataCompra:dCompra};
+            if(n>1||parcCC)u.grupo=gid;
             if(rid)u.rateio=rid;
             if(centro!==EMP){
               // quantidade (parte da quantidade do arquivo) e preço unitário do arquivo; o desconto fecha o valor exato
@@ -17211,6 +17232,7 @@ const Mascara=(function(){
               u.qtd=String(q4);u.fator=x.un||'UN';
               if(dsc<-0.004||!(x.pUnit>0))u.pUnit=String(Math.round(vt/q4*1e6)/1e6);else{u.pUnit=String(Math.round(pu*1e6)/1e6);if(dsc>=0.005)u.desconto=dinheiro(dsc);}}
             C.finalizarConta(u);C.montarConta(u,null).forEach(op=>{if(cc)Object.assign(op.dados,{conciliacao:cc.id,conciliacao_baixa:cc.id,extrato_desc:cc.desc});ops.push(op);});
+            if(parcCC){const fut=Fin.parcelasFuturas({...u,obsBase:[x.num?'Nota/recibo nº '+x.num:'',rat?`Rateio: ${pctTxt(dd.pct)} de ${fmt(x.liq)} (pelo orçamento)`:'',socio?`Será paga por ${quem} (aporte)`:''].filter(Boolean).join(' · ')},x.desc||x.cat,pn,pt,cc.data,{extrato_desc:cc.desc,...(socio?{pago_por_socio:quem}:{})});nFut+=fut.length;ops.push(...fut);}
             if(socio){const k=centro;aps[k]=(aps[k]||0)+vt;}}}}
       // fornecedores novos entram no cadastro; descrições novas entram em Categoria › Descrição
       const forns=[...new Set(its.map(x=>x.forn).filter(Boolean))];
@@ -17219,7 +17241,7 @@ const Mascara=(function(){
       const nfs=[...new Set(its.map(x=>x.num).filter(Boolean))];
       const regsAp=Object.entries(aps).map(([ob,v])=>({obra:ob,quem,data:pagoEm,valor:Math.round(v*100)/100,forma,origem:'contas',obs:`Pagou ${forns.join(', ')||'a conta'}${nfs.length?' · nota nº '+nfs.join(', '):''} (lançado em Contas a pagar)`}));
       await executar(async()=>{await Promise.all(ops.map(x=>salvar(x.aba,x.dados,null)));for(const a of regsAp)await Fin.somarAporte(a);});
-      if(cc){toast(`Compra lançada (${ops.length} ${ops.length>1?'itens':'item'}) e conciliada com o extrato${socio?` · aporte de ${quem} registrado em Sócios e investimentos`:''}.`,'success');return;}
+      if(cc){toast(`Compra lançada (${ops.length-nFut} ${ops.length-nFut>1?'itens':'item'}) e conciliada com o extrato${nFut?` · ${nFut} parcela(s) futura(s) ficaram a pagar`:''}${socio?` · aporte de ${quem} registrado em Sócios e investimentos`:''}.`,'success');return;}
       toast(`${ops.length>1?ops.length+' contas lançadas':'Conta lançada'}${socio?` e ${regsAp.length>1?regsAp.length+' aportes':'o aporte'} de ${fe(quem)} registrado${regsAp.length>1?'s':''}`:''}${souAdmin()||socio?'.':' — aguardando a aprovação (de um Administrador ou de quem tem permissão para aprovar).'}`,'success');}}],1240);
     const j=jan(),q=k=>j.querySelector(`[data-l="${k}"]`),tb=q('itens');
     try{Eng.datalistFornecedores();}catch(e){}
@@ -21541,6 +21563,10 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
 .so2-tipo{display:inline-flex;align-items:center;gap:6px;font:700 11.5px Inter,sans-serif;padding:3px 9px;border-radius:999px;}
 .so2-tipo.ent{background:#ECFDF3;color:#067647;} .so2-tipo.sai{background:#FEF3F2;color:#B42318;} .so2-tipo.dev{background:#FFFAEB;color:#B54708;}
 .so2-ac{display:flex;gap:4px;justify-content:flex-end;}
+.so2-mov tr.so2-grupo>td{background:#FBFCFF;} .so2-itens summary{cursor:pointer;color:#1849A9;font:700 12px Inter,sans-serif;}
+.so2-itens ul{list-style:none;margin:6px 0 0;padding:0;} .so2-itens li{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 10px;align-items:start;border-top:1px solid #EEF1F6;padding:7px 0;}
+.so2-itens li>small{grid-column:1;display:block;font-size:11.5px;color:#667085;line-height:1.35;white-space:normal;word-break:break-word;} .so2-itens li>.so2-ac{grid-column:2;grid-row:1/span 3;align-self:center;}
+.so2-it-cab{display:flex;gap:10px;align-items:baseline;min-width:0;} .so2-it-cab b{font-size:12.5px;color:#101828;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;} .so2-it-val{font:700 12.5px Inter,sans-serif;color:#067647;white-space:nowrap;}
 .so2-filtros{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0;}
 .so2-filtros select{border:1px solid #D0D5DD;border-radius:10px;padding:7px 10px;font:600 12.5px Inter,sans-serif;background:#fff;}
 /* "Excluir vários" do livro dos sócios: a linha inteira marca; a barra de baixo é a mesma dos quadros */
@@ -21615,6 +21641,8 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
 .lote-tab.cc-lr table{min-width:760px;} .lote-tab.cc-lr td:nth-child(1){width:220px;} .lote-tab.cc-lr td:nth-child(2){width:auto;} .lote-tab.cc-lr td:nth-child(3){width:104px;min-width:0;} .lote-tab.cc-lr td:nth-child(4){width:130px;} .lote-tab.cc-lr td:nth-child(5){width:40px;}
 /* campos da mesma linha com a mesma altura; "Preencher todas as linhas" fica na própria tabela, cada campo em cima da sua coluna */
 .lote-tab.cc-lt{margin-top:12px;} .lote-tab.cc-lt td input,.lote-tab.cc-lt td select{min-height:34px;}
+.cc-lt-parc{display:flex;align-items:center;gap:5px;margin-top:5px;font-size:11.5px;color:#667085;font-weight:600;} .cc-lt-parc input,.lote-tab.cc-lt td .cc-lt-parc input{width:42px!important;min-height:0;padding:3px 5px;text-align:center;border:1px solid #D0D5DD;border-radius:7px;font:600 12px Inter,sans-serif;}
+.lote-parc-cc{margin-top:0;padding:4px 0;font-size:12.5px;} .lote-parc-cc input{width:52px!important;padding:7px 6px!important;}
 .cc-lt-todas td{background:#F5F8FF;vertical-align:middle;font-size:12.5px;font-weight:600;color:#344054;}
 @media (max-width:640px){
   table.cel-cartao tbody.cc-lt-todas tr{background:#F5F8FF;} table.cel-cartao tbody.cc-lt-todas td{background:none;} table.cel-cartao tbody.cc-lt-todas td:first-child::before{content:none;} table.cel-cartao tbody.cc-lt-todas td:empty{display:none;}
@@ -23072,7 +23100,7 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
   };
 
   /* ═══════════════ SÓCIOS E INVESTIMENTOS: aportes entram, retiradas e devoluções saem ═══════════════ */
-  const SO2={aba:'mov',obra:'',quem:'',tipo:'',ano:'',selModo:false,sel:new Set()};
+  const SO2={aba:'mov',obra:'',quem:'',tipo:'',ano:'',selModo:false,sel:new Set(),abertos:new Set()};
   const kAp=(cands,fb)=>{const m=(D().metadata&&D().metadata.aportes)||[];return cands.map(c=>m.find(k=>k===c)).find(Boolean)||cands.map(c=>m.find(k=>k.includes(c))).find(Boolean)||fb;};
   const KAp=()=>({obra:kAp(['titulo_obra'],'titulo_obra'),quem:kAp(['quem_aportou','quem'],'quem_aportou'),data:kAp(['data_aporte'],'data_aporte'),valor:kAp(['valor_aportado','valor_aporte','valor'],'valor_aportado'),obs:kAp(['observacao','observ','obs'],'observacao'),lanc:kAp(['data_lancamento','lancamento'],'data_lancamento')});
   const ehSaida=r=>{const K=KAp();return /retir|devolu/i.test(r.movimento||'')||val(r[K.valor])<0;};
@@ -23253,6 +23281,19 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
     const podeEd=pode('socios');
     let corpo='';
     if(f.aba==='mov'){
+      // aportes do mesmo sócio no mesmo mês ficam numa linha só (o período), com cada lançamento dele descrito dentro
+      const linhasMov=[],grupos=new Map();
+      vis.forEach((x,i)=>{if(f.selModo||x.fonte!=='ap'||x.sai){linhasMov.push({x,i});return;}const k=cn(x.quem)+'|'+mesDe(x);let g=grupos.get(k);if(!g){g={k,itens:[]};grupos.set(k,g);linhasMov.push(g);}g.itens.push({x,i});});
+      const botoesAp=(x,i,sd)=>`${!x.sai&&sd>0.004?`<button type="button" class="so2-ic dev" data-so2="devolver" data-i="${i}" title="Devolver este aporte (todo ou uma parte)" aria-label="Devolver"><i class="fas fa-rotate-left"></i></button>`:''}<button type="button" class="so2-ic" data-so2="editar" data-i="${i}" title="Editar" aria-label="Editar"><i class="fas fa-pen"></i></button><button type="button" class="so2-ic err" data-so2="excluir" data-i="${i}" title="Excluir" aria-label="Excluir"><i class="fas fa-trash"></i></button>`;
+      const linhaGrupo=g=>{const it=g.itens.map(z=>z.x),tot=S(it),dev=it.reduce((s,x)=>s+(x.valor-saldoAporte(x,L)),0),falta=tot-dev,p=U.periodoMes(mesDe(it[0])),obras=[...new Set(it.map(x=>x.obra))],formas=[...new Set(it.map(x=>x.forma).filter(Boolean))],ult=it.map(x=>x.data).filter(Boolean).sort((a,b)=>b-a)[0];
+        const sit=dev<=0.004?'':falta<=0.004?'<span class="so2-sit ok">devolvido</span>':`<span class="so2-sit parc">falta ${fmt(falta)}</span>`;
+        const item=({x,i})=>{const sd=saldoAporte(x,L);return `<li><div class="so2-it-cab"><b title="${fe(x.obra)}">${fe(x.obra)}</b><span class="so2-it-val">+ ${fmt(x.valor)}</span></div><small>${[x.data?brDe(x.data):'',x.forma,x.valor-sd>0.004?'devolvido '+fmt(x.valor-sd):''].filter(Boolean).map(fe).join(' · ')}</small>${x.obs?`<small class="so2-it-obs">${fe(x.obs)}</small>`:''}<div class="so2-ac">${podeEd&&GS.podeMexer(x.r)?botoesAp(x,i,sd):''}</div></li>`;};
+        return `<tr class="so2-grupo"><td class="so2-dt" data-ord-valor="${ult?brDe(ult):''}">${brDe(dt(p.ini)).slice(0,5)} a<br>${brDe(dt(p.fim))}</td>
+          <td><span class="so2-tipo ent"><i class="fas fa-arrow-down"></i> Aporte</span><small class="so2-l2">${formas.length>1?'Várias':fe(formas[0]||'')}</small></td>
+          <td class="so2-quem"><b>${fe(it[0].quem)}</b><small class="so2-l2" title="${fe(obras.join(' · '))}">${obras.length>1?obras.length+' obras':fe(obras[0])}</small></td>
+          <td class="num ent" data-ord-valor="${tot.toFixed(2).replace('.',',')}">+ ${fmt(tot)}</td>
+          <td class="num" data-ord-valor="${dev.toFixed(2).replace('.',',')}">${dev>0.004?fmt(dev):'—'}${sit?`<div>${sit}</div>`:''}</td>
+          <td class="so2-obs"><details class="so2-itens" data-so2-grupo="${fe(g.k)}" ${SO2.abertos.has(g.k)?'open':''}><summary>${it.length} lançamentos neste período — ver cada um</summary><ul>${g.itens.map(item).join('')}</ul></details></td><td></td></tr>`;};
       corpo=`<div class="gf-sec"><div class="gf-sec-cab"><div><h3>Entradas e saídas dos sócios</h3><p>Aportes entram (verde); retiradas e devoluções saem (vermelho) — cada um com a obra de referência. Em cada aporte dá para lançar a devolução.</p></div>${podeEd?'<div class="so2-novos"><button type="button" class="so2-novo ent" data-so2="aporte"><i class="fas fa-arrow-down"></i><span><b>Novo aporte</b><small>dinheiro que entra</small></span></button><button type="button" class="so2-novo sai" data-so2="retirada" data-sub="lucro"><i class="fas fa-arrow-up"></i><span><b>Retirada do lucro</b><small>distribuição aos sócios</small></span></button><button type="button" class="so2-novo sai" data-so2="retirada" data-sub="prolabore"><i class="fas fa-user-tie"></i><span><b>Pagamento de pró-labore</b><small>remuneração do sócio</small></span></button><button type="button" class="so2-novo dev" data-so2="devolucao"><i class="fas fa-rotate-left"></i><span><b>Devolução de aporte</b><small>devolver ao sócio</small></span></button></div>':''}</div>
         ${(()=>{if(!podeEd)return '';const gs=gruposAporte(),n=gs.filter(g=>g.itens.length>1).length+paraAjustarPeriodo(gs).length;return n?`<div class="vk-aviso"><i class="fas fa-layer-group"></i><div><b>Aportes para agrupar por período do mês</b> — ${n} grupo(s) com lançamentos do mesmo sócio e obra no mesmo mês, ou com um período que não é o mês inteiro.</div><button type="button" class="gf-bt mini" data-so2="agrupar">Agrupar agora</button></div>`:'';})()}
         <div class="so2-filtros"><select data-so2f="obra"><option value="">Todas as obras</option><option ${f.obra==='Empresa'?'selected':''}>Empresa</option>${obrasOps().map(o=>`<option ${f.obra===o?'selected':''}>${fe(o)}</option>`).join('')}</select>
@@ -23261,7 +23302,7 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
           <select data-so2f="ano"><option value="">Todos os anos</option>${anos.map(a=>`<option ${f.ano===String(a)?'selected':''}>${a}</option>`).join('')}</select>
           ${podeEd?(()=>{const n=GS.dup.grupos(itensDupSocios()).length;return `<button type="button" class="gf-bt mini${n?' dup-on':''}" data-so2="dup" title="Procura lançamentos em dobro (mesmo sócio, obra e valor em datas próximas)"><i class="fas fa-clone"></i> Verificar duplicados${n?` <b class="vk-badge">${n}</b>`:''}</button>`;})():''}${podeEd?`<button type="button" class="gf-bt mini${f.selModo?' on':''}" data-so2="selecionar" title="Marcar vários lançamentos e excluir todos de uma vez"><i class="fas ${f.selModo?'fa-xmark':'fa-square-check'}"></i> ${f.selModo?'Sair da seleção':'Excluir vários'}</button>`:''}</div>
         ${vis.length?`<div class="gf-rolar"><table class="so2-tab so2-mov"><thead><tr><th>Data / período</th><th>Movimento</th><th>Sócio · obra</th><th style="text-align:right">Valor</th><th style="text-align:right">Devolvido ao sócio</th><th>Observação</th><th></th></tr></thead><tbody>
-          ${vis.map((x,i)=>{const sd=!x.sai&&x.fonte==='ap'?saldoAporte(x,L):0,per=x.ini&&x.fim&&isoDe(x.ini)!==isoDe(x.fim)?`${brDe(x.ini).slice(0,5)} a<br>${brDe(x.fim)}`:x.data?brDe(x.data):'—';
+          ${linhasMov.map(z=>z.itens&&z.itens.length>1?linhaGrupo(z):((x,i)=>{const sd=!x.sai&&x.fonte==='ap'?saldoAporte(x,L):0,per=x.ini&&x.fim&&isoDe(x.ini)!==isoDe(x.fim)?`${brDe(x.ini).slice(0,5)} a<br>${brDe(x.fim)}`:x.data?brDe(x.data):'—';
             const sit=x.sai||x.fonte!=='ap'?'':sd<=0.004?'<span class="so2-sit ok">devolvido</span>':sd<x.valor-0.004?`<span class="so2-sit parc">falta ${fmt(sd)}</span>`:'';
             const trav=f.selModo?travaSo(x):'';
             return `<tr${f.selModo?` class="so2-lin${trav?' trava':''}" data-so2-lin="${i}" tabindex="0"${trav?` title="${fe(trav)}"`:''}`:''}><td class="so2-dt" data-ord-valor="${x.data?brDe(x.data):''}">${f.selModo?`<div class="so2-dt-sel"><span class="vk-marca" aria-hidden="true"><i class="fas ${trav?'fa-lock':'fa-check'}"></i></span><span>${per}</span></div>`:per}</td>
@@ -23270,7 +23311,7 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
             <td class="num ${x.sai?'sai':'ent'}" data-ord-valor="${x.sai?'-':''}${x.valor.toFixed(2).replace('.',',')}">${x.sai?'−':'+'} ${fmt(x.valor)}</td>
             <td class="num" data-ord-valor="${!x.sai&&x.fonte==='ap'?(x.valor-sd).toFixed(2).replace('.',','):''}">${!x.sai&&x.fonte==='ap'?`${x.valor-sd>0.004?fmt(x.valor-sd):'—'}${sit?`<div>${sit}</div>`:''}`:''}</td>
             <td class="so2-obs"><div title="${fe(x.obs)}">${fe(x.obs)}</div></td>
-            <td><div class="so2-ac">${f.selModo?'':x.fonte==='ap'&&podeEd&&GS.podeMexer(x.r)?`${!x.sai&&sd>0.004?`<button type="button" class="so2-ic dev" data-so2="devolver" data-i="${i}" title="Devolver este aporte (todo ou uma parte)" aria-label="Devolver"><i class="fas fa-rotate-left"></i></button>`:''}<button type="button" class="so2-ic" data-so2="editar" data-i="${i}" title="Editar" aria-label="Editar"><i class="fas fa-pen"></i></button><button type="button" class="so2-ic err" data-so2="excluir" data-i="${i}" title="Excluir" aria-label="Excluir"><i class="fas fa-trash"></i></button>`:x.fonte==='cp'?'<span class="gf-pill" title="Lançada em Contas a pagar">contas</span>':''}</div></td></tr>`;}).join('')}
+            <td><div class="so2-ac">${f.selModo?'':x.fonte==='ap'&&podeEd&&GS.podeMexer(x.r)?`${!x.sai&&sd>0.004?`<button type="button" class="so2-ic dev" data-so2="devolver" data-i="${i}" title="Devolver este aporte (todo ou uma parte)" aria-label="Devolver"><i class="fas fa-rotate-left"></i></button>`:''}<button type="button" class="so2-ic" data-so2="editar" data-i="${i}" title="Editar" aria-label="Editar"><i class="fas fa-pen"></i></button><button type="button" class="so2-ic err" data-so2="excluir" data-i="${i}" title="Excluir" aria-label="Excluir"><i class="fas fa-trash"></i></button>`:x.fonte==='cp'?'<span class="gf-pill" title="Lançada em Contas a pagar">contas</span>':''}</div></td></tr>`;})(z.itens?z.itens[0].x:z.x,z.itens?z.itens[0].i:z.i)).join('')}
           </tbody><tfoot><tr><td colspan="3" style="font-weight:800">Saldo do filtro</td><td class="num">${fmt(S(vis.filter(x=>!x.sai))-S(vis.filter(x=>x.sai)))}</td><td class="num">${fmt(S(vis.filter(x=>x.dev)))}</td><td colspan="2" style="color:#667085;font-size:12px">entradas ${fmt(S(vis.filter(x=>!x.sai)))} · saídas ${fmt(S(vis.filter(x=>x.sai)))}</td></tr></tfoot></table></div>`:'<div class="gf-vazio"><i class="fas fa-piggy-bank"></i><p>Nenhum lançamento neste filtro.</p></div>'}</div>`;
     }else if(f.aba==='socio'){
       const g={};L.forEach(x=>{const k=x.quem;(g[k]=g[k]||{ap:0,ret:0,dev:0});if(!x.sai)g[k].ap+=x.valor;else if(x.dev)g[k].dev+=x.valor;else g[k].ret+=x.valor;});
@@ -23291,6 +23332,8 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
         ${kpiG(gerado<0?'vermelho':'','fa-wallet','Caixa gerado pela operação',Rk(gerado),`recebido ${Rk(recebido)} − pago ${Rk(pagoOp)}`)}
       </div>${corpo}${f.selModo&&f.aba==='mov'?'<div class="vk-selbar" data-so2-selbar></div>':''}</div>`;
     pintarSelSo(box);
+    // período aberto continua aberto quando a tela é redesenhada
+    if(!box._so2Tog){box._so2Tog=true;box.addEventListener('toggle',ev=>{const d=ev.target;if(!d.matches||!d.matches('details[data-so2-grupo]'))return;d.open?SO2.abertos.add(d.dataset.so2Grupo):SO2.abertos.delete(d.dataset.so2Grupo);},true);}
     box.onclick=ev=>{
       const a=ev.target.closest('[data-so2-aba]');if(a){SO2.aba=a.dataset.so2Aba;SO2.selModo=false;SO2.sel.clear();return GS.renderSocios();}
       const b=ev.target.closest('[data-so2]');if(!b){const l=SO2.selModo&&ev.target.closest('[data-so2-lin]');if(l)alternarSelSo(box,l);return;}const ac=b.dataset.so2,x=App._so2[+b.dataset.i];
