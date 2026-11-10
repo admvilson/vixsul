@@ -156,6 +156,7 @@
   // o que grava ou exclui no servidor (vale para todas as telas: elas passam por google.script.run)
   const MUDA={upsertRegistro:'Salvando…',upsertRegistroLote:'Salvando…',salvarComposicaoCAP:'Salvando…',salvarUsuario:'Salvando…',
     excluirRegistro:'Excluindo…',excluirRegistroLote:'Excluindo…',excluirComposicaoCAP:'Excluindo…',excluirAnexo:'Excluindo…',excluirUsuario:'Excluindo…',
+    marcarLixeira:'Excluindo…',tirarLixeira:'Restaurando…',excluirDefinitivo:'Excluindo…',excluirAnexoDefinitivo:'Excluindo…',
     restaurarAuditoria:'Restaurando…',moverAnexosLote:'Movendo os arquivos…',exportarTabela:'Preparando a cópia…',exportarStorage:'Preparando a cópia…',
     alterarSenhaPorCpf:'Salvando a senha…',alterarSenhaPorEmail:'Salvando a senha…',redefinirSenhaPorCpf:'Salvando a senha…',redefinirSenhaPorEmail:'Salvando a senha…'};
   const segundoPlano=()=>typeof App!=='undefined'&&!!App._lixeiraPurgando;   // limpeza automática da lixeira: sem tela

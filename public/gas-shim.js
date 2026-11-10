@@ -362,6 +362,58 @@ async function _excluirRegistroLote(abaNome, rowId) {
   return { ok: true };
 }
 
+// ─── LIXEIRA PARA TUDO (2026-11): excluir não apaga na hora ───
+// A tela marca a linha com "_lixeira_em" (+ quem excluiu e o lote da exclusão): ela some das telas e aparece na Lixeira,
+// de onde volta (Restaurar) ou sai de vez (Excluir de vez, ou a limpeza automática dos 15 dias). Uma linha que JÁ estava
+// na Lixeira devolve { ja: true }: aí a tela chama a exclusão de verdade (_excluirRegistroLote / _excluirAnexo).
+async function _marcarLixeira(abaNome, rowId, marca) {
+  if (!rowId || Number(rowId) <= 0) return { ok: false, msg: 'Registro inválido.' };
+  const chave = _NOME_PARA_CHAVE[abaNome] || String(abaNome || '').toLowerCase();
+  const { data, error: e1 } = await _sb.from(chave).select('row_data').eq('id', Number(rowId)).maybeSingle();
+  if (e1) return { ok: false, msg: e1.message };
+  if (!data) return { ok: true, sumiu: true };
+  const rd = data.row_data || {};
+  if (rd._lixeira_em) return { ok: true, ja: true };
+  // a mesma regra da exclusão: só quem lançou (ou um Administrador); anexo de documento continua livre, como antes
+  const s = _sessaoAtual(), dono = rd.criado_por_id;
+  if (!(chave === 'arquivos' && rd.tipo === 'anexo') && s && !_ehAdmin(s) && dono && ![s.uid, s.cpf, s.email, s.nome].filter(Boolean).map(String).includes(String(dono)))
+    return { ok: false, msg: _MSG_DONO };
+  const m = marca || {};
+  const novo = Object.assign({}, rd, {
+    _lixeira_em: m._lixeira_em || new Date().toISOString(),
+    _lixeira_obra_id: m._lixeira_obra_id || 'avulso',
+    _lixeira_motivo: String(m._lixeira_motivo || ''),
+    _lixeira_lote: String(m._lixeira_lote || ''),
+    _lixeira_por: String(m._lixeira_por || '')
+  });
+  const { error } = await _sb.from(chave).update({ row_data: novo }).eq('id', Number(rowId));
+  if (error) return { ok: false, msg: error.message };
+  return { ok: true };
+}
+// Restaurar: tira as marcas da Lixeira da linha como ela está no banco (nada da tela é regravado)
+async function _tirarLixeira(abaNome, rowId) {
+  if (!rowId || Number(rowId) <= 0) return { ok: false, msg: 'Registro inválido.' };
+  const chave = _NOME_PARA_CHAVE[abaNome] || String(abaNome || '').toLowerCase();
+  const { data, error: e1 } = await _sb.from(chave).select('row_data').eq('id', Number(rowId)).maybeSingle();
+  if (e1) return { ok: false, msg: e1.message };
+  if (!data) return { ok: false, msg: 'Este item já não existe.' };
+  const rd = Object.assign({}, data.row_data || {});
+  Object.keys(rd).forEach(k => { if (k.indexOf('_lixeira_') === 0) delete rd[k]; });
+  const { error } = await _sb.from(chave).update({ row_data: rd }).eq('id', Number(rowId));
+  if (error) return { ok: false, msg: error.message };
+  return { ok: true };
+}
+// Anexos e desenhos que estão na Lixeira (a tabela de arquivos não vem no carregamento geral): só os cabeçalhos
+async function _listarLixeiraArquivos() {
+  const { data, error } = await _sb.from('arquivos').select('id,row_data').like('row_data->>_lixeira_em', '2%').order('id', { ascending: true });
+  if (error) return { ok: false, msg: error.message };
+  const itens = (data || []).filter(r => r.row_data && r.row_data.tipo !== 'anexo_parte').map(r => {
+    const d = Object.assign({}, r.row_data); delete d.conteudo;   // a lista não precisa da imagem do desenho
+    return Object.assign({ rowid: r.id, _aba: 'Arquivos' }, d);
+  });
+  return { ok: true, itens };
+}
+
 
 // Arquivos (desenhos do projeto e as frentes marcadas neles): ficam fora do carregamento
 // geral do sistema — só são lidos, por obra, quando a tela de Planejamento abre.
@@ -370,7 +422,8 @@ async function _listarArquivos(obra) {
   const { data, error } = await _sb.from('arquivos').select('id,row_data').eq('row_data->>titulo_obra', String(obra || ''))
     .or('row_data->>tipo.is.null,row_data->>tipo.neq.anexo_parte').order('id', { ascending: true });
   if (error) return { ok: false, msg: error.message };
-  const itens = (data || []).map(r => ({ rowid: r.id, ...r.row_data }));
+  // o que está na Lixeira não aparece (volta se for restaurado)
+  const itens = (data || []).filter(r => !(r.row_data && r.row_data._lixeira_em)).map(r => ({ rowid: r.id, ...r.row_data }));
   await Promise.all(itens.filter(x => x.conteudo_st && !x.conteudo).map(async x => {
     try { x.conteudo = `data:${x.mime || 'image/jpeg'};base64,` + _bytesParaB64(await _stBaixar(x.conteudo_st)); } catch (e) { x.erro_st = e.message; }
   }));
@@ -385,7 +438,7 @@ async function _listarAnexos(obra) {
   const { data, error } = await _sb.from('arquivos').select('id,row_data').eq('row_data->>titulo_obra', String(obra || ''))
     .eq('row_data->>tipo', 'anexo').order('id', { ascending: true });
   if (error) return { ok: false, msg: error.message };
-  return { ok: true, itens: (data || []).map(r => ({ rowid: r.id, ...r.row_data })) };
+  return { ok: true, itens: (data || []).filter(r => !(r.row_data && r.row_data._lixeira_em)).map(r => ({ rowid: r.id, ...r.row_data })) };
 }
 async function _partesAnexo(uid) {
   const { data, error } = await _sb.from('arquivos').select('id,row_data').eq('row_data->>anexo_uid', String(uid || ''))
@@ -840,6 +893,9 @@ const _FNS = {
   excluirRegistro:      (a,b)     => _excluirRegistro(a,b),
   upsertRegistroLote:   (a,b,c)   => _upsertRegistroLote(a,b,c),
   excluirRegistroLote:  (a,b)     => _excluirRegistroLote(a,b),
+  marcarLixeira:        (a,b,c)   => _marcarLixeira(a,b,c),
+  tirarLixeira:         (a,b)     => _tirarLixeira(a,b),
+  listarLixeiraArquivos:()        => _listarLixeiraArquivos(),
   salvarComposicaoCAP:  (a,b,c,d) => _salvarComposicaoCAP(a,b,c,d),
   excluirComposicaoCAP: (a,b)     => _excluirComposicaoCAP(a,b),
   login:                (a,b,c)   => _login(a,b,c),

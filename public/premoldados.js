@@ -170,7 +170,7 @@ function depsExcluir(reg){
 async function excluirDiaComEnsaios(reg,rotulo){
   const cods=new Set(lotes().filter(l=>String(l.r.rowid)===String(reg.rowid)).map(l=>l.lote)),ens=T('ensaio').filter(e=>cods.has(e.lote)),cps=T('cp').filter(c=>cods.has(c.lote));
   const tm=travaMes(reg,reg)||ens.map(e=>travaMes(e,e)).find(Boolean);if(tm)return trava(`Não dá para excluir: ${rotulo}`,[{ok:false,txt:tm}]);
-  if(!(await simNao('Excluir o dia e os ensaios?',`Serão excluídos de vez (não tem como desfazer):<ul style="margin:8px 0 0 18px"><li><b>${fe(rotulo)}</b> — ${cods.size} lote(s): ${[...cods].map(fe).join(', ')}</li><li>${ens.length} ensaio(s): ${ens.map(e=>`${fe(e.lote)} aos ${nf(num(e.idade),0)} dias`).join(', ')}</li>${cps.length?`<li>o número de corpos de prova informado nesses lotes</li>`:''}</ul>`,'Sim, excluir tudo','fa-trash')))return;
+  if(!(await simNao('Excluir o dia e os ensaios?',`Vão para a Lixeira (dá para restaurar em até 15 dias):<ul style="margin:8px 0 0 18px"><li><b>${fe(rotulo)}</b> — ${cods.size} lote(s): ${[...cods].map(fe).join(', ')}</li><li>${ens.length} ensaio(s): ${ens.map(e=>`${fe(e.lote)} aos ${nf(num(e.idade),0)} dias`).join(', ')}</li>${cps.length?`<li>o número de corpos de prova informado nesses lotes</li>`:''}</ul>`,'Sim, excluir tudo','fa-trash')))return;
   try{await executar(async()=>{for(const e of ens)await excluir(ABA,e.rowid);for(const c of cps)await excluir(ABA,c.rowid);await excluir(ABA,reg.rowid);});toast('Dia de produção e ensaios excluídos.','success');document.getElementById('fin-ov').classList.remove('open');}
   catch(e){toast(e.message||String(e),'error');}}
 async function apagarReg(reg,rotulo,depois){
@@ -182,7 +182,7 @@ async function apagarReg(reg,rotulo,depois){
       if(bl.every(x=>x.ens))return trava(`Não dá para excluir: ${rotulo}`,dp,{rot:'Excluir o dia junto com os ensaios',f:()=>excluirDiaComEnsaios(reg,rotulo)});}
     return trava(`Não dá para excluir: ${rotulo}`,dp);}
   const tm=travaMes(reg,reg);if(tm)return trava(`Não dá para excluir: ${rotulo}`,[{ok:false,txt:tm}]);
-  confirmar('Excluir?',`<b>${fe(rotulo)}</b> será excluído de vez. Não tem como desfazer.`,'Sim, excluir',async()=>{await executar(()=>excluir(ABA,reg.rowid));toast('Excluído.','success');if(depois)depois();});
+  confirmar('Excluir?',`<b>${fe(rotulo)}</b> vai para a Lixeira — dá para restaurar em até 15 dias.`,'Sim, excluir',async()=>{await executar(()=>excluir(ABA,reg.rowid));toast('Excluído.','success');if(depois)depois();});
 }
 const proxNum=(tipo,campo)=>T(tipo).reduce((m,r)=>Math.max(m,parseInt(String(r[campo]||'').replace(/\D/g,''),10)||0),0)+1;
 const proxCodigo=()=>'PM-'+String(proxNum('peca','codigo')).padStart(3,'0');
@@ -993,7 +993,7 @@ async function fotoMostrar(p){const box=document.querySelector('#fin-jan [data-p
   box.innerHTML=`<div class="pm-fotos">${L.map((a,i)=>`<figure data-fi="${i}"><img alt="Foto da peça">${i===0?'<span class="pm-fprin">principal</span>':''}${podeApagarArq(a)?`<button type="button" class="pm-fx" data-fdel="${i}" title="Excluir esta foto"><i class="fas fa-trash"></i></button>`:''}</figure>`).join('')}</div>`;
   L.forEach((a,i)=>dataUrlDe(a).then(u=>{const im=box.querySelector(`[data-fi="${i}"] img`);if(im&&u)im.src=u;}));
   box.onclick=ev=>{const b=ev.target.closest('[data-fdel]');if(!b)return;const a=L[+b.dataset.fdel];
-    perguntar('Excluir a foto?','A foto sai da peça de vez. A mais recente que ficar passa a ser a principal.','Excluir foto',async()=>{UI._showBusy('Excluindo…');try{await excluirAnexoFab(a);}finally{UI._hideBusy();}FOTOS.lista=null;delete FOTOS.url[String(p.rowid)];toast('Foto excluída.','success');fotoMostrar(p);});};}
+    perguntar('Excluir a foto?','A foto vai para a Lixeira (dá para restaurar em até 15 dias). A mais recente que ficar passa a ser a principal.','Excluir foto',async()=>{UI._showBusy('Excluindo…');try{await excluirAnexoFab(a);}finally{UI._hideBusy();}FOTOS.lista=null;delete FOTOS.url[String(p.rowid)];toast('Foto excluída.','success');fotoMostrar(p);});};}
 // ilustração 3D da peça (do catálogo, nas medidas dela)
 const ilu=(t,d,o)=>CAT.ilustracao?CAT.ilustracao(t,d||{},o):CAT.desenho(t,d||{},{barras:[]});
 const iluPeca=(p,o)=>p?ilu(tipoDePeca(p),p.dims,o):'';
@@ -2456,15 +2456,16 @@ function planoExcluirVenda(v){
 function excluirVenda(v){
   if(!ehAdm())return toast('Só o Administrador exclui venda.','error');
   const pl=planoExcluirVenda(v);if(pl.bloq.length)return trava(`Não dá para excluir a venda nº ${v.numero}`,pl.bloq.map(t=>({ok:false,txt:t})));
-  confirmar(`Excluir a venda nº ${v.numero}?`,`<b>A venda some de vez</b> — não tem como desfazer. (Para guardar o histórico, deixe na coluna Cancelados.)<ul style="margin:8px 0 0 18px">
+  confirmar(`Excluir a venda nº ${v.numero}?`,`<b>A venda vai para a Lixeira</b> — dá para restaurar em até 15 dias. (Para guardar o histórico, deixe na coluna Cancelados.)<ul style="margin:8px 0 0 18px">
     <li>${pl.ent||pl.est?`Sai do caixa: entradas de ${R(pl.ent)} e estornos de ${R(pl.est)} (o saldo muda ${R(pl.est-pl.ent)}).`:'Não tem dinheiro lançado nesta venda.'}</li>
     ${pl.avs.length?`<li>${pl.avs.length} avaria(s) da devolução continuam como perda da fábrica (o estoque não muda).</li>`:''}
     ${pl.ops.length?`<li>${pl.ops.length} ordem(ns) de produção ligada(s): sem produção são excluídas; com produção ficam para o estoque.</li>`:''}
-    <li>Os arquivos de nota fiscal anexados a ela também são excluídos.</li></ul>`,'Sim, excluir a venda',async()=>{await excluirVendaJa(v,pl);toast(`Venda nº ${v.numero} excluída.`,'success');});}
+    <li>Os arquivos de nota fiscal anexados a ela vão junto para a Lixeira.</li></ul>`,'Sim, excluir a venda',async()=>{await excluirVendaJa(v,pl);toast(`Venda nº ${v.numero} excluída.`,'success');});}
 async function excluirVendaJa(v,pl,extra){
   if(!ehAdm())throw new Error('Só o Administrador exclui venda.');pl=pl||planoExcluirVenda(v);if(pl.bloq.length)throw new Error(pl.bloq[0]);
-  for(const a of await arquivosNota(v)){try{await excluirAnexoFab(a);}catch(e){}}
-  await executar(async()=>{for(const [o,id] of pl.mud)await salvar(ABA,o,id);for(const id of pl.del)await excluir(ABA,id);await excluir(ABA,v.rowid);if(extra)await extra();});}
+  // tudo dentro do mesmo "executar": a venda, as ordens e os anexos da nota vão para a Lixeira juntos (voltam juntos)
+  await executar(async()=>{for(const a of await arquivosNota(v)){try{await excluirAnexoFab(a);}catch(e){}}
+    for(const [o,id] of pl.mud)await salvar(ABA,o,id);for(const id of pl.del)await excluir(ABA,id);await excluir(ABA,v.rowid);if(extra)await extra();});}
 // peça só com histórico "de teste": vendas encerradas e ordens sem produção (nada produzido, sem avaria fora dessas vendas, sem acerto)
 function cascataPeca(id){
   id=String(id);if(!ehAdm())return null;
@@ -2479,7 +2480,7 @@ function cascataPeca(id){
   return {pls,ops,avDel};}
 function excluirPecaCascata(p,cas){
   const nOut=v=>(v.itens||[]).some(it=>String(it.peca)!==String(p.rowid));
-  confirmar('Excluir a peça e o histórico dela?',`<b>${fe(p.nome)}</b> e tudo abaixo somem de vez — não tem como desfazer:<ul style="margin:8px 0 0 18px">
+  confirmar('Excluir a peça e o histórico dela?',`<b>${fe(p.nome)}</b> e tudo abaixo vão para a Lixeira (dá para restaurar em até 15 dias):<ul style="margin:8px 0 0 18px">
     ${cas.pls.map(({v,pl})=>`<li>Venda nº ${fe(String(v.numero))} (${v.status==='devolvida'?'devolvida':'cancelada'} · ${fe(v.cliente||'')})${nOut(v)?' — <b>tem outras peças: sai inteira</b>':''}${pl.ent||pl.est?` · sai do caixa: entradas ${R(pl.ent)}, estornos ${R(pl.est)}`:''}</li>`).join('')}
     ${cas.ops.length?`<li>${cas.ops.length} ordem(ns) de produção sem produção: ${cas.ops.map(o=>'OP nº '+fe(String(o.numero))).join(', ')}</li>`:''}
     ${cas.avDel.length?`<li>${cas.avDel.length} avaria(s) desta peça (das devoluções acima)</li>`:''}</ul>`,'Sim, excluir tudo',async()=>{
