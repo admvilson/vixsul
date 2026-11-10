@@ -10884,12 +10884,17 @@ const Fin=(function(){
   const mesDoAporte=(r,K)=>{const d=dt(r.periodo_fim)||dt(r[K.data]);return d?isoDe(d).slice(0,7):'';};
   const KAporte=()=>({obra:col('aportes',['titulo_obra'],'titulo_obra'),quem:col('aportes',['quem_aportou','quem'],'quem_aportou'),data:col('aportes',['data_aporte'],'data_aporte'),valor:col('aportes',['valor_aportado','valor_aporte','valor'],'valor_aportado'),obs:col('aportes',['observacao','observ','obs'],'observacao'),lanc:col('aportes',['data_lancamento','lancamento'],'data_lancamento')});
   // a:{obra,quem,data(iso),valor,forma,obs,origem,conc}
+  /* FORMAS DE PAGAMENTO do aporte do mês: o lançamento que soma vários pagamentos guarda todas em "formas_aporte"
+     (separadas por vírgula); "forma_aporte" continua com a forma única ou "Várias". Nos antigos, só "Várias": as formas
+     não ficaram guardadas (a tela de Sócios procura nas contas que o sócio pagou naquele mês e obra). */
+  const formasReg=r=>r&&r.formas_aporte?String(r.formas_aporte).split(',').map(s=>s.trim()).filter(Boolean):(r&&r.forma_aporte?[r.forma_aporte]:[]);
+  const juntarFormas=(...ls)=>[...new Set(ls.flat().filter(Boolean))].join(', ');
   async function somarAporte(a){const K=KAporte(),mes=a.data.slice(0,7),per=periodoMes(mes);
     const ja=(D().aportes||[]).find(r=>!/retir|devolu/i.test(r.movimento||'')&&val(r[K.valor])>0&&cn(r[K.quem])===cn(a.quem)&&cn(r[K.obra])===cn(a.obra)&&mesDoAporte(r,K)===mes);
     const liga=o=>{if(a.conc){o.conciliacao=juntarId(o.conciliacao,a.conc);o.conciliacao_baixa=juntarId(o.conciliacao_baixa,a.conc);}return o;};
     if(ja){const fj=ja.forma_aporte||'',dj=isoDe(dt(ja[K.data])||dt(a.data));
-      return salvar(ja._aba||ABA.aporte,liga({...ja,[K.valor]:dinheiro(val(ja[K.valor])+a.valor),[K.data]:dj>a.data?dj:a.data,forma_aporte:fj&&a.forma&&fj!==a.forma?'Várias':(fj||a.forma||''),[K.obs]:[ja[K.obs],a.obs].filter(Boolean).join(' | '),periodo_ini:per.ini,periodo_fim:per.fim}),ja.rowid);}
-    return salvar(ABA.aporte,liga({[K.lanc]:todayDateTime(),[K.obra]:a.obra,[K.quem]:a.quem,[K.data]:a.data,[K.valor]:dinheiro(a.valor),movimento:'Aporte',aporte_ref:'',forma_aporte:a.forma||'',[K.obs]:a.obs||'',periodo_ini:per.ini,periodo_fim:per.fim,origem_aporte:a.origem||''}),null);}
+      return salvar(ja._aba||ABA.aporte,liga({...ja,[K.valor]:dinheiro(val(ja[K.valor])+a.valor),[K.data]:dj>a.data?dj:a.data,forma_aporte:fj&&a.forma&&fj!==a.forma?'Várias':(fj||a.forma||''),formas_aporte:juntarFormas(formasReg(ja),a.formas||[a.forma]),[K.obs]:[ja[K.obs],a.obs].filter(Boolean).join(' | '),periodo_ini:per.ini,periodo_fim:per.fim}),ja.rowid);}
+    return salvar(ABA.aporte,liga({[K.lanc]:todayDateTime(),[K.obra]:a.obra,[K.quem]:a.quem,[K.data]:a.data,[K.valor]:dinheiro(a.valor),movimento:'Aporte',aporte_ref:'',forma_aporte:a.forma||'',formas_aporte:juntarFormas(a.formas||[a.forma]),[K.obs]:a.obs||'',periodo_ini:per.ini,periodo_fim:per.fim,origem_aporte:a.origem||''}),null);}
   // o que fica escrito no lançamento dos sócios que veio de uma linha do extrato
   const obsDoExtrato=t=>`Extrato ${t.data} · ${t.desc}`;
 
@@ -11792,7 +11797,7 @@ const Fin=(function(){
             if(socio){const k=dd.obra+'|'+iso.slice(0,7),a=aps[k]=aps[k]||{obra:dd.obra,valor:0,data:iso};a.valor+=dd.valor;if(iso>a.data)a.data=iso;}});});
         // aporte do sócio: soma no lançamento do mês dele em cada obra (ou Empresa)
         const forns=[...new Set(its.map(x=>x.forn).filter(Boolean))],formas=[...new Set(its.map(x=>x.forma).filter(Boolean))];
-        const regsAp=Object.values(aps).map(a=>({obra:a.obra,quem,data:a.data,valor:Math.round(a.valor*100)/100,forma:formas.length===1?formas[0]:formas.length?'Várias':'',origem:'contas',
+        const regsAp=Object.values(aps).map(a=>({obra:a.obra,quem,data:a.data,valor:Math.round(a.valor*100)/100,forma:formas.length===1?formas[0]:formas.length?'Várias':'',formas,origem:'contas',
           obs:`Pagou ${forns.slice(0,4).join(', ')||'contas'}${forns.length>4?' e outros':''} (${its.length} saída${its.length>1?'s':''} do extrato, lançadas em Contas a pagar)`}));
         // fornecedores novos entram no cadastro; descrições novas entram em Categoria › Descrição
         const podeF=!UI._allowedViews||UI._allowedViews.includes('fornecedores');
@@ -11870,7 +11875,7 @@ const Fin=(function(){
   }
   return {renderContas,renderConciliacao,aoAtualizar,movimentos,prazoReceb,lerSaldo,somarAporte,parcelasFuturas,_conciliar:conciliar,_lerOFX:lerOFX,_lerCSV:lerCSVExtrato,_pdfParaCsv:pdfParaCsv,_lerLinhasPdf:lerLinhasPdf,
     // utilitários compartilhados com os módulos de engenharia (Eng)
-    util:{janela,confirmar,executar,salvar,excluir,excluirDeVez,fe,cn,dt,brDe,isoDe,isoDeBR,hoje0,addD,dias,col,kRow,dinheiro,val,juntarId,ajusteDe,txtDif,periodoMes,obsDoExtrato}};
+    util:{janela,confirmar,executar,salvar,excluir,excluirDeVez,formasAporte:formasReg,juntarFormas,fe,cn,dt,brDe,isoDe,isoDeBR,hoje0,addD,dias,col,kRow,dinheiro,val,juntarId,ajusteDe,txtDif,periodoMes,obsDoExtrato}};
 })();
 App._renderContas=()=>Fin.renderContas();
 App._renderConciliacao=()=>Fin.renderConciliacao();
@@ -21714,6 +21719,9 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
 .so2-mov td{white-space:nowrap;} .so2-mov td.so2-dt{color:#475467;font-variant-numeric:tabular-nums;font-size:12px;line-height:1.3;}
 /* linha da obra (aportes): o nome da obra na 1ª coluna; embaixo, o período quando é um só */
 .so2-dt.so2-ob{min-width:150px;max-width:240px;} .so2-ob b{display:block;font-size:12.5px;font-weight:700;color:#101828;line-height:1.3;overflow-wrap:anywhere;}
+/* forma de pagamento na linha da obra: a principal + "+N" (as outras aparecem passando o mouse ou tocando) */
+.so2-formas{cursor:help;white-space:nowrap;} .so2-formas:focus-visible{outline:2px solid #84ADFF;outline-offset:2px;border-radius:4px;}
+.so2-mais{display:inline-block;margin-left:3px;padding:0 6px;border-radius:999px;background:#EFF4FF;color:#1849A9;font-size:10.5px;font-weight:800;line-height:16px;vertical-align:1px;}
 .so2-mov th{white-space:normal;} .so2-mov th.tb-ord{white-space:normal;} .so2-mov tfoot td{white-space:normal;}
 .so2-mov .so2-l2{display:block;font-size:11px;color:#667085;margin-top:2px;max-width:165px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .so2-mov td.so2-quem b{display:block;max-width:165px;overflow:hidden;text-overflow:ellipsis;}
@@ -23342,8 +23350,13 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
       corpo=`${banco}<div class="fin-linha">${socio}${forma}${destino(!x&&!conc)}<div class="fin-fld"><label>Período (mês) <span class="obg">*</span></label><select data-k="mes" ${conc?'disabled title="O mês vem da data do extrato"':''}>${opsMes(mesIni)}</select></div>${valor}${obs}</div>
         <div class="fin-resumo" data-ap-ja hidden></div>
         <div class="fin-aviso"><div>Os aportes ficam por período: o que o mesmo sócio aporta na mesma obra dentro do mês <b>soma</b> no lançamento que já existe — fica um lançamento por mês e obra.</div></div>`;}
-    else if(tp==='Retirada'){titulo=x?'Editar retirada':subIni==='lucro'?'Retirada do lucro':subIni==='prolabore'?'Pagamento de pró-labore':'Retirada do lucro ou pró-labore';
-      corpo=`${banco}<div class="fin-linha"><div class="fin-fld" style="grid-column:1/-1"><label>Tipo da saída <span class="obg">*</span></label><select data-k="subtipo"><option value="">Escolha…</option><option value="lucro" ${subIni==='lucro'?'selected':''}>Retirada do lucro</option><option value="prolabore" ${subIni==='prolabore'?'selected':''}>Pagamento de pró-labore</option></select></div>${socio}${forma}${destino(false)}<div class="fin-fld"><label>Data <span class="obg">*</span></label><input type="date" data-k="data" ${conc?`readonly class="lote-calc" title="A data vem do extrato" value="${isoBanco}"`:`max="${hj}" value="${x&&x.data?isoDe(x.data):hj}"`}></div>${valor}${obs}</div>
+    else if(tp==='Retirada'){
+      // o tipo já vem definido pelo botão (Retirada do lucro / Pagamento de pró-labore) ou pela retirada que está sendo
+      // editada: sem lista. Só a retirada antiga, lançada sem tipo, pede para escolher.
+      const nomeSub=subIni==='lucro'?'Retirada do lucro':subIni==='prolabore'?'Pagamento de pró-labore':'';
+      titulo=x?(nomeSub?'Editar '+nomeSub.charAt(0).toLowerCase()+nomeSub.slice(1):'Editar retirada'):(nomeSub||'Retirada do lucro ou pró-labore');
+      const tipoCampo=nomeSub?`<input type="hidden" data-k="subtipo" value="${subIni}">`:`<div class="fin-fld" style="grid-column:1/-1"><label>Tipo da saída <span class="obg">*</span></label><select data-k="subtipo"><option value="">Escolha…</option><option value="lucro">Retirada do lucro</option><option value="prolabore">Pagamento de pró-labore</option></select></div>`;
+      corpo=`${banco}<div class="fin-linha">${tipoCampo}${socio}${forma}${destino(false)}<div class="fin-fld"><label>Data <span class="obg">*</span></label><input type="date" data-k="data" ${conc?`readonly class="lote-calc" title="A data vem do extrato" value="${isoBanco}"`:`max="${hj}" value="${x&&x.data?isoDe(x.data):hj}"`}></div>${valor}${obs}</div>
         <div class="fin-aviso"><div><b>Retirada do lucro</b> e <b>pró-labore</b> saem do caixa. Para devolver dinheiro que o sócio aportou, use o botão <b>Devolver</b> (<i class="fas fa-rotate-left"></i>) na linha da obra, em Movimentos.</div></div>`;}
     else{titulo=x?'Editar devolução de aporte':'Devolução de aporte';
       // a obra vem da linha (Devolver) ou da devolução que está sendo editada; sem ela, escolhe numa lista
@@ -23391,14 +23404,14 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
         // mesmo sócio + obra + mês: fica tudo num lançamento só, com o período do mês
         const ja=acharDoMes(L,q,p.obra,mes,r);
         if(ja){const o=limpo(ja.r),dj=ja.data?isoDe(ja.data):'',obsJ=[ja.obs,[p.obs,obsTxt].filter(Boolean).join(' · ')].filter(Boolean).join(' | ');
-          Object.assign(o,{[K.valor]:dinheiro(ja.valor+p.valor),forma_aporte:ja.forma&&forma&&ja.forma!==forma?'Várias':(ja.forma||forma),[K.obs]:obsJ,periodo_ini:ini,periodo_fim:fim,[K.data]:dj>dataNova?dj:dataNova});liga(o);
+          Object.assign(o,{[K.valor]:dinheiro(ja.valor+p.valor),forma_aporte:ja.forma&&forma&&ja.forma!==forma?'Várias':(ja.forma||forma),formas_aporte:U.juntarFormas(U.formasAporte(ja.r),forma==='Várias'&&r?U.formasAporte(r):[forma]),[K.obs]:obsJ,periodo_ini:ini,periodo_fim:fim,[K.data]:dj>dataNova?dj:dataNova});liga(o);
           // editou e caiu no mês de outro lançamento: os dois viram um só; a devolução e a ligação com o extrato vão junto
           if(r)['conciliacao','conciliacao_baixa'].forEach(k=>{if(r[k])o[k]=[o[k],r[k]].filter(Boolean).join(',');});
           await salvar('Aportes financeiros',o,ja.r.rowid);
           // o lançamento editado foi somado no do mês: não é exclusão (o valor continua no outro), por isso sai sem Lixeira
           if(r){for(const d of devs.filter(d=>String(d.ref)===String(r.rowid)))await salvar('Aportes financeiros',{...limpo(d.r),aporte_ref:String(ja.r.rowid)},d.r.rowid);await excluirDeVez('Aportes financeiros',r.rowid);}}
         else{const o=r?limpo(r):{[K.lanc]:todayDateTime()},dx=x&&x.data?isoDe(x.data):'';
-          Object.assign(o,{[K.quem]:q,[K.obra]:p.obra,[K.data]:dx&&dx.slice(0,7)===mes?dx:dataNova,[K.valor]:dinheiro(p.valor),movimento:'Aporte',aporte_ref:'',forma_aporte:forma,periodo_ini:ini,periodo_fim:fim,[K.obs]:[p.obs,obsTxt].filter(Boolean).join(' · ')});liga(o);
+          Object.assign(o,{[K.quem]:q,[K.obra]:p.obra,[K.data]:dx&&dx.slice(0,7)===mes?dx:dataNova,[K.valor]:dinheiro(p.valor),movimento:'Aporte',aporte_ref:'',forma_aporte:forma,formas_aporte:forma==='Várias'&&r?(r.formas_aporte||'Várias'):(forma||''),periodo_ini:ini,periodo_fim:fim,[K.obs]:[p.obs,obsTxt].filter(Boolean).join(' · ')});liga(o);
           await salvar('Aportes financeiros',o,r?r.rowid:null);}}});
       toast(partes.length>1?`Aporte rateado entre ${partes.length} obras.`:conc?'Aporte registrado no período do mês e ligado ao extrato.':'Aporte lançado no período do mês.','success');}}],680);
     const j=document.getElementById('fin-jan'),rbox=j.querySelector('[data-rat]');
@@ -23429,7 +23442,7 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
         for(const gp of juntar.concat(semPer)){const it=gp.itens.slice().sort((a,b)=>(+a.r.rowid||0)-(+b.r.rowid||0)),fica=it[0],sai=it.slice(1),tot=it.reduce((s,y)=>s+y.valor,0);
           const formas=[...new Set(it.map(y=>y.forma).filter(Boolean))],obsU=[...new Set(it.map(y=>y.obs).filter(Boolean))].join(' | ');
           const ids=k=>[...new Set(it.map(y=>y.r[k]).filter(Boolean))].join(','),dataU=it.map(y=>y.data?isoDe(y.data):'').sort().pop()||gp.fim;
-          await salvar('Aportes financeiros',{...limpo(fica.r),[K.valor]:dinheiro(tot),periodo_ini:gp.ini,periodo_fim:gp.fim,[K.data]:dataU,forma_aporte:formas.length>1?'Várias':(formas[0]||''),[K.obs]:obsU,conciliacao:ids('conciliacao'),conciliacao_baixa:ids('conciliacao_baixa')},fica.r.rowid);
+          await salvar('Aportes financeiros',{...limpo(fica.r),[K.valor]:dinheiro(tot),periodo_ini:gp.ini,periodo_fim:gp.fim,[K.data]:dataU,forma_aporte:formas.length>1?'Várias':(formas[0]||''),formas_aporte:U.juntarFormas(...it.map(y=>U.formasAporte(y.r))),[K.obs]:obsU,conciliacao:ids('conciliacao'),conciliacao_baixa:ids('conciliacao_baixa')},fica.r.rowid);
           // os que foram somados no lançamento que fica saem sem Lixeira: o valor deles continua no que ficou
           for(const y of sai){for(const d of devs.filter(d=>String(d.ref)===String(y.r.rowid)))await salvar('Aportes financeiros',{...limpo(d.r),aporte_ref:String(fica.r.rowid)},d.r.rowid);
             await excluirDeVez('Aportes financeiros',y.r.rowid);}}});
@@ -23521,16 +23534,36 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
       const linhasMov=[],grupos=new Map(),CSv=contaObra(L);
       vis.forEach((x,i)=>{if(f.selModo||x.fonte!=='ap'||x.sai){linhasMov.push({x,i});return;}const k=chaveSO(x.quem,x.obra);let g=grupos.get(k);if(!g){g={k,itens:[]};grupos.set(k,g);linhasMov.push(g);}g.itens.push({x,i});});
       const botoesAp=(x,i)=>`<button type="button" class="so2-ic" data-so2="editar" data-i="${i}" title="Editar" aria-label="Editar"><i class="fas fa-pen"></i></button><button type="button" class="so2-ic err" data-so2="excluir" data-i="${i}" title="Excluir" aria-label="Excluir"><i class="fas fa-trash"></i></button>`;
+      // período de A até B: "01/06 a 30/09/2026" (anos diferentes: as duas datas inteiras; um dia só: a data)
+      const faixa=(a,b)=>{a=a||b;b=b||a;if(!a)return '—';if(isoDe(a)===isoDe(b))return brDe(a);return a.getFullYear()===b.getFullYear()?`${brDe(a).slice(0,5)} a ${brDe(b)}`:`${brDe(a)} a ${brDe(b)}`;};
       // período de cada lançamento: o mês inteiro ("01/09 a 30/09/2026"); o antigo, sem período, a data dele
-      const perDe=x=>x.ini&&x.fim&&isoDe(x.ini)!==isoDe(x.fim)?`${brDe(x.ini).slice(0,5)} a ${brDe(x.fim)}`:x.data?brDe(x.data):'—';
-      // linha da obra: a obra na 1ª coluna (no lugar da data); dentro dela, cada período com a data/período dele
+      const perDe=x=>faixa(x.ini||x.data,x.fim||x.data);
+      // e da obra: do início do primeiro período ao fim do último
+      const perObra=it=>{const ds=it.flatMap(x=>[x.ini||x.data,x.fim||x.data]).filter(Boolean).sort((a,b)=>a-b);return ds.length?faixa(ds[0],ds[ds.length-1]):'—';};
+      /* FORMAS DE PAGAMENTO: as guardadas no lançamento (formas_aporte) ou a única; o antigo marcado só "Várias" pega as das
+         contas que o sócio pagou naquele mês e obra (Pago com dinheiro do sócio / "Paga por … (aporte)"). */
+      let FC=null;
+      const formasContas=()=>{if(FC)return FC;FC=new Map();
+        Fin.movimentos().forEach(m=>{if((m.tipo!=='custo'&&m.tipo!=='despesa')||!m.pago||!m.dataBaixa)return;const fo=getFuzzy(m.r,['forma_pagamento','forma']);if(!fo)return;
+          const q=m.r.pago_por_socio||((String(getFuzzy(m.r,['observacao','obs'])||'').match(/Paga por (.+?) \(aporte\)/i)||[])[1]||'');if(!q)return;
+          const k=chaveSO(q,m.tipo==='despesa'?'Empresa':m.origem)+'|'+isoDe(m.dataBaixa).slice(0,7);if(!FC.has(k))FC.set(k,new Set());FC.get(k).add(fo);});
+        return FC;};
+      const formasX=x=>{let L=U.formasAporte(x.r);if(!L.length&&x.forma)L=[x.forma];
+        if(L.includes('Várias')){const d=formasContas().get(chaveSO(x.quem,x.obra)+'|'+mesDe(x));L=L.filter(f=>f!=='Várias').concat(d&&d.size?[...d]:['Várias']);}
+        return [...new Set(L)];};
+      // a forma de maior valor na frente; as outras no "+N" — passando o mouse (ou tocando, no celular) aparecem todas
+      const formasObra=it=>{const m=new Map();it.forEach(x=>{const fs=formasX(x);fs.forEach(f=>m.set(f,(m.get(f)||0)+x.valor/fs.length));});return [...m.entries()].sort((a,b)=>b[1]-a[1]).map(([f])=>f);};
+      const nomeForma=f=>f==='Várias'?'outras (lançamento antigo, sem as formas guardadas)':f;
+      const formaHtml=fs=>{if(!fs.length)return '';const L=fs.map(nomeForma).join(', ');
+        return `<small class="so2-l2 so2-formas" tabindex="0" data-formas="${fe(L)}" title="Formas de pagamento: ${fe(L)}">${fe(fs[0])}${fs.length>1?` <b class="so2-mais">+${fs.length-1}</b>`:''}</small>`;};
+      // linha da obra: a obra na 1ª coluna (no lugar da data), com o período sempre embaixo; dentro dela, cada período
       const linhaObra=g=>{const it=g.itens.map(z=>z.x),x0=it[0],i0=g.itens[0].i,n=it.length,tot=S(it),s=CSv.get(g.k)||{ap:tot,dev:0,falta:tot};
-        const formas=[...new Set(it.map(x=>x.forma).filter(Boolean))],ult=it.map(x=>x.data).filter(Boolean).sort((a,b)=>b-a)[0];
+        const ult=it.map(x=>x.data).filter(Boolean).sort((a,b)=>b-a)[0];
         const sit=s.dev<=0.004?'':s.falta<=0.004?'<span class="so2-sit ok">devolvido</span>':`<span class="so2-sit parc">falta ${fmt(s.falta)}</span>`;
         const dev=podeEd&&s.falta>0.004?`<button type="button" class="so2-ic dev" data-so2="devolver" data-i="${i0}" title="Devolver ao sócio o que falta nesta obra (tudo ou uma parte)" aria-label="Devolver"><i class="fas fa-rotate-left"></i></button>`:'';
-        const item=({x,i})=>`<li><div class="so2-it-cab"><b>${fe(perDe(x))}</b><span class="so2-it-val">+ ${fmt(x.valor)}</span></div><small>${[x.data?brDe(x.data):'',x.forma,x.rateio?'rateio':''].filter(Boolean).map(fe).join(' · ')}</small>${x.obs?`<small class="so2-it-obs">${fe(x.obs)}</small>`:''}<div class="so2-ac">${podeEd&&GS.podeMexer(x.r)?botoesAp(x,i):''}</div></li>`;
-        return `<tr class="so2-grupo"><td class="so2-dt so2-ob" data-ord-valor="${ult?brDe(ult):''}"><b title="${fe(x0.obra)}">${fe(x0.obra)}</b>${n===1?`<small class="so2-l2">${fe(perDe(x0))}</small>`:''}</td>
-          <td><span class="so2-tipo ent"><i class="fas fa-arrow-down"></i> Aporte</span><small class="so2-l2">${formas.length>1?'Várias':fe(formas[0]||'')}</small></td>
+        const item=({x,i})=>`<li><div class="so2-it-cab"><b>${fe(perDe(x))}</b><span class="so2-it-val">+ ${fmt(x.valor)}</span></div><small>${[x.data?brDe(x.data):'',formasX(x).map(f=>f==='Várias'?'várias formas':f).join(', '),x.rateio?'rateio':''].filter(Boolean).map(fe).join(' · ')}</small>${x.obs?`<small class="so2-it-obs">${fe(x.obs)}</small>`:''}<div class="so2-ac">${podeEd&&GS.podeMexer(x.r)?botoesAp(x,i):''}</div></li>`;
+        return `<tr class="so2-grupo"><td class="so2-dt so2-ob" data-ord-valor="${ult?brDe(ult):''}"><b title="${fe(x0.obra)}">${fe(x0.obra)}</b><small class="so2-l2">${fe(perObra(it))}</small></td>
+          <td><span class="so2-tipo ent"><i class="fas fa-arrow-down"></i> Aporte</span>${formaHtml(formasObra(it))}</td>
           <td class="so2-quem"><b>${fe(x0.quem)}</b>${n===1&&x0.rateio?'<small class="so2-l2"><span class="so2-mini">rateio</span></small>':''}</td>
           <td class="num ent" data-ord-valor="${tot.toFixed(2).replace('.',',')}">+ ${fmt(tot)}</td>
           <td class="num" data-ord-valor="${s.dev.toFixed(2).replace('.',',')}">${s.dev>0.004?fmt(s.dev):'—'}${sit?`<div>${sit}</div>`:''}</td>
@@ -23576,6 +23609,8 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
     // período aberto continua aberto quando a tela é redesenhada
     if(!box._so2Tog){box._so2Tog=true;box.addEventListener('toggle',ev=>{const d=ev.target;if(!d.matches||!d.matches('details[data-so2-grupo]'))return;d.open?SO2.abertos.add(d.dataset.so2Grupo):SO2.abertos.delete(d.dataset.so2Grupo);},true);}
     box.onclick=ev=>{
+      // "+N" das formas de pagamento: no celular (sem passar o mouse) o toque mostra todas
+      const fm=!SO2.selModo&&ev.target.closest('.so2-formas[data-formas]');if(fm&&fm.querySelector('.so2-mais')){toast('Formas de pagamento: '+fm.dataset.formas,'');return;}
       const a=ev.target.closest('[data-so2-aba]');if(a){SO2.aba=a.dataset.so2Aba;SO2.selModo=false;SO2.sel.clear();return GS.renderSocios();}
       const b=ev.target.closest('[data-so2]');if(!b){const l=SO2.selModo&&ev.target.closest('[data-so2-lin]');if(l)alternarSelSo(box,l);return;}const ac=b.dataset.so2,x=App._so2[+b.dataset.i];
       if(ac==='selecionar'){SO2.selModo=!SO2.selModo;SO2.sel.clear();return GS.renderSocios();}
