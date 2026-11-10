@@ -21721,7 +21721,7 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
 /* a coluna cresce até caber o nome inteiro da obra numa linha (nome enorme, acima de 560px: reticências e o nome no mouse) */
 .so2-dt.so2-ob{min-width:180px;} .so2-ob b{display:block;font-size:12.5px;font-weight:700;color:#101828;line-height:1.3;white-space:nowrap;max-width:560px;overflow:hidden;text-overflow:ellipsis;}
 /* forma de pagamento na linha da obra: a principal + "+N" (as outras aparecem passando o mouse ou tocando) */
-.so2-formas{cursor:help;white-space:nowrap;} .so2-formas:focus-visible{outline:2px solid #84ADFF;outline-offset:2px;border-radius:4px;}
+.so2-formas{white-space:nowrap;} .so2-mais{cursor:help;} .so2-mais:focus-visible{outline:2px solid #84ADFF;outline-offset:2px;}
 .so2-mais{display:inline-block;margin-left:3px;padding:0 6px;border-radius:999px;background:#EFF4FF;color:#1849A9;font-size:10.5px;font-weight:800;line-height:16px;vertical-align:1px;}
 .so2-mov th{white-space:normal;} .so2-mov th.tb-ord{white-space:normal;} .so2-mov tfoot td{white-space:normal;}
 .so2-mov .so2-l2{display:block;font-size:11px;color:#667085;margin-top:2px;max-width:165px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
@@ -23555,8 +23555,9 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
       // a forma de maior valor na frente; as outras no "+N" — passando o mouse (ou tocando, no celular) aparecem todas
       const formasObra=it=>{const m=new Map();it.forEach(x=>{const fs=formasX(x);fs.forEach(f=>m.set(f,(m.get(f)||0)+x.valor/fs.length));});return [...m.entries()].sort((a,b)=>b[1]-a[1]).map(([f])=>f);};
       const nomeForma=f=>f==='Várias'?'outras (lançamento antigo, sem as formas guardadas)':f;
-      const formaHtml=fs=>{if(!fs.length)return '';const L=fs.map(nomeForma).join(', ');
-        return `<small class="so2-l2 so2-formas" tabindex="0" data-formas="${fe(L)}" title="Formas de pagamento: ${fe(L)}">${fe(fs[0])}${fs.length>1?` <b class="so2-mais">+${fs.length-1}</b>`:''}</small>`;};
+      // a forma principal aparece sem dica; só o "+N" (quando há mais de uma) mostra as outras, passando o mouse ou tocando
+      const formaHtml=fs=>{if(!fs.length)return '';const O=fs.slice(1).map(nomeForma).join(', ');
+        return `<small class="so2-l2 so2-formas">${fe(fs[0])}${fs.length>1?` <b class="so2-mais" tabindex="0" data-formas="${fe(O)}" title="Outras formas de pagamento: ${fe(O)}">+${fs.length-1}</b>`:''}</small>`;};
       // linha da obra: a obra na 1ª coluna (no lugar da data), com o período sempre embaixo; dentro dela, cada período
       const linhaObra=g=>{const it=g.itens.map(z=>z.x),x0=it[0],i0=g.itens[0].i,n=it.length,tot=S(it),s=CSv.get(g.k)||{ap:tot,dev:0,falta:tot};
         const ult=it.map(x=>x.data).filter(Boolean).sort((a,b)=>b-a)[0];
@@ -23610,8 +23611,8 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
     // período aberto continua aberto quando a tela é redesenhada
     if(!box._so2Tog){box._so2Tog=true;box.addEventListener('toggle',ev=>{const d=ev.target;if(!d.matches||!d.matches('details[data-so2-grupo]'))return;d.open?SO2.abertos.add(d.dataset.so2Grupo):SO2.abertos.delete(d.dataset.so2Grupo);},true);}
     box.onclick=ev=>{
-      // "+N" das formas de pagamento: no celular (sem passar o mouse) o toque mostra todas
-      const fm=!SO2.selModo&&ev.target.closest('.so2-formas[data-formas]');if(fm&&fm.querySelector('.so2-mais')){toast('Formas de pagamento: '+fm.dataset.formas,'');return;}
+      // "+N" das formas de pagamento: no celular (sem passar o mouse) o toque nele mostra as outras
+      const fm=!SO2.selModo&&ev.target.closest('.so2-mais[data-formas]');if(fm){toast('Outras formas de pagamento: '+fm.dataset.formas,'');return;}
       const a=ev.target.closest('[data-so2-aba]');if(a){SO2.aba=a.dataset.so2Aba;SO2.selModo=false;SO2.sel.clear();return GS.renderSocios();}
       const b=ev.target.closest('[data-so2]');if(!b){const l=SO2.selModo&&ev.target.closest('[data-so2-lin]');if(l)alternarSelSo(box,l);return;}const ac=b.dataset.so2,x=App._so2[+b.dataset.i];
       if(ac==='selecionar'){SO2.selModo=!SO2.selModo;SO2.sel.clear();return GS.renderSocios();}
