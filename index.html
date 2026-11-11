@@ -10928,6 +10928,16 @@ const Fin=(function(){
         .excluirDefinitivo(aba,rowid);
     });
   }
+  /* PERGUNTA SIM / NÃO OBRIGATÓRIA (ex.: "Pago com dinheiro do sócio?"): no lugar da caixa de marcar, dois botões; nada vem
+     marcado numa conta nova — a pessoa escolhe um dos dois (o Salvar cobra: Mascara.obrigatorios olha as .sn-pergunta).
+     simNao(attr, pergunta, explicação em html, valor 'sim'|'nao'|'') · simNaoValor(grupo) → 'sim'|'nao'|''
+     simNaoLigar(grupo, fn) → acende o escolhido e chama fn(valor) a cada troca */
+  let _snN=0;
+  function simNao(attr,pergunta,texto,valor){const n='sn'+(++_snN)+'_'+Date.now().toString(36);
+    const op=(v,rot)=>`<label class="sn-op${valor===v?' on':''}"><input type="radio" name="${n}" value="${v}" ${valor===v?'checked':''}><span>${rot}</span></label>`;
+    return `<div class="sn-pergunta" ${attr} data-pergunta="${fe(pergunta)}" role="radiogroup" aria-label="${fe(pergunta)}"><div class="sn-txt"><b>${fe(pergunta)} <span class="obg">*</span></b>${texto?`<small>${texto}</small>`:''}</div><div class="sn-ops">${op('sim','Sim')}${op('nao','Não')}</div></div>`;}
+  const simNaoValor=g=>{const r=g&&g.querySelector('input[type="radio"]:checked');return r?r.value:'';};
+  function simNaoLigar(g,fn){if(!g)return;g.addEventListener('change',()=>{g.classList.remove('sn-falta');g.querySelectorAll('.sn-op').forEach(l=>l.classList.toggle('on',!!l.querySelector('input').checked));if(fn)fn(simNaoValor(g));});}
   // dá a baixa: grava a situação "pago/recebido" + a data, nos campos que o próprio sistema usa
   function baixar(m,dataISO,extra){
     extra=extra||{};
@@ -11772,10 +11782,10 @@ const Fin=(function(){
         <tbody class="cc-lt-todas"><tr><td>Preencher todas as linhas:</td><td></td><td>${GS.comboGasto.html('data-k="catTodas"','data-k="descTodas"','','')}</td><td><select data-k="formaTodas" title="Forma de pagamento de todas as linhas"><option value="">Forma…</option>${FORMAS.map(f=>`<option>${fe(f)}</option>`).join('')}</select></td><td></td><td></td></tr></tbody>
         <tbody data-k="linhas">${LN.map(linhaHtml).join('')}</tbody></table></div>
       <div class="lote-tot" data-k="tot"></div>
-      <div class="lote-socio"><label class="nfc-amb"><input type="checkbox" data-k="socio"><span><b>Pago com dinheiro do sócio</b> (cartão, PIX ou conta pessoal) — as contas ficam pagas na data do banco e o valor também entra em <b>Sócios e investimentos</b> como aporte</span></label>
+      <div class="lote-socio">${simNao('data-k="socio"','Pago com dinheiro do sócio?','Cartão, PIX ou conta pessoal do sócio — as contas ficam pagas na data do banco e o valor também entra em <b>Sócios e investimentos</b> como aporte.','')}
         <div class="fin-linha" data-k="socio-box" hidden><div class="fin-fld"><label>Sócio / investidor <span class="obg">*</span></label><input data-k="quem" list="cc-quem" autocomplete="off"><datalist id="cc-quem">${GS.rateio.socios().map(s=>`<option value="${fe(s)}">`).join('')}</datalist></div></div></div>`,
       [{html:'<i class="fas fa-floppy-disk"></i> Lançar e conciliar',cls:'pri',acao:async jj=>{
-        const g=k=>(jj.querySelector(`[data-k="${k}"]`).value||'').trim(),centro=g('centro'),rat=centro===RAT,obrasR=rat?RT.obras():[],socio=jj.querySelector('[data-k="socio"]').checked,quem=g('quem');
+        const g=k=>(jj.querySelector(`[data-k="${k}"]`).value||'').trim(),centro=g('centro'),rat=centro===RAT,obrasR=rat?RT.obras():[],socio=simNaoValor(jj.querySelector('[data-k="socio"]'))==='sim',quem=g('quem');
         if(!centro)throw new Error('Marque a obra (ou Custo indireto).');if(rat&&GS.rateio.erroRateio(obrasR))throw new Error(GS.rateio.erroRateio(obrasR));
         if(socio&&!quem)throw new Error('Informe o sócio que pagou.');
         const its=lerLinhas();if(!its.length)throw new Error('Não sobrou nenhuma linha para lançar.');
@@ -11821,7 +11831,7 @@ const Fin=(function(){
     j.onchange=ev=>{
       if(ev.target.matches('[data-k="descTodas"]')){const cat=j.querySelector('[data-k="catTodas"]').value,desc=ev.target.value;if(cat&&desc)tb.querySelectorAll('.cg').forEach(b=>GS.comboGasto.definir(b,cat,desc));}
       else if(ev.target.matches('[data-k="formaTodas"]')){const f=ev.target.value;if(f)tb.querySelectorAll('[data-i="forma"]').forEach(s=>{s.value=f;});}
-      else if(ev.target.matches('[data-k="socio"]'))j.querySelector('[data-k="socio-box"]').hidden=!ev.target.checked;};
+      else if(ev.target.closest('[data-k="socio"]')){const sg=ev.target.closest('[data-k="socio"]');sg.classList.remove('sn-falta');sg.querySelectorAll('.sn-op').forEach(l=>l.classList.toggle('on',!!l.querySelector('input').checked));j.querySelector('[data-k="socio-box"]').hidden=simNaoValor(sg)!=='sim';}};
     tb.addEventListener('click',ev=>{const b=ev.target.closest('[data-i="tirar"]');if(b){b.closest('tr').remove();pintarTot();}});
     ajustarCats();pintarTot();
     try{Eng.datalistFornecedores();}catch(e){}
@@ -11875,7 +11885,7 @@ const Fin=(function(){
   }
   return {renderContas,renderConciliacao,aoAtualizar,movimentos,prazoReceb,lerSaldo,somarAporte,parcelasFuturas,_conciliar:conciliar,_lerOFX:lerOFX,_lerCSV:lerCSVExtrato,_pdfParaCsv:pdfParaCsv,_lerLinhasPdf:lerLinhasPdf,
     // utilitários compartilhados com os módulos de engenharia (Eng)
-    util:{janela,confirmar,executar,salvar,excluir,excluirDeVez,formasAporte:formasReg,juntarFormas,fe,cn,dt,brDe,isoDe,isoDeBR,hoje0,addD,dias,col,kRow,dinheiro,val,juntarId,ajusteDe,txtDif,periodoMes,obsDoExtrato}};
+    util:{janela,confirmar,executar,salvar,excluir,excluirDeVez,formasAporte:formasReg,juntarFormas,simNao,simNaoValor,simNaoLigar,fe,cn,dt,brDe,isoDe,isoDeBR,hoje0,addD,dias,col,kRow,dinheiro,val,juntarId,ajusteDe,txtDif,periodoMes,obsDoExtrato}};
 })();
 App._renderContas=()=>Fin.renderContas();
 App._renderConciliacao=()=>Fin.renderConciliacao();
@@ -16371,7 +16381,11 @@ const Mascara=(function(){
     const el=[...fl.querySelectorAll('input,select,textarea')].find(e=>!['checkbox','radio','file','hidden','button','submit'].includes((e.type||'').toLowerCase())&&!e.disabled&&e.offsetParent!==null);
     if(!el||el.readOnly||String(el.value||'').trim())continue;
     el.classList.add('mask-err');const tira=()=>{if(String(el.value||'').trim())el.classList.remove('mask-err');};el.addEventListener('input',tira);el.addEventListener('change',tira);
-    return {el,msg};}return null;}
+    return {el,msg};}
+    // pergunta Sim / Não obrigatória (.sn-pergunta, ex.: "Pago com dinheiro do sócio?"): uma das duas tem que estar marcada
+    for(const sn of (raiz||document).querySelectorAll('.sn-pergunta')){if(sn.offsetParent===null||sn.querySelector('input[type="radio"]:checked'))continue;
+      sn.classList.add('sn-falta');return {el:sn.querySelector('input[type="radio"]')||sn,msg:`Responda: ${sn.dataset.pergunta||'a pergunta'} Marque Sim ou Não.`};}
+    return null;}
   // número guardado ("1234.56", "1.234,56", "R$ 1.234,56") → valor
   const numero=s=>{let t=String(s==null?'':s).trim().replace(/[^\d,.\-]/g,'');if(!t||t==='-')return null;if(t.includes(','))t=t.replace(/\./g,'').replace(',','.');else if(/^-?\d{1,3}(\.\d{3})+$/.test(t))t=t.replace(/\./g,'');const n=parseFloat(t);return isNaN(n)?null:n;};
   const brl=n=>n.toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
@@ -16586,16 +16600,16 @@ const Mascara=(function(){
     janela('Registrar pagamento da compra',`<div class="fin-resumo"><b>${fe(o.forn||'Compra')}</b> · ${L.length} itens · vence ${brDe(dt(o.venc))}<br>Total: <b>${fmt(tot)}</b> — todos os itens ficam pagos na mesma data.</div>
       <div class="fin-linha"><div class="fin-fld"><label>Data do pagamento</label><input type="date" data-k="data" max="${isoDe(hoje0())}" value="${isoDe(hoje0())}"></div>
       <div class="fin-fld"><label>Forma</label><select data-k="forma">${FORMAS.map(x=>`<option ${x===(o.forma||'PIX')?'selected':''}>${fe(x)}</option>`).join('')}</select></div></div>
-      <label class="nfc-amb"><input type="checkbox" data-k="socio" ${o._r.pago_por_socio?'checked':''}><span><b>Pago com dinheiro do sócio</b> — o valor entra em <b>Sócios e investimentos</b> como aporte</span></label>
+      ${Fin.util.simNao('data-k="socio"','Pago com dinheiro do sócio?','Cartão, PIX ou conta pessoal do sócio — o valor entra em <b>Sócios e investimentos</b> como aporte.',o._r.pago_por_socio?'sim':'')}
       <div class="fin-fld" data-socio-box ${o._r.pago_por_socio?'':'hidden'}><label>Sócio / investidor</label><input data-k="quem" list="pgc-quem" autocomplete="off" value="${fe(o._r.pago_por_socio||'')}"><datalist id="pgc-quem">${GS.rateio.socios().map(s=>`<option value="${fe(s)}">`).join('')}</datalist></div>`,
       [{html:'<i class="fas fa-circle-check"></i> Confirmar pagamento',cls:'pri',acao:async j=>{
-        const soc=j.querySelector('[data-k="socio"]').checked,quem=(j.querySelector('[data-k="quem"]').value||'').trim();if(soc&&!quem)throw new Error('Informe o sócio que pagou.');
+        const soc=Fin.util.simNaoValor(j.querySelector('[data-k="socio"]'))==='sim',quem=(j.querySelector('[data-k="quem"]').value||'').trim();if(soc&&!quem)throw new Error('Informe o sócio que pagou.');
         const d=j.querySelector('[data-k="data"]').value,forma=j.querySelector('[data-k="forma"]').value;if(!d)throw new Error('Informe a data do pagamento.');if(d>isoDe(hoje0()))throw new Error('A data do pagamento não pode ser depois de hoje.');
         await gravarVarias(L.map(x=>{const u={...x,pago:d,tipo:'Real',venc:x.venc||d,forma};if(x.aprov==='pendente'&&souAdmin()){u.aprov='aprovada';u.aprovPor=C.quem();u.aprovMudou=true;}if(soc)u.obs=[u.obs,`Paga por ${quem} (aporte)`].filter(Boolean).join(' · ');return [u,x];}));
         if(soc){const porObra={};L.forEach(x=>{porObra[x.centro]=(porObra[x.centro]||0)+val(x.total);});
           await executar(async()=>{for(const [ob,v] of Object.entries(porObra))await Fin.somarAporte({obra:ob,quem,data:d,valor:v,forma,obs:`Pagou a compra de ${o.forn||'fornecedor'} (Contas a pagar)`,origem:'contas'});});}
         toast(soc?`Pagamento registrado e aporte de ${quem} lançado.`:`Pagamento da compra registrado (${L.length} itens).`,'success');}}],560);
-    const jj=jan(),sc=jj.querySelector('[data-k="socio"]');sc.addEventListener('change',()=>{jj.querySelector('[data-socio-box]').hidden=!sc.checked;});
+    const jj=jan(),sc=jj.querySelector('[data-k="socio"]');Fin.util.simNaoLigar(sc,v=>{jj.querySelector('[data-socio-box]').hidden=v!=='sim';});
   }
   function aprovarCompra(L,aprovar){
     if(!souAdmin())return toast('Só o Administrador ou quem tem permissão para aprovar (Usuários e permissões) aprova contas.','error');
@@ -16781,11 +16795,11 @@ const Mascara=(function(){
       <div class="fin-linha"><div class="fin-fld"><label>Valor pago (R$)</label><input data-k="total" data-mask="moeda" inputmode="numeric" value="${fmt(val(o.total))}"></div>
       <div class="fin-fld"><label>Data do pagamento</label><input type="date" data-k="data" max="${isoDe(hoje0())}" value="${isoDe(hoje0())}"></div>
       <div class="fin-fld"><label>Forma</label><select data-k="forma">${FORMAS.map(x=>`<option ${x===(o.forma||'PIX')?'selected':''}>${fe(x)}</option>`).join('')}</select></div></div>
-      <label class="nfc-amb"><input type="checkbox" data-k="socio" ${o._r.pago_por_socio?'checked':''}><span><b>Pago com dinheiro do sócio</b> — o valor entra em <b>Sócios e investimentos</b> como aporte</span></label>
+      ${Fin.util.simNao('data-k="socio"','Pago com dinheiro do sócio?','Cartão, PIX ou conta pessoal do sócio — o valor entra em <b>Sócios e investimentos</b> como aporte.',o._r.pago_por_socio?'sim':'')}
       <div class="fin-fld" data-socio-box ${o._r.pago_por_socio?'':'hidden'}><label>Sócio / investidor</label><input data-k="quem" list="pg-quem" autocomplete="off" value="${fe(o._r.pago_por_socio||'')}"><datalist id="pg-quem">${GS.rateio.socios().map(s=>`<option value="${fe(s)}">`).join('')}</datalist></div>
       ${o.aprov==='pendente'||o.tipo!=='Real'?'<div class="fin-aviso"><div>A conta ainda não estava aprovada: ao confirmar o pagamento, ela fica aprovada por você.</div></div>':''}`,
       [{html:'Cancelar'},{html:'<i class="fas fa-circle-check"></i> Confirmar pagamento',cls:'pri',acao:async j=>{
-        const soc=j.querySelector('[data-k="socio"]').checked,quem=(j.querySelector('[data-k="quem"]').value||'').trim();if(soc&&!quem)throw new Error('Informe o sócio que pagou.');
+        const soc=Fin.util.simNaoValor(j.querySelector('[data-k="socio"]'))==='sim',quem=(j.querySelector('[data-k="quem"]').value||'').trim();if(soc&&!quem)throw new Error('Informe o sócio que pagou.');
         const d=j.querySelector('[data-k="data"]').value,t=num(j.querySelector('[data-k="total"]').value);if(!d)throw new Error('Informe a data do pagamento.');if(d>isoDe(hoje0()))throw new Error('A data do pagamento não pode ser depois de hoje.');if(!(t>0))throw new Error('Informe o valor pago.');
         const u={...o,pago:d,tipo:'Real',venc:o.venc||d,total:dinheiro(t),forma:j.querySelector('[data-k="forma"]').value};
         if(o.centro!==EMP&&Math.abs(t-val(o.total))>.005&&val(o.qtd)>0)u.pUnit=dinheiro(t/val(o.qtd));
@@ -16794,7 +16808,7 @@ const Mascara=(function(){
         await gravarConta(u,o);
         if(soc)await executar(()=>Fin.somarAporte({obra:o.centro,quem,data:d,valor:t,forma:u.forma,obs:`Pagou ${o.forn||C.limparParc(o.desc)||'a conta'} (Contas a pagar)`,origem:'contas'}));
         toast(soc?`Pagamento registrado e aporte de ${quem} lançado em Sócios e investimentos.`:'Pagamento registrado.','success');}}],560);
-    const jj=jan(),sc=jj.querySelector('[data-k="socio"]');sc.addEventListener('change',()=>{jj.querySelector('[data-socio-box]').hidden=!sc.checked;});
+    const jj=jan(),sc=jj.querySelector('[data-k="socio"]');Fin.util.simNaoLigar(sc,v=>{jj.querySelector('[data-socio-box]').hidden=v!=='sim';});
   }
   function desfazerPagamento(o){
     confirmar('Desfazer pagamento',`A conta de <b>${fe(o.forn||o.desc)}</b> (${fmt(val(o.total))}, paga em ${brDe(dt(o.pago))}) volta para "a pagar".${val(o._r.valor_original)?` O valor volta a ser o lançado: <b>${fmt(val(o._r.valor_original))}</b>.`:''}`,'Sim, desfazer',async()=>{await gravarConta(contaDesfeita(o),o);toast('Voltou para "a pagar".','success');});
@@ -17297,14 +17311,14 @@ const Mascara=(function(){
         <button type="button" class="fin-bt" data-l="add"><i class="fas fa-plus"></i> Adicionar item</button><span class="lote-st" data-l="st"></span></div>
       <div class="lote-tab"><table data-sem-ordem><thead><tr><th>Fornecedor / quem recebe</th><th>Vencimento <span class="obg">*</span></th><th>Categoria › Descrição <span class="obg">*</span></th><th>Qtd</th><th>Un.</th><th>Preço unit.</th><th>Valor</th><th></th></tr></thead><tbody data-l="itens"></tbody></table></div>
       <div class="lote-pe"><label class="lote-dn"><span>Desconto da nota (R$)</span><input data-l="descnota" data-mask="moeda" inputmode="numeric" placeholder="R$ 0,00"></label><div class="lote-tot" data-l="tot"></div></div>
-      <div class="lote-socio"><label class="nfc-amb"><input type="checkbox" data-l="socio"><span><b>Pago com dinheiro do sócio</b> (cartão, PIX ou conta pessoal) — ${cc?'além da conta paga na data do banco, o valor também':'a conta já fica paga e o valor'} entra em <b>Sócios e investimentos</b> como aporte</span></label>
+      <div class="lote-socio">${Fin.util.simNao('data-l="socio"','Pago com dinheiro do sócio?',`Cartão, PIX ou conta pessoal do sócio — ${cc?'além da conta paga na data do banco, o valor também':'a conta já fica paga e o valor'} entra em <b>Sócios e investimentos</b> como aporte.`,'')}
         <div class="fin-linha" data-l="socio-box" hidden><div class="fin-fld"><label>Sócio / investidor <span class="obg">*</span></label><input data-l="quem" list="lote-quem" autocomplete="off"><datalist id="lote-quem">${socios().map(s=>`<option value="${fe(s)}">`).join('')}</datalist></div>
           <div class="fin-fld" ${cc?'hidden':''}><label>Pago em <span class="obg">*</span></label><input type="date" data-l="pagoem" max="${isoDe(hoje0())}" value="${fe(cc?cc.data:isoDe(hoje0()))}"></div></div></div></div>`;
     // parcelas lidas da nota (duplicatas/boleto) e CNPJ do fornecedor lido
     let PARC=[],CNPJ_LIDO='',RT=null;
     janela(cc?'Registrar saída':'Nova conta a pagar',corpo,[{html:'<i class="fas fa-cart-arrow-down"></i> Lançar',cls:'pri',acao:async j=>{
       const g=k=>(j.querySelector(`[data-l="${k}"]`).value||'').trim(),centro0=g('centro'),rat=centro0===RAT,rep=g('rep'),forma=g('forma');
-      const socio=q('socio').checked,quem=g('quem'),pagoEm=g('pagoem'),obrasR=rat?RT.obras():[];
+      const socio=Fin.util.simNaoValor(q('socio'))==='sim',quem=g('quem'),pagoEm=g('pagoem'),obrasR=rat?RT.obras():[];
       if(!centro0)throw new Error('Marque a obra (ou Custo indireto).');if(rat&&erroRateio(obrasR))throw new Error(erroRateio(obrasR));
       const dCompra=g('dcompra');if(!dCompra)throw new Error('Informe a data da compra/aquisição.');if(dCompra>isoDe(hoje0()))throw new Error('A data da compra/aquisição não pode ser depois de hoje.');
       if(socio&&!quem)throw new Error('Informe o sócio que pagou.');if(socio&&(!pagoEm||pagoEm>isoDe(hoje0())))throw new Error('Informe a data em que o sócio pagou (até hoje).');
@@ -17374,7 +17388,7 @@ const Mascara=(function(){
     const pintarRep=()=>{const r=q('rep').value;q('vezes-box').hidden=!r||r==='nota';const pb=q('parc');pb.hidden=r!=='nota'||!PARC.length;
       if(r==='nota'&&PARC.length){pb.innerHTML=`<b><i class="fas fa-calendar-days"></i> Parcelas da nota</b> ${PARC.map((p,i)=>`<span>${i+1}ª ${brDe(dt(p.venc))} · ${fmt(p.valor)}</span>`).join('')}<small>Cada item é dividido nessas parcelas, com o vencimento de cada uma.</small>`;tb.querySelectorAll('[data-i="venc"]').forEach(v=>{if(!v.value)v.value=PARC[0].venc;});}};
     q('rep').addEventListener('change',()=>{if(q('rep').value&&q('rep').value!=='nota')q('vezes').value=q('rep').value==='mes'?12:3;pintarRep();});
-    q('socio').addEventListener('change',()=>{q('socio-box').hidden=!q('socio').checked;});
+    Fin.util.simNaoLigar(q('socio'),v=>{q('socio-box').hidden=v!=='sim';});
     q('descnota').addEventListener('input',soma);
     tb.addEventListener('input',ev=>{const tr=ev.target.closest('tr');if(!tr)return;const k=ev.target.dataset.i;
       if(k==='qtd'||k==='pu'){tr.classList.remove('conferir');const qd=nb(tr.querySelector('[data-i="qtd"]').value),pu=nb(tr.querySelector('[data-i="pu"]').value);tr.querySelector('[data-i="vt"]').value=qd>0&&pu>0?fmt(Math.round(qd*pu*100)/100):'';}soma();});
@@ -21817,6 +21831,16 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
 .lote-pe .lote-tot{margin:0;} .lote-dn{display:flex;align-items:center;gap:8px;font:700 11px Inter,sans-serif;color:#667085;text-transform:uppercase;letter-spacing:.03em;}
 .lote-dn input{width:130px;border:1px solid #D0D5DD;border-radius:8px;padding:6px 8px;font:500 12.5px Inter,sans-serif;text-transform:none;}
 .lote-socio{margin-top:10px;border-top:1px dashed #E4E9F2;padding-top:10px;}
+/* pergunta Sim / Não obrigatória (no lugar da caixa de marcar): dois botões, nada marcado de início */
+.sn-pergunta{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px 16px;padding:10px 12px;margin:8px 0;border:1px solid #E4E9F2;border-radius:12px;background:#FAFBFF;}
+.lote-socio .sn-pergunta{margin-top:0;}
+.sn-txt{flex:1 1 260px;min-width:0;} .sn-txt>b{display:block;font-size:13px;color:#101828;} .sn-txt small{display:block;font-size:11.5px;color:#667085;line-height:1.4;margin-top:2px;} .sn-txt small b{color:#344054;}
+.sn-ops{display:inline-flex;gap:6px;flex:none;}
+.sn-op{position:relative;display:inline-flex;align-items:center;justify-content:center;min-width:64px;padding:7px 16px;border:1px solid #D0D5DD;border-radius:999px;background:#fff;color:#344054;font:700 12.5px Inter,sans-serif;cursor:pointer;user-select:none;transition:background .12s,border-color .12s,color .12s;}
+.sn-op input{position:absolute;opacity:0;width:1px;height:1px;margin:0;pointer-events:none;}
+.sn-op:hover{border-color:#84ADFF;} .sn-op:focus-within{outline:2px solid #84ADFF;outline-offset:2px;}
+.sn-op.on{background:#1652D8;border-color:#1652D8;color:#fff;}
+.sn-pergunta.sn-falta{border-color:#FDA29B;background:#FEF3F2;} .sn-pergunta.sn-falta .sn-op{border-color:#FDA29B;}
 /* conciliação › Lançar marcados: uma linha da tabela por saída do banco */
 .lote-tab.cc-lt table{min-width:900px;} .lote-tab.cc-lt td:nth-child(n){width:auto;min-width:0;}
 .lote-tab.cc-lt td:nth-child(1){width:220px;} .lote-tab.cc-lt td:nth-child(2){width:190px;} .lote-tab.cc-lt td:nth-child(3){min-width:240px;} .lote-tab.cc-lt td:nth-child(4){width:190px;} .lote-tab.cc-lt td:nth-child(5){width:104px;} .lote-tab.cc-lt td:nth-child(6){width:40px;}
