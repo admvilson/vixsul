@@ -10694,6 +10694,20 @@ window.onload=()=>{
 .fin-bt.on:not(.pri){background:#EFF4FF;border-color:#B2CCFF;color:#1849A9;}
 @media (max-width:560px){.cc-lado{flex-wrap:wrap;padding:9px 10px;} .cc-lado small{margin-left:0;flex-basis:100%;}}
 .cc-assoc-lista{max-height:46vh;overflow:auto;margin-bottom:10px;} .cc-assoc+.cc-assoc{margin-top:10px;} .cc-assoc>b{display:block;font-size:13px;color:#101828;overflow-wrap:anywhere;} .cc-assoc>small{display:block;font-size:11.5px;color:#667085;margin-top:2px;line-height:1.35;} .cc-assoc-dif b{color:#B42318;}
+.cc-assoc-cab{display:flex;flex-wrap:wrap;justify-content:space-between;gap:2px 12px;padding:8px 10px;border-radius:10px;background:#F2F4F7;margin-bottom:10px;font-size:12.5px;} .cc-assoc-cab b{color:#101828;overflow-wrap:anywhere;} .cc-assoc-cab span{color:#475467;white-space:nowrap;}
+/* "A qual lançamento pertence?": sugestões que somam, lista de contas com caixas e a soma das marcadas */
+.cc-combos{margin:10px 0 12px;padding:10px 12px;border:1px solid #D1E0FF;border-radius:12px;background:#F5F8FF;}
+.cc-combos-tit{font:800 12px Inter,sans-serif;color:#1849A9;margin-bottom:6px;} .cc-combos-tit i{margin-right:4px;}
+.cc-combo{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:7px 0;border-top:1px solid #E0EAFF;} .cc-combo:first-of-type{border-top:0;}
+.cc-combo>div{min-width:0;} .cc-combo b{display:block;font-size:12.5px;color:#101828;} .cc-combo small{display:block;font-size:11.5px;color:#475467;overflow-wrap:anywhere;} .cc-combo .fin-bt{flex:none;}
+.cc-combo-dif{display:block;font-style:normal;font-size:11px;font-weight:700;color:#B54708;margin-top:1px;}
+.cc-assoc-tit{font:800 10.5px Inter,sans-serif;text-transform:uppercase;letter-spacing:.04em;color:#475467;margin:4px 0 6px;} .cc-assoc-tit small{display:block;font:500 11.5px Inter,sans-serif;text-transform:none;letter-spacing:0;color:#667085;margin-top:2px;}
+.cc-assoc-busca{margin-bottom:8px;}
+.cc-assoc-l{max-height:300px;overflow:auto;display:grid;gap:6px;padding:2px;}
+.cc-assoc-l label{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px;align-items:center;padding:8px 10px;border:1px solid #E4E9F2;border-radius:10px;background:#fff;cursor:pointer;margin:0;text-transform:none;letter-spacing:0;font-size:12.5px;color:#344054;}
+.cc-assoc-l label[hidden]{display:none;} .cc-assoc-l label:hover{border-color:#B2CCFF;} .cc-assoc-l label.on{border-color:#84ADFF;background:#EFF4FF;}
+.cc-assoc-l label span{overflow-wrap:anywhere;line-height:1.35;} .cc-assoc-l label span small{display:block;font-size:11px;color:#1849A9;font-weight:700;margin-top:1px;} .cc-assoc-l label>b{white-space:nowrap;color:#101828;}
+.cc-soma{display:flex;flex-wrap:wrap;gap:4px 16px;align-items:center;padding:9px 12px;border-radius:10px;margin:10px 0 8px;font-size:12.5px;} .cc-soma.ok{background:#ECFDF3;color:#067647;} .cc-soma.dif{background:#FFFAEB;color:#B54708;} .cc-soma b{color:inherit;}
 .cc-per{display:inline-flex;align-items:center;gap:6px;font:600 12px Inter,sans-serif;color:#475467;} .cc-per input{border:1px solid #D0D5DD;border-radius:10px;padding:6px 8px;font:600 12.5px Inter,sans-serif;}
 .cc-prog{margin:4px 0 8px;font-size:12.5px;color:#344054;} .cc-prog em{display:block;height:8px;border-radius:999px;background:#EAECF0;margin-top:6px;overflow:hidden;} .cc-prog em i{display:block;height:100%;background:linear-gradient(90deg,#12B76A,#039855);border-radius:999px;transition:width .3s;}
 .cc-rec{border:0;background:#F2F4F7;color:#475467;width:26px;height:26px;border-radius:8px;cursor:pointer;display:inline-grid;place-items:center;flex:0 0 auto;} .cc-rec:hover{background:#E4E7EC;}
@@ -10867,14 +10881,19 @@ const Fin=(function(){
     else if(m.tipo==='fat'&&r.liq_esperado)o[kRow(r,['faturamento_liquido','liquido'],'faturamento_liquido')]=r.liq_esperado;
     Object.assign(o,CAMPOS_AJUSTE);}
   // aviso antes de associar uma linha do banco a um lançamento: mostra o lançado, o do banco e a diferença; só grava se a pessoa confirmar
+  // itens: [{t (linha do banco), m (conta), v (opcional: a parte do banco desta conta, quando são várias)}]
   function confirmarAssociacao(itens,titulo){return new Promise(res=>{
     const ov=document.createElement('div');ov.className='confirm-overlay open rat-aviso';
-    const bloco=x=>{const v=Math.abs(x.t.valor),d=Math.round((v-x.m.valor)*100)/100,tem=Math.abs(d)>=0.01;
-      return `<div class="cc-assoc"><b>${fe(x.t.data.slice(0,5))} · ${fe(x.t.desc)}</b><small>${fe(rotulo(x.m))}</small>
-        <ul class="vk-exc-lista">${tem?`<li><span>Valor lançado</span><b>${fmt(x.m.valor)}</b></li><li><span>Valor ajustado (banco)</span><b>${fmt(v)}</b></li><li class="cc-assoc-dif"><span>Diferença</span><b>${txtDif(d)}</b></li>`:`<li><span>Valor (igual ao lançado)</span><b>${fmt(v)}</b></li>`}</ul></div>`;};
-    const algum=itens.some(x=>Math.abs(Math.abs(x.t.valor)-x.m.valor)>=0.01);
+    // várias contas para a mesma linha do banco: a linha aparece uma vez só, em cima
+    const varias=itens.length>1&&itens.every(x=>x.t===itens[0].t),vDe=x=>x.v!=null?x.v:Math.abs(x.t.valor);
+    const bloco=x=>{const v=vDe(x),d=Math.round((v-x.m.valor)*100)/100,tem=Math.abs(d)>=0.01;
+      return `<div class="cc-assoc">${varias?'':`<b>${fe(x.t.data.slice(0,5))} · ${fe(x.t.desc)}</b>`}<small>${fe(rotulo(x.m))}</small>
+        <ul class="vk-exc-lista">${tem?`<li><span>Valor lançado</span><b>${fmt(x.m.valor)}</b></li><li><span>Valor ajustado (${varias?'parte do banco':'banco'})</span><b>${fmt(v)}</b></li><li class="cc-assoc-dif"><span>Diferença</span><b>${txtDif(d)}</b></li>`:`<li><span>Valor (igual ao lançado)</span><b>${fmt(v)}</b></li>`}</ul></div>`;};
+    const algum=itens.some(x=>Math.abs(vDe(x)-x.m.valor)>=0.01);
+    const cab=varias?`<div class="cc-assoc-cab"><b>${fe(itens[0].t.data.slice(0,5))} · ${fe(itens[0].t.desc)}</b><span>banco ${fmt(Math.abs(itens[0].t.valor))} · ${itens.length} contas</span></div>`:'';
+    const expl=!algum?'':varias?'A diferença foi dividida entre as contas, proporcional ao valor de cada uma: cada conta passa a ter a parte dela, e o valor lançado, o ajustado e a diferença ficam registrados. ':'O lançamento passa a ter o valor do banco. O valor lançado, o ajustado e a diferença ficam registrados. ';
     ov.innerHTML=`<div class="confirm-box" role="alertdialog" aria-modal="true"><div class="confirm-title"><i class="fas fa-circle-question"></i> ${fe(titulo)}</div>
-      <div class="confirm-msg"><div class="cc-assoc-lista">${itens.map(bloco).join('')}</div>${algum?'O lançamento passa a ter o valor do banco. O valor lançado, o ajustado e a diferença ficam registrados. ':''}Está certo deste lançamento?</div>
+      <div class="confirm-msg">${cab}<div class="cc-assoc-lista">${itens.map(bloco).join('')}</div>${expl}Está certo deste lançamento?</div>
       <div class="confirm-actions"><button type="button" class="confirm-no" data-nao>Não, voltar</button><button type="button" class="confirm-yes" data-sim style="background:var(--blue)">Sim, lançar</button></div></div>`;
     ov.addEventListener('click',ev=>{const s=ev.target.closest('[data-sim]'),n=ev.target.closest('[data-nao]');if(!s&&!n)return;ov.remove();res(!!s);});
     document.body.appendChild(ov);ov.querySelector('[data-nao]').focus();});}
@@ -10933,9 +10952,10 @@ const Fin=(function(){
      simNao(attr, pergunta, explicação em html, valor 'sim'|'nao'|'') · simNaoValor(grupo) → 'sim'|'nao'|''
      simNaoLigar(grupo, fn) → acende o escolhido e chama fn(valor) a cada troca */
   let _snN=0;
-  function simNao(attr,pergunta,texto,valor){const n='sn'+(++_snN)+'_'+Date.now().toString(36);
+  // extra: o que aparece no Sim (ex.: o campo do sócio), dentro do mesmo quadro, embaixo dos botões
+  function simNao(attr,pergunta,texto,valor,extra){const n='sn'+(++_snN)+'_'+Date.now().toString(36);
     const op=(v,rot)=>`<label class="sn-op${valor===v?' on':''}"><input type="radio" name="${n}" value="${v}" ${valor===v?'checked':''}><span>${rot}</span></label>`;
-    return `<div class="sn-pergunta" ${attr} data-pergunta="${fe(pergunta)}" role="radiogroup" aria-label="${fe(pergunta)}"><div class="sn-txt"><b>${fe(pergunta)} <span class="obg">*</span></b>${texto?`<small>${texto}</small>`:''}</div><div class="sn-ops">${op('sim','Sim')}${op('nao','Não')}</div></div>`;}
+    return `<div class="sn-pergunta" ${attr} data-pergunta="${fe(pergunta)}" role="radiogroup" aria-label="${fe(pergunta)}"><div class="sn-txt"><b>${fe(pergunta)} <span class="obg">*</span></b>${texto?`<small>${texto}</small>`:''}</div><div class="sn-ops">${op('sim','Sim')}${op('nao','Não')}</div>${extra||''}</div>`;}
   const simNaoValor=g=>{const r=g&&g.querySelector('input[type="radio"]:checked');return r?r.value:'';};
   function simNaoLigar(g,fn){if(!g)return;g.addEventListener('change',()=>{g.classList.remove('sn-falta');g.querySelectorAll('.sn-op').forEach(l=>l.classList.toggle('on',!!l.querySelector('input').checked));if(fn)fn(simNaoValor(g));});}
   // dá a baixa: grava a situação "pago/recebido" + a data, nos campos que o próprio sistema usa
@@ -11320,6 +11340,34 @@ const Fin=(function(){
      retenção). Mais de um candidato ou data longe → "confira antes", nunca baixa sozinho. */
   // o nome do fornecedor da conta aparece no texto do banco? (ou o banco já foi visto nesta conta antes)
   const nomeBate=(m,t)=>{const b=cn((t.quem||'')+' '+t.desc);if(m.r&&m.r.extrato_desc&&cn(m.r.extrato_desc)===cn(t.desc))return 2;return cn(m.quem||'').split(' ').filter(w=>w.length>3).some(w=>b.includes(w))?1:0;};
+  /* CONTAS QUE SOMADAS DÃO O VALOR DO BANCO (uma saída que paga várias contas de uma vez): as partes de um rateio na mesma
+     parcela, os itens da mesma compra, as contas do mesmo fornecedor no mesmo vencimento e — se nada disso bater — de 2 a 4
+     contas do fornecedor que aparece no extrato, perto da data. Só entra grupo cuja soma bate com o banco (até 1 centavo). */
+  const idMov=m=>m.tipo+':'+m.r.rowid;
+  const parcelaTxt=m=>{const x=String((m&&m.desc)||'').match(/\((\d+)\/(\d+)\)/);return x?x[1]+'/'+x[2]:'';};
+  // op.perto: na janela "Associar à conta", também os grupos (rateio, compra, fornecedor) que chegam perto do banco (até 10%:
+  // juros, multa, desconto) — vêm depois dos que batem, com a diferença
+  function combosQueSomam(abertos,t,usados,op){
+    const v=Math.abs(t.valor),td=dt(t.data),mes=d=>d?isoDe(d).slice(0,7):'',livre=m=>!(usados&&usados.has(idMov(m))),tol=op&&op.perto?Math.max(0.01,v*0.1):0.01;
+    const grupos=new Map(),add=(k,m)=>{if(!grupos.has(k))grupos.set(k,[]);grupos.get(k).push(m);};
+    abertos.forEach(m=>{if(!livre(m))return;const r=m.r||{};
+      if(r.rateio_id)add('R|'+r.rateio_id+'|'+mes(m.venc),m);
+      if(r.compra_id)add('C|'+r.compra_id+'|'+mes(m.venc),m);
+      if(m.quem&&m.venc)add('F|'+cn(m.quem)+'|'+isoDe(m.venc),m);});
+    const out=[],vistos=new Set(),soma=L=>Math.round(L.reduce((a,m)=>a+m.valor,0)*100)/100;
+    const por=(L,tipo,lim)=>{if(L.length<2)return;const k=L.map(idMov).sort().join(',');const s=soma(L);if(vistos.has(k)||Math.abs(s-v)>(lim||0.01))return;vistos.add(k);out.push({tipo,itens:L.slice().sort((a,b)=>b.valor-a.valor),soma:s,dif:Math.round((v-s)*100)/100});};
+    grupos.forEach((L,k)=>por(L,k[0],tol));
+    // nada bateu: combina de 2 a 4 contas do fornecedor que aparece no extrato, perto da data do banco
+    if(!out.some(g=>Math.abs(g.dif)<0.01)){
+      const longe=m=>m.venc&&td?Math.abs(dias(m.venc,td)):999;
+      const C=abertos.filter(m=>livre(m)&&m.valor<v&&nomeBate(m,t)>0&&(!m.venc||!td||(dias(m.venc,td)>=-75&&dias(m.venc,td)<=45))).sort((a,b)=>longe(a)-longe(b)).slice(0,12);
+      const tenta=(ini,esc,tam)=>{if(out.length>=5)return;if(esc.length===tam){por(esc,'N');return;}for(let i=ini;i<C.length;i++){esc.push(C[i]);tenta(i+1,esc,tam);esc.pop();}};
+      for(let tam=2;tam<=4&&out.length<5;tam++)tenta(0,[],tam);}
+    // os que batem primeiro; depois os mais perto da data do banco
+    const dist=g=>Math.min(...g.itens.map(m=>m.venc&&td?Math.abs(dias(m.venc,td)):999)),bate=g=>Math.abs(g.dif)<0.01?0:1;
+    return out.sort((a,b)=>bate(a)-bate(b)||dist(a)-dist(b));
+  }
+  const motivoCombo=g=>g.tipo==='R'?'partes do mesmo rateio'+(parcelaTxt(g.itens[0])?` · parcela ${parcelaTxt(g.itens[0])}`:''):g.tipo==='C'?'itens da mesma compra'+(parcelaTxt(g.itens[0])?` · parcela ${parcelaTxt(g.itens[0])}`:''):g.tipo==='F'?'mesmo fornecedor e vencimento':'contas do fornecedor do extrato';
   function conciliar(ext){
     const ms=movimentos(),feitos=new Map(),usados=new Set(),props=[],ign=ignorados();
     const idm=m=>m.tipo+':'+m.r.rowid;
@@ -11362,6 +11410,11 @@ const Fin=(function(){
       if(ap){usados.add(idm(ap));return props.push({t,st:'vincular',acao:'vincular',alvos:[ap],nota:'aporte já lançado'});}
       return props.push({t,st:'sem'});
     });
+    // 2ª volta (depois das que batem sozinhas): saída sem correspondência que é a SOMA de várias contas (rateio, parcela do
+    // rateio, itens da mesma compra) vai para "Confira antes" com as contas juntas — não vem marcada: a pessoa confere e marca
+    props.forEach((p,i)=>{if(p.st!=='sem'||p.t.valor>=0)return;const cb=combosQueSomam(abertosS,p.t,usados);if(!cb.length)return;const g=cb[0];
+      g.itens.forEach(m=>usados.add(idm(m)));
+      props[i]={t:p.t,st:'confira',acao:'baixar',alvos:g.itens,soma:true,nota:`${g.itens.length} contas somadas dão o valor do banco (${motivoCombo(g)}): ${g.itens.map(m=>fmt(m.valor)).join(' + ')} = ${fmt(g.soma)}`};});
     return props;
   }
 
@@ -11369,12 +11422,13 @@ const Fin=(function(){
     let ok=0;const falhas=[],vistos=new Set();
     for(const p of lista){
       try{
-        for(const m of p.alvos){
+        for(const [i,m] of p.alvos.entries()){
           const id=m.tipo+':'+m.r.rowid;
           if(vistos.has(id))throw new Error('o mesmo lançamento do sistema foi escolhido para duas linhas do extrato');
           vistos.add(id);
           if(p.acao==='vincular')await salvar(m.r._aba||ABA[m.tipo],{...m.r,conciliacao:juntarId(m.r.conciliacao,p.t.id)},m.r.rowid);
-          else await baixar(m,isoDeBR(p.t.data),{conc:p.t.id,desc:p.t.desc,valor:p.alvos.length===1?Math.abs(p.t.valor):0,ajustar:p.ajustar});
+          // valores: a parte do banco de cada conta (várias contas com a diferença dividida); sem eles, uma conta = o valor do banco
+          else await baixar(m,isoDeBR(p.t.data),{conc:p.t.id,desc:p.t.desc,valor:p.valores?p.valores[i]:(p.alvos.length===1?Math.abs(p.t.valor):0),ajustar:p.ajustar});
         }
         ok++;
       }catch(e){falhas.push(`${p.t.data} ${fmt(p.t.valor)}: ${(e&&e.message)||e}`);}
@@ -11690,25 +11744,57 @@ const Fin=(function(){
 
   /* Saída sem correspondência: a pessoa associa a linha do banco a uma conta em aberto. Se o valor for diferente, a conta passa a ter
      o valor do banco e ficam registrados o valor lançado, o ajustado e a diferença. Sempre pergunta se está certo antes de gravar. */
+  /* "Associar à conta" de uma saída: marca UMA OU VÁRIAS contas em aberto (um pagamento que quitou o rateio entre obras, a
+     parcela de uma compra rateada, os itens de uma compra) — assim nada é lançado em dobro. Em cima vêm sugeridas as contas que
+     somadas dão o valor do banco. Se a soma for diferente do banco, a diferença é dividida entre as contas, proporcional ao
+     valor de cada uma (com uma conta só, ela passa a ter o valor do banco); em cada conta ficam o lançado, o ajustado e a
+     diferença. Sempre pergunta se está certo antes de gravar. */
+  const rotuloCurto=m=>`${m.quem?m.quem+' · ':''}${m.desc} · ${m.origem} · ${m.venc?'vence '+brDe(m.venc):'sem data'}`;
+  // divide o valor do banco entre as contas, proporcional ao valor de cada uma (o centavo que sobra fica na maior)
+  function dividirBanco(L,v){const soma=L.reduce((s,m)=>s+m.valor,0);
+    const vals=L.map(m=>Math.round((soma>0?m.valor*v/soma:v/L.length)*100)/100),resto=Math.round((v-vals.reduce((a,b)=>a+b,0))*100)/100;
+    if(Math.abs(resto)>=0.005){const i=vals.indexOf(Math.max(...vals));vals[i]=Math.round((vals[i]+resto)*100)/100;}return vals;}
   function escolher(p){
     const v=Math.abs(p.t.valor);
-    const ms=movimentos().filter(m=>!m.pago&&m.sent<0).sort((a,b)=>Math.abs(a.valor-v)-Math.abs(b.valor-v)).slice(0,80);
-    if(!ms.length)return toast('Não há contas a pagar em aberto.','error');
-    const exata=ms.findIndex(m=>Math.abs(m.valor-v)<=0.01);
-    const j=janela('A qual lançamento pertence?',`<div class="fin-resumo">${fe(p.t.data)} · ${fe(p.t.desc)}<br>Valor no banco: <b>${fmt(v)}</b></div>
-      <div class="fin-fld"><label>Conta a pagar em aberto <span class="obg">*</span></label><select data-k="alvo"><option value="">Escolha a conta…</option>${ms.map((m,i)=>`<option value="${i}" ${i===exata?'selected':''}>${fe(rotulo(m))}</option>`).join('')}</select><div class="capx-dica">As de valor mais próximo aparecem primeiro.</div></div>
+    const abertos=movimentos().filter(m=>!m.pago&&m.sent<0);
+    if(!abertos.length)return toast('Não há contas a pagar em aberto.','error');
+    const combos=combosQueSomam(abertos,p.t,null,{perto:true}).slice(0,5),nosCombos=new Set(combos.flatMap(g=>g.itens.map(idMov)));
+    const nBate=combos.filter(g=>Math.abs(g.dif)<0.01).length;
+    // as de valor mais próximo primeiro (até 80) + as das sugestões
+    const ms=abertos.slice().sort((a,b)=>Math.abs(a.valor-v)-Math.abs(b.valor-v)).filter((m,i)=>i<80||nosCombos.has(idMov(m)));
+    const exata=ms.findIndex(m=>Math.abs(m.valor-v)<=0.01),marc=new Set(exata>=0?[idMov(ms[exata])]:[]);
+    const sug=combos.length?`<div class="cc-combos"><div class="cc-combos-tit"><i class="fas fa-wand-magic-sparkles"></i> Contas que somadas ${nBate===combos.length?'dão':nBate?'dão (ou chegam perto de)':'chegam perto de'} ${fmt(v)}</div>${combos.map((g,i)=>`<div class="cc-combo"><div><b>${fe(motivoCombo(g))}</b><small>${g.itens.map(m=>`${fe(m.origem)} ${fmt(m.valor)}`).join(' + ')}${Math.abs(g.dif)>=0.01?` = ${fmt(g.soma)}`:''}</small>${Math.abs(g.dif)>=0.01?`<em class="cc-combo-dif">o banco tem ${fmt(Math.abs(g.dif))} a ${g.dif>0?'mais (juros, multa?)':'menos (desconto?)'} — a diferença é dividida entre as contas</em>`:''}</div><button type="button" class="fin-bt mini" data-combo="${i}"><i class="fas fa-check-double"></i> Marcar estas</button></div>`).join('')}</div>`:'';
+    const j=janela('A qual lançamento pertence?',`<div class="fin-resumo">${fe(p.t.data)} · ${fe(p.t.desc)}<br>Valor no banco: <b>${fmt(v)}</b></div>${sug}
+      <div class="cc-assoc-tit">Contas a pagar em aberto <span class="obg">*</span><small>marque uma ou mais — as de valor mais próximo aparecem primeiro</small></div>
+      <div class="pl2-busca cc-assoc-busca"><i class="fas fa-magnifying-glass"></i><input type="search" data-k="busca" placeholder="Buscar: fornecedor, obra, descrição ou valor…" autocomplete="off"></div>
+      <div class="cc-assoc-l" data-k="lista">${ms.map((m,i)=>`<label class="${marc.has(idMov(m))?'on':''}" data-busca="${fe(cn(rotuloCurto(m)+' '+n2c(m.valor)))}"><input type="checkbox" data-i="${i}" ${marc.has(idMov(m))?'checked':''}><span>${fe(rotuloCurto(m))}${parcelaTxt(m)||m.r.rateio_id?`<small>${[m.r.rateio_id?'rateio':'',parcelaTxt(m)?'parcela '+parcelaTxt(m):''].filter(Boolean).join(' · ')}</small>`:''}</span><b>${fmt(m.valor)}</b></label>`).join('')}</div>
       <div data-k="dif"></div>`,
       [{html:'<i class="fas fa-link"></i> Associar e dar baixa',cls:'pri',acao:async jj=>{
-        const k=jj.querySelector('[data-k="alvo"]').value;if(k==='')throw new Error('Escolha a conta.');const m=ms[+k];
-        if(!(await confirmarAssociacao([{t:p.t,m}],'Esta saída vai dar baixa nesta conta')))return false;
-        const r=await executar(()=>aplicar([{t:p.t,acao:'baixar',alvos:[m],ajustar:true}]));
+        const sel=marcadas();if(!sel.length)throw new Error('Marque a conta (ou as contas) que esta saída pagou.');
+        const vals=sel.length===1?[v]:dividirBanco(sel,v),soma=Math.round(sel.reduce((s,m)=>s+m.valor,0)*100)/100;
+        if(!(await confirmarAssociacao(sel.map((m,i)=>({t:p.t,m,v:vals[i]})),sel.length>1?`Esta saída vai dar baixa em ${sel.length} contas`:'Esta saída vai dar baixa nesta conta')))return false;
+        const r=await executar(()=>aplicar([{t:p.t,acao:'baixar',alvos:sel,valores:vals,ajustar:true}]));
         if(r.falhas.length)throw new Error(r.falhas[0]);
-        toast(Math.abs(v-m.valor)>=0.01?`Baixa feita. A conta passou de ${fmt(m.valor)} para ${fmt(v)} e a diferença ficou registrada.`:'Baixa feita.','success');
-      }}],660);
-    const pintar=()=>{const sel=j.querySelector('[data-k="alvo"]'),box=j.querySelector('[data-k="dif"]'),m=sel.value===''?null:ms[+sel.value];if(!m){box.innerHTML='';return;}
-      const d=Math.round((v-m.valor)*100)/100;
-      box.innerHTML=Math.abs(d)<0.01?'<div class="fin-aviso"><div>O valor da conta é igual ao do banco.</div></div>':`<div class="fin-aviso laranja"><div>Valor lançado <b>${fmt(m.valor)}</b> · valor do banco <b>${fmt(v)}</b> · diferença <b>${txtDif(d)}</b>. A conta passa a ter o valor do banco, e o valor lançado, o ajustado e a diferença ficam registrados.</div></div>`;};
-    j.onchange=pintar;pintar();
+        const d=Math.round((v-soma)*100)/100;
+        toast(sel.length>1?(Math.abs(d)>=0.01?`Baixa feita em ${sel.length} contas. A diferença de ${txtDif(d)} foi dividida entre elas e ficou registrada.`:`Baixa feita em ${sel.length} contas.`)
+          :(Math.abs(d)>=0.01?`Baixa feita. A conta passou de ${fmt(soma)} para ${fmt(v)} e a diferença ficou registrada.`:'Baixa feita.'),'success');
+      }}],720);
+    const lista=j.querySelector('[data-k="lista"]'),marcadas=()=>[...lista.querySelectorAll('input:checked')].map(c=>ms[+c.dataset.i]);
+    const pintar=()=>{lista.querySelectorAll('label').forEach(l=>l.classList.toggle('on',l.querySelector('input').checked));
+      const sel=marcadas(),box=j.querySelector('[data-k="dif"]');if(!sel.length){box.innerHTML='';return;}
+      const soma=Math.round(sel.reduce((s,m)=>s+m.valor,0)*100)/100,d=Math.round((v-soma)*100)/100,igual=Math.abs(d)<0.01;
+      box.innerHTML=`<div class="cc-soma ${igual?'ok':'dif'}"><span>Marcada${sel.length>1?'s':''}: <b>${sel.length} conta${sel.length>1?'s':''}</b> · <b>${fmt(soma)}</b></span><span>banco <b>${fmt(v)}</b></span><span>${igual?'<i class="fas fa-circle-check"></i> bate com o banco':`diferença <b>${txtDif(d)}</b>`}</span></div>
+        ${igual?'':`<div class="fin-aviso laranja"><div>${sel.length>1?'A diferença é dividida entre as contas, proporcional ao valor de cada uma: cada conta passa a ter a parte dela do banco':'A conta passa a ter o valor do banco'}, e o valor lançado, o ajustado e a diferença ficam registrados.</div></div>`}`;};
+    // a busca só esconde (as marcadas continuam aparecendo); "Marcar estas" troca a marcação pela da sugestão
+    j.oninput=ev=>{if(!ev.target.matches('[data-k="busca"]'))return;const q=cn(ev.target.value).split(/\s+/).filter(Boolean);
+      lista.querySelectorAll('label').forEach(l=>{l.hidden=!l.querySelector('input').checked&&!q.every(x=>l.dataset.busca.includes(x));});};
+    j.onchange=pintar;
+    // (o clique fica no quadro das sugestões, e não na janela: a janela é a mesma para todas e acumularia ouvintes)
+    const cbx=j.querySelector('.cc-combos');
+    if(cbx)cbx.addEventListener('click',ev=>{const b=ev.target.closest('[data-combo]');if(!b)return;const ids=new Set(combos[+b.dataset.combo].itens.map(idMov));
+      lista.querySelectorAll('input').forEach(c=>{c.checked=ids.has(idMov(ms[+c.dataset.i]));c.closest('label').hidden=false;});pintar();
+      const um=lista.querySelector('input:checked');if(um)um.closest('label').scrollIntoView({block:'nearest',behavior:'smooth'});});
+    pintar();
   }
   /* Entrada do banco sem nota encontrada: registra o recebimento numa nota de "Nota emitida · a receber". Cada linha do banco
      vai para uma nota, na data do banco, e o recebimento fica com o valor que entrou: a diferença para o líquido esperado
@@ -11782,8 +11868,8 @@ const Fin=(function(){
         <tbody class="cc-lt-todas"><tr><td>Preencher todas as linhas:</td><td></td><td>${GS.comboGasto.html('data-k="catTodas"','data-k="descTodas"','','')}</td><td><select data-k="formaTodas" title="Forma de pagamento de todas as linhas"><option value="">Forma…</option>${FORMAS.map(f=>`<option>${fe(f)}</option>`).join('')}</select></td><td></td><td></td></tr></tbody>
         <tbody data-k="linhas">${LN.map(linhaHtml).join('')}</tbody></table></div>
       <div class="lote-tot" data-k="tot"></div>
-      <div class="lote-socio">${simNao('data-k="socio"','Pago com dinheiro do sócio?','Cartão, PIX ou conta pessoal do sócio — as contas ficam pagas na data do banco e o valor também entra em <b>Sócios e investimentos</b> como aporte.','')}
-        <div class="fin-linha" data-k="socio-box" hidden><div class="fin-fld"><label>Sócio / investidor <span class="obg">*</span></label><input data-k="quem" list="cc-quem" autocomplete="off"><datalist id="cc-quem">${GS.rateio.socios().map(s=>`<option value="${fe(s)}">`).join('')}</datalist></div></div></div>`,
+      <div class="lote-socio">${simNao('data-k="socio"','Pago com dinheiro do sócio?','Cartão, PIX ou conta pessoal do sócio — as contas ficam pagas na data do banco e o valor também entra em <b>Sócios e investimentos</b> como aporte.','',
+        `<div class="fin-linha sn-mais" data-k="socio-box" hidden><div class="fin-fld"><label>Sócio / investidor <span class="obg">*</span></label><input data-k="quem" list="cc-quem" autocomplete="off" placeholder="Quem pagou?"><datalist id="cc-quem">${GS.rateio.socios().map(s=>`<option value="${fe(s)}">`).join('')}</datalist></div></div>`)}</div>`,
       [{html:'<i class="fas fa-floppy-disk"></i> Lançar e conciliar',cls:'pri',acao:async jj=>{
         const g=k=>(jj.querySelector(`[data-k="${k}"]`).value||'').trim(),centro=g('centro'),rat=centro===RAT,obrasR=rat?RT.obras():[],socio=simNaoValor(jj.querySelector('[data-k="socio"]'))==='sim',quem=g('quem');
         if(!centro)throw new Error('Marque a obra (ou Custo indireto).');if(rat&&GS.rateio.erroRateio(obrasR))throw new Error(GS.rateio.erroRateio(obrasR));
@@ -16600,8 +16686,8 @@ const Mascara=(function(){
     janela('Registrar pagamento da compra',`<div class="fin-resumo"><b>${fe(o.forn||'Compra')}</b> · ${L.length} itens · vence ${brDe(dt(o.venc))}<br>Total: <b>${fmt(tot)}</b> — todos os itens ficam pagos na mesma data.</div>
       <div class="fin-linha"><div class="fin-fld"><label>Data do pagamento</label><input type="date" data-k="data" max="${isoDe(hoje0())}" value="${isoDe(hoje0())}"></div>
       <div class="fin-fld"><label>Forma</label><select data-k="forma">${FORMAS.map(x=>`<option ${x===(o.forma||'PIX')?'selected':''}>${fe(x)}</option>`).join('')}</select></div></div>
-      ${Fin.util.simNao('data-k="socio"','Pago com dinheiro do sócio?','Cartão, PIX ou conta pessoal do sócio — o valor entra em <b>Sócios e investimentos</b> como aporte.',o._r.pago_por_socio?'sim':'')}
-      <div class="fin-fld" data-socio-box ${o._r.pago_por_socio?'':'hidden'}><label>Sócio / investidor</label><input data-k="quem" list="pgc-quem" autocomplete="off" value="${fe(o._r.pago_por_socio||'')}"><datalist id="pgc-quem">${GS.rateio.socios().map(s=>`<option value="${fe(s)}">`).join('')}</datalist></div>`,
+      ${Fin.util.simNao('data-k="socio"','Pago com dinheiro do sócio?','Cartão, PIX ou conta pessoal do sócio — o valor entra em <b>Sócios e investimentos</b> como aporte.',o._r.pago_por_socio?'sim':'',
+        `<div class="fin-linha sn-mais" data-socio-box ${o._r.pago_por_socio?'':'hidden'}><div class="fin-fld"><label>Sócio / investidor <span class="obg">*</span></label><input data-k="quem" list="pgc-quem" autocomplete="off" placeholder="Quem pagou?" value="${fe(o._r.pago_por_socio||'')}"><datalist id="pgc-quem">${GS.rateio.socios().map(s=>`<option value="${fe(s)}">`).join('')}</datalist></div></div>`)}`,
       [{html:'<i class="fas fa-circle-check"></i> Confirmar pagamento',cls:'pri',acao:async j=>{
         const soc=Fin.util.simNaoValor(j.querySelector('[data-k="socio"]'))==='sim',quem=(j.querySelector('[data-k="quem"]').value||'').trim();if(soc&&!quem)throw new Error('Informe o sócio que pagou.');
         const d=j.querySelector('[data-k="data"]').value,forma=j.querySelector('[data-k="forma"]').value;if(!d)throw new Error('Informe a data do pagamento.');if(d>isoDe(hoje0()))throw new Error('A data do pagamento não pode ser depois de hoje.');
@@ -16795,8 +16881,8 @@ const Mascara=(function(){
       <div class="fin-linha"><div class="fin-fld"><label>Valor pago (R$)</label><input data-k="total" data-mask="moeda" inputmode="numeric" value="${fmt(val(o.total))}"></div>
       <div class="fin-fld"><label>Data do pagamento</label><input type="date" data-k="data" max="${isoDe(hoje0())}" value="${isoDe(hoje0())}"></div>
       <div class="fin-fld"><label>Forma</label><select data-k="forma">${FORMAS.map(x=>`<option ${x===(o.forma||'PIX')?'selected':''}>${fe(x)}</option>`).join('')}</select></div></div>
-      ${Fin.util.simNao('data-k="socio"','Pago com dinheiro do sócio?','Cartão, PIX ou conta pessoal do sócio — o valor entra em <b>Sócios e investimentos</b> como aporte.',o._r.pago_por_socio?'sim':'')}
-      <div class="fin-fld" data-socio-box ${o._r.pago_por_socio?'':'hidden'}><label>Sócio / investidor</label><input data-k="quem" list="pg-quem" autocomplete="off" value="${fe(o._r.pago_por_socio||'')}"><datalist id="pg-quem">${GS.rateio.socios().map(s=>`<option value="${fe(s)}">`).join('')}</datalist></div>
+      ${Fin.util.simNao('data-k="socio"','Pago com dinheiro do sócio?','Cartão, PIX ou conta pessoal do sócio — o valor entra em <b>Sócios e investimentos</b> como aporte.',o._r.pago_por_socio?'sim':'',
+        `<div class="fin-linha sn-mais" data-socio-box ${o._r.pago_por_socio?'':'hidden'}><div class="fin-fld"><label>Sócio / investidor <span class="obg">*</span></label><input data-k="quem" list="pg-quem" autocomplete="off" placeholder="Quem pagou?" value="${fe(o._r.pago_por_socio||'')}"><datalist id="pg-quem">${GS.rateio.socios().map(s=>`<option value="${fe(s)}">`).join('')}</datalist></div></div>`)}
       ${o.aprov==='pendente'||o.tipo!=='Real'?'<div class="fin-aviso"><div>A conta ainda não estava aprovada: ao confirmar o pagamento, ela fica aprovada por você.</div></div>':''}`,
       [{html:'Cancelar'},{html:'<i class="fas fa-circle-check"></i> Confirmar pagamento',cls:'pri',acao:async j=>{
         const soc=Fin.util.simNaoValor(j.querySelector('[data-k="socio"]'))==='sim',quem=(j.querySelector('[data-k="quem"]').value||'').trim();if(soc&&!quem)throw new Error('Informe o sócio que pagou.');
@@ -17311,9 +17397,9 @@ const Mascara=(function(){
         <button type="button" class="fin-bt" data-l="add"><i class="fas fa-plus"></i> Adicionar item</button><span class="lote-st" data-l="st"></span></div>
       <div class="lote-tab"><table data-sem-ordem><thead><tr><th>Fornecedor / quem recebe</th><th>Vencimento <span class="obg">*</span></th><th>Categoria › Descrição <span class="obg">*</span></th><th>Qtd</th><th>Un.</th><th>Preço unit.</th><th>Valor</th><th></th></tr></thead><tbody data-l="itens"></tbody></table></div>
       <div class="lote-pe"><label class="lote-dn"><span>Desconto da nota (R$)</span><input data-l="descnota" data-mask="moeda" inputmode="numeric" placeholder="R$ 0,00"></label><div class="lote-tot" data-l="tot"></div></div>
-      <div class="lote-socio">${Fin.util.simNao('data-l="socio"','Pago com dinheiro do sócio?',`Cartão, PIX ou conta pessoal do sócio — ${cc?'além da conta paga na data do banco, o valor também':'a conta já fica paga e o valor'} entra em <b>Sócios e investimentos</b> como aporte.`,'')}
-        <div class="fin-linha" data-l="socio-box" hidden><div class="fin-fld"><label>Sócio / investidor <span class="obg">*</span></label><input data-l="quem" list="lote-quem" autocomplete="off"><datalist id="lote-quem">${socios().map(s=>`<option value="${fe(s)}">`).join('')}</datalist></div>
-          <div class="fin-fld" ${cc?'hidden':''}><label>Pago em <span class="obg">*</span></label><input type="date" data-l="pagoem" max="${isoDe(hoje0())}" value="${fe(cc?cc.data:isoDe(hoje0()))}"></div></div></div></div>`;
+      <div class="lote-socio">${Fin.util.simNao('data-l="socio"','Pago com dinheiro do sócio?',`Cartão, PIX ou conta pessoal do sócio — ${cc?'além da conta paga na data do banco, o valor também':'a conta já fica paga e o valor'} entra em <b>Sócios e investimentos</b> como aporte.`,'',
+        `<div class="fin-linha sn-mais" data-l="socio-box" hidden><div class="fin-fld"><label>Sócio / investidor <span class="obg">*</span></label><input data-l="quem" list="lote-quem" autocomplete="off" placeholder="Quem pagou?"><datalist id="lote-quem">${socios().map(s=>`<option value="${fe(s)}">`).join('')}</datalist></div>
+          <div class="fin-fld" ${cc?'hidden':''}><label>Pago em <span class="obg">*</span></label><input type="date" data-l="pagoem" max="${isoDe(hoje0())}" value="${fe(cc?cc.data:isoDe(hoje0()))}"></div></div>`)}</div></div>`;
     // parcelas lidas da nota (duplicatas/boleto) e CNPJ do fornecedor lido
     let PARC=[],CNPJ_LIDO='',RT=null;
     janela(cc?'Registrar saída':'Nova conta a pagar',corpo,[{html:'<i class="fas fa-cart-arrow-down"></i> Lançar',cls:'pri',acao:async j=>{
@@ -21841,6 +21927,9 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
 .sn-op:hover{border-color:#84ADFF;} .sn-op:focus-within{outline:2px solid #84ADFF;outline-offset:2px;}
 .sn-op.on{background:#1652D8;border-color:#1652D8;color:#fff;}
 .sn-pergunta.sn-falta{border-color:#FDA29B;background:#FEF3F2;} .sn-pergunta.sn-falta .sn-op{border-color:#FDA29B;}
+/* o que aparece no Sim (campo do sócio, data): dentro do mesmo quadro, numa linha inteira embaixo da pergunta */
+.sn-pergunta>.sn-mais{flex:1 1 100%;min-width:0;margin:2px 0 0;padding-top:10px;border-top:1px dashed #D5DEEC;}
+.sn-pergunta>.sn-mais[hidden]{display:none;} .sn-pergunta>.sn-mais .fin-fld{margin-bottom:0;} .sn-pergunta>.sn-mais input{background:#fff;}
 /* conciliação › Lançar marcados: uma linha da tabela por saída do banco */
 .lote-tab.cc-lt table{min-width:900px;} .lote-tab.cc-lt td:nth-child(n){width:auto;min-width:0;}
 .lote-tab.cc-lt td:nth-child(1){width:220px;} .lote-tab.cc-lt td:nth-child(2){width:190px;} .lote-tab.cc-lt td:nth-child(3){min-width:240px;} .lote-tab.cc-lt td:nth-child(4){width:190px;} .lote-tab.cc-lt td:nth-child(5){width:104px;} .lote-tab.cc-lt td:nth-child(6){width:40px;}
