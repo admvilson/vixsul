@@ -10908,12 +10908,99 @@ const Fin=(function(){
      não ficaram guardadas (a tela de Sócios procura nas contas que o sócio pagou naquele mês e obra). */
   const formasReg=r=>r&&r.formas_aporte?String(r.formas_aporte).split(',').map(s=>s.trim()).filter(Boolean):(r&&r.forma_aporte?[r.forma_aporte]:[]);
   const juntarFormas=(...ls)=>[...new Set(ls.flat().filter(Boolean))].join(', ');
-  async function somarAporte(a){const K=KAporte(),mes=a.data.slice(0,7),per=periodoMes(mes);
-    const ja=(D().aportes||[]).find(r=>!/retir|devolu/i.test(r.movimento||'')&&val(r[K.valor])>0&&cn(r[K.quem])===cn(a.quem)&&cn(r[K.obra])===cn(a.obra)&&mesDoAporte(r,K)===mes);
-    const liga=o=>{if(a.conc){o.conciliacao=juntarId(o.conciliacao,a.conc);o.conciliacao_baixa=juntarId(o.conciliacao_baixa,a.conc);}return o;};
-    if(ja){const fj=ja.forma_aporte||'',dj=isoDe(dt(ja[K.data])||dt(a.data));
-      return salvar(ja._aba||ABA.aporte,liga({...ja,[K.valor]:dinheiro(val(ja[K.valor])+a.valor),[K.data]:dj>a.data?dj:a.data,forma_aporte:fj&&a.forma&&fj!==a.forma?'Várias':(fj||a.forma||''),formas_aporte:juntarFormas(formasReg(ja),a.formas||[a.forma]),[K.obs]:[ja[K.obs],a.obs].filter(Boolean).join(' | '),periodo_ini:per.ini,periodo_fim:per.fim}),ja.rowid);}
-    return salvar(ABA.aporte,liga({[K.lanc]:todayDateTime(),[K.obra]:a.obra,[K.quem]:a.quem,[K.data]:a.data,[K.valor]:dinheiro(a.valor),movimento:'Aporte',aporte_ref:'',forma_aporte:a.forma||'',formas_aporte:juntarFormas(a.formas||[a.forma]),[K.obs]:a.obs||'',periodo_ini:per.ini,periodo_fim:per.fim,origem_aporte:a.origem||''}),null);}
+  /* O APORTE ACOMPANHA AS CONTAS PAGAS COM DINHEIRO DO SÓCIO: a conta paga pelo sócio soma no aporte dele (na obra e no mês
+     do pagamento). Quando ela sai (Lixeira, Desfazer pagamento, Desfazer da Conciliação), muda (valor, obra) ou volta da
+     Lixeira, o aporte acompanha — antes a conta excluída deixava o valor no aporte (12/11: R$ 445,00 a mais nos aportes).
+     FILA: dentro de um executar() as somas e as saídas ficam numa fila e são gravadas UMA vez por lançamento do mês, no fim.
+     O sistema só relê os dados do banco depois do executar(): gravando uma a uma, a 2ª conta da mesma obra e mês gravava
+     por cima da 1ª (baixa de várias contas de uma vez).
+     a:{op:'+'|'-', quem, obra, data (iso; vale o mês), valor, forma, formas, obs, origem, conc (ids do extrato da conta),
+        contaId (a conta que saiu), rowid (o lançamento certo), soltar (ids do extrato que saem do lançamento de qualquer
+        jeito), obsTirar (trecho da observação que sai), lixeira (zerou → vai para a Lixeira: aporte que nasceu de um
+        depósito do sócio; o que é só a soma das contas sai de vez — a conta que volta da Lixeira soma de novo)} */
+  let _apFila=null;
+  const chaveAp=(quem,obra,mes)=>cn(quem)+'|'+cn(obra||'Empresa')+'|'+mes;
+  const aporteDoMes=(quem,obra,mes,K)=>(D().aportes||[]).find(r=>!/retir|devolu/i.test(r.movimento||'')&&val(r[K.valor])>0&&cn(r[K.quem])===cn(quem)&&cn(r[K.obra])===cn(obra)&&mesDoAporte(r,K)===mes);
+  // a lista de ids do extrato de um lançamento ("ofx:…,csv:…"): a vírgula só separa quando vem antes de outro id
+  const idsDe=s=>String(s||'').split(/,(?=(?:ofx|csv|pdf):)/).map(x=>x.trim()).filter(Boolean);
+  function somarAporte(a){return filaAporte({...a,op:'+'});}
+  function tirarDoAporte(a){return filaAporte({...a,op:'-'});}
+  function filaAporte(a){
+    if(!a||!a.quem||!a.data||!(a.valor>0.004||a.soltar))return Promise.resolve();
+    const k=a.rowid?'r'+a.rowid:chaveAp(a.quem,a.obra,String(a.data).slice(0,7));
+    if(!_apFila)return gravarAportes(new Map([[k,[a]]]));
+    if(!_apFila.has(k))_apFila.set(k,[]);_apFila.get(k).push(a);return Promise.resolve();
+  }
+  async function gravarAportes(fila){
+    const K=KAporte(),alvos=new Map();
+    // cada grupo acha o lançamento do mês (ou nenhum); grupos que caem no mesmo lançamento são gravados juntos
+    fila.forEach((ops,k)=>{const a0=ops[0],mes=String(a0.data).slice(0,7);
+      const ja=a0.rowid?(D().aportes||[]).find(r=>String(r.rowid)===String(a0.rowid)):aporteDoMes(a0.quem,a0.obra,mes,K);
+      const id=ja?'r'+ja.rowid:'n'+k;if(!alvos.has(id))alvos.set(id,{ja,mes:ja?(mesDoAporte(ja,K)||mes):mes,ops:[]});alvos.get(id).ops.push(...ops);});
+    for(const {ja,mes,ops} of alvos.values()){
+      const per=periodoMes(mes),soltar=new Set(),talvez=new Set(),sairam=new Set();let rec=ja?{...ja}:null,lixeira=false;
+      for(const a of ops){
+        if(a.op==='-'){if(!rec)continue;   // não há lançamento do mês para tirar (já acertado à mão)
+          rec[K.valor]=dinheiro(val(rec[K.valor])-(a.valor||0));
+          if(a.obsTirar)rec[K.obs]=String(rec[K.obs]||'').split(' | ').filter(s=>!s.includes(a.obsTirar)).join(' | ');
+          if(a.obs)rec[K.obs]=[rec[K.obs],a.obs].filter(Boolean).join(' | ');
+          idsDe(a.soltar).forEach(i=>soltar.add(i));idsDe(a.conc).forEach(i=>talvez.add(i));
+          if(a.contaId)sairam.add(a.contaId);if(a.lixeira)lixeira=true;continue;}
+        if(rec){const fj=rec.forma_aporte||'',dj=isoDe(dt(rec[K.data])||dt(a.data));
+          Object.assign(rec,{[K.valor]:dinheiro(val(rec[K.valor])+a.valor),[K.data]:dj>a.data?dj:a.data,forma_aporte:fj&&a.forma&&fj!==a.forma?'Várias':(fj||a.forma||''),formas_aporte:juntarFormas(formasReg(rec),a.formas||[a.forma]),[K.obs]:[rec[K.obs],a.obs].filter(Boolean).join(' | '),periodo_ini:per.ini,periodo_fim:per.fim});}
+        else rec={[K.lanc]:todayDateTime(),[K.obra]:a.obra,[K.quem]:a.quem,[K.data]:a.data,[K.valor]:dinheiro(a.valor),movimento:'Aporte',aporte_ref:'',forma_aporte:a.forma||'',formas_aporte:juntarFormas(a.formas||[a.forma]),[K.obs]:a.obs||'',periodo_ini:per.ini,periodo_fim:per.fim,origem_aporte:a.origem||''};
+        idsDe(a.conc).forEach(i=>{rec.conciliacao=juntarId(rec.conciliacao,i);rec.conciliacao_baixa=juntarId(rec.conciliacao_baixa,i);talvez.delete(i);soltar.delete(i);});
+      }
+      if(!rec)continue;
+      // ids do extrato da conta que saiu: deixam o lançamento se nenhuma outra conta dele tem o mesmo id (a linha do banco volta para a conferência)
+      if(talvez.size){const ficam=contasDoAporte(rec[K.quem],rec[K.obra],mes).filter(p=>!sairam.has(p.contaId));talvez.forEach(i=>{if(!ficam.some(p=>temId(p.conc,i)))soltar.add(i);});}
+      soltar.forEach(i=>{rec.conciliacao=tirarId(rec.conciliacao,i);rec.conciliacao_baixa=tirarId(rec.conciliacao_baixa,i);});
+      const aba=rec._aba||ABA.aporte;
+      if(val(rec[K.valor])<=0.004){if(rec.rowid)await(lixeira?excluir(aba,rec.rowid):excluirDeVez(aba,rec.rowid));continue;}
+      await salvar(aba,rec,rec.rowid||null);
+    }
+  }
+  /* quem pagou a conta com dinheiro do sócio: o campo da conta ou o "Paga por X (aporte)" da observação. "Será paga por X
+     (aporte)", da parcela que ainda vai vencer, não conta: o aporte só nasce no pagamento. o = conta do quadro (GS.contas) */
+  const socioDaConta=o=>{if(!o)return '';const r=o._r||{},m=String(o.obs!=null?o.obs:(getFuzzy(r,['observacao','obs'])||'')).match(/(?:^|[^A-Za-zÀ-ú])Paga por (.+?) \(aporte\)/);
+    return String(o.pagoPorSocio!=null?o.pagoPorSocio:(r.pago_por_socio||(m?m[1]:''))).trim();};
+  // observação da conta: tira os avisos do sócio ("Será paga por X (aporte)", "Paga por X (aporte)") e põe o de agora
+  // (futuro: a conta voltou a ficar a pagar — "Será paga por X (aporte)"; sem quem: não foi o sócio)
+  const obsSocio=(obs,quem,futuro)=>[String(obs||'').split(' · ').filter(s=>!/^Ser[aá] paga por .+ \(aporte\)$/i.test(s.trim())&&!/^Paga por .+ \(aporte\)$/.test(s.trim())).join(' · '),quem?`${futuro?'Será paga':'Paga'} por ${quem} (aporte)`:''].filter(Boolean).join(' · ');
+  // a parte do aporte que vem de uma conta: só a conta paga, com dinheiro do sócio (null nas outras)
+  function parteConta(o){
+    if(!o)return null;const p=dt(o.pago);if(!(p&&p<=hoje0()))return null;
+    const quem=socioDaConta(o),v=Math.round(val(o.total)*100)/100;if(!quem||!(v>0))return null;
+    return {quem,obra:o.centro||'Empresa',data:isoDe(p),valor:v,conc:String((o._r&&o._r.conciliacao)||''),contaId:(o._t||'')+o.rowid,forn:o.forn||'',forma:o.forma||''};
+  }
+  const contaDoReg=(t,r)=>!GS.contas||!r?null:t==='custo'||t==='Custos'?GS.contas.deCusto(r):t==='despesa'||t==='Despesas'?GS.contas.deDesp(r):null;
+  // as contas pagas pelo sócio que formam o aporte de um mês (as que estão no sistema)
+  const contasDoAporte=(quem,obra,mes)=>{const k=chaveAp(quem,obra,mes);
+    return (D().custos||[]).map(r=>contaDoReg('custo',r)).concat((D().despesas||[]).map(r=>contaDoReg('despesa',r))).map(parteConta).filter(p=>p&&chaveAp(p.quem,p.obra,p.data.slice(0,7))===k);};
+  // o que sai e o que entra no aporte quando uma conta muda (antes → depois): no mesmo lançamento do mês, só a diferença
+  function trocaConta(antes,depois){const a=parteConta(antes),b=parteConta(depois);
+    if(a&&b&&chaveAp(a.quem,a.obra,a.data.slice(0,7))===chaveAp(b.quem,b.obra,b.data.slice(0,7))){const d=Math.round((b.valor-a.valor)*100)/100;
+      return Math.abs(d)<0.005?{sai:[],entra:[]}:d<0?{sai:[{...a,valor:-d,conc:''}],entra:[]}:{sai:[],entra:[{...b,valor:d,conc:''}]};}
+    return {sai:a?[a]:[],entra:b?[b]:[]};}
+  const nomeConta=p=>p.forn?'conta de '+p.forn:'conta';
+  const AporteConta={
+    parte:parteConta,socio:socioDaConta,troca:trocaConta,obs:obsSocio,
+    // a conta saiu (Lixeira, pagamento desfeito): o valor dela sai do aporte do mês
+    tirar:async(lista,motivo)=>{for(const p of lista.map(parteConta).filter(Boolean))await tirarDoAporte({...p,obs:`Saiu ${fmt(p.valor)}: ${nomeConta(p)} — ${motivo||'saiu'}`});},
+    // a conta voltou (Restaurar): o valor volta para o aporte, ligado de novo ao extrato dela
+    somar:async(lista,motivo)=>{for(const p of lista.map(parteConta).filter(Boolean))await somarAporte({...p,origem:'contas',obs:`Voltou ${fmt(p.valor)}: ${nomeConta(p)} — ${motivo||'voltou'}`});},
+    // a conta mudou (valor, obra): sai a parte antiga e entra a nova
+    mudou:async(antes,depois)=>{const t=trocaConta(antes,depois);
+      for(const p of t.sai)await tirarDoAporte({...p,obs:`Saiu ${fmt(p.valor)}: ${nomeConta(p)} — alterada`});
+      for(const p of t.entra)await somarAporte({...p,origem:'contas',obs:`Entrou ${fmt(p.valor)}: ${nomeConta(p)} — alterada`});},
+    // aviso da janela de confirmação: quanto sai (ou entra) no aporte de cada sócio
+    aviso:(partes,depois)=>{partes=partes.filter(Boolean);const por={};partes.forEach(p=>{por[p.quem]=(por[p.quem]||0)+p.valor;});const L=Object.entries(por);
+      return L.length?`<small class="ap-aviso"><i class="fas fa-hand-holding-dollar" aria-hidden="true"></i><span>${partes.length>1?'Pagas':'Paga'} com dinheiro do sócio — ${L.map(([q,v])=>`<b>${fmt(v)}</b> sai do aporte de <b>${fe(q)}</b>`).join(' · ')} em Sócios e investimentos.${depois?' '+depois:''}</span></small>`:'';},
+    // a devolução é pela obra: o que o sócio já recebeu de volta numa obra não pode passar do aporte que sobra nela
+    conferir:partes=>{if(!GS.socios||!GS.socios.saldoObra)return;const por=new Map();
+      partes.filter(Boolean).forEach(p=>{const k=cn(p.quem)+'|'+cn(p.obra);const x=por.get(k)||{quem:p.quem,obra:p.obra,v:0};x.v+=p.valor;por.set(k,x);});
+      por.forEach(x=>{const s=GS.socios.saldoObra(x.quem,x.obra);if(s.dev>s.ap-x.v+0.004)throw new Error(`Na obra ${x.obra}, ${x.quem} já recebeu de volta ${fmt(s.dev)} — sem os ${fmt(x.v)} que saem do aporte, ele ficaria menor que isso. Ajuste ou exclua a devolução em Sócios e investimentos antes.`);});}
+  };
   // o que fica escrito no lançamento dos sócios que veio de uma linha do extrato
   const obsDoExtrato=t=>`Extrato ${t.data} · ${t.desc}`;
 
@@ -10982,9 +11069,12 @@ const Fin=(function(){
     if(extra.conc&&(m.tipo==='custo'||m.tipo==='despesa'))obj.tipo_antes_conc=r[m.kTipo]||'';
     if(extra.conc){obj.conciliacao=juntarId(r.conciliacao,extra.conc);obj.conciliacao_baixa=juntarId(r.conciliacao_baixa,extra.conc);}
     if(extra.desc&&m.tipo!=='fat')obj.extrato_desc=extra.desc;
+    // parcela de compra paga com dinheiro do sócio (o mesmo jeito de reconhecer do resto do sistema: Fin.aporteConta): ao dar
+    // baixa, o valor entra como aporte dele, ligado à mesma linha do extrato; a conta fica com "Paga por X (aporte)"
+    const oc=m.tipo==='custo'||m.tipo==='despesa'?contaDoReg(m.tipo,r):null,q=oc?socioDaConta(oc):'';
+    if(q){obj.pago_por_socio=q;const ko=kRow(r,['observacao','obs'],'observacao');obj[ko]=obsSocio(r[ko],q);}
     const gravou=salvar(r._aba||ABA[m.tipo],obj,r.rowid);
-    // parcela de compra paga com dinheiro do sócio: ao dar baixa, o valor entra como aporte dele, ligado à mesma linha do extrato
-    if(r.pago_por_socio&&(m.tipo==='custo'||m.tipo==='despesa'))return gravou.then(()=>somarAporte({obra:m.tipo==='despesa'?'Empresa':m.origem,quem:r.pago_por_socio,data:dataISO,valor:extra.ajustar&&extra.valor>0?extra.valor:m.valor,forma:r.forma_pagamento||'',obs:`Pagou ${m.quem||'a conta'} · ${m.desc}`,origem:'contas',conc:extra.conc}));
+    if(q)return gravou.then(()=>somarAporte({obra:oc.centro||'Empresa',quem:q,data:dataISO,valor:extra.ajustar&&extra.valor>0?extra.valor:m.valor,forma:r.forma_pagamento||'',obs:`Pagou ${m.quem||'a conta'} · ${m.desc}`,origem:'contas',conc:extra.conc}));
     return gravou;
   }
   // Uma gravação por vez no sistema inteiro (App.state._busy) e, no fim, recarrega tudo
@@ -10994,9 +11084,17 @@ const Fin=(function(){
     App.state._busy=true;UI._showBusy('Salvando…');
     // tudo o que for excluído neste clique vai para a Lixeira no mesmo lote (volta junto no Restaurar)
     App._loteLixeira='L'+Date.now().toString(36)+Math.random().toString(36).slice(2,7);
-    try{return await trabalho();}
+    // o que as contas mudaram no aporte dos sócios fica na fila e é gravado no fim, uma vez por lançamento do mês
+    // (também quando o trabalho parou no meio: o que já foi gravado leva o aporte junto)
+    const fila=_apFila=new Map();
+    try{let res,erro=null;
+      try{res=await trabalho();}catch(e){erro=e;}
+      _apFila=null;
+      if(fila.size)try{await gravarAportes(fila);}catch(e){if(!erro)erro=e;}
+      if(erro)throw erro;
+      return res;}
     finally{
-      App._loteLixeira=null;
+      _apFila=null;App._loteLixeira=null;
       // a tela continua bloqueada ("Atualizando…") até os dados voltarem do banco: antes ela liberava no meio
       // da recarga e um 2º clique gravava de novo (ex.: a mesma proposta duas vezes)
       UI._showBusy('Atualizando…');
@@ -11933,26 +12031,35 @@ const Fin=(function(){
      conciliação baixou (conciliacao_baixa); o que já estava pago e só foi ligado ao
      extrato apenas se solta. */
   function desfazer(p){
-    const alvos=p.alvos||[],id=p.t.id,v=Math.abs(p.t.valor),K=KAporte();
+    const alvos=p.alvos||[],id=p.t.id,v=Math.abs(p.t.valor),K=KAporte(),entrada=p.t.valor>0;
     const baixados=alvos.filter(m=>temId(m.r.conciliacao_baixa,id)),dosSocios=baixados.filter(m=>m.tipo==='aporte'||m.tipo==='retirada'),nContas=baixados.length-dosSocios.length;
-    const efeitos=[];
+    /* quanto cada aporte perde: no depósito do sócio (entrada), o valor do banco; no que o sócio pagou (saída), só a parte das
+       contas daquela obra e mês que voltam para "em aberto" — numa saída rateada entre 3 obras, antes cada obra perdia o valor
+       inteiro do banco */
+    const partesC=baixados.filter(m=>m.tipo==='custo'||m.tipo==='despesa').map(m=>parteConta(contaDoReg(m.tipo,m.r))).filter(Boolean);
+    const parteAp=m=>{if(!temId(m.r.conciliacao_baixa,id))return 0;if(entrada)return Math.min(v,m.valor);
+      const k=chaveAp(m.r[K.quem]||m.quem,m.r[K.obra]||'Empresa',mesDoAporte(m.r,K));return Math.round(partesC.filter(c=>chaveAp(c.quem,c.obra,c.data.slice(0,7))===k).reduce((s,c)=>s+c.valor,0)*100)/100;};
+    const aps=dosSocios.filter(m=>m.tipo==='aporte'),efeitos=[];
     if(nContas)efeitos.push(`${nContas} lançamento(s) voltam para "em aberto" (sem data de pagamento/recebimento)`);
     if(baixados.some(m=>ajusteDe(m.r)))efeitos.push('o valor lançado volta a valer');
-    dosSocios.forEach(m=>efeitos.push(m.tipo==='retirada'?`o lançamento "${fe(m.desc)}" de ${fmt(m.valor)} é excluído`:`${fmt(v)} sai do aporte de ${fe(m.quem)} deste período`));
+    dosSocios.forEach(m=>{if(m.tipo==='retirada')return efeitos.push(`o lançamento "${fe(m.desc)}" de ${fmt(m.valor)} é excluído`);
+      const x=parteAp(m);if(x>0.004)efeitos.push(`${fmt(x)} sai do aporte de ${fe(m.quem)} deste período${aps.length>1?' ('+fe(m.r[K.obra]||'Empresa')+')':''}`);});
     const efeito=efeitos.length?efeitos.join('; '):'Só a ligação com o extrato é desfeita — os lançamentos continuam pagos';
     confirmar('Desfazer conciliação?',`${efeito}. A linha de ${fmt(p.t.valor)} de ${fe(p.t.data)} volta para a conferência.`,'Sim, desfazer',async()=>{
       // a devolução é pela obra: o que o sócio já recebeu de volta nela não pode ficar maior do que o aporte que sobra
-      for(const m of dosSocios)if(m.tipo==='aporte'&&GS.socios&&GS.socios.saldoObra){const s=GS.socios.saldoObra(m.r[K.quem]||m.quem,m.r[K.obra]||'Empresa');
-        if(s.dev>s.ap-Math.min(v,m.valor)+0.004)throw new Error(`Nesta obra o sócio já recebeu de volta ${fmt(s.dev)} — sem este valor, o aporte dele ficaria menor que isso. Exclua ou ajuste a devolução antes.`);}
+      for(const m of aps)if(GS.socios&&GS.socios.saldoObra){const x=parteAp(m);if(!(x>0.004))continue;const s=GS.socios.saldoObra(m.r[K.quem]||m.quem,m.r[K.obra]||'Empresa');
+        if(s.dev>s.ap-x+0.004)throw new Error(`Nesta obra o sócio já recebeu de volta ${fmt(s.dev)} — sem este valor, o aporte dele ficaria menor que isso. Exclua ou ajuste a devolução antes.`);}
       await executar(async()=>{
         for(const m of alvos){
+          // aporte: o valor que sai e a ligação com esta linha vão pela fila (uma gravação por lançamento do mês, no fim)
+          if(m.tipo==='aporte'){await tirarDoAporte({rowid:m.r.rowid,quem:m.r[K.quem]||m.quem,obra:m.r[K.obra]||'Empresa',data:(mesDoAporte(m.r,K)||isoDe(hoje0()).slice(0,7))+'-01',valor:parteAp(m),soltar:id,obsTirar:entrada&&temId(m.r.conciliacao_baixa,id)?obsDoExtrato(p.t):'',lixeira:entrada});continue;}
           const o={...m.r,conciliacao:tirarId(m.r.conciliacao,id)},aba=m.r._aba||ABA[m.tipo];
           if(temId(m.r.conciliacao_baixa,id)){
             o.conciliacao_baixa=tirarId(m.r.conciliacao_baixa,id);
-            // a retirada nasceu desta linha do banco: sai junto. O aporte é do mês inteiro: sai só o valor desta linha
+            // a retirada nasceu desta linha do banco: sai junto
             if(m.tipo==='retirada'){await excluir(aba,m.r.rowid);continue;}
-            if(m.tipo==='aporte'){const resto=Math.round((m.valor-v)*100)/100;if(resto<=0){await excluir(aba,m.r.rowid);continue;}
-              o[K.valor]=dinheiro(resto);o[K.obs]=String(m.r[K.obs]||'').split(' | ').filter(s=>!s.includes(obsDoExtrato(p.t))).join(' | ');}
+            // paga pelo sócio: volta como estava antes do pagamento ("Será paga por X (aporte)"), e o aporte entra de novo na próxima baixa
+            if(m.tipo==='custo'||m.tipo==='despesa'){const q=socioDaConta(contaDoReg(m.tipo,m.r));if(q){const ko=kRow(m.r,['observacao','obs'],'observacao');o.pago_por_socio=q;o[ko]=obsSocio(m.r[ko],q,true);}}
             if(m.tipo==='custo'){o[m.kTipo]=m.r.tipo_antes_conc||'Previsto';o[m.kData]='';o.tipo_antes_conc='';}
             else if(m.tipo==='despesa'){o[m.kSt]='Pendente';o[m.kPg]='';o[m.kTipo]=m.r.tipo_antes_conc||'Prevista';o.tipo_antes_conc='';}
             else if(m.tipo==='fat'){o[m.kRec]=m.r.antecipada==='sim'&&m.r.antec_previsto?m.r.antec_previsto:'';o.antec_recebida='';o.antec_depositado='';}
@@ -11969,7 +12076,7 @@ const Fin=(function(){
     if(document.getElementById('view-contas')?.classList.contains('active'))renderContas();
     if(document.getElementById('view-conciliacao')?.classList.contains('active')&&!document.getElementById('fin-ov')?.classList.contains('open'))renderConciliacao();
   }
-  return {renderContas,renderConciliacao,aoAtualizar,movimentos,prazoReceb,lerSaldo,somarAporte,parcelasFuturas,_conciliar:conciliar,_lerOFX:lerOFX,_lerCSV:lerCSVExtrato,_pdfParaCsv:pdfParaCsv,_lerLinhasPdf:lerLinhasPdf,
+  return {renderContas,renderConciliacao,aoAtualizar,movimentos,prazoReceb,lerSaldo,somarAporte,aporteConta:AporteConta,parcelasFuturas,_conciliar:conciliar,_lerOFX:lerOFX,_lerCSV:lerCSVExtrato,_pdfParaCsv:pdfParaCsv,_lerLinhasPdf:lerLinhasPdf,
     // utilitários compartilhados com os módulos de engenharia (Eng)
     util:{janela,confirmar,executar,salvar,excluir,excluirDeVez,formasAporte:formasReg,juntarFormas,simNao,simNaoValor,simNaoLigar,fe,cn,dt,brDe,isoDe,isoDeBR,hoje0,addD,dias,col,kRow,dinheiro,val,juntarId,ajusteDe,txtDif,periodoMes,obsDoExtrato}};
 })();
@@ -16077,6 +16184,8 @@ const PL2=(function(){
     if(alvo==='c'){const K=KC();
       Object.assign(base,{[K.obra]:o.centro,[K.tipoCusto]:o.tipo,[K.tipo]:o.cat,[K.desc]:o.desc,[K.forn]:o.forn,[K.fator]:o.fator||'UN',[K.qtd]:o.qtd,[K.pUnit]:o.pUnit,[K.pTotal]:o.total,[K.venc]:o.venc,[K.pgto]:o.pago,[K.obs]:o.obs});
       if(o.forma!=null)base.forma_pagamento=o.forma;
+      // quem pagou com dinheiro do sócio (o aporte acompanha a conta: Fin.aporteConta)
+      if(o.pagoPorSocio!=null)base.pago_por_socio=o.pagoPorSocio;
       if(o.desconto!=null)base.desconto_item=o.desconto||'';if(o.rateio)base.rateio_id=o.rateio;if(o.grupo)base.grupo_parcelas=o.grupo;if(o.compra)base.compra_id=o.compra;if(o.dataCompra)base.data_compra=o.dataCompra;
       if(K.espec!==K.tipo&&(CATC().includes(base[K.espec])||CAT_ANTIGA(base[K.espec])))base[K.espec]=o.cat;
       if(!base[K.lanc])base[K.lanc]=o.lanc||todayDateTime();
@@ -16085,6 +16194,7 @@ const PL2=(function(){
     else{const K=KD();
       Object.assign(base,{[K.tipo]:o.tipo==='Real'?'Real':'Prevista',[K.venc]:o.venc||o.pago||(o.tipo==='Real'?isoDe(h0()):''),[K.cat]:o.cat,[K.desc]:o.desc,[K.forn]:o.forn,[K.st]:o.pago?'Pago':'Pendente',[K.pg]:o.pago,[K.valor]:o.total,[K.obs]:o.obs});
       if(o.forma!=null)base[K.fpg]=o.forma;
+      if(o.pagoPorSocio!=null)base.pago_por_socio=o.pagoPorSocio;
       if(o.rateio)base.rateio_id=o.rateio;if(o.grupo)base.grupo_parcelas=o.grupo;if(o.compra)base.compra_id=o.compra;if(o.dataCompra)base.data_compra=o.dataCompra;
       if(!base[K.lanc])base[K.lanc]=o.lanc||todayDateTime();
       Object.assign(base,aprovCampos(o,orig));
@@ -16333,6 +16443,8 @@ const PL2=(function(){
 .vk-selbar .gf-bt.vk-devolver{background:#F79009;color:#fff;} .vk-selbar .gf-bt.vk-devolver:hover{background:#DC6803;}
 .vk-sel-sair{flex:none;width:34px;height:34px;border-radius:50%;border:0;background:transparent;color:#667085;cursor:pointer;display:grid;place-items:center;font-size:14px;} .vk-sel-sair:hover{background:#F2F4F7;color:#101828;}
 .gf-bt.vk-modo-sel.ativo{background:#EFF4FF;border-color:#84ADFF;color:#1849A9;}
+/* aviso de que o valor sai do aporte do sócio (conta paga com dinheiro dele) */
+.ap-aviso{display:flex;gap:8px;align-items:flex-start;margin-top:10px;padding:9px 11px;border-radius:10px;background:#F0F6FF;border:1px solid #D4E4FF;color:#1D3F7A;font-size:12.5px;line-height:1.45;} .ap-aviso i{color:#1652D8;margin-top:2px;}
 .vk-exc-lista{margin:8px 0;padding:0;list-style:none;max-height:220px;overflow:auto;border:1px solid #F2F4F7;border-radius:10px;} .vk-exc-lista li{display:flex;justify-content:space-between;gap:10px;padding:6px 10px;border-top:1px solid #F2F4F7;font-size:12.5px;} .vk-exc-lista li:first-child{border-top:0;} .vk-exc-lista li b{white-space:nowrap;}
 /* "Excluir vários": marcar a coluna inteira (no topo de cada coluna) e cartão que não pode sair */
 .vk-col header.vk-col-sel{flex-wrap:wrap;row-gap:8px;} .vk-col-sel>div{flex:1 1 150px;min-width:0;}
@@ -16653,8 +16765,14 @@ const Mascara=(function(){
   }
   const cartaoQuadro=x=>x._compra?cartaoCompra(x):cartaoConta(x);
   // grava várias contas de uma vez (uma atualização só no fim)
-  async function gravarVarias(pares){const ops=[];pares.forEach(([u,o])=>ops.push(...C.montarConta(u,o)));
-    await executar(()=>Promise.all(ops.map(x=>x.excluir?excluir(x.aba,x.rowid):salvar(x.aba,x.dados,x.rowid||null))));}
+  // depois: o que mais entra no mesmo clique (ex.: o aporte do sócio, que acompanha a conta)
+  async function gravarVarias(pares,depois){const ops=[];pares.forEach(([u,o])=>ops.push(...C.montarConta(u,o)));
+    await executar(async()=>{await Promise.all(ops.map(x=>x.excluir?excluir(x.aba,x.rowid):salvar(x.aba,x.dados,x.rowid||null)));if(depois)await depois();});}
+  // o aporte do sócio acompanha a conta (Fin.aporteConta): exclui as contas e tira do aporte o que elas tinham somado
+  const ApC=()=>Fin.aporteConta;
+  async function excluirContas(L,motivo){for(const x of L)await excluir(x._t==='c'?'Custos':'Despesas',x.rowid);await ApC().tirar(L,motivo||'foi para a Lixeira');}
+  // "Paga por X (aporte)" na observação da conta (Fin.aporteConta.obs)
+  const obsSocio=(obs,quem,futuro)=>Fin.aporteConta.obs(obs,quem,futuro);
   function fichaCompra(L){
     L=L.map(x=>acharConta(idC(x))||x);const o=L[0],col=colConta(o),cc=COLS_CP.find(c=>c.k===col),tot=L.reduce((s,x)=>s+val(x.total),0),dc=diaCompra(o),s=C.sitP(o);
     const donos=L.every(x=>GS.podeMexer(x._r,x.lancPor)),pg=pagoC(o);
@@ -16691,9 +16809,10 @@ const Mascara=(function(){
       [{html:'<i class="fas fa-circle-check"></i> Confirmar pagamento',cls:'pri',acao:async j=>{
         const soc=Fin.util.simNaoValor(j.querySelector('[data-k="socio"]'))==='sim',quem=(j.querySelector('[data-k="quem"]').value||'').trim();if(soc&&!quem)throw new Error('Informe o sócio que pagou.');
         const d=j.querySelector('[data-k="data"]').value,forma=j.querySelector('[data-k="forma"]').value;if(!d)throw new Error('Informe a data do pagamento.');if(d>isoDe(hoje0()))throw new Error('A data do pagamento não pode ser depois de hoje.');
-        await gravarVarias(L.map(x=>{const u={...x,pago:d,tipo:'Real',venc:x.venc||d,forma};if(x.aprov==='pendente'&&souAdmin()){u.aprov='aprovada';u.aprovPor=C.quem();u.aprovMudou=true;}if(soc)u.obs=[u.obs,`Paga por ${quem} (aporte)`].filter(Boolean).join(' · ');return [u,x];}));
-        if(soc){const porObra={};L.forEach(x=>{porObra[x.centro]=(porObra[x.centro]||0)+val(x.total);});
-          await executar(async()=>{for(const [ob,v] of Object.entries(porObra))await Fin.somarAporte({obra:ob,quem,data:d,valor:v,forma,obs:`Pagou a compra de ${o.forn||'fornecedor'} (Contas a pagar)`,origem:'contas'});});}
+        // quem pagou fica gravado em cada item e o aporte (por obra) entra no mesmo clique
+        const porObra={};L.forEach(x=>{porObra[x.centro]=(porObra[x.centro]||0)+val(x.total);});
+        await gravarVarias(L.map(x=>{const u={...x,pago:d,tipo:'Real',venc:x.venc||d,forma,pagoPorSocio:soc?quem:'',obs:obsSocio(x.obs,soc?quem:'')};if(x.aprov==='pendente'&&souAdmin()){u.aprov='aprovada';u.aprovPor=C.quem();u.aprovMudou=true;}return [u,x];}),
+          soc?async()=>{for(const [ob,v] of Object.entries(porObra))await Fin.somarAporte({obra:ob,quem,data:d,valor:Math.round(v*100)/100,forma,obs:`Pagou a compra de ${o.forn||'fornecedor'} (Contas a pagar)`,origem:'contas'});}:null);
         toast(soc?`Pagamento registrado e aporte de ${quem} lançado.`:`Pagamento da compra registrado (${L.length} itens).`,'success');}}],560);
     const jj=jan(),sc=jj.querySelector('[data-k="socio"]');Fin.util.simNaoLigar(sc,v=>{jj.querySelector('[data-socio-box]').hidden=v!=='sim';});
   }
@@ -16704,14 +16823,16 @@ const Mascara=(function(){
       async()=>{await gravarVarias(L.filter(x=>!pagoC(x)).map(x=>[{...x,aprov:aprovar?'aprovada':'pendente',aprovPor:C.quem(),aprovMudou:true},x]));toast(aprovar?'Compra aprovada.':'Aprovação retirada.','success');});
   }
   // pagamento desfeito: volta para "a pagar", com o valor lançado se a conciliação tinha ajustado
-  const contaDesfeita=x=>{const u={...x,pago:'',venc:x.venc||x.pago,limparConc:true};if(val(x._r.valor_original)){u.total=x._r.valor_original;if(x._r.p_unit_original)u.pUnit=x._r.p_unit_original;}return u;};
-  function desfazerPagCompra(L){
-    confirmar('Desfazer pagamento',`Os ${L.length} itens da compra de <b>${fe(L[0].forn||'fornecedor')}</b> (pagos em ${brDe(dt(L[0].pago))}) voltam para "a pagar".`,'Sim, desfazer',async()=>{await gravarVarias(L.map(x=>[contaDesfeita(x),x]));toast('Voltou para "a pagar".','success');});
+  // paga pelo sócio: volta como estava antes do pagamento — "Será paga por X (aporte)", e o aporte entra de novo no próximo pagamento
+  const contaDesfeita=x=>{const u={...x,pago:'',venc:x.venc||x.pago,limparConc:true},q=ApC().socio(x);if(q){u.pagoPorSocio=q;u.obs=obsSocio(x.obs,q,true);}
+    if(val(x._r.valor_original)){u.total=x._r.valor_original;if(x._r.p_unit_original)u.pUnit=x._r.p_unit_original;}return u;};
+  function desfazerPagCompra(L){const pa=L.map(ApC().parte).filter(Boolean);
+    confirmar('Desfazer pagamento',`Os ${L.length} itens da compra de <b>${fe(L[0].forn||'fornecedor')}</b> (pagos em ${brDe(dt(L[0].pago))}) voltam para "a pagar".${ApC().aviso(pa,'Volta quando a compra for paga de novo pelo sócio.')}`,'Sim, desfazer',async()=>{ApC().conferir(pa);await gravarVarias(L.map(x=>[contaDesfeita(x),x]),()=>ApC().tirar(L,'pagamento desfeito'));toast('Voltou para "a pagar".','success');});
   }
   function excluirCompra(L){
     if(!GS.ehAdm()&&!L.every(x=>GS.podeMexer(x._r,x.lancPor)))return toast(GS.MSG_DONO,'error');
-    const tot=L.reduce((s,x)=>s+val(x.total),0);
-    confirmar('Excluir a compra',`Os <b>${L.length} itens</b> da compra de <b>${fe(L[0].forn||'fornecedor')}</b> (${fmt(tot)}) vão para a Lixeira (dá para restaurar em até 15 dias).`,'Sim, excluir',async()=>{await executar(async()=>{for(const x of L)await excluir(x._t==='c'?'Custos':'Despesas',x.rowid);});toast('Compra excluída.','success');});
+    const tot=L.reduce((s,x)=>s+val(x.total),0),pa=L.map(ApC().parte).filter(Boolean);
+    confirmar('Excluir a compra',`Os <b>${L.length} itens</b> da compra de <b>${fe(L[0].forn||'fornecedor')}</b> (${fmt(tot)}) vão para a Lixeira (dá para restaurar em até 15 dias).${ApC().aviso(pa,'Volta se a compra for restaurada.')}`,'Sim, excluir',async()=>{ApC().conferir(pa);await executar(()=>excluirContas(L));toast('Compra excluída.','success');});
   }
   function filtrarContas(lista){const f=QC;return lista.filter(o=>{
     if(f.busca){const q=cn(f.busca);if(!cn([o.forn,o.desc,o.cat,o.centro,o.obs,n2(val(o.total))].join(' ')).includes(q))return false;}
@@ -16778,10 +16899,10 @@ const Mascara=(function(){
   function excluirMarcadas(){
     const L=contasMarcadas(),ok=L.filter(podeExcluirConta),fora=L.filter(o=>!podeExcluirConta(o));
     if(!ok.length)return toast(`Nenhuma das contas marcadas pode ser excluída por você (contas já pagas ou lançadas por outra pessoa — só um Administrador exclui).`,'error');
-    const tot=ok.reduce((s,o)=>s+val(o.total),0),conc=ok.filter(o=>o._r.conciliacao).length,rat=ok.filter(o=>o.rateio).length;
+    const tot=ok.reduce((s,o)=>s+val(o.total),0),conc=ok.filter(o=>o._r.conciliacao).length,rat=ok.filter(o=>o.rateio).length,pa=ok.map(ApC().parte).filter(Boolean);
     confirmar('Excluir as contas marcadas',`<b>${ok.length} conta${ok.length>1?'s':''}</b> · ${fmt(tot)} ${ok.length>1?'vão':'vai'} para a Lixeira (dá para restaurar em até 15 dias):<ul class="vk-exc-lista">${ok.slice(0,8).map(o=>`<li>${fe(o.forn||C.limparParc(o.desc)||'Conta')} · ${fe(C.limparParc(o.desc)||o.cat||'')} · ${fe(o.centro)}<b>${fmt(val(o.total))}</b></li>`).join('')}${ok.length>8?`<li>+ ${ok.length-8} conta(s)</li>`:''}</ul>
-      ${fora.length?`<small>${fora.length} conta${fora.length>1?'s ficam':' fica'} de fora (já paga${fora.length>1?'s':''} ou lançada${fora.length>1?'s':''} por outra pessoa — só um Administrador exclui).</small><br>`:''}${conc?`<small>${conc} ${conc>1?'estão ligadas':'está ligada'} ao extrato do banco: essa${conc>1?'s linhas voltam':' linha volta'} para a conferência na Conciliação.</small><br>`:''}${rat?`<small>${rat} ${rat>1?'são partes':'é parte'} de rateio: as outras partes (nas outras obras) continuam.</small>`:''}`,
-      `Sim, excluir ${ok.length}`,async()=>{sairSel();await executar(async()=>{for(const o of ok)await excluir(o._t==='c'?'Custos':'Despesas',o.rowid);});toast(`${ok.length} conta${ok.length>1?'s excluídas':' excluída'}.`,'success');});
+      ${fora.length?`<small>${fora.length} conta${fora.length>1?'s ficam':' fica'} de fora (já paga${fora.length>1?'s':''} ou lançada${fora.length>1?'s':''} por outra pessoa — só um Administrador exclui).</small><br>`:''}${conc?`<small>${conc} ${conc>1?'estão ligadas':'está ligada'} ao extrato do banco: essa${conc>1?'s linhas voltam':' linha volta'} para a conferência na Conciliação.</small><br>`:''}${rat?`<small>${rat} ${rat>1?'são partes':'é parte'} de rateio: as outras partes (nas outras obras) continuam.</small>`:''}${ApC().aviso(pa,`Volta se ${pa.length>1?'forem restauradas':'for restaurada'}.`)}`,
+      `Sim, excluir ${ok.length}`,async()=>{ApC().conferir(pa);sairSel();await executar(()=>excluirContas(ok));toast(`${ok.length} conta${ok.length>1?'s excluídas':' excluída'}.`,'success');});
   }
   function analiseContas(todas){
     const h=hoje0(),ini=addD(h,-90),pagas=todas.filter(o=>pagoC(o)&&dt(o.pago)>=ini),S=a=>a.reduce((s,o)=>s+val(o.total),0),tot=S(pagas);
@@ -16851,7 +16972,8 @@ const Mascara=(function(){
       l.map(o=>[fe(o.centro),fe(o.forn||'—'),fe(o.desc||''),fe(o.cat||''),fmt(val(o.total)),o.venc?brDe(dt(o.venc)):'—',C.sitP(o)[0],o.pago?brDe(dt(o.pago)):'—']),
       `<div style="margin-top:12px;font-size:12px">Total: <b>${fmt(l.reduce((s,o)=>s+val(o.total),0))}</b> · em aberto: <b>${fmt(l.filter(o=>!pagoC(o)).reduce((s,o)=>s+val(o.total),0))}</b></div>`);
   }
-  async function gravarConta(o,orig){const ops=C.montarConta(o,orig);await executar(()=>Promise.all(ops.map(x=>x.excluir?excluir(x.aba,x.rowid):salvar(x.aba,x.dados,x.rowid||null))));}
+  // depois: o que mais entra no mesmo clique (ex.: o aporte do sócio, que acompanha a conta)
+  async function gravarConta(o,orig,depois){const ops=C.montarConta(o,orig);await executar(async()=>{await Promise.all(ops.map(x=>x.excluir?excluir(x.aba,x.rowid):salvar(x.aba,x.dados,x.rowid||null)));if(depois)await depois();});}
   function aprovarConta(o,aprovar){
     if(!souAdmin())return toast('Só o Administrador ou quem tem permissão para aprovar (Usuários e permissões) aprova contas.','error');
     if(pagoC(o))return toast('Conta já paga — a aprovação não muda mais.','error');
@@ -16890,14 +17012,14 @@ const Mascara=(function(){
         const u={...o,pago:d,tipo:'Real',venc:o.venc||d,total:dinheiro(t),forma:j.querySelector('[data-k="forma"]').value};
         if(o.centro!==EMP&&Math.abs(t-val(o.total))>.005&&val(o.qtd)>0)u.pUnit=dinheiro(t/val(o.qtd));
         if(o.aprov==='pendente'&&souAdmin()){u.aprov='aprovada';u.aprovPor=C.quem();u.aprovMudou=true;}
-        if(soc)u.obs=[u.obs,`Paga por ${quem} (aporte)`].filter(Boolean).join(' · ');
-        await gravarConta(u,o);
-        if(soc)await executar(()=>Fin.somarAporte({obra:o.centro,quem,data:d,valor:t,forma:u.forma,obs:`Pagou ${o.forn||C.limparParc(o.desc)||'a conta'} (Contas a pagar)`,origem:'contas'}));
+        // quem pagou fica gravado na conta (com "Não", sai o aviso "Será paga por…" da parcela) e o aporte entra no mesmo clique
+        u.pagoPorSocio=soc?quem:'';u.obs=obsSocio(u.obs,soc?quem:'');
+        await gravarConta(u,o,soc?()=>Fin.somarAporte({obra:o.centro,quem,data:d,valor:t,forma:u.forma,obs:`Pagou ${o.forn||C.limparParc(o.desc)||'a conta'} (Contas a pagar)`,origem:'contas'}):null);
         toast(soc?`Pagamento registrado e aporte de ${quem} lançado em Sócios e investimentos.`:'Pagamento registrado.','success');}}],560);
     const jj=jan(),sc=jj.querySelector('[data-k="socio"]');Fin.util.simNaoLigar(sc,v=>{jj.querySelector('[data-socio-box]').hidden=v!=='sim';});
   }
-  function desfazerPagamento(o){
-    confirmar('Desfazer pagamento',`A conta de <b>${fe(o.forn||o.desc)}</b> (${fmt(val(o.total))}, paga em ${brDe(dt(o.pago))}) volta para "a pagar".${val(o._r.valor_original)?` O valor volta a ser o lançado: <b>${fmt(val(o._r.valor_original))}</b>.`:''}`,'Sim, desfazer',async()=>{await gravarConta(contaDesfeita(o),o);toast('Voltou para "a pagar".','success');});
+  function desfazerPagamento(o){const pa=[ApC().parte(o)].filter(Boolean);
+    confirmar('Desfazer pagamento',`A conta de <b>${fe(o.forn||o.desc)}</b> (${fmt(val(o.total))}, paga em ${brDe(dt(o.pago))}) volta para "a pagar".${val(o._r.valor_original)?` O valor volta a ser o lançado: <b>${fmt(val(o._r.valor_original))}</b>.`:''}${ApC().aviso(pa,'Volta quando a conta for paga de novo pelo sócio.')}`,'Sim, desfazer',async()=>{ApC().conferir(pa);await gravarConta(contaDesfeita(o),o,()=>ApC().tirar([o],'pagamento desfeito'));toast('Voltou para "a pagar".','success');});
   }
   // todos os campos da conta (o que a planilha tinha)
   function camposConta(o,nova){
@@ -17529,7 +17651,10 @@ const Mascara=(function(){
     if(souAdmin()&&!pagoC(o)&&o.tipo==='Real')bts.push({html:o.aprov==='pendente'?'<i class="fas fa-signature"></i> Aprovar':'<i class="fas fa-rotate-left"></i> Desaprovar',acao:()=>{setTimeout(()=>aprovarConta(o,o.aprov==='pendente'),10);}});
     if(pagoC(o)&&pode('contas'))bts.push({html:'<i class="fas fa-rotate-left"></i> Desfazer pagamento',acao:()=>{setTimeout(()=>desfazerPagamento(o),10);}});
     if(!pagoC(o)&&pode('contas')&&(o.aprov!=='pendente'||souAdmin())&&o.tipo==='Real')bts.push({html:'<i class="fas fa-circle-check"></i> Registrar pagamento',acao:()=>{setTimeout(()=>pagarConta(o),10);}});
-    if(ed)bts.push({html:'<i class="fas fa-floppy-disk"></i> Salvar',cls:'pri',acao:async j=>{const u=await lerCamposConta(j,o);C.finalizarConta(u);await gravarConta(u,o);toast('Conta atualizada.','success');}});
+    // conta paga pelo sócio: quem pagou fica gravado na conta, e o aporte acompanha o valor e a obra novos
+    if(ed)bts.push({html:'<i class="fas fa-floppy-disk"></i> Salvar',cls:'pri',acao:async j=>{const u=await lerCamposConta(j,o);C.finalizarConta(u);
+      const q=ApC().socio(o);if(q&&pagoC(o))u.pagoPorSocio=q;ApC().conferir(ApC().troca(o,u).sai);
+      await gravarConta(u,o,()=>ApC().mudou(o,u));toast('Conta atualizada.','success');}});
     else bts.push({html:'Fechar'});
     janela(o.forn||'Conta a pagar',corpo,bts,740);
     if(voltar)jan()._aoFechar=voltar;
@@ -17552,7 +17677,8 @@ const Mascara=(function(){
         await executar(async()=>{for(const op of ops)await(op.excluir?excluir(op.aba,op.rowid):salvar(op.aba,op.dados,op.rowid||null));for(const x of outras)await excluir(x._t==='c'?'Custos':'Despesas',x.rowid);});
         toast(`Parcelamento desfeito — ${outras.length} parcela(s) apagada(s).`,'success');}}],620);
   }
-  function excluirConta(o){confirmar('Excluir conta',`<b>${fe(o.forn||o.desc)}</b> · ${fmt(val(o.total))} vai para a Lixeira (dá para restaurar em até 15 dias).`,'Sim, excluir',async()=>{await executar(()=>excluir(o._t==='c'?'Custos':'Despesas',o.rowid));toast('Conta excluída.','success');});}
+  function excluirConta(o){const pa=[ApC().parte(o)].filter(Boolean);
+    confirmar('Excluir conta',`<b>${fe(o.forn||o.desc)}</b> · ${fmt(val(o.total))} vai para a Lixeira (dá para restaurar em até 15 dias).${ApC().aviso(pa,'Volta se a conta for restaurada.')}`,'Sim, excluir',async()=>{ApC().conferir(pa);await executar(()=>excluirContas([o]));toast('Conta excluída.','success');});}
 
   /* ═══════════════ VERIFICAÇÃO DE DUPLICIDADE (Contas a pagar e Sócios e investimentos) ═══════════════
      Suspeito = mesmo valor (ao centavo), da mesma pessoa (fornecedor / sócio) e do mesmo destino (obra / empresa), com
@@ -17590,7 +17716,7 @@ const Mascara=(function(){
         jan()._aoFechar=volta;return;}
       const [gi,i]=(b.dataset.dupAbrir||b.dataset.dupExc).split(':').map(Number),x=grupos[gi]&&grupos[gi].itens[i];if(!x)return;
       if(b.dataset.dupAbrir!=null)return op.abrir(x);
-      confirmar('Excluir lançamento repetido',`${op.linha(x)}<br>Valor: <b>${fmt(x.valor)}</b>${x.conc?'<br><small>Ele está ligado ao extrato do banco: a linha do banco volta para a conferência na Conciliação.</small>':''}`,'Sim, excluir',async()=>{await executar(()=>op.excluir(x));toast('Lançamento excluído.','success');});
+      confirmar('Excluir lançamento repetido',`${op.linha(x)}<br>Valor: <b>${fmt(x.valor)}</b>${x.conc?'<br><small>Ele está ligado ao extrato do banco: a linha do banco volta para a conferência na Conciliação.</small>':''}${op.aviso?op.aviso(x):''}`,'Sim, excluir',async()=>{await executar(()=>op.excluir(x));toast('Lançamento excluído.','success');});
       jan()._aoFechar=volta;});
   }
   GS.dup={grupos:gruposDup,ver:verDuplicados};
@@ -17604,7 +17730,8 @@ const Mascara=(function(){
       linha:x=>{const o=x.o;return `<b>${fe(C.limparParc(o.desc)||o.cat||'Conta')}</b><small>${pagoC(o)?'paga em '+brDe(dt(o.pago)):'vence '+brDe(dt(o.venc))}${o.dataCompra?' · compra de '+brDe(dt(o.dataCompra)):''} · ${fe(C.sitP(o)[0])}${o.lancPor?' · lançada por '+fe(o.lancPor):''}${x.conc?' · ligada ao extrato':''}</small>`;},
       abrir:x=>{const o=acharConta(x.id);if(o)fichaConta(o);},
       podeExcluir:x=>{const o=x.o,dono=GS.podeMexer(o._r,o.lancPor);return pode('contas')&&(GS.ehAdm()||(!pagoC(o)&&dono&&(souAdmin()||podeEditarConta(o))));},
-      excluir:x=>excluir(x.o._t==='c'?'Custos':'Despesas',x.o.rowid),
+      aviso:x=>ApC().aviso([ApC().parte(x.o)],'Volta se a conta for restaurada.'),
+      excluir:async x=>{ApC().conferir([ApC().parte(x.o)]);await excluirContas([x.o],'foi para a Lixeira (repetida)');},
       marcar:async(itens,sig)=>{for(const x of itens)await salvar(x.o._t==='c'?'Custos':'Despesas',{...x.o._r,dup_ok:sig},x.o.rowid);}});
   }
 
@@ -19084,6 +19211,14 @@ const Mascara=(function(){
     await gravar(tarefas,aoAndar);
     return tarefas.length;
   }
+  /* conta repetida paga com dinheiro do sócio que foi para a Lixeira: o valor dela sai do aporte (volta se for restaurada).
+     Fica para DEPOIS da arrumação (outro clique interno, com os dados relidos): ela pode ter renomeado a obra do aporte, e
+     gravar o aporte com os dados de antes desfaria o nome novo */
+  async function tirarRepetidasDoAporte(A,marcados){
+    const ids=A.reps.filter(x=>marcados.has(x.chave)&&(x.t==='custos'||x.t==='despesas')).flatMap(x=>x.saem.map(r=>[x.t,String(r.rowid)]));if(!ids.length)return;
+    const lx=D().lixeira||{},cs=ids.map(([t,id])=>{const r=(lx[t]||[]).find(y=>String(y.rowid)===id);return r?(t==='custos'?GS.contas.deCusto(r):GS.contas.deDesp(r)):null;}).filter(Boolean);
+    if(cs.some(c=>Fin.aporteConta.parte(c)))await executar(()=>Fin.aporteConta.tirar(cs,'foi para a Lixeira (repetida)'));
+  }
 
   function baixarCopia(){
     const d=D(),copia={gerado_em:new Date().toISOString(),tabelas:{},lixeira:d.lixeira||{}};
@@ -19113,6 +19248,7 @@ const Mascara=(function(){
         let n=0;
         // os desmarcados ficam guardados como "não é repetição" antes de recarregar (a faixa já some)
         await executar(async()=>{n=await aplicar(A,marcados,(f,t)=>{if(err)err.textContent=`Arrumando… ${f} de ${t}`;UI._showBusy(`Arrumando… ${f} de ${t}`);});guardarIgnorados(desmarcados);_cache.ref=null;});
+        await tirarRepetidasDoAporte(A,marcados);
         toast(`Pronto: ${n} registro${n>1?'s':''} arrumado${n>1?'s':''}.`,'success');
       }}],640);
   }
@@ -19167,8 +19303,10 @@ const Mascara=(function(){
     if(r._aba==='Imagens da Obra'&&(r.foto_uid||r.thumb_uid))try{await GS.fotoSis.apagar(r);}catch(e){}
     return runLx('excluirDefinitivo',r._aba,r.rowid);
   }
-  // volta: tira as marcas da Lixeira da linha como ela está no banco
-  const restaurarItem=r=>runLx('tirarLixeira',r._aba,r.rowid);
+  // volta: tira as marcas da Lixeira da linha como ela está no banco. Conta paga com dinheiro do sócio excluída sozinha (não
+  // junto com a obra, que volta com os aportes dela): o valor volta para o aporte do sócio (saiu dele quando a conta foi excluída)
+  const contaDoLx=r=>String(r._lixeira_obra_id||'avulso')!=='avulso'||!GS.contas?null:r._aba==='Custos'?GS.contas.deCusto(r):r._aba==='Despesas'?GS.contas.deDesp(r):null;
+  const restaurarItem=async r=>{const res=await runLx('tirarLixeira',r._aba,r.rowid),c=contaDoLx(r);if(c)await Fin.aporteConta.somar([c],'restaurada da Lixeira');return res;};
   let _gl=[];
   /* "Restaurar vários": clicar no cartão marca; a barra de baixo marca tudo (ou só as obras / só os outros itens) e restaura.
      Cada cartão volta do mesmo jeito do botão Restaurar dele: a obra volta com tudo o que está ligado a ela. */
