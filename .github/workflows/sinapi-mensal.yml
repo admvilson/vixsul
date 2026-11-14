@@ -1,0 +1,35 @@
+# Atualização da tabela SINAPI (Caixa/IBGE) do sistema Vixsul — sozinha, toda semana.
+# Procura na Caixa os meses publicados depois da tabela atual do sinapi-manifest.js; se achar um mês novo, converte
+# (preços da Bahia sem desoneração + composições), grava o arquivo, atualiza o manifesto e publica o site — o CAP
+# passa a usar o mês novo na hora. Não precisa de nenhum segredo (a tabela da Caixa é pública).
+name: SINAPI do mês
+on:
+  schedule:
+    - cron: '0 10 * * 1'
+  workflow_dispatch:
+permissions:
+  contents: write
+  pages: write
+jobs:
+  sinapi:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Procura e converte os meses novos
+        shell: pwsh
+        run: ./ferramentas/sinapi-atualizar.ps1
+      - name: Publica (se veio tabela nova)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ -n "$(git status --porcelain -- sinapi-manifest.js)" ]; then
+            git config user.name "Atualização SINAPI"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add sinapi-manifest.js sinapi-*.js
+            git commit -m "Tabela SINAPI do mês atualizada sozinha"
+            git push
+            gh api -X POST "repos/${{ github.repository }}/pages/builds" || true
+          else
+            echo "Nenhuma tabela nova."
+          fi
