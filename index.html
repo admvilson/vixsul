@@ -3,6 +3,13 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
+<!-- instalar no celular como aplicativo (e abrir sem internet: sw.js) -->
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#1652D8">
+<link rel="apple-touch-icon" href="img/icone-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Vixsul">
+<script>if('serviceWorker' in navigator&&/^https:|^http:\/\/localhost/.test(location.href)&&!/__teste/.test(location.pathname))window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));</script>
 <!-- segurança do navegador: não manda o endereço completo para outros sites, não aceita plugins nem troca da base
      dos links, só envia formulários para o próprio sistema, e não deixa abrir o sistema dentro de outro site -->
 <meta name="referrer" content="strict-origin-when-cross-origin"/>
@@ -684,7 +691,7 @@ input[type=checkbox]:disabled{opacity:.45;cursor:not-allowed;}
     html:not([data-authed="1"]) #app-shell{display:none;}
     #app-shell.hidden{display:none!important;}
   </style>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0/dist/umd/supabase.js" integrity="sha384-TcHRA3zBbn+Lexh5n+Oil4guNPOS3rjNDpGRAN46u/s/mB2IZ50ceC6TYDU2yvgK" crossorigin="anonymous"></script><script src="gas-shim.js?v=20261110a"></script><script src="espera.js?v=20261110a"></script><script src="https://accounts.google.com/gsi/client" async defer></script></head>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0/dist/umd/supabase.js" integrity="sha384-TcHRA3zBbn+Lexh5n+Oil4guNPOS3rjNDpGRAN46u/s/mB2IZ50ceC6TYDU2yvgK" crossorigin="anonymous"></script><script src="gas-shim.js?v=20261114a"></script><script src="espera.js?v=20261110a"></script><script src="https://accounts.google.com/gsi/client" async defer></script></head>
 <body>
 <div class="toast" id="toast"><span id="toast-icon"></span><span id="toast-msg">—</span></div>
 
@@ -826,6 +833,8 @@ input[type=checkbox]:disabled{opacity:.45;cursor:not-allowed;}
               <button type="button" class="vx-item vx-alvo" id="nav-medicoes" onclick="UI.nav('medicoes')"><span class="vx-item-ico"><i class="fas fa-ruler-combined"></i></span><span class="vx-item-txt"><b>Medições</b><small>Boletim de medição por item do orçamento, saldo do contrato</small></span></button>
               <button type="button" class="vx-item vx-alvo" id="nav-diario" onclick="UI.nav('diario')"><span class="vx-item-ico"><i class="fas fa-book-open"></i></span><span class="vx-item-txt"><b>Diário de obra</b><small>Clima, equipe, serviços, ocorrências e fotos de cada dia</small></span></button>
               <button type="button" class="vx-item vx-alvo" id="nav-documentos" onclick="UI.nav('documentos')"><span class="vx-item-ico"><i class="fas fa-file-shield"></i></span><span class="vx-item-txt"><b>Documentos e certidões</b><small>Certidões, seguros, ART e licenças com aviso de vencimento</small></span></button>
+              <button type="button" class="vx-item vx-alvo" id="nav-pessoal" onclick="UI.nav('pessoal')"><span class="vx-item-ico"><i class="fas fa-helmet-safety"></i></span><span class="vx-item-txt"><b>Pessoal e segurança</b><small>Funcionários, ASO, treinamentos das NRs e entrega de EPI assinada</small></span></button>
+              <button type="button" class="vx-item vx-alvo" id="nav-licitacoes" onclick="UI.nav('licitacoes')"><span class="vx-item-ico"><i class="fas fa-satellite-dish"></i></span><span class="vx-item-txt"><b>Radar de licitações</b><small>Licitações abertas na Bahia (PNCP) que batem com a Vixsul</small></span></button>
             </div>
           </div>
         </li>
@@ -861,6 +870,7 @@ input[type=checkbox]:disabled{opacity:.45;cursor:not-allowed;}
               <button type="button" class="vx-item vx-alvo" id="nav-fornecedores" onclick="UI.nav('fornecedores')"><span class="vx-item-ico"><i class="fas fa-truck"></i></span><span class="vx-item-txt"><b>Fornecedores</b><small>Cadastro e quanto foi comprado de cada um</small></span></button>
               <button type="button" class="vx-item vx-alvo" id="nav-usuarios" style="display:none" onclick="UI.nav('usuarios')"><span class="vx-item-ico"><i class="fas fa-user-gear"></i></span><span class="vx-item-txt"><b>Usuários e permissões</b><small>Cadastro, senhas e o que cada pessoa vê</small></span></button>
               <button type="button" class="vx-item vx-alvo" id="nav-seguranca" style="display:none" onclick="UI.nav('seguranca')"><span class="vx-item-ico"><i class="fas fa-shield-halved"></i></span><span class="vx-item-txt"><b>Segurança</b><small>Duas etapas, cópia dos dados, espaço e auditoria</small></span></button>
+              <button type="button" class="vx-item" id="nav-avisos" style="display:none" onclick="GS.avisosEmail&&GS.avisosEmail()"><span class="vx-item-ico"><i class="fas fa-envelope-open-text"></i></span><span class="vx-item-txt"><b>Avisos por e-mail</b><small>O resumo do dia às 7h: contas, certidões, pessoal, diário e notas</small></span></button>
               <button type="button" class="vx-item vx-alvo" id="nav-lixeira" style="display:none" onclick="UI.nav('lixeira')"><span class="vx-item-ico"><i class="fas fa-trash-can"></i></span><span class="vx-item-txt"><b>Lixeira</b><small>Obras excluídas — dá para restaurar em até 15 dias</small></span><span id="nav-lixeira-badge" class="vx-badge" style="display:none">0</span></button>
             </div>
           </div>
@@ -1142,6 +1152,8 @@ input[type=checkbox]:disabled{opacity:.45;cursor:not-allowed;}
     <div class="view" id="view-medicoes"><div class="cards-scroll"><div id="eng-medicoes"></div></div></div>
     <div class="view" id="view-diario"><div class="cards-scroll"><div id="eng-diario"></div></div></div>
     <div class="view" id="view-documentos"><div class="cards-scroll"><div id="eng-documentos"></div></div></div>
+    <div class="view" id="view-pessoal"><div class="cards-scroll"><div id="eng-pessoal"></div></div></div>
+    <div class="view" id="view-licitacoes"><div class="cards-scroll"><div id="eng-licitacoes"></div></div></div>
     <div class="view" id="view-planejamento"><div class="cards-scroll"><div id="eng-planejamento"></div></div></div>
     <div class="view" id="view-acoes"><div class="cards-scroll"><div id="eng-acoes"></div></div></div>
     <div class="view" id="view-viabilidade"><div class="cards-scroll"><div id="eng-viabilidade"></div></div></div>
@@ -3356,9 +3368,9 @@ const App={
     const dataHoraImpressao=agora.toLocaleDateString('pt-BR')+' '+agora.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
     const pageWmm=paisagem?297:210, pageHmm=paisagem?210:297;
     const contentWmm=pageWmm-28;
-    const win=window.open('','_blank');
-    if(!win){toast('Não foi possível abrir o PDF. Permita pop-ups deste site no navegador e tente de novo.','error');return;}
-    win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>&nbsp;</title>
+    // cfg.capturar: em vez de abrir a impressão, monta as mesmas páginas num quadro escondido e devolve o PDF
+    // (jsPDF, uma imagem por página) — usado para o PDF com assinatura digital (diário, boletim de medição)
+    const html=(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>&nbsp;</title>
       <style>
         @page{margin:0;size:${paisagem?'A4 landscape':'A4'};}
         *{box-sizing:border-box;}
@@ -3494,7 +3506,36 @@ const App={
       })();
       <\/script>
       </body></html>`);
+    if(cfg.capturar)return this._relCapturar(html,cfg);
+    const win=window.open('','_blank');
+    if(!win){toast('Não foi possível abrir o PDF. Permita pop-ups deste site no navegador e tente de novo.','error');return;}
+    win.document.write(html);
     win.document.close();
+  },
+  /* PDF de verdade das páginas do relatório (para assinar): as páginas são montadas num quadro escondido, cada uma vira
+     uma imagem (html2canvas) e entra numa folha A4 do jsPDF. Se o arquivo passar de ~2,7 MB (o limite da assinatura é
+     3 MB), refaz com menos resolução. */
+  async _relCapturar(html,cfg){
+    html=html.replace('setTimeout(function(){window.focus();window.print();},250);','window.__vxPronto=1;');
+    const URL_H2C='https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+    const h2c=window.html2canvas?window.html2canvas:await new Promise((ok,er)=>{const s=document.createElement('script');s.src=URL_H2C;s.integrity='sha384-ZZ1pncU3bQe8y31yfZdMFdSpttDoPmOZg2wguVK9almUodir1PghgT0eY7Mrty8H';s.crossOrigin='anonymous';
+      s.onload=()=>ok(window.html2canvas);s.onerror=()=>er(new Error('Não consegui carregar o montador do PDF — confira a internet.'));document.head.appendChild(s);});
+    const ifr=document.createElement('iframe');ifr.setAttribute('aria-hidden','true');ifr.tabIndex=-1;ifr.style.cssText='position:fixed;left:-14000px;top:0;width:1300px;height:1800px;border:0;';
+    document.body.appendChild(ifr);
+    try{
+      const d=ifr.contentDocument,w=ifr.contentWindow;d.open();d.write(html);d.close();
+      const t0=Date.now();while(!w.__vxPronto){if(Date.now()-t0>40000)throw new Error('O PDF demorou demais para montar.');await new Promise(r=>setTimeout(r,150));}
+      await Promise.all([...d.images].map(im=>im.complete?0:new Promise(r=>{im.onload=im.onerror=r;setTimeout(r,8000);})));
+      const jsPDF=await GS.cert._libs(),pais=!!cfg.paisagem,W=pais?297:210,H=pais?210:297,pages=[...d.querySelectorAll('.pdf-page')];
+      if(!pages.length)throw new Error('Não há páginas para o PDF.');
+      const montar=async(esc,q)=>{const doc=new jsPDF({orientation:pais?'landscape':'portrait',unit:'mm',format:'a4',compress:true});
+        for(let i=0;i<pages.length;i++){const c=await h2c(pages[i],{scale:esc,backgroundColor:'#ffffff',useCORS:true,logging:false,windowWidth:1300});if(i)doc.addPage('a4',pais?'landscape':'portrait');doc.addImage(c.toDataURL('image/jpeg',q),'JPEG',0,0,W,H);}
+        return doc;};
+      let doc=await montar(1.7,0.82);
+      if(doc.output('arraybuffer').byteLength>2.7e6)doc=await montar(1.25,0.62);
+      if(doc.output('arraybuffer').byteLength>2.8e6)throw new Error('O PDF ficou grande demais para assinar (muitas páginas ou fotos). Exporte menos dias de cada vez — por exemplo, um mês ou uma obra.');
+      return doc;
+    }finally{ifr.remove();}
   },
   _relatorioExportPDF(){
     const c=this._relatorioCache;
@@ -4071,7 +4112,7 @@ const UI={
      "contas" e "conciliacao" mostram dinheiro de TODAS as obras e da empresa: quem já
      tinha acessos restritos antes delas existirem NÃO as ganha sozinho — o Admin marca
      em Usuários (quem não tem restrição, ou é Admin, vê tudo como sempre). */
-  _MODULOS:[['inicio','Início'],['reunioes','Reuniões'],['acoes','Tarefas e plano de ação'],['obras','Contratos (quadro das obras)'],['contratos','Ficha do contrato (vigência, garantia, aditivos)'],['planejamento','Planejamento da obra'],['medicoes','Medições'],['diario','Diário de obra'],['documentos','Documentos e certidões'],['contas','Contas a pagar (obras e empresa)'],['despesas','Despesas da empresa (ver em Contas a pagar)'],['faturamento','Faturamento e recebimentos'],['conciliacao','Conciliação bancária'],['socios','Sócios e investimentos'],['metas','Metas'],['orcamento','Orçamento da empresa'],['projecao','Fluxo de caixa projetado'],['viabilidade','Viabilidade de contrato'],['relatorios','Relatórios'],['fornecedores','Fornecedores']],
+  _MODULOS:[['inicio','Início'],['reunioes','Reuniões'],['acoes','Tarefas e plano de ação'],['obras','Contratos (quadro das obras)'],['contratos','Ficha do contrato (vigência, garantia, aditivos)'],['planejamento','Planejamento da obra'],['medicoes','Medições'],['diario','Diário de obra'],['documentos','Documentos e certidões'],['pessoal','Pessoal e segurança do trabalho'],['licitacoes','Radar de licitações'],['contas','Contas a pagar (obras e empresa)'],['despesas','Despesas da empresa (ver em Contas a pagar)'],['faturamento','Faturamento e recebimentos'],['conciliacao','Conciliação bancária'],['socios','Sócios e investimentos'],['metas','Metas'],['orcamento','Orçamento da empresa'],['projecao','Fluxo de caixa projetado'],['viabilidade','Viabilidade de contrato'],['relatorios','Relatórios'],['fornecedores','Fornecedores']],
   // telas novas herdam a permissão da tela parecida até o Administrador escolher (como na VTC):
   // ninguém perde nem ganha acesso de repente quando uma tela nova aparece
   _HERDA:{inicio:'dashboard',faturamento:'obras',contas:['custosobra','obras','despesas'],despesas:'contas',reunioes:'acoes',socios:'contas',metas:['dashboard','orcamento'],orcamento:'despesas',projecao:'contas',relatorios:'dashboard'},
@@ -4096,7 +4137,7 @@ const UI={
     const nEl=document.getElementById('nav-'+v);if(nEl)nEl.classList.add('active');
     this._navMarcar();
     this._navFecharPaineis();
-    const titles={seguranca:'Segurança',inicio:'Início',faturamento:'Faturamento e recebimentos',reunioes:'Reuniões',socios:'Sócios e investimentos',orcamento:'Orçamento da empresa',projecao:'Fluxo de caixa projetado',dashboard:'Painel de indicadores',obras:'Contratos',custos:'Custos',faturamentos:'Faturamentos',aportes:'Aportes',cap:'CAP',orcamentos:'Orçamentos',usuarios:'Usuários e permissões',despesas:'Despesas da empresa',relatorios:'Relatórios',lixeira:'Lixeira',contas:'Contas a pagar',metas:'Metas e orçamento',conciliacao:'Conciliação bancária',medicoes:'Medições',diario:'Diário de obra',documentos:'Documentos e certidões',fornecedores:'Fornecedores',contratos:'Contratos',planejamento:'Planejamento e cronograma',acoes:'Tarefas e plano de ação',viabilidade:'Viabilidade do contrato'};
+    const titles={seguranca:'Segurança',inicio:'Início',faturamento:'Faturamento e recebimentos',reunioes:'Reuniões',socios:'Sócios e investimentos',orcamento:'Orçamento da empresa',projecao:'Fluxo de caixa projetado',dashboard:'Painel de indicadores',obras:'Contratos',custos:'Custos',faturamentos:'Faturamentos',aportes:'Aportes',cap:'CAP',orcamentos:'Orçamentos',usuarios:'Usuários e permissões',despesas:'Despesas da empresa',relatorios:'Relatórios',lixeira:'Lixeira',contas:'Contas a pagar',metas:'Metas e orçamento',conciliacao:'Conciliação bancária',medicoes:'Medições',diario:'Diário de obra',documentos:'Documentos e certidões',pessoal:'Pessoal e segurança',licitacoes:'Radar de licitações',fornecedores:'Fornecedores',contratos:'Contratos',planejamento:'Planejamento e cronograma',acoes:'Tarefas e plano de ação',viabilidade:'Viabilidade do contrato'};
     const ttl=document.getElementById('view-title');if(ttl)ttl.textContent=titles[v]||v;
     document.title=titles[v]||v; // título da aba do navegador acompanha a seção clicada
     if(v==='dashboard'&&App.state.data)App.renderDashboard();
@@ -8844,6 +8885,8 @@ const UI={
         titulo_obra:this._obraAtual,
         // quem anexou (só essa pessoa pode excluir a foto depois)
         enviado_por:(Auth._session&&Auth._session.nome)||'',enviado_por_id:String((Auth._session&&(Auth._session.uid||Auth._session.cpf||Auth._session.nome))||''),
+        // onde a foto foi tirada (GPS da foto ou do celular na hora), quando houver
+        ...(GS.gps?GS.gps.campos(item.gps):{}),
         drive_file_id:arquivo.id,
         nome_arquivo:arquivo.name,
         etapa_obra:item.etapa,
@@ -8969,7 +9012,9 @@ const UI={
       img.removeAttribute('data-etapa');
       img.dataset.driveid=driveId;
       img.src=full;
-      document.getElementById('imagens-viewer-desc').textContent=item.descricao||item.nome_arquivo||'';
+      {const ds=document.getElementById('imagens-viewer-desc');ds.textContent=item.descricao||item.nome_arquivo||'';
+        // onde a foto foi tirada (quando ela tem a localização): link para o mapa
+        const mp=GS.gps&&GS.gps.htmlLink(item);if(mp)ds.insertAdjacentHTML('beforeend',`<br>${mp}`);}
       const multi=this._visualizarLista.length>1;
       document.getElementById('imagens-viewer-prev').style.display=multi?'':'none';
       document.getElementById('imagens-viewer-next').style.display=multi?'':'none';
@@ -10304,6 +10349,7 @@ const Auth={
     if(navLbl)navLbl.style.display=isAdmin?'':'none';
     if(isAdmin)allowed.push('usuarios');
     const navS=document.getElementById('nav-seguranca');if(navS)navS.style.display=isAdmin?'':'none';
+    const navAv=document.getElementById('nav-avisos');if(navAv)navAv.style.display=isAdmin?'':'none';
     if(isAdmin)allowed.push('seguranca');
     const navL=document.getElementById('nav-lixeira');
     if(navL)navL.style.display=isAdmin?'':'none';
@@ -12693,6 +12739,37 @@ const Eng=(function(){
   const MESES_RDO=['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
   const CLIMAS=['Bom','Nublado','Chuva fraca','Chuva forte'];
   const CONDICOES=['Praticável','Parcialmente praticável','Impraticável'];
+  /* TEMPO PELA PREVISÃO DO INMET (Instituto Nacional de Meteorologia — gratuito, por município): pela cidade da obra
+     (código do IBGE) vem a manhã, a tarde e a noite de hoje e dos próximos dias. Sugere o "Tempo pela manhã / à tarde"
+     do diário (preenche sozinho quando está em branco, para conferir) e mostra a previsão da semana na tela do diário. */
+  const Tempo=(()=>{
+    const sA=s=>String(s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().replace(/\s+/g,' ').trim();
+    const cidadeObra=ob=>{const o=(D().obras||[]).find(x=>getFuzzy(x,['titulo_obra','nome_obra','titulo'])===ob),c=o?String(getFuzzy(o,['cidade_obra'])||''):'';
+      if(c)return c;const ct=(D().contratos||[]).find(x=>x.titulo_obra===ob);return String((ct&&ct.cidade_obra)||'');};
+    let IB=null;
+    async function codIbge(cid){const s=sA(cid).replace(/\s*[,\-\/]\s*([a-z]{2})$/,', $1'),k=/, [a-z]{2}$/.test(s)?s:s+', ba';
+      if(!IB){try{IB=JSON.parse(localStorage.getItem('vx_ibge_cod_v1')||'null');}catch(e){}}
+      if(!IB){const a=await(await fetch('https://servicodados.ibge.gov.br/api/v1/localidades/municipios?view=nivelado')).json(),m={};a.forEach(x=>{m[sA(x['municipio-nome'])+', '+sA(x['UF-sigla'])]=String(x['municipio-id']);});IB=m;try{localStorage.setItem('vx_ibge_cod_v1',JSON.stringify(m));}catch(e){}}
+      return IB[k]||'';}
+    const parte=x=>x&&typeof x==='object'?{resumo:String(x.resumo||'').trim(),tmax:x.temp_max,tmin:x.temp_min,icone:/^data:image\//.test(String(x.icone||''))?x.icone:''}:null;
+    const MEM={};
+    async function previsao(cod){
+      const k='vx_inmet_'+cod;let c=MEM[cod];if(!c){try{c=JSON.parse(localStorage.getItem(k)||'null');}catch(e){}}
+      if(c&&Date.now()-c.t<3*3600000)return c.dias;
+      const r=await fetch('https://apiprevmet3.inmet.gov.br/previsao/'+cod);if(!r.ok)throw new Error('O INMET não respondeu agora.');const j=await r.json(),dd=j&&j[cod]||{};
+      const dias=Object.keys(dd).map(d=>{const m=d.match(/^(\d{2})\/(\d{2})\/(\d{4})$/),v=dd[d]||{};return m?{data:`${m[3]}-${m[2]}-${m[1]}`,manha:parte(v.manha),tarde:parte(v.tarde),noite:parte(v.noite),dia:v.resumo?parte(v):null}:null;}).filter(Boolean).sort((a,b)=>a.data.localeCompare(b.data));
+      c={t:Date.now(),dias};MEM[cod]=c;try{localStorage.setItem(k,JSON.stringify(c));}catch(e){}return dias;}
+    // o texto do INMET vira uma das opções do diário
+    const clima=resumo=>{const t=sA(resumo);if(!t)return '';
+      if(/temporal|tempestade|trovoada|chuvas? fortes?|forte/.test(t))return 'Chuva forte';
+      if(/(chuv|garoa|chuvisco|pancada)/.test(t))return /possibilidade|isolad|eventua/.test(t)?'Nublado':'Chuva fraca';
+      if(/poucas nuvens|claro|ensolarado|\bsol\b|nuvens esparsas/.test(t))return 'Bom';
+      if(/nublado|nuvens|encoberto|nevoeiro|neblina/.test(t))return 'Nublado';return 'Bom';};
+    async function doDia(ob,iso){const cid=cidadeObra(ob);if(!cid)return null;const cod=await codIbge(cid);if(!cod)return null;
+      const d=(await previsao(cod)).find(x=>x.data===iso);return d?{cid,manha:d.manha||d.dia,tarde:d.tarde||d.dia}:null;}
+    async function semana(ob){const cid=cidadeObra(ob);if(!cid)return null;const cod=await codIbge(cid);if(!cod)return null;return {cid,dias:await previsao(cod)};}
+    return {cidadeObra,codIbge,previsao,clima,doDia,semana};
+  })();
   /* cada registro é de quem registrou (o usuário do sistema): só ele edita, exclui e põe fotos;
      registro antigo, sem autor, só o Administrador mexe */
   const eu=()=>{const s=Auth._session||{};return {id:String(s.uid||s.cpf||s.nome||''),nome:s.nome||''};};
@@ -12821,11 +12898,13 @@ const Eng=(function(){
   const nBR=v=>{const n=Mascara.numero(String(v==null?'':v));return n==null?NaN:n;};
   const fmtH=n=>isNaN(n)?'':n.toLocaleString('pt-BR',{maximumFractionDigits:1});
   const chips=(k,ops,v)=>`<div class="rdo-chips" data-chips="${k}">${ops.map(o=>`<button type="button" class="${o===v?'on':''}" data-v="${fe(o)}">${fe(o)}</button>`).join('')}</div>`;
-  const htmlTempo=reg=>`<div class="rdo-tempo"><div><label>Tempo pela manhã <span class="obg">*</span></label>${chips('clima_manha',CLIMAS,reg&&reg.clima_manha)}</div>
+  const htmlTempo=reg=>`<div class="rdo-tempo-prev" data-rdo-tempo-prev hidden></div><div class="rdo-tempo"><div><label>Tempo pela manhã <span class="obg">*</span></label>${chips('clima_manha',CLIMAS,reg&&reg.clima_manha)}</div>
     <div><label>Tempo à tarde <span class="obg">*</span></label>${chips('clima_tarde',CLIMAS,reg&&reg.clima_tarde)}</div>
     <div><label>Condição do trabalho <span class="obg">*</span></label>${chips('condicao',CONDICOES,reg&&reg.condicao)}</div></div>`;
-  function htmlEquipe(reg){const eq=jsonDe(reg&&reg.equipe_json)||{};
-    return `<div class="rdo-equipe">${FUNCOES.map(fn=>`<div class="rdo-cont" data-fn="${fe(fn)}"><span>${fe(fn)}</span><div><button type="button" data-mais="-1" aria-label="menos">−</button><input inputmode="numeric" value="${+eq[fn]||0}"><button type="button" data-mais="1" aria-label="mais">+</button></div></div>`).join('')}</div>
+  function htmlEquipe(reg){const eq=jsonDe(reg&&reg.equipe_json)||{},nm=jsonDe(reg&&reg.equipe_nomes)||[];
+    // a equipe pode vir da lista de funcionários (Pessoal e segurança): conta por função sozinha e guarda os nomes
+    return `<div class="rdo-eq-lista"><button type="button" class="fin-bt mini" data-rdo-eqlista><i class="fas fa-users"></i> Escolher da lista de funcionários</button><small data-rdo-eqnomes>${nm.length?`<b>Quem trabalhou:</b> ${fe(nm.map(x=>x.nome).join(', '))}`:'ou use os contadores abaixo'}</small></div>
+    <div class="rdo-equipe">${FUNCOES.map(fn=>`<div class="rdo-cont" data-fn="${fe(fn)}"><span>${fe(fn)}</span><div><button type="button" data-mais="-1" aria-label="menos">−</button><input inputmode="numeric" value="${+eq[fn]||0}"><button type="button" data-mais="1" aria-label="mais">+</button></div></div>`).join('')}</div>
       <div class="rdo-tot"><span>Efetivo no dia (calculado)</span><b data-rdo-efetivo>${fe((reg&&reg.efetivo_total)||'0')}</b> pessoas${reg&&reg.efetivo_desc&&!reg.equipe_json?`<small>Registro antigo: ${fe(reg.efetivo_desc)} — ao mexer nos contadores, a equipe passa a ser a deles.</small>`:''}</div>`;}
   /* Equipamentos: os que TÊM horímetro (lido no início do dia, ao meio-dia, no início da tarde e no fim da tarde →
      horas da manhã + horas da tarde, calculadas) e os que NÃO têm (só quantidade e observação), em duas tabelas.
@@ -12920,10 +12999,11 @@ const Eng=(function(){
      L: [{url (arquivo ainda não enviado) | uid+thumb (já no sistema), rot, quando}] */
   function verFotosHor(L,i){L=(L||[]).filter(x=>x&&(x.url||x.uid));if(!L.length)return;let k=Math.min(Math.max(0,i||0),L.length-1);
     document.querySelectorAll('.rdo-lb').forEach(x=>x.remove());const d=document.createElement('div');d.className='rdo-lb';
-    d.innerHTML=`<div class="rdo-lb-cab"><b data-lb-tit></b><span data-lb-n></span><button type="button" data-lb-baixar title="Baixar esta foto" aria-label="Baixar esta foto"><i class="fas fa-download"></i></button><button type="button" data-lb-x aria-label="Fechar" title="Fechar"><i class="fas fa-xmark"></i></button></div>
+    d.innerHTML=`<div class="rdo-lb-cab"><b data-lb-tit></b><span data-lb-mapa></span><span data-lb-n></span><button type="button" data-lb-baixar title="Baixar esta foto" aria-label="Baixar esta foto"><i class="fas fa-download"></i></button><button type="button" data-lb-x aria-label="Fechar" title="Fechar"><i class="fas fa-xmark"></i></button></div>
       <div class="rdo-lb-corpo"><button type="button" class="rdo-lb-nav" data-lb-ant aria-label="Foto anterior"><i class="fas fa-chevron-left"></i></button><img alt="" data-lb-img><button type="button" class="rdo-lb-nav" data-lb-prox aria-label="Próxima foto"><i class="fas fa-chevron-right"></i></button></div>`;
     document.body.appendChild(d);const img=d.querySelector('[data-lb-img]');
     const pintar=()=>{const x=L[k];d.querySelector('[data-lb-tit]').textContent=`Horímetro · ${x.rot} · ${x.quando}`;d.querySelector('[data-lb-n]').textContent=L.length>1?`${k+1} de ${L.length}`:'';
+      d.querySelector('[data-lb-mapa]').innerHTML=x.gps?GS.gps.htmlLink(x.gps):'';
       d.querySelector('[data-lb-ant]').hidden=k===0;d.querySelector('[data-lb-prox]').hidden=k===L.length-1;
       if(x.url){img.src=x.url;return;}img.src=GS.fotoSis.ja(x.uid)||GS.fotoSis.ja(x.thumb)||GS.fotoSis.PIX;GS.fotoSis.url(x.uid).then(u=>{if(u&&L[k]===x)img.src=u;});};
     const fechar=()=>{d.remove();document.removeEventListener('keydown',tecla,true);};
@@ -12936,16 +13016,18 @@ const Eng=(function(){
       if(ev.target.closest('[data-lb-ant]')&&k>0){k--;pintar();}else if(ev.target.closest('[data-lb-prox]')&&k<L.length-1){k++;pintar();}});
     pintar();}
   // carimba na foto a data e a hora em que ela foi tirada (a do arquivo da câmera) e o que ela mostra
-  function carimbar(file,txt1,txt2){return new Promise((ok,er)=>{const u=URL.createObjectURL(file),im=new Image();
+  // txt3 (opcional): a 3ª linha — o lugar onde a foto foi tirada (GPS)
+  function carimbar(file,txt1,txt2,txt3){return new Promise((ok,er)=>{const u=URL.createObjectURL(file),im=new Image();
     im.onload=()=>{const k=Math.min(1,1600/Math.max(im.naturalWidth,im.naturalHeight)),W=Math.max(1,Math.round(im.naturalWidth*k)),H=Math.max(1,Math.round(im.naturalHeight*k)),cv=document.createElement('canvas');cv.width=W;cv.height=H;
-      const cx=cv.getContext('2d');cx.drawImage(im,0,0,W,H);const fs=Math.max(14,Math.round(W/30)),pad=Math.round(fs*.55),bh=Math.round(fs*1.9+pad*3);
+      const cx=cv.getContext('2d');cx.drawImage(im,0,0,W,H);const fs=Math.max(14,Math.round(W/30)),pad=Math.round(fs*.55),f2=Math.round(fs*.72),bh=Math.round(fs*1.9+pad*3)+(txt3?f2+pad:0);
       cx.fillStyle='rgba(16,24,40,.72)';cx.fillRect(0,H-bh,W,bh);cx.fillStyle='#fff';cx.textBaseline='top';
-      cx.font=`800 ${fs}px Inter,Arial,sans-serif`;cx.fillText(txt1,pad,H-bh+pad);cx.font=`600 ${Math.round(fs*.72)}px Inter,Arial,sans-serif`;cx.fillText(txt2,pad,H-bh+pad*2+fs);
+      cx.font=`800 ${fs}px Inter,Arial,sans-serif`;cx.fillText(txt1,pad,H-bh+pad);cx.font=`600 ${f2}px Inter,Arial,sans-serif`;cx.fillText(txt2,pad,H-bh+pad*2+fs);
+      if(txt3)cx.fillText(txt3,pad,H-bh+pad*3+fs+f2);
       URL.revokeObjectURL(u);cv.toBlob(b=>b?ok(new File([b],'horimetro.jpg',{type:'image/jpeg',lastModified:file.lastModified||Date.now()})):er(new Error('Não consegui preparar a foto.')),'image/jpeg',0.86);};
     im.onerror=()=>{URL.revokeObjectURL(u);er(new Error('Não consegui abrir essa foto — tente outra.'));};im.src=u;});}
   // as fotos do horímetro de um registro (para o cartão, o visualizador e o PDF)
   function fotosHorimetro(r){const x=maqDe(r);
-    return LEIT.map(([k,rot])=>{const f=x[fk(k)];if(!f||!f.uid)return null;const im=(D().obra_imagens||[]).find(i=>i.foto_uid===f.uid)||{foto_uid:f.uid,thumb_uid:f.thumb,titulo_obra:r.titulo_obra,descricao:rot};return {im,rot,hora:f.hora||'',quando:quandoHor(f.data||r.data,f.hora)};}).filter(Boolean);}
+    return LEIT.map(([k,rot])=>{const f=x[fk(k)];if(!f||!f.uid)return null;const im=(D().obra_imagens||[]).find(i=>i.foto_uid===f.uid)||{foto_uid:f.uid,thumb_uid:f.thumb,titulo_obra:r.titulo_obra,descricao:rot};return {im,rot,hora:f.hora||'',quando:quandoHor(f.data||r.data,f.hora),gps:GS.gps.de(f)||GS.gps.de(im)};}).filter(Boolean);}
   function linhaSem(x){x=x||{};
     return `<tr><td><input data-sq="eq" list="rdo-equip-sem" value="${fe(x.eq||'')}" placeholder="Ex.: Betoneira"></td><td><input data-sq="qtd" inputmode="numeric" value="${fe(x.qtd||'1')}"></td><td><input data-sq="obs" value="${fe(x.obs||'')}" placeholder="opcional (ex.: parada à tarde)"></td><td><button type="button" class="bt-tirar" data-eq-x title="Tirar esta linha" aria-label="Tirar esta linha"><i class="fas fa-trash-can"></i></button></td></tr>`;}
   function htmlEquip(reg){const l=(jsonDe(reg&&reg.equip_json)||[]),sem=l.filter(x=>x.hor===false),x=maqDe(reg),L=leituras(x),h=horasEq(x),dia=reg?reg.data:'';
@@ -12999,7 +13081,7 @@ const Eng=(function(){
     {k:'clima_manha',label:'Tempo pela manhã',tipo:'oculto',obrig:true},{k:'clima_tarde',label:'Tempo à tarde',tipo:'oculto',obrig:true},{k:'condicao',label:'Condição do trabalho',tipo:'oculto',obrig:true},
     {k:'_s3',tipo:'sec',label:'<i class="fas fa-people-group"></i> Equipe no dia <span class="obg">*</span>'},
     {k:'_equipe',tipo:'html',html:htmlEquipe},
-    {k:'efetivo_total',tipo:'oculto'},{k:'efetivo_desc',tipo:'oculto'},{k:'equipe_json',tipo:'oculto'},
+    {k:'efetivo_total',tipo:'oculto'},{k:'efetivo_desc',tipo:'oculto'},{k:'equipe_json',tipo:'oculto'},{k:'equipe_nomes',tipo:'oculto'},
     {k:'_s4',tipo:'sec',label:'<i class="fas fa-tractor"></i> Equipamentos e horímetro <span class="obg">*</span>'},
     {k:'_equip',tipo:'html',html:htmlEquip},
     {k:'equipamentos',tipo:'oculto'},{k:'equip_json',tipo:'oculto'},
@@ -13015,8 +13097,11 @@ const Eng=(function(){
   aoAbrir:(j,reg)=>{
     ligarRdo(j,reg);
     const inp=j.querySelector('[data-rdo-fotos]'),prev=j.querySelector('[data-rdo-prev]');if(!inp||!prev)return;j._fotos=[];
-    const desenha=()=>{prev.innerHTML=j._fotos.map((f,k)=>`<div class="eng-foto-item"><img src="${f.url}" alt=""><input data-rdo-desc="${k}" maxlength="50" placeholder="Descrição (opcional)" value="${fe(f.desc)}"><button type="button" class="rdo-foto-x" data-rdo-x="${k}" title="Tirar esta foto">×</button></div>`).join('');};
-    inp.addEventListener('change',()=>{[...(inp.files||[])].filter(f=>/^image\//.test(f.type)).forEach(file=>j._fotos.push({file,url:URL.createObjectURL(file),desc:''}));inp.value='';desenha();});
+    // cada foto mostra onde foi tirada (GPS da foto ou do celular, se acabou de ser tirada)
+    const gpsTxt=f=>f.gps?`<i class="fas fa-location-dot"></i> ${GS.gps.txt(f.gps)}`:f.gps===false?'<i class="fas fa-location-dot"></i> sem localização':'<i class="fas fa-spinner fa-spin"></i> localização…';
+    const desenha=()=>{prev.innerHTML=j._fotos.map((f,k)=>`<div class="eng-foto-item"><img src="${f.url}" alt=""><input data-rdo-desc="${k}" maxlength="50" placeholder="Descrição (opcional)" value="${fe(f.desc)}"><button type="button" class="rdo-foto-x" data-rdo-x="${k}" title="Tirar esta foto">×</button><small class="rdo-foto-gps" data-rdo-gps="${k}">${gpsTxt(f)}</small></div>`).join('');};
+    inp.addEventListener('change',()=>{[...(inp.files||[])].filter(f=>/^image\//.test(f.type)).forEach(file=>{const it={file,url:URL.createObjectURL(file),desc:'',gps:null};j._fotos.push(it);
+      GS.gps.daFoto(file,9000).then(g=>{it.gps=g||false;const el=prev.querySelector(`[data-rdo-gps="${j._fotos.indexOf(it)}"]`);if(el)el.innerHTML=gpsTxt(it);});});inp.value='';desenha();});
     prev.addEventListener('input',ev=>{const k=ev.target.dataset.rdoDesc;if(k!=null&&j._fotos[+k])j._fotos[+k].desc=ev.target.value;});
     prev.addEventListener('click',ev=>{const b=ev.target.closest('[data-rdo-x]');if(!b)return;const f=j._fotos.splice(+b.dataset.rdoX,1)[0];if(f)URL.revokeObjectURL(f.url);desenha();});
   },
@@ -13027,9 +13112,9 @@ const Eng=(function(){
   antes:async(o,reg,j)=>{
     const pend=LEIT.filter(([k])=>j._hor&&j._hor[k]&&j._hor[k].file);if(!pend.length)return;
     App.state._busy=true;UI._showBusy('Enviando as fotos do horímetro…');
-    try{for(const [k,rot] of pend){const v=j._hor[k],r=await GS.fotoSis.enviar(o.titulo_obra,{file:v.file,descricao:`Horímetro ${MAQ_FIXA} · ${rot} · ${quandoHor(v.data,v.hora)}`,etapa:'durante',data:o.data,extra:{horimetro:k,horimetro_hora:v.hora,horimetro_data:v.data}});
+    try{for(const [k,rot] of pend){const v=j._hor[k],r=await GS.fotoSis.enviar(o.titulo_obra,{file:v.file,descricao:`Horímetro ${MAQ_FIXA} · ${rot} · ${quandoHor(v.data,v.hora)}`,etapa:'durante',data:o.data,gps:v.gps||null,extra:{horimetro:k,horimetro_hora:v.hora,horimetro_data:v.data}});
         if(v.ref&&v.ref.uid)(j._rdoApagar=j._rdoApagar||[]).push(v.ref);
-        v.ref={uid:r.foto_uid,thumb:r.thumb_uid,hora:v.hora,data:v.data};v.file=null;}}
+        v.ref={uid:r.foto_uid,thumb:r.thumb_uid,hora:v.hora,data:v.data,...(v.gps?{lat:+v.gps.lat.toFixed(6),lng:+v.gps.lng.toFixed(6)}:{})};v.file=null;}}
     catch(e){throw new Error('Não consegui enviar as fotos do horímetro: '+((e&&e.message)||e)+' O diário ainda não foi salvo — tente de novo.');}
     finally{App.state._busy=false;UI._hideBusy();}
     j._somaEquip();o.equip_json=j.querySelector('[data-f="equip_json"]').value;o.equipamentos=j.querySelector('[data-f="equipamentos"]').value;
@@ -13040,7 +13125,7 @@ const Eng=(function(){
     for(const f of (j._rdoApagar||[])){const im=(D().obra_imagens||[]).find(i=>i.foto_uid===f.uid);try{if(im)await excluir('Imagens da Obra',im.rowid);else await GS.fotoSis.apagar({foto_uid:f.uid,thumb_uid:f.thumb});}catch(e){}}
     if(!prep)return;
     try{await prep;}catch(e){toast('Diário salvo, mas as fotos não foram enviadas: '+e.message+' Use o botão de fotos deste dia.','error');return;}
-    await Eng.subirFotosDia(o.titulo_obra,o.data,j._fotos.map(f=>({file:f.file,descricao:(f.desc||'').trim(),previewUrl:f.url})));},
+    await Eng.subirFotosDia(o.titulo_obra,o.data,j._fotos.map(f=>({file:f.file,descricao:(f.desc||'').trim(),previewUrl:f.url,gps:f.gps||null})));},
   validar:(o,reg,j,parcial)=>{
     const eqs=jsonDe(o.equip_json)||[],ruim=eqs.find(x=>x.hor!==false&&ordemRuim(x));
     if(ruim)return `${ruim.eq||'Máquina'}: as leituras do horímetro têm que ir aumentando ao longo do dia (início ≤ meio-dia ≤ início da tarde ≤ fim).`;
@@ -13072,12 +13157,33 @@ const Eng=(function(){
   function ligarRdo(j,reg){
     const H=k=>j.querySelector(`[data-f="${k}"]`);
     j.querySelectorAll('[data-chips]').forEach(g=>g.addEventListener('click',ev=>{const b=ev.target.closest('button[data-v]');if(!b)return;g.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));H(g.dataset.chips).value=b.dataset.v;}));
+    /* tempo pela previsão do INMET para a cidade da obra: mostra manhã e tarde do dia e, se o tempo ainda está em
+       branco, já marca as opções (para conferir); "Usar a previsão" marca de novo */
+    const tp=j.querySelector('[data-rdo-tempo-prev]');
+    const marcarTempo=(m,t,soVazio)=>[['clima_manha',m],['clima_tarde',t]].forEach(([k,v])=>{if(!v||(soVazio&&H(k).value))return;const b=j.querySelector(`[data-chips="${k}"] button[data-v="${v}"]`);if(b)b.click();});
+    const pintarTempo=async()=>{if(!tp)return;const ob=(H('titulo_obra')||{}).value,d=(H('data')||{}).value;tp.hidden=true;if(!ob||!d)return;
+      let p=null;try{p=await Tempo.doDia(ob,d);}catch(e){}
+      if(!p||(H('titulo_obra')||{}).value!==ob||(H('data')||{}).value!==d)return;
+      const m=Tempo.clima(p.manha&&p.manha.resumo),t=Tempo.clima(p.tarde&&p.tarde.resumo),fx=x=>x?`${fe(x.resumo||'—')}${x.tmin!=null&&x.tmax!=null?` <small>${x.tmin}° a ${x.tmax}°</small>`:''}`:'—';
+      const vazio=!H('clima_manha').value&&!H('clima_tarde').value;
+      tp.hidden=false;tp.innerHTML=`${p.tarde&&p.tarde.icone?`<img src="${p.tarde.icone}" alt="">`:'<i class="fas fa-cloud-sun-rain"></i>'}<div><b>Previsão do INMET para ${fe(p.cid)}</b><span>Manhã: ${fx(p.manha)} · Tarde: ${fx(p.tarde)}</span>${vazio?'<em>O tempo abaixo já veio marcado pela previsão — confira e mude se o tempo foi outro.</em>':''}</div><button type="button" class="fin-bt mini" data-tempo-usar>Usar a previsão</button>`;
+      tp.querySelector('[data-tempo-usar]').onclick=()=>{marcarTempo(m,t,false);toast('Tempo da manhã e da tarde marcados pela previsão do INMET — confira.','success');};
+      if(vazio)marcarTempo(m,t,true);};
+    pintarTempo();['titulo_obra','data'].forEach(k=>{const el=H(k);if(el)el.addEventListener('change',pintarTempo);});
     let mexeuEquipe=!!(reg&&reg.equipe_json)||!reg;
     const somaEquipe=()=>{const eq={},partes=[];let tot=0;j.querySelectorAll('.rdo-cont').forEach(c=>{const n=Math.max(0,Math.round(nBR(c.querySelector('input').value)||0));c.querySelector('input').value=n;if(n){eq[c.dataset.fn]=n;tot+=n;partes.push(n+' '+(n>1?(PLURAL[c.dataset.fn]||c.dataset.fn.toLowerCase()):c.dataset.fn.toLowerCase()));}});
       if(!mexeuEquipe)return;H('equipe_json').value=JSON.stringify(eq);H('efetivo_total').value=tot?String(tot):'';H('efetivo_desc').value=partes.join(', ');j.querySelector('[data-rdo-efetivo]').textContent=tot;};
     const eqBox=j.querySelector('.rdo-equipe');
     eqBox.addEventListener('click',ev=>{const b=ev.target.closest('[data-mais]');if(!b)return;const i=b.parentNode.querySelector('input');i.value=Math.max(0,(Math.round(nBR(i.value))||0)+(+b.dataset.mais));mexeuEquipe=true;somaEquipe();});
     eqBox.addEventListener('input',()=>{mexeuEquipe=true;somaEquipe();});
+    // equipe pela lista de funcionários: zera os contadores e conta cada função; avisa quem está com documento vencido
+    const eqL=j.querySelector('[data-rdo-eqlista]');
+    if(eqL)eqL.addEventListener('click',()=>{const ob=(H('titulo_obra')||{}).value,ant=(jsonDe(H('equipe_nomes')&&H('equipe_nomes').value)||[]).map(x=>x.id);
+      Eng.escolherEquipe(ob,ant,(es,venc)=>{const cont={};es.forEach(f=>{const fn=FUNCOES.includes(f.funcao)?f.funcao:'Outros';cont[fn]=(cont[fn]||0)+1;});
+        eqBox.querySelectorAll('.rdo-cont').forEach(c=>{c.querySelector('input').value=cont[c.dataset.fn]||0;});mexeuEquipe=true;somaEquipe();
+        if(H('equipe_nomes'))H('equipe_nomes').value=es.length?JSON.stringify(es.map(f=>({id:String(f.rowid),nome:f.nome,funcao:f.funcao||''}))):'';
+        const sm=j.querySelector('[data-rdo-eqnomes]');if(sm)sm.innerHTML=es.length?`<b>Quem trabalhou:</b> ${fe(es.map(f=>f.nome).join(', '))}`:'ou use os contadores abaixo';
+        if(venc.length)toast(`Atenção: ${venc.map(f=>f.nome).join(', ')} ${venc.length>1?'estão':'está'} com documento de segurança vencido (ASO, NR ou CNH). Veja em Pessoal e segurança.`,'error',false);});});
     const hb=j.querySelector('[data-rdo-hor]'),ts=j.querySelector('[data-rdo-sem]');
     // a 1ª leitura do dia é a última do dia anterior registrado desta máquina nesta obra
     const ultimoHorimetro=nome=>{const ob=H('titulo_obra').value,d=H('data').value;let best=null;
@@ -13100,7 +13206,7 @@ const Eng=(function(){
     // Administrador: corrige a leitura à mão (o campo destrava só para ele)
     hb.addEventListener('click',ev=>{const c=ev.target.closest('[data-hcorr]');if(!c)return;const inp=hb.querySelector(`[data-eq="${c.dataset.hcorr}"]`);inp.readOnly=false;inp.classList.remove('rdo-lido');inp.placeholder='0,0';inp.focus();});
     // clicar na foto amplia (com as outras leituras nas setas); "Trocar" — ou o quadro vazio — abre a câmera/galeria
-    const fotosDoForm=()=>LEIT.map(([k,rot])=>{const v=j._hor[k]||{},r=v.ref||{};return v.url||r.uid?{url:v.url||'',uid:r.uid,thumb:r.thumb,rot,quando:quandoHor(v.data||r.data,v.hora||r.hora),k}:null;}).filter(Boolean);
+    const fotosDoForm=()=>LEIT.map(([k,rot])=>{const v=j._hor[k]||{},r=v.ref||{};return v.url||r.uid?{url:v.url||'',uid:r.uid,thumb:r.thumb,rot,quando:quandoHor(v.data||r.data,v.hora||r.hora),k,gps:v.file?GS.gps.de(v):GS.gps.de(r)}:null;}).filter(Boolean);
     const abrirFoto=(box,trocar)=>{const k=box.dataset.hfoto,v=j._hor[k]||{};
       if(v.lendo)return;
       if(trocar||!(v.url||v.ref)){const tr=janelaHor(k,H('data').value);if(tr){pintarFoto(k);return toast(`Foto do horímetro — ${(LEIT.find(x=>x[0]===k)||[])[1].toLowerCase()}: ${tr}. Ela vale das ${hTxt(JANELA_HOR[k][0])} às ${hTxt(JANELA_HOR[k][1])}.`,'error');}
@@ -13115,8 +13221,11 @@ const Eng=(function(){
       // a foto tem que ter sido tirada hoje, no horário desta leitura (o Administrador passa)
       const tr=janelaHor(k,H('data').value,t);if(tr)return toast(`Foto do horímetro — ${rot.toLowerCase()}: ${tr}`,'error');
       const v=j._hor[k],inp=hb.querySelector(`[data-eq="${k}"]`),antes={...v};
-      try{const ob=H('titulo_obra').value,st=await carimbar(file,`${brDe(t)} ${hora} · ${rot}`,`${MAQ_FIXA}${ob?' · '+ob:''}`);
-        if(v.url)URL.revokeObjectURL(v.url);Object.assign(v,{file:st,url:URL.createObjectURL(st),hora,data,lendo:true});pintarFoto(k);
+      try{const ob=H('titulo_obra').value;
+        // onde a foto foi tirada (GPS da foto ou do celular agora): vai no carimbo e fica guardado com a leitura
+        const gps=await GS.gps.daFoto(file,8000);
+        const st=await carimbar(file,`${brDe(t)} ${hora} · ${rot}`,`${MAQ_FIXA}${ob?' · '+ob:''}`,gps?`Local: ${GS.gps.txt(gps)}${gps.prec?` (±${gps.prec} m)`:''}`:'');
+        if(v.url)URL.revokeObjectURL(v.url);Object.assign(v,{file:st,url:URL.createObjectURL(st),hora,data,gps:gps||null,lendo:true});pintarFoto(k);
         // o número do horímetro sai da foto (o original, sem o carimbo) — o campo fica travado com ele
         let n=null;try{n=await lerHorimetro(file,leituraAntes(k));}catch(e){console.warn('horímetro',e);}
         v.lendo=false;pintarFoto(k);
@@ -13156,6 +13265,108 @@ const Eng=(function(){
     return fotosHorimetro(r).map((x,k)=>({im:x.im,nome:`${base}_horimetro_${k+1}_${nomeArq(x.rot)}`})).concat(fotosDoRegistro(r).map((im,k)=>({im,nome:`${base}_foto_${String(k+1).padStart(2,'0')}`})));};
   const choveu=r=>/chuva/i.test(r.clima_manha||'')||/chuva/i.test(r.clima_tarde||'');
   const tomCond=c=>c==='Impraticável'?'vermelho':c==='Parcialmente praticável'?'laranja':'verde';
+  /* previsão da semana (INMET) nas cidades das obras — a escolhida no filtro, ou as em execução / com diário automático
+     (até 3 cidades): ajuda a marcar concretagem e os serviços que dependem do tempo */
+  const SEM_CURTA=['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+  /* ═══ MÁQUINA ALUGADA: ABASTECIMENTO, CONSUMO E CUSTO POR HORA ═══
+     As horas trabalhadas vêm do horímetro do diário (as 4 leituras do dia). Os abastecimentos (litros e valor) e o
+     aluguel combinado (por mês, por dia trabalhado ou por hora trabalhada) ficam em Planejamento (tipo 'abastecimento'
+     e 'maquina_aluguel'). No período do diário (o mês escolhido): consumo = litros ÷ horas; custo por hora = (aluguel do
+     período + diesel) ÷ horas. O aluguel por mês entra proporcional aos dias em que a máquina esteve alugada no mês. */
+  const FORMAS_ALUG=['Por mês','Por dia trabalhado','Por hora trabalhada'];
+  const abastecimentos=ob=>(D().planejamento||[]).filter(p=>p.tipo==='abastecimento'&&(!ob||p.titulo_obra===ob));
+  const alugueis=ob=>(D().planejamento||[]).filter(p=>p.tipo==='maquina_aluguel'&&(!ob||p.titulo_obra===ob));
+  const periodoRD=()=>{if(!RD.mes||RD.mes==='__todos')return {todos:true,ini:'',fim:hojeRdo()};const [a,m]=RD.mes.split('-').map(Number);return {ini:RD.mes+'-01',fim:isoDe(new Date(a,m,0))};};
+  const noPer=(d,per)=>{d=String(d||'').slice(0,10);return !!d&&(!per.ini||d>=per.ini)&&d<=per.fim;};
+  function horasMaq(ob,per){let h=0,d=0,pri='';
+    (D().diario_obra||[]).filter(r=>r.titulo_obra===ob&&preenchidoRdo(r)&&noPer(r.data,per)).forEach(r=>{const x=(jsonDe(r.equip_json)||[]).find(y=>y&&y.hor!==false&&cn(y.eq)===cn(MAQ_FIXA));if(!x)return;
+      const t=horasEq(x).tot;if(!isNaN(t)&&t>0){h+=t;d++;if(!pri||r.data<pri)pri=String(r.data);}});
+    return {h:Math.round(h*10)/10,d,pri};}
+  function aluguelNoPer(ob,per,hm){let tot=0;const det=[];
+    alugueis(ob).forEach(a=>{const v=val(a.valor);if(!(v>0))return;
+      if(a.forma==='Por hora trabalhada'){tot+=v*hm.h;det.push(fmt(v)+' por hora');return;}
+      if(a.forma==='Por dia trabalhado'){tot+=v*hm.d;det.push(fmt(v)+' por dia');return;}
+      // por mês: proporcional aos dias alugados dentro de cada mês do período
+      const i0=String(a.inicio||'')||hm.pri||per.ini,f0=String(a.fim||'')||hojeRdo(),ini=per.ini&&per.ini>i0?per.ini:i0,fim=f0<per.fim?f0:per.fim;if(!ini||ini>fim)return;
+      let d=dt(ini),s=0;const dF=dt(fim);while(d&&d<=dF){const y=d.getFullYear(),m=d.getMonth(),dm=new Date(y,m+1,0).getDate(),fm=new Date(y,m,dm),ate=dF<fm?dF:fm;s+=v*(Math.round((ate-d)/864e5)+1)/dm;d=new Date(y,m+1,1);}
+      tot+=s;det.push(fmt(v)+' por mês');});
+    return {tot:Math.round(tot*100)/100,det:det.join(' + ')};}
+  function resumoMaq(ob,per){const hm=horasMaq(ob,per),ab=abastecimentos(ob).filter(p=>noPer(p.data,per)),l=ab.reduce((s,p)=>s+val(p.litros),0),vd=ab.reduce((s,p)=>s+val(p.valor),0),al=aluguelNoPer(ob,per,hm),tot=al.tot+vd;
+    return {hm,n:ab.length,litros:Math.round(l*10)/10,diesel:Math.round(vd*100)/100,al,tot:Math.round(tot*100)/100,consumo:hm.h>0&&l>0?l/hm.h:NaN,custoH:hm.h>0&&tot>0?tot/hm.h:NaN,dieselH:hm.h>0?vd/hm.h:NaN,aluguelH:hm.h>0?al.tot/hm.h:NaN,temAluguel:alugueis(ob).length>0};}
+  function painelMaqHtml(){
+    const per=periodoRD(),obs=(RD.obra?[RD.obra]:obrasNomes()).filter(ob=>{if(RD.obra)return true;const r=resumoMaq(ob,per);return r.hm.h>0||r.n>0;});
+    App._maqObras=obs;
+    const kp=(rot,v,sub,tom)=>`<div class="maq-kpi${tom?' '+tom:''}"><small>${rot}</small><b>${v}</b>${sub?`<span>${sub}</span>`:''}</div>`,lh=n=>isNaN(n)?'—':n.toLocaleString('pt-BR',{maximumFractionDigits:1});
+    return `<div class="maq-painel"><div class="maq-cab"><div><b><i class="fas fa-tractor"></i> ${MAQ_FIXA} alugada — diesel, consumo e custo por hora</b><small>${per.todos?'Todos os meses':'No mês escolhido acima'} · as horas vêm do horímetro do diário</small></div>
+      <div class="maq-bts"><button type="button" class="fin-bt mini pri" data-rd="abast-novo"><i class="fas fa-gas-pump"></i> Registrar abastecimento</button><button type="button" class="fin-bt mini" data-rd="abast-lista"><i class="fas fa-list"></i> Abastecimentos</button><button type="button" class="fin-bt mini" data-rd="aluguel"><i class="fas fa-file-signature"></i> Aluguel da máquina</button></div></div>
+      ${obs.length?obs.map((ob,i)=>{const r=resumoMaq(ob,per);
+        return `<div class="maq-obra"><div class="maq-obra-nome">${fe(ob)}${r.temAluguel?'':` <button type="button" class="fin-bt mini" data-rd="aluguel" data-ob="${i}" title="Informe quanto custa o aluguel da máquina nesta obra">+ Informar o aluguel</button>`}</div><div class="maq-kpis">
+          ${kp('Horas trabalhadas',r.hm.h?lh(r.hm.h)+' h':'—',r.hm.d?`${r.hm.d} dia${r.hm.d>1?'s':''} com horímetro`:'sem leituras no período')}
+          ${kp('Diesel',r.litros?lh(r.litros)+' L':'—',r.n?`${fmt(r.diesel)} · ${r.n} abastecimento${r.n>1?'s':''}`:'nenhum abastecimento')}
+          ${kp('Consumo',isNaN(r.consumo)?'—':lh(r.consumo)+' L/h',isNaN(r.consumo)?'precisa de horas e litros':'litros por hora trabalhada')}
+          ${kp('Aluguel no período',r.temAluguel?fmt(r.al.tot):'—',r.temAluguel?r.al.det:'aluguel não informado')}
+          ${kp('Custo por hora',isNaN(r.custoH)?'—':fmt(r.custoH),isNaN(r.custoH)?'':`aluguel ${isNaN(r.aluguelH)?'—':fmt(r.aluguelH)} + diesel ${isNaN(r.dieselH)?'—':fmt(r.dieselH)}`,'azul')}
+          ${kp('Custo total',r.tot?fmt(r.tot):'—','aluguel + diesel')}</div></div>`;}).join(''):'<p class="vk-dica">Nenhuma hora de horímetro nem abastecimento no período.</p>'}</div>`;}
+  const CFG_ABAST={aba:'Planejamento',nomeItem:'abastecimento',larg:640,campos:[
+    {k:'tipo',tipo:'oculto'},
+    {k:'titulo_obra',label:'Obra',tipo:'obra',obrig:true,inteira:true},
+    {k:'data',label:'Data do abastecimento',tipo:'data',obrig:true,max:()=>hojeRdo(),padrao:()=>hojeRdo()},
+    {k:'maquina',label:'Máquina',tipo:'sel',ops:[MAQ_FIXA],padrao:MAQ_FIXA,obrig:true},
+    {k:'litros',label:'Litros abastecidos',tipo:'num',obrig:true,ph:'Ex.: 120'},
+    {k:'valor',label:'Valor pago (R$)',tipo:'moeda',obrig:true},
+    {k:'horimetro',label:'Horímetro na hora (opcional)',tipo:'num',ph:'Ex.: 1234,5'},
+    {k:'fornecedor',label:'Posto / fornecedor',maiusc:true,ph:'Ex.: POSTO CENTRAL'},
+    {k:'obs',label:'Observação',inteira:true}],
+    extra:reg=>reg?'':`<label class="maq-conta"><input type="checkbox" data-abast-conta><span><b>Lançar também em Contas a pagar</b> (conta paga nesta data, na obra, como "Óleo diesel"). Deixe desmarcado se o diesel já entra pelas contas ou pela conciliação bancária.</span></label>`,
+    aoAbrir:(j,reg)=>{const f=j.querySelector('[data-f="fornecedor"]');if(f){f.setAttribute('list','vx-forn-lista');f.setAttribute('autocomplete','off');}try{datalistFornecedores();}catch(e){}
+      if(!reg&&RD.obra){const s=j.querySelector('[data-f="titulo_obra"]');if(s)s.value=RD.obra;}},
+    validar:o=>{const l=numBR(o.litros);if(!(l>0))return 'Informe os litros abastecidos.';if(l>3000)return 'Litros demais para um abastecimento — confira o número.';o.litros=String(Math.round(l*100)/100);
+      if(o.horimetro){const h=numBR(o.horimetro);if(isNaN(h)||h<0)return 'Horímetro: digite só o número (ex.: 1234,5).';o.horimetro=String(h);}
+      if(!(val(o.valor)>0))return 'Informe o valor pago.';o.tipo='abastecimento';o.fornecedor=String(o.fornecedor||'').toLocaleUpperCase('pt-BR');return '';},
+    depois:async(o,reg,j)=>{const cx=j&&j.querySelector('[data-abast-conta]');if(reg||!cx||!cx.checked)return;
+      const C=GS.contas,l=val(o.litros),v=val(o.valor),u={centro:o.titulo_obra,tipo:'Real',venc:o.data,pago:o.data,total:dinheiro(v),forn:o.fornecedor||'',cat:'Equipamentos e locações',forma:'',desc:'Óleo diesel',
+        obs:`Abastecimento da ${o.maquina||MAQ_FIXA} — ${String(l).replace('.',',')} L (lançado pelo Diário de obra)`,qtd:dinheiro(l),fator:'L',pUnit:String(Math.round(v/l*1e6)/1e6),lanc:''};
+      try{C.finalizarConta(u);for(const op of C.montarConta(u,null))await salvar(op.aba,op.dados,null);toast('Diesel lançado também em Contas a pagar (pago).','success');}catch(e){toast('O abastecimento foi salvo, mas não consegui lançar em Contas a pagar: '+(e.message||e),'error',false);}}};
+  const CFG_ALUG={aba:'Planejamento',nomeItem:'aluguel da máquina',larg:640,campos:[
+    {k:'tipo',tipo:'oculto'},
+    {k:'titulo_obra',label:'Obra',tipo:'obra',obrig:true,inteira:true},
+    {k:'maquina',label:'Máquina',tipo:'sel',ops:[MAQ_FIXA],padrao:MAQ_FIXA,obrig:true},
+    {k:'locadora',label:'Locadora',maiusc:true,ph:'De quem é a máquina'},
+    {k:'forma',label:'Como é cobrado',tipo:'sel',ops:FORMAS_ALUG,obrig:true,padrao:'Por mês'},
+    {k:'valor',label:'Valor do aluguel (R$)',tipo:'moeda',obrig:true},
+    {k:'inicio',label:'Chegou na obra em',tipo:'data'},
+    {k:'fim',label:'Saiu da obra em (se já saiu)',tipo:'data'},
+    {k:'obs',label:'Observação',inteira:true}],
+    aoAbrir:(j,reg)=>{const f=j.querySelector('[data-f="locadora"]');if(f){f.setAttribute('list','vx-forn-lista');f.setAttribute('autocomplete','off');}try{datalistFornecedores();}catch(e){}
+      if(!reg&&j._obra){const s=j.querySelector('[data-f="titulo_obra"]');if(s)s.value=j._obra;}},
+    validar:o=>{if(!(val(o.valor)>0))return 'Informe o valor do aluguel.';if(o.inicio&&o.fim&&o.fim<o.inicio)return 'A saída não pode ser antes da chegada.';o.tipo='maquina_aluguel';o.locadora=String(o.locadora||'').toLocaleUpperCase('pt-BR');return '';}};
+  function novoAluguel(ob){const j=formulario(CFG_ALUG,null);if(ob){const s=j&&j.querySelector('[data-f="titulo_obra"]');if(s)s.value=ob;}}
+  // lista dos abastecimentos do período (e da obra escolhida), com editar e excluir
+  function listaAbast(){const per=periodoRD(),L=abastecimentos(RD.obra).filter(p=>noPer(p.data,per)).sort((a,b)=>String(b.data).localeCompare(String(a.data)));
+    const tl=L.reduce((s,p)=>s+val(p.litros),0),tv=L.reduce((s,p)=>s+val(p.valor),0);
+    const j=janela('Abastecimentos'+(RD.obra?' · '+RD.obra:''),L.length?`<div class="lote-tab maq-tab"><table data-sem-ordem><thead><tr><th>Data</th>${RD.obra?'':'<th>Obra</th>'}<th>Litros</th><th>Valor</th><th>R$ por litro</th><th>Horímetro</th><th>Posto</th><th></th></tr></thead><tbody>${L.map((p,i)=>`<tr><td>${brDe(dt(p.data))}</td>${RD.obra?'':`<td>${fe(p.titulo_obra)}</td>`}<td class="num">${n2(val(p.litros)).replace(/,00$/,'')} L</td><td class="num">${fmt(val(p.valor))}</td><td class="num">${val(p.litros)>0?fmt(val(p.valor)/val(p.litros)):'—'}</td><td>${fe(p.horimetro?String(p.horimetro).replace('.',','):'—')}</td><td>${fe(p.fornecedor||'—')}</td>
+      <td class="maq-acoes">${GS.podeMexer(p)?`<button type="button" class="fin-bt mini" data-ab-ed="${i}" title="Alterar"><i class="fas fa-pen"></i></button><button type="button" class="fin-bt mini" data-ab-x="${i}" title="Excluir"><i class="fas fa-trash"></i></button>`:''}</td></tr>`).join('')}</tbody></table></div>
+      <div class="lote-tot">${L.length} abastecimento${L.length>1?'s':''} · <b>${n2(tl).replace(/,00$/,'')} L</b> · <b>${fmt(tv)}</b>${tl>0?` · média ${fmt(tv/tl)} por litro`:''}</div>`:'<p class="vk-dica">Nenhum abastecimento no período.</p>',
+      [{html:'<i class="fas fa-plus"></i> Registrar abastecimento',cls:'pri',acao:()=>{setTimeout(()=>formulario(CFG_ABAST,null),0);}}],820);
+    j.addEventListener('click',ev=>{const e=ev.target.closest('[data-ab-ed]'),x=ev.target.closest('[data-ab-x]');if(e)formulario(CFG_ABAST,L[+e.dataset.abEd]);else if(x)apagar(CFG_ABAST,L[+x.dataset.abX],'abastecimento de '+brDe(dt(L[+x.dataset.abX].data)));});}
+  // aluguéis informados (por obra), com novo, editar e excluir
+  function listaAluguel(obPre){const L=alugueis(RD.obra||obPre||'');
+    const j=janela('Aluguel da máquina',`<div class="fin-resumo">Quanto custa a ${MAQ_FIXA} alugada em cada obra. Com isso o diário calcula o <b>custo por hora</b> (aluguel + diesel ÷ horas do horímetro). Se a máquina saiu e voltou, ou o preço mudou, cadastre um novo período.</div>
+      ${L.length?`<div class="lote-tab maq-tab"><table data-sem-ordem><thead><tr><th>Obra</th><th>Locadora</th><th>Cobrança</th><th>Valor</th><th>Período</th><th></th></tr></thead><tbody>${L.map((a,i)=>`<tr><td>${fe(a.titulo_obra)}</td><td>${fe(a.locadora||'—')}</td><td>${fe(a.forma||'')}</td><td class="num">${fmt(val(a.valor))}</td><td>${a.inicio?brDe(dt(a.inicio)):'—'} a ${a.fim?brDe(dt(a.fim)):'hoje'}</td>
+        <td class="maq-acoes">${GS.podeMexer(a)?`<button type="button" class="fin-bt mini" data-al-ed="${i}" title="Alterar"><i class="fas fa-pen"></i></button><button type="button" class="fin-bt mini" data-al-x="${i}" title="Excluir"><i class="fas fa-trash"></i></button>`:''}</td></tr>`).join('')}</tbody></table></div>`:'<p class="vk-dica">Nenhum aluguel informado ainda.</p>'}`,
+      [{html:'<i class="fas fa-plus"></i> Informar aluguel',cls:'pri',acao:()=>{setTimeout(()=>novoAluguel(RD.obra||obPre||''),0);}}],820);
+    j.addEventListener('click',ev=>{const e=ev.target.closest('[data-al-ed]'),x=ev.target.closest('[data-al-x]');if(e)formulario(CFG_ALUG,L[+e.dataset.alEd]);else if(x)apagar(CFG_ALUG,L[+x.dataset.alX],'aluguel da máquina');});}
+  async function pintarSemana(box){const el=box.querySelector('[data-rdo-semana]');if(!el)return;
+    const obs=RD.obra?[RD.obra]:obrasNomes().filter(o=>{const r=(D().obras||[]).find(x=>getFuzzy(x,['titulo_obra','nome_obra','titulo'])===o)||{};return r.diario_auto==='sim'||/execu/i.test(String(getFuzzy(r,['status_obra','status'])||''));});
+    const cids=new Map();for(const o of obs){const c=Tempo.cidadeObra(o);if(c&&!cids.has(c.toLowerCase()))cids.set(c.toLowerCase(),c);if(cids.size>=3)break;}
+    const hj=hojeRdo(),partes=[];
+    for(const c of cids.values()){try{const cod=await Tempo.codIbge(c);if(!cod)continue;const dias=(await Tempo.previsao(cod)).filter(d=>d.data>=hj).slice(0,5);if(dias.length)partes.push({c,dias});}catch(e){}}
+    if(!document.body.contains(el))return;
+    const num=(L,f)=>L.map(v=>+v[f]).filter(n=>!isNaN(n));
+    el.innerHTML=partes.map(p=>`<div class="rdo-sem"><div class="rdo-sem-cab"><b><i class="fas fa-cloud-sun"></i> Previsão do tempo · ${fe(p.c)}</b><small>INMET · para marcar concretagem e serviços ao ar livre</small></div><div class="rdo-sem-dias">${p.dias.map(d=>{
+      const ps=[d.manha,d.tarde,d.dia].filter(Boolean),x=d.tarde||d.dia||d.manha||{},mx=num(ps,'tmax'),mn=num(ps.concat(d.noite?[d.noite]:[]),'tmin'),chuva=ps.some(v=>/Chuva/.test(Tempo.clima(v.resumo))),dd=dt(d.data);
+      const rot=d.data===hj?'Hoje':d.data===addDays(hj,1)?'Amanhã':`${SEM_CURTA[dd.getDay()]} ${String(dd.getDate()).padStart(2,'0')}`;
+      return `<div class="rdo-sem-dia${chuva?' chuva':''}" title="${fe(ps.map((v,i)=>(ps.length>1?['Manhã','Tarde'][i]+': ':'')+v.resumo).join(' · '))}"><span class="rdo-sem-rot">${rot}</span>${x.icone?`<img src="${x.icone}" alt="">`:''}<span class="rdo-sem-txt">${fe(x.resumo||'—')}</span><span class="rdo-sem-temp">${mn.length?Math.min(...mn)+'°':''}${mx.length?' a '+Math.max(...mx)+'°':''}</span><span class="rdo-sem-tag">${chuva?'<i class="fas fa-cloud-rain"></i> Chuva prevista':'<i class="fas fa-sun"></i> Sem chuva'}</span></div>`;}).join('')}</div></div>`).join('');}
   const RD={obra:'',mes:'',autor:''};
   function renderDiario(){
     const box=document.getElementById('eng-diario');if(!box)return;
@@ -13179,6 +13390,8 @@ const Eng=(function(){
       <div class="fin-filtros"><select class="filter-select" data-rd="obra"><option value="">Todas as obras</option>${obrasNomes().map(o=>`<option ${RD.obra===o?'selected':''}>${fe(o)}</option>`).join('')}</select>
         ${autores.length>1?`<select class="filter-select" data-rd="autor"><option value="">Todos os usuários</option>${autores.map(a=>`<option ${RD.autor===a?"selected":""}>${fe(a)}</option>`).join("")}</select>`:""}</div>
       <div class="fin-kpis">${kpi('','Dias registrados',cheios.length,RD.obra?'nesta obra':'somando as obras')}${kpi(imp?'vermelho':'verde','Dias impraticáveis',imp,'base para aditivo de prazo')}${kpi(chuva?'laranja':'verde','Dias com chuva',chuva,'manhã ou tarde')}${kpi('','Efetivo médio',efMed?n2(efMed).replace(',00',''):'—','pessoas por dia registrado')}${kpi('','Fotos dos dias',lista.reduce((s,r)=>s+Eng.fotosDoDia(r.titulo_obra,r.data).length,0),'ligadas pela obra e pela data')}</div>
+      <div data-rdo-semana></div>
+      ${painelMaqHtml()}
       ${RD.mes&&RD.mes!=='__todos'&&cheios.length?resumoMesHtml(cheios,nomeMes(RD.mes)):''}
       ${lista.length?`<div class="rdo-dias">${lista.map((r,i)=>{const d=dt(r.data),fech=rdoFechado(r),f=r.fechado||{},hj=r.data===hojeRdo(),meu=meuRdo(r),vazio=!preenchidoRdo(r),temFoto=fotosParaBaixar(r).length;
         // como no Diário de produção: folhinha com a data, situação (aberto · fecha às 19h / fechado) e os botões do dia
@@ -13201,12 +13414,17 @@ const Eng=(function(){
             ${RD.obra?'':`<div class="rdo-obra" title="${fe(r.titulo_obra)}"><i class="fas fa-helmet-safety"></i> ${fe(r.titulo_obra)}</div>`}
             <div class="rdo-pills"><span class="eng-pill ${tomCond(r.condicao)}">${fe(r.condicao||'—')}</span><span class="eng-pill ${choveu(r)?'azul':''}"><i class="fas ${choveu(r)?'fa-cloud-rain':'fa-sun'}"></i> manhã: ${fe(r.clima_manha||'—')} · tarde: ${fe(r.clima_tarde||'—')}</span>${r.efetivo_total?`<span class="eng-pill"><i class="fas fa-people-group"></i> ${fe(r.efetivo_total)} pessoas</span>`:''}</div></div>
           <div class="pm-dia2-bt rdo-bts">${bts}</div></div>
-          <div class="eng-dia-txt rdo-corpo">${faltaL.length?`<small class="rdo-falta"><i class="fas fa-list-check"></i> <b>Falta:</b> ${fe(faltaL.join(', '))}</small>`:''}<p>${fe(r.atividades||'')}</p>${r.efetivo_desc?`<small><b>Equipe:</b> ${fe(r.efetivo_desc)}</small>`:''}${r.equipamentos?`<small><b>Equipamentos:</b> ${fe(r.equipamentos)}</small>`:''}${(()=>{const hf=fotosHorimetro(r);App._rdoHF[i]=hf.map(x=>({uid:x.im.foto_uid,thumb:x.im.thumb_uid,rot:x.rot,quando:x.quando}));
+          <div class="eng-dia-txt rdo-corpo">${faltaL.length?`<small class="rdo-falta"><i class="fas fa-list-check"></i> <b>Falta:</b> ${fe(faltaL.join(', '))}</small>`:''}<p>${fe(r.atividades||'')}</p>${r.efetivo_desc?`<small><b>Equipe:</b> ${fe(r.efetivo_desc)}</small>`:''}${(jsonDe(r.equipe_nomes)||[]).length?`<small><b>Quem trabalhou:</b> ${fe((jsonDe(r.equipe_nomes)||[]).map(x=>x.nome).join(', '))}</small>`:''}${r.equipamentos?`<small><b>Equipamentos:</b> ${fe(r.equipamentos)}</small>`:''}${(()=>{const hf=fotosHorimetro(r);App._rdoHF[i]=hf.map(x=>({uid:x.im.foto_uid,thumb:x.im.thumb_uid,rot:x.rot,quando:x.quando,gps:x.gps}));
             return hf.length?`<div class="rdo-hfotos">${hf.map((x,k)=>`<button type="button" data-rd="hfoto" data-i="${i}" data-f="${k}" title="Ampliar — horímetro, ${fe(x.rot)} (${fe(x.quando)})"><img ${GS.fotoSis.attrs(x.im,false,200)} loading="lazy" alt=""><span>${fe(x.rot)}<b>${fe(x.quando)}</b></span></button>`).join('')}</div>`:'';})()}${r.ocorrencias?`<small><b>Ocorrências:</b> ${fe(r.ocorrencias)}</small>`:''}${r.visitas?`<small><b>Visitas:</b> ${fe(r.visitas)}</small>`:''}<small>${fe(r.responsavel?'Registrado por '+r.responsavel:'')}</small>${Eng.fotosHtml(r.titulo_obra,r.data,i,(App._rdoFotos[i]=fotosDoRegistro(r)))}</div></article>`;}).join('')}</div>`
         :`<div class="fin-card"><div class="fin-vazio">${todos.length?'Nenhum registro neste filtro.':'Nenhum dia registrado ainda. O ideal é registrar no fim de cada dia de obra.'}<br><button type="button" class="fin-bt pri" data-rd="novo" style="margin-top:10px"><i class="fas fa-plus"></i> Registrar dia</button></div></div>`}
     </div>`;
+    pintarSemana(box).catch(()=>{});
     box.onchange=ev=>{const s=ev.target.closest('select[data-rd]');if(!s)return;RD[s.dataset.rd]=s.value;renderDiario();};
     box.onclick=ev=>{const b=ev.target.closest('button[data-rd]');if(!b)return;const r=App._rdoLista[+b.dataset.i];
+      // máquina alugada: abastecimento, lista e aluguel
+      if(b.dataset.rd==='abast-novo')return formulario(CFG_ABAST,null);
+      if(b.dataset.rd==='abast-lista')return listaAbast();
+      if(b.dataset.rd==='aluguel'){const ob=b.dataset.ob!=null?(App._maqObras||[])[+b.dataset.ob]:'';return ob?novoAluguel(ob):listaAluguel();}
       if(b.dataset.rd==='foto'&&r)Eng.verFoto(App._rdoFotos[+b.dataset.i]||Eng.fotosDoDia(r.titulo_obra,r.data),+b.dataset.f);
       else if(b.dataset.rd==='hfoto'&&r)verFotosHor(App._rdoHF[+b.dataset.i]||[],+b.dataset.f);
       else if(b.dataset.rd==='fotos'&&r)Eng.enviarFotos(r.titulo_obra,r.data);
@@ -13271,10 +13489,231 @@ const Eng=(function(){
       ${r.visitas?`<div style="font-size:10.5px;margin-bottom:4px"><b>Visitas e fiscalização:</b><br>${bl(r.visitas)}</div>`:''}
       ${Eng.fotosPdf(r.titulo_obra,r.data,fotosDoRegistro(r))}
       <div style="display:flex;gap:30px;margin-top:22px;font-size:9.5px;color:#6e6e73"><div style="flex:1;border-top:1px solid #1d1d1f;padding-top:3px">Responsável pela obra — Vilson Souza Oliveira</div><div style="flex:1;border-top:1px solid #1d1d1f;padding-top:3px">Fiscalização${(()=>{const c=Eng.contratoDe&&Eng.contratoDe(r.titulo_obra);return c&&c.fiscal?' — '+bl(c.fiscal):'';})()}</div></div></div>`;});
-    App._relExportPaginado({titulo:'Diário de Obra (RDO)',subLinhas:[sub,`${regs.length} dia${regs.length!==1?'s':''} registrado${regs.length!==1?'s':''}`],blocosArr:blocos});
+    // com o certificado digital no computador, dá para baixar o diário já ASSINADO (vale como documento assinado)
+    const cfgPdf={titulo:'Diário de Obra (RDO)',subLinhas:[sub,`${regs.length} dia${regs.length!==1?'s':''} registrado${regs.length!==1?'s':''}`],blocosArr:blocos};
+    if(GS.cert&&GS.cert.exportarRelatorio)GS.cert.exportarRelatorio(cfgPdf,{motivo:'Diário de obra (RDO) - '+sub,arquivo:'Diário de obra - '+sub});else App._relExportPaginado(cfgPdf);
   }
 
-  return {D,U,nomeObra,statusObra,obrasNomes,n2,numBR,cab,kpi,formulario,apagar,campoHtml,
+  /* ═══════════════ PESSOAL E SEGURANÇA DO TRABALHO ═══════════════
+     Funcionários (função, obra, contato), os documentos de cada um com validade — ASO, treinamentos das NRs, CNH — e a
+     entrega de EPI com a assinatura de quem recebeu, na tela (ficha de EPI em PDF). Avisa o que vence em 30 dias e o que
+     já venceu (Pontos de atenção, a tela e o e-mail do dia). Tudo em Planejamento: tipo 'funcionario', 'pessoal_doc' e
+     'epi_entrega'. No diário, a equipe do dia pode ser escolhida da lista (conta por função sozinho). */
+  const DOCS_PESSOAL=['ASO admissional','ASO periódico','ASO de retorno ao trabalho','ASO de mudança de função','NR-06 — uso de EPI','NR-10 — eletricidade','NR-11 — movimentação de cargas','NR-12 — máquinas e equipamentos','NR-18 — construção civil','NR-33 — espaço confinado','NR-35 — trabalho em altura','CNH','Ordem de serviço de segurança','Outro'];
+  const EPIS=['Capacete','Óculos de proteção','Protetor auricular','Luva de vaqueta','Luva de látex','Botina de segurança','Bota de borracha','Cinto paraquedista','Talabarte','Máscara PFF2','Uniforme','Colete refletivo','Protetor solar','Perneira','Avental de raspa'];
+  const PS={obra:'',sit:'Ativo',busca:''};
+  const funcionarios=()=>(D().planejamento||[]).filter(p=>p.tipo==='funcionario').sort((a,b)=>String(a.nome||'').localeCompare(String(b.nome||''),'pt-BR'));
+  const docsDe=f=>(D().planejamento||[]).filter(p=>p.tipo==='pessoal_doc'&&String(p.func_id)===String(f.rowid));
+  const episDe=f=>(D().planejamento||[]).filter(p=>p.tipo==='epi_entrega'&&String(p.func_id)===String(f.rowid)).sort((a,b)=>String(b.data).localeCompare(String(a.data)));
+  const sitDocP=d=>{const v=dt(d.validade);if(!v)return {ord:3,rot:'sem validade',tom:''};const n=dias(hoje0(),v);
+    return n<0?{ord:0,rot:`vencido há ${-n} dia${n<-1?'s':''}`,tom:'vermelho',n}:n<=30?{ord:1,rot:n===0?'vence hoje':`vence em ${n} dia${n>1?'s':''}`,tom:'laranja',n}:{ord:2,rot:'em dia até '+brDe(v),tom:'verde',n};};
+  // vale o documento mais novo de cada tipo (os ASOs contam como um só); os antigos ficam como histórico
+  const docsValendo=f=>{const m=new Map();docsDe(f).forEach(d=>{const k=/^ASO/.test(d.doc||'')?'ASO':d.doc;const a=m.get(k);if(!a||String(d.validade||'')>String(a.validade||''))m.set(k,d);});return [...m.values()].sort((a,b)=>sitDocP(a).ord-sitDocP(b).ord);};
+  function pessoalVenc(){const out={venc:[],breve:[]};funcionarios().filter(f=>(f.situacao||'Ativo')==='Ativo').forEach(f=>docsValendo(f).forEach(d=>{const s=sitDocP(d);if(s.ord===0)out.venc.push({f,d,s});else if(s.ord===1)out.breve.push({f,d,s});}));return out;}
+  const CFG_FUNC={aba:'Planejamento',nomeItem:'funcionário',larg:680,campos:[
+    {k:'tipo',tipo:'oculto'},
+    {k:'nome',label:'Nome completo',obrig:true,inteira:true},
+    {k:'cpf',label:'CPF',mask:'cpf',ph:'000.000.000-00'},
+    {k:'telefone',label:'Telefone / WhatsApp',mask:'tel',ph:'(77) 90000-0000'},
+    {k:'funcao',label:'Função',tipo:'sel',ops:FUNCOES,obrig:true},
+    {k:'admissao',label:'Admissão',tipo:'data'},
+    {k:'titulo_obra',label:'Obra em que está',tipo:'obra',vazio:'Nenhuma (escritório / sem obra)'},
+    {k:'situacao',label:'Situação',tipo:'sel',ops:['Ativo','Afastado','Desligado'],padrao:'Ativo',obrig:true},
+    {k:'obs',label:'Observação',inteira:true}],
+    validar:o=>{o.tipo='funcionario';o.nome=String(o.nome||'').trim();if(o.nome.length<5)return 'Escreva o nome completo.';
+      const rep=funcionarios().find(f=>f.rowid!==o.rowid&&(o.cpf&&f.cpf===o.cpf));if(rep)return `Este CPF já está cadastrado (${rep.nome}).`;return '';}};
+  const CFG_PDOC={aba:'Planejamento',nomeItem:'documento do funcionário',larg:620,campos:[
+    {k:'tipo',tipo:'oculto'},{k:'func_id',tipo:'oculto'},{k:'func_nome',tipo:'oculto'},
+    {k:'doc',label:'Documento',tipo:'sel',ops:DOCS_PESSOAL,obrig:true,inteira:true},
+    {k:'emissao',label:'Feito / emitido em',tipo:'data',obrig:true,max:()=>isoDe(hoje0())},
+    {k:'validade',label:'Vale até',tipo:'data',obrig:true},
+    {k:'responsavel',label:'Médico / instrutor / órgão',ph:'Ex.: Dr. Fulano (CRM) ou empresa do curso'},
+    {k:'link',label:'Link do arquivo (opcional)',tipo:'url',ph:'https://…'},
+    {k:'obs',label:'Observação',inteira:true}],
+    extra:()=>`<div class="ps-validade"><span>Validade rápida:</span><button type="button" class="fin-bt mini" data-val-anos="1">+1 ano</button><button type="button" class="fin-bt mini" data-val-anos="2">+2 anos</button><small>contando da data em que foi feito — confira a regra da NR ou do médico</small></div>`,
+    aoAbrir:j=>{j.addEventListener('click',ev=>{const b=ev.target.closest('[data-val-anos]');if(!b)return;const e=j.querySelector('[data-f="emissao"]').value;if(!e)return toast('Informe primeiro a data em que foi feito.','error');
+      const d=dt(e);d.setFullYear(d.getFullYear()+(+b.dataset.valAnos));const v=j.querySelector('[data-f="validade"]');v.value=isoDe(d);v.dispatchEvent(new Event('change',{bubbles:true}));});},
+    validar:o=>{o.tipo='pessoal_doc';if(o.validade&&o.emissao&&o.validade<o.emissao)return 'O "vale até" não pode ser antes da data em que foi feito.';return '';}};
+  function novoDocP(f){const j=formulario(CFG_PDOC,null);if(!j)return;const s=(k,v)=>{const e=j.querySelector(`[data-f="${k}"]`);if(e)e.value=v;};s('func_id',String(f.rowid));s('func_nome',f.nome||'');
+    const t=j.querySelector('.fin-jan-cab b');if(t)t.textContent='Novo documento · '+(f.nome||'');}
+  // ── assinatura na tela (dedo ou mouse) ──
+  function quadroAssinatura(cv){const cx=cv.getContext('2d');let des=false,tem=false,ult=null;
+    const aj=()=>{const r=cv.getBoundingClientRect(),k=window.devicePixelRatio||1;cv.width=Math.round(r.width*k);cv.height=Math.round(r.height*k);cx.setTransform(k,0,0,k,0,0);cx.lineWidth=2.2;cx.lineCap='round';cx.lineJoin='round';cx.strokeStyle='#101828';tem=false;};
+    const pt=ev=>{const r=cv.getBoundingClientRect();return {x:ev.clientX-r.left,y:ev.clientY-r.top};};
+    cv.addEventListener('pointerdown',ev=>{ev.preventDefault();cv.setPointerCapture(ev.pointerId);des=true;ult=pt(ev);cx.beginPath();cx.moveTo(ult.x,ult.y);});
+    cv.addEventListener('pointermove',ev=>{if(!des)return;const p=pt(ev);cx.lineTo(p.x,p.y);cx.stroke();ult=p;tem=true;});
+    ['pointerup','pointercancel','pointerleave'].forEach(t=>cv.addEventListener(t,()=>{des=false;}));
+    setTimeout(aj,30);
+    return {limpar:()=>{cx.clearRect(0,0,cv.width,cv.height);aj();},tem:()=>tem,png:()=>{const o=document.createElement('canvas');o.width=Math.min(600,cv.width);o.height=Math.round(cv.height*o.width/cv.width);const c2=o.getContext('2d');c2.fillStyle='#fff';c2.fillRect(0,0,o.width,o.height);c2.drawImage(cv,0,0,o.width,o.height);return o.toDataURL('image/png');}};}
+  // entrega de EPI: itens (com o CA) e a assinatura de quem recebeu
+  function entregarEpi(f){
+    const linha=(x={})=>`<tr><td><input data-e="item" list="ps-epi-lista" value="${fe(x.item||'')}" placeholder="Ex.: Capacete" autocomplete="off"></td><td><input data-e="ca" inputmode="numeric" value="${fe(x.ca||'')}" placeholder="Nº do CA"></td><td><input data-e="qtd" inputmode="numeric" value="${fe(x.qtd||'1')}"></td><td><button type="button" class="bt-tirar" data-e-x title="Tirar"><i class="fas fa-trash-can"></i></button></td></tr>`;
+    const j=janela('Entregar EPI · '+(f.nome||''),`<datalist id="ps-epi-lista">${EPIS.map(e=>`<option value="${fe(e)}">`).join('')}</datalist>
+      <div class="fin-linha"><div class="fin-fld"><label>Data da entrega <span class="obg">*</span></label><input type="date" data-k="data" max="${isoDe(hoje0())}" value="${isoDe(hoje0())}"></div><div class="fin-fld"><label>Obra</label><input data-k="obra" value="${fe(f.titulo_obra||'')}" readonly></div></div>
+      <div class="lote-tab ps-epi-tab"><table data-sem-ordem><thead><tr><th>EPI</th><th>CA</th><th>Qtd.</th><th></th></tr></thead><tbody data-k="itens">${linha()}</tbody></table></div>
+      <button type="button" class="fin-bt mini" data-e-mais><i class="fas fa-plus"></i> Mais um item</button>
+      <div class="ps-termo">Declaro que recebi gratuitamente os EPIs acima, fui orientado sobre o uso correto, a guarda e a conservação, e me comprometo a usá-los no trabalho (NR-6).</div>
+      <div class="fin-fld"><label>Assinatura de ${fe(f.nome||'quem recebeu')} <span class="obg">*</span></label><canvas class="ps-ass" data-k="ass"></canvas><button type="button" class="fin-bt mini" data-ass-limpar><i class="fas fa-eraser"></i> Limpar a assinatura</button></div>`,
+      [{html:'<i class="fas fa-floppy-disk"></i> Registrar a entrega',cls:'pri',acao:async jj=>{
+        const d=jj.querySelector('[data-k="data"]').value;if(!d)throw new Error('Informe a data da entrega.');
+        const its=[...jj.querySelectorAll('[data-k="itens"] tr')].map(tr=>({item:tr.querySelector('[data-e="item"]').value.trim(),ca:tr.querySelector('[data-e="ca"]').value.replace(/\D/g,''),qtd:Math.max(1,Math.round(numBR(tr.querySelector('[data-e="qtd"]').value)||1))})).filter(x=>x.item);
+        if(!its.length)throw new Error('Informe pelo menos um EPI entregue.');
+        if(!ass.tem())throw new Error(`Falta a assinatura de ${f.nome||'quem recebeu'} no quadro.`);
+        const s=Auth._session||{};
+        await executar(()=>salvar('Planejamento',{tipo:'epi_entrega',func_id:String(f.rowid),func_nome:f.nome||'',titulo_obra:f.titulo_obra||'',data:d,itens_json:JSON.stringify(its),
+          itens:its.map(x=>`${x.qtd} ${x.item}${x.ca?` (CA ${x.ca})`:''}`).join('; '),assinatura:ass.png(),entregue_por:s.nome||'',data_lancamento:todayDateTime()},null));
+        toast('Entrega de EPI registrada com a assinatura.','success');}}],720);
+    const ass=quadroAssinatura(j.querySelector('[data-k="ass"]'));
+    j.addEventListener('click',ev=>{if(ev.target.closest('[data-ass-limpar]'))ass.limpar();else if(ev.target.closest('[data-e-mais]'))j.querySelector('[data-k="itens"]').insertAdjacentHTML('beforeend',linha());
+      else{const x=ev.target.closest('[data-e-x]');if(x&&j.querySelectorAll('[data-k="itens"] tr').length>1)x.closest('tr').remove();}});}
+  // ficha de EPI em PDF: todas as entregas do funcionário com a assinatura de cada uma
+  async function fichaEpi(f){
+    const L=episDe(f);if(!L.length)return toast('Nenhuma entrega de EPI registrada para '+(f.nome||'este funcionário')+'.','error');
+    let jsPDF;try{jsPDF=await GS.cert._libs();}catch(e){return toast(e.message||'Não consegui montar o PDF.','error');}
+    const T=s=>String(s==null?'':s).replace(/[—–]/g,'-').replace(/[^\x09\x0A\x0D\x20-\xFF]/g,'');
+    const doc=new jsPDF({unit:'mm',format:'a4'}),M=14,W=210;
+    try{doc.addImage(PDF_LOGO_FULL_B64,'PNG',M,10,36,15);}catch(e){}
+    doc.setFont('helvetica','bold');doc.setFontSize(13);doc.text('FICHA DE ENTREGA DE EPI',W-M,16,{align:'right'});doc.setFont('helvetica','normal');doc.setFontSize(8.5);doc.text('NR-6 - Equipamento de Proteção Individual',W-M,21,{align:'right'});
+    doc.setDrawColor(29,29,31);doc.setLineWidth(.5);doc.line(M,28,W-M,28);
+    doc.setFontSize(9);[[`Funcionário: ${f.nome||''}`,`CPF: ${f.cpf||'-'}`],[`Função: ${f.funcao||'-'}`,`Admissão: ${f.admissao?brDe(dt(f.admissao)):'-'}`],[`Obra: ${f.titulo_obra||'-'}`,'Empresa: Vixsul Empreendimentos - CNPJ 64.518.375/0001-20']].forEach((l,i)=>{doc.text(T(l[0]),M,35+i*5.5);doc.text(T(l[1]),W/2+4,35+i*5.5);});
+    const body=L.map(e=>{const its=jsonDe(e.itens_json)||[];return [brDe(dt(e.data)),T(its.map(x=>`${x.qtd} ${x.item}`).join('\n')||e.itens||''),T(its.map(x=>x.ca||'-').join('\n')),''];});
+    doc.autoTable({startY:54,margin:{left:M,right:M},head:[['DATA','EPI ENTREGUE','CA','ASSINATURA']],body,theme:'grid',styles:{fontSize:8.5,cellPadding:2,valign:'middle',minCellHeight:16},headStyles:{fillColor:[233,233,236],textColor:[29,29,31],fontStyle:'bold'},
+      columnStyles:{0:{cellWidth:24},2:{cellWidth:22},3:{cellWidth:52}},
+      didDrawCell:c=>{if(c.section==='body'&&c.column.index===3){const a=L[c.row.index]&&L[c.row.index].assinatura;if(a&&/^data:image\/png/.test(a)){try{doc.addImage(a,'PNG',c.cell.x+2,c.cell.y+1.5,c.cell.width-4,c.cell.height-3);}catch(e){}}}}});
+    let y=doc.lastAutoTable.finalY+8;doc.setFontSize(8);doc.setTextColor(110,110,115);
+    doc.text(doc.splitTextToSize('Declaro que recebi gratuitamente os EPIs acima, fui orientado sobre o uso correto, a guarda e a conservação, e me comprometo a usá-los no trabalho e a devolvê-los quando danificados ou no desligamento (NR-6).',W-2*M),M,y);
+    doc.save(('Ficha de EPI - '+(f.nome||'')).replace(/[\\/:*?"<>|]+/g,'-')+'.pdf');}
+  // documentos e entregas de um funcionário (janela com as duas listas)
+  function verFuncionario(f){const ds=docsDe(f).sort((a,b)=>String(b.validade||'').localeCompare(String(a.validade||''))),es=episDe(f),pm=GS.podeMexer(f);
+    const j=janela(f.nome||'Funcionário',`<div class="fin-resumo"><b>${fe(f.funcao||'')}</b>${f.titulo_obra?` · ${fe(f.titulo_obra)}`:''}${f.telefone?` · ${fe(f.telefone)}`:''}${f.cpf?` · CPF ${fe(f.cpf)}`:''} · ${fe(f.situacao||'Ativo')}</div>
+      <div class="ps-sec"><b><i class="fas fa-id-card-clip"></i> Documentos (ASO, treinamentos, CNH)</b><button type="button" class="fin-bt mini pri" data-ps="doc-novo"><i class="fas fa-plus"></i> Documento</button></div>
+      ${ds.length?`<div class="lote-tab maq-tab"><table data-sem-ordem><thead><tr><th>Documento</th><th>Feito em</th><th>Vale até</th><th>Situação</th><th></th></tr></thead><tbody>${ds.map((d,i)=>{const s=sitDocP(d);return `<tr><td>${fe(d.doc)}${d.responsavel?`<small>${fe(d.responsavel)}</small>`:''}</td><td>${d.emissao?brDe(dt(d.emissao)):'—'}</td><td>${d.validade?brDe(dt(d.validade)):'—'}</td><td><span class="eng-pill ${s.tom}">${fe(s.rot)}</span></td>
+        <td class="maq-acoes">${d.link?`<a class="fin-bt mini" href="${fe(d.link)}" target="_blank" rel="noopener" title="Abrir o arquivo"><i class="fas fa-paperclip"></i></a>`:''}${GS.podeMexer(d)?`<button type="button" class="fin-bt mini" data-ps-ded="${i}" title="Alterar"><i class="fas fa-pen"></i></button><button type="button" class="fin-bt mini" data-ps-dx="${i}" title="Excluir"><i class="fas fa-trash"></i></button>`:''}</td></tr>`;}).join('')}</tbody></table></div>`:'<p class="vk-dica">Nenhum documento cadastrado.</p>'}
+      <div class="ps-sec"><b><i class="fas fa-helmet-safety"></i> Entregas de EPI</b><span><button type="button" class="fin-bt mini" data-ps="ficha" ${es.length?'':'disabled'}><i class="fas fa-file-pdf"></i> Ficha de EPI</button> <button type="button" class="fin-bt mini pri" data-ps="epi"><i class="fas fa-plus"></i> Entregar EPI</button></span></div>
+      ${es.length?`<div class="lote-tab maq-tab"><table data-sem-ordem><thead><tr><th>Data</th><th>EPI</th><th>Assinatura</th><th></th></tr></thead><tbody>${es.map((e,i)=>`<tr><td>${brDe(dt(e.data))}</td><td>${fe(e.itens||'')}<small>entregue por ${fe(e.entregue_por||'—')}</small></td><td>${/^data:image\/png/.test(e.assinatura||'')?`<img class="ps-ass-mini" src="${e.assinatura}" alt="assinatura">`:'—'}</td>
+        <td class="maq-acoes">${GS.podeMexer(e)?`<button type="button" class="fin-bt mini" data-ps-ex="${i}" title="Excluir"><i class="fas fa-trash"></i></button>`:''}</td></tr>`).join('')}</tbody></table></div>`:'<p class="vk-dica">Nenhuma entrega de EPI registrada.</p>'}`,
+      pm?[{html:'<i class="fas fa-pen"></i> Alterar cadastro',acao:()=>{setTimeout(()=>formulario(CFG_FUNC,f),0);}}]:[],880);
+    j.addEventListener('click',ev=>{const b=ev.target.closest('[data-ps],[data-ps-ded],[data-ps-dx],[data-ps-ex]');if(!b)return;
+      if(b.dataset.ps==='doc-novo'){j.querySelector('[data-fin-fechar]')&&j.querySelector('[data-fin-fechar]').click();novoDocP(f);}
+      else if(b.dataset.ps==='epi'){j.querySelector('[data-fin-fechar]')&&j.querySelector('[data-fin-fechar]').click();entregarEpi(f);}
+      else if(b.dataset.ps==='ficha')fichaEpi(f);
+      else if(b.dataset.psDed!=null)formulario(CFG_PDOC,ds[+b.dataset.psDed]);
+      else if(b.dataset.psDx!=null)apagar(CFG_PDOC,ds[+b.dataset.psDx],ds[+b.dataset.psDx].doc+' de '+(f.nome||''));
+      else if(b.dataset.psEx!=null)apagar({aba:'Planejamento',nomeItem:'entrega de EPI'},es[+b.dataset.psEx],'entrega de EPI de '+brDe(dt(es[+b.dataset.psEx].data)));});}
+  function renderPessoal(){
+    const box=document.getElementById('eng-pessoal');if(!box)return;
+    const todos=funcionarios(),vc=pessoalVenc(),q=cn(PS.busca);
+    const L=todos.filter(f=>(!PS.obra||f.titulo_obra===PS.obra)&&(!PS.sit||(f.situacao||'Ativo')===PS.sit)&&(!q||cn([f.nome,f.funcao,f.cpf,f.titulo_obra].join(' ')).includes(q)));
+    const mes=isoDe(hoje0()).slice(0,7),epiMes=(D().planejamento||[]).filter(p=>p.tipo==='epi_entrega'&&String(p.data||'').startsWith(mes)).length;
+    App._psLista=L;
+    box.innerHTML=`<div class="fin-wrap">${cab('Pessoal e segurança do trabalho','Quem trabalha em cada obra, os documentos de segurança de cada um com a validade — <b>ASO</b>, treinamentos das <b>NRs</b>, CNH — e a <b>entrega de EPI assinada na tela</b>. O que vence em 30 dias ou já venceu aparece aqui, nos Pontos de atenção e no e-mail do dia.',`<button type="button" class="fin-bt pri" data-ps="novo"><i class="fas fa-user-plus"></i> Novo funcionário</button>`)}
+      <div class="fin-filtros"><input type="search" class="filter-select" data-ps-busca placeholder="Buscar nome, função, CPF…" value="${fe(PS.busca)}"><select class="filter-select" data-ps-f="obra"><option value="">Todas as obras</option>${obrasNomes().map(o=>`<option ${PS.obra===o?'selected':''}>${fe(o)}</option>`).join('')}</select>
+        <select class="filter-select" data-ps-f="sit">${['Ativo','Afastado','Desligado',''].map(s=>`<option value="${s}" ${PS.sit===s?'selected':''}>${s||'Todas as situações'}</option>`).join('')}</select></div>
+      <div class="fin-kpis">${kpi('','Funcionários ativos',todos.filter(f=>(f.situacao||'Ativo')==='Ativo').length,'em todas as obras')}${kpi(vc.venc.length?'vermelho':'verde','Documentos vencidos',vc.venc.length,'ASO, NR ou CNH')}${kpi(vc.breve.length?'laranja':'verde','Vencem em 30 dias',vc.breve.length,'já dá para marcar')}${kpi('','EPIs entregues no mês',epiMes,'entregas assinadas')}</div>
+      ${vc.venc.length||vc.breve.length?`<div class="fin-aviso ${vc.venc.length?'':'laranja'}"><div><b>Atenção:</b> ${vc.venc.concat(vc.breve).slice(0,6).map(x=>`${fe(x.f.nome)} — ${fe(x.d.doc)} (${fe(x.s.rot)})`).join(' · ')}${vc.venc.length+vc.breve.length>6?' · e outros':''}</div></div>`:''}
+      ${L.length?`<div class="ps-lista">${L.map((f,i)=>{const dv=docsValendo(f),ru=dv.filter(d=>sitDocP(d).ord<=1),ue=episDe(f)[0];
+        return `<div class="ps-card"><div class="ps-card-top"><span class="ps-av">${fe(String(f.nome||'?').trim().split(/\s+/).map(p=>p[0]).slice(0,2).join('').toUpperCase())}</span><div><b>${fe(f.nome||'')}</b><small>${fe(f.funcao||'')}${f.titulo_obra?' · '+fe(f.titulo_obra):''}</small></div>${(f.situacao||'Ativo')!=='Ativo'?`<span class="eng-pill">${fe(f.situacao)}</span>`:''}</div>
+          <div class="ps-docs">${dv.length?dv.map(d=>{const s=sitDocP(d);return `<span class="eng-pill ${s.tom}" title="${fe(d.doc+' · '+s.rot)}">${fe(/^ASO/.test(d.doc)?'ASO':String(d.doc).split(' — ')[0])}${s.ord<=1?' · '+fe(s.rot):''}</span>`;}).join(''):'<span class="eng-pill laranja">sem documentos</span>'}</div>
+          <div class="ps-rod"><small>${ue?`Último EPI: ${brDe(dt(ue.data))}`:'Nenhum EPI entregue'}${ru.length?` · <b class="t-err">${ru.length} documento${ru.length>1?'s':''} para renovar</b>`:''}</small><div><button type="button" class="fin-bt mini" data-ps="epi" data-i="${i}"><i class="fas fa-helmet-safety"></i> EPI</button><button type="button" class="fin-bt mini pri" data-ps="ver" data-i="${i}">Abrir</button></div></div></div>`;}).join('')}</div>`
+        :`<p class="vk-dica">${todos.length?'Ninguém nesse filtro.':'Nenhum funcionário cadastrado ainda — clique em <b>Novo funcionário</b>.'}</p>`}</div>`;
+    box.onclick=ev=>{const b=ev.target.closest('[data-ps]');if(!b)return;const f=App._psLista[+b.dataset.i];
+      if(b.dataset.ps==='novo')formulario(CFG_FUNC,null);else if(b.dataset.ps==='ver'&&f)verFuncionario(f);else if(b.dataset.ps==='epi'&&f)entregarEpi(f);};
+    box.onchange=ev=>{const s=ev.target.closest('[data-ps-f]');if(s){PS[s.dataset.psF]=s.value;renderPessoal();}};
+    box.oninput=ev=>{const s=ev.target.closest('[data-ps-busca]');if(!s)return;PS.busca=s.value;clearTimeout(App._psT);App._psT=setTimeout(()=>{renderPessoal();const n=document.querySelector('#eng-pessoal [data-ps-busca]');if(n){n.focus();n.setSelectionRange(n.value.length,n.value.length);}},350);};
+  }
+  // diário: escolher a equipe do dia na lista de funcionários (conta por função e avisa documento vencido)
+  function escolherEquipe(ob,marcados,ok){
+    const L=funcionarios().filter(f=>(f.situacao||'Ativo')==='Ativo').sort((a,b)=>(a.titulo_obra===ob?0:1)-(b.titulo_obra===ob?0:1)||String(a.nome).localeCompare(String(b.nome),'pt-BR'));
+    if(!L.length)return toast('Nenhum funcionário cadastrado — cadastre em Contratos › Pessoal e segurança.','error');
+    const sel=new Set((marcados||[]).map(String));
+    const j=janela('Quem trabalhou hoje',`<div class="fin-resumo">Marque quem trabalhou na obra no dia. A equipe é contada por função sozinha. Quem está com documento vencido aparece em vermelho.</div>
+      <ul class="rdo-auto-lista">${L.map((f,i)=>{const ru=docsValendo(f).filter(d=>sitDocP(d).ord===0);return `<li><label><input type="checkbox" data-eq-f="${i}" ${sel.has(String(f.rowid))?'checked':''}><span><b>${fe(f.nome)}</b><small>${fe(f.funcao||'')}${f.titulo_obra?' · '+fe(f.titulo_obra):''}${ru.length?` · <b class="t-err">${ru.map(d=>fe(/^ASO/.test(d.doc)?'ASO':String(d.doc).split(' — ')[0])).join(', ')} vencido</b>`:''}</small></span></label></li>`;}).join('')}</ul>`,
+      [{html:'<i class="fas fa-check"></i> Usar esta equipe',cls:'pri',acao:jj=>{const es=[...jj.querySelectorAll('[data-eq-f]:checked')].map(c=>L[+c.dataset.eqF]);ok(es,es.filter(f=>docsValendo(f).some(d=>sitDocP(d).ord===0)));}}],560);}
+  /* ═══════════════ RADAR DE LICITAÇÕES (PNCP) ═══════════════
+     Todo dia o sistema procura no Portal Nacional de Contratações Públicas (PNCP — oficial, gratuito, sem chave) as
+     licitações com proposta aberta na Bahia (concorrência, pregão e dispensa) e mostra as que têm a ver com a Vixsul,
+     pelas palavras do filtro (obras, saneamento, pavimentação, pré-moldados…). As licitações do Compras.gov.br ("Vender
+     para o Governo") também são publicadas no PNCP, então já entram aqui. Filtro em Planejamento ('cfg_radar'); as que a
+     empresa acompanha ficam como 'licitacao' (com a situação: analisar, participar, proposta enviada…). */
+  const RAD_PAL='obra, construção, reforma, ampliação, pavimentação, calçamento, drenagem, saneamento, esgot, abastecimento de água, rede de água, adutora, reservatório, estação de tratamento, ETA, ETE, terraplenagem, engenharia, edificação, muro, meio-fio, pré-moldado, tubo de concreto, bloquete, artefatos de concreto, recuperação, requalificação';
+  const RAD_EXC='medicamento, merenda, gênero alimentício, software, combustível, pneu, uniforme, material de expediente';
+  const RAD_MODS=[[4,'Concorrência eletrônica'],[5,'Concorrência presencial'],[6,'Pregão eletrônico'],[7,'Pregão presencial'],[8,'Dispensa']];
+  const RAD_SIT=['Analisar','Vamos participar','Proposta enviada','Ganhamos','Perdemos','Descartada'];
+  const RAD={busca:'',so:'',carregando:false,erro:'',itens:null,t:0};
+  const radCfg=()=>{const c=(D().planejamento||[]).find(p=>p.tipo==='cfg_radar')||{};return {palavras:c.palavras||RAD_PAL,excluir:c.excluir!=null?c.excluir:RAD_EXC,mods:(c.mods||'4,5,6,7,8').split(',').map(Number).filter(Boolean),valor_min:val(c.valor_min)||0,municipios:c.municipios||'',r:c};};
+  const radAcomp=()=>(D().planejamento||[]).filter(p=>p.tipo==='licitacao');
+  const sAc=s=>String(s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase();
+  const radRx=lista=>{const ws=String(lista||'').split(/[,;\n]+/).map(w=>sAc(w).trim()).filter(Boolean);return ws.length?new RegExp(ws.map(w=>'\\b'+w.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+(w.length<=3?'\\b':'')).join('|')):null;};
+  const radLink=x=>{const m=String(x.ctrl||'').match(/^(\d{14})-\d+-(\d+)\/(\d{4})$/);return m?`https://pncp.gov.br/app/editais/${m[1]}/${m[3]}/${+m[2]}`:(x.link||'https://pncp.gov.br/app/editais');};
+  async function radBuscar(forcar){
+    const K='vx_radar_cache_v1';if(!forcar){try{const c=JSON.parse(localStorage.getItem(K)||'null');if(c&&Date.now()-c.t<12*3600000){RAD.itens=c.itens;RAD.t=c.t;return c.itens;}}catch(e){}}
+    const cfg=radCfg(),fim=isoDe(addD(hoje0(),120)).replace(/-/g,''),out=new Map();
+    /* o PNCP limita a quantidade de pedidos (responde 429 — "muitos pedidos"): no máximo 2 páginas ao mesmo tempo, com uma
+       pausa entre elas; se ele pedir para esperar, espera 8 s e tenta de novo uma vez; persistindo, para a busca */
+    let parar=false;const pausa=ms=>new Promise(r=>setTimeout(r,ms));
+    const pag=async(mod,p,tentativa)=>{if(parar)throw new Error('parado');const ac=new AbortController(),t=setTimeout(()=>ac.abort(),25000);
+      try{const r=await fetch(`https://pncp.gov.br/api/consulta/v1/contratacoes/proposta?dataFinal=${fim}&codigoModalidadeContratacao=${mod}&uf=BA&pagina=${p}&tamanhoPagina=50`,{signal:ac.signal});
+        if(r.status===204)return {data:[],totalPaginas:0};if(r.status===429){if(!tentativa){await pausa(8000);return pag(mod,p,1);}parar=true;throw new Error('O PNCP pediu para esperar (muitos pedidos).');}
+        if(!r.ok)throw new Error('O PNCP respondeu HTTP '+r.status+'.');return await r.json();}
+      catch(e){if(e&&e.name==='TypeError'){if(!tentativa){await pausa(8000);return pag(mod,p,1);}parar=true;}throw e;}finally{clearTimeout(t);}};
+    const pegar=j=>(j&&j.data||[]).forEach(d=>{const u=d.unidadeOrgao||{};if(u.ufSigla&&u.ufSigla!=='BA')return;const ctrl=d.numeroControlePNCP;if(!ctrl||out.has(ctrl))return;
+      out.set(ctrl,{ctrl,objeto:String(d.objetoCompra||'').trim(),info:String(d.informacaoComplementar||'').slice(0,400),orgao:(d.orgaoEntidade||{}).razaoSocial||'',cnpj:(d.orgaoEntidade||{}).cnpj||'',municipio:u.municipioNome||'',ibge:u.codigoIbge||'',
+        mod:d.modalidadeNome||'',modId:d.modalidadeId,valor:+d.valorTotalEstimado||0,abre:d.dataAberturaProposta||'',fecha:d.dataEncerramentoProposta||'',link:d.linkSistemaOrigem||'',numero:d.numeroCompra||'',ano:d.anoCompra||'',srp:!!d.srp});});
+    let falhas=0;const prim=[];for(const m of cfg.mods){try{prim.push(await pag(m,1));}catch(e){falhas++;prim.push(null);}await pausa(400);}prim.forEach(pegar);
+    const fila=[];prim.forEach((j,i)=>{const tot=Math.min(+(j&&j.totalPaginas)||0,12);for(let p=2;p<=tot;p++)fila.push([cfg.mods[i],p]);});
+    const trab=async()=>{while(fila.length&&!parar){const [m,p]=fila.shift();try{pegar(await pag(m,p));}catch(e){falhas++;}await pausa(450);}};
+    await Promise.all([trab(),trab()]);
+    if(!out.size)throw new Error(parar?'O PNCP está recebendo muitos pedidos agora e pediu para esperar.':'O PNCP não respondeu agora.');
+    const itens=[...out.values()];RAD.itens=itens;RAD.t=Date.now();try{localStorage.setItem(K,JSON.stringify({t:RAD.t,itens}));}catch(e){}return itens;}
+  // as que passam no filtro (palavras, exclusões, valor mínimo, municípios)
+  function radFiltrar(itens){const cfg=radCfg(),inc=radRx(cfg.palavras),exc=radRx(cfg.excluir),mun=String(cfg.municipios||'').split(/[,;\n]+/).map(s=>sAc(s).trim()).filter(Boolean),agora=new Date();
+    return (itens||[]).filter(x=>{const t=sAc(x.objeto+' '+x.info);if(inc&&!inc.test(t))return false;if(exc&&exc.test(sAc(x.objeto)))return false;if(cfg.valor_min&&x.valor&&x.valor<cfg.valor_min)return false;
+      if(mun.length&&!mun.some(m=>sAc(x.municipio).includes(m)))return false;if(x.fecha&&new Date(x.fecha)<agora)return false;return true;}).sort((a,b)=>String(a.fecha||'9').localeCompare(String(b.fecha||'9')));}
+  const radPrazo=x=>{if(!x.fecha)return '';const d=new Date(x.fecha),n=Math.ceil((d-new Date())/864e5);return `${d.toLocaleDateString('pt-BR')} ${d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}${n>=0?` · ${n===0?'hoje':n===1?'amanhã':'em '+n+' dias'}`:''}`;};
+  function radConfig(){const c=radCfg();
+    const j=janela('Filtro do radar',`<div class="fin-resumo">O radar procura no PNCP as licitações com proposta aberta na <b>Bahia</b>. Uma licitação entra quando o objeto tem <b>alguma</b> das palavras (pedaço de palavra também vale: "esgot" acha esgoto e esgotamento) e não tem as palavras de fora.</div>
+      <div class="fin-fld"><label>Palavras que interessam</label><textarea data-k="palavras" rows="4">${fe(c.palavras)}</textarea></div>
+      <div class="fin-fld"><label>Palavras que tiram a licitação</label><textarea data-k="excluir" rows="2">${fe(c.excluir)}</textarea></div>
+      <div class="fin-linha"><div class="fin-fld"><label>Valor estimado a partir de (R$)</label><input data-k="valor_min" data-mask="moeda" inputmode="numeric" value="${c.valor_min?fmt(c.valor_min):''}" placeholder="qualquer valor"></div>
+        <div class="fin-fld"><label>Só nestes municípios (opcional)</label><input data-k="municipios" value="${fe(c.municipios)}" placeholder="Ex.: Vitória da Conquista, Itarantim"></div></div>
+      <div class="fin-fld"><label>Modalidades</label><div class="rad-mods">${RAD_MODS.map(([k,r])=>`<label><input type="checkbox" data-mod="${k}" ${c.mods.includes(k)?'checked':''}> ${fe(r)}</label>`).join('')}</div></div>`,
+      [{html:'<i class="fas fa-floppy-disk"></i> Salvar o filtro',cls:'pri',acao:async jj=>{const g=k=>(jj.querySelector(`[data-k="${k}"]`).value||'').trim(),mods=[...jj.querySelectorAll('[data-mod]:checked')].map(x=>x.dataset.mod);
+        if(!mods.length)throw new Error('Marque pelo menos uma modalidade.');
+        const ant=c.r||{};const o={...ant,tipo:'cfg_radar',palavras:g('palavras'),excluir:g('excluir'),valor_min:g('valor_min')?String(Math.round(parseStoredNumber(g('valor_min'))*100)/100):'',municipios:g('municipios'),mods:mods.join(',')};delete o.rowid;delete o.visualId;delete o._aba;
+        const modsMudou=(ant.mods||'4,5,6,7,8')!==o.mods;await executar(()=>salvar('Planejamento',o,ant.rowid||null));if(modsMudou)try{localStorage.removeItem('vx_radar_cache_v1');}catch(e){}
+        toast('Filtro do radar salvo.','success');setTimeout(()=>renderLicitacoes(),300);}}],640);}
+  async function radAcompanhar(x,sit){const ja=radAcomp().find(a=>a.ctrl===x.ctrl);
+    const o={...(ja||{}),tipo:'licitacao',ctrl:x.ctrl,objeto:x.objeto,orgao:x.orgao,municipio:x.municipio,modalidade:x.mod,valor:String(x.valor||''),abertura:x.abre,encerramento:x.fecha,link:radLink(x),situacao:sit||(ja&&ja.situacao)||'Analisar'};delete o.visualId;delete o._aba;
+    const rid=o.rowid;delete o.rowid;await executar(()=>salvar('Planejamento',o,rid||null));toast(ja?'Situação atualizada.':'Licitação na lista das que a Vixsul acompanha.','success');}
+  // vira proposta no quadro de Contratos: abre a obra nova já com o objeto e o limite da proposta
+  function radProposta(x){UI.openObraHub(null);let n=0;const t=setInterval(()=>{n++;const f=document.getElementById('form-upsert');const de=f&&f.querySelector('[name*="descricao"]'),li=f&&f.querySelector('[name*="limite"]');
+      if(de||n>40){clearInterval(t);if(de&&!de.value)de.value=String(x.objeto||'').slice(0,250);if(li&&x.fecha&&!li.value)li.value=String(x.fecha).slice(0,10);
+        toast('Dê o nome da obra/proposta: o objeto e o limite da proposta já foram preenchidos a partir do PNCP.','info');}},250);}
+  async function renderLicitacoes(forcar){
+    const box=document.getElementById('eng-licitacoes');if(!box)return;
+    // busca sozinha só uma vez (se falhar, não fica tentando: espera o "Buscar de novo")
+    if((!RAD.itens&&!RAD.falhou)||forcar){if(!RAD.carregando){RAD.carregando=true;RAD.erro='';radBuscar(!!forcar).then(()=>{RAD.falhou=false;}).catch(e=>{RAD.erro=e.message||String(e);RAD.falhou=true;}).finally(()=>{RAD.carregando=false;if(document.getElementById('eng-licitacoes'))renderLicitacoes();});}}
+    const cfg=radCfg(),todas=RAD.itens||[],L=radFiltrar(todas),q=sAc(RAD.busca),ac=radAcomp(),acM=new Map(ac.map(a=>[a.ctrl,a]));
+    let V=L.filter(x=>!q||sAc([x.objeto,x.orgao,x.municipio].join(' ')).includes(q));if(RAD.so==='embasa')V=V.filter(x=>/embasa|aguas e saneamento/i.test(sAc(x.orgao)));if(RAD.so==='acomp')V=V.filter(x=>acM.has(x.ctrl));
+    App._radV=V;const vistos=(()=>{try{return new Set(JSON.parse(localStorage.getItem('vx_radar_vistos')||'[]'));}catch(e){return new Set();}})(),novos=L.filter(x=>!vistos.has(x.ctrl)).length;
+    box.innerHTML=`<div class="fin-wrap">${cab('Radar de licitações','As licitações com <b>proposta aberta na Bahia</b>, buscadas no <b>PNCP</b> (Portal Nacional de Contratações Públicas — onde todo órgão é obrigado a publicar, inclusive as do Compras.gov.br). Aparecem as que batem com o filtro; marque as que interessam para acompanhar, ou já transforme em proposta no quadro de Contratos.',`<button type="button" class="fin-bt" data-rad="filtro"><i class="fas fa-sliders"></i> Filtro</button><button type="button" class="fin-bt" data-rad="atualizar"${RAD.carregando?' disabled':''}><i class="fas fa-rotate"></i> Buscar de novo</button>`)}
+      <div class="fin-filtros"><input type="search" class="filter-select" data-rad-busca placeholder="Buscar no objeto, órgão ou cidade…" value="${fe(RAD.busca)}"><select class="filter-select" data-rad-so><option value="">Todas que batem com o filtro</option><option value="embasa" ${RAD.so==='embasa'?'selected':''}>Só da EMBASA</option><option value="acomp" ${RAD.so==='acomp'?'selected':''}>Só as que acompanho</option></select></div>
+      <div class="fin-kpis">${kpi('','Batem com o filtro',L.length,`de ${todas.length} abertas na Bahia`)}${kpi(novos?'azul':'','Novas para você',novos,'desde a última vez que abriu')}${kpi('','Acompanhando',ac.filter(a=>!['Descartada','Perdemos'].includes(a.situacao)).length,'na lista da Vixsul')}${kpi('','Encerram em 7 dias',L.filter(x=>x.fecha&&new Date(x.fecha)-new Date()<7*864e5).length,'propostas para correr')}</div>
+      ${RAD.carregando?'<p class="vk-dica"><i class="fas fa-spinner fa-spin"></i> Buscando no PNCP… (pode levar um minuto na 1ª vez do dia)</p>':''}${RAD.erro?`<div class="fin-aviso laranja"><div>${fe(RAD.erro)} Tente "Buscar de novo" em alguns minutos.</div></div>`:''}
+      ${RAD.t?`<p class="vk-dica">Busca de ${fe(new Date(RAD.t).toLocaleString('pt-BR'))} · filtro com ${String(cfg.palavras).split(',').filter(s=>s.trim()).length} palavras</p>`:''}
+      <div class="rad-lista">${V.slice(0,150).map((x,i)=>{const a=acM.get(x.ctrl),novo=!vistos.has(x.ctrl);return `<div class="rad-card${a?' acomp':''}">
+        <div class="rad-top">${novo?'<span class="eng-pill azul">nova</span>':''}<span class="eng-pill">${fe(x.mod)}</span>${a?`<span class="eng-pill verde">${fe(a.situacao)}</span>`:''}</div>
+        <b class="rad-obj">${fe(x.objeto)}</b><small>${fe(x.orgao)} · ${fe(x.municipio)}/BA${x.numero?` · nº ${fe(x.numero)}/${fe(x.ano)}`:''}</small>
+        <div class="rad-num"><span><small>Valor estimado</small><b>${x.valor?fmt(x.valor):'sigiloso / não informado'}</b></span><span><small>Propostas até</small><b>${fe(radPrazo(x)||'—')}</b></span></div>
+        <div class="rad-bts"><a class="fin-bt mini" href="${fe(radLink(x))}" target="_blank" rel="noopener"><i class="fas fa-arrow-up-right-from-square"></i> Ver no PNCP</a>${a?`<select class="rad-sit" data-rad-sit="${i}">${RAD_SIT.map(s=>`<option ${s===a.situacao?'selected':''}>${s}</option>`).join('')}</select>`:`<button type="button" class="fin-bt mini" data-rad="acomp" data-i="${i}"><i class="fas fa-star"></i> Acompanhar</button>`}<button type="button" class="fin-bt mini pri" data-rad="proposta" data-i="${i}"><i class="fas fa-file-signature"></i> Virar proposta</button></div></div>`;}).join('')||(RAD.carregando?'':'<p class="vk-dica">Nenhuma licitação aberta bate com o filtro agora.</p>')}</div>${V.length>150?`<p class="vk-dica">Mostrando 150 de ${V.length} — use a busca para achar as outras.</p>`:''}</div>`;
+    // as que apareceram já contam como vistas (a marca "nova" some na próxima vez)
+    if(RAD.itens&&!RAD.carregando){try{localStorage.setItem('vx_radar_vistos',JSON.stringify([...new Set([...vistos,...L.map(x=>x.ctrl)])].slice(-3000)));}catch(e){}}
+    box.onclick=ev=>{const b=ev.target.closest('[data-rad]');if(!b)return;const x=App._radV[+b.dataset.i];
+      if(b.dataset.rad==='filtro')radConfig();else if(b.dataset.rad==='atualizar')renderLicitacoes(true);else if(b.dataset.rad==='acomp'&&x)radAcompanhar(x);else if(b.dataset.rad==='proposta'&&x){radAcompanhar(x,'Vamos participar').catch(()=>{});radProposta(x);}};
+    box.onchange=ev=>{const s=ev.target.closest('[data-rad-sit]');if(s){const x=App._radV[+s.dataset.radSit];if(x)radAcompanhar(x,s.value);return;}const so=ev.target.closest('[data-rad-so]');if(so){RAD.so=so.value;renderLicitacoes();}};
+    box.oninput=ev=>{const s=ev.target.closest('[data-rad-busca]');if(!s)return;RAD.busca=s.value;clearTimeout(App._radT);App._radT=setTimeout(()=>{renderLicitacoes();const n=document.querySelector('#eng-licitacoes [data-rad-busca]');if(n){n.focus();n.setSelectionRange(n.value.length,n.value.length);}},350);};
+  }
+  return {D,U,nomeObra,statusObra,obrasNomes,n2,numBR,cab,kpi,formulario,apagar,campoHtml,renderPessoal,renderLicitacoes,radBuscar,radFiltrar,pessoalVenc,funcionarios,docsValendo,sitDocP,escolherEquipe,
     renderFornecedores,renderDocumentos,renderDiario,datalistFornecedores,situacaoDoc,compradoPorFornecedor,choveu,DIAS_SEM,_RD:RD,_DC:DC};
 })();
 </script>
@@ -13643,7 +14082,8 @@ const Eng=(function(){
     const adV=aditivosDaObra(ob).filter(a=>!a.data_emissao||!m.data_medicao||String(a.data_emissao)<=String(m.data_medicao)).reduce((s,a)=>s+val(a.aditivo_valor),0),tV=tC+adV;
     const pos=`<div style="display:flex;gap:24px;margin-top:12px;align-items:flex-start"><div style="flex:1;border:1px solid #e5e5ea;border-radius:8px;padding:10px 14px">${lin('Valor do contrato (orçamento)',fmt(tC))}${adV?lin('Aditivos de valor',fmt(adV))+lin('Contrato vigente',fmt(tV)):''}${lin('Acumulado anterior',fmt(tA-tN))}${lin('Acumulado até esta medição',fmt(tA)+' ('+pct(tV?tA/tV*100:0)+')')}${lin('Saldo do contrato',fmt(tV-tA))}${totDescMed(m)?lin('Valor medido nesta medição',fmt(tN))+descontosMed(m).map(x=>lin('(−) '+fe(x.desc),fmt(x.valor))).join('')+lin('Valor desta medição (com os descontos)',fmt(r2(tN-totDescMed(m))),true):lin('Valor desta medição',fmt(tN),true)}</div>
       <div style="flex:1;font-size:10px;color:#6e6e73">${m.observacao?`<b>Observação:</b> ${fe(m.observacao)}`:''}<div style="display:flex;gap:24px;margin-top:46px"><div style="flex:1;border-top:1px solid #1d1d1f;padding-top:4px;text-align:center">Vixsul Empreendimentos<br>Responsável técnico</div><div style="flex:1;border-top:1px solid #1d1d1f;padding-top:4px;text-align:center">Fiscalização do contratante</div></div></div></div>`;
-    App._relExportPaginado({titulo:'Boletim de Medição',subLinhas:[`${fe(ob)} · Medição nº ${fe(m.numero)}`].concat(opc.so?['Só os itens desta medição']:[]).concat(opc.busca?['Busca: '+fe(opc.busca)]:[]),paisagem:true,preHtml:pre,
+    // com o certificado digital no computador, dá para baixar o boletim já ASSINADO
+    (GS.cert&&GS.cert.exportarRelatorio?c=>GS.cert.exportarRelatorio(c,{motivo:`Boletim de medição nº ${m.numero} - ${ob}`,arquivo:`Boletim de medição ${m.numero} - ${ob}`}):c=>App._relExportPaginado(c))({titulo:'Boletim de Medição',subLinhas:[`${fe(ob)} · Medição nº ${fe(m.numero)}`].concat(opc.so?['Só os itens desta medição']:[]).concat(opc.busca?['Busca: '+fe(opc.busca)]:[]),paisagem:true,preHtml:pre,
       theadHtml:'<tr><th style="width:4%">Item</th><th style="width:8%">Código</th><th style="width:30%">Descrição</th><th style="width:4%">Un.</th><th style="width:7%;text-align:right">Contrato</th><th style="width:7%;text-align:right">Acum. ant.</th><th style="width:7%;text-align:right">Nesta med.</th><th style="width:7%;text-align:right">Acum. atual</th><th style="width:5%;text-align:right">%</th><th style="width:9%;text-align:right">P. unit.</th><th style="width:12%;text-align:right">Valor nesta med.</th></tr>',
       rowsArr:rows.filter(Boolean),posHtml:pos});
   }
@@ -13830,6 +14270,10 @@ const Eng=(function(){
     const rotDoc=x=>`${x.d.tipo} · ${x.d.titulo_obra||'Empresa'} · ${x.s.rot.toLowerCase()}`;
     if(venc.length)out.push({nivel:'alto',ico:'§',titulo:'Documentos vencidos',valor:String(venc.length),detalhe:'Certidão ou documento com a validade passada — em obra pública isso trava medição e pagamento.',itens:venc.slice(0,3).map(rotDoc),acao:ir('documentos')});
     if(breve.length)out.push({nivel:'medio',ico:'§',titulo:'Documentos vencendo',valor:String(breve.length),detalhe:'Vencem nos próximos 15 dias — já dá para emitir a nova via.',itens:breve.slice(0,3).map(rotDoc),acao:ir('documentos')});
+    // pessoal: ASO, treinamentos das NRs e CNH (de quem está ativo)
+    const pv=Eng.pessoalVenc?Eng.pessoalVenc():{venc:[],breve:[]},rotP=x=>`${x.f.nome} · ${x.d.doc} · ${x.s.rot}`;
+    if(pv.venc.length)out.push({nivel:'alto',ico:'⛑',titulo:'Segurança do trabalho vencida',valor:String(pv.venc.length),detalhe:'ASO, treinamento de NR ou CNH vencido — o funcionário não deveria trabalhar até renovar (e a fiscalização cobra).',itens:pv.venc.slice(0,3).map(rotP),acao:ir('pessoal')});
+    if(pv.breve.length)out.push({nivel:'medio',ico:'⛑',titulo:'Segurança do trabalho vencendo',valor:String(pv.breve.length),detalhe:'ASO, NR ou CNH vencem nos próximos 30 dias — já dá para marcar o exame ou o curso.',itens:pv.breve.slice(0,3).map(rotP),acao:ir('pessoal')});
     const meds=D().medicoes||[];
     const aprov=meds.filter(m=>m.status==='Aprovada');
     if(aprov.length)out.push({nivel:'medio',ico:'▦',titulo:'Medições aprovadas sem faturamento',valor:fmt(aprov.reduce((s,m)=>s+valorMed(m),0)),detalhe:`${aprov.length} ${aprov.length>1?'medições aprovadas':'medição aprovada'} pela fiscalização e ainda sem nota — dinheiro parado.`,itens:aprov.slice(0,3).map(m=>`${m.titulo_obra} · nº ${m.numero} · ${fmt(valorMed(m))}`),acao:pode('faturamento')?{rot:'Emitir as notas',go:()=>GS.abrirPlanilha('faturamento',{})}:ir('medicoes')});
@@ -13857,6 +14301,8 @@ const Eng=(function(){
       if(v==='medicoes')renderMedicoes();
       else if(v==='diario')Eng.renderDiario();
       else if(v==='documentos')Eng.renderDocumentos();
+      else if(v==='pessoal')Eng.renderPessoal();
+      else if(v==='licitacoes')Eng.renderLicitacoes();
       else if(v==='fornecedores')Eng.renderFornecedores();
     }catch(e){console.error(e);}
   };
@@ -13867,7 +14313,7 @@ const Eng=(function(){
     ra.apply(this,arguments);
     try{
       Eng.datalistFornecedores();
-      const v=['medicoes','diario','documentos','fornecedores'].find(x=>document.getElementById('view-'+x)?.classList.contains('active'));
+      const v=['medicoes','diario','documentos','pessoal','licitacoes','fornecedores'].find(x=>document.getElementById('view-'+x)?.classList.contains('active'));
       if(v&&!(v==='medicoes'&&ME.edit))App._renderEng(v);
     }catch(e){console.error(e);}
   };
@@ -13974,7 +14420,7 @@ const Eng=(function(){
   }
   // fotos escolhidas no próprio registro do diário (já com o acesso ao Google pedido no clique)
   async function subirFotosDia(ob,dataISO,lista){
-    const fila=(lista||[]).map(f=>({file:f.file,descricao:f.descricao?'Diário de obra · '+f.descricao:'Diário de obra',etapa:'durante',data:dataISO,previewUrl:f.previewUrl||URL.createObjectURL(f.file)}));
+    const fila=(lista||[]).map(f=>({file:f.file,descricao:f.descricao?'Diário de obra · '+f.descricao:'Diário de obra',etapa:'durante',data:dataISO,previewUrl:f.previewUrl||URL.createObjectURL(f.file),gps:f.gps||null}));
     if(fila.length)await subir(ob,fila);
   }
   async function subir(ob,fila){
@@ -17241,7 +17687,7 @@ const Mascara=(function(){
     const filtroAtivo=f.busca||f.obra||f.per||f.aprovar||f.semForn||f.cat||f.forma||f.ord;
     const catsF=[...new Set(C.CATC().concat(C.podeEmpresa()?C.CATD():[]).concat(todas.map(o=>o.cat).filter(Boolean)))],formasF=[...new Set(FORMAS.concat(todas.map(o=>o.forma).filter(Boolean)))];
     box.innerHTML=`<div class="gf">
-      ${cabG('Contas a pagar','Tudo o que a empresa paga: compras e serviços de cada obra e as despesas da Empresa — só contas que já existem (a previsão de custo das obras vem do CAP). Um Administrador aprova (conta lançada por Administrador já nasce aprovada) e, quando pagar, arraste o cartão para <b>Paga</b>. Clique no cartão para ver e corrigir todos os dados.',(()=>{const n=gruposDupContas().length;return `<button type="button" class="gf-bt${n?' dup-on':''}" data-vk="dup" title="Procura contas lançadas em dobro (mesmo fornecedor, destino e valor em datas próximas)"><i class="fas fa-clone"></i> Verificar duplicados${n?` <b class="vk-badge">${n}</b>`:''}</button>`;})()+'<button type="button" class="gf-bt" data-vk="imprimir"><i class="fas fa-print"></i> Imprimir</button><button type="button" class="gf-bt" data-vk="exportar"><i class="fas fa-file-excel"></i> Exportar</button>'+(pode('contas')?`${selUI.modo(f.selModo,'data-vk="selecionar"','Marcar várias contas para excluir de uma vez')}<button type="button" class="gf-bt pri" data-vk="nova"><i class="fas fa-plus"></i> Nova conta</button>`:''))}
+      ${cabG('Contas a pagar','Tudo o que a empresa paga: compras e serviços de cada obra e as despesas da Empresa — só contas que já existem (a previsão de custo das obras vem do CAP). Um Administrador aprova (conta lançada por Administrador já nasce aprovada) e, quando pagar, arraste o cartão para <b>Paga</b>. Clique no cartão para ver e corrigir todos os dados.',(()=>{const n=gruposDupContas().length;return `<button type="button" class="gf-bt${n?' dup-on':''}" data-vk="dup" title="Procura contas lançadas em dobro (mesmo fornecedor, destino e valor em datas próximas)"><i class="fas fa-clone"></i> Verificar duplicados${n?` <b class="vk-badge">${n}</b>`:''}</button>`;})()+'<button type="button" class="gf-bt" data-vk="imprimir"><i class="fas fa-print"></i> Imprimir</button><button type="button" class="gf-bt" data-vk="exportar"><i class="fas fa-file-excel"></i> Exportar</button>'+(pode('contas')?`${selUI.modo(f.selModo,'data-vk="selecionar"','Marcar várias contas para excluir de uma vez')}${(()=>{const n=GS.notasRec?GS.notasRec.pendentes().length:0;return `<button type="button" class="gf-bt${n?' vk-nr-tem':''}" data-vk="notasrec" title="Notas fiscais emitidas contra a Vixsul (SEFAZ e Receita), para virar conta"><i class="fas fa-inbox"></i> Notas recebidas${n?` <span class="vk-nr-n">${n}</span>`:''}</button>`;})()}<button type="button" class="gf-bt pri" data-vk="nova"><i class="fas fa-plus"></i> Nova conta</button>`:''))}
       ${semAprov.length&&souAdmin()?`<div class="vk-aviso"><i class="fas fa-signature"></i><div><b>${semAprov.length} conta(s) esperando a sua aprovação</b> — ${fmt(S(semAprov))}. Abra o cartão (ou arraste para "Aprovada") para aprovar.</div><button type="button" class="gf-bt mini" data-vk="so-aprovar">${f.aprovar?'Ver todas':'Ver só elas'}</button></div>`:''}
       <div class="gf-kpis">
         ${kpiG(vencidas.length?'vermelho':'verde','fa-triangle-exclamation','Vencidas',Rk(S(vencidas)),vencidas.length?`${vencidas.length} conta(s) em atraso — juros e multa correndo`:'nenhuma conta atrasada')}
@@ -17318,6 +17764,7 @@ const Mascara=(function(){
     box.onclick=ev=>{
       const b=ev.target.closest('[data-vk]');if(b){ev.preventDefault();const a=b.dataset.vk;
         if(a==='nova')return fichaLote();
+        if(a==='notasrec')return GS.notasRec&&GS.notasRec.abrir();
         if(a==='dup')return verDupContas();
         if(a==='selecionar'){if(QC.selModo)sairSel();else QC.selModo=true;return re();}
         if(a==='sel-coluna'){alternarColuna(idsColunaC(b.dataset.col),QC.sel);return redesenharQuadro(box,re);}
@@ -21982,7 +22429,7 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
     ['inicio','Início (painel)','fa-house'],['reunioes','Reuniões','fa-people-group'],['acoes','Tarefas e plano de ação','fa-list-check'],
     ['obras','Contratos e central da obra (orçamento, CAP)','fa-building'],['contratos','Ficha do contrato e aditivos','fa-file-signature'],
     ['planejamento','Planejamento e cronograma','fa-diagram-project'],['medicoes','Medições','fa-ruler-combined'],['diario','Diário de obra','fa-book-open'],
-    ['documentos','Documentos e certidões','fa-file-shield'],['contas','Contas a pagar','fa-file-invoice-dollar'],['despesas','Despesas da empresa (em Contas a pagar)','fa-receipt'],
+    ['documentos','Documentos e certidões','fa-file-shield'],['pessoal','Pessoal e segurança do trabalho','fa-helmet-safety'],['licitacoes','Radar de licitações (PNCP)','fa-satellite-dish'],['contas','Contas a pagar','fa-file-invoice-dollar'],['despesas','Despesas da empresa (em Contas a pagar)','fa-receipt'],
     ['faturamento','Faturamento e recebimentos','fa-file-invoice'],['conciliacao','Conciliação bancária','fa-building-columns'],['socios','Sócios e investimentos','fa-piggy-bank'],
     ['metas','Metas','fa-bullseye'],['orcamento','Orçamento da empresa','fa-calculator'],['projecao','Fluxo de caixa projetado','fa-chart-line'],
     ['viabilidade','Viabilidade de contrato','fa-scale-balanced'],['relatorios','Relatórios','fa-chart-pie'],['fornecedores','Fornecedores','fa-truck'],
@@ -23104,7 +23551,164 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
     document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},2000);
     return true;
   }
-  GS.cert={tem:()=>{const c=certLocal();return !!(c&&c.b64);},info:certLocal,senhaGuardada:()=>!!senhaMem(),orcamentoAssinado,_desenhar:desenharOrcamento,_preparar:prepararAssinatura,_libs:libsAssinar};
+  /* PDF ASSINADO de qualquer relatório paginado (diário de obra, boletim de medição): as páginas viram um PDF (App._relCapturar),
+     ganham uma última página com o selo da assinatura e vão ao serviço da nota fiscal, que assina com o certificado A1. */
+  async function pdfAssinado(doc,o,senha,aviso){
+    aviso=aviso||(()=>{});o=o||{};
+    const cred=credenciais(senha);let c=certLocal()||{};
+    if(!c.nome||!c.validoAte){aviso('Conferindo o certificado…');const r=await nfseApi({acao:'info',...cred});
+      if(!r||!r.ok){if(/senha/i.test((r&&r.msg)||''))esquecerSenha();throw new Error((r&&r.msg)||'Não consegui abrir o certificado.');}
+      guardarCert({...c,nome:r.info.nome,cnpj:r.info.cnpj,validoAte:r.info.validoAte});c=certLocal()||c;}
+    if(c.validoAte&&new Date(c.validoAte)<new Date())throw new Error('O certificado digital venceu em '+brDe(new Date(c.validoAte))+'.');
+    const T=s=>String(s==null?'':s).replace(/[—–]/g,'-').replace(/[“”]/g,'"').replace(/[‘’]/g,"'").replace(/[^\x09\x0A\x0D\x20-\xFF]/g,''),quando=new Date(),M=16;
+    doc.addPage('a4','portrait');
+    try{doc.addImage(PDF_LOGO_FULL_B64,'PNG',M,14,41.6,17);}catch(e){}
+    doc.setDrawColor(22,82,216);doc.setLineWidth(.5);doc.setFillColor(238,244,255);doc.roundedRect(M,44,178,46,2,2,'FD');
+    doc.setFont('helvetica','bold');doc.setFontSize(12);doc.setTextColor(22,82,216);doc.text('DOCUMENTO ASSINADO DIGITALMENTE',M+6,54);
+    doc.setTextColor(29,29,31);doc.setFontSize(10);doc.text(T(c.nome||'Vixsul Empreendimentos'),M+6,62);
+    doc.setFont('helvetica','normal');doc.setFontSize(9);doc.text(T((c.cnpj?'CNPJ '+fmtDoc(c.cnpj)+' - ':'')+'certificado digital ICP-Brasil (A1)'),M+6,68);
+    doc.text(T('Data: '+horaBR(quando)+' (horário de Brasília)'),M+6,74);doc.text(T('Documento: '+(o.motivo||'')),M+6,80);
+    doc.setFontSize(8);doc.setTextColor(110,110,115);doc.text('Confira a assinatura no Adobe Reader (painel Assinaturas) ou em validar.iti.gov.br',M+6,86);
+    aviso('Preparando a assinatura…');
+    const pre=await prepararAssinatura(doc.output('arraybuffer'),{nome:c.nome||'',motivo:o.motivo||'Documento',local:'Bahia, Brasil'});
+    aviso('Assinando com o certificado digital…');
+    const r=await nfseApi({acao:'assinar-pdf',pdf:b64DeBytes(pre),...cred});
+    if(!r||!r.ok){if(/senha/i.test((r&&r.msg)||''))esquecerSenha();throw new Error((r&&r.msg)||'Não foi possível assinar o PDF.');}
+    memorizar(cred.senha);
+    const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([bytesB64(r.pdf)],{type:'application/pdf'}));
+    a.download=String((o.arquivo||'Documento')+' - assinado').replace(/[\\/:*?"<>|]+/g,'-').slice(0,150)+'.pdf';
+    document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},2000);
+    return true;
+  }
+  // "Exportar PDF" dos relatórios paginados: sem certificado no computador, abre a impressão como sempre;
+  // com certificado, pergunta se é sem assinatura (impressão) ou com a assinatura digital (PDF baixado pronto)
+  function exportarRelatorio(cfg,o){
+    const ci=certLocal()||{};if(!ci.b64)return App._relExportPaginado(cfg);
+    const j=Fin.util.janela('Exportar em PDF',`
+      <label class="nfc-amb"><input type="radio" name="vx-pdf-ass" value="sem"><span><b>Sem assinatura</b> — abre a impressão; escolha <b>Salvar como PDF</b>.</span></label>
+      <label class="nfc-amb"><input type="radio" name="vx-pdf-ass" value="com" checked><span><b>Com assinatura digital</b> — assinado com o certificado digital A1 ${ci.nome?'de <b>'+fe(ci.nome)+'</b>':'da Vixsul'}; o PDF já é baixado pronto (vale como documento assinado).</span></label>
+      <div class="fin-fld" data-vx-senha ${senhaMem()?'hidden':''} style="margin-top:8px"><label>Senha do certificado</label><input type="password" data-k="senha" autocomplete="off" placeholder="digite a senha do certificado"></div>`,
+      [{html:'<i class="fas fa-file-pdf"></i> Gerar o PDF',cls:'pri',acao:async jj=>{
+        const com=(jj.querySelector('[name="vx-pdf-ass"]:checked')||{}).value==='com';
+        if(!com){App._relExportPaginado(cfg);return;}
+        const err=jj.querySelector('[data-fin-erro]'),av=t=>{if(err)err.textContent=t;};
+        try{av('Montando o PDF…');const doc=await App._relExportPaginado({...cfg,capturar:true});await pdfAssinado(doc,o,((jj.querySelector('[data-k="senha"]')||{}).value||'').trim(),av);}
+        catch(e){const s=jj.querySelector('[data-vx-senha]');if(s&&/senha/i.test(String(e&&e.message)))s.hidden=false;throw e;}
+        toast('PDF assinado digitalmente e baixado.','success');}}],560);
+    if(j)j.onchange=()=>{const com=(j.querySelector('[name="vx-pdf-ass"]:checked')||{}).value==='com',s=j.querySelector('[data-vx-senha]');if(s)s.hidden=!(com&&!senhaMem());};
+  }
+  /* ═══ NOTAS DE COMPRA CHEGANDO SOZINHAS ═══
+     Com o certificado A1 (o mesmo da NFS-e, guardado neste computador), o sistema pergunta à SEFAZ (NF-e — notas de
+     produto) e ao Ambiente Nacional da NFS-e (notas de serviço) quais notas foram emitidas CONTRA a Vixsul. Cada nota nova
+     fica em Planejamento (tipo 'nota_recebida') e aparece em Contas a pagar › "Notas recebidas" para virar conta (com o XML
+     lido, quando a nota vem completa). Roda sozinho uma vez a cada 6 horas no computador do Administrador que tem o
+     certificado com a senha guardada; o último NSU de cada lado fica em 'cfg_notas_recebidas'. */
+  const NRC=()=>PLAN().find(p=>p.tipo==='cfg_notas_recebidas')||null;
+  const notasRec=()=>PLAN().filter(p=>p.tipo==='nota_recebida');
+  function lerNotaRec(origem,xml){
+    const d=new DOMParser().parseFromString(String(xml||''),'application/xml'),tg=(n,r)=>{const e=(r||d).getElementsByTagNameNS('*',n)[0];return e?e.textContent.trim():'';},fi=(p,n)=>p?[...p.children].find(c=>c.localName===n):null;
+    if(origem==='nfe'){
+      if(d.getElementsByTagNameNS('*','resNFe').length)return {tipo:'NF-e',chave:tg('chNFe'),cnpj:tg('CNPJ')||tg('CPF'),nome:tg('xNome'),valor:+tg('vNF')||0,data:tg('dhEmi').slice(0,10),numero:'',sit:tg('cSitNFe'),completa:false};
+      const ev=d.getElementsByTagNameNS('*','resEvento')[0]||d.getElementsByTagNameNS('*','infEvento')[0];
+      if(ev&&!d.getElementsByTagNameNS('*','infNFe').length)return {evento:tg('tpEvento',ev),chave:tg('chNFe',ev)};
+      const inf=d.getElementsByTagNameNS('*','infNFe')[0];if(!inf)return null;const em=fi(inf,'emit'),de=fi(inf,'dest');
+      return {tipo:'NF-e',chave:(inf.getAttribute('Id')||'').replace(/^NFe/,''),cnpj:tg('CNPJ',em)||tg('CPF',em),nome:tg('xNome',em),valor:+tg('vNF',inf)||0,data:tg('dhEmi',inf).slice(0,10),numero:tg('nNF',inf),dest:tg('CNPJ',de),completa:true};}
+    const inf=d.getElementsByTagNameNS('*','infNFSe')[0];if(!inf)return null;const emit=fi(inf,'emit'),dps=d.getElementsByTagNameNS('*','infDPS')[0],toma=dps&&dps.getElementsByTagNameNS('*','toma')[0];
+    return {tipo:'NFS-e',chave:(inf.getAttribute('Id')||'').replace(/^NFS/,''),cnpj:tg('CNPJ',emit)||tg('CPF',emit),nome:tg('xNome',emit),valor:+tg('vLiq',inf)||+tg('vServ',dps)||0,data:(tg('dhEmi',dps)||tg('dhProc',inf)).slice(0,10),numero:tg('nNFSe',inf),toma:toma?(tg('CNPJ',toma)||tg('CPF',toma)):'',desc:tg('xDescServ',dps),completa:true};}
+  let NR_RODA=false;
+  async function buscarNotasRec(op){op=op||{};
+    if(NR_RODA)return null;const c=certLocal();if(!(c&&c.b64)){if(op.silencioso)return null;throw new Error('Não há certificado digital neste computador: coloque em Documentos e certidões › Empresa › Nota fiscal (NFS-e).');}
+    const senha=op.senha||senhaMem();if(!senha){if(op.silencioso)return null;throw new Error('Digite a senha do certificado digital.');}
+    NR_RODA=true;const cred={pfx:c.b64,senha},cfg={...(NRC()||{tipo:'cfg_notas_recebidas'})},ja=new Map(notasRec().map(n=>[n.chave,n])),novas=new Map(),cancel=new Set(),avisos=[];
+    const guardar=(origem,dc)=>{const n=lerNotaRec(origem,dc.xml);if(!n)return;
+      if(n.evento){if(n.evento==='110111'&&n.chave)cancel.add(n.chave);return;}
+      if(!n.chave||String(n.cnpj).replace(/\D/g,'')===CNPJ_VX)return;   // as notas que a própria Vixsul emitiu não entram
+      if(n.tipo==='NFS-e'&&n.toma&&n.toma.replace(/\D/g,'')!==CNPJ_VX)return;
+      if(n.sit==='2'||n.sit==='3')cancel.add(n.chave);
+      const a=ja.get(n.chave)||novas.get(n.chave);
+      if(a&&(a.completa==='sim'||!n.completa))return;   // já temos (ou a que chegou agora é só o resumo)
+      const xml=n.completa&&String(dc.xml||'').length<120000?String(dc.xml):'';
+      novas.set(n.chave,{...(a||{}),tipo:'nota_recebida',origem,chave:n.chave,numero:n.numero||'',emitente_cnpj:n.cnpj,emitente_nome:n.nome,valor:(+n.valor||0).toFixed(2),data_emissao:n.data,descricao:n.desc||'',completa:n.completa?'sim':'',xml,situacao:(a&&a.situacao)||'nova',recebida_em:(a&&a.recebida_em)||new Date().toISOString()});};
+    try{
+      // NF-e: até 5 rodadas de 50; sem nada novo, a SEFAZ pede 1 hora de espera
+      if(!cfg.nfe_espera||Date.now()>+cfg.nfe_espera){let ult=cfg.nfe_ult_nsu||'0';
+        for(let k=0;k<5;k++){const r=await nfseApi({acao:'nfe-recebidas',ultNSU:ult,...cred});
+          if(!r||!r.ok){if(/senha/i.test((r&&r.msg)||''))esquecerSenha();avisos.push('NF-e: '+((r&&r.msg)||'sem resposta'));break;}
+          (r.docs||[]).forEach(dc=>guardar('nfe',dc));if(r.ultNSU)ult=r.ultNSU;
+          if(r.cStat==='656'||r.cStat==='137'||!r.maxNSU||+ult>=+r.maxNSU){cfg.nfe_espera=String(Date.now()+3600000);if(r.cStat==='656')avisos.push('A SEFAZ pediu para esperar 1 hora antes de perguntar de novo.');break;}}
+        cfg.nfe_ult_nsu=ult;}
+      // NFS-e (Ambiente Nacional): até 5 lotes
+      {let ult=cfg.nfse_ult_nsu||'0';
+        for(let k=0;k<5;k++){const r=await nfseApi({acao:'nfse-recebidas',ultNSU:ult,ambiente:1,...cred});
+          if(!r||!r.ok){avisos.push('NFS-e: '+((r&&r.msg)||'sem resposta'));break;}
+          (r.docs||[]).forEach(dc=>guardar('nfse',dc));const n=r.ultNSU||ult;if(!(r.docs||[]).length||+n<=+ult)break;ult=n;}
+        cfg.nfse_ult_nsu=ult;}
+      memorizar(senha);
+      for(const ch of cancel){const a=novas.get(ch)||ja.get(ch);if(a&&a.situacao!=='cancelada')novas.set(ch,{...a,situacao:'cancelada'});}
+      for(const n of novas.values())await salvar('Planejamento',limpo(n),n.rowid||null);
+      cfg.ultima_busca=new Date().toISOString();cfg.ultima_msg=avisos.join(' · ');await salvar('Planejamento',limpo(cfg),cfg.rowid||null);
+      const qtd=[...novas.values()].filter(n=>!ja.has(n.chave)).length;
+      if(qtd||novas.size)await new Promise(ok=>App.init(false,()=>ok()));
+      return {novas:qtd,avisos};
+    }finally{NR_RODA=false;}}
+  // nota já lançada? uma conta do mesmo fornecedor (nome), com o mesmo valor (até R$ 0,05), até 45 dias da emissão
+  function contaDaNota(n){const C=GS.contas;if(!C)return null;const nome=cn(n.emitente_nome),v=+n.valor||0,d=dt(n.data_emissao);
+    const L=(D().custos||[]).map(C.deCusto).concat((D().despesas||[]).map(C.deDesp));
+    const porC=new Map();L.forEach(o=>{const k=cn(o.forn)+'|'+(o.compra||o.rowid);const x=porC.get(k)||{o,tot:0};x.tot+=val(o.total);porC.set(k,x);});
+    return [...porC.values()].find(x=>{if(cn(x.o.forn)!==nome||Math.abs(x.tot-v)>0.05)return false;const d2=dt(x.o.dataCompra||x.o.venc);return !d||!d2||Math.abs((d2-d)/864e5)<=45;})||null;}
+  const pendentesNR=()=>notasRec().filter(n=>n.situacao==='nova'&&!contaDaNota(n));
+  function lancarNotaRec(n){
+    GS.lote({forn:String(n.emitente_nome||'').toLocaleUpperCase('pt-BR'),dica:`Nota recebida: <b>${fe(n.origem==='nfse'?'NFS-e':'NF-e')}${n.numero?' nº '+fe(n.numero):''}</b> de <b>${fe(n.emitente_nome)}</b> · ${fmt(+n.valor)} · emitida em ${n.data_emissao?brDe(dt(n.data_emissao)):'—'}.${n.xml?' Os itens foram lidos do XML da nota — confira.':' A SEFAZ mandou só o resumo: lance os itens (ou leia o DANFE).'}`});
+    if(n.xml)setTimeout(()=>{const inp=document.querySelector('#fin-jan [data-l="arq"]');if(!inp)return;const dt0=new DataTransfer();dt0.items.add(new File([n.xml],`nota-${n.chave}.xml`,{type:'text/xml'}));inp.files=dt0.files;inp.dispatchEvent(new Event('change',{bubbles:true}));},400);}
+  function abrirNotasRec(){
+    const L=notasRec().slice().sort((a,b)=>String(b.data_emissao||'').localeCompare(String(a.data_emissao||''))),cfg=NRC()||{},tem=!!((certLocal()||{}).b64);
+    const sit=n=>n.situacao==='cancelada'?'<span class="eng-pill vermelho">cancelada</span>':n.situacao==='ignorada'?'<span class="eng-pill">ignorada</span>':n.situacao==='lancada'?'<span class="eng-pill verde">lançada</span>':contaDaNota(n)?'<span class="eng-pill verde">já está nas contas</span>':'<span class="eng-pill laranja">nova</span>';
+    const j=janela('Notas recebidas',`<div class="fin-resumo">As notas fiscais emitidas <b>contra a Vixsul</b> (de material — NF-e — e de serviço — NFS-e), buscadas na SEFAZ e na Receita com o certificado digital. Toda nota nova vira conta a pagar num clique; a que já está nas contas aparece marcada.${cfg.ultima_busca?`<br><small>Última busca: ${fe(new Date(cfg.ultima_busca).toLocaleString('pt-BR'))}${cfg.ultima_msg?' · '+fe(cfg.ultima_msg):''}</small>`:''}</div>
+      ${tem?(senhaMem()?'':'<div class="fin-fld" data-nr-senha><label>Senha do certificado (para buscar)</label><input type="password" data-k="senha" autocomplete="off" placeholder="digite a senha do certificado"></div>'):'<div class="fin-aviso laranja"><div>Não há certificado digital neste computador — coloque em <b>Documentos e certidões › Empresa › Nota fiscal (NFS-e)</b> para buscar as notas.</div></div>'}
+      ${L.length?`<div class="lote-tab maq-tab"><table data-sem-ordem><thead><tr><th>Emissão</th><th>Fornecedor</th><th>Nota</th><th>Valor</th><th>Situação</th><th></th></tr></thead><tbody>${L.map((n,i)=>`<tr><td>${n.data_emissao?brDe(dt(n.data_emissao)):'—'}</td><td>${fe(n.emitente_nome||'—')}<small>${fe(fmtDoc(n.emitente_cnpj||''))}</small></td><td>${n.origem==='nfse'?'NFS-e':'NF-e'}${n.numero?' nº '+fe(n.numero):''}${n.descricao?`<small>${fe(String(n.descricao).slice(0,80))}</small>`:''}</td><td class="num">${fmt(+n.valor)}</td><td>${sit(n)}</td>
+        <td class="maq-acoes">${n.situacao==='nova'&&!contaDaNota(n)?`<button type="button" class="fin-bt mini pri" data-nr-lan="${i}"><i class="fas fa-plus"></i> Lançar</button><button type="button" class="fin-bt mini" data-nr-ok="${i}" title="Já foi lançada (marcar)"><i class="fas fa-check"></i></button><button type="button" class="fin-bt mini" data-nr-ign="${i}" title="Ignorar esta nota"><i class="fas fa-eye-slash"></i></button>`:n.situacao==='ignorada'||n.situacao==='lancada'?`<button type="button" class="fin-bt mini" data-nr-volta="${i}" title="Voltar para nova"><i class="fas fa-rotate-left"></i></button>`:''}</td></tr>`).join('')}</tbody></table></div>`:'<p class="vk-dica">Nenhuma nota recebida ainda. Clique em <b>Buscar agora</b>.</p>'}`,
+      tem?[{html:'<i class="fas fa-cloud-arrow-down"></i> Buscar agora',cls:'pri',acao:async jj=>{const err=jj.querySelector('[data-fin-erro]');if(err)err.textContent='Buscando na SEFAZ e na Receita…';
+        const r=await buscarNotasRec({senha:((jj.querySelector('[data-k="senha"]')||{}).value||'').trim()});
+        toast(r?(r.novas?`${r.novas} nota${r.novas>1?'s':''} nova${r.novas>1?'s':''} recebida${r.novas>1?'s':''}.`:'Nenhuma nota nova.')+(r.avisos.length?' '+r.avisos.join(' · '):''):'Já está buscando — espere um instante.',r&&r.avisos.length&&!r.novas?'error':'success',!(r&&r.avisos.length));
+        setTimeout(abrirNotasRec,300);}}]:[],980);
+    const marca=async(n,s)=>{await executar(()=>salvar('Planejamento',{...limpo(n),situacao:s},n.rowid));setTimeout(abrirNotasRec,200);};
+    j.addEventListener('click',ev=>{const b=ev.target.closest('[data-nr-lan],[data-nr-ok],[data-nr-ign],[data-nr-volta]');if(!b)return;const n=L[+(b.dataset.nrLan||b.dataset.nrOk||b.dataset.nrIgn||b.dataset.nrVolta)];if(!n)return;
+      if(b.dataset.nrLan!=null){j.querySelector('[data-fin-fechar]').click();lancarNotaRec(n);}else if(b.dataset.nrOk!=null)marca(n,'lancada');else if(b.dataset.nrIgn!=null)marca(n,'ignorada');else marca(n,'nova');});}
+  // sozinho: a cada 6 horas, no computador do Administrador que tem o certificado com a senha guardada
+  setInterval(()=>{try{if(!Auth._session||!GS.ehAdm()||!(App.state&&App.state.data)||App.state._busy||!senhaMem()||!((certLocal()||{}).b64))return;
+      const u=(NRC()||{}).ultima_busca;if(u&&Date.now()-new Date(u).getTime()<6*3600000)return;
+      buscarNotasRec({silencioso:true}).then(r=>{if(r&&r.novas)toast(`${r.novas} nota${r.novas>1?'s':''} de compra nova${r.novas>1?'s':''} — veja em Contas a pagar › Notas recebidas.`,'success',false);}).catch(e=>console.warn('notas recebidas',e));}catch(e){}},5*60000);
+  GS.notasRec={abrir:abrirNotasRec,buscar:buscarNotasRec,pendentes:pendentesNR,lista:notasRec,ler:lerNotaRec};
+  /* AVISOS POR E-MAIL — quem manda é o servidor (api/avisos.js, todo dia às 7h, pela tarefa agendada da Vercel). Aqui o
+     Administrador diz para quem vai e o que entra, vê a prévia de hoje e manda um teste. Fica em Planejamento ('cfg_avisos'). */
+  const AV_API='https://vixsul.vercel.app/api/avisos';
+  const AV_ITENS=[['contas','Contas a pagar vencidas, de hoje e dos próximos 3 dias'],['documentos','Certidões e documentos vencendo (15 dias)'],['pessoal','ASO, treinamentos das NRs e CNH do pessoal (30 dias)'],['diario','Diário de obra de ontem sem preencher (obras com diário automático)'],['notas','Notas de compra recebidas ainda não lançadas'],['licitacoes','Licitações acompanhadas perto do prazo']];
+  async function avApi(corpo){let r;try{r=await fetch(AV_API,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(corpo)});}catch(e){throw new Error('O serviço de avisos não respondeu (internet ou serviço fora do ar).');}
+    let j=null;try{j=await r.json();}catch(e){}if(!j)throw new Error('O serviço de avisos não respondeu direito (HTTP '+r.status+').');if(!j.ok&&j.msg)throw new Error(j.msg);return j;}
+  function avisosEmail(){
+    const c=PLAN().find(p=>p.tipo==='cfg_avisos')||{},it=c.itens||{},s=Auth._session||{};
+    const lerAv=jj=>{const g=k=>(jj.querySelector(`[data-k="${k}"]`).value||'').trim(),itens={};jj.querySelectorAll('[data-av]').forEach(x=>{itens[x.dataset.av]=x.checked;});
+      const emails=g('emails').split(/[,;\s]+/).map(x=>x.trim().toLowerCase()).filter(Boolean),ruim=emails.find(e=>!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e));
+      if(ruim)throw new Error('E-mail inválido: '+ruim);return {emails:emails.join(', '),itens,ativo:g('ativo'),sempre:g('sempre')};};
+    const j=janela('Avisos por e-mail',`<div class="fin-resumo">Todo dia às <b>7h</b> o sistema manda um e-mail com o que pede atenção. Ele sai pelo mesmo serviço do código de recuperação de senha: <b>no primeiro envio para cada e-mail chega um pedido de confirmação</b> (botão "Activate Form") — clique nele uma vez e os avisos passam a chegar.${c.ultimo_envio?`<br><small>Último: ${fe(String(c.ultimo_envio).split('-').reverse().join('/'))}${c.ultima_msg?' · '+fe(c.ultima_msg):''}</small>`:''}</div>
+      <div class="fin-fld"><label>Mandar para (um ou mais e-mails, separados por vírgula) <span class="obg">*</span></label><input data-k="emails" value="${fe(c.emails||s.email||'')}" placeholder="seu@email.com" autocomplete="off"></div>
+      <div class="fin-fld"><label>O que entra no e-mail</label><div class="av-itens">${AV_ITENS.map(([k,r])=>`<label><input type="checkbox" data-av="${k}" ${it[k]===false?'':'checked'}> ${fe(r)}</label>`).join('')}</div></div>
+      <div class="fin-linha"><div class="fin-fld"><label>Avisos ligados?</label><select data-k="ativo"><option value="sim" ${c.ativo==='nao'?'':'selected'}>Sim — todo dia às 7h</option><option value="nao" ${c.ativo==='nao'?'selected':''}>Não — desligados</option></select></div>
+        <div class="fin-fld"><label>Dia sem nada pendente</label><select data-k="sempre"><option value="nao" ${c.sempre==='sim'?'':'selected'}>Não manda e-mail</option><option value="sim" ${c.sempre==='sim'?'selected':''}>Manda "tudo em dia"</option></select></div></div>
+      <div class="av-bts"><button type="button" class="fin-bt" data-av-previa><i class="fas fa-eye"></i> Ver o e-mail de hoje</button><button type="button" class="fin-bt" data-av-teste><i class="fas fa-paper-plane"></i> Mandar um teste agora</button></div>
+      <div class="av-previa" data-av-saida hidden></div>`,
+      [{html:'<i class="fas fa-floppy-disk"></i> Salvar',cls:'pri',acao:async jj=>{const o=lerAv(jj);if(!o.emails)throw new Error('Informe pelo menos um e-mail.');
+        const ant=PLAN().find(p=>p.tipo==='cfg_avisos');await executar(()=>salvar('Planejamento',{...(ant?limpo(ant):{}),tipo:'cfg_avisos',...o},ant?ant.rowid:null));
+        toast(o.ativo==='nao'?'Avisos por e-mail desligados.':'Avisos por e-mail salvos — o próximo sai amanhã às 7h.','success');}}],660);
+    const saida=j.querySelector('[data-av-saida]');
+    j.addEventListener('click',async ev=>{const pv=ev.target.closest('[data-av-previa]'),te=ev.target.closest('[data-av-teste]');if(!pv&&!te)return;
+      let cfg;try{cfg=lerAv(j);}catch(e){return toast(e.message,'error');}if(te&&!cfg.emails)return toast('Informe pelo menos um e-mail.','error');
+      saida.hidden=false;saida.innerHTML=`<i class="fas fa-spinner fa-spin"></i> ${pv?'Montando o e-mail de hoje…':'Mandando…'}`;
+      try{if(pv){const r=await avApi({acao:'previa',cfg});saida.innerHTML=(r.secoes||[]).length?r.secoes.map(x=>`<b>${fe(x.titulo)}</b><pre>${fe(x.texto)}</pre>`).join(''):'<b>Nada pendente hoje.</b>';}
+        else{const r=await avApi({acao:'testar',cfg});saida.innerHTML=r.enviado?`<b>Enviado para ${r.para} e-mail(s).</b>${r.falhas&&r.falhas.length?' Falhou: '+fe(r.falhas.join('; ')):''} Se for o primeiro envio para esse e-mail, confirme o pedido do FormSubmit que chegou lá.`:fe(r.msg||'');}}
+      catch(e){saida.innerHTML=`<span class="t-err">${fe(e.message||String(e))}</span>`;}});}
+  GS.avisosEmail=avisosEmail;
+  GS.cert={tem:()=>{const c=certLocal();return !!(c&&c.b64);},info:certLocal,senhaGuardada:()=>!!senhaMem(),orcamentoAssinado,pdfAssinado,exportarRelatorio,_desenhar:desenharOrcamento,_preparar:prepararAssinatura,_libs:libsAssinar};
   const URL_CONSULTA=ch=>'https://www.nfse.gov.br/ConsultaPublica/?tpc=1&chave='+ch;
 
   const fmtDoc=s=>{s=String(s||'').replace(/\D/g,'');return s.length===14?s.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/,'$1.$2.$3/$4-$5'):s.length===11?s.replace(/^(\d{3})(\d{3})(\d{3})(\d{2})$/,'$1.$2.$3-$4'):s;};
@@ -24459,6 +25063,33 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
    O Google Drive das fotos é do Administrador; os outros usuários (internos e externos) guardam a foto no próprio
    sistema: a imagem reduzida (até 1600 px) e uma miniatura vão em partes na tabela arquivos, e a linha da foto
    (Imagens da Obra) leva foto_uid/thumb_uid. <img data-sis="uid"> recebe a imagem quando aparece na tela. */
+/* LOCALIZAÇÃO DAS FOTOS (GPS): prova de onde a foto foi tirada. Vale o GPS gravado na própria foto (câmera do celular
+   com localização ligada); se a foto não tiver e acabou de ser tirada (até 20 min), vale o lugar onde o celular está
+   agora. Fica na linha da foto (lat, lng, gps_prec em metros, gps_fonte foto|celular) e aparece como "ver no mapa". */
+GS.gps=(function(){
+  async function exif(file){
+    try{if(!file||!/jpe?g/i.test((file.type||'')+(file.name||'')))return null;const b=new DataView(await file.slice(0,262144).arrayBuffer());if(b.getUint16(0)!==0xFFD8)return null;let o=2;
+      while(o<b.byteLength-4){const m=b.getUint16(o);
+        if(m===0xFFE1&&b.getUint32(o+4)===0x45786966){const t=o+10,le=b.getUint16(t)===0x4949,u16=p=>b.getUint16(p,le),u32=p=>b.getUint32(p,le),ifd=t+u32(t+4),n=u16(ifd);let g=0;
+          for(let i=0;i<n;i++){const e=ifd+2+i*12;if(u16(e)===0x8825){g=t+u32(e+8);break;}}if(!g)return null;
+          const tag={},ng=u16(g);for(let i=0;i<ng;i++){const e=g+2+i*12,id=u16(e),tp=u16(e+2),cnt=u32(e+4);
+            if(id===1||id===3)tag[id]=String.fromCharCode(b.getUint8(e+8));
+            else if((id===2||id===4)&&tp===5&&cnt===3){const p=t+u32(e+8),r=k=>u32(p+k*8)/(u32(p+k*8+4)||1);tag[id]=r(0)+r(1)/60+r(2)/3600;}}
+          if(tag[2]==null||tag[4]==null)return null;const lat=tag[2]*(tag[1]==='S'?-1:1),lng=tag[4]*(tag[3]==='W'?-1:1);return lat||lng?{lat,lng,fonte:'foto'}:null;}
+        if((m&0xFF00)!==0xFF00||m===0xFFDA)return null;o+=2+b.getUint16(o+2);}
+      return null;}catch(e){return null;}}
+  let ult=null;
+  const agora=espera=>new Promise(ok=>{if(!navigator.geolocation)return ok(null);let feito=false;const fim=v=>{if(!feito){feito=true;ok(v);}};
+    setTimeout(()=>fim(ult&&Date.now()-ult.t<300000?ult.v:null),espera||9000);
+    try{navigator.geolocation.getCurrentPosition(p=>{const v={lat:p.coords.latitude,lng:p.coords.longitude,prec:Math.round(p.coords.accuracy||0),fonte:'celular'};ult={v,t:Date.now()};fim(v);},()=>fim(null),{enableHighAccuracy:true,timeout:espera||9000,maximumAge:120000});}catch(e){fim(null);}});
+  const daFoto=async(file,espera)=>{const e=await exif(file);if(e)return e;const lm=file&&file.lastModified;return lm&&Date.now()-lm<20*60000?agora(espera):null;};
+  const txt=g=>g?`${g.lat.toFixed(5).replace('.',',')}  ${g.lng.toFixed(5).replace('.',',')}`:'';
+  const link=g=>g?`https://www.google.com/maps?q=${g.lat.toFixed(6)},${g.lng.toFixed(6)}`:'';
+  const campos=g=>g?{lat:g.lat.toFixed(6),lng:g.lng.toFixed(6),gps_prec:g.prec!=null?String(g.prec):'',gps_fonte:g.fonte||''}:{};
+  const de=r=>{if(!r)return null;const la=parseFloat(r.lat!=null?r.lat:r.gps&&r.gps.lat),ln=parseFloat(r.lng!=null?r.lng:r.gps&&r.gps.lng);return isFinite(la)&&isFinite(ln)&&(la||ln)?{lat:la,lng:ln}:null;};
+  const htmlLink=r=>{const g=de(r);return g?`<a class="vx-mapa" href="${link(g)}" target="_blank" rel="noopener" title="Ver no mapa onde a foto foi tirada"><i class="fas fa-location-dot"></i> ${txt(g)}</a>`:'';};
+  return {exif,agora,daFoto,txt,link,campos,de,htmlLink};
+})();
 GS.fotoSis=(function(){
   const PIX='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22/%3E',PARTE=600000,cache=new Map(),pronto=new Map();
   const run=(fn,...a)=>new Promise((ok,er)=>{try{google.script.run.withSuccessHandler(r=>r&&r.ok===false?er(new Error(r.msg||'Não foi possível concluir.')):ok(r)).withFailureHandler(e=>er(e instanceof Error?e:new Error(String((e&&e.message)||e))))[fn](...a);}catch(e){er(e);}});
@@ -24487,7 +25118,7 @@ GS.fotoSis=(function(){
     await guardar(ob,grande,base+'g');await guardar(ob,mini,base+'m');
     const rot={inicio:'Início da Obra',durante:'Durante a Obra',fim:'Fim da Obra'}[item.etapa]||item.etapa||'',d=String(item.data||'').match(/^(\d{4})-(\d{2})-(\d{2})/);
     await run('upsertRegistro','Imagens da Obra',{titulo_obra:ob,enviado_por:s.nome||'',enviado_por_id:String(s.uid||s.cpf||s.nome||''),foto_uid:base+'g',thumb_uid:base+'m',origem:'sistema',
-      nome_arquivo:item.file.name||'foto.jpg',etapa_obra:item.etapa||'durante',data_foto:item.data||'',descricao:[rot,d?`${d[3]}/${d[2]}/${d[1]}`:'',String(item.descricao||'').trim()].filter(Boolean).join(' • '),...(item.extra||{})},null);
+      nome_arquivo:item.file.name||'foto.jpg',etapa_obra:item.etapa||'durante',data_foto:item.data||'',descricao:[rot,d?`${d[3]}/${d[2]}/${d[1]}`:'',String(item.descricao||'').trim()].filter(Boolean).join(' • '),...GS.gps.campos(item.gps),...(item.extra||{})},null);
     return {foto_uid:base+'g',thumb_uid:base+'m'};}
   const apagar=f=>Promise.all([f.foto_uid,f.thumb_uid].filter(Boolean).map(uid=>run('excluirAnexo',uid,null).catch(()=>{})));
   return {PIX,url,ja,falta,prep,attrs,enviar,apagar};
@@ -24736,6 +25367,144 @@ button.vx-baixar:hover,.rdo-lb-cab button[data-lb-baixar]:hover{background:#1652
 /* diário salvo pela metade: o que ainda falta */
 .rdo-corpo small.rdo-falta{display:block;margin:0 0 8px;padding:7px 10px;border-radius:9px;background:#FFFAEB;border:1px solid #FEDF89;color:#93370D;font-size:12.5px;}
 .rdo-corpo small.rdo-falta i{color:#DC6803;margin-right:2px;}
+/* sem internet (celular): faixa no rodapé enquanto não há conexão ou há registros esperando para ir */
+#vx-offline{position:fixed;left:50%;transform:translateX(-50%);bottom:14px;z-index:12000;max-width:min(640px,calc(100% - 24px));padding:10px 16px;border-radius:14px;font:500 13px/1.45 Inter,sans-serif;box-shadow:0 12px 32px -8px rgba(16,24,40,.35);}
+#vx-offline.sem{background:#101828;color:#F2F4F7;} #vx-offline.enviando{background:#EFF4FF;color:#1849A9;border:1px solid #B2CCFF;}
+#vx-offline b{font-weight:800;} #vx-offline span{display:inline-block;margin-left:6px;padding:1px 8px;border-radius:999px;background:#F79009;color:#fff;font-weight:800;font-size:12px;}
+input[type=search].filter-select{background-image:none;padding-right:12px;}
+/* avisos por e-mail */
+.av-itens{display:flex;flex-direction:column;gap:8px;padding:10px 12px;border:1px solid #EAECF0;border-radius:12px;background:#FCFCFD;} .av-itens label{display:flex;align-items:center;gap:8px;font-size:13px;color:#344054;cursor:pointer;}
+.av-bts{display:flex;flex-wrap:wrap;gap:8px;} .av-previa{border:1px solid #EAECF0;border-radius:12px;padding:12px 14px;background:#F8FAFC;font-size:12.5px;color:#344054;max-height:300px;overflow:auto;}
+.av-previa pre{white-space:pre-wrap;font:12.5px/1.5 Inter,sans-serif;margin:4px 0 10px;color:#475467;}
+/* radar de licitações (PNCP) */
+.rad-lista{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:12px;margin-top:12px;}
+.rad-card{border:1px solid #EAECF0;border-radius:14px;background:#fff;padding:14px;display:flex;flex-direction:column;gap:8px;box-shadow:0 1px 2px rgba(16,24,40,.04);} .rad-card.acomp{border-color:#ABEFC6;background:#FCFFFD;}
+.rad-top{display:flex;flex-wrap:wrap;gap:6px;} .rad-obj{font-size:13.5px;color:#101828;line-height:1.4;display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden;} .rad-card>small{font-size:12px;color:#667085;}
+.rad-num{display:flex;gap:12px;border-top:1px solid #F2F4F7;padding-top:8px;} .rad-num span{flex:1;min-width:0;} .rad-num small{display:block;font:700 10.5px Inter,sans-serif;text-transform:uppercase;letter-spacing:.04em;color:#667085;} .rad-num b{font-size:13px;color:#101828;}
+.rad-bts{display:flex;flex-wrap:wrap;gap:6px;margin-top:auto;} .rad-sit{border:1px solid #D0D5DD;border-radius:8px;padding:0 8px;height:30px;font:600 12px Inter,sans-serif;background:#fff;}
+.rad-mods{display:flex;flex-wrap:wrap;gap:8px 16px;} .rad-mods label{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:#344054;text-transform:none;letter-spacing:0;font-weight:500;}
+/* notas recebidas (botão em Contas a pagar) */
+.gf-bt.vk-nr-tem{border-color:#FEC84B;background:#FFFAEB;color:#93370D;} .vk-nr-n{display:inline-grid;place-items:center;min-width:20px;height:20px;padding:0 6px;border-radius:999px;background:#F79009;color:#fff;font:800 11px Inter,sans-serif;margin-left:2px;}
+/* pessoal e segurança do trabalho */
+.ps-lista{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px;margin-top:14px;}
+.ps-card{border:1px solid #EAECF0;border-radius:14px;background:#fff;padding:14px;display:flex;flex-direction:column;gap:10px;box-shadow:0 1px 2px rgba(16,24,40,.04);}
+.ps-card-top{display:flex;align-items:center;gap:10px;} .ps-card-top>div{flex:1;min-width:0;} .ps-card-top b{display:block;font-size:14px;color:#101828;} .ps-card-top small{display:block;font-size:12px;color:#667085;}
+.ps-av{width:38px;height:38px;border-radius:50%;background:#EEF4FF;color:#1652D8;display:grid;place-items:center;font:800 13px Inter,sans-serif;flex:none;}
+.ps-docs{display:flex;flex-wrap:wrap;gap:6px;} .ps-rod{display:flex;align-items:center;justify-content:space-between;gap:8px;border-top:1px solid #F2F4F7;padding-top:10px;} .ps-rod small{font-size:11.5px;color:#667085;} .ps-rod>div{display:flex;gap:6px;flex:none;}
+.ps-sec{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:6px;} .ps-sec b{font-size:13.5px;color:#101828;} .ps-sec b i{color:#1652D8;margin-right:4px;}
+.ps-validade{display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-size:12px;color:#475467;} .ps-validade small{color:#98A2B3;font-size:11px;}
+.ps-termo{font-size:12px;color:#475467;background:#F8FAFC;border:1px solid #EAECF0;border-radius:12px;padding:10px 12px;line-height:1.5;}
+canvas.ps-ass{display:block;width:100%;height:150px;border:1.5px dashed #84ADFF;border-radius:12px;background:#fff;touch-action:none;cursor:crosshair;margin-bottom:6px;}
+img.ps-ass-mini{height:36px;max-width:140px;object-fit:contain;background:#fff;border:1px solid #EAECF0;border-radius:6px;}
+.lote-tab.ps-epi-tab table{min-width:480px;} .lote-tab.ps-epi-tab td:nth-child(n){width:auto;min-width:0;} .lote-tab.ps-epi-tab td:nth-child(2){width:120px;} .lote-tab.ps-epi-tab td:nth-child(3){width:70px;} .lote-tab.ps-epi-tab td:nth-child(4){width:40px;}
+.lote-tab.maq-tab td small{display:block;font-size:11px;color:#98A2B3;}
+.rdo-eq-lista{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:8px;} .rdo-eq-lista small{font-size:12px;color:#667085;}
+/* máquina alugada: painel de diesel, consumo e custo por hora no diário */
+.maq-painel{margin:14px 0;border:1px solid #EAECF0;border-radius:14px;background:#fff;padding:12px 14px;}
+.maq-cab{display:flex;flex-wrap:wrap;align-items:flex-start;justify-content:space-between;gap:8px 12px;margin-bottom:10px;} .maq-cab b{display:block;font-size:13.5px;color:#101828;} .maq-cab b i{color:#DC6803;margin-right:4px;} .maq-cab small{font-size:11.5px;color:#667085;}
+.maq-bts{display:flex;flex-wrap:wrap;gap:6px;}
+.maq-obra{border-top:1px solid #F2F4F7;padding-top:10px;margin-top:10px;} .maq-obra:first-of-type{border-top:0;margin-top:0;padding-top:0;}
+.maq-obra-nome{display:flex;flex-wrap:wrap;align-items:center;gap:8px;font:700 13px Inter,sans-serif;color:#344054;margin-bottom:8px;}
+.maq-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;}
+.maq-kpi{border:1px solid #EAECF0;border-radius:12px;padding:9px 11px;background:#FCFCFD;min-width:0;} .maq-kpi small{display:block;font:700 10.5px Inter,sans-serif;text-transform:uppercase;letter-spacing:.04em;color:#667085;}
+.maq-kpi b{display:block;font:800 17px Inter,sans-serif;color:#101828;margin:2px 0;} .maq-kpi span{display:block;font-size:11.5px;color:#667085;line-height:1.35;}
+.maq-kpi.azul{background:#EFF4FF;border-color:#B2CCFF;} .maq-kpi.azul b{color:#1849A9;}
+.maq-conta{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border:1px solid #EAECF0;border-radius:12px;background:#FCFCFD;font-size:12.5px;color:#475467;cursor:pointer;margin-top:4px;} .maq-conta b{color:#101828;}
+.lote-tab.maq-tab table{min-width:640px;} .lote-tab.maq-tab td:nth-child(n){width:auto;min-width:0;} .lote-tab.maq-tab td{padding:8px 8px;vertical-align:middle;font-size:12.5px;} .lote-tab.maq-tab td.num{text-align:right;white-space:nowrap;} .maq-acoes{white-space:nowrap;text-align:right;}
+/* tempo pela previsão do INMET: no formulário do diário e a previsão da semana na tela do diário */
+.rdo-tempo-prev{display:flex;align-items:center;gap:12px;padding:10px 12px;margin-bottom:10px;border:1px solid #B2DDFF;border-radius:12px;background:#F5FAFF;}
+.rdo-tempo-prev[hidden]{display:none;} .rdo-tempo-prev>img{width:40px;height:40px;flex:none;} .rdo-tempo-prev>i{font-size:22px;color:#1570EF;flex:none;}
+.rdo-tempo-prev>div{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;font-size:12.5px;color:#344054;} .rdo-tempo-prev b{font-size:13px;color:#101828;} .rdo-tempo-prev small{color:#667085;}
+.rdo-tempo-prev em{font-style:normal;font-size:11.5px;color:#175CD3;font-weight:600;}
+.rdo-sem{margin:14px 0;border:1px solid #EAECF0;border-radius:14px;background:#fff;padding:12px 14px;}
+.rdo-sem-cab{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 10px;margin-bottom:10px;} .rdo-sem-cab b{font-size:13.5px;color:#101828;} .rdo-sem-cab b i{color:#F79009;margin-right:4px;} .rdo-sem-cab small{font-size:11.5px;color:#667085;}
+.rdo-sem-dias{display:grid;grid-template-columns:repeat(auto-fit,minmax(118px,1fr));gap:8px;}
+.rdo-sem-dia{display:flex;flex-direction:column;align-items:center;gap:3px;padding:10px 8px;border:1px solid #EAECF0;border-radius:12px;background:#FCFCFD;text-align:center;min-width:0;}
+.rdo-sem-dia.chuva{background:#F5FAFF;border-color:#B2DDFF;} .rdo-sem-dia img{width:42px;height:42px;}
+.rdo-sem-rot{font:800 12px Inter,sans-serif;color:#101828;} .rdo-sem-txt{font-size:11.5px;color:#475467;line-height:1.3;min-height:30px;}
+.rdo-sem-temp{font:700 12px Inter,sans-serif;color:#344054;} .rdo-sem-tag{font:700 10.5px Inter,sans-serif;color:#067647;} .rdo-sem-dia.chuva .rdo-sem-tag{color:#175CD3;}
+/* localização da foto (GPS): link para o mapa no visualizador e no diário */
+a.vx-mapa{display:inline-flex;align-items:center;gap:5px;font:600 12px Inter,sans-serif;color:#84ADFF;text-decoration:none;white-space:nowrap;} a.vx-mapa:hover{text-decoration:underline;}
+.rdo-lb-cab [data-lb-mapa]{flex:none;} .eng-foto-item small.rdo-foto-gps{display:block;font-size:10.5px;color:#667085;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+/* ═══════════════ PADRÃO DOS FORMULÁRIOS (só a aparência) ═══════════════
+   Um desenho só para todo formulário do sistema — janelas, ficha da obra, Usuários, confirmações, fábrica e as
+   tabelas de lançamento: campo branco de 40px com borda fina e sombra leve, cantos de 10px, rótulo pequeno em
+   maiúsculas, foco azul com anel claro, campo travado em cinza e botões com o mesmo formato. As regras repetem
+   os seletores de antes (vêm depois, então valem) e deixam de fora caixas de marcação e opções (:where não pesa),
+   assim os casos especiais (parcela, leitura do horímetro, erro de digitação…) continuam como estavam. */
+:root{--fm-borda:#D0D5DD;--fm-borda-forte:#98A2B3;--fm-foco:#1652D8;--fm-anel:0 0 0 4px rgba(22,82,216,.14);--fm-sombra:0 1px 2px rgba(16,24,40,.05);--fm-texto:#101828;--fm-rot:#475467;--fm-off:#F9FAFB;
+  --fm-seta:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23667085' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'><path d='M6 9l6 6 6-6'/></svg>");}
+/* janela */
+.fin-jan{border-radius:18px;box-shadow:0 24px 64px -12px rgba(16,24,40,.32),0 0 0 1px rgba(16,24,40,.04);}
+.fin-jan-cab{padding:18px 24px 14px;border-bottom:1px solid #EAECF0;}
+.fin-jan-cab b{font-size:17px;font-weight:800;letter-spacing:-.01em;color:#101828;}
+.fin-jan-corpo{padding:18px 24px 20px;gap:14px;}
+.fin-jan-pe{padding:14px 24px;border-top:1px solid #EAECF0;background:#FCFCFD;border-radius:0 0 18px 18px;gap:10px;}
+.fin-linha{gap:14px 16px;}
+/* rótulos */
+.fin-fld>label,.field-label,.login-field>label{font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--fm-rot);}
+.fin-fld>label{margin-bottom:6px;} .fin-fld .obg{color:#F04438;}
+/* Usuários e caixas de confirmação: o texto em cima do campo vira o mesmo rótulo */
+.confirm-box div:has(+ .field-input),.confirm-box div:has(+ .field-select){font-size:11px!important;font-weight:700!important;letter-spacing:.05em;text-transform:uppercase;color:var(--fm-rot)!important;margin-bottom:6px!important;}
+/* campos: texto, número, data, lista e texto longo */
+.fin-fld input:where(:not([type=checkbox],[type=radio],[type=hidden],[type=file],[type=range],[type=color])),.fin-fld select,.fin-fld textarea,
+.field-input,.field-select,.login-input,
+#form-upsert .cap-fi,#form-upsert .cap-fi-sel,#form-upsert input.cap-sticky-title{box-sizing:border-box;height:40px;padding:0 12px;border:1px solid var(--fm-borda);border-radius:10px;background-color:#fff;
+  font:500 13.5px/1.2 Inter,sans-serif;color:var(--fm-texto);box-shadow:var(--fm-sombra);outline:none;transition:border-color .15s,box-shadow .15s,background-color .15s;}
+.fin-fld textarea,textarea.field-input{height:auto;min-height:84px;padding:10px 12px;line-height:1.5;resize:vertical;}
+.fin-fld select,select.field-input,.field-select,#form-upsert .cap-fi-sel{-webkit-appearance:none;appearance:none;padding-right:34px;background-image:var(--fm-seta);background-repeat:no-repeat;background-position:right 12px center;cursor:pointer;}
+.fin-fld input::placeholder,.fin-fld textarea::placeholder,.field-input::placeholder,.login-input::placeholder,#form-upsert .cap-fi::placeholder{color:#98A2B3;font-weight:400;}
+/* estados (passar o mouse, foco, travado): o mesmo peso das regras acima, para os casos especiais continuarem valendo */
+.fin-fld :is(input,select,textarea):where(:hover:not(:focus,:disabled,[readonly])),.field-input:where(:hover:not(:focus,[readonly])),.login-input:where(:hover:not(:focus)){border-color:var(--fm-borda-forte);}
+#form-upsert :is(.cap-fi,.cap-fi-sel):where(:hover:not(:focus,:disabled,[readonly])){border-color:var(--fm-borda-forte);}
+.fin-fld :is(input,select,textarea):where(:focus),.field-input:focus,.field-select:focus,.login-input:focus,#form-upsert :is(.cap-fi,.cap-fi-sel):focus{border-color:var(--fm-foco);box-shadow:var(--fm-anel);background-color:#fff;}
+.fin-fld :is(input,select,textarea):where(:disabled,[readonly]){background-color:var(--fm-off);color:#475467;box-shadow:none;}
+.fin-fld :is(input,select,textarea):where(:disabled){cursor:not-allowed;}
+.field-input[readonly]{border-color:var(--fm-borda)!important;background-color:var(--fm-off);color:#475467;}
+#form-upsert :is(.cap-fi,.cap-fi-sel):is(:disabled,[readonly]){background:var(--fm-off)!important;color:#475467;box-shadow:none;}
+.login-input{height:46px;}
+/* ficha da obra (tabela de campos): campos com borda, como nos outros formulários */
+#form-upsert .cap-tbl td{padding:5px 4px;border-bottom:0;} #form-upsert .cap-tbl th{color:var(--fm-rot);font-size:10.5px;padding:8px 6px 4px;border-bottom:0;}
+#form-upsert .cap-fi,#form-upsert .cap-fi-sel{height:38px;padding:0 10px;font-size:13px;}
+#form-upsert .cap-fi-sel{padding:0 22px 0 8px;background-position:right 7px center;background-size:11px;}
+#form-upsert .cap-fi[type=date]{padding:0 4px 0 8px;font-size:12.5px;} #form-upsert .cap-fi[type=date]::-webkit-calendar-picker-indicator{margin-left:2px;padding:0;}
+#form-upsert .cap-fi[readonly]:focus{border-color:var(--fm-borda)!important;background:var(--fm-off)!important;}
+/* campos dentro das tabelas de lançamento */
+.lote-tab td input:where(:not([type=checkbox],[type=radio],[type=hidden],[type=file])),.lote-tab td select,.ap-tab td input:where(:not([type=checkbox],[type=radio],[type=hidden],[type=file])),.ap-tab td select,
+.pm-itens input:where(:not([type=checkbox],[type=radio],[type=hidden],[type=file])),.pm-itens select{box-sizing:border-box;height:36px;padding:0 10px;border:1px solid var(--fm-borda);border-radius:8px;background-color:#fff;
+  font:500 13px Inter,sans-serif;color:var(--fm-texto);box-shadow:var(--fm-sombra);outline:none;transition:border-color .15s,box-shadow .15s;}
+.lote-tab td select,.ap-tab td select,.pm-itens select{-webkit-appearance:none;appearance:none;padding-right:28px;background-image:var(--fm-seta);background-repeat:no-repeat;background-position:right 9px center;cursor:pointer;}
+:is(.lote-tab td input,.lote-tab td select,.ap-tab td input,.ap-tab td select,.pm-itens input,.pm-itens select):where(:focus){border-color:var(--fm-foco);box-shadow:var(--fm-anel);}
+:is(.lote-tab td input,.lote-tab td select,.ap-tab td input,.ap-tab td select,.pm-itens input,.pm-itens select):where(:disabled,[readonly]){background-color:var(--fm-off);color:#475467;box-shadow:none;}
+.lote-tab td .cc-lt-parc input{height:28px;}
+/* Categoria › Descrição (lista com pesquisa) no mesmo formato dos campos */
+.cg-bt{min-height:40px;border-color:var(--fm-borda);border-radius:10px;box-shadow:var(--fm-sombra);font-size:13.5px;transition:border-color .15s,box-shadow .15s;}
+.cg-bt:hover{border-color:var(--fm-borda-forte);} .lote-tab .cg-bt,.ap-tab .cg-bt{min-height:36px;border-radius:8px;font-size:13px;}
+/* caixas de informação e perguntas Sim/Não */
+.fin-resumo{background:#F8FAFC;border:1px solid #EAECF0;border-radius:12px;padding:12px 14px;color:#475467;}
+.fin-aviso{border-radius:12px;}
+.sn-pergunta{border-radius:12px;border-color:#EAECF0;background:#FCFCFD;padding:12px 14px;}
+.lote-tab,.ap-tab{border-color:#EAECF0;}
+/* botões: o mesmo formato em janelas, ficha, confirmações e caixas */
+.fin-bt{min-height:38px;padding:0 14px;border-radius:10px;border-color:var(--fm-borda);font:600 13px Inter,sans-serif;color:#344054;box-shadow:var(--fm-sombra);transition:background-color .15s,border-color .15s,box-shadow .15s,color .15s;}
+.fin-bt:hover:not(:disabled){background:#F9FAFB;border-color:var(--fm-borda-forte);color:#101828;}
+.fin-bt:focus-visible{outline:0;box-shadow:var(--fm-anel);}
+.fin-bt.pri{background:#1652D8;border-color:#1652D8;color:#fff;box-shadow:0 1px 2px rgba(16,24,40,.08);}
+.fin-bt.pri:hover:not(:disabled){background:#1849A9;border-color:#1849A9;color:#fff;opacity:1;}
+.fin-bt.verde{background:#079455;border-color:#079455;color:#fff;} .fin-bt.verde:hover:not(:disabled){background:#067647;border-color:#067647;color:#fff;}
+.fin-bt.mini{min-height:30px;padding:0 10px;font-size:12px;border-radius:8px;}
+.btn-save,.btn-delete,.confirm-yes,.confirm-no,.pw-btn{border-radius:10px;min-height:42px;font-size:14px;font-weight:700;transition:background-color .15s,border-color .15s,opacity .15s;}
+.btn-save{background:#1652D8;box-shadow:0 1px 2px rgba(16,24,40,.08);} .btn-save:hover:not(:disabled){background:#1849A9;opacity:1;}
+.confirm-no,.pw-btn-ghost{background:#fff;border:1px solid var(--fm-borda);color:#344054;box-shadow:var(--fm-sombra);}
+.confirm-no:hover,.pw-btn-ghost:hover:not(:disabled){background:#F9FAFB;border-color:var(--fm-borda-forte);opacity:1;}
+.pw-btn-primary{background:#1652D8;} .pw-btn-primary:hover:not(:disabled){background:#1849A9;opacity:1;}
+.confirm-box{border-radius:18px;} .pw-box{border-radius:18px;}
+.modal-sheet{border-radius:20px;}
+@media (max-width:640px){
+  .fin-fld input:where(:not([type=checkbox],[type=radio],[type=hidden],[type=file],[type=range],[type=color])),.fin-fld select,.fin-fld textarea,.field-input,.field-select{font-size:15px;height:44px;}
+  .fin-fld textarea,textarea.field-input{height:auto;}
+  .fin-jan-cab{padding:16px 18px 12px;} .fin-jan-corpo{padding:16px 18px 18px;} .fin-jan-pe{padding:12px 18px;}
+}
 </style>
 <script src="listas.js?v=20261015"></script>
 <script src="pm-catalogo.js?v=20261028b"></script>

@@ -15,12 +15,14 @@ function F($d){ if($null -eq $d){ return '0' }; return ([math]::Round($d, 6)).To
 
 # quais planilhas são quais (pelo workbook)
 $wb = [xml](Get-Content (Join-Path $xl 'workbook.xml') -Raw -Encoding UTF8)
-$rels = [xml](Get-Content (Join-Path $xl '_rels\workbook.xml.rels') -Raw -Encoding UTF8)
+$rels = [xml](Get-Content (Join-Path (Join-Path $xl '_rels') 'workbook.xml.rels') -Raw -Encoding UTF8)
 $alvo = @{}
+# (funciona no Windows e no Linux — o GitHub roda a atualização mensal em Linux)
+$sep = [IO.Path]::DirectorySeparatorChar
 foreach($s in $wb.workbook.sheets.sheet){
   $rid = $s.GetAttribute('id','http://schemas.openxmlformats.org/officeDocument/2006/relationships')
   $rel = $rels.Relationships.Relationship | Where-Object { $_.Id -eq $rid }
-  $alvo[$s.name] = Join-Path $xl ($rel.Target -replace '^/xl/','' -replace '/','\')
+  $alvo[$s.name] = Join-Path $xl ($rel.Target -replace '^/xl/','' -replace '/',$sep)
 }
 $ss = Ler-Strings (Join-Path $xl 'sharedStrings.xml')
 "strings ok ($([int]((Get-Date)-$t0).TotalSeconds)s)"

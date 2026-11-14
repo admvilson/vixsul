@@ -935,3 +935,90 @@ window.google = {
     }
   }
 };
+
+// ─── SEM INTERNET (celular no canteiro) ───────────────────────────────────────
+/* A última carga dos dados fica guardada no aparelho (IndexedDB, por usuário): sem internet, o sistema abre com ela.
+   O DIÁRIO DE OBRA e as FOTOS dele feitos sem sinal entram numa fila no aparelho e são enviados sozinhos, na mesma
+   ordem, quando a internet volta (e o registro já aparece na tela, marcado como "no aparelho"). Só o diário e as fotos
+   funcionam sem internet; o resto do sistema continua pedindo a conexão. Um diário criado sem internet e salvo de
+   novo ainda sem internet é o mesmo item da fila (não duplica). */
+(function () {
+  if (!window.indexedDB) return;
+  const OFF_ABAS = ['Diário de obra', 'Arquivos', 'Imagens da Obra'];
+  let dbp = null;
+  const abrir = () => dbp || (dbp = new Promise((ok, er) => { const r = indexedDB.open('vx-offline', 1);
+    r.onupgradeneeded = () => { const d = r.result; if (!d.objectStoreNames.contains('kv')) d.createObjectStore('kv'); if (!d.objectStoreNames.contains('fila')) d.createObjectStore('fila', { keyPath: 'n', autoIncrement: true }); };
+    r.onsuccess = () => ok(r.result); r.onerror = () => er(r.error); }));
+  const pedir = (store, modo, f) => abrir().then(d => new Promise((ok, er) => { const t = d.transaction(store, modo), q = f(t.objectStore(store)); let v; if (q) q.onsuccess = () => { v = q.result; }; t.oncomplete = () => ok(v); t.onerror = () => er(t.error); t.onabort = () => er(t.error); }));
+  const kvGet = k => pedir('kv', 'readonly', s => s.get(k)), kvSet = (k, v) => pedir('kv', 'readwrite', s => s.put(v, k));
+  const filaTodas = () => pedir('fila', 'readonly', s => s.getAll()), filaPor = o => pedir('fila', 'readwrite', s => s.put(o)), filaDel = n => pedir('fila', 'readwrite', s => s.delete(n));
+  const usuario = () => { try { const s = JSON.parse(sessionStorage.getItem('vixsul_session') || 'null'); return String((s && (s.uid || s.cpf || s.email || s.nome)) || 'anon'); } catch (e) { return 'anon'; } };
+  const semRede = m => !navigator.onLine || /failed to fetch|networkerror|load failed|network request|fetch failed|err_internet|offline/i.test(String(m || ''));
+  // aviso no rodapé: sem internet e quantos registros esperam na fila
+  let nFila = 0;
+  function faixa() {
+    let el = document.getElementById('vx-offline'); const sem = !navigator.onLine;
+    if (!sem && !nFila) { if (el) el.remove(); return; }
+    if (!el) { el = document.createElement('div'); el.id = 'vx-offline'; el.setAttribute('role', 'status'); document.body.appendChild(el); }
+    el.className = sem ? 'sem' : 'enviando';
+    el.innerHTML = sem ? `<b>Sem internet.</b> O diário de obra e as fotos ficam guardados neste aparelho e vão sozinhos quando a internet voltar.${nFila ? ` <span>${nFila} na fila</span>` : ''}`
+      : `<b>Internet de volta.</b> Enviando ${nFila} registro(s) feito(s) sem internet…`;
+  }
+  const contar = () => filaTodas().then(L => { nFila = (L || []).length; faixa(); }).catch(() => {});
+  async function enfileirar(fn, aba, dados, rowId) {
+    const L = (await filaTodas()) || [];
+    let off = '';
+    // salvou de novo um registro que ainda está na fila: atualiza o mesmo item
+    const ja = rowId && String(rowId).indexOf('off-') === 0 ? L.find(o => o.off === String(rowId)) : null;
+    if (ja) { ja.dados = Object.assign({}, ja.dados, dados); ja.t = Date.now(); off = ja.off; await filaPor(ja); }
+    else { off = 'off-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); await filaPor({ fn, aba, dados, rowId: rowId || null, off, t: Date.now() }); }
+    // já aparece na tela: entra na última carga guardada
+    try { const ch = _NOME_PARA_CHAVE[aba]; if (ch && ch !== 'arquivos') { const k = 'dados:' + usuario(), c = await kvGet(k);
+      if (c && c.p) { const T = c.p[ch] = c.p[ch] || [], id = (ja ? off : rowId) || off, i = T.findIndex(r => String(r.rowid) === String(id)), reg = Object.assign({}, i >= 0 ? T[i] : {}, dados, { rowid: id, _aba: aba, _offline: 1 }); if (i >= 0) T[i] = reg; else T.push(reg); await kvSet(k, c); } } } catch (e) { }
+    contar();
+    return { ok: true, offline: true, rowid: (ja ? off : rowId) || off };
+  }
+  const ORIG = {};
+  // a carga dos dados: guarda a última; sem internet, devolve a guardada
+  ORIG.getSistemaData = _FNS.getSistemaData;
+  _FNS.getSistemaData = async () => {
+    const k = 'dados:' + usuario();
+    if (!navigator.onLine) { const c = await kvGet(k).catch(() => null); if (c && c.p) { faixa(); return c.p; } }
+    const p = await ORIG.getSistemaData();
+    if (p && p.obras && navigator.onLine && (p.obras.length || (p.diario_obra || []).length)) kvSet(k, { t: Date.now(), p }).catch(() => { });
+    return p;
+  };
+  // gravar diário / fotos: sem internet (ou se a rede cair no meio), vai para a fila
+  ['upsertRegistroLote', 'upsertRegistro'].forEach(nome => {
+    ORIG[nome] = _FNS[nome];
+    _FNS[nome] = async (aba, dados, rowId) => {
+      const pode = OFF_ABAS.includes(aba);
+      if (pode && !navigator.onLine) return enfileirar(nome, aba, dados, rowId);
+      if (pode && rowId && String(rowId).indexOf('off-') === 0) return enfileirar(nome, aba, dados, rowId);
+      try { const r = await ORIG[nome](aba, dados, rowId); if (pode && r && r.ok === false && semRede(r.msg)) return enfileirar(nome, aba, dados, rowId); return r; }
+      catch (e) { if (pode && semRede(e && e.message)) return enfileirar(nome, aba, dados, rowId); throw e; }
+    };
+  });
+  // a internet voltou: manda a fila, na ordem
+  let enviando = false;
+  async function enviarFila() {
+    if (enviando || !navigator.onLine) return; let L; try { L = (await filaTodas()) || []; } catch (e) { return; } if (!L.length) { contar(); return; }
+    enviando = true; nFila = L.length; faixa(); let n = 0; const falhas = [];
+    try {
+      for (const op of L) {
+        let r; try { r = await ORIG[op.fn](op.aba, op.dados, op.rowId); } catch (e) { r = { ok: false, msg: (e && e.message) || String(e) }; }
+        if (r && r.ok === false && semRede(r.msg)) break;   // a rede caiu de novo: o resto espera
+        if (r && r.ok === false) falhas.push(op.aba + ': ' + (r.msg || 'erro'));
+        await filaDel(op.n); n++;
+      }
+    } finally { enviando = false; }
+    await contar();
+    if (n && window.App && typeof App.init === 'function') App.init(false);
+    if (window.toast) { if (n - falhas.length > 0) toast(`${n - falhas.length} registro(s) feito(s) sem internet foram enviados.`, 'success'); if (falhas.length) toast('Não deu para enviar: ' + falhas.join('; '), 'error', false); }
+  }
+  window.addEventListener('online', () => { faixa(); setTimeout(enviarFila, 1500); });
+  window.addEventListener('offline', faixa);
+  setTimeout(() => { contar(); enviarFila(); }, 4000);
+  setInterval(enviarFila, 60000);
+  window.vxOffline = { fila: filaTodas, enviar: enviarFila, contar };
+})();

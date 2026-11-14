@@ -26,6 +26,55 @@ function pedir(url, { metodo = 'GET', corpo = null, crt, aceitar = 'application/
   });
 }
 const json = b => { try { return JSON.parse(b.toString('utf8')); } catch (e) { return null; } };
+/* ═══ NOTAS DE COMPRA (emitidas CONTRA a Vixsul) ═══
+   NF-e (produto): distribuição da SEFAZ no Ambiente Nacional (NFeDistribuicaoDFe, SOAP 1.2), a partir do último NSU
+   lido — até 50 documentos por vez (resumo da nota, nota completa, eventos), já descompactados. Regra da SEFAZ: sem
+   nada novo (cStat 137) ou já no último NSU, só perguntar de novo depois de 1 hora (senão 656 — consumo indevido).
+   NFS-e (serviço): distribuição do Ambiente de Dados Nacional (ADN) para o contribuinte, a partir do último NSU. */
+function pedirSoap(url, corpo, crt, acao) {
+  return new Promise((ok, er) => {
+    const u = new URL(url);
+    const r = https.request({ hostname: u.hostname, path: u.pathname, method: 'POST', key: crt.keyPem, cert: crt.certPem, timeout: 25000,
+      headers: { 'Content-Type': `application/soap+xml; charset=utf-8; action="${acao}"`, 'Content-Length': Buffer.byteLength(corpo) } },
+      resp => { const ch = []; resp.on('data', c => ch.push(c)); resp.on('end', () => ok({ status: resp.statusCode, txt: Buffer.concat(ch).toString('utf8') })); });
+    r.on('timeout', () => r.destroy(new Error('A SEFAZ demorou demais para responder.')));
+    r.on('error', er); r.write(corpo); r.end();
+  });
+}
+const tagX = (xml, t) => { const m = new RegExp(`<(?:[\\w-]+:)?${t}(?:\\s[^>]*)?>([\\s\\S]*?)</(?:[\\w-]+:)?${t}>`).exec(String(xml || '')); return m ? m[1].trim() : ''; };
+async function nfeRecebidas(crt, ult, tpAmb) {
+  const url = tpAmb === 1 ? 'https://www1.nfe.fazenda.gov.br/NFeDistribuicaoDFe/NFeDistribuicaoDFe.asmx' : 'https://hom1.nfe.fazenda.gov.br/NFeDistribuicaoDFe/NFeDistribuicaoDFe.asmx';
+  const nsu = (String(ult || '0').replace(/\D/g, '') || '0').padStart(15, '0').slice(-15);
+  const corpo = `<?xml version="1.0" encoding="utf-8"?><soap12:Envelope xmlns:soap12="http://www.w3.org/2003/05/soap-envelope"><soap12:Body><nfeDistDFeInteresse xmlns="http://www.portalfiscal.inf.br/nfe/wsdl/NFeDistribuicaoDFe"><nfeDadosMsg><distDFeInt xmlns="http://www.portalfiscal.inf.br/nfe" versao="1.01"><tpAmb>${tpAmb}</tpAmb><cUFAutor>29</cUFAutor><CNPJ>${CNPJ_EMPRESA}</CNPJ><distNSU><ultNSU>${nsu}</ultNSU></distNSU></distDFeInt></nfeDadosMsg></nfeDistDFeInteresse></soap12:Body></soap12:Envelope>`;
+  const r = await pedirSoap(url, corpo, crt, 'http://www.portalfiscal.inf.br/nfe/wsdl/NFeDistribuicaoDFe/nfeDistDFeInteresse');
+  if (r.status !== 200) return { ok: false, msg: `A SEFAZ respondeu HTTP ${r.status}.`, bruto: r.txt.slice(0, 400) };
+  const ret = tagX(r.txt, 'retDistDFeInt'), docs = [];
+  if (!ret) return { ok: false, msg: 'A SEFAZ não devolveu a resposta esperada.', bruto: r.txt.slice(0, 400) };
+  const re = /<(?:[\w-]+:)?docZip([^>]*)>([^<]+)<\/(?:[\w-]+:)?docZip>/g; let m;
+  while ((m = re.exec(ret))) {
+    const at = m[1], n = (/NSU="(\d+)"/.exec(at) || [])[1] || '', sc = (/schema="([^"]+)"/.exec(at) || [])[1] || '';
+    try { docs.push({ nsu: n, schema: sc, xml: zlib.gunzipSync(Buffer.from(m[2].trim(), 'base64')).toString('utf8') }); } catch (e) { docs.push({ nsu: n, schema: sc, xml: '', erro: 'não descompactou' }); }
+  }
+  return { ok: true, origem: 'nfe', cStat: tagX(ret, 'cStat'), xMotivo: tagX(ret, 'xMotivo'), ultNSU: tagX(ret, 'ultNSU'), maxNSU: tagX(ret, 'maxNSU'), docs };
+}
+async function nfseRecebidas(crt, ult, tpAmb) {
+  const amb = core.AMB[tpAmb === 1 ? 1 : 2], nsu = Math.max(0, parseInt(String(ult || '0').replace(/\D/g, '') || '0', 10));
+  const r = await pedir(`${amb.adn}/contribuintes/DFe/${nsu}?cnpjConsulta=${CNPJ_EMPRESA}&lote=true`, { crt }), j = json(r.buf);
+  // os nomes dos campos sem depender de maiúsculas/minúsculas (LoteDFe, NSU, ChaveAcesso, TipoDocumento, ArquivoXml…)
+  const pega = (o, rx) => { if (!o || typeof o !== 'object' || Array.isArray(o)) return undefined; const k = Object.keys(o).find(x => rx.test(x)); return k ? o[k] : undefined; };
+  const st = String(pega(j, /status/i) || '');
+  if (r.status === 404 || /NENHUM/i.test(st)) return { ok: true, origem: 'nfse', status: st || 'NENHUM_DOCUMENTO_LOCALIZADO', ultNSU: String(nsu), docs: [] };
+  if (r.status !== 200 || !j) return { ok: false, msg: `O Ambiente Nacional da NFS-e respondeu HTTP ${r.status}.`, erros: erros(j), bruto: r.buf.toString('utf8').slice(0, 400) };
+  const lote = Array.isArray(j) ? j : (pega(j, /^lote/i) || pega(j, /documentos|dfe/i) || []);
+  const docs = []; let maior = nsu;
+  (Array.isArray(lote) ? lote : []).forEach(d => {
+    const n = parseInt(pega(d, /^nsu$/i), 10) || 0; if (n > maior) maior = n;
+    const b64 = pega(d, /arquivo|xml/i); let xml = '';
+    if (typeof b64 === 'string' && b64) { try { xml = zlib.gunzipSync(Buffer.from(b64, 'base64')).toString('utf8'); } catch (e) { try { xml = Buffer.from(b64, 'base64').toString('utf8'); } catch (e2) { xml = ''; } } }
+    docs.push({ nsu: String(n), chave: String(pega(d, /chave/i) || ''), tipo: String(pega(d, /^tipo.?doc/i) || pega(d, /^tipo/i) || ''), xml });
+  });
+  return { ok: true, origem: 'nfse', status: st, ultNSU: String(maior), docs, erros: erros(j) };
+}
 const erros = j => { const l = j && (j.erros || j.Erros || j.erro || j.Erro); return (Array.isArray(l) ? l : l ? [l] : []).map(e => ({ codigo: e.Codigo || e.codigo || '', descricao: e.Descricao || e.descricao || e.mensagem || e.Mensagem || '', complemento: e.Complemento || e.complemento || '' })); };
 const xmlDaResposta = j => { if (!j) return ''; for (const k of Object.keys(j)) if (/xml.*gzip.*b64/i.test(k) && typeof j[k] === 'string') return zlib.gunzipSync(Buffer.from(j[k], 'base64')).toString('utf8'); return ''; };
 async function danfse(amb, chave, crt) {
@@ -63,6 +112,9 @@ module.exports = async (req, res) => {
     if (b.acao === 'info') return responder(200, { ok: true, info });
     // assina um PDF do sistema (ex.: orçamento) com o certificado A1 da empresa
     if (b.acao === 'assinar-pdf') return responder(200, { ok: true, info, pdf: assinarPdf(b.pdf, crt) });
+    // notas de compra emitidas contra a Vixsul: NF-e (SEFAZ) e NFS-e (Ambiente Nacional) — produção, salvo ambiente 2
+    if (b.acao === 'nfe-recebidas') return responder(200, await nfeRecebidas(crt, b.ultNSU, +b.ambiente === 2 ? 2 : 1));
+    if (b.acao === 'nfse-recebidas') return responder(200, await nfseRecebidas(crt, b.ultNSU, +b.ambiente === 2 ? 2 : 1));
     const amb = core.AMB[+b.ambiente === 1 ? 1 : 2];
     if (b.acao === 'convenio') {
       const cm = String(b.cMun || '').replace(/\D/g, '');
