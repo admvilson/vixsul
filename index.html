@@ -4690,6 +4690,9 @@ const UI={
       // Campos internos (prefixo "_", ex.: _drive_folder_id da galeria de fotos) não são
       // do usuário — não entram no bloco "Outros Campos".
       if(String(c).charAt(0)==='_')return;
+      // marcas do sistema guardadas na obra (ex.: diario_auto, que o Administrador liga no botão "Diário automático"
+      // do Diário de obra): não aparecem aqui — o Salvar parte do registro original e preserva o valor
+      if(['diario_auto'].includes(String(c)))return;
       temExtra=true;
       const raw=gv(c);
       theadExtra+=`<th style="width:150px">${labelHeader(c)}</th>`;
@@ -11983,49 +11986,54 @@ const Fin=(function(){
     pintar();
   }
   /* ENTRADAS COMO APORTE (várias de uma vez, em lista como o "Registrar recebimento"): cada entrada marcada é dinheiro que o
-     sócio pôs na empresa, no mês da data do banco. A obra de referência de cima vale para todas — uma obra, a Empresa ou,
-     marcando duas ou mais, o rateio entre elas pela proporção do orçamento (com o aviso de que está rateando); dá para trocar
-     a obra de uma linha. Tudo soma no aporte do mês do sócio em cada obra e fica ligado à linha do extrato (com a parte de
-     cada obra guardada: o Desfazer tira só ela). */
+     sócio pôs na empresa, no mês da data do banco. A obra de referência de cima vale para TODAS as linhas (a tabela não tem
+     obra) — uma obra, a Empresa ou, marcando duas ou mais, o rateio entre elas pela proporção do orçamento (com o aviso de que
+     está rateando). "Preencher todas as linhas" vale na hora, sem botão. Tudo soma no aporte do mês do sócio em cada obra e
+     fica ligado à linha do extrato (com a parte de cada obra guardada: o Desfazer tira só ela). */
   function aporteMarcados(lista){
     if(!lista.length)return;
     const valor=p=>Math.abs(p.t.valor),FORM=['PIX','Transferência','Cartão de Crédito','Cartão de Débito','Dinheiro','Boleto','Cheque'],socios=GS.rateio.socios();
     const formaBanco=d=>/pix/i.test(d)?'PIX':/ted|doc|transf|tev/i.test(d)?'Transferência':/dep/i.test(d)?'Dinheiro':'';
-    const obras=[...new Set((D().obras||[]).map(o=>getFuzzy(o,['titulo_obra','nome_obra','titulo'])).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'pt-BR'));
     // sócio sugerido: o nome que veio do banco e bate com um sócio já usado nos aportes
     const socioDe=p=>{const t=cn([p.t.desc,p.t.quem,p.t.detalhe].join(' '));return socios.find(s=>cn(s).split(' ').filter(w=>w.length>3).some(w=>t.includes(w)))||'';};
     const selF=(v,attr)=>`<select ${attr}><option value="">—</option>${FORM.map(f=>`<option ${f===v?'selected':''}>${fe(f)}</option>`).join('')}</select>`;
     const linhaHtml=(p,i)=>`<tr data-ln="${i}"><td class="cc-lt-banco"><b>${fe(p.t.data.slice(0,5))}</b> ${fe(p.t.desc)}${p.t.detalhe?`<small>${fe(p.t.detalhe)}</small>`:p.t.quem?`<small>${fe(p.t.quem)}</small>`:''}</td>
       <td><input data-i="quem" list="cc-ap-quem" value="${fe(socioDe(p))}" placeholder="Sócio" aria-label="Sócio / investidor"></td>
-      <td><select data-i="obra" aria-label="Obra de referência"><option value="">A de cima</option><option value="Empresa">Custo indireto (Empresa)</option>${obras.map(o=>`<option value="${fe(o)}">${fe(o)}</option>`).join('')}</select></td>
       <td>${selF(formaBanco(p.t.desc),'data-i="forma" aria-label="Forma"')}</td><td class="num"><b>${fmt(valor(p))}</b></td>
       <td><button type="button" class="bt-tirar" data-i="tirar" title="Tirar esta linha" aria-label="Tirar esta linha"><i class="fas fa-trash-can"></i></button></td></tr>`;
-    const j=janela(lista.length>1?`Lançar ${lista.length} entradas como aporte`:'Lançar a entrada como aporte',`<div class="fin-resumo">Cada entrada marcada é dinheiro que o sócio pôs na empresa, no mês da data do banco. A <b>obra de referência</b> de cima vale para todas — marque uma obra, a Empresa ou <b>duas ou mais obras para ratear pela proporção do orçamento</b>. Dá para trocar a obra de uma linha na tabela.</div>
+    const j=janela(lista.length>1?`Lançar ${lista.length} entradas como aporte`:'Lançar a entrada como aporte',`<div class="fin-resumo">Cada entrada marcada é dinheiro que o sócio pôs na empresa, no mês da data do banco. A <b>obra de referência</b> de cima vale para todas — marque uma obra, a Empresa ou <b>duas ou mais obras para ratear pela proporção do orçamento</b>.</div>
       <datalist id="cc-ap-quem">${socios.map(s=>`<option value="${fe(s)}">`).join('')}</datalist>
       <div class="fin-fld"><label>Obra de referência <span class="obg">*</span></label>${GS.destino.html('data-k="obra"','',{rateio:true,empresa:true,rotObra:'Obra'})}</div>
-      <div class="cc-ap-todas"><b>Preencher todas as linhas:</b><input data-k="quemT" list="cc-ap-quem" placeholder="Sócio">${selF('','data-k="formaT" aria-label="Forma"')}<button type="button" class="fin-bt mini" data-k="preencher">Preencher</button></div>
-      <div class="lote-tab cc-lt cc-ap"><table data-sem-ordem><thead><tr><th>No banco</th><th>Sócio <span class="obg">*</span></th><th>Obra</th><th>Forma</th><th>Entrou</th><th></th></tr></thead><tbody data-k="linhas">${lista.map(linhaHtml).join('')}</tbody></table></div>
+      <div class="lote-tab cc-lt cc-ap"><table data-sem-ordem><thead><tr><th>No banco</th><th>Sócio <span class="obg">*</span></th><th>Forma</th><th>Entrou</th><th></th></tr></thead>
+        <tbody class="cc-lt-todas" title="O que você escolher aqui vai na hora para todas as linhas da tabela"><tr><td>Preencher todas as linhas:</td><td><input data-k="quemT" list="cc-ap-quem" autocomplete="off" placeholder="Sócio de todas" aria-label="Sócio de todas as linhas"></td><td>${selF('','data-k="formaT" aria-label="Forma de todas as linhas"').replace('<option value="">—</option>','<option value="">Forma…</option>')}</td><td></td><td></td></tr></tbody>
+        <tbody data-k="linhas">${lista.map(linhaHtml).join('')}</tbody></table></div>
       <div class="lote-tot" data-k="tot"></div>`,
       [{html:'<i class="fas fa-arrow-down"></i> Lançar como aporte',cls:'pri',acao:async jj=>{
         const glob=(jj.querySelector('[data-k="obra"]').value||'').trim(),obrasR=RT?RT.obras():[];
-        const its=[...tb.rows].map(tr=>({p:lista[+tr.dataset.ln],quem:(tr.querySelector('[data-i="quem"]').value||'').trim(),obra:tr.querySelector('[data-i="obra"]').value,forma:tr.querySelector('[data-i="forma"]').value}));
+        const its=[...tb.rows].map(tr=>({p:lista[+tr.dataset.ln],quem:(tr.querySelector('[data-i="quem"]').value||'').trim(),forma:tr.querySelector('[data-i="forma"]').value}));
         if(!its.length)throw new Error('Não sobrou nenhuma linha.');
         const semQ=its.findIndex(x=>!x.quem);if(semQ>=0)throw new Error(its.length>1?`Linha ${semQ+1}: informe o sócio.`:'Informe o sócio que pôs o dinheiro.');
-        const usaGlob=its.filter(x=>!x.obra);if(usaGlob.length&&!glob)throw new Error('Marque a obra de referência (ou a Empresa) — ou escolha a obra em cada linha.');
-        const rat=glob==='__rateio__'&&usaGlob.length>0;
-        if(rat){const e=GS.rateio.erroRateio(obrasR);if(e)throw new Error(e);if(!(await GS.rateio.confirmarRateio(obrasR,usaGlob.reduce((s,x)=>s+valor(x.p),0),usaGlob.length>1?'Estes aportes vão ser rateados':'Este aporte vai ser rateado')))return false;}
-        await executar(async()=>{for(const x of its){const v=valor(x.p),ob=x.obra||glob,d=isoDeBR(x.p.t.data);
-          const partes=ob==='__rateio__'?GS.rateio.partesRateio(v,obrasR).map(pp=>({obra:pp.obra,valor:pp.valor,obs:`Rateio: ${GS.rateio.pctTxt(pp.pct)} de ${fmt(v)} (pelo orçamento)`})):[{obra:ob,valor:v,obs:''}];
+        if(!glob)throw new Error('Marque a obra de referência (ou Custo indireto) — ela vale para todas as linhas.');
+        const rat=glob==='__rateio__';
+        if(rat){const e=GS.rateio.erroRateio(obrasR);if(e)throw new Error(e);if(!(await GS.rateio.confirmarRateio(obrasR,its.reduce((s,x)=>s+valor(x.p),0),its.length>1?'Estes aportes vão ser rateados':'Este aporte vai ser rateado')))return false;}
+        await executar(async()=>{for(const x of its){const v=valor(x.p),d=isoDeBR(x.p.t.data);
+          const partes=rat?GS.rateio.partesRateio(v,obrasR).map(pp=>({obra:pp.obra,valor:pp.valor,obs:`Rateio: ${GS.rateio.pctTxt(pp.pct)} de ${fmt(v)} (pelo orçamento)`})):[{obra:glob,valor:v,obs:''}];
           for(const pp of partes)await somarAporte({obra:pp.obra,quem:x.quem,data:d,valor:pp.valor,forma:x.forma,formas:[x.forma],obs:[pp.obs,obsDoExtrato(x.p.t)].filter(Boolean).join(' · '),origem:'conciliacao',conc:x.p.t.id,concParte:pp.valor});}});
         its.forEach(x=>CONC.selSem.delete(x.p.t.id));
         toast(`${its.length>1?its.length+' entradas lançadas':'Entrada lançada'} como aporte${rat?' (rateado pelo orçamento)':''} e ligada${its.length>1?'s':''} ao extrato.`,'success');}}],1000);
     const tb=j.querySelector('[data-k="linhas"]'),rbox=j.querySelector('[data-rat]');
-    // o rateio de cima mostra a parte de cada obra do que vai por ele (as linhas sem obra própria)
-    var RT=rbox?GS.rateio.ligarRateio(rbox,()=>[...tb.rows].filter(tr=>!tr.querySelector('[data-i="obra"]').value).reduce((s,tr)=>s+valor(lista[+tr.dataset.ln]),0)):null;
-    const pintar=()=>{const n=tb.rows.length,tot=[...tb.rows].reduce((s,tr)=>s+valor(lista[+tr.dataset.ln]),0);j.querySelector('[data-k="tot"]').innerHTML=n?`${n} linha${n>1?'s':''} · entrou <b>${fmt(tot)}</b>`:'<span class="t-err">Nenhuma linha — feche e marque as entradas de novo.</span>';if(RT)RT.pintar();};
+    // o rateio de cima mostra a parte de cada obra do total das linhas
+    const somaLinhas=()=>[...tb.rows].reduce((s,tr)=>s+valor(lista[+tr.dataset.ln]),0);
+    var RT=rbox?GS.rateio.ligarRateio(rbox,somaLinhas):null;
+    const pintar=()=>{const n=tb.rows.length;j.querySelector('[data-k="tot"]').innerHTML=n?`${n} linha${n>1?'s':''} · entrou <b>${fmt(somaLinhas())}</b>`:'<span class="t-err">Nenhuma linha — feche e marque as entradas de novo.</span>';if(RT)RT.pintar();};
     tb.addEventListener('click',ev=>{const b=ev.target.closest('[data-i="tirar"]');if(b){b.closest('tr').remove();pintar();}});
     tb.addEventListener('change',pintar);
-    j.querySelector('[data-k="preencher"]').addEventListener('click',()=>{const q=j.querySelector('[data-k="quemT"]').value.trim(),f=j.querySelector('[data-k="formaT"]').value;[...tb.rows].forEach(tr=>{if(q)tr.querySelector('[data-i="quem"]').value=q;if(f)tr.querySelector('[data-i="forma"]').value=f;});});
+    // "Preencher todas as linhas" vale na hora: escolheu o sócio da lista (ou digitou e saiu do campo) ou a forma → todas as linhas recebem
+    const qT=j.querySelector('[data-k="quemT"]'),fT=j.querySelector('[data-k="formaT"]');
+    const porTodas=(k,v)=>{if(v)tb.querySelectorAll(`[data-i="${k}"]`).forEach(e=>{e.value=v;});};
+    qT.addEventListener('input',()=>{const s=socios.find(s=>cn(s)===cn(qT.value.trim()));if(s)porTodas('quem',s);});
+    qT.addEventListener('change',()=>porTodas('quem',qT.value.trim()));
+    fT.addEventListener('change',()=>porTodas('forma',fT.value));
     pintar();
   }
   /* Débito que não estava lançado → conta JÁ PAGA em Contas a pagar (obra, empresa ou rateio entre obras), com as
@@ -16769,11 +16777,10 @@ const PL2=(function(){
 .vk-selbar .gf-bt.vk-devolver{background:#F79009;color:#fff;} .vk-selbar .gf-bt.vk-devolver:hover{background:#DC6803;}
 .vk-sel-sair{flex:none;width:34px;height:34px;border-radius:50%;border:0;background:transparent;color:#667085;cursor:pointer;display:grid;place-items:center;font-size:14px;} .vk-sel-sair:hover{background:#F2F4F7;color:#101828;}
 .gf-bt.vk-modo-sel.ativo{background:#EFF4FF;border-color:#84ADFF;color:#1849A9;}
-/* Conciliação › Lançar como aporte: linha de "Preencher todas" e a tabela das entradas */
-.cc-ap-todas{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:12px 0 8px;font-size:12.5px;color:#344054;}
-.cc-ap-todas input,.cc-ap-todas select{border:1px solid #D0D5DD;border-radius:8px;padding:6px 8px;font:500 12.5px Inter,sans-serif;min-width:150px;}
-.lote-tab.cc-ap table{min-width:860px;} .lote-tab.cc-ap td:nth-child(1){width:auto;min-width:210px;} .lote-tab.cc-ap td:nth-child(2){width:160px;} .lote-tab.cc-ap td:nth-child(3){min-width:210px;width:auto;}
-.lote-tab.cc-ap td:nth-child(4){width:136px;} .lote-tab.cc-ap td:nth-child(5){width:110px;text-align:right;} .lote-tab.cc-ap td:nth-child(6){width:40px;}
+/* Conciliação › Lançar como aporte: a tabela das entradas ("Preencher todas as linhas" é a 1ª linha dela, como nas saídas)
+   (.cc-lt.cc-ap: vale por cima das larguras da tabela das saídas, que vêm depois) */
+.lote-tab.cc-lt.cc-ap table{min-width:640px;} .lote-tab.cc-lt.cc-ap td:nth-child(1){width:auto;min-width:220px;} .lote-tab.cc-lt.cc-ap td:nth-child(2){width:230px;min-width:0;} .lote-tab.cc-lt.cc-ap td:nth-child(3){width:160px;min-width:0;}
+.lote-tab.cc-lt.cc-ap td:nth-child(4){width:110px;text-align:right;} .lote-tab.cc-lt.cc-ap th:nth-child(4){text-align:right;} .lote-tab.cc-lt.cc-ap td:nth-child(5){width:40px;}
 /* caixinha do valor ao passar o mouse nos gráficos de barras (a mesma cara da dos gráficos do Chart.js) */
 .vx-tip{position:fixed;left:0;top:0;z-index:10060;pointer-events:none;max-width:300px;padding:8px 10px;border-radius:10px;background:rgba(16,24,40,.94);color:#EAECF0;font:500 12px Inter,sans-serif;line-height:1.45;box-shadow:0 10px 26px rgba(0,0,0,.22);}
 .vx-tip b{color:#fff;font-weight:700;} [data-tip]{cursor:default;}
@@ -16790,14 +16797,18 @@ const PL2=(function(){
 .ap-obra b{min-width:0;overflow-wrap:anywhere;}
 .ap-cab-tab{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 10px;margin:16px 0 6px;} .ap-cab-tab b{font-size:13.5px;color:#101828;} .ap-cab-tab small{color:#667085;font-size:12px;}
 .ap-tab{overflow-x:auto;border:1px solid #E4E9F2;border-radius:12px;}
-.ap-tab table{width:100%;border-collapse:collapse;min-width:690px;font-size:12.5px;}
+.ap-tab table{width:100%;border-collapse:collapse;min-width:860px;font-size:12.5px;}
 .ap-tab th{text-align:left;font:800 10px Inter,sans-serif;text-transform:uppercase;letter-spacing:.04em;color:#667085;background:#F8FAFC;padding:7px 6px;}
 .ap-tab td{padding:4px;border-top:1px solid #F2F4F7;vertical-align:middle;}
 .ap-tab td input,.ap-tab td select{width:100%;box-sizing:border-box;border:1px solid #D0D5DD;border-radius:8px;padding:6px 7px;font:500 12.5px Inter,sans-serif;background:#fff;color:#101828;}
 .ap-tab td input:disabled,.ap-tab td select:disabled{background:#F9FAFB;color:#475467;}
 .ap-tab td:nth-child(1){width:128px;} .ap-tab td:nth-child(4){width:124px;} .ap-tab td:nth-child(5){width:108px;} .ap-tab td:nth-child(6){width:40px;text-align:center;}
 .ap-tab td small{display:block;color:#667085;font-size:11px;line-height:1.35;}
-.ap-tab tr.ap-sai td{opacity:.45;} .ap-tab tr.ap-sai input,.ap-tab tr.ap-sai select{text-decoration:line-through;}
+.ap-tab tr.ap-sai td{opacity:.45;} .ap-tab tr.ap-sai input,.ap-tab tr.ap-sai select,.ap-tab tr.ap-sai .cg-bt{text-decoration:line-through;}
+/* Editar aporte: Categoria › Descrição (a mesma lista da conta) e o fornecedor com sugestões */
+.ap-tab td:nth-child(2){min-width:170px;} .ap-tab td:nth-child(3){min-width:250px;}
+.ap-tab .cg-bt{min-height:32px;padding-top:5px;padding-bottom:5px;gap:0 4px;line-height:1.3;} .ap-tab .cg-bt small{flex-basis:100%;font-size:11px;} .ap-tab .cg-bt:disabled{background-color:#F9FAFB;background-image:none;color:#475467;cursor:not-allowed;}
+.ap-cg-fixo{padding:6px 7px;border:1px solid #EAECF0;border-radius:8px;background:#F9FAFB;color:#475467;font:500 12.5px Inter,sans-serif;line-height:1.35;} .ap-cg-fixo small{color:#667085;font-weight:600;}
 .ap-move{margin:8px 0 0;font-size:12.5px;color:#1D3F7A;} .ap-move i{color:#1652D8;}
 .vk-exc-lista{margin:8px 0;padding:0;list-style:none;max-height:220px;overflow:auto;border:1px solid #F2F4F7;border-radius:10px;} .vk-exc-lista li{display:flex;justify-content:space-between;gap:10px;padding:6px 10px;border-top:1px solid #F2F4F7;font-size:12.5px;} .vk-exc-lista li:first-child{border-top:0;} .vk-exc-lista li b{white-space:nowrap;}
 /* "Excluir vários": marcar a coluna inteira (no topo de cada coluna) e cartão que não pode sair */
@@ -17870,7 +17881,7 @@ const Mascara=(function(){
     // a SINAPI carrega na 1ª vez (alguns segundos) e a lista se completa sozinha
     if(!emp&&!CATALOGO)catalogo('').then(()=>{if(CGP&&CGP.pop===pop){lista=catalogoGasto(emp);desenhar();}}).catch(()=>{});
   }
-  document.addEventListener('click',ev=>{const b=ev.target.closest('[data-cg]');if(b){ev.preventDefault();if(CGP&&CGP.bt===b)return fecharCG();return abrirCG(b);}});
+  document.addEventListener('click',ev=>{const b=ev.target.closest('[data-cg]');if(b){ev.preventDefault();if(b.disabled)return;if(CGP&&CGP.bt===b)return fecharCG();return abrirCG(b);}});
   document.addEventListener('mousedown',ev=>{if(CGP&&!CGP.pop.contains(ev.target)&&!CGP.bt.contains(ev.target))fecharCG();},true);
   // limpar (ex.: trocou de obra para Empresa e a categoria não vale mais)
   const limparCG=box=>{if(!box)return;box.querySelectorAll('input[type="hidden"]').forEach(h=>h.value='');box.querySelector('[data-cg]').innerHTML=rotCG('','');};
@@ -24111,8 +24122,12 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
     const FC=[...new Set((typeof FORMAS_PAGAMENTO_DESPESA!=='undefined'?FORMAS_PAGAMENTO_DESPESA:[]).concat(FORMAS_AP))];
     const selF=(v,attr,pode)=>`<select ${attr} ${pode?'':'disabled'}><option value="">—</option>${[...new Set(FC.concat(v&&v!=='Várias'?[v]:[]))].map(f=>`<option ${f===v?'selected':''}>${fe(f)}</option>`).join('')}</select>`;
     const dis=ed?'':'disabled';
+    /* Categoria › Descrição como na conta (lista com pesquisa; obra = categorias de custo, Empresa = de despesa). A parcela
+       "(1/2)" do fim da descrição fica de fora da escolha e volta ao salvar. Quem não pode mudar vê o texto, sem a lista. */
+    const cgLinha=o=>{const d=C.limparParc(o.desc);return ed?GS.comboGasto.html('data-c="cat"','data-c="desc"',o.cat||'',d)
+      :`<div class="ap-cg-fixo">${o.cat?`<small>${fe(o.cat)} ›</small> `:''}${fe(d||'—')}</div>`;};
     const linha=(o,i)=>`<tr data-ap-i="${i}"><td><input type="date" data-c="pago" max="${hj}" value="${fe(o.pago)}" ${dis} aria-label="Data do pagamento"></td>
-      <td><input data-c="forn" value="${fe(o.forn||'')}" ${dis} aria-label="Fornecedor"></td><td><input data-c="desc" value="${fe(o.desc||'')}" ${dis} aria-label="Descrição"></td>
+      <td><input data-c="forn" data-maiusc list="vx-forn-lista" autocomplete="off" value="${fe(o.forn||'')}" ${dis} aria-label="Fornecedor" placeholder="Fornecedor"></td><td>${cgLinha(o)}</td>
       <td>${selF(o.forma||'','data-c="forma" aria-label="Forma de pagamento"',ed)}</td><td><input data-c="total" data-mask="moeda" inputmode="numeric" value="${fmt(val(o.total))}" ${dis} aria-label="Valor"></td>
       <td>${ed?'<button type="button" class="bt-tirar" data-ap-x title="Excluir esta conta (vai para a Lixeira)" aria-label="Excluir esta conta"><i class="fas fa-trash-can"></i></button>':''}</td></tr>`;
     const linhaMan=manual>0.004?`<tr data-ap-man><td><small>${x.data?brDe(x.data):'—'}</small></td><td><b>Aporte direto</b></td><td><small>dinheiro posto pelo sócio, sem conta ligada</small></td>
@@ -24123,7 +24138,8 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
         <div class="fin-fld"><label>Período (mês)</label><div class="ap-fixo"><i class="fas fa-calendar"></i> ${fe(GS.cap(GS.mesNome(m)))}<small>${brDe(dt(per.ini)).slice(0,5)} a ${brDe(dt(per.fim))}</small></div></div>
         <div class="fin-fld" style="grid-column:1/-1"><label>Obra de referência</label><div class="ap-fixo ap-obra"><span class="ap-tipo"><i class="fas ${emp?'fa-building':'fa-helmet-safety'}"></i> ${emp?'Custo indireto (Empresa)':'Obra'}</span>${emp?'':`<b>${fe(ob)}</b>`}</div></div></div>
       <div class="ap-cab-tab"><b>${cs.length?`Contas pagas por ${fe(x.quem)} que formam este aporte`:'Lançamentos deste aporte'}</b>${cs.length?'<small>Mudar uma linha muda a conta em Contas a pagar; a lixeira da linha manda a conta para a Lixeira.</small>':''}</div>
-      ${cs.length||manual>0.004?`<div class="ap-tab"><table data-sem-ordem><thead><tr><th>Pago em</th><th>Fornecedor</th><th>Descrição</th><th>Forma</th><th>Valor</th><th></th></tr></thead><tbody data-ap-linhas>${cs.map(linha).join('')}${linhaMan}</tbody></table></div>`:'<p class="vk-dica">Nenhuma conta ligada a este aporte.</p>'}
+      <input type="hidden" data-k="centro" value="${fe(emp?C.EMP:ob)}">
+      ${cs.length||manual>0.004?`<div class="ap-tab"><table data-sem-ordem><thead><tr><th>Pago em</th><th>Fornecedor</th><th>Categoria › Descrição</th><th>Forma</th><th>Valor</th><th></th></tr></thead><tbody data-ap-linhas>${cs.map(linha).join('')}${linhaMan}</tbody></table></div>`:'<p class="vk-dica">Nenhuma conta ligada a este aporte.</p>'}
       ${!ed&&cs.length?'<p class="vk-dica"><i class="fas fa-lock"></i> As contas já pagas só um Administrador altera.</p>':''}
       ${manual<-0.004?`<div class="fin-aviso laranja"><div>As contas somam ${fmt(soma)}, mais do que o aporte (${fmt(x.valor)}). Ao salvar, o aporte passa a ser a soma das linhas.</div></div>`:''}
       <p class="ap-move" data-ap-move hidden></p>
@@ -24136,9 +24152,11 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
         const o=cs[+tr.dataset.apI];if(!o)continue;if(fora){sai.push(o);continue;}
         const t=num(g('total')),d=g('pago'),nome=o.forn||o.desc||'conta';
         if(!(t>0))throw new Error(`Informe o valor da conta de ${nome}.`);if(!d)throw new Error(`Informe a data do pagamento da conta de ${nome}.`);if(d>hj)throw new Error('A data do pagamento não pode ser depois de hoje.');
-        const u={...o,pago:d,forn:g('forn').toLocaleUpperCase('pt-BR'),desc:g('desc')||o.desc,forma:g('forma'),total:dinheiro(t),pagoPorSocio:Fin.aporteConta.socio(o)||x.quem};
+        // descrição escolhida na lista + a parcela "(1/2)" que a conta já tinha no fim
+        const parc=(String(o.desc||'').match(/\s*\(\d+\/\d+\)\s*$/)||[''])[0],dsc=g('desc'),cat=g('cat');
+        const u={...o,pago:d,forn:g('forn').toLocaleUpperCase('pt-BR'),cat:cat||o.cat,desc:dsc?dsc+parc:o.desc,forma:g('forma'),total:dinheiro(t),pagoPorSocio:Fin.aporteConta.socio(o)||x.quem};
         if(o._t==='c'&&o.centro!=='Empresa'&&val(o.qtd)>0&&Math.abs(t-val(o.total))>0.004)u.pUnit=String(Math.round((t+val(o.desconto||0))/val(o.qtd)*1e6)/1e6);
-        if(['pago','forn','desc','forma'].some(k=>String(u[k]||'')!==String(o[k]||''))||Math.abs(t-val(o.total))>0.004)muda.push([u,o]);fica.push(u);}
+        if(['pago','forn','cat','desc','forma'].some(k=>String(u[k]||'')!==String(o[k]||''))||Math.abs(t-val(o.total))>0.004)muda.push([u,o]);fica.push(u);}
       const restam=fica.filter(u=>String(u.pago).slice(0,7)===m),manV=man?Math.max(0,man.v):Math.max(0,manual);
       if(!restam.length&&manV<=0.004)throw new Error('Todas as linhas saíram deste aporte. Para excluir o aporte inteiro, feche e use a lixeira dele em Movimentos — as contas vão junto para a Lixeira.');
       const total=Math.round((restam.reduce((s,u)=>s+val(u.total),0)+manV)*100)/100;
@@ -24152,6 +24170,8 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
         await Fin.aporteConta.acertar({rowid:x.r.rowid,quem:x.quem,obra:ob,data:m+'-01',total,obs,formas});});
       toast(`Aporte atualizado${muda.length||sai.length?` — ${[muda.length?`${muda.length} conta${muda.length>1?'s alteradas':' alterada'}`:'',sai.length?`${sai.length} na Lixeira`:''].filter(Boolean).join(', ')} em Contas a pagar`:''}.`,'success');}}],940);
     const j=document.getElementById('fin-jan'),tb=j.querySelector('[data-ap-linhas]');if(!tb)return;
+    // fornecedor: ao digitar, a lista dos cadastrados aparece (como na conta)
+    try{Eng.datalistFornecedores();}catch(e){}
     // o Valor é a soma das linhas que continuam neste mês; conta que passa para outro mês vai para o aporte daquele mês
     const pintar=()=>{let t=0;const fora=[];[...tb.rows].forEach(tr=>{if(tr.classList.contains('ap-sai'))return;const v=num((tr.querySelector('[data-c="total"]')||{}).value),d=(tr.querySelector('[data-c="pago"]')||{}).value;
         if(d&&d.slice(0,7)!==m){fora.push(d.slice(0,7));return;}t+=v;});
@@ -24159,7 +24179,7 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
       if(fora.length)mv.innerHTML=`<i class="fas fa-circle-info"></i> ${fora.length} conta${fora.length>1?'s passam':' passa'} para o aporte de ${[...new Set(fora)].map(k=>fe(GS.mesNome(k))).join(', ')} (o mês do pagamento).`;};
     tb.addEventListener('input',pintar);tb.addEventListener('change',pintar);
     tb.addEventListener('click',ev=>{const b=ev.target.closest('[data-ap-x]');if(!b)return;const tr=b.closest('tr'),fora=!tr.classList.contains('ap-sai');tr.classList.toggle('ap-sai',fora);
-      tr.querySelectorAll('input,select').forEach(e=>{e.disabled=fora||(!ed&&!tr.hasAttribute('data-ap-man'));});
+      tr.querySelectorAll('input,select,button.cg-bt').forEach(e=>{e.disabled=fora||(!ed&&!tr.hasAttribute('data-ap-man'));});
       b.innerHTML=fora?'<i class="fas fa-rotate-left"></i>':'<i class="fas fa-trash-can"></i>';b.title=fora?'Voltar esta linha':(tr.hasAttribute('data-ap-man')?'Tirar este valor do aporte':'Excluir esta conta (vai para a Lixeira)');pintar();});
     pintar();
   }
@@ -24675,23 +24695,33 @@ select.gf-lista-aberta,input.gf-lista-campo.gf-lista-aberta{border-color:#1652D8
 input.gf-lista-campo{background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236e6e73' stroke-width='2.5'><path d='M6 9l6 6 6-6'/></svg>");background-repeat:no-repeat;background-position:right 11px center;padding-right:32px;}
 .gf-lista-sug{padding:6px;} .gf-lista-sug .gf-combo-lista{margin:0;}
 .gf-lista-novo{border-top:1px dashed #D0D5DD;margin-top:6px;padding:8px 10px 4px;font-size:12.5px;color:#667085;}
-/* BOTÃO FECHAR (X): o mesmo em todo o sistema — janelas, telas grandes, fábrica, fotos e a barra de seleção. Círculo cinza
-   claro com o X; passando o mouse fica vermelho. (button.… para valer também sobre as regras que vêm depois, da fábrica) */
-button.close-btn,button.fin-x,button.pm-x,button.vk-sel-sair,button.vx-fechar,.rdo-lb-cab button[data-lb-x],#modal-usuario button.usr-x{width:32px;height:32px;min-width:32px;padding:0;border:0;border-radius:50%;background:#F2F4F7;color:#475467;display:inline-flex;align-items:center;justify-content:center;flex:none;cursor:pointer;font-size:15px;line-height:1;box-shadow:none;transition:background .15s,color .15s,box-shadow .15s;}
-button.close-btn:hover,button.fin-x:hover,button.pm-x:hover,button.vk-sel-sair:hover,button.vx-fechar:hover,.rdo-lb-cab button[data-lb-x]:hover,#modal-usuario button.usr-x:hover{background:#FEE4E2;color:#D92D20;}
-button.close-btn:focus-visible,button.fin-x:focus-visible,button.pm-x:focus-visible,button.vk-sel-sair:focus-visible,button.vx-fechar:focus-visible,.rdo-lb-cab button[data-lb-x]:focus-visible,#modal-usuario button.usr-x:focus-visible{outline:0;box-shadow:0 0 0 3px rgba(22,82,216,.28);}
-button.close-btn i,button.fin-x i,button.pm-x i,button.vk-sel-sair i,button.vx-fechar i,.rdo-lb-cab button[data-lb-x] i,#modal-usuario button.usr-x i{font-size:15px;line-height:1;pointer-events:none;}
-/* O X NO MESMO LUGAR em toda janela e formulário: no canto de cima à direita da caixa, a 16px do topo e da direita
+/* BOTÃO FECHAR (X): o mesmo em todo o sistema — janelas, telas grandes, fábrica, fotos e a barra de seleção.
+   Quadradinho de cantos arredondados, branco, com borda fina e sombra leve; o X é desenhado (traço fino de pontas
+   redondas, sempre nítido). Passando o mouse: fundo vermelho bem claro e o X vermelho dá ¼ de volta; clicando, o X
+   encolhe. Nas fotos (fundo escuro) o botão é de vidro escuro e fica vermelho cheio.
+   (button.… para valer também sobre as regras que vêm depois, da fábrica) */
+:root{--vx-x-ico:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.3' stroke-linecap='round'><path d='M6.5 6.5l11 11M17.5 6.5l-11 11'/></svg>");}
+button.close-btn,button.fin-x,button.pm-x,button.vk-sel-sair,button.vx-fechar,.rdo-lb-cab button[data-lb-x],#modal-usuario button.usr-x{width:34px;height:34px;min-width:34px;padding:0;border:1px solid #E4E7EC;border-radius:10px;background:#fff;color:#667085;display:inline-flex;align-items:center;justify-content:center;flex:none;cursor:pointer;font-size:0;line-height:1;box-shadow:0 1px 2px rgba(16,24,40,.06);transition:background-color .18s,border-color .18s,color .18s,box-shadow .18s;}
+button.close-btn::before,button.fin-x::before,button.pm-x::before,button.vk-sel-sair::before,button.vx-fechar::before,.rdo-lb-cab button[data-lb-x]::before,#modal-usuario button.usr-x::before{content:'';width:16px;height:16px;flex:none;background:currentColor;-webkit-mask:var(--vx-x-ico) center/contain no-repeat;mask:var(--vx-x-ico) center/contain no-repeat;transition:transform .28s cubic-bezier(.2,.8,.2,1);}
+button.close-btn i,button.fin-x i,button.pm-x i,button.vk-sel-sair i,button.vx-fechar i,.rdo-lb-cab button[data-lb-x] i,#modal-usuario button.usr-x i{display:none;}
+button.close-btn:hover,button.fin-x:hover,button.pm-x:hover,button.vk-sel-sair:hover,button.vx-fechar:hover,.rdo-lb-cab button[data-lb-x]:hover,#modal-usuario button.usr-x:hover{background:#FEF3F2;border-color:#FECDCA;color:#D92D20;box-shadow:0 2px 8px rgba(217,45,32,.16);}
+button.close-btn:hover::before,button.fin-x:hover::before,button.pm-x:hover::before,button.vk-sel-sair:hover::before,button.vx-fechar:hover::before,.rdo-lb-cab button[data-lb-x]:hover::before,#modal-usuario button.usr-x:hover::before{transform:rotate(90deg);}
+button.close-btn:active::before,button.fin-x:active::before,button.pm-x:active::before,button.vk-sel-sair:active::before,button.vx-fechar:active::before,.rdo-lb-cab button[data-lb-x]:active::before,#modal-usuario button.usr-x:active::before{transform:rotate(90deg) scale(.8);}
+button.close-btn:focus-visible,button.fin-x:focus-visible,button.pm-x:focus-visible,button.vk-sel-sair:focus-visible,button.vx-fechar:focus-visible,.rdo-lb-cab button[data-lb-x]:focus-visible,#modal-usuario button.usr-x:focus-visible{outline:0;border-color:#1652D8;box-shadow:0 0 0 4px rgba(22,82,216,.2);}
+/* nas fotos (fundo escuro): vidro escuro; passando o mouse, vermelho cheio */
+button.vx-fechar,.rdo-lb-cab button[data-lb-x]{background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.24);color:#fff;box-shadow:none;}
+button.vx-fechar:hover,.rdo-lb-cab button[data-lb-x]:hover{background:#D92D20;border-color:#D92D20;color:#fff;box-shadow:0 4px 14px rgba(217,45,32,.45);}
+@media (prefers-reduced-motion:reduce){button.close-btn::before,button.fin-x::before,button.pm-x::before,button.vk-sel-sair::before,button.vx-fechar::before,.rdo-lb-cab button[data-lb-x]::before,#modal-usuario button.usr-x::before{transition:none;transform:none!important;}}
+/* O X NO MESMO LUGAR em toda janela e formulário: no canto de cima à direita da caixa, a 14px do topo e da direita
    (janelas do sistema, telas grandes, fábrica e Usuários). O cabeçalho guarda o espaço dele à direita. */
 .fin-jan,.modal-sheet,.pm-pop-box{position:relative;}
-.fin-jan>.fin-jan-cab,.modal-sheet>.modal-header,.pm-pop-box>.pm-pop-cab{padding-right:64px!important;}
-.fin-jan>.fin-jan-cab>button.fin-x,.modal-sheet>.modal-header>button.close-btn,.pm-pop-box>.pm-pop-cab>button.pm-x{position:absolute!important;top:16px;right:16px;margin:0!important;z-index:3;}
-/* Usuários: o X acompanha a rolagem (preso no alto); fica a 16px do topo e da direita como nos outros */
-#modal-usuario .confirm-box>button.usr-x{right:auto!important;margin:0 -8px 0 0!important;transform:translateY(-8px);}
-/* baixar a foto (visualizador e fotos do horímetro): o mesmo círculo do X, que fica azul */
-button.vx-baixar{width:32px;height:32px;padding:0;border:0;border-radius:50%;background:#F2F4F7;color:#475467;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;font-size:14px;transition:background .15s,color .15s;}
-button.vx-baixar:hover,.rdo-lb-cab button[data-lb-baixar]:hover{background:#EEF4FF;color:#1652D8;}
-.rdo-lb-cab button[data-lb-baixar]{width:32px;height:32px;padding:0;border-radius:50%;background:#F2F4F7;color:#475467;font-size:14px;}
+.fin-jan>.fin-jan-cab,.modal-sheet>.modal-header,.pm-pop-box>.pm-pop-cab{padding-right:62px!important;}
+.fin-jan>.fin-jan-cab>button.fin-x,.modal-sheet>.modal-header>button.close-btn,.pm-pop-box>.pm-pop-cab>button.pm-x{position:absolute!important;top:14px;right:14px;margin:0!important;z-index:3;}
+/* Usuários: o X acompanha a rolagem (preso no alto); fica a 14px do topo e da direita como nos outros */
+#modal-usuario .confirm-box>button.usr-x{right:auto!important;margin:0 -10px 0 0!important;transform:translateY(-10px);}
+/* baixar a foto (visualizador e fotos do horímetro, fundo escuro): o mesmo botão do X, que fica azul */
+button.vx-baixar,.rdo-lb-cab button[data-lb-baixar]{width:34px;height:34px;min-width:34px;padding:0;border:1px solid rgba(255,255,255,.24);border-radius:10px;background:rgba(255,255,255,.12);color:#fff;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;font-size:14px;transition:background-color .18s,border-color .18s,box-shadow .18s;}
+button.vx-baixar:hover,.rdo-lb-cab button[data-lb-baixar]:hover{background:#1652D8;border-color:#1652D8;color:#fff;box-shadow:0 4px 14px rgba(22,82,216,.45);}
 /* Diário: foto do horímetro travada fora do horário, lendo o número, leitura travada (lida da foto), dia em branco */
 .rdo-hfoto.trava{cursor:not-allowed;background:#F9FAFB;border-style:dashed;color:#98A2B3;} .rdo-hfoto.trava i{color:#98A2B3;}
 .rdo-hfoto .rdo-htrava{display:block;font-size:11.5px;color:#B42318;margin-top:2px;} .rdo-hfoto .rdo-hjan{display:block;font-size:11px;color:#667085;font-weight:600;margin-top:2px;}
