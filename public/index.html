@@ -743,7 +743,7 @@ input[type=checkbox]:disabled{opacity:.45;cursor:not-allowed;}
 <!-- ═══════════════ VISUALIZADOR DE IMAGEM DA OBRA (em tela cheia, sem sair do sistema) ═══════════════ -->
 <div class="pw-overlay" id="imagens-viewer-overlay" style="z-index:9600;background:rgba(0,0,0,.86);padding:16px" onclick="if(event.target===this)UI.ImagensObra.fecharVisualizador()">
   <div style="position:relative;max-width:min(94vw,900px);max-height:94vh;display:flex;flex-direction:column;align-items:center;width:100%">
-    <button type="button" onclick="UI.ImagensObra.fecharVisualizador()" title="Fechar" style="position:absolute;top:-6px;right:-6px;width:36px;height:36px;border:none;border-radius:50%;background:rgba(255,255,255,.15);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:1"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    <button type="button" class="vx-fechar" onclick="UI.ImagensObra.fecharVisualizador()" title="Fechar" aria-label="Fechar" style="position:absolute;top:-6px;right:-6px;z-index:1"><i class="fas fa-xmark" aria-hidden="true"></i></button>
     <div style="position:relative;display:flex;align-items:center;justify-content:center;width:100%;flex:1;min-height:0">
       <button type="button" id="imagens-viewer-prev" onclick="UI.ImagensObra._visualizarNav(-1)" title="Anterior" style="position:absolute;left:-4px;top:50%;transform:translateY(-50%);width:38px;height:38px;border:none;border-radius:50%;background:rgba(255,255,255,.15);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg></button>
       <img id="imagens-viewer-img" referrerpolicy="no-referrer" style="max-width:100%;max-height:78vh;border-radius:10px;object-fit:contain;background:#111" onerror="UI.ImagensObra._imgErro(this)">
@@ -825,7 +825,7 @@ input[type=checkbox]:disabled{opacity:.45;cursor:not-allowed;}
           <div class="vx-painel">
             <div class="vx-painel-cab"><b>Planejamento</b><span>Onde a empresa quer chegar e se o caixa aguenta o caminho.</span></div>
             <div class="vx-painel-itens">
-              <button type="button" class="vx-item vx-alvo" id="nav-metas" onclick="UI.nav('metas')"><span class="vx-item-ico"><i class="fas fa-bullseye"></i></span><span class="vx-item-txt"><b>Metas e orçamento</b><small>Quanto medir e faturar no mês e quanto pode gastar</small></span></button>
+              <button type="button" class="vx-item vx-alvo" id="nav-metas" onclick="UI.nav('metas')"><span class="vx-item-ico"><i class="fas fa-bullseye"></i></span><span class="vx-item-txt"><b>Metas e orçamento</b><small>Quanto medir e faturar no ano (ajustado mês a mês) e quanto pode gastar</small></span></button>
               <button type="button" class="vx-item vx-alvo" id="nav-projecao" onclick="UI.nav('projecao')"><span class="vx-item-ico"><i class="fas fa-chart-line"></i></span><span class="vx-item-txt"><b>Fluxo de caixa projetado</b><small>O saldo dia a dia dos próximos 90 dias</small></span></button>
               <button type="button" class="vx-item vx-alvo" id="nav-viabilidade" onclick="UI.nav('viabilidade')"><span class="vx-item-ico"><i class="fas fa-scale-balanced"></i></span><span class="vx-item-txt"><b>Viabilidade de contrato</b><small>Lucro, capital de giro e se cabe no caixa</small></span></button>
             </div>
@@ -1319,7 +1319,7 @@ input[type=checkbox]:disabled{opacity:.45;cursor:not-allowed;}
 <!-- MODAL USUÁRIO (Admin) -->
 <div class="confirm-overlay" id="modal-usuario">
   <div class="confirm-box" style="max-width:480px;text-align:left;padding:24px;position:relative">
-    <button class="close-btn usr-x" onclick="UI.closeUsuario()" title="Fechar" style="position:absolute;top:18px;right:18px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    <button type="button" class="close-btn usr-x" onclick="UI.closeUsuario()" title="Fechar" aria-label="Fechar" style="position:absolute;top:18px;right:18px"><i class="fas fa-xmark" aria-hidden="true"></i></button>
     <div class="confirm-title" id="usr-modal-title" style="text-align:left;margin-bottom:4px;padding-right:34px">Novo Usuário</div>
     <div style="font-size:12px;color:var(--text-3);margin-bottom:16px">Defina os dados de acesso. As telas e as obras que o usuário pode ver ficam no botão <b>Permissões</b>, na lista de usuários.</div>
     <input type="hidden" id="usr-id">
@@ -1397,7 +1397,7 @@ input[type=checkbox]:disabled{opacity:.45;cursor:not-allowed;}
 <!-- MODAL DETALHES -->
 <div class="modal-overlay" id="modal-details">
   <div class="modal-sheet">
-    <div class="modal-header"><div><div class="modal-title" id="detail-title">Detalhes</div><div class="modal-sub" id="detail-sub">Registros</div></div><button class="close-btn" onclick="UI.closeModal('modal-details')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>
+    <div class="modal-header"><div><div class="modal-title" id="detail-title">Detalhes</div><div class="modal-sub" id="detail-sub">Registros</div></div><button type="button" class="close-btn" onclick="UI.closeModal('modal-details')" title="Fechar" aria-label="Fechar"><i class="fas fa-xmark" aria-hidden="true"></i></button></div>
     <div class="modal-body"><div class="table-wrap"><table><thead id="detail-head"></thead><tbody id="detail-body"></tbody></table></div><div id="detail-resumo" class="cap-resumo" style="display:none"></div></div>
   </div>
 </div>
@@ -1449,7 +1449,7 @@ input[type=checkbox]:disabled{opacity:.45;cursor:not-allowed;}
 </div>
 <div class="modal-overlay" id="modal-editor">
   <div class="modal-sheet editor-modal" id="modal-editor-sheet" style="position:relative">
-    <div class="modal-header"><div style="display:flex;align-items:center;gap:10px;min-width:0;flex:1"><button id="obra-hub-edit-nome" type="button" title="Editar nome da obra" onclick="UI._obraHubEditarNome()" style="display:none;align-items:center;justify-content:center;width:30px;height:30px;flex-shrink:0;border:1px solid var(--border);background:var(--bg);color:var(--text-2);border-radius:8px;cursor:pointer"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></button><div style="min-width:0;flex:1"><div class="modal-title" id="editor-title">Novo Registro</div><div class="modal-sub">Campos com * são obrigatórios</div></div></div><button class="close-btn" id="modal-editor-close-btn" onclick="UI._fecharEditor()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>
+    <div class="modal-header"><div style="display:flex;align-items:center;gap:10px;min-width:0;flex:1"><button id="obra-hub-edit-nome" type="button" title="Editar nome da obra" onclick="UI._obraHubEditarNome()" style="display:none;align-items:center;justify-content:center;width:30px;height:30px;flex-shrink:0;border:1px solid var(--border);background:var(--bg);color:var(--text-2);border-radius:8px;cursor:pointer"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></button><div style="min-width:0;flex:1"><div class="modal-title" id="editor-title">Novo Registro</div><div class="modal-sub">Campos com * são obrigatórios</div></div></div><button type="button" class="close-btn" id="modal-editor-close-btn" onclick="UI._fecharEditor()" title="Fechar" aria-label="Fechar"><i class="fas fa-xmark" aria-hidden="true"></i></button></div>
     <div id="obra-hub-tabs" style="display:none;flex-shrink:0;border-bottom:1px solid var(--border);padding:0 20px;overflow-x:auto;white-space:nowrap"></div>
     <form class="editor-form" id="form-upsert" onsubmit="App.save(event)"></form>
     <div class="editor-footer">
@@ -10926,7 +10926,7 @@ const Fin=(function(){
   function somarAporte(a){return filaAporte({...a,op:'+'});}
   function tirarDoAporte(a){return filaAporte({...a,op:'-'});}
   function filaAporte(a){
-    if(!a||!a.quem||!a.data||!(a.valor>0.004||a.soltar))return Promise.resolve();
+    if(!a||!a.quem||!a.data||!(a.valor>0.004||a.soltar||a.op==='='))return Promise.resolve();
     const k=a.rowid?'r'+a.rowid:chaveAp(a.quem,a.obra,String(a.data).slice(0,7));
     if(!_apFila)return gravarAportes(new Map([[k,[a]]]));
     if(!_apFila.has(k))_apFila.set(k,[]);_apFila.get(k).push(a);return Promise.resolve();
@@ -10938,8 +10938,10 @@ const Fin=(function(){
       const ja=a0.rowid?(D().aportes||[]).find(r=>String(r.rowid)===String(a0.rowid)):aporteDoMes(a0.quem,a0.obra,mes,K);
       const id=ja?'r'+ja.rowid:'n'+k;if(!alvos.has(id))alvos.set(id,{ja,mes:ja?(mesDoAporte(ja,K)||mes):mes,ops:[]});alvos.get(id).ops.push(...ops);});
     for(const {ja,mes,ops} of alvos.values()){
-      const per=periodoMes(mes),soltar=new Set(),talvez=new Set(),sairam=new Set();let rec=ja?{...ja}:null,lixeira=false;
+      const per=periodoMes(mes),soltar=new Set(),talvez=new Set(),sairam=new Set();let rec=ja?{...ja}:null,lixeira=false,fim=null;
       for(const a of ops){
+        // '=': o lançamento fica com este total (e a observação e as formas) — a edição do aporte, pela tabela das contas
+        if(a.op==='='){if(rec)fim=a;continue;}
         if(a.op==='-'){if(!rec)continue;   // não há lançamento do mês para tirar (já acertado à mão)
           rec[K.valor]=dinheiro(val(rec[K.valor])-(a.valor||0));
           if(a.obsTirar)rec[K.obs]=String(rec[K.obs]||'').split(' | ').filter(s=>!s.includes(a.obsTirar)).join(' | ');
@@ -10952,6 +10954,7 @@ const Fin=(function(){
         idsDe(a.conc).forEach(i=>{rec.conciliacao=juntarId(rec.conciliacao,i);rec.conciliacao_baixa=juntarId(rec.conciliacao_baixa,i);talvez.delete(i);soltar.delete(i);});
       }
       if(!rec)continue;
+      if(fim){rec[K.valor]=dinheiro(fim.total);if(fim.obs!=null)rec[K.obs]=fim.obs;if(fim.formas!=null){rec.formas_aporte=fim.formas;rec.forma_aporte=fim.formas.includes(',')?'Várias':fim.formas;}rec.periodo_ini=per.ini;rec.periodo_fim=per.fim;}
       // ids do extrato da conta que saiu: deixam o lançamento se nenhuma outra conta dele tem o mesmo id (a linha do banco volta para a conferência)
       if(talvez.size){const ficam=contasDoAporte(rec[K.quem],rec[K.obra],mes).filter(p=>!sairam.has(p.contaId));talvez.forEach(i=>{if(!ficam.some(p=>temId(p.conc,i)))soltar.add(i);});}
       soltar.forEach(i=>{rec.conciliacao=tirarId(rec.conciliacao,i);rec.conciliacao_baixa=tirarId(rec.conciliacao_baixa,i);});
@@ -10989,6 +10992,8 @@ const Fin=(function(){
     tirar:async(lista,motivo)=>{for(const p of lista.map(parteConta).filter(Boolean))await tirarDoAporte({...p,obs:`Saiu ${fmt(p.valor)}: ${nomeConta(p)} — ${motivo||'saiu'}`});},
     // a conta voltou (Restaurar): o valor volta para o aporte, ligado de novo ao extrato dela
     somar:async(lista,motivo)=>{for(const p of lista.map(parteConta).filter(Boolean))await somarAporte({...p,origem:'contas',obs:`Voltou ${fmt(p.valor)}: ${nomeConta(p)} — ${motivo||'voltou'}`});},
+    // edição do aporte pela tabela das contas: o lançamento do mês fica com este total, a observação e as formas
+    acertar:a=>filaAporte({...a,op:'=',valor:0}),
     // a conta mudou (valor, obra): sai a parte antiga e entra a nova
     mudou:async(antes,depois)=>{const t=trocaConta(antes,depois);
       for(const p of t.sai)await tirarDoAporte({...p,obs:`Saiu ${fmt(p.valor)}: ${nomeConta(p)} — alterada`});
@@ -11110,7 +11115,7 @@ const Fin=(function(){
     const ov=document.getElementById('fin-ov'),j=document.getElementById('fin-jan');
     j.style.maxWidth=(larg||520)+'px';
     j.onchange=null;j.oninput=null;j._aoFechar=null;
-    j.innerHTML=`<div class="fin-jan-cab"><b>${fe(titulo)}</b><button type="button" class="fin-x" data-fin-fechar aria-label="Fechar">×</button></div>
+    j.innerHTML=`<div class="fin-jan-cab"><b>${fe(titulo)}</b><button type="button" class="fin-x" data-fin-fechar aria-label="Fechar" title="Fechar"><i class="fas fa-xmark" aria-hidden="true"></i></button></div>
       <div class="fin-jan-corpo">${corpo}</div>
       <div class="fin-jan-pe"><span class="fin-jan-erro" data-fin-erro></span>${botoes.map((b,i)=>`<button type="button" class="fin-bt ${b.cls||''}" data-fin-bt="${i}">${b.html}</button>`).join('')}</div>`;
     ov.classList.add('open');
@@ -14955,6 +14960,9 @@ const Eng=(function(){
 .gf-meta .gf-barra{height:12px;margin:10px 0 14px;}
 .gf-meta-lista{list-style:none;margin:0;padding:0;display:grid;gap:10px;font-size:13.5px;}
 .gf-meta-lista li{position:relative;padding-left:25px;line-height:1.55;color:var(--text-1);}
+.gf-meta-lista li.gf-meta-nota{font-size:12px;color:#667085;}
+/* Metas › mês a mês: meta prevista (mês que ainda não chegou) em cinza; o mês atual destacado; % embaixo do realizado */
+.mt-mes td.mt-prev{color:#98A2B3;font-style:italic;} .mt-mes tr.mt-atual td{background:#F5F8FF;} .mt-mes td small{display:block;font-size:11px;opacity:.85;}
 .gf-meta-lista li>i:first-child{position:absolute;left:0;top:4px;color:#0071e3;width:16px;}
 .gf-alertas{list-style:none;margin:0;padding:0;display:grid;gap:8px;}
 .gf-al{display:flex;gap:12px;align-items:center;padding:11px 12px;border-radius:14px;border:1px solid #e8e8ed;cursor:pointer;transition:background .15s,transform .15s;}
@@ -15113,6 +15121,10 @@ const GS=(function(){
   const kpiG=(tom,ico,rot,v,sub,dlt)=>`<div class="gf-kpi ${tom}"><span class="gf-kpi-ico"><i class="fas ${ico}"></i></span><div class="gf-kpi-txt"><span class="gf-kpi-rot">${rot}</span><b class="gf-kpi-val">${v}</b>${dlt||''}<small>${sub||''}</small></div></div>`;
   const cabG=(titulo,sub,dir)=>`<div class="gf-cab"><div><h2>${titulo}</h2>${sub?`<p class="gf-sub">${sub}</p>`:''}</div>${dir?`<div class="gf-cab-dir">${dir}</div>`:''}</div>`;
   const selMes=(atual,attr,antes,depois)=>{const ks=[];for(let i=-(antes||12);i<=(depois||0);i++)ks.push(mesDesloc(mesHoje(),i));return `<label class="gf-mes"><i class="fas fa-calendar"></i><select ${attr}>${ks.reverse().map(k=>`<option value="${k}" ${k===atual?'selected':''}>${cap(mesNome(k))}</option>`).join('')}</select></label>`;};
+  // seletor do Início: todos os períodos, cada ano com movimento e os últimos 12 meses
+  const selPer=(atual,attr)=>{const ks=[];for(let i=-12;i<=0;i++)ks.push(mesDesloc(mesHoje(),i));
+    const anos=[...new Set([mesHoje().slice(0,4)].concat(mesesComDados().map(k=>k.slice(0,4))))].sort().reverse();
+    return `<label class="gf-mes"><i class="fas fa-calendar"></i><select ${attr} aria-label="Período"><optgroup label="Períodos"><option value="todos" ${atual==='todos'?'selected':''}>Todos os períodos</option>${anos.map(a=>`<option value="a:${a}" ${atual==='a:'+a?'selected':''}>Ano de ${a}</option>`).join('')}</optgroup><optgroup label="Meses">${ks.reverse().map(k=>`<option value="${k}" ${k===atual?'selected':''}>${cap(mesNome(k))}</option>`).join('')}</optgroup></select></label>`;};
 
   /* ───── planejamento (metas, orçamento, caixa) ───── */
   const PLAN=()=>D().planejamento||[];
@@ -15129,19 +15141,41 @@ const GS=(function(){
 
   /* ───── os números do mês, do jeito que a gestão da obra enxerga ───── */
   const ehRetirada=m=>m.tipo==='retirada'||m.tipo==='despesa'&&/pr[oó]-?labore|retirad|devolu[cç][aã]o de aporte|distribui/i.test(String(getFuzzy(m.r,['categoria'])||''));
+  /* PERÍODO: um mês ('2026-11'), um ano ('a:2026') ou tudo ('todos'). resumoMes aceita qualquer um deles. */
+  const ehMesK=p=>/^\d{4}-\d{2}$/.test(String(p||''));
+  const ehAnoK=p=>/^a:\d{4}$/.test(String(p||''));
+  const dentroDe=p=>ehMesK(p)?(d=>noMes(d,p)):p==='todos'?(d=>!!d):(d=>!!d&&String(d.getFullYear())===String(p).slice(2));
   function resumoMes(k){
-    const ms=Fin.movimentos();
-    const meds=(D().medicoes||[]).filter(m=>noMes(dt(m.data_medicao),k));
-    const fats=(D().faturamentos||[]).filter(f=>cn(getFuzzy(f,['tipo_faturamento','tipo_fat','tipo']))==='real'&&noMes(dt(getFuzzy(f,['emissao_nf']))||dt(getFuzzy(f,['data_lancamento'])),k));
+    const ms=Fin.movimentos(),noP=dentroDe(k);
+    const meds=(D().medicoes||[]).filter(m=>noP(dt(m.data_medicao)));
+    const fats=(D().faturamentos||[]).filter(f=>cn(getFuzzy(f,['tipo_faturamento','tipo_fat','tipo']))==='real'&&noP(dt(getFuzzy(f,['emissao_nf']))||dt(getFuzzy(f,['data_lancamento']))));
     const fatB=fats.reduce((s,f)=>s+val(getFuzzy(f,['faturamento_bruto','bruto'])),0),fatL=fats.reduce((s,f)=>s+val(getFuzzy(f,['faturamento_liquido','resultado_liquido','liquido'])),0);
-    const custos=ms.filter(m=>m.tipo==='custo'&&m.pago&&noMes(m.dataBaixa,k)).reduce((s,m)=>s+m.valor,0);
-    const desp=ms.filter(m=>m.tipo==='despesa'&&m.pago&&!ehRetirada(m)&&noMes(m.dataBaixa,k)).reduce((s,m)=>s+m.valor,0);
-    const retiradas=ms.filter(m=>ehRetirada(m)&&m.pago&&noMes(m.dataBaixa,k)).reduce((s,m)=>s+m.valor,0);
-    const entrou=ms.filter(m=>m.tipo==='fat'&&m.pago&&noMes(m.dataBaixa,k)).reduce((s,m)=>s+m.valor,0);
-    const saiu=ms.filter(m=>m.sent<0&&m.pago&&noMes(m.dataBaixa,k)).reduce((s,m)=>s+m.valor,0);
+    const custos=ms.filter(m=>m.tipo==='custo'&&m.pago&&noP(m.dataBaixa)).reduce((s,m)=>s+m.valor,0);
+    const desp=ms.filter(m=>m.tipo==='despesa'&&m.pago&&!ehRetirada(m)&&noP(m.dataBaixa)).reduce((s,m)=>s+m.valor,0);
+    const retiradas=ms.filter(m=>ehRetirada(m)&&m.pago&&noP(m.dataBaixa)).reduce((s,m)=>s+m.valor,0);
+    const entrou=ms.filter(m=>m.tipo==='fat'&&m.pago&&noP(m.dataBaixa)).reduce((s,m)=>s+m.valor,0);
+    const saiu=ms.filter(m=>m.sent<0&&m.pago&&noP(m.dataBaixa)).reduce((s,m)=>s+m.valor,0);
     return {k,meds,medido:meds.reduce((s,m)=>s+Eng.valorMed(m),0),fats,fatB,fatL,custos,desp,retiradas,resultado:fatL-custos-desp,entrou,saiu,caixa:entrou-saiu};
   }
   const media3=(k,fn)=>{let s=0;for(let i=1;i<=3;i++)s+=fn(resumoMes(mesDesloc(k,-i)));return s/3;};
+  // meses em que há medição, nota ou pagamento (para a lista de anos e o gráfico de "todos os períodos")
+  function mesesComDados(){const s=new Set(),add=d=>{if(d)s.add(mesKey(d));};
+    (D().medicoes||[]).forEach(m=>add(dt(m.data_medicao)));(D().faturamentos||[]).forEach(f=>add(dt(getFuzzy(f,['emissao_nf']))||dt(getFuzzy(f,['data_lancamento']))));
+    Fin.movimentos().forEach(m=>{if(m.pago)add(m.dataBaixa);});return [...s].filter(k=>k<=mesHoje()).sort();}
+
+  /* META DO ANO, AJUSTADA MÊS A MÊS: a meta é definida para o ano. A de cada mês = o que ainda falta do ano (meta − o que foi
+     realizado nos meses anteriores) ÷ os meses que faltam, contando o próprio mês — se um mês fica abaixo, os seguintes sobem.
+     Mês que ainda não chegou: o mesmo valor do mês atual. Ano sem meta anual gravada: vale a soma das metas mensais antigas dele. */
+  const IND_META=[['medicao','medido'],['faturamento','fatL'],['resultado','resultado']];
+  function metaAno(ano){ano=String(ano);const r=PLAN().find(x=>x.tipo==='meta_ano'&&String(x.ano||x.mes)===ano);
+    if(r)return {fonte:'ano',r,medicao:val(r.medicao),faturamento:val(r.faturamento),resultado:val(r.resultado),propostas:+r.propostas||0};
+    const ms=PLAN().filter(x=>x.tipo==='meta'&&String(x.mes||'').slice(0,4)===ano);if(!ms.length)return null;
+    const s=k=>ms.reduce((a,x)=>a+val(x[k]),0),M={fonte:'meses',r:null,medicao:s('medicao'),faturamento:s('faturamento'),resultado:s('resultado'),propostas:ms.reduce((a,x)=>a+(+x.propostas||0),0)};
+    return M.medicao||M.faturamento||M.resultado||M.propostas?M:null;}
+  function metaDoMes(k){const ano=k.slice(0,4),M=metaAno(ano);if(!M)return null;const hk=mesHoje(),kk=k>hk&&ano===hk.slice(0,4)?hk:k,m=+kk.slice(5,7),rest=13-m;
+    const ant=[];for(let i=1;i<m;i++)ant.push(resumoMes(ano+'-'+String(i).padStart(2,'0')));
+    const out={ano:M,rest,futuro:k>hk};IND_META.forEach(([kM,kR])=>{const feito=ant.reduce((s,x)=>s+x[kR],0);out['antes_'+kM]=feito;out[kM]=M[kM]?Math.max(0,(M[kM]-feito)/rest):0;});
+    return out;}
 
   /* ───── ícones nos cartões de indicadores de todas as telas (como na VTC) ───── */
   const ICO_REGRAS=[[/vencid|atras|estouro|acima/i,'fa-triangle-exclamation'],[/medi/i,'fa-ruler-combined'],[/contrat|carteira/i,'fa-file-contract'],[/fatur|nota/i,'fa-file-invoice-dollar'],[/receb|entra/i,'fa-hand-holding-dollar'],
@@ -15182,24 +15216,34 @@ const GS=(function(){
   }
   function renderInicio(){
     const box=document.getElementById('gs-inicio');if(!box||!App.state.data)return;
-    const k=INI.mes,r=resumoMes(k),ra=resumoMes(mesDesloc(k,-1)),h=hoje0(),s=Auth._session||{};
+    // o período escolhido: um mês, um ano ou todos. k = o mês de referência (saúde financeira, carteira em meses)
+    const p=INI.mes,mensal=ehMesK(p),hk=mesHoje(),k=mensal?p:ehAnoK(p)&&p.slice(2)<hk.slice(0,4)?p.slice(2)+'-12':hk;
+    const pa=mensal?mesDesloc(p,-1):ehAnoK(p)?'a:'+(+p.slice(2)-1):null,r=resumoMes(p),ra=pa?resumoMes(pa):null,h=hoje0(),s=Auth._session||{};
+    const nomeP=mensal?mesNome(p):p==='todos'?'todos os períodos':'o ano de '+p.slice(2);
+    const noP=mensal?'no mês':p==='todos'?'no total':'no ano',doP=mensal?'do mês':p==='todos'?'total':'do ano';
+    const deltaP=(a,b)=>{if(!ra)return '';const q=mensal?'mês':'ano';if(!b)return a?`<span class="gf-delta sobe">▲ novo no ${q}</span>`:'';const x=(a-b)/Math.abs(b)*100;return `<span class="gf-delta ${x>=0?'sobe':'desce'}">${x>=0?'▲':'▼'} ${fmtN(Math.abs(x))}% vs. ${q} anterior</span>`;};
     const ms=Fin.movimentos(),ab=ms.filter(m=>!m.pago&&m.tipo!=='aporte');
     const aRec=ab.filter(m=>m.sent>0),recAtr=aRec.filter(m=>m.venc&&m.venc<h),aPag30=ab.filter(m=>m.sent<0&&m.venc&&m.venc<=addD(h,30)),pagVenc=aPag30.filter(m=>m.venc<h);
     const S=l=>l.reduce((a,m)=>a+m.valor,0);
     const ativas=(D().obras||[]).filter(Eng.emAndamento),saudes=ativas.map(o=>{try{return Eng.saude(o);}catch(e){return null;}}).filter(Boolean);
     const carteira=saudes.reduce((a,x)=>a+Math.max(0,x.rm.saldo||0),0),medMed=media3(k,x=>x.medido);
-    // meta do mês
-    const meta=planDe('meta',k),mM=meta?val(meta.medicao):0,mF=meta?val(meta.faturamento):0,mR=meta?val(meta.resultado):0;
-    const du=diasUteisRestantes(k),barra=(p,t)=>`<div class="gf-barra ${t||''}"><i style="width:${Math.min(100,Math.max(0,p))}%"></i></div>`;
+    /* META: no mês, a do mês (a do ano ÷ os meses que faltam, descontando o que já foi feito); no ano, a do ano; em todos os
+       períodos, a do ano atual */
+    const anoM=mensal?p.slice(0,4):ehAnoK(p)?p.slice(2):hk.slice(0,4),MA=metaAno(anoM),mt=mensal?metaDoMes(p):null,rM=mensal?r:resumoMes('a:'+anoM);
+    const mM=mt?mt.medicao:MA?MA.medicao:0,mF=mt?mt.faturamento:MA?MA.faturamento:0,mR=mt?mt.resultado:MA?MA.resultado:0;
+    const du=mensal?diasUteisRestantes(p):0,barra=(x,t)=>`<div class="gf-barra ${t||''}"><i style="width:${Math.min(100,Math.max(0,x))}%"></i></div>`;
     let metaHtml;
-    if(!mM&&!mF&&!mR)metaHtml=`<div class="gf-vazio"><i class="fas fa-bullseye"></i><p>Sem meta para ${mesNome(k)}.</p>${pode('metas')?'<button type="button" class="gf-bt pri" data-ini="metas">Definir a meta</button>':''}</div>`;
+    if(!MA)metaHtml=`<div class="gf-vazio"><i class="fas fa-bullseye"></i><p>Sem meta para ${anoM}.</p>${pode('metas')?'<button type="button" class="gf-bt pri" data-ini="metas">Definir a meta do ano</button>':''}</div>`;
     else{
-      const pM=mM?r.medido/mM*100:0,falta=Math.max(0,mM-r.medido),noMesAtual=k===mesHoje();
-      metaHtml=`<div class="gf-meta">${mM?`<div class="gf-meta-num"><b>${Rk(r.medido)}</b><span>de ${Rk(mM)} medidos · ${pct(pM)}</span></div>${barra(pM,pM>=100?'ok':'')}`:''}
+      const pM=mM?rM.medido/mM*100:0,falta=Math.max(0,mM-rM.medido),noMesAtual=mensal&&p===hk;
+      metaHtml=`<div class="gf-meta">${mM?`<div class="gf-meta-num"><b>${Rk(rM.medido)}</b><span>de ${Rk(mM)} medidos · ${pct(pM)}</span></div>${barra(pM,pM>=100?'ok':'')}`:''}
         <ul class="gf-meta-lista">
           ${mM&&noMesAtual?`<li><i class="fas fa-route"></i>${falta?`Faltam <b>${fmt(falta)}</b> de medição em ${du} dia${du!==1?'s':''} úte${du!==1?'is':'l'} — <b>${fmt(du?falta/du:falta)}</b> por dia útil.`:'<b>Meta de medição batida!</b>'}</li>`:''}
-          ${mF?`<li><i class="fas fa-file-invoice-dollar"></i>Faturamento líquido: <b>${fmt(r.fatL)}</b> de ${fmt(mF)}${barra(r.fatL/mF*100,r.fatL>=mF?'ok':'')}</li>`:''}
-          ${mR?`<li><i class="fas fa-scale-balanced"></i>Resultado: <b>${fmt(r.resultado)}</b> de ${fmt(mR)}${barra(r.resultado/mR*100,r.resultado>=mR?'ok':r.resultado<0?'err':'')}</li>`:''}
+          ${mF?`<li><i class="fas fa-file-invoice-dollar"></i>Faturamento líquido: <b>${fmt(rM.fatL)}</b> de ${fmt(mF)}${barra(rM.fatL/mF*100,rM.fatL>=mF?'ok':'')}</li>`:''}
+          ${mR?`<li><i class="fas fa-scale-balanced"></i>Resultado: <b>${fmt(rM.resultado)}</b> de ${fmt(mR)}${barra(rM.resultado/mR*100,rM.resultado>=mR?'ok':rM.resultado<0?'err':'')}</li>`:''}
+          ${mt?[['medicao','Medição'],['faturamento','Faturamento líquido'],['resultado','Resultado']].filter(([kM])=>MA[kM]>0&&!mt[kM]).map(([kM,rot])=>`<li><i class="fas fa-trophy"></i>${rot}: a meta de ${anoM} já foi batida — ${Rk(mt['antes_'+kM])} de ${Rk(MA[kM])} até o mês anterior.</li>`).join(''):''}
+          ${mt?`<li class="gf-meta-nota"><i class="fas fa-arrows-rotate"></i>Meta de ${anoM}: medição ${Rk(MA.medicao)} · faturamento ${Rk(MA.faturamento)}. ${mt.futuro?'Mês que ainda não chegou: o mesmo do mês atual':`Faltam ${mt.rest} ${mt.rest>1?'meses':'mês'} contando este`} — a meta do mês se ajusta sozinha com o que já foi feito.</li>`:''}
+          ${MA.fonte==='meses'?`<li class="gf-meta-nota"><i class="fas fa-circle-info"></i>Soma das metas mensais lançadas antes — defina a meta do ano em Metas.</li>`:''}
         </ul></div>`;
     }
     // precisa da sua atenção (os mesmos alertas do sistema, no formato da VTC)
@@ -15231,34 +15275,36 @@ const GS=(function(){
       <div><span>Capital empatado nas obras</span><b class="${empatado<0?'warn':''}">${Rk(-empatado)}</b><small>pago a mais do que recebido nas obras em andamento</small></div>
     </div>`;
     const conf=conferencia();App._iniConf=conf;
-    const acoesHero=[pode('medicoes')?'<button type="button" class="gf-bt pri" data-ini="nova-medicao"><i class="fas fa-plus"></i> Nova medição</button>':'',pode('diario')?'<button type="button" class="gf-bt" data-ini="novo-dia"><i class="fas fa-book-open"></i> Registrar dia</button>':'',pode('acoes')?'<button type="button" class="gf-bt" data-ini="nova-tarefa"><i class="fas fa-list-check"></i> Nova tarefa</button>':'',pode('contas')?'<button type="button" class="gf-bt" data-ini="nova-conta"><i class="fas fa-file-invoice-dollar"></i> Lançar conta</button>':''].join('');
     const d0=new Date();
     box.innerHTML=`<div class="gf gf-inicio">
-      <div class="gf-hero"><div><h1>${saudacao()}, ${fe(primeiroNome(s.nome)||'gestor')}!</h1><p>${cap(SEMANA[d0.getDay()])}, ${d0.getDate()} de ${MESES[d0.getMonth()]} · acompanhando ${mesNome(k)}</p></div>
-        <div class="gf-hero-acoes">${selMes(k,'data-ini-mes',12,0)}${acoesHero}</div></div>
+      <div class="gf-hero"><div><h1>${saudacao()}, ${fe(primeiroNome(s.nome)||'gestor')}!</h1><p>${cap(SEMANA[d0.getDay()])}, ${d0.getDate()} de ${MESES[d0.getMonth()]} · acompanhando ${nomeP}</p></div>
+        <div class="gf-hero-acoes">${selPer(p,'data-ini-mes')}</div></div>
       <div class="gf-kpis">
-        ${kpiG('','fa-ruler-combined','Medido no mês',Rk(r.medido),`${r.meds.length} medição(ões)`,delta(r.medido,ra.medido))}
-        ${kpiG('verde','fa-file-invoice-dollar','Faturado no mês',Rk(r.fatB),`líquido ${Rk(r.fatL)} · ${r.fats.length} nota(s)`,delta(r.fatB,ra.fatB))}
-        ${kpiG('roxo','fa-scale-balanced','Resultado do mês',Rk(r.resultado),'notas − custos − despesas pagos',delta(r.resultado,ra.resultado))}
+        ${kpiG('','fa-ruler-combined','Medido '+noP,Rk(r.medido),`${r.meds.length} medição(ões)`,deltaP(r.medido,ra&&ra.medido))}
+        ${kpiG('verde','fa-file-invoice-dollar','Faturado '+noP,Rk(r.fatB),`líquido ${Rk(r.fatL)} · ${r.fats.length} nota(s)`,deltaP(r.fatB,ra&&ra.fatB))}
+        ${kpiG('roxo','fa-scale-balanced','Resultado '+doP,Rk(r.resultado),'notas − custos − despesas pagos',deltaP(r.resultado,ra&&ra.resultado))}
         ${kpiG('laranja','fa-helmet-safety','Carteira a executar',Rk(carteira),medMed?`≈ ${fmtN(carteira/medMed,1)} mês(es) de produção`:`${ativas.length} obra(s) em andamento`)}
         ${kpiG('','fa-hand-holding-dollar','A receber',Rk(S(aRec)),`${aRec.length} nota(s)${recAtr.length?` · <b class="err">${recAtr.length} atrasada(s)</b>`:''}`)}
         ${kpiG('vermelho','fa-file-invoice','A pagar em 30 dias',Rk(S(aPag30)),`${aPag30.length} conta(s)${pagVenc.length?` · <b class="err">${pagVenc.length} vencida(s)</b>`:''}`)}
       </div>
       <div class="gf-duas">
-        <div class="gf-sec"><div class="gf-sec-cab"><div><h3>Meta do mês</h3><p>Medição, faturamento e resultado de ${mesNome(k)}.</p></div>${pode('metas')?'<button type="button" class="gf-bt mini" data-ini="metas">Ajustar</button>':''}</div>${metaHtml}</div>
+        <div class="gf-sec"><div class="gf-sec-cab"><div><h3>${mensal?'Meta do mês':'Meta do ano'}</h3><p>Medição, faturamento e resultado de ${mensal?mesNome(p):anoM}${mensal?' — a meta do ano dividida pelos meses que faltam':''}.</p></div>${pode('metas')?'<button type="button" class="gf-bt mini" data-ini="metas">Ajustar</button>':''}</div>${metaHtml}</div>
         <div class="gf-sec"><div class="gf-sec-cab"><div><h3>Precisa da sua atenção</h3><p>Em ordem de urgência. Clique para resolver.</p></div></div>${alHtml}</div>
       </div>
       <div class="gf-duas">
         <div class="gf-sec"><div class="gf-sec-cab"><div><h3>Agenda</h3><p>Próximas reuniões e tarefas para hoje ou atrasadas.</p></div>${pode('reunioes')?'<button type="button" class="gf-bt mini" data-ini="reunioes">Abrir agenda</button>':''}</div>${agHtml}</div>
         <div class="gf-sec"><div class="gf-sec-cab"><div><h3>Obras em andamento</h3><p>Avanço físico e os sinais de prazo, custo, resultado e medição. Clique para abrir.</p></div></div>${obHtml}</div>
       </div>
-      <div class="gf-sec"><div class="gf-sec-cab"><div><h3>Últimos 12 meses</h3><p>Faturamento líquido (notas emitidas), custos e despesas pagos em cada mês — e o resultado.</p></div></div><div class="gf-chart"><canvas id="gs-graf12"></canvas></div></div>
-      <div class="gf-sec"><div class="gf-sec-cab"><div><h3>Saúde financeira</h3><p>Médias dos 3 meses anteriores ao selecionado, para não oscilar com um mês fora da curva.</p></div></div>${saude}</div>
+      <div class="gf-sec"><div class="gf-sec-cab"><div><h3>${mensal?'Últimos 12 meses':ehAnoK(p)?'Mês a mês de '+p.slice(2):'Mês a mês — todos os períodos'}</h3><p>Faturamento líquido (notas emitidas), custos e despesas pagos em cada mês — e o resultado.</p></div></div><div class="gf-chart"><canvas id="gs-graf12"></canvas></div></div>
+      <div class="gf-sec"><div class="gf-sec-cab"><div><h3>Saúde financeira</h3><p>Médias dos 3 meses anteriores a ${mesNome(k)}, para não oscilar com um mês fora da curva.</p></div></div>${saude}</div>
       ${conf.length?`<div class="gf-sec"><div class="gf-sec-cab"><div><h3>Conferência dos lançamentos</h3><p>O que parece incoerente, incompleto ou lançado em dobro. Corrigir aqui deixa todos os números acima mais confiáveis.</p></div></div><ul class="gf-alertas">${conf.map((c,i)=>`<li class="gf-al ${c.tom}" data-conf="${i}"><span class="gf-al-ico"><i class="fas ${c.ico}"></i></span><div><b>${fe(c.t)}</b><span>${fe(c.s)}</span></div><i class="fas fa-chevron-right gf-al-seta"></i></li>`).join('')}</ul></div>`:''}
     </div>`;
     // gráfico dos 12 meses
     try{
-      const ks=[];for(let i=11;i>=0;i--)ks.push(mesDesloc(k,-i));const rs=ks.map(resumoMes);
+      // mês: os 12 meses até ele; ano: os 12 meses do ano; todos: do 1º mês com movimento até hoje (os últimos 36, no máximo)
+      const ks=[];if(mensal)for(let i=11;i>=0;i--)ks.push(mesDesloc(p,-i));else if(ehAnoK(p))for(let i=1;i<=12;i++)ks.push(p.slice(2)+'-'+String(i).padStart(2,'0'));
+      else{const md=mesesComDados();let x=md[0]||mesDesloc(hk,-11);while(x<=hk&&ks.length<240){ks.push(x);x=mesDesloc(x,1);}if(ks.length>36)ks.splice(0,ks.length-36);}
+      const rs=ks.map(resumoMes);
       if(graf12){graf12.destroy();graf12=null;}
       const cv=document.getElementById('gs-graf12');
       if(cv&&typeof Chart!=='undefined')graf12=new Chart(cv,{data:{labels:ks.map(mesCurto),datasets:[
@@ -15281,8 +15327,8 @@ const GS=(function(){
     };
   }
 
-  return {D,U,z2,MESES,SEMANA,mesKey,mesHoje,mesDesloc,mesNome,mesCurto,cap,noMes,pode,ehExt,fmtN,pct,Rk,moeda,n2,diasUteisRestantes,delta,kpiG,cabG,selMes,
-    PLAN,planDe,salvarPlan,saldoCaixa,resumoMes,media3,ehRetirada,renderInicio,conferencia,decorar,tarefaAberta:a=>!/conclu|cancel|n[aã]o feita/i.test(a.status||'')};
+  return {D,U,z2,MESES,SEMANA,mesKey,mesHoje,mesDesloc,mesNome,mesCurto,cap,noMes,pode,ehExt,fmtN,pct,Rk,moeda,n2,diasUteisRestantes,delta,kpiG,cabG,selMes,selPer,
+    PLAN,planDe,salvarPlan,saldoCaixa,resumoMes,media3,ehRetirada,ehMesK,ehAnoK,mesesComDados,metaAno,metaDoMes,renderInicio,conferencia,decorar,tarefaAberta:a=>!/conclu|cancel|n[aã]o feita/i.test(a.status||'')};
 })();
 </script>
 <script>
@@ -15632,52 +15678,55 @@ const GS=(function(){
   /* Sócios e investimentos: ver GS.renderSocios no bloco das planilhas (aportes numa planilha, como na VTC) */
 
   /* ═══════════════ METAS ═══════════════ */
-  const MT={mes:mesHoje()};
-  const propostasEnviadas=k=>(D().obras||[]).filter(o=>{const d=dt(getFuzzy(o,['envio_proposta']));return d&&String(isoDe(d)).slice(0,7)===k;}).length;
+  /* METAS DO ANO, AJUSTADAS MÊS A MÊS: a meta é do ano (medição, faturamento líquido, resultado e propostas). A de cada mês se
+     ajusta sozinha (GS.metaDoMes): o que ainda falta do ano ÷ os meses que faltam, contando o próprio mês. A meta de medição
+     de cada obra também é automática: o saldo a medir ÷ os meses até o término vigente. */
+  const MT={ano:mesHoje().slice(0,4)};
+  const propostasNoAno=a=>(D().obras||[]).filter(o=>{const d=dt(getFuzzy(o,['envio_proposta']));return d&&String(d.getFullYear())===String(a);}).length;
   function renderMetas(){
     const box=document.getElementById('gs-metas');if(!box)return;
-    const k=MT.mes,m=planDe('meta',k)||{},r=resumoMes(k),h=hoje0(),atual=k===mesHoje(),du=diasUteisRestantes(k);
+    const a=MT.ano,hk=mesHoje(),h=hoje0(),anoAtual=a===hk.slice(0,4),M=GS.metaAno(a),rA=resumoMes('a:'+a);
+    const meses=[...Array(12)].map((_,i)=>a+'-'+String(i+1).padStart(2,'0'));
+    const v=key=>M&&M[key]?n2(M[key]):'';
+    const linhaMeta=(rot,key,real,ico)=>{const mv=M?M[key]:0;const p=mv?real/mv*100:null;return `<tr><td><i class="fas ${ico}" style="color:#0071e3;width:18px"></i> <b>${rot}</b></td><td><input data-mt="${key}" value="${key==='propostas'?(M&&M.propostas||''):v(key)}" ${key==='propostas'?'inputmode="numeric"':'data-mask="moeda"'+(key==='resultado'?' data-neg="1"':' inputmode="numeric"')} placeholder="${key==='propostas'?'nº':'R$'}"></td><td class="num">${key==='propostas'?fmtN(real):fmt(real)}</td><td style="min-width:140px">${p!=null?`<div style="display:flex;gap:8px;align-items:center">${barra(p,p>=100?'ok':'')}<small style="margin:0;white-space:nowrap">${pct(p)}</small></div>`:'<small>sem meta</small>'}</td></tr>`;};
+    // mês a mês: a meta ajustada × o realizado (mês que ainda não chegou: a meta prevista hoje, sem realizado)
+    const cel=(meta,real,fut)=>fut?`<td class="num mt-prev">${meta?fmt(meta):'—'}</td><td class="num">—</td>`:`<td class="num">${meta?fmt(meta):'—'}</td><td class="num ${meta?(real>=meta?'ok':'err'):''}">${fmt(real)}${meta?`<small>${pct(real/meta*100)}</small>`:''}</td>`;
+    const linhasMes=meses.map(k=>{const mt=M?GS.metaDoMes(k):null,rr=resumoMes(k),fut=k>hk,at=k===hk;
+      return `<tr class="${at?'mt-atual':''}"><td><b>${cap(mesNome(k))}</b>${at?' <span class="gf-pill">este mês</span>':fut?' <small>previsto</small>':''}</td>${cel(mt&&mt.medicao,rr.medido,fut)}${cel(mt&&mt.faturamento,rr.fatL,fut)}${cel(mt&&mt.resultado,rr.resultado,fut)}</tr>`;}).join('');
+    // o mês atual: a meta de medição ajustada e a de cada obra (automática)
+    const r=resumoMes(hk),du=diasUteisRestantes(hk),mtH=anoAtual&&M?GS.metaDoMes(hk):null,mM=mtH?mtH.medicao:0,falta=Math.max(0,mM-r.medido);
     const ativas=(D().obras||[]).filter(Eng.emAndamento).map(o=>{const ob=nomeObra(o),rm=Eng.resumoMedicoes(ob),dO=Eng.datasObra(o);const mesesRest=dO.fim&&dO.fim>h?Math.max(1,(dO.fim.getFullYear()-h.getFullYear())*12+dO.fim.getMonth()-h.getMonth()+1):1;
-      return {ob,saldo:Math.max(0,rm.saldo||0),mesesRest,sug:rm.contrato?Math.max(0,rm.saldo)/mesesRest:0,medido:r.meds.filter(x=>x.titulo_obra===ob).reduce((s,x)=>s+Eng.valorMed(x),0),temOrc:!!rm.orc};});
-    const mo=m.obras||{};
-    const v=key=>m[key]?n2(val(m[key])):'';
-    const linhaMeta=(rot,key,real,ico)=>{const mv=val(m[key]);const p=mv?real/mv*100:null;return `<tr><td><i class="fas ${ico}" style="color:#0071e3;width:18px"></i> <b>${rot}</b></td><td><input data-mt="${key}" value="${key==='propostas'?(m[key]||''):v(key)}" ${key==='propostas'?'inputmode="numeric"':'data-mask="moeda"'+(key==='resultado'?' data-neg="1"':' inputmode="numeric"')} placeholder="${key==='propostas'?'nº':'R$'}"></td><td class="num">${key==='propostas'?fmtN(real):fmt(real)}</td><td style="min-width:140px">${p!=null?`<div style="display:flex;gap:8px;align-items:center">${barra(p,p>=100?'ok':'')}<small style="margin:0;white-space:nowrap">${pct(p)}</small></div>`:'<small>sem meta</small>'}</td></tr>`;};
-    const mM=val(m.medicao),falta=Math.max(0,mM-r.medido);
-    const hist=[];for(let i=5;i>=0;i--){const kk=mesDesloc(k,-i),mm=planDe('meta',kk),rr=resumoMes(kk);hist.push({kk,mm,rr});}
+      return {ob,saldo:Math.max(0,rm.saldo||0),mesesRest,meta:rm.contrato?Math.max(0,rm.saldo)/mesesRest:0,medido:r.meds.filter(x=>x.titulo_obra===ob).reduce((s,x)=>s+Eng.valorMed(x),0),temOrc:!!rm.orc};});
+    const anos=[];const a0=+hk.slice(0,4);for(let y=a0+1;y>=a0-3;y--)anos.push(String(y));
+    const selAno=`<label class="gf-mes"><i class="fas fa-calendar"></i><select data-mt-ano aria-label="Ano da meta">${anos.map(y=>`<option value="${y}" ${y===a?'selected':''}>Ano de ${y}</option>`).join('')}</select></label>`;
     box.innerHTML=`<div class="gf">
-      ${cabG('Metas e orçamento','<b>Metas</b>: onde a empresa quer chegar no mês — quanto medir (produção), faturar, de resultado e quantas propostas enviar, e a meta de medição de cada obra. O acompanhamento aparece no Início.',abasPlano('metas')+selMes(k,'data-mt-mes',12,3))}
-      <div class="gf-sec"><div class="gf-sec-cab"><div><h3>Meta da empresa — ${mesNome(k)}</h3><p>Valores em reais; propostas em quantidade.</p></div><div class="gf-filtros"><span style="font-size:12.5px;color:#6e6e73">Sugerir pela média dos 3 meses anteriores +</span>${[0,5,10,20].map(p=>`<button type="button" class="gf-bt mini" data-mt-sug="${p}">${p}%</button>`).join('')}<button type="button" class="gf-bt mini" data-mt-copiar="1">Copiar do mês anterior</button></div></div>
-        <div class="gf-rolar"><table class="gf-tab"><thead><tr><th>Indicador</th><th>Meta</th><th class="num">Realizado</th><th>Atingido</th></tr></thead><tbody>
-          ${linhaMeta('Medição (produção)','medicao',r.medido,'fa-ruler-combined')}${linhaMeta('Faturamento líquido','faturamento',r.fatL,'fa-file-invoice-dollar')}${linhaMeta('Resultado','resultado',r.resultado,'fa-scale-balanced')}${linhaMeta('Propostas enviadas','propostas',propostasEnviadas(k),'fa-envelope-open-text')}
+      ${cabG('Metas e orçamento','<b>Metas</b>: onde a empresa quer chegar no ano — quanto medir (produção), faturar, de resultado e quantas propostas enviar. A meta de cada mês se ajusta sozinha: o que ainda falta do ano dividido pelos meses que faltam. O acompanhamento aparece no Início.',abasPlano('metas')+selAno)}
+      <div class="gf-sec"><div class="gf-sec-cab"><div><h3>Meta da empresa — ${a}</h3><p>Valores do ano inteiro, em reais; propostas em quantidade.${M&&M.fonte==='meses'?' <b>Vieram da soma das metas mensais lançadas antes</b> — confira e salve como meta do ano.':''}</p></div><div class="gf-filtros"><span style="font-size:12.5px;color:#6e6e73">Sugerir pela média dos 3 últimos meses × 12 +</span>${[0,5,10,20].map(p=>`<button type="button" class="gf-bt mini" data-mt-sug="${p}">${p}%</button>`).join('')}</div></div>
+        <div class="gf-rolar"><table class="gf-tab"><thead><tr><th>Indicador</th><th>Meta do ano</th><th class="num">Realizado em ${a}</th><th>Atingido</th></tr></thead><tbody>
+          ${linhaMeta('Medição (produção)','medicao',rA.medido,'fa-ruler-combined')}${linhaMeta('Faturamento líquido','faturamento',rA.fatL,'fa-file-invoice-dollar')}${linhaMeta('Resultado','resultado',rA.resultado,'fa-scale-balanced')}${linhaMeta('Propostas enviadas','propostas',propostasNoAno(a),'fa-envelope-open-text')}
         </tbody></table></div>
-        ${atual&&mM?`<div class="gf-dica"><i class="fas fa-lightbulb"></i>${falta?`Faltam <b>${fmt(falta)}</b> de medição em <b>${du} dia${du!==1?'s':''} úte${du!==1?'is':'l'}</b> — <b>${fmt(du?falta/du:falta)}</b> por dia útil. Medições em elaboração ou na fiscalização ainda não contam: ${fmt((D().medicoes||[]).filter(x=>/elabora|enviada/i.test(x.status||'')).reduce((s,x)=>s+Eng.valorMed(x),0))}.`:'<b>Meta de medição batida!</b>'}</div>`:''}
+        <div style="display:flex;justify-content:flex-end;margin-top:12px"><button type="button" class="gf-bt pri" data-mt-salvar="1"><i class="fas fa-floppy-disk"></i> Salvar a meta de ${a}</button></div>
+        ${mtH&&mM?`<div class="gf-dica"><i class="fas fa-lightbulb"></i>${falta?`Neste mês a meta de medição é <b>${fmt(mM)}</b>: faltam <b>${fmt(falta)}</b> em <b>${du} dia${du!==1?'s':''} úte${du!==1?'is':'l'}</b> — <b>${fmt(du?falta/du:falta)}</b> por dia útil.`:'<b>Meta de medição do mês batida!</b>'}</div>`:''}
       </div>
-      <div class="gf-sec"><div class="gf-sec-cab"><div><h3>Meta de medição por obra</h3><p>Sugestão = saldo a medir ÷ meses até o término vigente. Deixe em branco a obra sem meta.</p></div></div>
-        ${ativas.length?`<div class="gf-rolar"><table class="gf-tab"><thead><tr><th>Obra</th><th class="num">Saldo a medir</th><th class="num">Meses até o fim</th><th class="num">Sugestão</th><th>Meta do mês</th><th class="num">Medido</th><th>Atingido</th></tr></thead><tbody>
-          ${ativas.map(x=>{const mv=val(mo[x.ob]);const p=mv?x.medido/mv*100:null;return `<tr><td><b>${fe(x.ob)}</b>${x.temOrc?'':'<small class="warn">sem orçamento ligado</small>'}</td><td class="num">${fmt(x.saldo)}</td><td class="num">${x.mesesRest}</td><td class="num"><a href="#" data-mt-usa="${fe(x.ob)}" title="Usar a sugestão">${fmt(x.sug)}</a></td><td><input data-mt-obra="${fe(x.ob)}" value="${mo[x.ob]?n2(val(mo[x.ob])):''}" data-mask="moeda" inputmode="numeric" placeholder="R$"></td><td class="num">${fmt(x.medido)}</td><td style="min-width:120px">${p!=null?`<div style="display:flex;gap:8px;align-items:center">${barra(p,p>=100?'ok':'')}<small style="margin:0">${pct(p)}</small></div>`:'—'}</td></tr>`;}).join('')}
-          <tr class="gf-tot"><td>Soma das obras</td><td class="num">${fmt(ativas.reduce((s,x)=>s+x.saldo,0))}</td><td></td><td class="num">${fmt(ativas.reduce((s,x)=>s+x.sug,0))}</td><td class="num">${fmt(Object.values(mo).reduce((s,x)=>s+val(x),0))}</td><td class="num">${fmt(ativas.reduce((s,x)=>s+x.medido,0))}</td><td></td></tr>
-        </tbody></table></div>`:'<div class="gf-vazio"><i class="fas fa-helmet-safety"></i><p>Nenhuma obra em andamento.</p></div>'}
-        <div style="display:flex;justify-content:flex-end;margin-top:12px"><button type="button" class="gf-bt pri" data-mt-salvar="1"><i class="fas fa-floppy-disk"></i> Salvar metas de ${mesNome(k)}</button></div>
+      <div class="gf-sec"><div class="gf-sec-cab"><div><h3>Mês a mês — a meta se ajusta sozinha</h3><p>Meta de cada mês = o que ainda falta do ano ÷ os meses que faltam (contando o próprio mês). Se um mês fica abaixo, os seguintes sobem; se passa, descem. Mês que ainda não chegou: o valor previsto hoje.</p></div></div>
+        ${M?`<div class="gf-rolar"><table class="gf-tab mt-mes"><thead><tr><th>Mês</th><th class="num">Meta de medição</th><th class="num">Medido</th><th class="num">Meta de faturamento</th><th class="num">Faturado líquido</th><th class="num">Meta de resultado</th><th class="num">Resultado</th></tr></thead><tbody>${linhasMes}</tbody>
+          <tfoot><tr class="gf-tot"><td>Ano de ${a}</td><td class="num">${fmt(M.medicao)}</td><td class="num">${fmt(rA.medido)}</td><td class="num">${fmt(M.faturamento)}</td><td class="num">${fmt(rA.fatL)}</td><td class="num">${fmt(M.resultado)}</td><td class="num">${fmt(rA.resultado)}</td></tr></tfoot></table></div>`:'<div class="gf-vazio"><i class="fas fa-bullseye"></i><p>Defina a meta do ano acima e salve: a meta de cada mês aparece aqui.</p></div>'}
       </div>
-      <div class="gf-sec"><div class="gf-sec-cab"><div><h3>Histórico</h3><p>Meta × realizado nos últimos 6 meses.</p></div></div>
-        <div class="gf-rolar"><table class="gf-tab"><thead><tr><th>Mês</th><th class="num">Meta de medição</th><th class="num">Medido</th><th class="num">%</th><th class="num">Meta de faturamento</th><th class="num">Faturado líquido</th><th class="num">%</th><th class="num">Resultado</th></tr></thead><tbody>
-          ${hist.map(x=>{const mm=x.mm||{},a=val(mm.medicao),b=val(mm.faturamento);return `<tr><td><b>${cap(mesNome(x.kk))}</b></td><td class="num">${a?fmt(a):'—'}</td><td class="num">${fmt(x.rr.medido)}</td><td class="num ${a&&x.rr.medido<a?'err':a?'ok':''}">${a?pct(x.rr.medido/a*100):'—'}</td><td class="num">${b?fmt(b):'—'}</td><td class="num">${fmt(x.rr.fatL)}</td><td class="num ${b&&x.rr.fatL<b?'err':b?'ok':''}">${b?pct(x.rr.fatL/b*100):'—'}</td><td class="num ${x.rr.resultado<0?'err':''}">${fmt(x.rr.resultado)}</td></tr>`;}).join('')}
-        </tbody></table></div></div>
+      ${anoAtual?`<div class="gf-sec"><div class="gf-sec-cab"><div><h3>Meta de medição por obra — ${mesNome(hk)}</h3><p>Automática: o saldo a medir de cada obra ÷ os meses até o término vigente.</p></div></div>
+        ${ativas.length?`<div class="gf-rolar"><table class="gf-tab"><thead><tr><th>Obra</th><th class="num">Saldo a medir</th><th class="num">Meses até o fim</th><th class="num">Meta do mês</th><th class="num">Medido</th><th>Atingido</th></tr></thead><tbody>
+          ${ativas.map(x=>{const p=x.meta?x.medido/x.meta*100:null;return `<tr><td><b>${fe(x.ob)}</b>${x.temOrc?'':'<small class="warn">sem orçamento ligado</small>'}</td><td class="num">${fmt(x.saldo)}</td><td class="num">${x.mesesRest}</td><td class="num">${fmt(x.meta)}</td><td class="num">${fmt(x.medido)}</td><td style="min-width:120px">${p!=null?`<div style="display:flex;gap:8px;align-items:center">${barra(p,p>=100?'ok':'')}<small style="margin:0">${pct(p)}</small></div>`:'—'}</td></tr>`;}).join('')}
+          <tr class="gf-tot"><td>Soma das obras</td><td class="num">${fmt(ativas.reduce((s,x)=>s+x.saldo,0))}</td><td></td><td class="num">${fmt(ativas.reduce((s,x)=>s+x.meta,0))}</td><td class="num">${fmt(ativas.reduce((s,x)=>s+x.medido,0))}</td><td></td></tr>
+        </tbody></table></div>`:'<div class="gf-vazio"><i class="fas fa-helmet-safety"></i><p>Nenhuma obra em andamento.</p></div>'}</div>`:''}
     </div>`;
     sujo=false;
     box.oninput=()=>{sujo=true;};
-    box.onchange=ev=>{if(ev.target.matches('[data-mt-mes]')){if(sujo&&!window.confirm('Trocar de mês sem salvar as metas digitadas?'))return ev.target.value=MT.mes;MT.mes=ev.target.value;renderMetas();}};
+    box.onchange=ev=>{if(ev.target.matches('[data-mt-ano]')){if(sujo&&!window.confirm('Trocar de ano sem salvar a meta digitada?'))return ev.target.value=MT.ano;MT.ano=ev.target.value;renderMetas();}};
     box.onclick=ev=>{
       const t=ev.target;
-      const sug=t.closest('[data-mt-sug]');if(sug){const p=+sug.dataset.mtSug/100;[['medicao',x=>x.medido],['faturamento',x=>x.fatL],['resultado',x=>x.resultado]].forEach(([kk,fn])=>{const el=box.querySelector(`[data-mt="${kk}"]`);el.value=n2(Math.max(0,media3(k,fn)*(1+p)));});sujo=true;return;}
-      if(t.closest('[data-mt-copiar]')){const ant=planDe('meta',mesDesloc(k,-1));if(!ant)return toast('O mês anterior não tem meta.','error');['medicao','faturamento','resultado'].forEach(kk=>{box.querySelector(`[data-mt="${kk}"]`).value=ant[kk]?n2(val(ant[kk])):'';});box.querySelector('[data-mt="propostas"]').value=ant.propostas||'';Object.entries(ant.obras||{}).forEach(([ob,vv])=>{const el=box.querySelector(`[data-mt-obra="${CSS.escape(ob)}"]`);if(el)el.value=n2(val(vv));});sujo=true;return;}
-      const usa=t.closest('[data-mt-usa]');if(usa){ev.preventDefault();const x=ativas.find(a=>a.ob===usa.dataset.mtUsa);const el=box.querySelector(`[data-mt-obra="${CSS.escape(usa.dataset.mtUsa)}"]`);if(x&&el){el.value=n2(x.sug);sujo=true;}return;}
+      const sug=t.closest('[data-mt-sug]');if(sug){const p=+sug.dataset.mtSug/100;[['medicao',x=>x.medido],['faturamento',x=>x.fatL],['resultado',x=>x.resultado]].forEach(([kk,fn])=>{const el=box.querySelector(`[data-mt="${kk}"]`);el.value=n2(Math.max(0,media3(hk,fn)*12*(1+p)));});sujo=true;return;}
       if(t.closest('[data-mt-salvar]')){
         const g=kk=>moeda(box.querySelector(`[data-mt="${kk}"]`).value);
-        const obras={};box.querySelectorAll('[data-mt-obra]').forEach(el=>{const vv=moeda(el.value);if(vv>0)obras[el.dataset.mtObra]=dinheiro(vv);});
-        const somaObras=Object.values(obras).reduce((s,x)=>s+val(x),0);
-        let medicao=g('medicao');if(!medicao&&somaObras)medicao=somaObras;
-        (async()=>{try{await salvarPlan('meta',k,{medicao:medicao?dinheiro(medicao):'',faturamento:g('faturamento')?dinheiro(g('faturamento')):'',resultado:g('resultado')?dinheiro(g('resultado')):'',propostas:String(Math.round(g('propostas'))||''),obras});sujo=false;toast(`Metas de ${mesNome(k)} salvas.`,'success');renderMetas();}catch(e){toast(e.message||String(e),'error');}})();
+        (async()=>{try{await salvarPlan('meta_ano',a,{ano:a,medicao:g('medicao')?dinheiro(g('medicao')):'',faturamento:g('faturamento')?dinheiro(g('faturamento')):'',resultado:g('resultado')?dinheiro(g('resultado')):'',propostas:String(Math.round(g('propostas'))||'')});sujo=false;toast(`Meta de ${a} salva — a de cada mês se ajusta sozinha.`,'success');renderMetas();}catch(e){toast(e.message||String(e),'error');}})();
       }
     };
   }
@@ -15798,8 +15847,9 @@ const GS=(function(){
       const k=mesHoje(),h=hoje0(),o=planDe('orcamento',k);
       if(o){const real={};despDoMes(k).forEach(m=>{const c=catDesp(m);real[c]=(real[c]||0)+m.valor;});const est=Object.entries(o.valores||{}).filter(([c,v])=>val(v)>0&&(real[c]||0)>val(v));
         if(est.length)r.push({nivel:'medio',ico:'¤',titulo:'Despesa acima do orçamento',valor:String(est.length),detalhe:'Categoria(s) da empresa que já passaram do orçado no mês.',itens:est.slice(0,3).map(([c,v])=>`${c} · ${fmt(real[c])} de ${fmt(val(v))}`),acao:pd('orcamento')?{rot:'Abrir',go:()=>UI.nav('orcamento')}:null});}
-      const m=planDe('meta',k);
-      if(m&&val(m.medicao)&&h.getDate()>=18){const med=resumoMes(k).medido,p=med/val(m.medicao)*100;if(p<70)r.push({nivel:'medio',ico:'◎',titulo:'Meta de medição em risco',valor:pct(p),detalhe:`Medido ${fmt(med)} de ${fmt(val(m.medicao))} com o mês já no dia ${h.getDate()}.`,itens:[],acao:pd('metas')?{rot:'Abrir',go:()=>UI.nav('metas')}:null});}
+      // a meta de medição do mês = a do ano ajustada (o que falta ÷ os meses que faltam)
+      const mt=GS.metaDoMes(k);
+      if(mt&&mt.medicao&&h.getDate()>=18){const med=resumoMes(k).medido,p=med/mt.medicao*100;if(p<70)r.push({nivel:'medio',ico:'◎',titulo:'Meta de medição em risco',valor:pct(p),detalhe:`Medido ${fmt(med)} de ${fmt(mt.medicao)} (a meta do ano ajustada para este mês) com o mês já no dia ${h.getDate()}.`,itens:[],acao:pd('metas')?{rot:'Abrir',go:()=>UI.nav('metas')}:null});}
     }catch(e){console.error(e);}
     return r;
   };
@@ -16445,6 +16495,22 @@ const PL2=(function(){
 .gf-bt.vk-modo-sel.ativo{background:#EFF4FF;border-color:#84ADFF;color:#1849A9;}
 /* aviso de que o valor sai do aporte do sócio (conta paga com dinheiro dele) */
 .ap-aviso{display:flex;gap:8px;align-items:flex-start;margin-top:10px;padding:9px 11px;border-radius:10px;background:#F0F6FF;border:1px solid #D4E4FF;color:#1D3F7A;font-size:12.5px;line-height:1.45;} .ap-aviso i{color:#1652D8;margin-top:2px;}
+/* Editar aporte: sócio, período e obra fixos (vêm das contas); a tabela das contas que formam o aporte */
+.ap-fixo{display:flex;align-items:center;flex-wrap:wrap;gap:6px 8px;min-height:40px;box-sizing:border-box;padding:8px 12px;border:1px solid #EAECF0;border-radius:10px;background:#F9FAFB;font-size:13.5px;color:#101828;}
+.ap-fixo>i{color:#1652D8;} .ap-fixo small{color:#667085;font-size:12px;}
+.ap-obra .ap-tipo{display:inline-flex;align-items:center;gap:6px;padding:5px 11px;border-radius:999px;background:#1652D8;color:#fff;font-size:12.5px;font-weight:700;flex:none;} .ap-obra .ap-tipo i{color:#fff;}
+.ap-obra b{min-width:0;overflow-wrap:anywhere;}
+.ap-cab-tab{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 10px;margin:16px 0 6px;} .ap-cab-tab b{font-size:13.5px;color:#101828;} .ap-cab-tab small{color:#667085;font-size:12px;}
+.ap-tab{overflow-x:auto;border:1px solid #E4E9F2;border-radius:12px;}
+.ap-tab table{width:100%;border-collapse:collapse;min-width:690px;font-size:12.5px;}
+.ap-tab th{text-align:left;font:800 10px Inter,sans-serif;text-transform:uppercase;letter-spacing:.04em;color:#667085;background:#F8FAFC;padding:7px 6px;}
+.ap-tab td{padding:4px;border-top:1px solid #F2F4F7;vertical-align:middle;}
+.ap-tab td input,.ap-tab td select{width:100%;box-sizing:border-box;border:1px solid #D0D5DD;border-radius:8px;padding:6px 7px;font:500 12.5px Inter,sans-serif;background:#fff;color:#101828;}
+.ap-tab td input:disabled,.ap-tab td select:disabled{background:#F9FAFB;color:#475467;}
+.ap-tab td:nth-child(1){width:128px;} .ap-tab td:nth-child(4){width:124px;} .ap-tab td:nth-child(5){width:108px;} .ap-tab td:nth-child(6){width:40px;text-align:center;}
+.ap-tab td small{display:block;color:#667085;font-size:11px;line-height:1.35;}
+.ap-tab tr.ap-sai td{opacity:.45;} .ap-tab tr.ap-sai input,.ap-tab tr.ap-sai select{text-decoration:line-through;}
+.ap-move{margin:8px 0 0;font-size:12.5px;color:#1D3F7A;} .ap-move i{color:#1652D8;}
 .vk-exc-lista{margin:8px 0;padding:0;list-style:none;max-height:220px;overflow:auto;border:1px solid #F2F4F7;border-radius:10px;} .vk-exc-lista li{display:flex;justify-content:space-between;gap:10px;padding:6px 10px;border-top:1px solid #F2F4F7;font-size:12.5px;} .vk-exc-lista li:first-child{border-top:0;} .vk-exc-lista li b{white-space:nowrap;}
 /* "Excluir vários": marcar a coluna inteira (no topo de cada coluna) e cartão que não pode sair */
 .vk-col header.vk-col-sel{flex-wrap:wrap;row-gap:8px;} .vk-col-sel>div{flex:1 1 150px;min-width:0;}
@@ -16665,7 +16731,7 @@ const Mascara=(function(){
   const {janela,confirmar,executar,salvar,excluir,fe,cn,dt,brDe,isoDe,hoje0,addD,dias,dinheiro,val}=U;
   const C=GS.contas,Fa=GS.fat,EMP=C.EMP;
   const FORMAS=typeof FORMAS_PAGAMENTO_DESPESA!=='undefined'?FORMAS_PAGAMENTO_DESPESA:['PIX','Boleto','Transferência/TED','Dinheiro'];
-  const QC={busca:'',obra:'',mes:'',antigas:false,aprovar:false,semForn:false,ord:'',cat:'',forma:'',selModo:false,sel:new Set()},QF={busca:'',obra:'',mes:'',antigas:false,semNF:false,ord:'',selModo:false,sel:new Set()};
+  const QC={busca:'',obra:'',mes:'',per:'',de:'',ate:'',dref:'',antigas:false,aprovar:false,semForn:false,ord:'',cat:'',forma:'',selModo:false,sel:new Set()},QF={busca:'',obra:'',mes:'',antigas:false,semNF:false,ord:'',selModo:false,sel:new Set()};
   // ordem dos cartões dentro de cada coluna (o padrão de cada quadro é a data)
   const selOrd=(atr,v,ops)=>`<select ${atr} title="Ordem dos cartões em cada coluna">${ops.map(([k,r])=>`<option value="${k}" ${v===k?'selected':''}>${r}</option>`).join('')}</select>`;
   const cmpTxt=(a,b)=>String(a||'').localeCompare(String(b||''),'pt-BR',{sensitivity:'base',numeric:true});
@@ -16834,10 +16900,25 @@ const Mascara=(function(){
     const tot=L.reduce((s,x)=>s+val(x.total),0),pa=L.map(ApC().parte).filter(Boolean);
     confirmar('Excluir a compra',`Os <b>${L.length} itens</b> da compra de <b>${fe(L[0].forn||'fornecedor')}</b> (${fmt(tot)}) vão para a Lixeira (dá para restaurar em até 15 dias).${ApC().aviso(pa,'Volta se a compra for restaurada.')}`,'Sim, excluir',async()=>{ApC().conferir(pa);await executar(()=>excluirContas(L));toast('Compra excluída.','success');});
   }
-  function filtrarContas(lista){const f=QC;return lista.filter(o=>{
+  /* PERÍODO das contas: este mês, mês passado, próximos 30 dias, últimos 3, 6 ou 12 meses, um ano, um mês escolhido ou
+     de… até…. A data que vale: a do pagamento (na conta em aberto, o vencimento) — ou só o vencimento, ou a da compra */
+  const PER_CP=[['','Qualquer período'],['mes','Este mês'],['mesant','Mês passado'],['prox30','Próximos 30 dias'],['u3','Últimos 3 meses'],['u6','Últimos 6 meses'],['u12','Últimos 12 meses']];
+  function faixaPer(f){const h=hoje0(),y=h.getFullYear(),m=h.getMonth(),d=(a,b,c)=>isoDe(new Date(a,b,c));
+    if(/^a:\d{4}$/.test(f.per||'')){const a=+f.per.slice(2);return [d(a,0,1),d(a,11,31)];}
+    switch(f.per){case 'mes':return [d(y,m,1),d(y,m+1,0)];case 'mesant':return [d(y,m-1,1),d(y,m,0)];case 'prox30':return [isoDe(h),isoDe(addD(h,30))];
+      case 'u3':return [d(y,m-2,1),d(y,m+1,0)];case 'u6':return [d(y,m-5,1),d(y,m+1,0)];case 'u12':return [d(y,m-11,1),d(y,m+1,0)];
+      case 'umMes':return /^\d{4}-\d{2}$/.test(f.mes||'')?[f.mes+'-01',d(+f.mes.slice(0,4),+f.mes.slice(5,7),0)]:null;
+      case 'faixa':return f.de||f.ate?[f.de||'0000-01-01',f.ate||'9999-12-31']:null;}
+    return null;}
+  // o nome do período escolhido (impressão, indicadores)
+  function rotPer(f){const fx=faixaPer(f);if(!fx)return '';const o=PER_CP.find(([v])=>v===f.per);if(o)return o[1];if(/^a:/.test(f.per))return 'Ano de '+f.per.slice(2);
+    if(f.per==='umMes')return cap(mesNome(f.mes));return f.de&&f.ate?`${brDe(dt(f.de))} a ${brDe(dt(f.ate))}`:f.de?`desde ${brDe(dt(f.de))}`:`até ${brDe(dt(f.ate))}`;}
+  const dataRefConta=(o,ref)=>String((ref==='venc'?o.venc:ref==='compra'?diaCompra(o):(pagoC(o)?o.pago:o.venc))||'').slice(0,10);
+  const anosContas=todas=>[...new Set(todas.flatMap(o=>[o.pago,o.venc,o.dataCompra].map(x=>String(x||'').slice(0,4))).filter(a=>/^\d{4}$/.test(a)))].sort().reverse();
+  function filtrarContas(lista){const f=QC,fx=faixaPer(f);return lista.filter(o=>{
     if(f.busca){const q=cn(f.busca);if(!cn([o.forn,o.desc,o.cat,o.centro,o.obs,n2(val(o.total))].join(' ')).includes(q))return false;}
     if(f.obra&&o.centro!==f.obra)return false;
-    if(f.mes&&String(pagoC(o)?o.pago:o.venc).slice(0,7)!==f.mes)return false;
+    if(fx){const d=dataRefConta(o,f.dref);if(!d||d<fx[0]||d>fx[1])return false;}
     if(f.aprovar&&colConta(o)!=='aprovar')return false;
     if(f.semForn&&String(o.forn||'').trim())return false;
     if(f.cat&&o.cat!==f.cat)return false;
@@ -16848,7 +16929,9 @@ const Mascara=(function(){
     const h=hoje0(),f=QC,todas=todasContas(),S=a=>a.reduce((s,o)=>s+val(o.total),0);
     const abertas=todas.filter(o=>!pagoC(o)&&o.tipo==='Real'),vencidas=abertas.filter(o=>{const d=dt(o.venc);return d&&d<h;}),em7=abertas.filter(o=>{const d=dt(o.venc);return d&&d>=h&&d<=addD(h,7);});
     const semAprov=abertas.filter(o=>o.aprov==='pendente'),pagoMes=todas.filter(o=>pagoC(o)&&o.pago.slice(0,7)===mesHoje());
-    const filtradas=filtrarContas(todas),lim=addD(h,-30),visiveis=filtradas.filter(o=>!pagoC(o)||f.antigas||f.mes||f.semForn||dt(o.pago)>=lim);
+    const fxP=faixaPer(f),filtradas=filtrarContas(todas),lim=addD(h,-30),visiveis=filtradas.filter(o=>!pagoC(o)||f.antigas||fxP||f.semForn||dt(o.pago)>=lim);
+    // com período escolhido, o 4º indicador é o que foi pago dentro dele (pela data do pagamento)
+    const pagoPer=fxP?todas.filter(o=>pagoC(o)&&o.pago>=fxP[0]&&o.pago<=fxP[1]):null;
     const ordV=(a,b)=>String(a.venc||'9999').localeCompare(String(b.venc||'9999'));
     // "Previstas" (estimativas lançadas à mão) saiu: a previsão de custo vem do CAP. A coluna só aparece
     // enquanto houver estimativa antiga, para virar conta ("A conta chegou") ou ser excluída.
@@ -16856,7 +16939,7 @@ const Mascara=(function(){
     const cols=COLS_CP.filter(c=>c.k!=='previstas'||temPrev).map(c=>{const itens=visiveis.filter(o=>colConta(o)===c.k).sort(ordemCartoes(f.ord,o=>val(o.total),o=>o.forn||C.limparParc(o.desc))||(f.ord==='rec'?(a,b)=>(+b.rowid||0)-(+a.rowid||0):c.k==='paga'?(a,b)=>String(b.pago).localeCompare(String(a.pago)):ordV));return {c:c.k==='previstas'?{...c,rot:'Estimativas antigas'}:c,itens:agruparCompras(itens),total:S(itens),sub:`${itens.length} ${itens.length===1?'item':'itens'} · ${fmt(S(itens))}`,topo:f.selModo&&itens.length?marcaColuna(c.k):''};});
     App._vkCompras={};
     App._vkContas=filtradas;
-    const filtroAtivo=f.busca||f.obra||f.mes||f.aprovar||f.semForn||f.cat||f.forma||f.ord;
+    const filtroAtivo=f.busca||f.obra||f.per||f.aprovar||f.semForn||f.cat||f.forma||f.ord;
     const catsF=[...new Set(C.CATC().concat(C.podeEmpresa()?C.CATD():[]).concat(todas.map(o=>o.cat).filter(Boolean)))],formasF=[...new Set(FORMAS.concat(todas.map(o=>o.forma).filter(Boolean)))];
     box.innerHTML=`<div class="gf">
       ${cabG('Contas a pagar','Tudo o que a empresa paga: compras e serviços de cada obra e as despesas da Empresa — só contas que já existem (a previsão de custo das obras vem do CAP). Um Administrador aprova (conta lançada por Administrador já nasce aprovada) e, quando pagar, arraste o cartão para <b>Paga</b>. Clique no cartão para ver e corrigir todos os dados.',(()=>{const n=gruposDupContas().length;return `<button type="button" class="gf-bt${n?' dup-on':''}" data-vk="dup" title="Procura contas lançadas em dobro (mesmo fornecedor, destino e valor em datas próximas)"><i class="fas fa-clone"></i> Verificar duplicados${n?` <b class="vk-badge">${n}</b>`:''}</button>`;})()+'<button type="button" class="gf-bt" data-vk="imprimir"><i class="fas fa-print"></i> Imprimir</button><button type="button" class="gf-bt" data-vk="exportar"><i class="fas fa-file-excel"></i> Exportar</button>'+(pode('contas')?`${selUI.modo(f.selModo,'data-vk="selecionar"','Marcar várias contas para excluir de uma vez')}<button type="button" class="gf-bt pri" data-vk="nova"><i class="fas fa-plus"></i> Nova conta</button>`:''))}
@@ -16865,14 +16948,17 @@ const Mascara=(function(){
         ${kpiG(vencidas.length?'vermelho':'verde','fa-triangle-exclamation','Vencidas',Rk(S(vencidas)),vencidas.length?`${vencidas.length} conta(s) em atraso — juros e multa correndo`:'nenhuma conta atrasada')}
         ${kpiG('laranja','fa-calendar-week','Vencem em 7 dias',Rk(S(em7)),`${em7.length} conta(s)`)}
         ${kpiG('roxo','fa-signature','Aguardando aprovação',Rk(S(semAprov)),`${semAprov.length} conta(s)`)}
-        ${kpiG('verde','fa-circle-check','Pago no mês',Rk(S(pagoMes)),`${pagoMes.length} pagamento(s) em ${mesNome(mesHoje()).split(' ')[0]}`)}
+        ${pagoPer?kpiG('verde','fa-circle-check','Pago no período',Rk(S(pagoPer)),`${pagoPer.length} pagamento(s) · ${fe(rotPer(f))}`):kpiG('verde','fa-circle-check','Pago no mês',Rk(S(pagoMes)),`${pagoMes.length} pagamento(s) em ${mesNome(mesHoje()).split(' ')[0]}`)}
       </div>
       <div class="vk-filtros"><div class="pl2-busca"><i class="fas fa-magnifying-glass"></i><input data-vkf="busca" placeholder="Fornecedor, descrição, categoria, valor…" value="${fe(f.busca)}"></div>
         <select data-vkf="obra"><option value="">Obras e empresa</option>${(C.podeEmpresa()?[EMP]:[]).concat(opsObra()).map(o=>`<option ${f.obra===o?'selected':''}>${fe(o)}</option>`).join('')}</select>
         <select data-vkf="cat"><option value="">Todas as categorias</option>${catsF.map(x=>`<option ${f.cat===x?'selected':''}>${fe(x)}</option>`).join('')}</select>
         <select data-vkf="forma"><option value="">Todas as formas</option>${formasF.concat(['(sem forma)']).map(x=>`<option ${f.forma===x?'selected':''}>${fe(x)}</option>`).join('')}</select>
         ${selOrd('data-vkf="ord"',f.ord,[['','Ordem: vencimento'],['valor-','Ordem: maior valor'],['valor+','Ordem: menor valor'],['az','Ordem: fornecedor A–Z'],['za','Ordem: fornecedor Z–A'],['rec','Ordem: lançadas por último']])}
-        <label class="vk-chk">Vencimento em <input type="month" data-vkf="mes" value="${fe(f.mes)}"></label>
+        <select data-vkf="per" title="Período das contas">${PER_CP.concat(anosContas(todas).map(a=>['a:'+a,'Ano de '+a])).concat([['umMes','Um mês…'],['faixa','De … até …']]).map(([v,r])=>`<option value="${v}" ${f.per===v?'selected':''}>${r}</option>`).join('')}</select>
+        ${f.per==='umMes'?`<label class="vk-chk">Mês <input type="month" data-vkf="mes" value="${fe(f.mes)}"></label>`:''}
+        ${f.per==='faixa'?`<label class="vk-chk">De <input type="date" data-vkf="de" value="${fe(f.de)}"></label><label class="vk-chk">até <input type="date" data-vkf="ate" value="${fe(f.ate)}"></label>`:''}
+        ${f.per?`<select data-vkf="dref" title="Qual data da conta vale para o período"><option value="" ${!f.dref?'selected':''}>pelo pagamento (ou vencimento)</option><option value="venc" ${f.dref==='venc'?'selected':''}>pelo vencimento</option><option value="compra" ${f.dref==='compra'?'selected':''}>pela data da compra</option></select>`:''}
         <label class="vk-chk"><input type="checkbox" data-vkf="antigas" ${f.antigas?'checked':''}> Pagas há mais de 30 dias</label>
         <label class="vk-chk"><input type="checkbox" data-vkf="semForn" ${f.semForn?'checked':''}> Sem fornecedor</label>
         ${filtroAtivo?'<a href="#" class="vk-chk" data-vk="limpar"><i class="fas fa-xmark"></i> Limpar filtros</a>':''}</div>
@@ -16926,7 +17012,10 @@ const Mascara=(function(){
   function ligarQuadroContas(box){
     const re=()=>renderQuadroContas();
     box.oninput=ev=>{const t=ev.target.closest('[data-vkf="busca"]');if(t){QC.busca=t.value;clearTimeout(QC._t);QC._t=setTimeout(()=>{re();const i=document.querySelector('#gs-contas-q [data-vkf="busca"]');if(i){i.focus();i.setSelectionRange(i.value.length,i.value.length);}},280);}};
-    box.onchange=ev=>{const t=ev.target.closest('[data-vkf]');if(!t||t.dataset.vkf==='busca')return;QC[t.dataset.vkf]=t.type==='checkbox'?t.checked:t.value;re();};
+    box.onchange=ev=>{const t=ev.target.closest('[data-vkf]');if(!t||t.dataset.vkf==='busca')return;QC[t.dataset.vkf]=t.type==='checkbox'?t.checked:t.value;
+      // "Um mês…" já abre no mês atual; "De … até …", no começo do ano até hoje
+      if(t.dataset.vkf==='per'){if(t.value==='umMes'&&!QC.mes)QC.mes=mesHoje();if(t.value==='faixa'&&!QC.de&&!QC.ate){QC.de=mesHoje().slice(0,4)+'-01-01';QC.ate=isoDe(hoje0());}}
+      re();};
     box.onclick=ev=>{
       const b=ev.target.closest('[data-vk]');if(b){ev.preventDefault();const a=b.dataset.vk;
         if(a==='nova')return fichaLote();
@@ -16937,7 +17026,7 @@ const Mascara=(function(){
         if(a==='sel-nenhuma'){QC.sel.clear();return redesenharQuadro(box,re);}
         if(a==='sel-excluir')return excluirMarcadas();
         if(a==='so-aprovar'){QC.aprovar=!QC.aprovar;return re();}
-        if(a==='limpar'){Object.assign(QC,{busca:'',obra:'',mes:'',aprovar:false,semForn:false,ord:'',cat:'',forma:''});return re();}
+        if(a==='limpar'){Object.assign(QC,{busca:'',obra:'',mes:'',per:'',de:'',ate:'',dref:'',aprovar:false,semForn:false,ord:'',cat:'',forma:''});return re();}
         if(a==='exportar')return exportarContas();
         if(a==='imprimir')return imprimirContas();
         return;}
@@ -16967,7 +17056,7 @@ const Mascara=(function(){
   }
   function imprimirContas(){
     const l=(App._vkContas||[]).slice().sort((a,b)=>String(a.venc||'9').localeCompare(String(b.venc||'9')));
-    imprimirLista('Contas a pagar',[QC.obra||'Obras e empresa',QC.mes?cap(mesNome(QC.mes)):'Todos os meses'],
+    imprimirLista('Contas a pagar',[QC.obra||'Obras e empresa',rotPer(QC)||'Todos os períodos'],
       [{l:'Obra / empresa'},{l:'Fornecedor'},{l:'Descrição'},{l:'Categoria'},{l:'Valor',d:1},{l:'Vencimento'},{l:'Situação'},{l:'Pago em'}],
       l.map(o=>[fe(o.centro),fe(o.forn||'—'),fe(o.desc||''),fe(o.cat||''),fmt(val(o.total)),o.venc?brDe(dt(o.venc)):'—',C.sitP(o)[0],o.pago?brDe(dt(o.pago)):'—']),
       `<div style="margin-top:12px;font-size:12px">Total: <b>${fmt(l.reduce((s,o)=>s+val(o.total),0))}</b> · em aberto: <b>${fmt(l.filter(o=>!pagoC(o)).reduce((s,o)=>s+val(o.total),0))}</b></div>`);
@@ -23583,6 +23672,8 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
      Devolução de aporte — escolhe o aporte e devolve tudo ou uma parte (nunca mais do que falta devolver).
      op.conc: linha do extrato (Conciliação): o valor e a data vêm do banco e o lançamento fica ligado a ela. op.sub: lucro ou prolabore. */
   function editarMov(x,tipo,de,op){
+    // editar um aporte: a janela com as contas que formam ele (o valor é a soma delas)
+    if(x&&x.fonte==='ap'&&!x.sai&&x.tipo==='Aporte'&&!(op&&op.conc))return editarAporte(x);
     op=op||{};const conc=op.conc||null,isoBanco=conc?U.isoDeBR(conc.data):'';
     const K=KAp(),r=x?x.r:null,L=livro(),tp=x?x.tipo:(tipo||'Aporte'),RAT='__rateio__',hj=isoDe(hoje0());
     // devolução: pela obra (sócio + obra); editando uma, o valor dela volta a contar como "falta devolver"
@@ -23678,6 +23769,86 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
     if(so){const info=()=>{const s=CS.get(so.value),el=j.querySelector('[data-dev-info]'),fa=faltaDe(s);if(el)el.innerHTML=s?`Aportado nesta obra <b>${fmt(s.ap)}</b> · já devolvido <b>${fmt(Math.max(0,Math.round((s.ap-fa)*100)/100))}</b> · falta <b>${fmt(fa)}</b>.`:'';
         const vi=j.querySelector('[data-k="valor"]');if(s&&!x&&!num(vi.value))vi.value=fmt(fa);};so.addEventListener('change',info);info();}
   }
+  /* ═══ O APORTE E AS CONTAS DELE ═══
+     O aporte do mês (sócio + obra + mês) é a soma das contas que o sócio pagou com o dinheiro dele (Contas a pagar) — e, às
+     vezes, de dinheiro posto direto. Editar o aporte = editar essas linhas: cada conta muda em Contas a pagar (o vínculo) e o
+     Valor do aporte é sempre a soma delas, nunca digitado. Excluir o aporte leva as contas junto para a Lixeira (e o contrário:
+     excluir a conta tira o valor dela do aporte — Fin.aporteConta). A obra de referência fica fixa: é a das contas. */
+  const contasDoAp=x=>{if(!x||x.fonte!=='ap'||x.sai)return [];const ob=!x.obra||x.obra==='—'?'Empresa':x.obra,m=mesDe(x),AC=Fin.aporteConta;
+    return (D().custos||[]).map(GS.contas.deCusto).concat((D().despesas||[]).map(GS.contas.deDesp)).filter(o=>{const p=AC.parte(o);return p&&cn(p.quem)===cn(x.quem)&&cn(p.obra)===cn(ob)&&p.data.slice(0,7)===m;})
+      .sort((a,b)=>String(a.pago).localeCompare(String(b.pago))||String(a.forn||'').localeCompare(String(b.forn||''),'pt-BR'));};
+  const somaV=L=>Math.round(L.reduce((s,o)=>s+val(o.total),0)*100)/100;
+  // as contas vão para a Lixeira e o valor delas sai do aporte (volta se forem restauradas)
+  async function excluirContasAp(cs,motivo){for(const o of cs)await excluir(o._t==='c'?'Custos':'Despesas',o.rowid);await Fin.aporteConta.tirar(cs,motivo||'excluída junto com o aporte');}
+  function editarAporte(x){
+    const C=GS.contas,cs=contasDoAp(x),soma=somaV(cs),manual=Math.round((x.valor-soma)*100)/100,ob=!x.obra||x.obra==='—'?'Empresa':x.obra,emp=cn(ob)==='empresa';
+    const m=mesDe(x)||isoDe(hoje0()).slice(0,7),per=U.periodoMes(m),hj=isoDe(hoje0()),ed=GS.ehAdm();   // conta já paga: só o Administrador muda
+    const FC=[...new Set((typeof FORMAS_PAGAMENTO_DESPESA!=='undefined'?FORMAS_PAGAMENTO_DESPESA:[]).concat(FORMAS_AP))];
+    const selF=(v,attr,pode)=>`<select ${attr} ${pode?'':'disabled'}><option value="">—</option>${[...new Set(FC.concat(v&&v!=='Várias'?[v]:[]))].map(f=>`<option ${f===v?'selected':''}>${fe(f)}</option>`).join('')}</select>`;
+    const dis=ed?'':'disabled';
+    const linha=(o,i)=>`<tr data-ap-i="${i}"><td><input type="date" data-c="pago" max="${hj}" value="${fe(o.pago)}" ${dis} aria-label="Data do pagamento"></td>
+      <td><input data-c="forn" value="${fe(o.forn||'')}" ${dis} aria-label="Fornecedor"></td><td><input data-c="desc" value="${fe(o.desc||'')}" ${dis} aria-label="Descrição"></td>
+      <td>${selF(o.forma||'','data-c="forma" aria-label="Forma de pagamento"',ed)}</td><td><input data-c="total" data-mask="moeda" inputmode="numeric" value="${fmt(val(o.total))}" ${dis} aria-label="Valor"></td>
+      <td>${ed?'<button type="button" class="bt-tirar" data-ap-x title="Excluir esta conta (vai para a Lixeira)" aria-label="Excluir esta conta"><i class="fas fa-trash-can"></i></button>':''}</td></tr>`;
+    const linhaMan=manual>0.004?`<tr data-ap-man><td><small>${x.data?brDe(x.data):'—'}</small></td><td><b>Aporte direto</b></td><td><small>dinheiro posto pelo sócio, sem conta ligada</small></td>
+      <td>${selF(x.forma&&x.forma!=='Várias'?x.forma:'','data-c="forma" aria-label="Forma"',true)}</td><td><input data-c="total" data-mask="moeda" inputmode="numeric" value="${fmt(manual)}" aria-label="Valor do aporte direto"></td>
+      <td><button type="button" class="bt-tirar" data-ap-x title="Tirar este valor do aporte" aria-label="Tirar este valor"><i class="fas fa-trash-can"></i></button></td></tr>`:'';
+    const corpo=`<div class="fin-linha">
+        <div class="fin-fld"><label>Sócio / investidor</label><div class="ap-fixo"><i class="fas fa-user-tie"></i> ${fe(x.quem)}</div></div>
+        <div class="fin-fld"><label>Período (mês)</label><div class="ap-fixo"><i class="fas fa-calendar"></i> ${fe(GS.cap(GS.mesNome(m)))}<small>${brDe(dt(per.ini)).slice(0,5)} a ${brDe(dt(per.fim))}</small></div></div>
+        <div class="fin-fld" style="grid-column:1/-1"><label>Obra de referência</label><div class="ap-fixo ap-obra"><span class="ap-tipo"><i class="fas ${emp?'fa-building':'fa-helmet-safety'}"></i> ${emp?'Custo indireto (Empresa)':'Obra'}</span>${emp?'':`<b>${fe(ob)}</b>`}</div></div></div>
+      <div class="ap-cab-tab"><b>${cs.length?`Contas pagas por ${fe(x.quem)} que formam este aporte`:'Lançamentos deste aporte'}</b>${cs.length?'<small>Mudar uma linha muda a conta em Contas a pagar; a lixeira da linha manda a conta para a Lixeira.</small>':''}</div>
+      ${cs.length||manual>0.004?`<div class="ap-tab"><table data-sem-ordem><thead><tr><th>Pago em</th><th>Fornecedor</th><th>Descrição</th><th>Forma</th><th>Valor</th><th></th></tr></thead><tbody data-ap-linhas>${cs.map(linha).join('')}${linhaMan}</tbody></table></div>`:'<p class="vk-dica">Nenhuma conta ligada a este aporte.</p>'}
+      ${!ed&&cs.length?'<p class="vk-dica"><i class="fas fa-lock"></i> As contas já pagas só um Administrador altera.</p>':''}
+      ${manual<-0.004?`<div class="fin-aviso laranja"><div>As contas somam ${fmt(soma)}, mais do que o aporte (${fmt(x.valor)}). Ao salvar, o aporte passa a ser a soma das linhas.</div></div>`:''}
+      <p class="ap-move" data-ap-move hidden></p>
+      <div class="fin-linha"><div class="fin-fld"><label>Valor (R$)</label><input data-k="valor" readonly class="lote-calc" title="A soma das linhas da tabela — muda pela tabela" value="${fmt(x.valor)}"></div>
+        <div class="fin-fld" style="grid-column:1/-1"><label>Observação</label><input data-k="obs" value="${fe(x.obs||'')}"></div></div>`;
+    janela('Editar aporte',corpo,[{html:'<i class="fas fa-floppy-disk"></i> Salvar',cls:'pri',acao:async j=>{
+      const tb=j.querySelector('[data-ap-linhas]'),rows=tb?[...tb.rows]:[],sai=[],muda=[],fica=[];let man=null;
+      for(const tr of rows){const fora=tr.classList.contains('ap-sai'),g=k=>((tr.querySelector(`[data-c="${k}"]`)||{}).value||'').trim();
+        if(tr.hasAttribute('data-ap-man')){man={v:fora?0:num(g('total')),forma:g('forma')};continue;}
+        const o=cs[+tr.dataset.apI];if(!o)continue;if(fora){sai.push(o);continue;}
+        const t=num(g('total')),d=g('pago'),nome=o.forn||o.desc||'conta';
+        if(!(t>0))throw new Error(`Informe o valor da conta de ${nome}.`);if(!d)throw new Error(`Informe a data do pagamento da conta de ${nome}.`);if(d>hj)throw new Error('A data do pagamento não pode ser depois de hoje.');
+        const u={...o,pago:d,forn:g('forn').toLocaleUpperCase('pt-BR'),desc:g('desc')||o.desc,forma:g('forma'),total:dinheiro(t),pagoPorSocio:Fin.aporteConta.socio(o)||x.quem};
+        if(o._t==='c'&&o.centro!=='Empresa'&&val(o.qtd)>0&&Math.abs(t-val(o.total))>0.004)u.pUnit=String(Math.round((t+val(o.desconto||0))/val(o.qtd)*1e6)/1e6);
+        if(['pago','forn','desc','forma'].some(k=>String(u[k]||'')!==String(o[k]||''))||Math.abs(t-val(o.total))>0.004)muda.push([u,o]);fica.push(u);}
+      const restam=fica.filter(u=>String(u.pago).slice(0,7)===m),manV=man?Math.max(0,man.v):Math.max(0,manual);
+      if(!restam.length&&manV<=0.004)throw new Error('Todas as linhas saíram deste aporte. Para excluir o aporte inteiro, feche e use a lixeira dele em Movimentos — as contas vão junto para a Lixeira.');
+      const total=Math.round((restam.reduce((s,u)=>s+val(u.total),0)+manV)*100)/100;
+      // a devolução é pela obra: o aporte que sobra não pode ficar menor do que o que o sócio já recebeu de volta nela
+      const s=saldoObra(x.quem,ob);if(total<x.valor-0.004&&s.dev>s.ap-(x.valor-total)+0.004)throw new Error(`Nesta obra ${x.quem} já recebeu de volta ${fmt(s.dev)} — o aporte não pode ficar menor do que isso. Ajuste ou exclua a devolução antes.`);
+      const obs=(j.querySelector('[data-k="obs"]').value||'').trim(),formas=U.juntarFormas(restam.map(u=>u.forma),man&&manV>0.004?[man.forma]:[]);
+      await executar(async()=>{
+        if(sai.length)await excluirContasAp(sai,'excluída na edição do aporte');
+        for(const [u,o] of muda){C.finalizarConta(u);for(const op of C.montarConta(u,o))await(op.excluir?excluir(op.aba,op.rowid):salvar(op.aba,op.dados,op.rowid||null));await Fin.aporteConta.mudou(o,u);}
+        // o lançamento do mês fica com a soma das linhas que continuam nele, a observação e as formas
+        await Fin.aporteConta.acertar({rowid:x.r.rowid,quem:x.quem,obra:ob,data:m+'-01',total,obs,formas});});
+      toast(`Aporte atualizado${muda.length||sai.length?` — ${[muda.length?`${muda.length} conta${muda.length>1?'s alteradas':' alterada'}`:'',sai.length?`${sai.length} na Lixeira`:''].filter(Boolean).join(', ')} em Contas a pagar`:''}.`,'success');}}],940);
+    const j=document.getElementById('fin-jan'),tb=j.querySelector('[data-ap-linhas]');if(!tb)return;
+    // o Valor é a soma das linhas que continuam neste mês; conta que passa para outro mês vai para o aporte daquele mês
+    const pintar=()=>{let t=0;const fora=[];[...tb.rows].forEach(tr=>{if(tr.classList.contains('ap-sai'))return;const v=num((tr.querySelector('[data-c="total"]')||{}).value),d=(tr.querySelector('[data-c="pago"]')||{}).value;
+        if(d&&d.slice(0,7)!==m){fora.push(d.slice(0,7));return;}t+=v;});
+      j.querySelector('[data-k="valor"]').value=fmt(Math.round(t*100)/100);const mv=j.querySelector('[data-ap-move]');mv.hidden=!fora.length;
+      if(fora.length)mv.innerHTML=`<i class="fas fa-circle-info"></i> ${fora.length} conta${fora.length>1?'s passam':' passa'} para o aporte de ${[...new Set(fora)].map(k=>fe(GS.mesNome(k))).join(', ')} (o mês do pagamento).`;};
+    tb.addEventListener('input',pintar);tb.addEventListener('change',pintar);
+    tb.addEventListener('click',ev=>{const b=ev.target.closest('[data-ap-x]');if(!b)return;const tr=b.closest('tr'),fora=!tr.classList.contains('ap-sai');tr.classList.toggle('ap-sai',fora);
+      tr.querySelectorAll('input,select').forEach(e=>{e.disabled=fora||(!ed&&!tr.hasAttribute('data-ap-man'));});
+      b.innerHTML=fora?'<i class="fas fa-rotate-left"></i>':'<i class="fas fa-trash-can"></i>';b.title=fora?'Voltar esta linha':(tr.hasAttribute('data-ap-man')?'Tirar este valor do aporte':'Excluir esta conta (vai para a Lixeira)');pintar();});
+    pintar();
+  }
+  // excluir o aporte: as contas pagas pelo sócio que formam ele vão junto para a Lixeira (e o aporte direto, se houver)
+  function excluirAporte(x){
+    const cs=contasDoAp(x),man=Math.round((x.valor-somaV(cs))*100)/100,base=`${fe(x.rot||x.tipo)} de <b>${fe(x.quem)}</b> · ${fmt(x.valor)} · ${fe(GS.cap(GS.mesNome(mesDe(x)||isoDe(hoje0()).slice(0,7))))}`;
+    if(!cs.length)return confirmar('Excluir lançamento',`${base} vai para a Lixeira (dá para restaurar em até 15 dias).`,'Sim, excluir',async()=>{Fin.aporteConta.conferir([{quem:x.quem,obra:x.obra,valor:x.valor}]);await executar(()=>excluir('Aportes financeiros',x.r.rowid));toast('Lançamento excluído.','success');});
+    confirmar('Excluir aporte',`${base} vai para a Lixeira junto com ${cs.length>1?`as <b>${cs.length} contas</b> pagas pelo sócio que formam`:'a <b>conta</b> paga pelo sócio que forma'} ele (${cs.length>1?'saem':'sai'} também de Contas a pagar):<ul class="vk-exc-lista">${cs.slice(0,8).map(o=>`<li>${fe(o.forn||o.desc||'Conta')} · ${brDe(dt(o.pago))}<b>${fmt(val(o.total))}</b></li>`).join('')}${cs.length>8?`<li>+ ${cs.length-8} conta(s)</li>`:''}</ul>${man>0.004?`<small>Mais ${fmt(man)} de aporte direto (sem conta), que também vai para a Lixeira.</small><br>`:''}<small>Dá para restaurar em até 15 dias: as contas voltam e o aporte volta com elas.</small>`,'Sim, excluir tudo',async()=>{
+      Fin.aporteConta.conferir([{quem:x.quem,obra:x.obra,valor:x.valor}]);
+      await executar(()=>excluirContasAp(cs));
+      // sobrou o aporte direto (sem conta): ele também vai para a Lixeira
+      if(man>0.004){const r=(D().aportes||[]).find(y=>String(y.rowid)===String(x.r.rowid));if(r)await executar(()=>excluir('Aportes financeiros',r.rowid));}
+      toast(`Aporte excluído — ${cs.length} conta${cs.length>1?'s foram':' foi'} junto para a Lixeira.`,'success');});
+  }
   GS.socios={editarMov,saldoObra};
   /* Agrupar: aportes do mesmo sócio e obra dentro do mês viram um lançamento só, com o período do mês (os antigos entram no mês
      em que o período termina, ou no mês da data). As devoluções e a ligação com o extrato passam para o lançamento que fica. */
@@ -23762,12 +23933,19 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
     const L=marcadosSo(),ok=L.filter(x=>!travaSo(x)),fora=L.length-ok.length;
     if(!ok.length)return toast('Nenhum dos lançamentos marcados pode ser excluído por você. '+GS.MSG_DONO,'error');
     const ids=new Set(ok.map(idSo)),T=App._so2Todos||[],S=a=>a.reduce((s,x)=>s+x.valor,0),ent=S(ok.filter(x=>!x.sai)),sai=S(ok.filter(x=>x.sai));
+    // aportes formados por contas pagas pelo sócio: as contas vão junto para a Lixeira
+    const comCt=ok.filter(x=>contasDoAp(x).length),ctLig=comCt.flatMap(contasDoAp);
     // obra em que, sem os aportes marcados, o que já foi devolvido ao sócio (e não está marcado) fica maior do que o aporte que sobra
     const comDev=(()=>{const CS=contaObra(T),tira=new Map();ok.forEach(x=>{if(x.fonte!=='ap'||(x.sai&&!x.dev))return;const k=x.dev?chaveDev(x,T):chaveSO(x.quem,x.obra),t=tira.get(k)||{ap:0,dev:0};if(x.dev)t.dev+=x.valor;else t.ap+=x.valor;tira.set(k,t);});
       return [...tira.entries()].filter(([k,t])=>{const s=CS.get(k);return s&&s.dev-t.dev>s.ap-t.ap+0.004;}).length;})(),conc=ok.filter(x=>x.r.conciliacao).length,rat=ok.filter(x=>x.rateio).length;
     confirmar('Excluir os lançamentos marcados',`<b>${ok.length} lançamento${ok.length>1?'s':''}</b> ${ok.length>1?'serão excluídos':'será excluído'} — ${ok.length>1?'vão':'vai'} para a Lixeira, dá para restaurar em até 15 dias${[ent?'entradas '+fmt(ent):'',sai?'saídas '+fmt(sai):''].filter(Boolean).length?' ('+[ent?'entradas '+fmt(ent):'',sai?'saídas '+fmt(sai):''].filter(Boolean).join(' · ')+')':''}:<ul class="vk-exc-lista">${ok.slice(0,8).map(x=>`<li>${fe(x.dev?'Devolução':x.tipo)} · ${fe(x.quem)} · ${fe(x.obra)}<b>${fmt(x.valor)}</b></li>`).join('')}${ok.length>8?`<li>+ ${ok.length-8} lançamento(s)</li>`:''}</ul>
-      ${fora?`<small>${fora} ${fora>1?'ficam':'fica'} de fora (lançado${fora>1?'s':''} por outra pessoa — só um Administrador exclui).</small><br>`:''}${comDev?`<small>⚠ Em ${comDev>1?`${comDev} obras`:'1 obra'}, o que já foi devolvido ao sócio fica maior do que o aporte que sobra (as devoluções que não foram marcadas continuam no livro).</small><br>`:''}${conc?`<small>${conc} ${conc>1?'estão ligados':'está ligado'} ao extrato do banco: ${conc>1?'essas linhas voltam':'essa linha volta'} para a conferência na Conciliação.</small><br>`:''}${rat?`<small>${rat} ${rat>1?'são partes':'é parte'} de rateio: as outras partes (nas outras obras) continuam.</small>`:''}`,
-      `Sim, excluir ${ok.length}`,async()=>{SO2.sel.clear();SO2.selModo=false;await executar(async()=>{for(const x of ok)await excluir('Aportes financeiros',x.r.rowid);});toast(`${ok.length} lançamento${ok.length>1?'s excluídos':' excluído'}.`,'success');});
+      ${fora?`<small>${fora} ${fora>1?'ficam':'fica'} de fora (lançado${fora>1?'s':''} por outra pessoa — só um Administrador exclui).</small><br>`:''}${comDev?`<small>⚠ Em ${comDev>1?`${comDev} obras`:'1 obra'}, o que já foi devolvido ao sócio fica maior do que o aporte que sobra (as devoluções que não foram marcadas continuam no livro).</small><br>`:''}${conc?`<small>${conc} ${conc>1?'estão ligados':'está ligado'} ao extrato do banco: ${conc>1?'essas linhas voltam':'essa linha volta'} para a conferência na Conciliação.</small><br>`:''}${rat?`<small>${rat} ${rat>1?'são partes':'é parte'} de rateio: as outras partes (nas outras obras) continuam.</small><br>`:''}${ctLig.length?`<small><b>${ctLig.length} conta${ctLig.length>1?'s pagas':' paga'} pelo sócio</b> que ${ctLig.length>1?'formam':'forma'} ${comCt.length>1?'esses aportes':'esse aporte'} também ${ctLig.length>1?'vão':'vai'} para a Lixeira (${ctLig.length>1?'saem':'sai'} de Contas a pagar) — ${fmt(somaV(ctLig))}.</small>`:''}`,
+      `Sim, excluir ${ok.length}`,async()=>{SO2.sel.clear();SO2.selModo=false;const semCt=ok.filter(x=>!comCt.includes(x));
+        await executar(async()=>{for(const x of semCt)await excluir('Aportes financeiros',x.r.rowid);if(ctLig.length)await excluirContasAp(ctLig);});
+        // o que sobrou desses aportes (aporte direto, sem conta) também vai para a Lixeira
+        const sobra=comCt.map(x=>(D().aportes||[]).find(y=>String(y.rowid)===String(x.r.rowid))).filter(Boolean);
+        if(sobra.length)await executar(async()=>{for(const r of sobra)await excluir('Aportes financeiros',r.rowid);});
+        toast(`${ok.length} lançamento${ok.length>1?'s excluídos':' excluído'}${ctLig.length?` e ${ctLig.length} conta${ctLig.length>1?'s':''} junto`:''}.`,'success');});
   }
   GS.renderSocios=function(){
     const box=document.getElementById('gs-socios');if(!box)return;
@@ -23876,6 +24054,8 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
       if(ac==='devolver'&&x)return editarMov(null,'Devolução de aporte',x);
       if((ac==='editar'||ac==='excluir')&&x&&!GS.podeMexer(x.r))return toast(GS.MSG_DONO,'error');
       if(ac==='editar'&&x)return editarMov(x);
+      // aporte: as contas pagas pelo sócio que formam ele vão junto para a Lixeira
+      if(ac==='excluir'&&x&&x.fonte==='ap'&&!x.sai)return excluirAporte(x);
       if(ac==='excluir'&&x)return confirmar('Excluir lançamento',`${x.rot||x.tipo} de <b>${fe(x.quem)}</b> · ${fmt(x.valor)} · ${x.data?brDe(x.data):''} vai para a Lixeira (dá para restaurar em até 15 dias).`,'Sim, excluir',async()=>{await executar(()=>excluir('Aportes financeiros',x.r.rowid));toast('Lançamento excluído.','success');});
     };
     box.onchange=ev=>{const s=ev.target.closest('[data-so2f]');if(!s)return;SO2[s.dataset.so2f]=s.value;GS.renderSocios();};
@@ -24090,7 +24270,17 @@ GS.resumirInsumo=function(d){
   function filtrar(t,st){
     const tb=t.tBodies[0],termos=norm(st.q).split(' ').filter(Boolean);let vis=0;
     // linha de grupo / subtotal (colspan) fica sempre à vista
-    [...tb.rows].forEach(r=>{if([...r.cells].some(c=>c.colSpan>1)){r.hidden=false;return;}const ok=!termos.length||termos.every(w=>textoLinha(r).includes(w));r.hidden=!ok;if(ok)vis++;});
+    [...tb.rows].forEach(r=>{if([...r.cells].some(c=>c.colSpan>1)){r.hidden=false;return;}
+      const ds=[...r.querySelectorAll('details')];
+      if(!ds.length){const ok=!termos.length||termos.every(w=>textoLinha(r).includes(w));r.hidden=!ok;if(ok)vis++;return;}
+      /* linha com itens dentro (ex.: Sócios — a obra com os períodos): o filtro procura também nos itens fechados, abre a
+         linha e mostra só os itens que batem; sem filtro, tudo volta como estava */
+      const its=ds.flatMap(d=>[...d.querySelectorAll('li')]),fora=norm([...r.cells].map(c=>{const k=c.cloneNode(true);k.querySelectorAll('details').forEach(x=>x.remove());return k.textContent;}).join(' '));
+      const bate=t=>termos.every(w=>t.includes(w));let ok=true;
+      if(!termos.length||bate(fora)){its.forEach(li=>{li.hidden=false;});ds.forEach(d=>{if(d.dataset.tbAbriu){d.open=false;delete d.dataset.tbAbriu;}});}
+      else{const bons=its.filter(li=>bate(fora+' '+norm(li.textContent)));ok=bons.length>0;its.forEach(li=>{li.hidden=ok&&!bons.includes(li);});
+        if(ok)ds.forEach(d=>{if(!d.open){d.open=true;d.dataset.tbAbriu='1';}});}
+      r.hidden=!ok;if(ok)vis++;});
     const sp=t._filtro&&t._filtro.querySelector('span');if(sp)sp.textContent=termos.length?`${vis} de ${tb.rows.length}`:`${tb.rows.length} linhas`;
   }
   function preparar(t){
@@ -24160,6 +24350,12 @@ select.gf-lista-aberta,input.gf-lista-campo.gf-lista-aberta{border-color:#1652D8
 input.gf-lista-campo{background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236e6e73' stroke-width='2.5'><path d='M6 9l6 6 6-6'/></svg>");background-repeat:no-repeat;background-position:right 11px center;padding-right:32px;}
 .gf-lista-sug{padding:6px;} .gf-lista-sug .gf-combo-lista{margin:0;}
 .gf-lista-novo{border-top:1px dashed #D0D5DD;margin-top:6px;padding:8px 10px 4px;font-size:12.5px;color:#667085;}
+/* BOTÃO FECHAR (X): o mesmo em todo o sistema — janelas, telas grandes, fábrica, fotos e a barra de seleção. Círculo cinza
+   claro com o X; passando o mouse fica vermelho. (button.… para valer também sobre as regras que vêm depois, da fábrica) */
+button.close-btn,button.fin-x,button.pm-x,button.vk-sel-sair,button.vx-fechar,.rdo-lb-cab button[data-lb-x],#modal-usuario button.usr-x{width:32px;height:32px;min-width:32px;padding:0;border:0;border-radius:50%;background:#F2F4F7;color:#475467;display:inline-flex;align-items:center;justify-content:center;flex:none;cursor:pointer;font-size:15px;line-height:1;box-shadow:none;transition:background .15s,color .15s,box-shadow .15s;}
+button.close-btn:hover,button.fin-x:hover,button.pm-x:hover,button.vk-sel-sair:hover,button.vx-fechar:hover,.rdo-lb-cab button[data-lb-x]:hover,#modal-usuario button.usr-x:hover{background:#FEE4E2;color:#D92D20;}
+button.close-btn:focus-visible,button.fin-x:focus-visible,button.pm-x:focus-visible,button.vk-sel-sair:focus-visible,button.vx-fechar:focus-visible,.rdo-lb-cab button[data-lb-x]:focus-visible,#modal-usuario button.usr-x:focus-visible{outline:0;box-shadow:0 0 0 3px rgba(22,82,216,.28);}
+button.close-btn i,button.fin-x i,button.pm-x i,button.vk-sel-sair i,button.vx-fechar i,.rdo-lb-cab button[data-lb-x] i,#modal-usuario button.usr-x i{font-size:15px;line-height:1;pointer-events:none;}
 </style>
 <script src="listas.js?v=20261015"></script>
 <script src="pm-catalogo.js?v=20261028b"></script>
