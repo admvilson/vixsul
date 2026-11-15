@@ -86,12 +86,29 @@ async function mandarDoc(chat_id, buf, nome, legenda) {
   let r; try { r = await fetch(`https://api.telegram.org/bot${TOKEN}/sendDocument`, { method: 'POST', body: fd }); } catch (e) { throw new Error('O Telegram não respondeu (internet do servidor).'); }
   const j = await r.json().catch(() => null); if (!j || !j.ok) throw new Error((j && j.description) || ('O Telegram respondeu ' + r.status)); return j.result;
 }
-// e-mail automático (relatório semanal, fechamento) para os e-mails dos Avisos por e-mail, se o Gmail estiver ligado
-async function emailAuto(titulo, partes, anexos) {
+/* PARA QUEM VAI cada aviso automático — o Administrador escolhe em Agenda › Lembretes e Telegram ("Para quem vai"):
+   cfg_telegram.destinos = { aviso: { chats: [ids das conversas ligadas] , emails: 'a@b.com, c@d.com' } }.
+   Sem escolha: todas as conversas ligadas; e-mail só no relatório semanal e no fechamento (os dos Avisos por e-mail). */
+const AUTOS = ['resumo', 'reuniao', 'tarde', 'aportes', 'relatorio', 'caixa', 'cobranca', 'chuva', 'fechamento'];
+const COM_EMAIL = ['relatorio', 'caixa', 'cobranca', 'chuva', 'fechamento'];
+function chatsPara(st, k) {
+  const d = (st.cfg.destinos || {})[k];
+  if (d && Array.isArray(d.chats)) return st.chats.filter(c => d.chats.includes(String(c._id)));
+  return k === 'resumo' ? st.chats.filter(c => c.resumo !== 'nao') : st.chats;
+}
+async function emailsPara(st, k) {
+  if (!COM_EMAIL.includes(k)) return [];
+  const d = (st.cfg.destinos || {})[k];
+  if (d && d.emails != null) return E.emailsDe(d.emails);
+  if (k !== 'relatorio' && k !== 'fechamento') return [];
+  const ca = (await R.lerTipos(['cfg_avisos'])).sort((a, b) => (b._id || 0) - (a._id || 0))[0];
+  return ca && ca.ativo !== 'nao' ? E.emailsDe(ca.emails) : [];
+}
+// e-mail automático do aviso "k" para quem o Administrador escolheu (se o Gmail estiver ligado)
+async function emailAuto(st, k, titulo, partes, anexos) {
   if (!E.emailPronto()) return false;
   try {
-    const ca = (await R.lerTipos(['cfg_avisos'])).sort((a, b) => (b._id || 0) - (a._id || 0))[0], para = E.emailsDe(ca && ca.emails);
-    if (!para.length || (ca && ca.ativo === 'nao')) return false;
+    const para = await emailsPara(st, k); if (!para.length) return false;
     await E.mandarEmail({ para, assunto: titulo + ' — Vixsul Empreendimentos', html: E.htmlPartes(titulo, partes), texto: E.textoPartes(titulo, partes), anexos: anexos || undefined });
     return true;
   } catch (e) { console.error('email', e && e.message); return false; }
@@ -419,11 +436,14 @@ async function tick() {
   const ag = agoraStr(), hj = ag.slice(0, 10), hora = ag.slice(11), feito = [];
   if (hora >= '07:00') { try { const r = await require('./avisos').diario(); if (r && r.enviado) feito.push('e-mail do dia'); } catch (e) { feito.push('e-mail: ' + e.message); } }
   if (!TOKEN) return { ok: true, feito, msg: 'O robô do Telegram ainda não foi configurado.' };
-  const st = await estadoBanco(), chats = st.chats, cfg = st.cfg, mud = {};
-  if (!chats.length) return { ok: true, feito, msg: 'Nenhum Telegram ligado.' };
+  const st = await estadoBanco(), cfg = st.cfg, mud = {};
+  // o robô se liga sozinho (webhook e comandos) assim que a chave aparece na Vercel — e de novo quando os comandos mudam
+  if (cfg.bot_versao !== VERSAO_BOT) { try { await ligarRobo(st); feito.push('robô ligado: @' + st.cfg.bot); } catch (e) { feito.push('robô: ' + e.message); } }
+  const chats = st.chats, temTg = chats.length > 0;
+  if (!temTg && !E.emailPronto()) return { ok: true, feito, msg: 'Nenhum Telegram ligado.' };
   let D = null; const dados = async () => D || (D = await R.carregar());
-  // 1) lembretes que chegaram na hora (ou adiados)
-  for (const l of st.lembretes) {
+  // 1) lembretes que chegaram na hora (ou adiados) — só com Telegram ligado (senão esperam)
+  for (const l of (temTg ? st.lembretes : [])) {
     if (!lembreteVivo(l)) continue;
     const prox = proxDoLembrete(l);
     if (!prox || prox > ag) continue;
@@ -436,7 +456,7 @@ async function tick() {
     feito.push('lembrete ' + id);
   }
   // 2) aviso antes das reuniões de hoje (padrão: 60 minutos antes)
-  if (cfg.aviso_reuniao !== 'nao') {
+  if (temTg && cfg.aviso_reuniao !== 'nao') {
     const antes = Math.min(240, Math.max(10, +cfg.aviso_reuniao_min || 60));
     const reus = (await lerJson(`reunioes?select=id,row_data&row_data->>data=like.${hj}*&limit=200`)).map(x => ({ ...(x.row_data || {}), _id: x.id })).filter(r => !r._lixeira_em && R.reuniaoValida(r));
     const avisadas = (cfg.reunioes_avisadas || []).filter(k => String(k).split('|')[1] >= hj);
@@ -445,27 +465,27 @@ async function tick() {
       const ini = `${hj}T${h}`, falta = minutos(ag, ini), k = `${r._id}|${ini}`;
       if (falta < 0 || falta > antes || avisadas.includes(k)) continue;
       avisadas.push(k);
-      await paraTodos(chats, `📅 <b>Reunião às ${h}</b> (daqui a ${falta} min)\n${esc(r.titulo || r.tipo || 'Reunião')}${r.titulo_obra ? ' — ' + esc(r.titulo_obra) : ''}${r.local ? '\nLocal: ' + esc(r.local) : ''}${r.link ? '\n' + esc(r.link) : ''}`);
+      await paraTodos(chatsPara(st, 'reuniao'), `📅 <b>Reunião às ${h}</b> (daqui a ${falta} min)\n${esc(r.titulo || r.tipo || 'Reunião')}${r.titulo_obra ? ' — ' + esc(r.titulo_obra) : ''}${r.local ? '\nLocal: ' + esc(r.local) : ''}${r.link ? '\n' + esc(r.link) : ''}`);
       feito.push('reunião ' + r._id);
     }
     if (avisadas.length !== (cfg.reunioes_avisadas || []).length) mud.reunioes_avisadas = avisadas;
   }
   // 3) resumo do dia (padrão 7h)
   const hRes = /^\d{2}:\d{2}$/.test(cfg.resumo_hora || '') ? cfg.resumo_hora : '07:00';
-  if (cfg.resumo !== 'nao' && hora >= hRes && cfg.ultimo_resumo !== hj) {
+  if (temTg && cfg.resumo !== 'nao' && hora >= hRes && cfg.ultimo_resumo !== hj) {
     await gravarCfg(st, { ...mud, ultimo_resumo: hj });   // marca antes: dois disparos não repetem
     const txt = R.resumoTelegram(await R.montar({}, await dados()));
-    await paraTodos(chats.filter(c => c.resumo !== 'nao'), txt);
+    await paraTodos(chatsPara(st, 'resumo'), txt);
     feito.push('resumo do dia');
   }
   // 4) às 16h: contas que vencem hoje e ainda estão em aberto
-  if (cfg.aviso_tarde !== 'nao' && hora >= '16:00' && st.cfg.ultima_tarde !== hj) {
+  if (temTg && cfg.aviso_tarde !== 'nao' && hora >= '16:00' && st.cfg.ultima_tarde !== hj) {
     mud.ultima_tarde = hj;
     const L = R.contasAbertas(D || { custos: await R.ler('custos'), despesas: await R.ler('despesas') }, hj).filter(x => x.v === hj);
-    if (L.length) { await paraTodos(chats, `⚠️ <b>Ainda em aberto hoje</b>: ${L.length} conta(s) que vencem hoje · ${R.reais(L.reduce((s, x) => s + x.valor, 0))}\n` + L.slice(0, 15).map(x => `• ${esc(x.forn)} — ${R.reais(x.valor)}${x.onde ? ' <i>(' + esc(x.onde) + ')</i>' : ''}`).join('\n')); feito.push('contas de hoje'); }
+    if (L.length) { await paraTodos(chatsPara(st, 'tarde'), `⚠️ <b>Ainda em aberto hoje</b>: ${L.length} conta(s) que vencem hoje · ${R.reais(L.reduce((s, x) => s + x.valor, 0))}\n` + L.slice(0, 15).map(x => `• ${esc(x.forn)} — ${R.reais(x.valor)}${x.onde ? ' <i>(' + esc(x.onde) + ')</i>' : ''}`).join('\n')); feito.push('contas de hoje'); }
   }
   // 5) aportes lançados (novos ou somados ao mês) desde a última olhada
-  if (cfg.aviso_aportes !== 'nao') {
+  if (temTg && cfg.aviso_aportes !== 'nao') {
     const rows = await lerJson('aportes?select=id,v:row_data->>valor_aportado,v2:row_data->>valor,q:row_data->>quem_aportou,o:row_data->>titulo_obra,m:row_data->>movimento,d:row_data->>data_aporte,x:row_data->>_lixeira_em&order=id.asc&limit=5000');
     const atual = {}; rows.filter(a => !a.x).forEach(a => { atual[a.id] = Math.round(R.num(a.v != null ? a.v : a.v2) * 100) / 100; });
     const antes = st.cfg.aportes_vistos;
@@ -478,7 +498,7 @@ async function tick() {
         const tot = novos.reduce((s, a) => s + a.dif, 0);
         const txt = novos.length > 6 ? `💰 <b>${novos.length} aportes lançados</b> no sistema · ${R.reais(tot)}`
           : novos.map(a => `💰 <b>Aporte ${a.somado ? 'somado ao mês' : 'lançado'}</b>: ${esc(a.q || 'Sócio')} · ${R.reais(a.dif)}${a.somado ? ` (total do mês ${R.reais(atual[a.id])})` : ''}${a.o ? ' · ' + esc(a.o) : ''}${a.d ? ' · ' + R.br(R.iso(a.d)) : ''}`).join('\n');
-        await paraTodos(chats, txt); feito.push('aportes');
+        await paraTodos(chatsPara(st, 'aportes'), txt); feito.push('aportes');
       }
     }
   }
@@ -486,15 +506,15 @@ async function tick() {
   // 6) relatório semanal dos sócios (segunda, 7h): resumo + PDF no Telegram e e-mail com o PDF
   if (cfg.relatorio_semanal !== 'nao' && dSem === 1 && hora >= '07:00' && st.cfg.ultimo_relatorio !== hj) {
     await gravarCfg(st, { ...mud, ultimo_relatorio: hj });
-    const { rel, pdf } = await enviarRelatorio(chats, await dados(), hj);
-    if (await emailAuto(rel.titulo, rel.partes, pdf ? [{ filename: rel.arquivo, content: pdf, contentType: 'application/pdf' }] : null)) feito.push('relatório por e-mail');
+    const { rel, pdf } = await enviarRelatorio(chatsPara(st, 'relatorio'), await dados(), hj);
+    if (await emailAuto(st, 'relatorio', rel.titulo, rel.partes, pdf ? [{ filename: rel.arquivo, content: pdf, contentType: 'application/pdf' }] : null)) feito.push('relatório por e-mail');
     feito.push('relatório semanal');
   }
   // 7) fechamento do mês (dia 1º a 3, a partir das 8h): o que falta fechar do mês que passou
   if (cfg.fechamento_mes !== 'nao' && +hj.slice(8, 10) <= 3 && hora >= '08:00' && st.cfg.ultimo_fechamento !== hj.slice(0, 7)) {
     await gravarCfg(st, { ...mud, ultimo_fechamento: hj.slice(0, 7) });
     const fx = RL.fechamento(await dados(), hj);
-    await paraTodos(chats, fx.tg); await emailAuto(fx.titulo, fx.partes);
+    await paraTodos(chatsPara(st, 'fechamento'), fx.tg); await emailAuto(st, 'fechamento', fx.titulo, fx.partes);
     feito.push('fechamento do mês');
   }
   // 8) às 8h: alerta de caixa (saldo negativo nos próximos 15 dias) e cobrança das notas paradas (dias úteis)
@@ -503,14 +523,15 @@ async function tick() {
     if (cfg.alerta_caixa !== 'nao') {
       const cx = RL.caixa(await dados(), hj), ant = st.cfg.caixa_alerta || {};
       if (cx && cx.neg) {
-        if (!ant.neg || cx.neg < ant.neg || R.diasEntre(ant.dia || '2000-01-01', hj) >= 3) { mud.caixa_alerta = { dia: hj, neg: cx.neg }; await paraTodos(chats, textoCaixa(cx)); feito.push('alerta de caixa'); }
+        if (!ant.neg || cx.neg < ant.neg || R.diasEntre(ant.dia || '2000-01-01', hj) >= 3) { mud.caixa_alerta = { dia: hj, neg: cx.neg }; await paraTodos(chatsPara(st, 'caixa'), textoCaixa(cx)); await emailAuto(st, 'caixa', 'Alerta de caixa', [['Alerta de caixa', semTags(textoCaixa(cx))]]); feito.push('alerta de caixa'); }
       } else if (ant.neg) mud.caixa_alerta = {};
     }
     const nCob = cfg.cobranca_dias === '0' ? 0 : (+cfg.cobranca_dias || 30);
     if (nCob && dSem >= 1 && dSem <= 5) {
       const D1 = await dados(), av = { ...(st.cfg.cobrancas || {}) }, todas = RL.cobrancas(D1, hj, nCob), vivas = new Set(RL.cobrancas(D1, hj, 0).map(c => c.chave));
       const L = todas.filter(c => !av[c.chave] || R.diasEntre(av[c.chave], hj) >= 7).slice(0, 5);
-      for (const c of L) { av[c.chave] = hj; await paraTodos(chats, textoCobranca(c)); }
+      for (const c of L) { av[c.chave] = hj; await paraTodos(chatsPara(st, 'cobranca'), textoCobranca(c));
+        await emailAuto(st, 'cobranca', `Cobrança: NF ${c.x.n}`, [['Nota parada', `NF ${c.x.n}${c.x.obra ? ' · ' + c.x.obra : ''} · emitida em ${R.brAno(c.x.e)} (${c.dias} dias) · ${R.reais(c.x.liq)} a receber${c.contratante ? ' · ' + c.contratante : ''}`], ['Texto pronto para mandar', c.texto]]); }
       Object.keys(av).forEach(k => { if (!vivas.has(k)) delete av[k]; });   // a nota recebida sai da lista
       mud.cobrancas = av; if (L.length) feito.push('cobranças ' + L.length);
     }
@@ -518,17 +539,27 @@ async function tick() {
   // 9) às 17h: chuva amanhã na cidade das obras em andamento (INMET)
   if (cfg.aviso_chuva !== 'nao' && hora >= '17:00' && st.cfg.ultima_chuva !== hj) {
     mud.ultima_chuva = hj;
-    try { const L = await RL.chuva(await dados(), hj); if (L.length) { await paraTodos(chats, textoChuva(L)); feito.push('chuva'); } } catch (e) { feito.push('chuva: ' + e.message); }
+    try { const L = await RL.chuva(await dados(), hj); if (L.length) { await paraTodos(chatsPara(st, 'chuva'), textoChuva(L)); await emailAuto(st, 'chuva', 'Previsão de chuva amanhã', [['Previsão de chuva amanhã', semTags(textoChuva(L))]]); feito.push('chuva'); } } catch (e) { feito.push('chuva: ' + e.message); }
   }
   if (Object.keys(mud).length) await gravarCfg(st, mud);
   return { ok: true, feito };
 }
 
+// ── ligar o robô: aponta o Telegram para esta função (webhook com senha) e cadastra os comandos ──
+const VERSAO_BOT = '2';   // mude quando a lista de comandos mudar: o robô se recadastra sozinho na próxima tarefa
+async function ligarRobo(st) {
+  let eu;
+  try { eu = await tg('getMe', {}); } catch (e) { throw new Error(e.codigo === 401 || e.codigo === 404 ? 'A chave do robô na Vercel não foi aceita pelo Telegram — confira se foi copiada inteira.' : e.message); }
+  await tg('setWebhook', { url: URL_WEBHOOK, secret_token: segredoWebhook(), allowed_updates: ['message', 'callback_query'], drop_pending_updates: true, max_connections: 10 });
+  await tg('setMyCommands', { commands: [['hoje', 'Resumo do dia'], ['contas', 'Contas a pagar'], ['agenda', 'Reuniões e tarefas'], ['aportes', 'Aportes do mês e do ano'], ['obras', 'Números das obras'], ['lembretes', 'Meus lembretes'], ['lembrar', 'Criar um lembrete'], ['relatorio', 'Relatório da semana (PDF)'], ['caixa', 'Caixa dos próximos 15 dias'], ['cobrar', 'Notas paradas para cobrar'], ['fechamento', 'Fechamento do mês'], ['chuva', 'Chuva amanhã nas obras'], ['ajuda', 'O que o robô faz']].map(([command, description]) => ({ command, description })) }).catch(() => {});
+  await tg('setMyDescription', { description: 'Robô particular do sistema de gestão da Vixsul Empreendimentos: lembretes, avisos e consultas.' }).catch(() => {});
+  await gravarCfg(st, { bot: eu.username, bot_versao: VERSAO_BOT, bot_ligado_em: new Date().toISOString() });
+}
 // ── o que o sistema pede (Administrador logado) ──
 async function estadoPublico(st, comWebhook, uid) {
   const o = { ok: true, token: !!TOKEN, ia: !!CHAVE_IA, bot: st.cfg.bot || '', modelos: MODELOS,
     cfg: ['resumo', 'resumo_hora', 'aviso_reuniao', 'aviso_reuniao_min', 'aviso_tarde', 'aviso_aportes', 'relatorio_semanal', 'alerta_caixa', 'cobranca_dias', 'aviso_chuva', 'fechamento_mes', 'modelo_ia', 'esforco_ia'].reduce((a, k) => { a[k] = st.cfg[k] || ''; return a; }, {}),
-    email: E.emailPronto(),
+    email: E.emailPronto(), destinos: st.cfg.destinos || {},
     chats: st.chats.map(c => ({ id: c._id, nome: c.nome || '', usuario: c.usuario || '', ligado_em: c.ligado_em || '', resumo: c.resumo || 'sim', meu: !!uid && c.usuario_uid === uid })) };
   if (TOKEN && comWebhook) { try { const w = await tg('getWebhookInfo', {}); o.webhook = w.url === URL_WEBHOOK; o.pendentes = w.pending_update_count || 0; o.erro = w.last_error_message || ''; } catch (e) { o.erroTelegram = e.message; } }
   return o;
@@ -538,12 +569,7 @@ async function acaoSistema(b, l) {
   if (b.acao === 'estado') return estadoPublico(st, true, uid);
   if (!TOKEN) return { ok: false, msg: 'Falta a chave do robô (TELEGRAM_BOT_TOKEN) na Vercel.' };
   if (b.acao === 'conectar') {
-    let eu;
-    try { eu = await tg('getMe', {}); } catch (e) { return { ok: false, msg: e.codigo === 401 || e.codigo === 404 ? 'A chave do robô na Vercel não foi aceita pelo Telegram — confira se foi copiada inteira.' : e.message }; }
-    await tg('setWebhook', { url: URL_WEBHOOK, secret_token: segredoWebhook(), allowed_updates: ['message', 'callback_query'], drop_pending_updates: true, max_connections: 10 });
-    await tg('setMyCommands', { commands: [['hoje', 'Resumo do dia'], ['contas', 'Contas a pagar'], ['agenda', 'Reuniões e tarefas'], ['aportes', 'Aportes do mês e do ano'], ['obras', 'Números das obras'], ['lembretes', 'Meus lembretes'], ['lembrar', 'Criar um lembrete'], ['relatorio', 'Relatório da semana (PDF)'], ['caixa', 'Caixa dos próximos 15 dias'], ['cobrar', 'Notas paradas para cobrar'], ['fechamento', 'Fechamento do mês'], ['chuva', 'Chuva amanhã nas obras'], ['ajuda', 'O que o robô faz']].map(([command, description]) => ({ command, description })) }).catch(() => {});
-    await tg('setMyDescription', { description: 'Robô particular do sistema de gestão da Vixsul Empreendimentos: lembretes, avisos e consultas.' }).catch(() => {});
-    await gravarCfg(st, { bot: eu.username });
+    try { await ligarRobo(st); } catch (e) { return { ok: false, msg: e.message }; }
     return estadoPublico(st, true, uid);
   }
   if (b.acao === 'vincular') {
@@ -565,9 +591,11 @@ async function acaoSistema(b, l) {
     return { ok: f.length < alvo.length, enviados: alvo.length - f.length, falhas: f };
   }
   if (b.acao === 'relatorio') {
-    if (!alvo.length) return { ok: false, msg: 'Nenhum Telegram ligado ainda.' };
-    const { pdf } = await enviarRelatorio(alvo, await R.carregar(), R.hojeBahia());
-    return { ok: true, enviados: alvo.length, falhas: pdf ? [] : ['o PDF não pôde ser montado'] };
+    // manda agora como na segunda-feira: para os Telegrams e e-mails escolhidos em "Para quem vai"
+    const para = chatsPara(st, 'relatorio'), { rel, pdf } = await enviarRelatorio(para, await R.carregar(), R.hojeBahia());
+    const foiEmail = await emailAuto(st, 'relatorio', rel.titulo, rel.partes, pdf ? [{ filename: rel.arquivo, content: pdf, contentType: 'application/pdf' }] : null);
+    if (!para.length && !foiEmail) return { ok: false, msg: 'Ninguém escolhido para o relatório semanal (Telegram ou e-mail) em "Para quem vai".' };
+    return { ok: true, enviados: para.length, email: foiEmail, falhas: pdf ? [] : ['o PDF não pôde ser montado'] };
   }
   if (b.acao === 'desligar') {
     const c = st.todas.find(x => String(x._id) === String(b.id));
@@ -585,6 +613,15 @@ async function acaoSistema(b, l) {
     if (MODELOS.includes(c.modelo_ia)) mud.modelo_ia = c.modelo_ia;
     if (c.esforco_ia) mud.esforco_ia = c.esforco_ia === 'medium' ? 'medium' : 'low';
     if (b.resumoChat && b.resumoChat.id) { const x = st.todas.find(y => String(y._id) === String(b.resumoChat.id)); if (x) await R.gravarPlan({ ...x, resumo: b.resumoChat.resumo === 'nao' ? 'nao' : 'sim' }); }
+    // para quem vai cada aviso: só conversas ligadas de verdade e e-mails válidos
+    if (b.destinos && typeof b.destinos === 'object') {
+      const ids = new Set(st.chats.map(c => String(c._id))), dest = {};
+      AUTOS.forEach(k => { const d = b.destinos[k]; if (!d || typeof d !== 'object') return; const o = {};
+        if (Array.isArray(d.chats)) o.chats = d.chats.map(String).filter(id => ids.has(id));
+        if (COM_EMAIL.includes(k) && d.emails != null) o.emails = E.emailsDe(d.emails).join(', ');
+        dest[k] = o; });
+      mud.destinos = dest;
+    }
     if (Object.keys(mud).length) await gravarCfg(st, mud);
     return estadoPublico(await estadoBanco(), true, uid);
   }
@@ -608,7 +645,7 @@ module.exports = async (req, res) => {
     // 2) a tarefa agendada (GitHub) — e um estado mínimo, sem dados, para conferir se está configurado
     if (req.method === 'GET') {
       if (req.query && req.query.tick) return responder(200, await tick());
-      return responder(200, { ok: true, token: !!TOKEN, ia: !!CHAVE_IA });
+      return responder(200, { ok: true, token: !!TOKEN, ia: !!CHAVE_IA, email: E.emailPronto() });
     }
     if (req.method !== 'POST') return responder(405, { ok: false, msg: 'Use GET ou POST.' });
     // 3) o sistema (Administrador logado)

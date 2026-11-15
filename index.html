@@ -23643,9 +23643,11 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
   /* ═══ NOTAS DE COMPRA CHEGANDO SOZINHAS ═══
      Com o certificado A1 (o mesmo da NFS-e, guardado neste computador), o sistema pergunta à SEFAZ (NF-e — notas de
      produto) e ao Ambiente Nacional da NFS-e (notas de serviço) quais notas foram emitidas CONTRA a Vixsul. Cada nota nova
-     fica em Planejamento (tipo 'nota_recebida') e aparece em Contas a pagar › "Notas recebidas" para virar conta (com o XML
-     lido, quando a nota vem completa). Roda sozinho uma vez a cada 6 horas no computador do Administrador que tem o
-     certificado com a senha guardada; o último NSU de cada lado fica em 'cfg_notas_recebidas'. */
+     fica em Planejamento (tipo 'nota_recebida') e aparece em Documentos e certidões › Notas fiscais (PDF e XML para a
+     contabilidade). NF-e que vem só em resumo: o sistema manda a "ciência da operação" e busca a nota completa pela chave.
+     As NFS-e que a própria Vixsul emitiu (vêm junto na distribuição) guardam o XML no registro das emitidas ('nfse_emitida').
+     Roda sozinho uma vez a cada 6 horas no computador do Administrador que tem o certificado com a senha guardada; o último
+     NSU de cada lado fica em 'cfg_notas_recebidas' (a busca das antigas usa um marcador à parte: nfse_ult_antigas). */
   const NRC=()=>PLAN().find(p=>p.tipo==='cfg_notas_recebidas')||null;
   const notasRec=()=>PLAN().filter(p=>p.tipo==='nota_recebida');
   function lerNotaRec(origem,xml){
@@ -23662,10 +23664,13 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
   async function buscarNotasRec(op){op=op||{};
     if(NR_RODA)return null;const c=certLocal();if(!(c&&c.b64)){if(op.silencioso)return null;throw new Error('Não há certificado digital neste computador: coloque em Documentos e certidões › Empresa › Nota fiscal (NFS-e).');}
     const senha=op.senha||senhaMem();if(!senha){if(op.silencioso)return null;throw new Error('Digite a senha do certificado digital.');}
-    NR_RODA=true;const cred={pfx:c.b64,senha},cfg={...(NRC()||{tipo:'cfg_notas_recebidas'})},ja=new Map(notasRec().map(n=>[n.chave,n])),novas=new Map(),cancel=new Set(),avisos=[];
+    NR_RODA=true;const cred={pfx:c.b64,senha},cfg={...(NRC()||{tipo:'cfg_notas_recebidas'})},ja=new Map(notasRec().map(n=>[n.chave,n])),novas=new Map(),cancel=new Set(),avisos=[],minhas=new Map();
     const guardar=(origem,dc)=>{const n=lerNotaRec(origem,dc.xml);if(!n)return;
       if(n.evento){if(n.evento==='110111'&&n.chave)cancel.add(n.chave);return;}
-      if(!n.chave||String(n.cnpj).replace(/\D/g,'')===CNPJ_VX)return;   // as notas que a própria Vixsul emitiu não entram
+      if(!n.chave)return;
+      // nota que a PRÓPRIA Vixsul emitiu (vem junto na distribuição): não é recebida — o XML dela vai para as Notas fiscais
+      // (emitidas antigas, de antes do sistema guardar os arquivos)
+      if(String(n.cnpj).replace(/\D/g,'')===CNPJ_VX){if(n.tipo==='NFS-e'&&n.completa&&dc.xml&&String(dc.xml).length<120000){const vs=+((String(dc.xml).match(/<(?:\w+:)?vServ>\s*([\d.]+)\s*</)||[])[1])||+n.valor||0;minhas.set(n.chave,{chave:n.chave,numero:n.numero||'',valor:vs.toFixed(2),data:n.data||'',xml:String(dc.xml)});}return;}
       if(n.tipo==='NFS-e'&&n.toma&&n.toma.replace(/\D/g,'')!==CNPJ_VX)return;
       if(n.sit==='2'||n.sit==='3')cancel.add(n.chave);
       const a=ja.get(n.chave)||novas.get(n.chave);
@@ -23674,25 +23679,43 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
       novas.set(n.chave,{...(a||{}),tipo:'nota_recebida',origem,chave:n.chave,numero:n.numero||'',emitente_cnpj:n.cnpj,emitente_nome:n.nome,valor:(+n.valor||0).toFixed(2),data_emissao:n.data,descricao:n.desc||'',completa:n.completa?'sim':'',xml,situacao:(a&&a.situacao)||'nova',recebida_em:(a&&a.recebida_em)||new Date().toISOString()});};
     try{
       // NF-e: até 5 rodadas de 50; sem nada novo, a SEFAZ pede 1 hora de espera
-      if(!cfg.nfe_espera||Date.now()>+cfg.nfe_espera){let ult=cfg.nfe_ult_nsu||'0';
+      if(!op.antigas&&(!cfg.nfe_espera||Date.now()>+cfg.nfe_espera)){let ult=cfg.nfe_ult_nsu||'0';
         for(let k=0;k<5;k++){const r=await nfseApi({acao:'nfe-recebidas',ultNSU:ult,...cred});
           if(!r||!r.ok){if(/senha/i.test((r&&r.msg)||''))esquecerSenha();avisos.push('NF-e: '+((r&&r.msg)||'sem resposta'));break;}
           (r.docs||[]).forEach(dc=>guardar('nfe',dc));if(r.ultNSU)ult=r.ultNSU;
           if(r.cStat==='656'||r.cStat==='137'||!r.maxNSU||+ult>=+r.maxNSU){cfg.nfe_espera=String(Date.now()+3600000);if(r.cStat==='656')avisos.push('A SEFAZ pediu para esperar 1 hora antes de perguntar de novo.');break;}}
         cfg.nfe_ult_nsu=ult;}
-      // NFS-e (Ambiente Nacional): até 5 lotes
-      {let ult=cfg.nfse_ult_nsu||'0';
-        for(let k=0;k<5;k++){const r=await nfseApi({acao:'nfse-recebidas',ultNSU:ult,ambiente:1,...cred});
+      // NFS-e (Ambiente Nacional): até 5 lotes (na busca das ANTIGAS: desde o começo, até 40 lotes, num marcador à parte)
+      {const ant=!!op.antigas;let ult=ant?(cfg.nfse_ult_antigas||'0'):(cfg.nfse_ult_nsu||'0'),fim=false;
+        for(let k=0;k<(ant?40:5);k++){const r=await nfseApi({acao:'nfse-recebidas',ultNSU:ult,ambiente:1,...cred});
           if(!r||!r.ok){avisos.push('NFS-e: '+((r&&r.msg)||'sem resposta'));break;}
-          (r.docs||[]).forEach(dc=>guardar('nfse',dc));const n=r.ultNSU||ult;if(!(r.docs||[]).length||+n<=+ult)break;ult=n;}
-        cfg.nfse_ult_nsu=ult;}
+          (r.docs||[]).forEach(dc=>guardar('nfse',dc));const n=r.ultNSU||ult;if(!(r.docs||[]).length||+n<=+ult){fim=true;break;}ult=n;}
+        if(ant){cfg.nfse_ult_antigas=ult;if(fim)cfg.antigas_em=new Date().toISOString();}else cfg.nfse_ult_nsu=ult;}
       memorizar(senha);
+      // NF-e que veio só em RESUMO: ciência da operação (a SEFAZ libera o XML completo) e a nota pela chave — até 6 por busca;
+      // se a SEFAZ recusar a ciência (ex.: prazo), tenta de novo só depois de 7 dias
+      if(!op.antigas){const todas=new Map(notasRec().map(n=>[n.chave,n]));novas.forEach((n,k)=>todas.set(k,n));
+        const resumos=[...todas.values()].filter(n=>n.origem==='nfe'&&n.completa!=='sim'&&n.situacao!=='cancelada'&&String(n.chave||'').length===44&&!(n.ciencia_falha_em&&Date.now()-new Date(n.ciencia_falha_em).getTime()<7*864e5)).slice(0,6);
+        for(const n0 of resumos){const n={...n0};
+          if(!n.ciencia_em){const r=await nfseApi({acao:'nfe-ciencia',chave:n.chave,...cred});
+            if(r&&r.ok){n.ciencia_em=new Date().toISOString();delete n.ciencia_msg;delete n.ciencia_falha_em;}
+            else{n.ciencia_msg=(r&&r.msg)||'sem resposta';n.ciencia_falha_em=new Date().toISOString();novas.set(n.chave,n);avisos.push(`NF-e de ${n.emitente_nome||'fornecedor'}: ${n.ciencia_msg}`);continue;}}
+          const r2=await nfseApi({acao:'nfe-por-chave',chave:n.chave,...cred});
+          if(r2&&r2.cStat==='656'){novas.set(n.chave,n);avisos.push('A SEFAZ pediu para esperar antes de buscar mais notas pela chave.');break;}
+          const d=r2&&r2.ok?(r2.docs||[]).find(x=>x.xml&&/<(?:\w+:)?infNFe[\s>]/.test(x.xml)):null;
+          if(d){const lido=lerNotaRec('nfe',d.xml);if(lido&&lido.completa)Object.assign(n,{xml:d.xml.length<120000?d.xml:'',completa:'sim',numero:lido.numero||n.numero,valor:(+lido.valor||+n.valor||0).toFixed(2),data_emissao:lido.data||n.data_emissao});}
+          novas.set(n.chave,n);}}
       for(const ch of cancel){const a=novas.get(ch)||ja.get(ch);if(a&&a.situacao!=='cancelada')novas.set(ch,{...a,situacao:'cancelada'});}
       for(const n of novas.values())await salvar('Planejamento',limpo(n),n.rowid||null);
+      // notas emitidas pela Vixsul achadas na distribuição: o XML fica no registro das emitidas (marcadas "histórico",
+      // para não aparecerem como nota a concluir); a que já tem o XML guardado não muda
+      let emit=0;const reg=new Map(emitidas().map(p=>[String(p.chave),p]));
+      for(const m of minhas.values()){const ex=reg.get(String(m.chave));if(ex&&ex.xml)continue;
+        await salvar('Planejamento',{...(ex?limpo(ex):{}),tipo:'nfse_emitida',chave:m.chave,numero:ex&&ex.numero||m.numero,amb:'1',valor:ex&&ex.valor||m.valor,emitida_em:ex&&ex.emitida_em||(m.data?m.data+'T12:00:00':''),xml:m.xml,status:ex?ex.status:'historico',origem:ex?ex.origem:'distribuicao',atualizado_em:todayDateTime(),data_lancamento:(ex&&ex.data_lancamento)||todayDateTime()},ex&&ex.rowid?ex.rowid:null);emit++;}
       cfg.ultima_busca=new Date().toISOString();cfg.ultima_msg=avisos.join(' · ');await salvar('Planejamento',limpo(cfg),cfg.rowid||null);
       const qtd=[...novas.values()].filter(n=>!ja.has(n.chave)).length;
-      if(qtd||novas.size)await new Promise(ok=>App.init(false,()=>ok()));
-      return {novas:qtd,avisos};
+      if(qtd||novas.size||emit)await new Promise(ok=>App.init(false,()=>ok()));
+      return {novas:qtd,emitidas:emit,avisos,antigasFim:!!(op.antigas&&cfg.antigas_em)};
     }finally{NR_RODA=false;}}
   // nota já lançada? uma conta do mesmo fornecedor (nome), com o mesmo valor (até R$ 0,05), até 45 dias da emissão
   function contaDaNota(n){const C=GS.contas;if(!C)return null;const nome=cn(n.emitente_nome),v=+n.valor||0,d=dt(n.data_emissao);
@@ -23863,7 +23886,7 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
   const chavesFat=()=>new Set((D().faturamentos||[]).flatMap(f=>[f.nfse_chave,f.nfse_substituida]).map(c=>String(c||'')).filter(Boolean));
   const emitidas=()=>{const m=new Map();PLAN().filter(p=>p.tipo==='nfse_emitida'&&p.chave).sort((a,b)=>(+a.rowid||0)-(+b.rowid||0)).forEach(p=>m.set(String(p.chave),p));EMIT_MEM.forEach(p=>m.set(String(p.chave),{...(m.get(String(p.chave))||{}),...p}));return [...m.values()];};
   // emitida (valendo), não cancelada e ainda sem faturamento concluído com ela
-  const emitidasPendentes=()=>{const cf=chavesFat();return emitidas().filter(p=>String(p.amb)==='1'&&!/cancelada|substituida/.test(p.status||'')&&!cf.has(String(p.chave)));};
+  const emitidasPendentes=()=>{const cf=chavesFat();return emitidas().filter(p=>String(p.amb)==='1'&&!/cancelada|substituida|historico/.test(p.status||'')&&!cf.has(String(p.chave)));};
   async function guardarEmitida(o){
     const i=EMIT_MEM.findIndex(p=>p.chave===o.chave);if(i>=0)EMIT_MEM[i]={...EMIT_MEM[i],...o};else EMIT_MEM.push(o);
     const ex=PLAN().find(p=>p.tipo==='nfse_emitida'&&String(p.chave)===String(o.chave));
@@ -24624,9 +24647,13 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
   const nomeArq=s=>String(s||'').replace(/[\\/:*?"<>|]+/g,' ').replace(/\s+/g,' ').trim().slice(0,80);
   function recebidasNF(){return notasRec().map((n,i)=>({k:'r',i,n,data:isoNF(n.data_emissao),nome:n.emitente_nome||'—',doc:n.emitente_cnpj||'',tipo:n.origem==='nfse'?'NFS-e':'NF-e',numero:String(n.numero||''),desc:n.descricao||'',valor:+n.valor||0,cancelada:n.situacao==='cancelada',temXml:!!n.xml}));}
   function emitidasNF(){
-    const F=GS.fat;if(!F)return [];const K=F.KF(),E=new Map(emitidas().map(p=>[String(p.chave),p]));
-    return (D().faturamentos||[]).filter(f=>String(f[K.nf]||'').trim()&&isoNF(f[K.em])&&F.ehReal(f,K)).map((f,i)=>{const e=f.nfse_chave?E.get(String(f.nfse_chave)):null;
-      return {k:'e',i,f,e,data:isoNF(f[K.em]),nome:contratanteDaNota(f,K)||'—',obra:f[K.obra]||'',numero:String(f[K.nf]).trim(),valor:val(f[K.bruto]),liq:F.liqDe(f,K),recebida:!!isoNF(f[K.rec]),fat_uid:f.fat_uid||'',chave:String(f.nfse_chave||''),medicao:f.medicao_numero||''};});}
+    const F=GS.fat;if(!F)return [];const K=F.KF(),REG=emitidas(),E=new Map(REG.map(p=>[String(p.chave),p])),comXml=REG.filter(p=>p.xml&&!/cancelada|substituida/.test(p.status||''));
+    const soNum=s=>String(s||'').replace(/\D/g,'').replace(/^0+/,'');
+    // o registro da nota emitida: pela chave; senão (nota antiga, sem a chave no faturamento) pelo número ou por data e valor
+    const regDe=f=>{if(f.nfse_chave&&E.get(String(f.nfse_chave)))return E.get(String(f.nfse_chave));const n=soNum(f[K.nf]),d=isoNF(f[K.em]),v=val(f[K.bruto]);
+      return comXml.find(p=>n&&soNum(p.numero)===n)||comXml.find(p=>Math.abs((+p.valor||0)-v)<0.05&&p.emitida_em&&d&&Math.abs((new Date(String(p.emitida_em).slice(0,10)+'T12:00:00')-new Date(d+'T12:00:00'))/864e5)<=3)||null;};
+    return (D().faturamentos||[]).filter(f=>String(f[K.nf]||'').trim()&&isoNF(f[K.em])&&F.ehReal(f,K)).map((f,i)=>{const e=regDe(f);
+      return {k:'e',i,f,e,data:isoNF(f[K.em]),nome:contratanteDaNota(f,K)||'—',obra:f[K.obra]||'',numero:String(f[K.nf]).trim(),valor:val(f[K.bruto]),liq:F.liqDe(f,K),recebida:!!isoNF(f[K.rec]),fat_uid:f.fat_uid||'',chave:String(f.nfse_chave||(e&&e.chave)||''),medicao:f.medicao_numero||''};});}
   // períodos: todos, um ano inteiro ou um mês (como no Início)
   function periodosNF(L){const anos=new Set(),meses=new Set();L.forEach(x=>{if(x.data){anos.add(x.data.slice(0,4));meses.add(x.data.slice(0,7));}});
     return {anos:[...anos].sort().reverse(),meses:[...meses].sort().reverse()};}
@@ -24702,10 +24729,10 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
     const ab=NF2.aba==='emitidas'?'emitidas':'recebidas',L=ab==='recebidas'?R1:E1;NF2._L=L;
     const admCert=GS.ehAdm()&&!!((certLocal()||{}).b64),cfg=NRC()||{};
     const bt=(x,t,ok,tit)=>`<button type="button" class="fin-bt mini${ok?'':' nf2-sem'}" data-nf2-baixar="${t}" data-i="${x.i}" title="${fe(ok?tit:'Arquivo não guardado no sistema')}"${ok?'':' disabled'}><i class="fas ${t==='pdf'?'fa-file-pdf':'fa-file-code'}"></i> ${t.toUpperCase()}</button>`;
-    const linhaR=x=>{const a=arquivosNF(x);return `<tr class="${x.cancelada?'nf2-canc':''}"><td>${x.data?x.data.split('-').reverse().join('/'):'—'}</td><td><b>${fe(x.nome)}</b><small>${fe(fmtDoc(x.doc))}</small></td><td>${fe(x.tipo)}${x.numero?' nº '+fe(x.numero):''}${x.desc?`<small>${fe(String(x.desc).slice(0,90))}</small>`:''}${!x.temXml?'<small class="nf2-aviso">a SEFAZ mandou só o resumo desta nota</small>':''}</td><td class="num">${fmt(x.valor)}${x.cancelada?'<small>cancelada</small>':''}</td><td class="nf2-bts">${bt(x,'pdf',!!a.pdf,'Baixar o PDF')}${bt(x,'xml',!!a.xml,'Baixar o XML')}</td></tr>`;};
-    const linhaE=x=>{const a=arquivosNF(x),carreg=!NF2.arqs[x.obra];return `<tr><td>${x.data.split('-').reverse().join('/')}</td><td><b>${fe(x.nome)}</b><small>${fe(x.obra)}${x.medicao?' · medição '+fe(x.medicao):''}</small></td><td>NFS-e nº ${fe(x.numero)}<small>${x.recebida?'recebida':'a receber'}</small></td><td class="num">${fmt(x.valor)}<small>líquido ${fmt(x.liq)}</small></td><td class="nf2-bts">${carreg&&!(x.e&&x.e.xml)?'<small class="vk-dica"><i class="fas fa-spinner fa-spin"></i></small>':bt(x,'pdf',!!a.pdf,'Baixar o PDF')+bt(x,'xml',!!a.xml,'Baixar o XML')}</td></tr>`;};
+    const linhaR=x=>{const a=arquivosNF(x);return `<tr class="${x.cancelada?'nf2-canc':''}"><td>${x.data?x.data.split('-').reverse().join('/'):'—'}</td><td><b>${fe(x.nome)}</b><small>${fe(fmtDoc(x.doc))}</small></td><td>${fe(x.tipo)}${x.numero?' nº '+fe(x.numero):''}${x.desc?`<small>${fe(String(x.desc).slice(0,90))}</small>`:''}${!x.temXml?`<small class="nf2-aviso">${x.n.ciencia_msg?'a SEFAZ recusou a ciência: '+fe(x.n.ciencia_msg):x.n.ciencia_em?'ciência feita — a nota completa chega na próxima busca':x.tipo==='NF-e'?'só o resumo — a nota completa é pedida à SEFAZ na próxima busca':'sem o XML guardado'}</small>`:''}</td><td class="num">${fmt(x.valor)}${x.cancelada?'<small>cancelada</small>':''}</td><td class="nf2-bts">${bt(x,'pdf',!!a.pdf,'Baixar o PDF')}${bt(x,'xml',!!a.xml,'Baixar o XML')}</td></tr>`;};
+    const linhaE=x=>{const a=arquivosNF(x),carreg=!NF2.arqs[x.obra];return `<tr><td>${x.data.split('-').reverse().join('/')}</td><td><b>${fe(x.nome)}</b><small>${fe(x.obra)}${x.medicao?' · medição '+fe(x.medicao):''}</small></td><td>NFS-e nº ${fe(x.numero)}<small>${x.recebida?'recebida':'a receber'}</small></td><td class="num">${fmt(x.valor)}<small>líquido ${fmt(x.liq)}</small></td><td class="nf2-bts">${carreg&&!(x.e&&x.e.xml)?'<small class="vk-dica"><i class="fas fa-spinner fa-spin"></i></small>':bt(x,'pdf',!!a.pdf,'Baixar o PDF')+bt(x,'xml',!!a.xml,'Baixar o XML')+(!a.xml&&x.chave&&admCert?`<button type="button" class="fin-bt mini" data-nf2-receita="${x.i}" title="Baixar o XML e o PDF desta nota na Receita"><i class="fas fa-cloud-arrow-down"></i> Buscar na Receita</button>`:'')}</td></tr>`;};
     return `<div class="fin-cab"><div><h2>Notas fiscais</h2><p>As notas emitidas <b>contra a Vixsul</b> (compras e serviços contratados) e as que a <b>Vixsul emitiu</b>, separadas, com o PDF e o XML de cada uma — para a contabilidade baixar. Nada aqui lança em Contas a pagar.</p></div>
-        <div class="fin-filtros">${admCert?`<button type="button" class="fin-bt" data-nf2="buscar" title="Buscar na SEFAZ e na Receita as notas novas emitidas contra a Vixsul"><i class="fas fa-cloud-arrow-down"></i> Buscar notas novas</button>`:''}<button type="button" class="fin-bt pri" data-nf2="zip"><i class="fas fa-file-zipper"></i> Baixar todas (.zip)</button></div></div>
+        <div class="fin-filtros">${admCert?`<button type="button" class="fin-bt" data-nf2="buscar" title="Buscar na SEFAZ e na Receita as notas novas (e pedir a nota completa das NF-e que vieram só em resumo)"><i class="fas fa-cloud-arrow-down"></i> Buscar notas novas</button><button type="button" class="fin-bt" data-nf2="antigas" title="Buscar na Receita, desde o começo, as NFS-e emitidas pela Vixsul e contra ela — guarda o XML das antigas que estão sem arquivo"><i class="fas fa-clock-rotate-left"></i> Buscar notas antigas</button>`:''}<button type="button" class="fin-bt pri" data-nf2="zip"><i class="fas fa-file-zipper"></i> Baixar todas (.zip)</button></div></div>
       <div class="fin-kpis">${kpiNF('azul','Recebidas (contra a Vixsul)',fmt(somaR),`${validasR.length} nota${validasR.length!==1?'s':''} · ${rotPer(NF2.per)}`)}${kpiNF('verde','Emitidas pela Vixsul (bruto)',fmt(somaEb),`${E1.length} nota${E1.length!==1?'s':''} · líquido ${fmt(somaEl)}`)}</div>
       <div class="fin-card"><div class="fin-card-cab"><div class="gf-abas"><button type="button" class="gf-aba ${ab==='recebidas'?'on':''}" data-nf2-aba="recebidas"><i class="fas fa-inbox"></i> Recebidas (${R1.length})</button><button type="button" class="gf-aba ${ab==='emitidas'?'on':''}" data-nf2-aba="emitidas"><i class="fas fa-paper-plane"></i> Emitidas pela Vixsul (${E1.length})</button></div>
         <div class="fin-filtros"><select class="filter-select" data-nf2-per><option value="todos">Todos os períodos</option>${pers.anos.map(a=>`<option value="${a}" ${NF2.per===a?'selected':''}>${a} inteiro</option>`).join('')}${pers.meses.map(m=>`<option value="${m}" ${NF2.per===m?'selected':''}>${rotPer(m)}</option>`).join('')}</select><input type="search" class="filter-select" data-nf2-busca placeholder="Buscar nome, CNPJ, nº…" value="${fe(NF2.busca)}"></div></div>
@@ -24715,6 +24742,20 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
           :`<div class="fin-vazio">${ab==='recebidas'?(R0.length?'Nenhuma nota recebida neste filtro.':'Nenhuma nota recebida ainda. Elas chegam sozinhas (a cada 6 horas) no computador do Administrador que tem o certificado digital com a senha guardada.'):(E0.length?'Nenhuma nota emitida neste filtro.':'Nenhuma nota emitida ainda.')}</div>`}</div>`;
   }
   const kpiNF=(tom,rot,v,sub)=>`<div class="fin-kpi ${tom}"><small>${rot}</small><b>${v}</b><span>${sub||''}</span></div>`;
+  // a senha do certificado: a guardada neste computador, ou pede numa janelinha (quem digita é a pessoa)
+  function comSenhaCert(fn){const s=senhaMem();if(s)return fn(s);
+    janela('Senha do certificado digital','<div class="fin-fld"><label>Senha do certificado A1 <span class="obg">*</span></label><input type="password" data-k="senha" autocomplete="off" placeholder="digite a senha do certificado"></div><p class="vk-dica">É a senha do arquivo do certificado (o mesmo da nota fiscal). Ela fica guardada só neste computador se você marcou "lembrar a senha" em Documentos e certidões › Nota fiscal (NFS-e).</p>',
+      [{html:'<i class="fas fa-check"></i> Continuar',cls:'pri',acao:async jj=>{const v=(jj.querySelector('[data-k="senha"]').value||'').trim();if(!v)throw new Error('Digite a senha do certificado.');setTimeout(()=>fn(v),50);}}],440);}
+  // nota emitida antiga com a chave mas sem o arquivo: o XML (e o PDF oficial da Receita) vêm pela chave
+  async function buscarNaReceita(x,b,senha){
+    const c=certLocal();if(!(c&&c.b64))return toast('Não há certificado digital neste computador.','error');
+    if(b)b.disabled=true;UI._showBusy('Buscando a nota na Receita…');
+    try{const r=await nfseApi({acao:'nfse-por-chave',chave:x.chave,pfx:c.b64,senha});if(!r||!r.ok||!r.xml)throw new Error((r&&r.msg)||'A Receita não devolveu a nota agora.');memorizar(senha);
+      const ex=emitidas().find(p=>String(p.chave)===String(x.chave)),nt=r.nota||{};
+      await salvar('Planejamento',{...(ex?limpo(ex):{}),tipo:'nfse_emitida',chave:x.chave,numero:(ex&&ex.numero)||nt.numero||x.numero,amb:'1',valor:(ex&&ex.valor)||String(nt.valor||x.valor),emitida_em:(ex&&ex.emitida_em)||(nt.data?nt.data+'T12:00:00':''),xml:r.xml,status:ex?ex.status:'historico',origem:ex?ex.origem:'receita',atualizado_em:todayDateTime(),data_lancamento:(ex&&ex.data_lancamento)||todayDateTime()},ex&&ex.rowid?ex.rowid:null);
+      let comPdf=false;if(r.pdf&&x.obra&&x.fat_uid){try{const bin=atob(r.pdf),u=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);await enviarArq(x.obra,{aba:'nf',fat_uid:x.fat_uid,doc:'nf_pdf_oficial',nf:x.numero},new File([u],`NFS-e ${x.numero} - DANFSe Receita.pdf`,{type:'application/pdf'}));delete NF2.arqs[x.obra];comPdf=true;}catch(e){console.error(e);}}
+      await new Promise(ok=>App.init(false,()=>ok()));toast(`NFS-e nº ${x.numero}: XML guardado${comPdf?' e o PDF oficial da Receita':''}.`,'success');}
+    catch(e){toast(e.message||String(e),'error');}finally{UI._hideBusy();if(b)b.disabled=false;}}
   function pintarNotasFiscais(el){
     if(!el)return;el.innerHTML=htmlNotasFiscais();
     // as notas emitidas: carrega os anexos das obras e redesenha quando chegarem
@@ -24725,10 +24766,14 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
     el.addEventListener('click',async ev=>{
       const a=ev.target.closest('[data-nf2-aba]');if(a){NF2.aba=a.dataset.nf2Aba;return pintarNotasFiscais(el);}
       const b=ev.target.closest('[data-nf2-baixar]');if(b){const x=(NF2._L||[]).find(y=>String(y.i)===b.dataset.i);if(x)baixarNF(x,b.dataset.nf2Baixar);return;}
+      const rc=ev.target.closest('[data-nf2-receita]');if(rc){const x=(NF2._L||[]).find(y=>String(y.i)===rc.dataset.nf2Receita);if(x)comSenhaCert(s=>buscarNaReceita(x,rc,s));return;}
       const c=ev.target.closest('[data-nf2]');if(!c)return;
       if(c.dataset.nf2==='zip')return baixarTodasNF(NF2._L||[],`${NF2.aba==='emitidas'?'emitidas':'recebidas'} - ${rotPer(NF2.per)}`);
-      if(c.dataset.nf2==='buscar'){c.disabled=true;try{const r=await buscarNotasRec({senha:senhaMem()||''});toast(r?(r.novas?`${r.novas} nota${r.novas>1?'s':''} nova${r.novas>1?'s':''}.`:'Nenhuma nota nova.')+(r.avisos.length?' '+r.avisos.join(' · '):''):'Já está buscando — espere um instante.',r&&r.avisos.length&&!r.novas?'error':'success',!(r&&r.avisos.length));}
-        catch(e){toast(e.message||String(e),'error');}finally{c.disabled=false;pintarNotasFiscais(el);}}});
+      if(c.dataset.nf2==='buscar')return comSenhaCert(async s=>{c.disabled=true;try{const r=await buscarNotasRec({senha:s});toast(r?(r.novas?`${r.novas} nota${r.novas>1?'s':''} nova${r.novas>1?'s':''}.`:'Nenhuma nota nova.')+(r.emitidas?` ${r.emitidas} emitida${r.emitidas>1?'s':''} com o XML guardado.`:'')+(r.avisos.length?' '+r.avisos.join(' · '):''):'Já está buscando — espere um instante.',r&&r.avisos.length&&!r.novas?'error':'success',!(r&&r.avisos.length));}
+        catch(e){toast(e.message||String(e),'error');}finally{c.disabled=false;pintarNotasFiscais(el);}});
+      if(c.dataset.nf2==='antigas')return comSenhaCert(async s=>{c.disabled=true;try{const r=await buscarNotasRec({senha:s,antigas:true});
+          toast(r?`Notas antigas: ${r.novas} recebida${r.novas!==1?'s':''} nova${r.novas!==1?'s':''} e ${r.emitidas} emitida${r.emitidas!==1?'s':''} pela Vixsul com o XML guardado.${r.antigasFim?' Busca completa.':' Ainda há mais — clique de novo para continuar.'}`+(r.avisos.length?' '+r.avisos.join(' · '):''):'Já está buscando — espere um instante.','success',false);}
+        catch(e){toast(e.message||String(e),'error');}finally{c.disabled=false;pintarNotasFiscais(el);}});});
     el.addEventListener('change',ev=>{const s=ev.target.closest('[data-nf2-per]');if(s){NF2.per=s.value;pintarNotasFiscais(el);}});
     el.addEventListener('input',ev=>{const s=ev.target.closest('[data-nf2-busca]');if(!s)return;NF2.busca=s.value;clearTimeout(NF2._t);NF2._t=setTimeout(()=>{pintarNotasFiscais(el);const n=el.querySelector('[data-nf2-busca]');if(n){n.focus();n.setSelectionRange(n.value.length,n.value.length);}},300);});
   }
@@ -25322,6 +25367,7 @@ GS.lembretes=(function(){
   async function acao(a,b){if(b)b.disabled=true;
     try{const r=await tgApi({acao:a});
       if(a==='conectar'){ST.tg=r;toast(r.webhook?'Robô ligado. Agora clique em "Ligar meu Telegram".':'O Telegram não confirmou a ligação — clique em "Conferir de novo".',r.webhook?'success':'error');}
+      else if(a==='relatorio')toast(`Relatório semanal mandado${r.enviados?` para ${r.enviados} Telegram${r.enviados>1?'s':''}`:''}${r.email?(r.enviados?' e':'')+' por e-mail':''}.${r.falhas&&r.falhas.length?' ('+r.falhas.join('; ')+')':''}`,'success');
       else toast(r.enviados?`Mandado para ${r.enviados} Telegram${r.enviados>1?'s':''}.${r.falhas&&r.falhas.length?' Falhou: '+r.falhas.join('; '):''}`:(r.msg||(r.falhas||[]).join('; ')||'Não foi possível mandar.'),r.enviados?'success':'error');}
     catch(e){toast(e.message,'error');}finally{if(b)b.disabled=false;pintar();}}
   async function salvarPref(b){
@@ -25351,7 +25397,7 @@ GS.lembretes=(function(){
     const c=T.cfg||{},sel=(k,a,b)=>`<select data-lbc="${k}"><option value="sim" ${c[k]==='nao'?'':'selected'}>${a}</option><option value="nao" ${c[k]==='nao'?'selected':''}>${b}</option></select>`,n=T.chats.length;
     return `<div class="lb-tg"><div class="lb-tg-cab"><i class="fab fa-telegram"></i><div><b>Robô <a href="https://t.me/${fe(T.bot)}" target="_blank" rel="noopener">@${fe(T.bot)}</a> ligado</b><small>${n?`${n} Telegram ligado${n>1?'s':''}`:'Nenhum Telegram ligado ainda — clique em "Ligar meu Telegram".'}${T.pendentes?` · ${T.pendentes} mensagem(ns) esperando`:''}${T.erro?` · último erro do Telegram: ${fe(T.erro)}`:''}</small></div><button type="button" class="fin-bt mini" data-lb="atualizar" title="Conferir de novo"><i class="fas fa-rotate"></i></button></div>
       <div class="av-bts"><button type="button" class="fin-bt pri" data-lb="vincular"><i class="fas fa-link"></i> Ligar meu Telegram</button><button type="button" class="fin-bt" data-lb="testar"${n?'':' disabled'}><i class="fas fa-paper-plane"></i> Mandar um teste</button><button type="button" class="fin-bt" data-lb="resumo"${n?'':' disabled'}><i class="fas fa-newspaper"></i> Mandar o resumo agora</button><button type="button" class="fin-bt" data-lb="relatorio"${n?'':' disabled'}><i class="fas fa-file-pdf"></i> Mandar o relatório semanal agora</button></div>
-      ${n?`<div class="lb-chats">${T.chats.map(x=>`<div class="lb-chat"><i class="fab fa-telegram"></i><span><b>${fe(x.nome||'Telegram')}${x.meu?' <em>você</em>':''}</b><small>usuário ${fe(x.usuario||'—')}${x.ligado_em?' · desde '+fe(new Date(x.ligado_em).toLocaleDateString('pt-BR')):''}</small></span><label class="lb-res"><input type="checkbox" data-lb-res="${fe(x.id)}" ${x.resumo==='nao'?'':'checked'}> recebe o resumo do dia</label><button type="button" class="fin-bt mini" data-lb="desligar" data-id="${fe(x.id)}" title="Desligar este Telegram"><i class="fas fa-link-slash"></i></button></div>`).join('')}</div>`:''}
+      ${n?`<div class="lb-chats">${T.chats.map(x=>`<div class="lb-chat"><i class="fab fa-telegram"></i><span><b>${fe(x.nome||'Telegram')}${x.meu?' <em>você</em>':''}</b><small>usuário ${fe(x.usuario||'—')}${x.ligado_em?' · desde '+fe(new Date(x.ligado_em).toLocaleDateString('pt-BR')):''}</small></span><button type="button" class="fin-bt mini" data-lb="desligar" data-id="${fe(x.id)}" title="Desligar este Telegram"><i class="fas fa-link-slash"></i></button></div>`).join('')}</div>`:''}
       <details class="lb-pref"${ST.prefAberta?' open':''}><summary><i class="fas fa-sliders"></i> O que o robô manda sozinho e o assistente das perguntas</summary>
         <div class="fin-linha">
           <div class="fin-fld"><label>Resumo do dia</label>${sel('resumo','Sim — todo dia','Não')}</div>
@@ -25367,8 +25413,28 @@ GS.lembretes=(function(){
           <div class="fin-fld"><label>Fechamento do mês (dia 1º, 8h)</label>${sel('fechamento_mes','Sim','Não')}</div>
           ${T.ia?`<div class="fin-fld" style="grid-column:1/-1"><label>Assistente das perguntas (IA)</label><select data-lbc="modelo_ia">${MOD.map(([k,r])=>`<option value="${k}" ${(c.modelo_ia||'claude-opus-5-5')===k?'selected':''}>${fe(r)}</option>`).join('')}</select></div>`:`<p class="vk-dica" style="grid-column:1/-1;margin:0"><i class="fas fa-circle-check" style="color:#079455"></i> As perguntas no Telegram (ex.: <i>quanto gastei na obra X em outubro?</i>) são respondidas pelo próprio sistema — sem custo.</p>`}
         </div>
-        <div class="av-bts"><button type="button" class="fin-bt pri" data-lb="pref"><i class="fas fa-floppy-disk"></i> Salvar</button></div></details>${ia}</div>`;
+        <div class="av-bts"><button type="button" class="fin-bt pri" data-lb="pref"><i class="fas fa-floppy-disk"></i> Salvar</button></div></details>${htmlDestinos(T)}${ia}</div>`;
   }
+  // PARA QUEM VAI cada aviso automático: as conversas ligadas (caixinhas) e os e-mails de cada um (o Administrador escolhe)
+  const AVISOS=[['resumo','Resumo do dia (7h)',false],['reuniao','Aviso antes das reuniões',false],['tarde','Contas de hoje ainda em aberto (16h)',false],['aportes','Aporte lançado',false],
+    ['relatorio','Relatório semanal dos sócios (segunda, 7h, com PDF)',true],['caixa','Alerta de caixa (8h)',true],['cobranca','Cobrança de nota parada (8h)',true],['chuva','Chuva amanhã nas obras (17h)',true],['fechamento','Fechamento do mês (dia 1º)',true]];
+  function htmlDestinos(T){
+    const d=T.destinos||{},cs=T.chats||[],avEm=((PLAN().find(p=>p.tipo==='cfg_avisos')||{}).emails)||'';
+    const marcado=(k,c)=>{const x=d[k];if(x&&Array.isArray(x.chats))return x.chats.includes(String(c.id));return k==='resumo'?c.resumo!=='nao':true;};
+    const emailDe=k=>{const x=d[k];if(x&&x.emails!=null)return x.emails;return k==='relatorio'||k==='fechamento'?avEm:'';};
+    return `<details class="lb-pref" data-lb-dest-det${ST.destAberta?' open':''}><summary><i class="fas fa-users"></i> Para quem vai cada aviso (Telegram e e-mail)</summary>
+      <p class="vk-dica" style="margin:8px 0">Marque quem recebe cada aviso no Telegram${cs.length?'':' (ninguém ligou o Telegram ainda)'} e escreva os e-mails, separados por vírgula, de quem recebe também por e-mail — pode ser o contador ou um sócio sem Telegram.${T.email?'':' <b style="color:#B54708">O envio de e-mail ainda não está ligado na Vercel.</b>'} O e-mail do resumo do dia fica em <a href="#" data-lb="avisos">Avisos por e-mail</a>.</p>
+      <div class="fin-rolar"><table class="fin-tab lb-dest" data-sem-ordem><thead><tr><th>Aviso</th>${cs.map(c=>`<th class="lb-dest-c"><i class="fab fa-telegram"></i> ${fe(c.nome||'Telegram')}</th>`).join('')}<th>E-mails</th></tr></thead><tbody>
+      ${AVISOS.map(([k,r,em])=>`<tr><td>${fe(r)}</td>${cs.map(c=>`<td class="lb-dest-c"><input type="checkbox" data-dest="${k}" data-chat="${fe(c.id)}" ${marcado(k,c)?'checked':''} aria-label="${fe(r)} para ${fe(c.nome||'Telegram')}"></td>`).join('')}<td>${em?`<input class="lb-dest-em" data-dest-em="${k}" value="${fe(emailDe(k))}" placeholder="ninguém por e-mail" autocomplete="off">`:'<small class="vk-dica">só Telegram</small>'}</td></tr>`).join('')}</tbody></table></div>
+      <div class="av-bts"><button type="button" class="fin-bt pri" data-lb="dest"><i class="fas fa-floppy-disk"></i> Salvar para quem vai</button></div></details>`;
+  }
+  async function salvarDestinos(b){
+    const box=document.getElementById('vx-lembretes'),destinos={};
+    for(const [k,r,em] of AVISOS){const o={chats:[...box.querySelectorAll(`[data-dest="${k}"]:checked`)].map(c=>c.dataset.chat)};
+      if(em){const L=String((box.querySelector(`[data-dest-em="${k}"]`)||{}).value||'').split(/[,;\s]+/).map(s=>s.trim().toLowerCase()).filter(Boolean),ruim=L.find(e=>!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e));
+        if(ruim)return toast(`E-mail inválido em "${r}": ${ruim}`,'error');o.emails=L.join(', ');}
+      destinos[k]=o;}
+    if(b)b.disabled=true;try{ST.tg=await tgApi({acao:'salvar',destinos});toast('Salvo — cada aviso vai para quem você marcou.','success');}catch(e){toast(e.message,'error');}finally{if(b)b.disabled=false;pintar();}}
 
   function pintar(){
     const box=document.getElementById('vx-lembretes');if(!box||typeof Eng==='undefined')return;
@@ -25395,11 +25461,14 @@ GS.lembretes=(function(){
       if(a==='vincular')return vincular(b);
       if(a==='conectar'||a==='testar'||a==='resumo'||a==='relatorio')return acao(a,b);
       if(a==='pref')return salvarPref(b);
+      if(a==='dest')return salvarDestinos(b);
+      if(a==='avisos'){ev.preventDefault();return GS.avisosEmail&&GS.avisosEmail();}
       if(a==='desligar')return confirmar('Desligar este Telegram?','Ele para de receber o resumo, os avisos e os lembretes, e o robô deixa de responder a ele. Dá para ligar de novo com outro link.','Sim, desligar',async()=>{ST.tg=await tgApi({acao:'desligar',id:b.dataset.id});toast('Telegram desligado.','success');pintar();});};
     box.onchange=ev=>{const f=ev.target.closest('[data-lb-filtro]');if(f){ST.filtro=f.value;return pintar();}
       const r=ev.target.closest('[data-lb-res]');if(r)tgApi({acao:'salvar',resumoChat:{id:r.dataset.lbRes,resumo:r.checked?'sim':'nao'}}).then(o=>{ST.tg=o;toast(r.checked?'Vai receber o resumo do dia.':'Não recebe mais o resumo do dia.','success');}).catch(e=>{r.checked=!r.checked;toast(e.message,'error');});};
     box.oninput=ev=>{const s=ev.target.closest('[data-lb-busca]');if(!s)return;ST.busca=s.value;clearTimeout(App._lbT);App._lbT=setTimeout(()=>{pintar();const n=document.querySelector('#vx-lembretes [data-lb-busca]');if(n){n.focus();n.setSelectionRange(n.value.length,n.value.length);}},300);};
-    const det=box.querySelector('details.lb-pref');if(det)det.addEventListener('toggle',()=>{ST.prefAberta=det.open;});
+    const det=box.querySelector('details.lb-pref:not([data-lb-dest-det])');if(det)det.addEventListener('toggle',()=>{ST.prefAberta=det.open;});
+    const detD=box.querySelector('details[data-lb-dest-det]');if(detD)detD.addEventListener('toggle',()=>{ST.destAberta=detD.open;});
   }
   function render(){if(!ST.tg&&!ST.carregando)carregarTg();else pintar();}
   // a tela entra pelo mesmo caminho das telas de engenharia; e se redesenha quando os dados mudam
@@ -25854,6 +25923,9 @@ input[type=search].filter-select{background-image:none;padding-right:12px;}
 .fin-fld .av-itens label{text-transform:none;letter-spacing:0;font-weight:500;font-size:13px;line-height:1.35;color:#344054;align-items:flex-start;margin:0;} .fin-fld .av-itens label input{margin-top:1px;flex:none;}
 .av-ativar{margin-top:10px;padding:10px 12px;border-radius:12px;background:#FFFAEB;border:1px solid #FEDF89;color:#93370D;line-height:1.5;}
 .av-ativar ol{margin:6px 0;padding-left:20px;} .av-ativar small{color:#B54708;} .av-ativar i{color:#DC6803;}
+/* Lembretes e Telegram › Para quem vai cada aviso */
+.lb-dest th,.lb-dest td{vertical-align:middle;} .lb-dest .lb-dest-c{text-align:center;white-space:nowrap;} .lb-dest .lb-dest-c input{width:17px;height:17px;}
+.lb-dest-em{width:100%;min-width:230px;height:34px;border:1px solid #D0D5DD;border-radius:8px;padding:0 10px;font:13px Inter,sans-serif;background:#fff;color:#101828;} .lb-dest-em:focus{outline:2px solid rgba(22,82,216,.25);border-color:#84ADFF;}
 /* Pessoal e segurança › Ponto nas obras */
 .pt-foto{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:10px;} .pt-cam{cursor:pointer;} .pt-prev img{width:84px;height:84px;object-fit:cover;border-radius:12px;border:1px solid #EAECF0;}
 .pt-seguir{display:flex;align-items:center;gap:8px;font-size:12.5px;color:#344054;margin-top:6px;cursor:pointer;}

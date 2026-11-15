@@ -43,9 +43,33 @@ function pedirSoap(url, corpo, crt, acao) {
 }
 const tagX = (xml, t) => { const m = new RegExp(`<(?:[\\w-]+:)?${t}(?:\\s[^>]*)?>([\\s\\S]*?)</(?:[\\w-]+:)?${t}>`).exec(String(xml || '')); return m ? m[1].trim() : ''; };
 async function nfeRecebidas(crt, ult, tpAmb) {
-  const url = tpAmb === 1 ? 'https://www1.nfe.fazenda.gov.br/NFeDistribuicaoDFe/NFeDistribuicaoDFe.asmx' : 'https://hom1.nfe.fazenda.gov.br/NFeDistribuicaoDFe/NFeDistribuicaoDFe.asmx';
   const nsu = (String(ult || '0').replace(/\D/g, '') || '0').padStart(15, '0').slice(-15);
-  const corpo = `<?xml version="1.0" encoding="utf-8"?><soap12:Envelope xmlns:soap12="http://www.w3.org/2003/05/soap-envelope"><soap12:Body><nfeDistDFeInteresse xmlns="http://www.portalfiscal.inf.br/nfe/wsdl/NFeDistribuicaoDFe"><nfeDadosMsg><distDFeInt xmlns="http://www.portalfiscal.inf.br/nfe" versao="1.01"><tpAmb>${tpAmb}</tpAmb><cUFAutor>29</cUFAutor><CNPJ>${CNPJ_EMPRESA}</CNPJ><distNSU><ultNSU>${nsu}</ultNSU></distNSU></distDFeInt></nfeDadosMsg></nfeDistDFeInteresse></soap12:Body></soap12:Envelope>`;
+  return distDFe(crt, tpAmb, `<distNSU><ultNSU>${nsu}</ultNSU></distNSU>`);
+}
+// a mesma distribuição da SEFAZ, mas pedindo UMA nota pela chave (depois da ciência da operação vem a nota completa)
+async function nfePorChave(crt, chave, tpAmb) {
+  const ch = String(chave || '').replace(/\D/g, '');
+  if (ch.length !== 44) return { ok: false, msg: 'Chave da NF-e inválida (44 números).' };
+  return distDFe(crt, tpAmb, `<consChNFe><chNFe>${ch}</chNFe></consChNFe>`);
+}
+/* CIÊNCIA DA OPERAÇÃO (evento 210210 da manifestação do destinatário): avisa a SEFAZ que a Vixsul sabe da nota — a
+   partir daí a SEFAZ libera o XML completo (antes só manda o resumo). Não confirma nem recusa a compra. */
+async function nfeCiencia(crt, chave, tpAmb) {
+  const url = tpAmb === 1 ? 'https://www.nfe.fazenda.gov.br/NFeRecepcaoEvento4/NFeRecepcaoEvento4.asmx' : 'https://hom1.nfe.fazenda.gov.br/NFeRecepcaoEvento4/NFeRecepcaoEvento4.asmx';
+  const ev = core.eventoManifestacao({ chave, tpAmb, cnpj: CNPJ_EMPRESA, tpEvento: '210210' }, crt);
+  const corpo = `<?xml version="1.0" encoding="utf-8"?><soap12:Envelope xmlns:soap12="http://www.w3.org/2003/05/soap-envelope"><soap12:Body><nfeDadosMsg xmlns="http://www.portalfiscal.inf.br/nfe/wsdl/NFeRecepcaoEvento4">${ev.xml}</nfeDadosMsg></soap12:Body></soap12:Envelope>`;
+  const r = await pedirSoap(url, corpo, crt, 'http://www.portalfiscal.inf.br/nfe/wsdl/NFeRecepcaoEvento4/nfeRecepcaoEvento');
+  if (r.status !== 200) return { ok: false, msg: `A SEFAZ respondeu HTTP ${r.status}.`, bruto: r.txt.slice(0, 400) };
+  const ret = tagX(r.txt, 'retEnvEvento');
+  if (!ret) return { ok: false, msg: 'A SEFAZ não devolveu a resposta esperada.', bruto: r.txt.slice(0, 400) };
+  const inf = tagX(ret, 'retEvento'), cs = tagX(inf, 'cStat') || tagX(ret, 'cStat'), xm = tagX(inf, 'xMotivo') || tagX(ret, 'xMotivo');
+  // 135 registrado e vinculado · 136 registrado sem vínculo · 573 já tinha sido feita (duplicidade) — todos valem
+  const ok = ['135', '136', '573'].includes(cs);
+  return { ok, cStat: cs, xMotivo: xm, msg: ok ? '' : `SEFAZ ${cs}: ${xm}` };
+}
+async function distDFe(crt, tpAmb, filtro) {
+  const url = tpAmb === 1 ? 'https://www1.nfe.fazenda.gov.br/NFeDistribuicaoDFe/NFeDistribuicaoDFe.asmx' : 'https://hom1.nfe.fazenda.gov.br/NFeDistribuicaoDFe/NFeDistribuicaoDFe.asmx';
+  const corpo = `<?xml version="1.0" encoding="utf-8"?><soap12:Envelope xmlns:soap12="http://www.w3.org/2003/05/soap-envelope"><soap12:Body><nfeDistDFeInteresse xmlns="http://www.portalfiscal.inf.br/nfe/wsdl/NFeDistribuicaoDFe"><nfeDadosMsg><distDFeInt xmlns="http://www.portalfiscal.inf.br/nfe" versao="1.01"><tpAmb>${tpAmb}</tpAmb><cUFAutor>29</cUFAutor><CNPJ>${CNPJ_EMPRESA}</CNPJ>${filtro}</distDFeInt></nfeDadosMsg></nfeDistDFeInteresse></soap12:Body></soap12:Envelope>`;
   const r = await pedirSoap(url, corpo, crt, 'http://www.portalfiscal.inf.br/nfe/wsdl/NFeDistribuicaoDFe/nfeDistDFeInteresse');
   if (r.status !== 200) return { ok: false, msg: `A SEFAZ respondeu HTTP ${r.status}.`, bruto: r.txt.slice(0, 400) };
   const ret = tagX(r.txt, 'retDistDFeInt'), docs = [];
@@ -107,6 +131,7 @@ module.exports = async (req, res) => {
     // só monta e assina (sem enviar nada à Receita): serve para conferir o XML com qualquer certificado
     if (b.acao === 'teste-assinatura') { const r = core.dpsAssinada(b.dps, crt); return responder(200, { ok: true, info, id: r.id, xml: r.xml }); }
     if (b.acao === 'teste-evento') { const r = core.eventoCancelamento({ tpAmb: 2, chave: b.chave, cMotivo: b.cMotivo, xMotivo: b.xMotivo, cnpj: crt.cnpj }, crt); return responder(200, { ok: true, info, id: r.id, xml: r.xml }); }
+    if (b.acao === 'teste-ciencia') { const r = core.eventoManifestacao({ tpAmb: 2, chave: b.chave, cnpj: crt.cnpj, tpEvento: '210210' }, crt); return responder(200, { ok: true, info, id: r.id, xml: r.xml }); }
     if (crt.cnpj !== CNPJ_EMPRESA) return responder(403, { ok: false, info, msg: `Este certificado é de outro CNPJ (${crt.cnpj || 'sem CNPJ'}): use o certificado A1 da Vixsul.` });
     if (new Date(crt.validoAte) < new Date()) return responder(400, { ok: false, info, msg: 'O certificado venceu em ' + crt.validoAte.slice(0, 10).split('-').reverse().join('/') + '.' });
     if (b.acao === 'info') return responder(200, { ok: true, info });
@@ -115,6 +140,11 @@ module.exports = async (req, res) => {
     // notas de compra emitidas contra a Vixsul: NF-e (SEFAZ) e NFS-e (Ambiente Nacional) — produção, salvo ambiente 2
     if (b.acao === 'nfe-recebidas') return responder(200, await nfeRecebidas(crt, b.ultNSU, +b.ambiente === 2 ? 2 : 1));
     if (b.acao === 'nfse-recebidas') return responder(200, await nfseRecebidas(crt, b.ultNSU, +b.ambiente === 2 ? 2 : 1));
+    // NF-e que veio só em resumo: ciência da operação (libera o XML completo) e a nota pela chave
+    if (b.acao === 'nfe-ciencia') return responder(200, await nfeCiencia(crt, b.chave, +b.ambiente === 2 ? 2 : 1));
+    if (b.acao === 'nfe-por-chave') return responder(200, await nfePorChave(crt, b.chave, +b.ambiente === 2 ? 2 : 1));
+    // NFS-e pela chave (nota antiga sem o arquivo guardado): XML e o PDF oficial (DANFSe) da Receita
+    if (b.acao === 'nfse-por-chave') { const ch = String(b.chave || '').replace(/\D/g, ''); if (ch.length !== 50) return responder(200, { ok: false, msg: 'Chave da NFS-e inválida (50 números).' }); const n = await notaPelaChave(core.AMB[1], ch, crt); return responder(200, n ? Object.assign({ ok: true }, n) : { ok: false, msg: 'A Receita não devolveu a nota ' + ch + ' agora.' }); }
     const amb = core.AMB[+b.ambiente === 1 ? 1 : 2];
     if (b.acao === 'convenio') {
       const cm = String(b.cMun || '').replace(/\D/g, '');

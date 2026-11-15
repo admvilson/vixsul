@@ -129,5 +129,26 @@
       el('e101101', tx('xDesc', 'Cancelamento de NFS-e') + tx('cMotivo', String(o.cMotivo || '1')) + tx('xMotivo', xm)) + '</infPedReg>';
     return { id, xml: `<?xml version="1.0" encoding="UTF-8"?><pedRegEvento xmlns="${NS}" versao="${VERSAO}">${inf}${assinar(inf, id, crt)}</pedRegEvento>` };
   }
-  return { NS, DS, VERSAO, AMB, agoraBrasilia, lerCertificado, idDPS, montarInfDPS, assinar, dpsAssinada, eventoCancelamento, lerNFSe };
+  /* ───── NF-e (nota de produto): evento de MANIFESTAÇÃO DO DESTINATÁRIO, assinado no grupo infEvento ─────
+     210210 = Ciência da Operação: libera para a Vixsul o XML completo da NF-e que a SEFAZ só mandou em resumo.
+     Padrão da NF-e (diferente da NFS-e): RSA-SHA1 com digest SHA-1, C14N 1.0, Reference URI="#ID…"; o envEvento
+     leva o xmlns da NF-e, que a forma canônica do infEvento herda. Vai para o Ambiente Nacional (cOrgao 91). */
+  const NS_NFE = 'http://www.portalfiscal.inf.br/nfe';
+  function sha1B64(s) { const md = forge.md.sha1.create(); md.update(s, 'utf8'); return forge.util.encode64(md.digest().getBytes()); }
+  function assinarNFe(infXml, id, crt) {
+    const infC14n = infXml.replace(/^<([A-Za-z]+) /, `<$1 xmlns="${NS_NFE}" `);
+    const si = `<CanonicalizationMethod Algorithm="${C14N}"></CanonicalizationMethod><SignatureMethod Algorithm="http://www.w3.org/2000/09/xmldsig#rsa-sha1"></SignatureMethod><Reference URI="#${escAt(id)}"><Transforms><Transform Algorithm="http://www.w3.org/2000/09/xmldsig#enveloped-signature"></Transform><Transform Algorithm="${C14N}"></Transform></Transforms><DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha1"></DigestMethod><DigestValue>${sha1B64(infC14n)}</DigestValue></Reference>`;
+    const md = forge.md.sha1.create(); md.update(`<SignedInfo xmlns="${DS}">${si}</SignedInfo>`, 'utf8');
+    return `<Signature xmlns="${DS}"><SignedInfo>${si}</SignedInfo><SignatureValue>${forge.util.encode64(crt.key.sign(md))}</SignatureValue><KeyInfo><X509Data><X509Certificate>${crt.certB64}</X509Certificate></X509Data></KeyInfo></Signature>`;
+  }
+  const DESC_MANIF = { '210200': 'Confirmacao da Operacao', '210210': 'Ciencia da Operacao', '210220': 'Desconhecimento da Operacao', '210240': 'Operacao nao Realizada' };
+  function eventoManifestacao(o, crt, dhEvento) {
+    const ch = so(o.chave); if (ch.length !== 44) throw new Error('Chave da NF-e inválida (44 números).');
+    const tp = String(o.tpEvento || '210210'); if (!DESC_MANIF[tp]) throw new Error('Tipo de manifestação inválido.');
+    const seq = String(+o.nSeq || 1), id = 'ID' + tp + ch + seq.padStart(2, '0');
+    const inf = `<infEvento Id="${id}">` + tx('cOrgao', '91') + tx('tpAmb', String(o.tpAmb === 2 ? 2 : 1)) + tx('CNPJ', pad(o.cnpj, 14)) + tx('chNFe', ch) + tx('dhEvento', dhEvento || agoraBrasilia(30)) +
+      tx('tpEvento', tp) + tx('nSeqEvento', seq) + tx('verEvento', '1.00') + `<detEvento versao="1.00">${tx('descEvento', DESC_MANIF[tp])}</detEvento></infEvento>`;
+    return { id, xml: `<envEvento xmlns="${NS_NFE}" versao="1.00">${tx('idLote', String(Date.now()).slice(-15))}<evento versao="1.00">${inf}${assinarNFe(inf, id, crt)}</evento></envEvento>` };
+  }
+  return { NS, DS, VERSAO, AMB, agoraBrasilia, lerCertificado, idDPS, montarInfDPS, assinar, dpsAssinada, eventoCancelamento, lerNFSe, eventoManifestacao };
 });
