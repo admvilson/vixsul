@@ -4,7 +4,24 @@
 'use strict';
 const crypto = require('crypto');
 const TOKEN = '123456:teste-do-robo';
-Object.assign(process.env, { TELEGRAM_BOT_TOKEN: TOKEN, SUPABASE_SERVICE_KEY: 'chave-de-teste', SUPABASE_URL: 'https://sb.teste', GROQ_API_KEY: 'gsk_teste', SUPABASE_JWT_SECRET: 'segredo-de-teste' });
+Object.assign(process.env, { TELEGRAM_BOT_TOKEN: TOKEN, SUPABASE_SERVICE_KEY: 'chave-de-teste', SUPABASE_URL: 'https://sb.teste', GROQ_API_KEY: 'gsk_teste', SUPABASE_JWT_SECRET: 'segredo-de-teste',
+  GROQ_VISION_MODEL: 'qwen/qwen3.6-27b',   // o 1º da lista recusa imagem: o teste automático tem de achar o qwen3.8
+  GMAIL_USER: 'sistema@exemplo.com', GMAIL_APP_PASSWORD: 'senhadeteste' });
+// ── Gmail de mentira (a biblioteca imapflow trocada por uma caixa de entrada na memória) ──
+const { Readable } = require('stream');
+const CAIXA = { uidValidity: 777n, msgs: [], aberturas: [] };
+class FakeImap {
+  constructor(o) { this.o = o; this.mailbox = null; }
+  on() {}
+  async connect() { if (this.o.auth.pass !== 'senhadeteste' || this.o.host !== 'imap.gmail.com') { const e = new Error('Invalid credentials'); e.authenticationFailed = true; throw e; } }
+  async getMailboxLock(p, op) { CAIXA.aberturas.push({ p, ro: !!(op && op.readOnly) }); const max = Math.max(0, ...CAIXA.msgs.map(m => m.uid)); this.mailbox = { path: p, uidValidity: CAIXA.uidValidity, uidNext: max + 1, exists: CAIXA.msgs.length }; return { release() {} }; }
+  async search(qy) { if (qy.since) return CAIXA.msgs.filter(m => m.date >= qy.since).map(m => m.uid); const a = +String(qy.uid).split(':')[0], L = CAIXA.msgs.filter(m => m.uid >= a).map(m => m.uid); return L.length ? L : CAIXA.msgs.length ? [Math.max(...CAIXA.msgs.map(m => m.uid))] : []; }
+  async *fetch(range) { for (const m of CAIXA.msgs) if (range.includes(m.uid)) yield { uid: m.uid, envelope: m.envelope, bodyStructure: m.bodyStructure }; }
+  async download(uid, part) { const m = CAIXA.msgs.find(x => x.uid === +uid); return { meta: {}, content: Readable.from([m.partes[part]]) }; }
+  async logout() {}
+  close() {}
+}
+require.cache[require.resolve('imapflow')] = { id: 'imapflow', filename: require.resolve('imapflow'), loaded: true, exports: { ImapFlow: FakeImap } };
 const SB = 'https://sb.teste';
 
 // ── banco de mentira (PostgREST: select com apelidos, filtros eq/in/like/ilike/lt, order, limit, offset, Range) ──
@@ -55,11 +72,13 @@ async function telegram(url, op) {
 // ── Groq de mentira: as respostas que cada teste quer ──
 const GROQ = { transcricao: '', intencao: {}, visao: {} }, GROQ_CHAMADAS = [];
 async function groq(url, op) {
-  // a lista de modelos da Groq: aqui SEM o llama-4-scout (o robô tem de passar sozinho para o maverick)
-  if (url.endsWith('/models')) return json(200, { data: ['meta-llama/llama-4-maverick-17b-128e-instruct', 'whisper-large-v3', 'llama-3.3-70b-versatile', 'meta-llama/llama-guard-4-12b'].map(id => ({ id, active: true })) });
+  // a lista de modelos da Groq (como em 2026): o scout ainda aparece, mas foi desligado; o qwen3.6 não aceita imagem
+  if (url.endsWith('/models')) return json(200, { data: ['meta-llama/llama-4-scout-17b-16e-instruct', 'qwen/qwen3.6-27b', 'qwen/qwen3.8-27b', 'openai/gpt-oss-120b', 'openai/gpt-oss-20b', 'whisper-large-v3', 'meta-llama/llama-guard-4-12b', 'openai/gpt-oss-safeguard-20b'].map(id => ({ id, active: true })) });
   if (url.endsWith('/audio/transcriptions')) { const fd = op.body; GROQ_CHAMADAS.push('audio:' + (fd && fd.get ? fd.get('model') : '')); return json(200, { text: GROQ.transcricao }); }
   const b = JSON.parse(op.body), foto = Array.isArray(b.messages[b.messages.length - 1].content); GROQ.ultimoCorpo = b;
   GROQ_CHAMADAS.push(foto ? 'foto:' + b.model : 'texto:' + b.model);
+  if (/scout|maverick/.test(b.model)) return json(400, { error: { message: `The model \`${b.model}\` has been decommissioned and is no longer supported.` } });
+  if (foto && b.model === 'qwen/qwen3.6-27b') return json(400, { error: { message: 'This model does not support image input.' } });
   return json(200, { choices: [{ message: { content: JSON.stringify(foto ? GROQ.visao : GROQ.intencao) } }] });
 }
 global.fetch = async (url, op = {}) => {
@@ -141,13 +160,22 @@ function ultimoCartao() { for (let i = CALLS.length - 1; i >= 0; i--) { const c 
   ok(md.tipo === 'cartao' && md.forma === 'Cartão de Débito' && !md.parcCartao && md.valor === 18.5, 'maquininha no débito: ' + JSON.stringify(md));
   const ni = T.normIA({ tipo: 'cartao', fornecedor: 'CIELO', cnpj_cpf: '12.345.678/0001-95', valor: 900, data: hj, pago: true, forma: 'credito', parcelas: 3, descricao: 'material eletrico' });
   ok(ni.tipo === 'cartao' && ni.pago && !ni.forn && ni.cnpj === '12345678000195' && ni.forma === 'Cartão de Crédito' && ni.parcCartao === 3, 'leitura da foto da maquininha (a Cielo não vira fornecedor): ' + JSON.stringify(ni));
-  const mods = await T.modelosDe(['meta-llama/llama-4-scout-17b-16e-instruct', 'meta-llama/llama-4-maverick-17b-128e-instruct'], 'visao'), eg = await T.estadoGroq();
-  ok(mods[0] === 'meta-llama/llama-4-maverick-17b-128e-instruct' && !mods.some(m => /guard/.test(m)), 'modelo da Groq que sumiu: passa sozinho para o que existe (' + mods.join(', ') + ')');
+  // teste automático da Groq: o 1º da lista de foto recusa imagem → acha o qwen3.8 e guarda; áudio e texto também
+  const tg0 = await T.testarGroq(true);
+  ok(tg0 && tg0.foto === 'qwen/qwen3.8-27b' && /image/i.test(tg0.erros['qwen/qwen3.6-27b'] || '') && tg0.audio === 'whisper-large-v3' && tg0.texto === 'openai/gpt-oss-120b', 'teste automático da Groq achou o que funciona: ' + JSON.stringify(tg0));
+  ok(DB.arquivos.some(r => r.row_data.tipo === 'telegram_groq' && r.row_data.foto === 'qwen/qwen3.8-27b'), 'o resultado do teste ficou guardado');
+  ok((await T.testarGroq()) === null, 'não testa de novo antes da hora');
+  const mods = await T.modelosDe(['meta-llama/llama-4-maverick-17b-128e-instruct', 'qwen/qwen3.6-27b'], 'visao'), eg = await T.estadoGroq();
+  ok(mods[0] === 'qwen/qwen3.8-27b' && !mods.some(m => /guard|maverick/.test(m)), 'foto: o testado vem primeiro e o que sumiu sai (' + mods.join(', ') + ')');
+  let erroTodos = ''; try { await T.chatJson([{ role: 'user', content: [{ type: 'text', text: 'x' }, { type: 'image_url', image_url: { url: 'data:image/jpeg;base64,AA==' } }] }], ['meta-llama/llama-4-scout-17b-16e-instruct', 'qwen/qwen3.6-27b'], 5000, 100); } catch (e) { erroTodos = e.message; }
+  ok(/llama-4-scout.*decommissioned/.test(erroTodos) && /qwen3\.6-27b: This model does not support image/.test(erroTodos), 'quando todos falham, o erro conta o que cada um disse: ' + erroTodos);
   await T.chatJson([{ role: 'user', content: 'oi' }], ['openai/gpt-oss-120b'], 5000, 500);
-  ok(GROQ.ultimoCorpo.model === 'openai/gpt-oss-120b' && GROQ.ultimoCorpo.reasoning_effort === 'low' && GROQ.ultimoCorpo.max_completion_tokens >= 2000, 'modelo que "pensa" (gpt-oss): pensa pouco e tem espaço para responder');
+  ok(GROQ.ultimoCorpo.model === 'openai/gpt-oss-120b' && GROQ.ultimoCorpo.reasoning_effort === 'low' && GROQ.ultimoCorpo.include_reasoning === false && GROQ.ultimoCorpo.max_completion_tokens >= 2000, 'modelo que "pensa" (gpt-oss): pensa pouco e tem espaço para responder');
+  await T.chatJson([{ role: 'user', content: 'oi' }], ['qwen/qwen3.8-27b'], 5000, 500);
+  ok(GROQ.ultimoCorpo.reasoning_effort === 'none' && GROQ.ultimoCorpo.max_completion_tokens === 500, 'qwen responde direto (sem pensar)');
   await T.chatJson([{ role: 'user', content: 'oi' }], ['llama-3.3-70b-versatile'], 5000, 500);
   ok(!('reasoning_effort' in GROQ.ultimoCorpo) && GROQ.ultimoCorpo.max_completion_tokens === 500, 'os outros modelos ficam como estão');
-  ok(eg.groqOk && eg.modelos.foto === 'meta-llama/llama-4-maverick-17b-128e-instruct' && eg.modelos.audio === 'whisper-large-v3' && eg.modelos.texto === 'llama-3.3-70b-versatile', 'estado da Groq: ' + JSON.stringify(eg));
+  ok(eg.groqOk && eg.modelos.foto === 'qwen/qwen3.8-27b' && eg.modelos.audio === 'whisper-large-v3' && eg.modelos.texto === 'openai/gpt-oss-120b' && eg.teste && eg.teste.foto === 'qwen/qwen3.8-27b', 'estado da Groq: ' + JSON.stringify(eg));
   // PDF de boleto (texto) e foto com QR do PIX: as bibliotecas de verdade
   const { jsPDF } = require('jspdf'); const doc = new jsPDF(); doc.setFontSize(10);
   doc.text('Beneficiario: MADEIREIRA SAO JOSE LTDA  CNPJ 12.345.678/0001-95', 10, 20); doc.text('Vencimento: ' + R.brAno(em(15)), 10, 30); doc.text(lin, 10, 40);
@@ -268,11 +296,11 @@ function ultimoCartao() { for (let i = CALLS.length - 1; i >= 0; i--) { const c 
 
   // G) foto com QR do PIX
   console.log('\nG) foto com o QR code do PIX');
-  ARQS.f1 = { caminho: 'photos/f1.jpg', buf: JPG };
+  ARQS.f1 = { caminho: 'photos/f1.jpg', buf: JPG }; const g0 = GROQ_CHAMADAS.length;
   await webhook({ update_id: ++uid, message: { message_id: ++mid, chat: { id: CHAT, type: 'private' }, photo: [{ file_id: 'f1', width: pp.width, height: pp.height }], caption: 'obra itarantim' } });
   ok(/Li no QR code do PIX: R\$\s120,50 · JOAO DA SILVA/.test(ultimoTexto()), 'leu o valor e quem recebe no QR');
   ok(/obra <b>SES ITARANTIM<\/b>/.test(ultimoTexto()) && /O que foi<\/b>/.test(ultimoTexto()), 'a legenda da foto escolheu a obra; pergunta o que foi');
-  ok(!GROQ_CHAMADAS.some(x => x.startsWith('foto')), 'com o QR lido, não precisou da leitura da Groq');
+  ok(!GROQ_CHAMADAS.slice(g0).some(x => x.startsWith('foto')), 'com o QR lido, não precisou da leitura da Groq');
   await escrever('/cancelar'); ok(/Cancelado/.test(ultimoTexto()), '/cancelar');
 
   // H) PDF do boleto
@@ -341,7 +369,7 @@ function ultimoCartao() { for (let i = CALLS.length - 1; i >= 0; i--) { const c 
   await webhook({ update_id: ++uid, message: { message_id: ++mid, chat: { id: CHAT, type: 'private' }, photo: [{ file_id: 'f5', width: 64, height: 64 }], caption: 'obra itarantim' } });
   ok(/Li no comprovante da maquininha: R\$\s900,00 · MADEIREIRA SAO JOSE LTDA · crédito em 3x · compra em/.test(ultimoTexto()), 'leu o comprovante da maquininha');
   ok(/MADEIREIRA SAO JOSE LTDA/.test(ultimoTexto()) && /cartão de crédito em 3x/.test(ultimoTexto()) && /\(paga\)/.test(ultimoTexto()), 'fornecedor pelo CNPJ (não a Cielo) e as 3 parcelas no cartão');
-  ok(GROQ_CHAMADAS.includes('foto:meta-llama/llama-4-maverick-17b-128e-instruct'), 'leu a foto com o modelo que a Groq tem');
+  ok(GROQ_CHAMADAS[GROQ_CHAMADAS.length - 1] === 'foto:qwen/qwen3.8-27b', 'leu a foto direto com o modelo testado (qwen3.8), sem tentar os que falham');
   await tocar('✓ Materiais'); await tocar('Lançar');
   const mq = linhas('custos', r => /^Material elétrico/.test(r.descricao)).sort((a, b) => a.vencimento.localeCompare(b.vencimento));
   ok(mq.length === 3 && mq.every(r => r.p_total === '300.00' && r.forma_pagamento === 'Cartão de Crédito' && r.titulo_obra === 'SES ITARANTIM') && mq[0].data_pgto === hj && mq[0].vencimento === hj && mq[1].data_pgto === '' && mq[1].vencimento === T.somaMes(hj, 1) && mq[2].vencimento === T.somaMes(hj, 2) && /\(1\/3\)$/.test(mq[0].descricao) && /Cartão de crédito em 3x/.test(mq[0].observacao) && /maquininha/.test(mq[0].observacao) && mq[0].grupo_parcelas === mq[2].grupo_parcelas, 'parcelas no cartão: ' + JSON.stringify(mq.map(r => [r.descricao, r.vencimento, r.data_pgto, r.p_total])));
@@ -359,6 +387,44 @@ function ultimoCartao() { for (let i = CALLS.length - 1; i >= 0; i--) { const c 
   const tk = JSON.parse(rq.corpo || '{}'); ok(rq.statusCode === 200 && tk.ok, 'tarefa de 15 minutos rodou: ' + rq.corpo);
   const rs = { statusCode: 0, setHeader() {}, end(b) { this.corpo = b; } };
   await telegramJs({ method: 'GET', headers: {}, query: {} }, rs); const es = JSON.parse(rs.corpo); ok(es.groq === true && es.groqOk === true && es.modelos && es.modelos.audio === 'whisper-large-v3', 'estado diz que a leitura da Groq está ligada e funcionando: ' + rs.corpo);
+
+  // O) caixa de e-mail: boletos e notas que chegam no Gmail viram aviso no Telegram com "Lançar conta" e "Ignorar"
+  console.log('\nO) e-mail: boletos e notas que chegam no Gmail');
+  ok(CAIXA.aberturas.length >= 1 && CAIXA.aberturas.every(a => a.p === 'INBOX' && a.ro), 'a caixa de entrada foi aberta só para leitura (a 1ª olhada guardou o marcador)');
+  const env = (nome, end, assunto) => ({ from: [{ name: nome, address: end }], subject: assunto });
+  const multi = (...ps) => ({ type: 'multipart/mixed', childNodes: ps }), agora = new Date();
+  const XML_VIXSUL = XML.replace('<CNPJ>11222333000181</CNPJ><xNome>CASA DO CONSTRUTOR LTDA</xNome>', '<CNPJ>64518375000120</CNPJ><xNome>VIXSUL EMPREENDIMENTOS</xNome>').replace('<CNPJ>64518375000120</CNPJ><xNome>VIXSUL</xNome>', '<CNPJ>13000000000100</CNPJ><xNome>PREFEITURA</xNome>');
+  const linhaCorpo = linhaBoleto(480.5, em(10));
+  CAIXA.msgs.push(
+    { uid: 101, date: agora, envelope: env('Madeireira São José', 'financeiro@madeireira.exemplo', 'Boleto - NF 4455'), bodyStructure: multi({ part: '1', type: 'text/plain', size: 120 }, { part: '2', type: 'application/pdf', size: PDF.length, disposition: 'attachment', dispositionParameters: { filename: 'boleto.pdf' } }), partes: { 1: Buffer.from('Segue o boleto.'), 2: PDF } },
+    { uid: 102, date: agora, envelope: env('Loja X', 'ofertas@loja.exemplo', 'Promoção de fim de ano'), bodyStructure: { type: 'text/html', size: 500 }, partes: { 1: Buffer.from('<p>Ofertas imperdíveis</p>') } },
+    { uid: 103, date: agora, envelope: env('Casa do Construtor', 'nfe@casa.exemplo', 'NF-e 5678'), bodyStructure: multi({ part: '1', type: 'text/plain', size: 50 }, { part: '2', type: 'application/xml', size: XML.length, dispositionParameters: { filename: 'nota-5678.xml' } }), partes: { 1: Buffer.from('Nota em anexo'), 2: Buffer.from(XML) } },
+    { uid: 104, date: agora, envelope: env('Sistema', 'sistema@exemplo.com', 'NFS-e emitida'), bodyStructure: multi({ part: '1', type: 'application/xml', size: XML_VIXSUL.length, dispositionParameters: { filename: 'emitida.xml' } }), partes: { 1: Buffer.from(XML_VIXSUL) } },
+    { uid: 105, date: agora, envelope: env('Areial Boa Vista', 'cobranca@areial.exemplo', 'Sua fatura chegou'), bodyStructure: { type: 'text/plain', size: 300 }, partes: { 1: Buffer.from('Olá! Sua fatura de areia está disponível.\nLinha digitável:\n' + linhaCorpo + '\nObrigado.') } },
+    { uid: 106, date: agora, envelope: env('Madeireira São José', 'financeiro@madeireira.exemplo', 'Boleto - NF 4455 (reenvio)'), bodyStructure: multi({ part: '1', type: 'application/pdf', size: PDF.length, dispositionParameters: { filename: 'boleto.pdf' } }), partes: { 1: PDF } });
+  n0 = CALLS.length;
+  const rq2 = { statusCode: 0, setHeader() {}, end(b) { this.corpo = b; } };
+  await telegramJs({ method: 'GET', headers: {}, query: { tick: '1' } }, rq2);
+  const avisos = CALLS.slice(n0).filter(c => (c.m === 'sendDocument' && /Chegou no e-mail/.test(c.b.caption || '')) || (c.m === 'sendMessage' && /Chegou no e-mail/.test(c.b.text || '')));
+  ok(/e-mail: 3 aviso/.test(rq2.corpo), 'a tarefa de 15 minutos avisou 3 cobranças: ' + rq2.corpo);
+  ok(avisos.length === 3, '3 avisos no Telegram (boleto em PDF, nota em XML e boleto escrito no e-mail) — propaganda, nota da Vixsul e boleto repetido ficaram de fora');
+  const av1 = avisos.find(c => /boleto/.test(c.b.caption || '') && c.m === 'sendDocument'), av3 = avisos.find(c => /NF-e/.test(c.b.caption || '')), av5 = avisos.find(c => c.m === 'sendMessage');
+  ok(av1 && /R\$\s1\.234,56/.test(av1.b.caption) && /vence/.test(av1.b.caption) && av1.b.document.nome === 'boleto.pdf' && av1.b.parse_mode === 'HTML' && /e:[0-9a-f]+:l/.test(av1.b.reply_markup), 'aviso do boleto: com o PDF, valor, vencimento e os botões');
+  ok(av3 && /3 parcelas/.test(av3.b.caption) && /CASA DO CONSTRUTOR LTDA/.test(av3.b.caption), 'aviso da nota (XML) com as 3 parcelas');
+  ok(av5 && /R\$\s480,50/.test(av5.b.text) && /Areial/i.test(av5.b.text), 'aviso do boleto escrito no corpo do e-mail');
+  ok(DB.arquivos.filter(r => r.row_data.tipo === 'telegram_email').length === 3 && !DB.arquivos.some(r => r.row_data.tipo === 'telegram_email' && /Madeireira|CONSTRUTOR|Boleto - NF/i.test(JSON.stringify(r.row_data))), 'o que foi lido de cada aviso ficou guardado cifrado');
+  const apertar = async (c, txt) => { const kb = JSON.parse(c.m === 'sendDocument' ? c.b.reply_markup : JSON.stringify(c.b.reply_markup)), b = kb.inline_keyboard.flat().find(x => x.text.includes(txt));
+    return webhook({ update_id: ++uid, callback_query: { id: 'cq' + uid, data: b.callback_data, message: { message_id: c.r.message_id, chat: { id: CHAT } } } }); };
+  await apertar(av1, 'Lançar conta');
+  ok(/Li na linha digitável do boleto \(PDF\): R\$\s1\.234,56/.test(ultimoTexto()) && /Nova conta/.test(ultimoTexto()), '"Lançar conta" abriu o cartão da conta já preenchido');
+  await apertar(av3, 'Ignorar'); n0 = CALLS.length; await apertar(av3, 'Ignorar');
+  ok(CALLS.slice(n0).some(c => c.m === 'answerCallbackQuery' && /Já ignorado/.test(c.b.text || '')), '"Ignorar" vale uma vez só');
+  n0 = CALLS.length; const rq3 = { statusCode: 0, setHeader() {}, end(b) { this.corpo = b; } };
+  await telegramJs({ method: 'GET', headers: {}, query: { tick: '1' } }, rq3);
+  ok(!CALLS.slice(n0).some(c => /Chegou no e-mail/.test((c.b.caption || c.b.text || ''))), 'na próxima olhada não repete os mesmos avisos');
+  const est2 = JSON.parse((await (async () => { const r = { statusCode: 0, setHeader() {}, end(b) { this.corpo = b; } }; await telegramJs({ method: 'GET', headers: {}, query: {} }, r); return r; })()).corpo);
+  ok(est2.caixa && est2.caixa.avisados === 3 && !est2.caixa.erro && est2.caixa.ultima, 'o estado mostra a última olhada no e-mail: ' + JSON.stringify(est2.caixa));
+  await escrever('/cancelar');
 
   console.log(`\n${passos - falhas} de ${passos} conferências certas.`);
   if (falhas) { console.log(`❌ ${falhas} falha(s).`); process.exit(1); }

@@ -25385,7 +25385,7 @@ GS.lembretes=(function(){
   async function salvarPref(b){
     const box=document.getElementById('vx-lembretes'),g=k=>{const el=box&&box.querySelector(`[data-lbc="${k}"]`);return el?String(el.value||'').trim():'';};
     const cfg={resumo:g('resumo'),resumo_hora:g('resumo_hora'),aviso_reuniao:g('aviso_reuniao'),aviso_reuniao_min:g('aviso_reuniao_min'),aviso_tarde:g('aviso_tarde'),aviso_aportes:g('aviso_aportes'),
-      relatorio_semanal:g('relatorio_semanal'),alerta_caixa:g('alerta_caixa'),cobranca_dias:g('cobranca_dias'),aviso_chuva:g('aviso_chuva'),fechamento_mes:g('fechamento_mes')};
+      relatorio_semanal:g('relatorio_semanal'),alerta_caixa:g('alerta_caixa'),cobranca_dias:g('cobranca_dias'),aviso_chuva:g('aviso_chuva'),fechamento_mes:g('fechamento_mes'),email_caixa:g('email_caixa')};
     if(!/^\d{1,3}$/.test(cfg.cobranca_dias)||+cfg.cobranca_dias>180)return toast('Cobrança: de 0 (não cobra) a 180 dias.','error');
     if(g('modelo_ia'))cfg.modelo_ia=g('modelo_ia');
     if(!/^\d{2}:\d{2}$/.test(cfg.resumo_hora))return toast('Confira a hora do resumo do dia.','error');
@@ -25423,6 +25423,7 @@ GS.lembretes=(function(){
           <div class="fin-fld"><label>Cobrar nota parada há quantos dias (0 = não cobra)</label><input data-lbc="cobranca_dias" inputmode="numeric" value="${fe(c.cobranca_dias===''||c.cobranca_dias==null?'30':c.cobranca_dias)}"></div>
           <div class="fin-fld"><label>Chuva amanhã nas obras (17h, INMET)</label>${sel('aviso_chuva','Sim','Não')}</div>
           <div class="fin-fld"><label>Fechamento do mês (dia 1º, 8h)</label>${sel('fechamento_mes','Sim','Não')}</div>
+          <div class="fin-fld"><label>Boletos e notas que chegam no e-mail</label>${sel('email_caixa','Sim — avisa no Telegram','Não')}</div>
           ${T.ia?`<div class="fin-fld" style="grid-column:1/-1"><label>Assistente das perguntas (IA)</label><select data-lbc="modelo_ia">${MOD.map(([k,r])=>`<option value="${k}" ${(c.modelo_ia||'claude-opus-5-5')===k?'selected':''}>${fe(r)}</option>`).join('')}</select></div>`:`<p class="vk-dica" style="grid-column:1/-1;margin:0"><i class="fas fa-circle-check" style="color:#079455"></i> As perguntas no Telegram (ex.: <i>quanto gastei na obra X em outubro?</i>) são respondidas pelo próprio sistema — sem custo.</p>`}
         </div>
         <div class="av-bts"><button type="button" class="fin-bt pri" data-lb="pref"><i class="fas fa-floppy-disk"></i> Salvar</button></div></details>${htmlDestinos(T)}${htmlLeitura(T)}${ia}</div>`;
@@ -25431,7 +25432,13 @@ GS.lembretes=(function(){
   function htmlLeitura(T){
     const faz=`<ul class="lb-faz"><li><b>Lançar conta</b> numa obra, rateada entre obras (pelo orçamento) ou na Empresa — escrevendo (<i>lança 350 de cimento na obra X</i>), pelo comando /conta ou mandando a foto, o PDF ou o XML do boleto, da nota ou do comprovante (inclusive o da <b>maquininha de cartão</b>: no crédito parcelado, a 1ª parcela entra paga e as outras a pagar, uma por mês, para casar com a fatura na Conciliação).</li>
       <li><b>Dar baixa</b> numa conta em aberto (/pagar) · <b>buscar nota fiscal</b> e receber o PDF e o XML (/nota 1234) · <b>nova tarefa</b> (/tarefa) · <b>marcar reunião</b> (/reuniao) · <b>diesel</b> da retroescavadeira (/diesel).</li>
+      <li><b>E-mail:</b> a cada 15 minutos o robô olha a caixa de entrada do Gmail do sistema (só lê — não marca como lido, não apaga) e, quando chega <b>boleto ou nota</b> em PDF ou XML, manda no Telegram com <b>💸 Lançar conta</b> e <b>🙈 Ignorar</b>.</li>
       <li>Antes de gravar, o robô mostra um cartão para conferir (<b>✅ Lançar</b>); depois, o botão <b>Desfazer</b> manda para a Lixeira.</li></ul>`;
+    const dh=s=>{const d=new Date(s);return isNaN(d)?'':d.toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});},cx=T.caixa||{},te=T.teste;
+    const sitEmail=!T.gmailLer?'<span class="vk-dica">E-mail: o Gmail do sistema ainda não está ligado na Vercel.</span>'
+      :cx.erro?`<div class="fin-aviso laranja" style="margin:6px 0"><div><b>Caixa de e-mail:</b> ${fe(cx.erro)}. Confira no Gmail do sistema: <b>Configurações</b> (engrenagem) › <b>Ver todas as configurações</b> › <b>Encaminhamento e POP/IMAP</b> › <b>Ativar IMAP</b> › <b>Salvar alterações</b>.</div></div>`
+      :`<span class="vk-dica"><i class="fas fa-envelope-open-text"></i> ${cx.ultima?`Última olhada no e-mail: ${fe(dh(cx.ultima))}${cx.avisados?` · ${cx.avisados} aviso(s) de cobrança até agora`:' · nenhuma cobrança nova'}`:'A primeira olhada no e-mail acontece nos próximos 15 minutos.'}${T.cfg&&T.cfg.email_caixa==='nao'?' · <b>desligado</b> nas preferências':''}</span>`;
+    const sitGroq=T.groq&&te?`<span class="vk-dica"><i class="fas fa-vial"></i> Teste automático da leitura (${fe(dh(te.quando))}): foto ${te.foto?'✓':'✗'} · áudio ${te.audio?'✓':'✗'} · pedidos falados ${te.texto?'✓':'✗'}</span>`:'';
     const passos=T.groq&&T.groqOk===false?`<div class="fin-aviso laranja" style="margin:8px 0"><div><b>A chave da Groq está na Vercel, mas não funcionou:</b> ${fe(T.groqMsg||'')}. Confira na Vercel (<b>Settings</b> › <b>Environment Variables</b> › <b>GROQ_API_KEY</b>) se a chave foi colada inteira — ela começa com <b>gsk_</b>.</div></div>`
       :T.groq?`<p class="vk-dica" style="margin:8px 0"><i class="fas fa-circle-check" style="color:#079455"></i> <b>Leitura de foto e áudio ligada.</b> O robô lê a foto de qualquer boleto, nota, recibo ou comprovante da maquininha e entende áudio. A foto e o áudio vão para a Groq só para serem lidos.</p>`
       :`<p class="vk-dica" style="margin:8px 0">Sem custo, o robô já lê o <b>QR code do PIX e do cupom (NFC-e)</b>, o <b>PDF do boleto</b> e o <b>XML</b> das notas. Para ler a <b>foto de qualquer boleto, nota ou recibo</b> e entender <b>áudio</b>, ligue a leitura grátis da Groq (uma vez só, uns 3 minutos — não pede cartão de crédito):</p>
@@ -25441,11 +25448,11 @@ GS.lembretes=(function(){
         <li>Avise o Claude no chat (ele publica de novo para a chave valer).</li></ol>
       <div class="av-bts"><a class="fin-bt" href="https://console.groq.com/keys" target="_blank" rel="noopener"><i class="fas fa-arrow-up-right-from-square"></i> Abrir a Groq</a><a class="fin-bt" href="https://vercel.com/dashboard" target="_blank" rel="noopener"><i class="fas fa-arrow-up-right-from-square"></i> Abrir a Vercel</a></div>
       <p class="vk-dica" style="margin:6px 0 0">A foto e o áudio vão para a Groq só para serem lidos; nada é gravado sem você tocar em <b>✅</b> no Telegram.</p>`;
-    return `<details class="lb-pref" data-lb-ler-det${ST.lerAberta||!T.groq?' open':''}><summary><i class="fas fa-robot"></i> O que o robô faz no sistema · ler fotos e entender áudios (grátis)</summary>${faz}${passos}</details>`;
+    return `<details class="lb-pref" data-lb-ler-det${ST.lerAberta||!T.groq?' open':''}><summary><i class="fas fa-robot"></i> O que o robô faz no sistema · e-mail, fotos e áudios (grátis)</summary>${faz}${passos}<div class="lb-sit">${sitEmail}${sitGroq}</div></details>`;
   }
   // PARA QUEM VAI cada aviso automático: as conversas ligadas (caixinhas) e os e-mails de cada um (o Administrador escolhe)
   const AVISOS=[['resumo','Resumo do dia (7h)',false],['reuniao','Aviso antes das reuniões',false],['tarde','Contas de hoje ainda em aberto (16h)',false],['aportes','Aporte lançado',false],
-    ['relatorio','Relatório semanal dos sócios (segunda, 7h, com PDF)',true],['caixa','Alerta de caixa (8h)',true],['cobranca','Cobrança de nota parada (8h)',true],['chuva','Chuva amanhã nas obras (17h)',true],['fechamento','Fechamento do mês (dia 1º)',true]];
+    ['relatorio','Relatório semanal dos sócios (segunda, 7h, com PDF)',true],['caixa','Alerta de caixa (8h)',true],['cobranca','Cobrança de nota parada (8h)',true],['chuva','Chuva amanhã nas obras (17h)',true],['fechamento','Fechamento do mês (dia 1º)',true],['email','Boleto ou nota que chegou no e-mail (com "Lançar conta")',false]];
   function htmlDestinos(T){
     const d=T.destinos||{},cs=T.chats||[],avEm=((PLAN().find(p=>p.tipo==='cfg_avisos')||{}).emails)||'';
     const marcado=(k,c)=>{const x=d[k];if(x&&Array.isArray(x.chats))return x.chats.includes(String(c.id));return k==='resumo'?c.resumo!=='nao':true;};
@@ -25976,6 +25983,7 @@ input[type=search].filter-select{background-image:none;padding-right:12px;}
 .lb-tg-cab>div{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px;} .lb-tg-cab b{font-size:14.5px;color:#101828;} .lb-tg-cab small{font-size:12.5px;color:#475467;line-height:1.45;} .lb-tg-cab a{color:#1652D8;}
 .lb-passos{margin:0;padding-left:22px;display:flex;flex-direction:column;gap:7px;font-size:13px;color:#344054;line-height:1.5;}
 .lb-faz{margin:8px 0 4px;padding-left:20px;display:flex;flex-direction:column;gap:6px;font-size:13px;color:#344054;line-height:1.5;}
+.lb-sit{display:flex;flex-direction:column;gap:4px;margin-top:6px;}
 .lb-chats{display:flex;flex-direction:column;gap:6px;}
 .lb-chat{display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid #EAECF0;border-radius:12px;background:#fff;} .lb-chat>i{color:#229ED9;font-size:18px;flex:none;}
 .lb-chat>span{flex:1;min-width:0;display:flex;flex-direction:column;} .lb-chat b{font-size:13px;color:#101828;} .lb-chat em{font-style:normal;font:700 10.5px Inter,sans-serif;background:#ECFDF3;color:#067647;border-radius:999px;padding:1px 7px;margin-left:4px;} .lb-chat small{font-size:12px;color:#667085;}

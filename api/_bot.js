@@ -20,8 +20,9 @@ const R = require('./_resumo');
 const GROQ = process.env.GROQ_API_KEY || '';
 const URL_GROQ = 'https://api.groq.com/openai/v1';
 const modelos = (env, padrao) => [...new Set(String(process.env[env] || '').split(',').map(s => s.trim()).filter(Boolean).concat(padrao))];
-const M_VISAO = modelos('GROQ_VISION_MODEL', ['meta-llama/llama-4-scout-17b-16e-instruct', 'meta-llama/llama-4-maverick-17b-128e-instruct']);
-const M_TEXTO = modelos('GROQ_TEXT_MODEL', ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant']);
+// (2026: a Groq desligou os llama-4 de imagem; a foto passou para o qwen3.8 — e o teste automático acha o que funciona)
+const M_VISAO = modelos('GROQ_VISION_MODEL', ['qwen/qwen3.8-27b', 'qwen/qwen3.6-27b', 'meta-llama/llama-4-scout-17b-16e-instruct']);
+const M_TEXTO = modelos('GROQ_TEXT_MODEL', ['openai/gpt-oss-120b', 'openai/gpt-oss-20b', 'qwen/qwen3.8-27b', 'llama-3.3-70b-versatile']);
 const M_AUDIO = modelos('GROQ_AUDIO_MODEL', ['whisper-large-v3-turbo', 'whisper-large-v3']);
 // os modelos que a Groq tem hoje (ela aposenta modelos de tempos em tempos): a lista dela fica guardada por 1 hora
 let cacheMod = { t: 0, ids: null, erro: '' };
@@ -37,18 +38,47 @@ async function idsGroq() {
   } catch (e) { if (e.name === 'AbortError') throw new Error('a Groq não respondeu'); throw e; }
   finally { clearTimeout(t); }
 }
-const RE_MOD = { visao: /llama-4|vision|-vl\b|scout|maverick/i, audio: /whisper/i, texto: /llama-3\.3-70b|gpt-oss|llama-3\.1-8b|qwen|kimi|llama-4/i };
-// os preferidos que existem, depois os parecidos que a Groq tiver (se um sumir, o robô usa o próximo sozinho)
+const RE_MOD = { visao: /qwen3\.\d+-\d+b|vision|-vl\b|llama-4|scout|maverick|muse/i, audio: /whisper/i, texto: /gpt-oss|qwen|llama-3\.3-70b|llama-3\.1-8b|kimi|minimax/i };
+// o que o teste automático achou funcionando com esta chave vem primeiro (fica na tabela "arquivos", tipo telegram_groq)
+let TESTADO = { visao: '', audio: '', texto: '' }, testadoEm = 0;
+const usarTeste = t => { if (t) TESTADO = { visao: t.foto || '', audio: t.audio || '', texto: t.texto || '' }; };
+async function lerTesteGroq() { const j = (await sb('arquivos?select=id,row_data&row_data->>tipo=eq.telegram_groq&order=id.desc&limit=3')) || []; return j[0] ? { ...(j[0].row_data || {}), _id: j[0].id } : null; }
+async function carregarTestado() { if (Date.now() - testadoEm < 600e3) return; testadoEm = Date.now(); try { usarTeste(await lerTesteGroq()); } catch (e) { /* segue com a lista */ } }
+// o testado, os preferidos que existem e depois os parecidos que a Groq tiver (se um sumir, o robô usa o próximo sozinho)
 async function modelosDe(pref, tipo) {
-  let ids; try { ids = await idsGroq(); } catch (e) { return pref; }
-  const tem = pref.filter(m => ids.includes(m)), outros = ids.filter(m => RE_MOD[tipo].test(m) && !/guard|tts|playai|orpheus|compound/i.test(m) && !tem.includes(m));
-  const L = tem.concat(outros); return L.length ? L.slice(0, 4) : pref;
+  await carregarTestado();
+  const t = TESTADO[tipo];
+  let ids; try { ids = await idsGroq(); } catch (e) { return [...new Set([t].filter(Boolean).concat(pref))]; }
+  const ok = t && ids.includes(t) ? [t] : [], tem = pref.filter(m => ids.includes(m) && !ok.includes(m));
+  const outros = ids.filter(m => RE_MOD[tipo].test(m) && !/guard|tts|playai|orpheus|compound|prompt/i.test(m) && !tem.includes(m) && !ok.includes(m));
+  const L = ok.concat(tem, outros); return L.length ? L.slice(0, 4) : pref;
 }
 async function estadoGroq() {
   if (!GROQ) return { groq: false };
   try { await idsGroq(); } catch (e) { return { groq: true, groqOk: false, groqMsg: String(e.message || e) }; }
   const [v, a, t] = await Promise.all([modelosDe(M_VISAO, 'visao'), modelosDe(M_AUDIO, 'audio'), modelosDe(M_TEXTO, 'texto')]);
-  return { groq: true, groqOk: true, modelos: { foto: v[0] || '', audio: a[0] || '', texto: t[0] || '' } };
+  let teste = null; try { const x = await lerTesteGroq(); if (x) teste = { quando: x.quando, foto: x.foto, audio: x.audio, texto: x.texto, erros: x.erros || {} }; } catch (e) { /* sem teste ainda */ }
+  return { groq: true, groqOk: true, modelos: { foto: v[0] || '', audio: a[0] || '', texto: t[0] || '' }, teste };
+}
+// TESTE AUTOMÁTICO (a tarefa de 15 em 15 minutos chama; roda a cada 12 h, ou 1 h se algo falhou): manda uma imagem
+// pequena, um áudio mudo e uma pergunta curta a cada modelo da lista e guarda o primeiro que respondeu certo
+function wavMudo(seg) { const sr = 16000, n = Math.round(sr * seg), b = Buffer.alloc(44 + n * 2); b.write('RIFF', 0); b.writeUInt32LE(36 + n * 2, 4); b.write('WAVE', 8); b.write('fmt ', 12); b.writeUInt32LE(16, 16); b.writeUInt16LE(1, 20); b.writeUInt16LE(1, 22); b.writeUInt32LE(sr, 24); b.writeUInt32LE(sr * 2, 28); b.writeUInt16LE(2, 32); b.writeUInt16LE(16, 34); b.write('data', 36); b.writeUInt32LE(n * 2, 40); return b; }
+async function testarGroq(forcar) {
+  if (!GROQ) return null;
+  const ant = await lerTesteGroq().catch(() => null);
+  if (ant) usarTeste(ant);
+  const idade = ant && ant.quando ? Date.now() - new Date(ant.quando).getTime() : Infinity, falhou = !ant || !(ant.foto && ant.audio && ant.texto);
+  if (!forcar && idade < (falhou ? 3600e3 : 12 * 3600e3)) return null;
+  const r = { tipo: 'telegram_groq', quando: new Date().toISOString(), foto: '', audio: '', texto: '', erros: {} };
+  const tentar = async (lista, fn) => { for (const m of lista) { try { await fn(m); return m; } catch (e) { r.erros[m] = corta(String(e.message || e), 160); } } return ''; };
+  const img = 'data:image/jpeg;base64,' + Buffer.from(require('jpeg-js').encode({ data: Buffer.alloc(64 * 64 * 4, 230), width: 64, height: 64 }, 80).data).toString('base64');
+  const PED = 'Responda só com este JSON: {"ok": true}';
+  r.foto = await tentar(await modelosDe(M_VISAO, 'visao'), async m => { if (!(await chatUm(m, [{ role: 'user', content: [{ type: 'text', text: PED }, { type: 'image_url', image_url: { url: img } }] }], 30000, 300))) throw new Error('não devolveu os dados'); });
+  r.audio = await tentar(await modelosDe(M_AUDIO, 'audio'), async m => { await transcreverUm(m, wavMudo(1), 'teste.wav', 'audio/wav', ''); });
+  r.texto = await tentar(await modelosDe(M_TEXTO, 'texto'), async m => { if (!(await chatUm(m, [{ role: 'user', content: PED }], 25000, 300))) throw new Error('não devolveu os dados'); });
+  usarTeste(r); testadoEm = Date.now();
+  if (ant && ant._id) await sb(`arquivos?id=eq.${q(ant._id)}`, { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: { row_data: r } }); else await inserir('arquivos', r);
+  return r;
 }
 
 // ── os mesmos nomes e listas da tela ──
@@ -511,23 +541,40 @@ async function groq(caminho, corpo, ms) {
   } catch (e) { if (e.name === 'AbortError') throw new Error('a leitura demorou demais'); throw e; }
   finally { clearTimeout(t); }
 }
-// o primeiro modelo que existir (a Groq aposenta modelos de tempos em tempos; dá para trocar pela Vercel)
+// o primeiro modelo que funcionar (a Groq aposenta modelos de tempos em tempos); o erro final conta o que cada um disse
 async function comModelos(lista, fn) {
-  let ult;
-  for (const m of lista) { try { return await fn(m); } catch (e) { ult = e; if (!(e.status === 404 || (e.status === 400 && /model|decommission|not found|does not exist|not supported|unsupported/i.test(e.message)))) throw e; } }
-  throw ult || new Error('nenhum modelo disponível');
+  const erros = [];
+  for (const m of lista) {
+    try { return await fn(m); }
+    catch (e) {
+      erros.push(`${m.split('/').pop()}: ${corta(String(e.message || e), 90)}`);
+      if (!(e.status === 404 || e.status === 403 || e.status === 422 || (e.status === 400 && /model|decommission|not found|does not exist|not supported|unsupported|image|vision|modalit|access/i.test(e.message)))) { const x = new Error(erros.join(' · ')); x.status = e.status; throw x; }
+    }
+  }
+  const x = new Error(erros.join(' · ') || 'nenhum modelo disponível'); x.status = 404; throw x;
 }
 const jsonDe = t => { const s = String(t || ''), i = s.indexOf('{'), f = s.lastIndexOf('}'); if (i < 0 || f < i) return null; try { return JSON.parse(s.slice(i, f + 1)); } catch (e) { return null; } };
-async function chatJson(mensagens, lista, ms, max) {
-  return comModelos(lista, async m => {
-    const corpo = { model: m, temperature: 0, max_completion_tokens: max || 700, response_format: { type: 'json_object' }, messages: mensagens };
-    // modelos que "pensam" antes de responder (gpt-oss): pensar pouco e deixar espaço para a resposta
-    if (/gpt-oss/i.test(m)) { corpo.reasoning_effort = 'low'; corpo.max_completion_tokens = Math.max(corpo.max_completion_tokens, 2000); }
-    let j; try { j = await groq('/chat/completions', corpo, ms); }
-    catch (e) { if (e.status === 400 && /response_format|json/i.test(e.message)) { delete corpo.response_format; j = await groq('/chat/completions', corpo, ms); } else throw e; }
-    return jsonDe(j && j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content);
-  });
+// um pedido a um modelo, com o jeito de cada família: gpt-oss pensa pouco; qwen não pensa (responde direto)
+async function chatUm(m, mensagens, ms, max) {
+  const corpo = { model: m, temperature: 0, max_completion_tokens: max || 700, response_format: { type: 'json_object' }, messages: mensagens };
+  if (/gpt-oss/i.test(m)) { corpo.reasoning_effort = 'low'; corpo.include_reasoning = false; corpo.max_completion_tokens = Math.max(corpo.max_completion_tokens, 2000); }
+  else if (/qwen/i.test(m)) corpo.reasoning_effort = 'none';
+  else if (/muse/i.test(m)) { corpo.reasoning_effort = 'low'; corpo.reasoning_format = 'hidden'; corpo.max_completion_tokens = Math.max(corpo.max_completion_tokens, 3000); }
+  let j;
+  for (let tent = 0; ; tent++) {
+    try { j = await groq('/chat/completions', corpo, ms); break; }
+    catch (e) {
+      if (e.status !== 400 || tent >= 3) throw e;
+      if (/reasoning/i.test(e.message) && ('reasoning_effort' in corpo || 'reasoning_format' in corpo || 'include_reasoning' in corpo)) { delete corpo.reasoning_effort; delete corpo.reasoning_format; delete corpo.include_reasoning; continue; }
+      if (/response_format|json/i.test(e.message) && corpo.response_format) { delete corpo.response_format; continue; }
+      throw e;
+    }
+  }
+  const o = jsonDe(j && j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content);
+  if (!o) { const e = new Error('o modelo não devolveu os dados'); e.status = 422; throw e; }
+  return o;
 }
+const chatJson = (mensagens, lista, ms, max) => comModelos(lista, m => chatUm(m, mensagens, ms, max));
 const PEDIDO_FOTO = `Leia este documento de pagamento (boleto, nota fiscal/DANFE, cupom, recibo, comprovante de PIX ou transferência, comprovante da maquininha de cartão — a "via do cliente" —, conta de luz/água/telefone) e responda SÓ com um JSON neste formato:
 {"tipo":"boleto|nota|cupom|recibo|comprovante|cartao|conta_consumo|outro","fornecedor":"","cnpj_cpf":"","valor":0,"vencimento":"","data":"","pago":false,"forma":"","parcelas":1,"numero":"","descricao":"","linha_digitavel":"","chave":""}
 - fornecedor: quem RECEBE o dinheiro (beneficiário, emitente, loja, prestador ou o recebedor do PIX) — nunca o pagador, comprador ou tomador. Quem paga é a VIXSUL EMPREENDIMENTOS.
@@ -569,15 +616,17 @@ function normIA(j) {
   const ch = s('chave').replace(/\D/g, ''); if (chaveOk(ch)) o.chave = ch;
   return o;
 }
+async function transcreverUm(m, buf, nome, mime, prompt) {
+  const fd = new FormData();
+  fd.append('model', m); fd.append('language', 'pt'); fd.append('temperature', '0'); fd.append('response_format', 'json');
+  if (prompt) fd.append('prompt', prompt);
+  fd.append('file', new Blob([buf], { type: mime || 'audio/ogg' }), nome || 'audio.ogg');
+  const j = await groq('/audio/transcriptions', fd, 45000);
+  return String((j && j.text) || '').trim();
+}
 async function transcrever(buf, nome, mime, obras) {
-  return comModelos(await modelosDe(M_AUDIO, 'audio'), async m => {
-    const fd = new FormData();
-    fd.append('model', m); fd.append('language', 'pt'); fd.append('temperature', '0'); fd.append('response_format', 'json');
-    fd.append('prompt', corta('Vixsul. Lançar conta, fornecedor, obra, empresa, rateio, PIX, boleto, diesel, retroescavadeira, tarefa, reunião, nota fiscal. Obras: ' + (obras || []).join(', '), 600));
-    fd.append('file', new Blob([buf], { type: mime || 'audio/ogg' }), nome || 'audio.ogg');
-    const j = await groq('/audio/transcriptions', fd, 45000);
-    return String((j && j.text) || '').trim();
-  });
+  const prompt = corta('Vixsul. Lançar conta, fornecedor, obra, empresa, rateio, PIX, boleto, diesel, retroescavadeira, tarefa, reunião, nota fiscal. Obras: ' + (obras || []).join(', '), 600);
+  return comModelos(await modelosDe(M_AUDIO, 'audio'), m => transcreverUm(m, buf, nome, mime, prompt));
 }
 const SIS_INTENCAO = `Você transforma pedidos (escritos ou falados) para o robô do sistema de gestão de uma construtora em JSON. Responda SÓ com o JSON, sem texto em volta.
 Formato:
@@ -1023,6 +1072,7 @@ module.exports = function criarRobo(io) {
     const de = lido.fonte === 'XML' ? `no XML${d.tipo === 'nfe' ? ' da NF-e' : d.tipo === 'nfce' ? ' da NFC-e' : d.tipo === 'nfse' ? ' da NFS-e' : d.tipo === 'cte' ? ' do CT-e' : ''}${d.numero ? ' ' + d.numero : ''}`
       : lido.fonte === 'PDF' ? (d.tipo === 'boleto' ? 'na linha digitável do boleto (PDF)' : 'no PDF')
       : lido.fonte === 'código' ? (d.tipo === 'pix' ? 'no código do PIX' : 'na linha digitável do boleto')
+      : lido.fonte === 'e-mail' ? (d.tipo === 'pix' ? 'no código do PIX do e-mail' : 'na linha digitável do e-mail')
       : lido.qr ? (d.tipo === 'pix' ? 'no QR code do PIX' : 'no QR code do cupom (consulta da SEFAZ)') : d.tipo === 'cartao' ? 'no comprovante da maquininha' : 'na foto';
     if (P.length) return `Li ${de}: ${P.join(' · ')}`;
     if (lido.fonte === 'PDF' && lido.semTexto) return 'Este PDF é uma imagem (sem texto): não consegui ler sozinho. Mande uma foto dele.' + (GROQ ? '' : ' (A leitura de fotos precisa da chave grátis da Groq.)');
@@ -1088,6 +1138,125 @@ module.exports = function criarRobo(io) {
     if (!t) { await mandar(ctx.chat, 'Não ouvi nada nesse áudio. Tente de novo, falando mais perto do celular.'); return null; }
     await mandar(ctx.chat, '🎤 <i>' + esc(corta(t, 900)) + '</i>');
     return t;
+  }
+
+  /* ─────────────── CAIXA DE E-MAIL: boletos e notas que chegam no Gmail ───────────────
+     A cada 15 minutos (tarefa do GitHub → tick) o robô abre a Caixa de entrada do Gmail do sistema (GMAIL_USER e a senha
+     de app GMAIL_APP_PASSWORD, as mesmas do envio) SÓ PARA LER — não marca como lido, não apaga, não move. Dos e-mails
+     novos, lê os anexos PDF e XML (e, sem anexo, a linha digitável ou o PIX escritos no e-mail) e, quando é boleto, nota
+     ou cobrança, manda no Telegram o arquivo com os botões "Lançar conta" e "Ignorar". Nada é lançado sem o ✅ do cartão.
+     O marcador (último e-mail lido) e as marcas dos já avisados ficam na tabela "arquivos" (tipo telegram_caixa); o que
+     foi lido de cada aviso fica cifrado (tipo telegram_email) por 20 dias, para o botão "Lançar conta". */
+  const G_USER = process.env.GMAIL_USER || '', G_PASS = String(process.env.GMAIL_APP_PASSWORD || '').replace(/\s+/g, '');
+  const COBRANCA = /boleto|fatura|nota\s*fiscal|nf-?e|nfs-?e|danfe|cobran[çc]a|vencimento|pagamento|duplicata|recibo|xml|pix/i;
+  const chaveItem = id => crypto.createHmac('sha256', TOKEN).update('email|' + id).digest('hex').slice(0, 24);
+  async function estadoCaixa() { const j = (await sb('arquivos?select=id,row_data&row_data->>tipo=eq.telegram_caixa&order=id.desc&limit=3')) || []; j.slice(1).forEach(x => apagarLinha('arquivos', x.id).catch(() => {})); return j[0] ? { ...(j[0].row_data || {}), _id: j[0].id } : {}; }
+  async function gravarCaixa(o) { const { _id, ...d } = o; d.tipo = 'telegram_caixa'; if (_id) await sb(`arquivos?id=eq.${q(_id)}`, { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: { row_data: d } }); else await inserir('arquivos', d); }
+  const semHtml = s => String(s || '').replace(/<(style|script)[\s\S]*?<\/\1>/gi, ' ').replace(/<br\s*\/?>|<\/(p|div|tr|li|td|h\d)>/gi, '\n').replace(/<[^>]+>/g, ' ').replace(/&nbsp;/gi, ' ').replace(/&amp;/gi, '&').replace(/&lt;/gi, '<').replace(/&gt;/gi, '>').replace(/&#(\d+);/g, (x, n) => String.fromCharCode(+n)).replace(/[ \t]+/g, ' ');
+  // vale avisar? (boleto, nota, chave de acesso, PIX ou comprovante — e com valor)
+  function relevancia(d, texto) {
+    if (!d || !(d.valor > 0)) return 0;
+    let p = 1;
+    if (d.tipo === 'boleto') p += 5; if (/^(nfe|nfce|nfse|cte)$/.test(d.tipo || '')) p += 4; if (d.chave) p += 3; if (d.tipo === 'pix') p += 3; if (d.tipo === 'cartao') p += 2;
+    if (COBRANCA.test(texto || '')) p += 1;
+    return p >= 3 ? p : 0;
+  }
+  async function baixarParte(cli, uid, part) {
+    const { content } = await cli.download(String(uid), part || '1', { uid: true });   // e-mail de uma parte só: a parte "1" é o corpo
+    const pedacos = []; let total = 0;
+    for await (const c of content) { total += c.length; if (total > 9e6) throw new Error('anexo grande demais'); pedacos.push(Buffer.from(c)); }
+    return Buffer.concat(pedacos);
+  }
+  const erroImap = e => { const m = String((e && (e.responseText || e.message)) || e || ''); if ((e && e.authenticationFailed) || /AUTHENTICATIONFAILED|Invalid credentials|authentication failed|Application-specific/i.test(m)) return 'o Gmail não aceitou a senha de app para ler a caixa de entrada'; if (/ETIMEDOUT|ECONN|timeout|socket/i.test(m)) return 'o Gmail não respondeu a tempo'; return corta(m, 160); };
+  async function caixaEmail(chats) {
+    if (!G_USER || !G_PASS) return { lidos: 0, avisos: 0, msg: 'sem Gmail' };
+    const est = await estadoCaixa();
+    try { return await lerCaixa(est, chats); }
+    catch (e) { const msg = erroImap(e); try { await gravarCaixa({ ...est, erro: msg, erro_em: new Date().toISOString() }); } catch (x) { /* nada */ } throw new Error(msg); }
+  }
+  async function lerCaixa(est, chats) {
+    const { ImapFlow } = require('imapflow');
+    const cli = new ImapFlow({ host: 'imap.gmail.com', port: 993, secure: true, auth: { user: G_USER, pass: G_PASS }, logger: false, socketTimeout: 40000 });
+    cli.on('error', () => {});   // queda da conexão depois de terminar não derruba a função
+    const achados = []; let lidos = 0, maior = +est.uid || 0, uidv = String(est.uidv || '');
+    await cli.connect();
+    try {
+      const lock = await cli.getMailboxLock('INBOX', { readOnly: true });
+      try {
+        const mb = cli.mailbox || {}; uidv = String(mb.uidValidity || '');
+        const primeira = est.uid == null || est.uid === '' || String(est.uidv || '') !== uidv;
+        // 1ª vez (ou a caixa mudou): os e-mails dos últimos 3 dias; depois, só os que chegaram depois do último lido
+        let uids = primeira ? await cli.search({ since: new Date(Date.now() - 3 * 864e5) }, { uid: true }) : await cli.search({ uid: `${(+est.uid) + 1}:*` }, { uid: true });
+        uids = (uids || []).map(Number).filter(u => u > 0 && (primeira || u > +est.uid)).sort((a, b) => a - b);
+        if (primeira) { if (uids.length > 8) uids = uids.slice(-8); if (!uids.length) maior = Math.max(0, Number(mb.uidNext || 1) - 1); }
+        const lote = uids.slice(0, 8);   // até 8 por vez: o resto fica para os próximos 15 minutos
+        const msgs = [];
+        if (lote.length) for await (const m of cli.fetch(lote, { uid: true, envelope: true, bodyStructure: true }, { uid: true })) msgs.push(m);
+        msgs.sort((a, b) => Number(a.uid) - Number(b.uid));
+        for (const m of msgs) {
+          lidos++; maior = Math.max(maior, Number(m.uid));
+          const partes = []; (function andar(n) { if (!n) return; if (n.childNodes && n.childNodes.length) n.childNodes.forEach(andar); else partes.push(n); })(m.bodyStructure);
+          const nomeDe = p => String((p.dispositionParameters && p.dispositionParameters.filename) || (p.parameters && p.parameters.name) || '');
+          const anexos = partes.filter(p => { const t = String(p.type || '').toLowerCase(), n = nomeDe(p).toLowerCase(); return (/pdf|xml/.test(t) || /\.(pdf|xml)$/.test(n)) && (p.size || 0) <= 8e6; }).slice(0, 4);
+          const corpoP = partes.find(p => /^text\/plain/i.test(p.type || '')) || partes.find(p => /^text\/html/i.test(p.type || ''));
+          const env = m.envelope || {}, f0 = (env.from || [])[0] || {}, assunto = String(env.subject || ''), de = f0.name ? `${f0.name} <${f0.address || ''}>` : String(f0.address || '');
+          if (!anexos.length && !COBRANCA.test(assunto)) continue;   // sem anexo e sem cara de cobrança: nem abre
+          let melhor = null;
+          for (const p of anexos) {
+            let buf; try { buf = await baixarParte(cli, m.uid, p.part); } catch (e) { continue; }
+            const ehXml = /xml/i.test(p.type || '') || /\.xml$/i.test(nomeDe(p)), nome = nomeDe(p) || (ehXml ? 'nota.xml' : 'documento.pdf');
+            let lido; try { lido = await lerDocumento(buf, ehXml ? 'application/xml' : 'application/pdf', nome); } catch (e) { continue; }
+            const pontos = relevancia(lido.d, assunto + ' ' + nome);
+            if (pontos && (!melhor || pontos > melhor.pontos)) melhor = { lido, buf, nome, mime: ehXml ? 'application/xml' : 'application/pdf', pontos };
+          }
+          // sem anexo útil: a linha digitável ou o PIX escritos no próprio e-mail
+          if (!melhor && corpoP && (corpoP.size || 0) <= 300e3) {
+            try { const d = lerTextoDoc(semHtml((await baixarParte(cli, m.uid, corpoP.part)).toString('utf8'))); if ((d.tipo === 'boleto' || d.tipo === 'pix') && relevancia(d, assunto)) melhor = { lido: { d, fonte: 'e-mail' }, pontos: 1 }; } catch (e) { /* segue */ }
+          }
+          if (!melhor) continue;
+          const d = melhor.lido.d;
+          if (String(d.cnpj || '').replace(/\D/g, '') === CNPJ_VIXSUL) continue;                  // nota emitida pela própria Vixsul
+          if (d.destCnpj && String(d.destCnpj).replace(/\D/g, '') !== CNPJ_VIXSUL) continue;      // nota de outra empresa
+          const marca = crypto.createHash('sha256').update(d.linha || d.chave || [d.cnpj || f0.address || '', d.valor, d.venc || d.data || '', d.numero || ''].join('|')).digest('hex').slice(0, 16);
+          if ((est.vistos || []).includes(marca)) continue;                                         // o mesmo boleto já foi avisado
+          est.vistos = (est.vistos || []).concat(marca).slice(-300);
+          achados.push({ ...melhor, de, assunto });
+        }
+      } finally { lock.release(); }
+    } finally { try { await cli.logout(); } catch (e) { try { cli.close(); } catch (x) { /* nada */ } } }
+    for (const a of achados) { try { await avisarEmail(a, chats); } catch (e) { console.error('aviso de e-mail', e && e.message); } }
+    await gravarCaixa({ ...est, uid: maior, uidv, ultima: new Date().toISOString(), ultimo_aviso: achados.length ? new Date().toISOString() : (est.ultimo_aviso || ''), avisados: (+est.avisados || 0) + achados.length, erro: '' });
+    return { lidos, avisos: achados.length };
+  }
+  async function avisarEmail(a, chats) {
+    if (!chats.length) return;
+    const d = a.lido.d, id = crypto.randomBytes(6).toString('hex');
+    const forn = d.forn || (d.cnpj && String(d.cnpj).replace(/\D/g, '').length === 14 ? await nomePorCnpj(d.cnpj) : '');
+    let ja = ''; try { ja = await duplicada({ valor: d.valor, venc: d.venc || '', pago: '' }); } catch (e) { ja = ''; }
+    const tipo = d.tipo === 'boleto' ? 'boleto' : /^(nfe|nfce)$/.test(d.tipo || '') ? 'nota fiscal (NF-e)' : d.tipo === 'nfse' ? 'nota de serviço (NFS-e)' : d.tipo === 'cte' ? 'frete (CT-e)' : d.tipo === 'pix' ? 'cobrança por PIX' : 'cobrança';
+    const txt = `📧 <b>Chegou no e-mail: ${tipo}</b>\n${forn ? '<b>' + esc(corta(forn, 60)) + '</b> · ' : ''}<b>${reais(d.valor)}</b>${d.venc ? ' · vence ' + brAno(d.venc) : ''}${(d.parcelas || []).length > 1 ? ` · ${d.parcelas.length} parcelas` : ''}${d.numero ? ' · nº ' + esc(d.numero) : ''}`
+      + `\nDe: ${esc(corta(a.de, 70))}${a.assunto ? '\nAssunto: ' + esc(corta(a.assunto, 110)) : ''}${ja ? '\n⚠️ ' + esc(corta(ja, 200)) : ''}\n\nToque em <b>Lançar conta</b> e eu preparo a conta (você confere antes de gravar).`;
+    const kb = [[{ text: '💸 Lançar conta', callback_data: `e:${id}:l` }, { text: '🙈 Ignorar', callback_data: `e:${id}:i` }]];
+    await inserir('arquivos', { tipo: 'telegram_email', chave: chaveItem(id), dados: cifrar({ lido: { d, fonte: a.lido.fonte, qr: !!a.lido.qr }, forn, de: a.de, assunto: a.assunto }), expira: new Date(Date.now() + 20 * 864e5).toISOString() });
+    for (const c of chats) {
+      try { if (a.buf) await mandarArq(c.chat_id, a.buf, nomeArq(a.nome), a.mime, txt, kb); else await mandar(c.chat_id, txt, kb); }
+      catch (e) { try { await mandar(c.chat_id, txt, kb); } catch (x) { /* segue para o próximo */ } }
+    }
+  }
+  // botões do aviso de e-mail: "Lançar conta" abre o cartão da conta já preenchido; "Ignorar" só tira os botões
+  async function botaoEmail(ctx, cq) {
+    const ok = t => tg('answerCallbackQuery', { callback_query_id: cq.id, text: t || '' }).catch(() => {});
+    const [, id, a] = String(cq.data || '').split(':');
+    const tirar = () => cq.message ? tg('editMessageReplyMarkup', { chat_id: ctx.chat, message_id: cq.message.message_id, reply_markup: { inline_keyboard: [] } }).catch(() => {}) : null;
+    const x = ((await sb(`arquivos?select=id,row_data&row_data->>tipo=eq.telegram_email&row_data->>chave=eq.${chaveItem(id)}&limit=1`)) || [])[0];
+    let item = null; try { item = x && decifrar(x.row_data.dados); } catch (e) { item = null; }
+    if (!item) { ok('Este aviso não vale mais.'); return tirar(); }
+    if (x.row_data.usado) { ok(`Já ${x.row_data.usado === 'ignorado' ? 'ignorado' : 'foi para lançamento'}${x.row_data.por ? ' por ' + x.row_data.por : ''}.`); return tirar(); }
+    await sb(`arquivos?id=eq.${q(x.id)}`, { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: { row_data: { ...x.row_data, usado: a === 'l' ? 'lancado' : 'ignorado', por: ctx.usuario || '' } } });
+    await tirar();
+    if (a !== 'l') return ok('Ignorado');
+    ok('Preparando a conta…');
+    return iniciarDeLeitura(ctx, { ...item.lido, d: { ...item.lido.d, forn: item.lido.d.forn || item.forn || '' } }, '');
   }
 
   /* ─────────────── DAR BAIXA ─────────────── */
@@ -1471,9 +1640,11 @@ module.exports = function criarRobo(io) {
     return ok();
   }
   // rascunhos vencidos saem do banco (a tarefa de 15 em 15 minutos chama)
-  async function limpar() { await sb(`arquivos?row_data->>tipo=eq.telegram_fluxo&row_data->>expira=lt.${q(new Date().toISOString())}`, { method: 'DELETE', headers: { Prefer: 'return=minimal' } }); }
-  return { comando, texto, textoIA: (ctx, t) => GROQ ? porIA(ctx, t) : false, botao, arquivo, audio, limpar, temGroq: () => !!GROQ, estadoGroq };
+  async function limpar() { await sb(`arquivos?row_data->>tipo=in.(telegram_fluxo,telegram_email)&row_data->>expira=lt.${q(new Date().toISOString())}`, { method: 'DELETE', headers: { Prefer: 'return=minimal' } }); }
+  // o que a tela e o estado mostram da caixa de e-mail (sem nada do conteúdo dos e-mails)
+  async function infoCaixa() { const e = await estadoCaixa().catch(() => ({})); return { ultima: e.ultima || '', erro: e.erro || '', erro_em: e.erro_em || '', avisados: +e.avisados || 0, ultimo_aviso: e.ultimo_aviso || '' }; }
+  return { comando, texto, textoIA: (ctx, t) => GROQ ? porIA(ctx, t) : false, botao, botaoEmail, arquivo, audio, limpar, caixaEmail, infoCaixa, temGroq: () => !!GROQ, estadoGroq, testarGroq, temGmail: () => !!(G_USER && G_PASS) };
 };
 // para os testes (funções que não falam com ninguém)
-module.exports.teste = { chatJson, lerMaquininha, modelosDe, estadoGroq, cnpjOk, numBR, valorDe, dataDe, horaDe, formaDe, fornDe, trechoObra, obrasNoTexto, chutarCat, limparDesc, lerFrase, lerTarefa, lerReuniao, lerDiesel, intencao, numerosPorExtenso, lerPix, crc16, boletoDe, acharBoleto, chaveOk, acharChave, lerCodigo, lerXml, lerTextoDoc, normIA, qrDaImagem, textoPdf, somaMes, isoOk, tipoAcao, tipoReu, dataFator };
+module.exports.teste = { chatJson, chatUm, testarGroq, wavMudo, lerMaquininha, modelosDe, estadoGroq, cnpjOk, numBR, valorDe, dataDe, horaDe, formaDe, fornDe, trechoObra, obrasNoTexto, chutarCat, limparDesc, lerFrase, lerTarefa, lerReuniao, lerDiesel, intencao, numerosPorExtenso, lerPix, crc16, boletoDe, acharBoleto, chaveOk, acharChave, lerCodigo, lerXml, lerTextoDoc, normIA, qrDaImagem, textoPdf, somaMes, isoOk, tipoAcao, tipoReu, dataFator };
 module.exports.GROQ = () => !!GROQ;

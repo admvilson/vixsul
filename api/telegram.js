@@ -82,8 +82,10 @@ async function mandar(chat_id, texto, teclado) {
 }
 async function paraTodos(chats, texto, teclado) { const falhas = []; for (const c of chats) { try { await mandar(c.chat_id, texto, teclado); } catch (e) { falhas.push((c.nome || c.chat_id) + ': ' + e.message); } } return falhas; }
 // um arquivo (o PDF do relatório, o PDF e o XML de uma nota) no Telegram
-async function mandarArq(chat_id, buf, nome, mime, legenda) {
+async function mandarArq(chat_id, buf, nome, mime, legenda, teclado) {
   const fd = new FormData(); fd.append('chat_id', String(chat_id)); if (legenda) fd.append('caption', String(legenda).slice(0, 1000));
+  // com botões (aviso de boleto do e-mail): legenda em HTML e os botões embaixo do arquivo
+  if (teclado) { fd.append('parse_mode', 'HTML'); fd.append('reply_markup', JSON.stringify({ inline_keyboard: teclado })); }
   fd.append('document', new Blob([buf], { type: mime || 'application/octet-stream' }), nome);
   let r; try { r = await fetch(`https://api.telegram.org/bot${TOKEN}/sendDocument`, { method: 'POST', body: fd }); } catch (e) { throw new Error('O Telegram não respondeu (internet do servidor).'); }
   const j = await r.json().catch(() => null); if (!j || !j.ok) throw new Error((j && j.description) || ('O Telegram respondeu ' + r.status)); return j.result;
@@ -94,7 +96,7 @@ const BOT = require('./_bot')({ tg, mandar, mandarArq, TOKEN });
 /* PARA QUEM VAI cada aviso automático — o Administrador escolhe em Agenda › Lembretes e Telegram ("Para quem vai"):
    cfg_telegram.destinos = { aviso: { chats: [ids das conversas ligadas] , emails: 'a@b.com, c@d.com' } }.
    Sem escolha: todas as conversas ligadas; e-mail só no relatório semanal e no fechamento (os dos Avisos por e-mail). */
-const AUTOS = ['resumo', 'reuniao', 'tarde', 'aportes', 'relatorio', 'caixa', 'cobranca', 'chuva', 'fechamento'];
+const AUTOS = ['resumo', 'reuniao', 'tarde', 'aportes', 'relatorio', 'caixa', 'cobranca', 'chuva', 'fechamento', 'email'];
 const COM_EMAIL = ['relatorio', 'caixa', 'cobranca', 'chuva', 'fechamento'];
 function chatsPara(st, k) {
   const d = (st.cfg.destinos || {})[k];
@@ -177,6 +179,7 @@ const ajuda = () => `<b>O que eu faço</b>
 /diesel — abastecimento da retroescavadeira. Ex.: <i>/diesel 120 litros 750 reais obra Itarantim</i>
 /cancelar — desistir do que estiver pela metade
 📷 Mande a <b>foto</b>, o <b>PDF</b> ou o <b>XML</b> do boleto, da nota ou do comprovante (ou cole o código do PIX ou a linha do boleto): eu leio o valor e preparo a conta.
+📧 Eu também olho o <b>e-mail</b> da empresa e aviso quando chega boleto ou nota, com o botão <b>Lançar conta</b>.
 🎤 Mande <b>áudio</b> falando o que quer${BOT.temGroq() ? '' : ' (falta ligar a leitura grátis de foto e áudio — Agenda › Lembretes e Telegram)'}.
 
 ${CHAVE_IA ?'Ou escreva uma pergunta, como: <i>quanto gastei na obra de Itarantim em outubro?</i>, <i>quais contas vencem esta semana?</i> ou <i>me lembra sexta às 10h de ligar para o fiscal</i>. Para continuar um assunto, responda (deslize para a esquerda) a minha mensagem.' : 'Ou escreva a pergunta do seu jeito. ' + P.EXEMPLOS + '\n• <i>me lembra sexta às 10h de ligar para o fiscal</i>'}
@@ -396,7 +399,10 @@ async function aoBotao(cq, st) {
   const ok = txt => tg('answerCallbackQuery', { callback_query_id: cq.id, text: txt || '' }).catch(() => {});
   if (!chat || !st.chats.some(c => String(c.chat_id) === chat)) return ok('Conversa não ligada ao sistema.');
   // botões dos cartões do robô (conta, baixa, nota, tarefa, reunião, diesel)
-  if (String(cq.data || '').startsWith('b:')) { const meu = st.chats.find(c => String(c.chat_id) === chat); return BOT.botao({ chat, meu, uid: meu.usuario_uid || '', usuario: meu.usuario || '', st }, cq); }
+  if (/^[be]:/.test(String(cq.data || ''))) {
+    const meu = st.chats.find(c => String(c.chat_id) === chat), ctx = { chat, meu, uid: meu.usuario_uid || '', usuario: meu.usuario || '', st };
+    return String(cq.data).startsWith('e:') ? BOT.botaoEmail(ctx, cq) : BOT.botao(ctx, cq);   // e: = aviso de boleto/nota do e-mail
+  }
   const [acao, id, extra] = String(cq.data || '').split(':');
   const l = st.lembretes.find(x => String(x._id) === id);
   if (!l) return ok('Lembrete não encontrado.');
@@ -481,7 +487,9 @@ async function tick() {
   if (hora >= '07:00') { try { const r = await require('./avisos').diario(); if (r && r.enviado) feito.push('e-mail do dia'); } catch (e) { feito.push('e-mail: ' + e.message); } }
   if (!TOKEN) return { ok: true, feito, msg: 'O robô do Telegram ainda não foi configurado.' };
   const st = await estadoBanco(), cfg = st.cfg, mud = {};
-  await BOT.limpar().catch(() => {});   // rascunhos de conversa vencidos saem do banco
+  await BOT.limpar().catch(() => {});   // rascunhos de conversa e avisos de e-mail vencidos saem do banco
+  // teste automático da Groq (a cada 12 h; 1 h se algo falhou): acha os modelos de foto, áudio e texto que funcionam
+  try { const g = await BOT.testarGroq(); if (g) feito.push(`groq testada: foto ${g.foto || 'NENHUM'} · áudio ${g.audio || 'NENHUM'} · texto ${g.texto || 'NENHUM'}`); } catch (e) { feito.push('groq: ' + e.message); }
   // o robô se liga sozinho (webhook e comandos) assim que a chave aparece na Vercel — e de novo quando os comandos mudam
   if (cfg.bot_versao !== VERSAO_BOT) { try { await ligarRobo(st); feito.push('robô ligado: @' + st.cfg.bot); } catch (e) { feito.push('robô: ' + e.message); } }
   const chats = st.chats, temTg = chats.length > 0;
@@ -586,6 +594,11 @@ async function tick() {
     mud.ultima_chuva = hj;
     try { const L = await RL.chuva(await dados(), hj); if (L.length) { await paraTodos(chatsPara(st, 'chuva'), textoChuva(L)); await emailAuto(st, 'chuva', 'Previsão de chuva amanhã', [['Previsão de chuva amanhã', semTags(textoChuva(L))]]); feito.push('chuva'); } } catch (e) { feito.push('chuva: ' + e.message); }
   }
+  // 10) boletos e notas que chegaram no e-mail (Gmail, só leitura): aviso no Telegram com "Lançar conta" e "Ignorar"
+  if (temTg && cfg.email_caixa !== 'nao' && BOT.temGmail()) {
+    try { const r = await BOT.caixaEmail(chatsPara(st, 'email')); if (r.avisos) feito.push(`e-mail: ${r.avisos} aviso(s) de cobrança`); else if (r.lidos) feito.push(`e-mail: ${r.lidos} novo(s), nenhum de cobrança`); }
+    catch (e) { feito.push('caixa de e-mail: ' + e.message); }
+  }
   if (Object.keys(mud).length) await gravarCfg(st, mud);
   return { ok: true, feito };
 }
@@ -603,7 +616,8 @@ async function ligarRobo(st) {
 // ── o que o sistema pede (Administrador logado) ──
 async function estadoPublico(st, comWebhook, uid) {
   const o = { ok: true, token: !!TOKEN, ia: !!CHAVE_IA, groq: BOT.temGroq(), bot: st.cfg.bot || '', modelos: MODELOS,
-    cfg: ['resumo', 'resumo_hora', 'aviso_reuniao', 'aviso_reuniao_min', 'aviso_tarde', 'aviso_aportes', 'relatorio_semanal', 'alerta_caixa', 'cobranca_dias', 'aviso_chuva', 'fechamento_mes', 'modelo_ia', 'esforco_ia'].reduce((a, k) => { a[k] = st.cfg[k] || ''; return a; }, {}),
+    cfg: ['resumo', 'resumo_hora', 'aviso_reuniao', 'aviso_reuniao_min', 'aviso_tarde', 'aviso_aportes', 'relatorio_semanal', 'alerta_caixa', 'cobranca_dias', 'aviso_chuva', 'fechamento_mes', 'email_caixa', 'modelo_ia', 'esforco_ia'].reduce((a, k) => { a[k] = st.cfg[k] || ''; return a; }, {}),
+    gmailLer: BOT.temGmail(), caixa: await BOT.infoCaixa(),
     email: E.emailPronto(), destinos: st.cfg.destinos || {},
     chats: st.chats.map(c => ({ id: c._id, nome: c.nome || '', usuario: c.usuario || '', ligado_em: c.ligado_em || '', resumo: c.resumo || 'sim', meu: !!uid && c.usuario_uid === uid })) };
   if (TOKEN && comWebhook) { try { const w = await tg('getWebhookInfo', {}); o.webhook = w.url === URL_WEBHOOK; o.pendentes = w.pending_update_count || 0; o.erro = w.last_error_message || ''; } catch (e) { o.erroTelegram = e.message; } }
@@ -652,7 +666,7 @@ async function acaoSistema(b, l) {
   }
   if (b.acao === 'salvar') {
     const c = b.cfg || {}, mud = {};
-    ['resumo', 'aviso_reuniao', 'aviso_tarde', 'aviso_aportes', 'relatorio_semanal', 'alerta_caixa', 'aviso_chuva', 'fechamento_mes'].forEach(k => { if (c[k] != null) mud[k] = c[k] === 'nao' ? 'nao' : 'sim'; });
+    ['resumo', 'aviso_reuniao', 'aviso_tarde', 'aviso_aportes', 'relatorio_semanal', 'alerta_caixa', 'aviso_chuva', 'fechamento_mes', 'email_caixa'].forEach(k => { if (c[k] != null) mud[k] = c[k] === 'nao' ? 'nao' : 'sim'; });
     if (c.cobranca_dias != null) mud.cobranca_dias = String(Math.min(180, Math.max(0, parseInt(c.cobranca_dias, 10) || 0)));
     if (/^\d{2}:\d{2}$/.test(c.resumo_hora || '')) mud.resumo_hora = c.resumo_hora;
     if (c.aviso_reuniao_min != null) mud.aviso_reuniao_min = String(Math.min(240, Math.max(10, +c.aviso_reuniao_min || 60)));
@@ -691,7 +705,7 @@ module.exports = async (req, res) => {
     // 2) a tarefa agendada (GitHub) — e um estado mínimo, sem dados, para conferir se está configurado
     if (req.method === 'GET') {
       if (req.query && req.query.tick) return responder(200, await tick());
-      return responder(200, { ok: true, token: !!TOKEN, ia: !!CHAVE_IA, email: E.emailPronto(), ...(await BOT.estadoGroq().catch(e => ({ groq: BOT.temGroq(), groqOk: false, groqMsg: e.message }))) });
+      return responder(200, { ok: true, token: !!TOKEN, ia: !!CHAVE_IA, email: E.emailPronto(), ...(await BOT.estadoGroq().catch(e => ({ groq: BOT.temGroq(), groqOk: false, groqMsg: e.message }))), caixa: await BOT.infoCaixa() });
     }
     if (req.method !== 'POST') return responder(405, { ok: false, msg: 'Use GET ou POST.' });
     // 3) o sistema (Administrador logado)
