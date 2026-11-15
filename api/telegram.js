@@ -1,0 +1,519 @@
+/* TELEGRAM — o robô da Vixsul no celular: lembretes, avisos e perguntas sobre os números do sistema.
+   - O robô é criado pelo dono no Telegram (@BotFather); a chave dele fica SÓ na Vercel (TELEGRAM_BOT_TOKEN).
+   - "Ligar o robô" (no sistema) aponta o Telegram para esta função (webhook com senha própria, tirada da chave).
+   - "Ligar meu Telegram" gera um link de uso único (30 minutos) para o Administrador logado: ao tocar em Iniciar, a
+     conversa fica ligada ao usuário dele. O banco guarda só o resumo (HMAC) do código, e cada conversa ligada leva uma
+     assinatura feita com a chave do robô — linha forjada ou alterada no banco por outra pessoa não vale.
+   - Só conversa ligada recebe resposta. Comandos: /hoje /contas /agenda /aportes /obras /lembretes /lembrar /ajuda;
+     texto livre vai para a IA (Claude, pela ANTHROPIC_API_KEY), que responde pelos números do sistema e cria lembretes.
+   - GET ?tick=1 (tarefa "Lembretes do Telegram" do GitHub, a cada 15 minutos): manda os lembretes que chegaram na hora,
+     o aviso antes das reuniões, o resumo do dia, as contas de hoje ainda abertas (16h), os aportes lançados e, de
+     reserva, o e-mail do dia (avisos.js). Só grava no banco quando manda alguma coisa (cada gravação faz os sistemas
+     abertos recarregarem os dados).
+   - POST do sistema (Administrador logado): estado, conectar, vincular, testar, resumo, desligar, salvar. */
+const crypto = require('crypto');
+const { ORIGENS, cors, exigirLogin } = require('./_auth');
+const R = require('./_resumo');
+
+const TOKEN = process.env.TELEGRAM_BOT_TOKEN || '';
+const CHAVE_SB = process.env.SUPABASE_SERVICE_KEY || '';
+const CHAVE_IA = process.env.ANTHROPIC_API_KEY || '';
+const URL_WEBHOOK = 'https://vixsul.vercel.app/api/telegram';
+const SITE = 'https://gestao.vixsulempreendimentos.com.br';
+const MODELOS = ['claude-opus-5-5', 'claude-sonnet-5-5', 'claude-haiku-5-5'];
+const esc = R.escH;
+
+// ── segredos tirados da chave do robô (trocar o robô invalida tudo, como deve ser) ──
+const hmac = txt => crypto.createHmac('sha256', TOKEN).update(String(txt)).digest('hex');
+const segredoWebhook = () => hmac('webhook').slice(0, 48);
+const assinaturaChat = c => hmac(`chat|${c.chat_id}|${c.usuario_uid || ''}`).slice(0, 32);
+const hashCodigo = cod => hmac('vinculo|' + cod).slice(0, 40);
+const iguais = (a, b) => { const x = Buffer.from(String(a || '')), y = Buffer.from(String(b || '')); return x.length === y.length && crypto.timingSafeEqual(x, y); };
+
+// ── horário da Bahia (UTC−3) ──
+const agoraStr = () => R.agoraBahia().toISOString().slice(0, 16);              // 'AAAA-MM-DDTHH:MM'
+const somaMin = (s, n) => new Date(new Date(s + ':00Z').getTime() + n * 60e3).toISOString().slice(0, 16);
+const minutos = (a, b) => Math.round((new Date(b + ':00Z') - new Date(a + ':00Z')) / 60e3);
+const DIAS = ['domingo', 'segunda-feira', 'terça-feira', 'quarta-feira', 'quinta-feira', 'sexta-feira', 'sábado'];
+const diaSem = d => DIAS[new Date(d + 'T12:00:00Z').getUTCDay()];
+const quandoBR = q => { const hj = agoraStr().slice(0, 10), d = q.slice(0, 10); return `${d === hj ? 'hoje' : d === R.somaDias(hj, 1) ? 'amanhã' : diaSem(d)}, ${R.brAno(d)} às ${q.slice(11, 16)}`; };
+const REPETE = { nao: 'não repete', diario: 'todo dia', semanal: 'toda semana', mensal: 'todo mês' };
+
+// ── Telegram ──
+async function tg(metodo, corpo) {
+  let r;
+  try { r = await fetch(`https://api.telegram.org/bot${TOKEN}/${metodo}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(corpo || {}) }); }
+  catch (e) { throw new Error('O Telegram não respondeu (internet do servidor).'); }
+  let j = null; try { j = await r.json(); } catch (e) { j = null; }
+  if (!j || !j.ok) { const e = new Error((j && j.description) || ('O Telegram respondeu ' + r.status)); e.codigo = j && j.error_code; throw e; }
+  return j.result;
+}
+const semTags = s => String(s).replace(/<[^>]+>/g, '').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&amp;/g, '&');
+// quebra o texto em pedaços de até ~3.900 letras (o Telegram aceita 4.096), sempre entre parágrafos ou linhas
+function pedacos(txt, max = 3900) {
+  const out = []; let atual = '';
+  const poe = b => { if (!atual) atual = b; else if ((atual + '\n\n' + b).length <= max) atual += '\n\n' + b; else { out.push(atual); atual = b; } };
+  for (const bloco of String(txt).split('\n\n')) {
+    if (bloco.length <= max) { poe(bloco); continue; }
+    let parte = '';
+    for (let linha of bloco.split('\n')) {
+      if (linha.length > max) linha = esc(semTags(linha).slice(0, max - 20)) + '…';
+      if (parte && (parte + '\n' + linha).length > max) { poe(parte); parte = linha; } else parte = parte ? parte + '\n' + linha : linha;
+    }
+    if (parte) poe(parte);
+  }
+  if (atual) out.push(atual);
+  return out.length ? out : [''];
+}
+async function mandar(chat_id, texto, teclado) {
+  const partes = pedacos(texto); let ultimo = null;
+  for (let i = 0; i < partes.length; i++) {
+    const corpo = { chat_id, text: partes[i] || '…', parse_mode: 'HTML', link_preview_options: { is_disabled: true } };
+    if (teclado && i === partes.length - 1) corpo.reply_markup = { inline_keyboard: teclado };
+    try { ultimo = await tg('sendMessage', corpo); }
+    catch (e) { if (!/parse|entit|tag/i.test(e.message)) throw e; delete corpo.parse_mode; corpo.text = semTags(partes[i]); ultimo = await tg('sendMessage', corpo); }
+  }
+  return ultimo;
+}
+async function paraTodos(chats, texto, teclado) { const falhas = []; for (const c of chats) { try { await mandar(c.chat_id, texto, teclado); } catch (e) { falhas.push((c.nome || c.chat_id) + ': ' + e.message); } } return falhas; }
+
+// ── o que está no banco (só os tipos do Telegram: leitura leve) ──
+async function estadoBanco() {
+  const L = await R.lerTipos(['cfg_telegram', 'telegram_chat', 'lembrete']);
+  const cfg = L.filter(x => x.tipo === 'cfg_telegram').sort((a, b) => (b._id || 0) - (a._id || 0))[0] || { tipo: 'cfg_telegram' };
+  const todas = L.filter(x => x.tipo === 'telegram_chat');
+  const chats = TOKEN ? todas.filter(c => c.ativo !== 'nao' && iguais(c.assinatura, assinaturaChat(c))) : [];
+  return { cfg, todas, chats, lembretes: L.filter(x => x.tipo === 'lembrete') };
+}
+async function gravarCfg(st, mud) { const novo = await R.gravarPlan({ ...st.cfg, ...mud, tipo: 'cfg_telegram' }); st.cfg = novo; return novo; }
+// para quem vai o lembrete: "todos" = todas as conversas ligadas; senão, as do usuário que o criou (ou a conversa de onde veio)
+function destinos(l, chats) {
+  if (l.para === 'todos') return chats;
+  const uid = l.criado_por_id || l.usuario_uid || '';
+  return chats.filter(c => (l.chat_id && String(c.chat_id) === String(l.chat_id)) || (uid && c.usuario_uid === uid));
+}
+const lembreteVivo = l => l.ativo !== 'nao' && !(l.repetir === 'nao' && l.enviado === 'sim' && !l.adiar_ate);
+const proxDoLembrete = l => l.adiar_ate || R.proximaVez(l, l.ultimo_envio || '0000-00-00T00:00');
+
+// ── textos dos comandos ──
+const ajuda = () => `<b>O que eu faço</b>
+/hoje — o resumo do dia (agenda, tarefas, contas, recebimentos, aportes…)
+/contas — contas a pagar vencidas e dos próximos 7 dias
+/agenda — reuniões e tarefas dos próximos 7 dias
+/aportes — aportes do mês e do ano por sócio
+/obras — os números de cada obra
+/lembretes — os seus lembretes (com botão para apagar)
+/lembrar — criar um lembrete. Exemplo: <i>/lembrar amanhã 9h pagar o aluguel</i>
+${CHAVE_IA ? 'Ou escreva uma pergunta, como: <i>quanto gastei na obra de Itarantim em outubro?</i>, <i>quais contas vencem esta semana?</i> ou <i>me lembra sexta às 10h de ligar para o fiscal</i>. Para continuar um assunto, responda (deslize para a esquerda) a minha mensagem.' : '(Perguntas livres ficam disponíveis quando a leitura com IA estiver ligada na Vercel.)'}
+
+Sozinho eu mando: o resumo do dia de manhã, um aviso antes de cada reunião, os lembretes na hora marcada, as contas que vencem hoje e ainda estão em aberto (16h) e os aportes lançados.`;
+
+function textoContas(D, hj) {
+  const ab = R.contasAbertas(D, hj).sort((a, b) => a.v.localeCompare(b.v)), ate = R.somaDias(hj, 7);
+  const venc = ab.filter(x => x.v < hj), prox = ab.filter(x => x.v >= hj && x.v <= ate), tot = L => R.reais(L.reduce((s, x) => s + x.valor, 0));
+  const fx = x => `• ${R.br(x.v)} — ${esc(x.forn)} — ${R.reais(x.valor)}${x.onde ? ' <i>(' + esc(x.onde) + ')</i>' : ''}`;
+  const parte = (t, L) => L.length ? `<b>${t}</b>: ${L.length} · ${tot(L)}\n` + L.slice(0, 25).map(fx).join('\n') + (L.length > 25 ? `\n• … e mais ${L.length - 25}` : '') : `<b>${t}</b>: nenhuma`;
+  return `<b>Contas a pagar</b> (em aberto: ${ab.length} · ${tot(ab)})\n\n${parte('Vencidas', venc)}\n\n${parte('Hoje e próximos 7 dias', prox)}`;
+}
+function textoAgenda(D, hj) {
+  const ate = R.somaDias(hj, 7);
+  const reu = D.reunioes.filter(r => R.reuniaoValida(r) && R.iso(r.data) >= hj && R.iso(r.data) <= ate).sort((a, b) => (R.iso(a.data) + (a.hora || '')).localeCompare(R.iso(b.data) + (b.hora || '')));
+  const ab = D.acoes.filter(t => R.tarefaAberta(t)), atr = ab.filter(t => R.iso(t.quando) && R.iso(t.quando) < hj), prox = ab.filter(t => R.iso(t.quando) >= hj && R.iso(t.quando) <= ate).sort((a, b) => R.iso(a.quando).localeCompare(R.iso(b.quando)));
+  const fr = r => `• ${R.br(R.iso(r.data))}${r.hora ? ' ' + esc(r.hora) : ''} — ${esc(r.titulo || r.tipo || 'Reunião')}${r.titulo_obra ? ' <i>(' + esc(r.titulo_obra) + ')</i>' : ''}${r.link ? '\n   ' + esc(r.link) : r.local ? ' · ' + esc(r.local) : ''}`;
+  const ft = t => `• ${R.br(R.iso(t.quando))} — ${esc(t.o_que || 'Tarefa')}${t.quem ? ' · ' + esc(t.quem) : ''}${t.titulo_obra ? ' <i>(' + esc(t.titulo_obra) + ')</i>' : ''}`;
+  return `<b>Agenda dos próximos 7 dias</b>\n\n<b>Reuniões</b>: ${reu.length ? '\n' + reu.slice(0, 20).map(fr).join('\n') : 'nenhuma'}\n\n<b>Tarefas</b>: ${prox.length ? '\n' + prox.slice(0, 20).map(ft).join('\n') : 'nenhuma com prazo nestes dias'}${atr.length ? `\n\n<b>Atrasadas</b>: ${atr.length}\n` + atr.sort((a, b) => R.iso(a.quando).localeCompare(R.iso(b.quando))).slice(0, 10).map(ft).join('\n') : ''}`;
+}
+function textoAportes(D, hj) {
+  const ano = hj.slice(0, 4), mes = hj.slice(0, 7), pM = {}, pA = {}; let dev = 0;
+  D.aportes.forEach(a => { const d = R.iso(R.campo(a, 'data_aporte', 'data')); if (!d.startsWith(ano)) return; const v = R.valorAporte(a), q = R.campo(a, 'quem_aportou', 'socio') || 'Sócio';
+    if (v < 0) { dev += -v; return; } pA[q] = (pA[q] || 0) + v; if (d.startsWith(mes)) pM[q] = (pM[q] || 0) + v; });
+  const L = o => Object.entries(o).sort((a, b) => b[1] - a[1]), soma = o => Object.values(o).reduce((s, v) => s + v, 0);
+  const lin = o => L(o).length ? L(o).map(([q, v]) => `• ${esc(q)} — ${R.reais(v)}`).join('\n') : '• nenhum';
+  return `<b>Aportes de ${R.MESES[+mes.slice(5) - 1]}</b> — ${R.reais(soma(pM))}\n${lin(pM)}\n\n<b>Aportes de ${ano}</b> — ${R.reais(soma(pA))}\n${lin(pA)}${dev ? `\n\nDevolvido aos sócios em ${ano}: ${R.reais(dev)}` : ''}`;
+}
+function textoObras(D) {
+  const L = R.porObra(D).slice(0, 15);
+  if (!L.length) return 'Nenhuma obra com números lançados.';
+  return '<b>Números das obras</b> (as de maior gasto primeiro)\n\n' + L.map(x => `<b>${esc(x.obra)}</b>\n` + [x.contrato ? 'Contrato ' + R.reais(x.contrato) : '', x.medido ? 'Medido ' + R.reais(x.medido) : '', 'Notas ' + R.reais(x.faturado), 'Recebido ' + R.reais(x.recebido), 'Gasto ' + R.reais(x.gasto), x.aportes ? 'Aportes ' + R.reais(x.aportes) : ''].filter(Boolean).join(' · ')).join('\n\n');
+}
+function textoLembretes(st, ctx) {
+  const L = st.lembretes.filter(l => lembreteVivo(l) && destinos(l, [ctx.meu]).length).map(l => ({ l, p: proxDoLembrete(l) })).filter(x => x.p).sort((a, b) => a.p.localeCompare(b.p)).slice(0, 20);
+  if (!L.length) return { texto: 'Você não tem lembretes ativos. Crie com /lembrar ou pelo sistema (Agenda › Lembretes e Telegram).' };
+  return { texto: '<b>Seus lembretes</b>\n' + L.map((x, i) => `${i + 1}) ${quandoBR(x.p)} — ${esc(x.l.texto)}${x.l.repetir && x.l.repetir !== 'nao' ? ' <i>(' + REPETE[x.l.repetir] + ')</i>' : ''}`).join('\n') + '\n\nPara apagar, toque no número:',
+    teclado: L.reduce((t, x, i) => { const b = { text: `🗑 ${i + 1}`, callback_data: 'apagar:' + x.l._id }; if (!t.length || t[t.length - 1].length >= 5) t.push([b]); else t[t.length - 1].push(b); return t; }, []) };
+}
+
+/* ── lembrete escrito em português ("amanhã 9h pagar o aluguel", "toda segunda 8h reunião", "dia 20 às 14:30 …") ──
+   Devolve {texto, quando, repetir} ou null quando não achou dia nem hora. */
+const DSEM = { domingo: 0, segunda: 1, terca: 2, 'terça': 2, quarta: 3, quinta: 4, sexta: 5, sabado: 6, 'sábado': 6 };
+function lerLembrete(txt, agoraS) {
+  let s = ' ' + String(txt || '').replace(/\s+/g, ' ').trim() + ' ';
+  const hj = agoraS.slice(0, 10); let dia = null, hora = null, rep = 'nao', semana = null, diaMes = null;
+  const tira = re => { const m = s.match(re); if (m) s = s.replace(re, ' '); return m; };
+  tira(/^\s*(?:me\s+)?(?:lembr[ae]r?|lembrete|avis[ae]r?)(?:\s+(?:me|-me))?(?:\s+(?:de|que|para|pra))?\s/i);
+  let m;
+  if ((m = tira(/\stodo\s+dia\s+(\d{1,2})(?![\d:h])\s/i))) { rep = 'mensal'; diaMes = +m[1]; }
+  else if ((m = tira(/\stod[ao]s?\s+(?:as\s+|os\s+)?(segunda|ter[cç]a|quarta|quinta|sexta|s[aá]bado|domingo)s?(?:-feiras?)?\s/i))) { rep = 'semanal'; semana = DSEM[m[1].toLowerCase()]; }
+  else if (tira(/\s(?:todos?\s+(?:os\s+)?dias?|diariamente)\s/i)) rep = 'diario';
+  else if (tira(/\s(?:todas?\s+(?:as\s+)?semanas?|semanalmente)\s/i)) rep = 'semanal';
+  else if (tira(/\s(?:todos?\s+(?:os\s+)?m[eê]s(?:es)?|mensalmente)\s/i)) rep = 'mensal';
+  if ((m = tira(/\s(?:[àa]s?\s+)?(\d{1,2})\s*(?::|h)\s*(\d{2})(?:\s*(?:h|hs|horas))?\s/i))) hora = `${m[1].padStart(2, '0')}:${m[2]}`;
+  else if ((m = tira(/\s(?:[àa]s?\s+)?(\d{1,2})\s*(?:h|hs|horas)\s/i))) hora = `${m[1].padStart(2, '0')}:00`;
+  else if (tira(/\s(?:ao\s+)?meio[- ]dia\s/i)) hora = '12:00';
+  if (hora && (+hora.slice(0, 2) > 23 || +hora.slice(3) > 59)) hora = null;
+  if (tira(/\sdepois\s+de\s+amanh[ãa]\s/i)) dia = R.somaDias(hj, 2);
+  else if (tira(/\samanh[ãa]\s/i)) dia = R.somaDias(hj, 1);
+  else if (tira(/\shoje\s/i)) dia = hj;
+  else if ((m = tira(/\s(?:dia\s+)?(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?\s/))) {
+    let a = m[3] ? +m[3] : +hj.slice(0, 4); if (a < 100) a += 2000;
+    dia = `${a}-${String(m[2]).padStart(2, '0')}-${String(m[1]).padStart(2, '0')}`;
+    if (!m[3] && dia < hj) dia = `${a + 1}${dia.slice(4)}`;
+  } else if ((m = tira(/\s(?:n[ao]\s+|nest[ae]\s+|pr[óo]xim[ao]\s+)?(segunda|ter[cç]a|quarta|quinta|sexta|s[aá]bado|domingo)(?:-feira)?\s/i))) semana = DSEM[m[1].toLowerCase()];
+  else if (!diaMes && (m = tira(/\sdia\s+(\d{1,2})(?![\d:h/])\s/i))) diaMes = +m[1];
+  if (diaMes) { const d0 = `${hj.slice(0, 8)}${String(diaMes).padStart(2, '0')}`; dia = d0 >= hj ? d0 : (() => { const x = new Date(hj.slice(0, 8) + '01T12:00:00Z'); x.setUTCMonth(x.getUTCMonth() + 1); return x.toISOString().slice(0, 8) + String(diaMes).padStart(2, '0'); })(); }
+  if (semana != null && !dia) { const hoje = new Date(hj + 'T12:00:00Z').getUTCDay(); let n = (semana - hoje + 7) % 7; if (n === 0 && (hora || '08:00') <= agoraS.slice(11)) n = 7; dia = R.somaDias(hj, n); }
+  if (!dia && !hora && rep === 'nao') return null;
+  hora = hora || '08:00';
+  if (!dia) dia = `${hj}T${hora}` > agoraS ? hj : R.somaDias(hj, 1);
+  if (isNaN(new Date(dia + 'T12:00:00Z'))) return null;
+  let texto = s.replace(/^\s*(?:de|que|para|pra|o|a)\s+/i, ' ').replace(/\s+/g, ' ').trim().replace(/^[,.:;-]\s*/, '');
+  if (!texto) return null;
+  texto = texto[0].toUpperCase() + texto.slice(1);
+  return { texto, quando: `${dia}T${hora}`, repetir: rep };
+}
+async function criarLembrete(o, ctx) {
+  const agora = agoraStr();
+  const l = await R.gravarPlan({ tipo: 'lembrete', texto: String(o.texto || '').slice(0, 500), quando: o.quando, repetir: o.repetir || 'nao', para: 'eu', ativo: 'sim',
+    ultimo_envio: agora, chat_id: ctx.chat, usuario_uid: ctx.uid, usuario: ctx.usuario, origem: 'telegram', criado_em: new Date().toISOString() });
+  ctx.criados.push(l);
+  return l;
+}
+async function lembrarPorTexto(txt, ctx) {
+  const o = lerLembrete(txt, agoraStr());
+  if (!o) {
+    if (CHAVE_IA && txt.trim()) return responderIA('Crie este lembrete: ' + txt, '', ctx);
+    return mandar(ctx.chat, 'Não entendi o dia ou a hora. Escreva assim: <i>/lembrar amanhã 9h pagar o aluguel</i>, <i>/lembrar 20/11 14:30 reunião na prefeitura</i> ou <i>/lembrar toda segunda 8h conferir o caixa</i>.');
+  }
+  if (o.repetir === 'nao' && o.quando <= agoraStr()) return mandar(ctx.chat, `Esse horário (${esc(quandoBR(o.quando))}) já passou. Mande de novo com um dia ou hora mais à frente.`);
+  const l = await criarLembrete(o, ctx);
+  return mandar(ctx.chat, `✅ Lembrete criado para <b>${esc(quandoBR(o.repetir === 'nao' ? o.quando : R.proximaVez(l, l.ultimo_envio)))}</b>${o.repetir !== 'nao' ? ` (${REPETE[o.repetir]})` : ''}:\n${esc(o.texto)}`, [[{ text: '🗑 Apagar este lembrete', callback_data: 'apagar:' + l._id }]]);
+}
+
+// ── IA: responde pelos números do sistema (o "retrato") e cria/apaga lembretes ──
+let sdkA = null;
+const Anthropic = () => { if (!sdkA) { const m = require('@anthropic-ai/sdk'); sdkA = m.default || m; } return sdkA; };
+const FERRAMENTAS = [
+  { name: 'criar_lembrete', strict: true, description: 'Cria um lembrete que o robô manda neste Telegram na data e hora marcadas (horário da Bahia).',
+    input_schema: { type: 'object', additionalProperties: false, required: ['texto', 'quando', 'repetir'], properties: {
+      texto: { type: 'string', description: 'O que lembrar, curto e claro, em português.' },
+      quando: { type: 'string', description: 'Data e hora da (primeira) vez, no formato AAAA-MM-DDTHH:MM, horário da Bahia.' },
+      repetir: { type: 'string', enum: ['nao', 'diario', 'semanal', 'mensal'], description: 'nao = só uma vez; diario, semanal ou mensal = repete a partir da data.' } } } },
+  { name: 'apagar_lembrete', strict: true, description: 'Apaga (desliga) um lembrete ativo pelo id que aparece na lista "Lembretes ativos" do retrato.',
+    input_schema: { type: 'object', additionalProperties: false, required: ['id'], properties: { id: { type: 'string', description: 'O id do lembrete.' } } } }
+];
+const INSTRUCOES = `Você é o assistente da Vixsul Empreendimentos (construtora de obras públicas na Bahia) no Telegram, falando com um sócio que é Administrador do sistema de gestão.
+Regras:
+- Responda em português do Brasil simples, curto e direto (de 1 a 12 linhas), sem palavras em inglês.
+- Use SOMENTE os dados do retrato do sistema abaixo. Se a resposta não estiver nele, diga que não encontrou e indique a tela do sistema onde ver (por exemplo: Financeiro › Contas a pagar; Financeiro › Sócios e investimentos; Contratos › Medições).
+- Não invente números. Para totais por obra ou por sócio, prefira as partes "já somadas". Quando somar linhas, confira uma a uma e diga o que entrou na conta (período, obra, quantos lançamentos).
+- Dinheiro no formato R$ 1.234,56 e datas no formato dd/mm/aaaa.
+- Formato do Telegram: sem tabelas e sem títulos com #. Pode usar **negrito** e listas com •.
+- Para lembrar algo, use a ferramenta criar_lembrete (horário da Bahia; sem hora dita, use 08:00; "amanhã" é o dia seguinte a hoje). Depois confirme o dia e a hora numa frase.
+- Para apagar um lembrete, use apagar_lembrete com o id da lista de lembretes ativos.
+- Você não altera mais nada no sistema (contas, aportes, obras, tarefas): para isso, diga em que tela fazer.`;
+async function ferramenta(nome, inp, ctx) {
+  if (nome === 'criar_lembrete') {
+    const q = String(inp.quando || '').replace(' ', 'T').slice(0, 16), rep = REPETE[inp.repetir] ? inp.repetir : 'nao';
+    if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(q) || isNaN(new Date(q + ':00Z'))) return 'Data inválida: use AAAA-MM-DDTHH:MM.';
+    if (rep === 'nao' && q <= agoraStr()) return 'Essa data e hora já passaram. Peça à pessoa um horário futuro.';
+    if (!String(inp.texto || '').trim()) return 'Falta o texto do lembrete.';
+    const l = await criarLembrete({ texto: String(inp.texto).trim(), quando: q, repetir: rep }, ctx);
+    return `Lembrete criado (id ${l._id}): ${quandoBR(rep === 'nao' ? q : R.proximaVez(l, l.ultimo_envio))}${rep !== 'nao' ? ', ' + REPETE[rep] : ''}.`;
+  }
+  if (nome === 'apagar_lembrete') {
+    const l = ctx.st.lembretes.find(x => String(x._id) === String(inp.id).trim());
+    if (!l || l.ativo === 'nao') return 'Não achei um lembrete ativo com esse id.';
+    await R.gravarPlan({ ...l, ativo: 'nao', adiar_ate: '' }); l.ativo = 'nao';
+    return 'Lembrete apagado: ' + l.texto;
+  }
+  return 'Ferramenta desconhecida.';
+}
+async function perguntarIA(pergunta, anterior, ctx) {
+  const Anth = Anthropic(), cli = new Anth({ apiKey: CHAVE_IA, timeout: 50000, maxRetries: 0 });
+  const modelo = MODELOS.includes(ctx.st.cfg.modelo_ia) ? ctx.st.cfg.modelo_ia : (process.env.ANTHROPIC_MODEL || 'claude-opus-5-5');
+  const D = ctx.D || (ctx.D = await R.carregar());
+  // o retrato vai no "system" com marca de cache: perguntas seguidas em poucos minutos saem bem mais baratas
+  const sistema = [{ type: 'text', text: INSTRUCOES }, { type: 'text', text: R.retrato(D), cache_control: { type: 'ephemeral' } }];
+  const ag = agoraStr();
+  const msgs = [{ role: 'user', content: `Agora: ${diaSem(ag.slice(0, 10))}, ${R.brAno(ag.slice(0, 10))} ${ag.slice(11)} (horário da Bahia).${anterior ? `\nA pessoa está respondendo a esta mensagem anterior do robô:\n"""${String(anterior).slice(0, 1500)}"""` : ''}\n\nMensagem: ${String(pergunta).slice(0, 2000)}` }];
+  for (let volta = 0; volta < 4; volta++) {
+    const r = await cli.beta.messages.create({ model: modelo, max_tokens: 6000, betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default',
+      output_config: { effort: ctx.st.cfg.esforco_ia === 'medium' ? 'medium' : 'low' }, system: sistema, tools: FERRAMENTAS, messages: msgs });
+    if (r.stop_reason === 'refusal') return 'Não posso ajudar com esse pedido.';
+    const usos = (r.content || []).filter(b => b.type === 'tool_use');
+    if (r.stop_reason === 'tool_use' && usos.length) {
+      msgs.push({ role: 'assistant', content: r.content });
+      const res = [];
+      for (const b of usos) { let saida; try { saida = await ferramenta(b.name, b.input || {}, ctx); } catch (e) { saida = 'Erro: ' + (e.message || e); } res.push({ type: 'tool_result', tool_use_id: b.id, content: String(saida) }); }
+      msgs.push({ role: 'user', content: res });
+      continue;
+    }
+    const txt = (r.content || []).filter(b => b.type === 'text').map(b => b.text).join('\n').trim();
+    if (txt) return txt;
+    if (r.stop_reason === 'max_tokens') return 'A resposta ficou grande demais — pergunte de um jeito mais específico (uma obra, um mês).';
+    return 'Não consegui responder agora. Tente de novo em instantes.';
+  }
+  return 'Não consegui terminar a resposta — tente perguntar de outro jeito.';
+}
+// o texto da IA vira HTML do Telegram: escapa tudo e transforma **negrito** em <b>
+const paraHtml = t => esc(t).replace(/\*\*([^*\n]+)\*\*/g, '<b>$1</b>').replace(/^#{1,6}\s*/gm, '');
+function erroIA(e) {
+  const S = (() => { try { return Anthropic(); } catch (x) { return null; } })(), eh = n => S && typeof S[n] === 'function' && e instanceof S[n];
+  if (eh('AuthenticationError') || e.status === 401) return 'A chave da IA (ANTHROPIC_API_KEY) na Vercel não foi aceita — confira se foi copiada inteira.';
+  if (eh('RateLimitError') || e.status === 429) return 'A IA está com muitos pedidos agora (ou acabou o crédito da conta da Anthropic). Tente daqui a pouco.';
+  if (eh('APIConnectionTimeoutError') || /timeout|timed out/i.test(e.message || '')) return 'A IA demorou demais para responder. Tente uma pergunta mais curta.';
+  if (e.status === 400 && /credit|billing|balance/i.test(e.message || '')) return 'Acabou o crédito da conta da Anthropic (console.anthropic.com › Billing).';
+  return 'A IA não respondeu agora (' + String(e.message || e).slice(0, 160) + ').';
+}
+async function responderIA(texto, anterior, ctx) {
+  let resp;
+  try { resp = paraHtml(await perguntarIA(texto, anterior, ctx)); } catch (e) { resp = esc(erroIA(e)); }
+  const tec = ctx.criados.length ? ctx.criados.map(l => [{ text: '🗑 Apagar o lembrete criado' + (ctx.criados.length > 1 ? ' (' + R.br(l.quando.slice(0, 10)) + ')' : ''), callback_data: 'apagar:' + l._id }]) : undefined;
+  return mandar(ctx.chat, resp, tec);
+}
+
+// ── ligar uma conversa ao sistema (/start CÓDIGO do link de vínculo) ──
+async function vincular(msg, cod, st) {
+  const chat = String(msg.chat.id), agora = Date.now(), h = hashCodigo(cod);
+  const peds = (st.cfg.pedidos || []).filter(p => new Date(p.expira).getTime() > agora);
+  const ped = peds.find(p => iguais(p.hash, h));
+  if (!ped) return mandar(chat, 'Este link de vínculo não vale mais (passou de 30 minutos ou já foi usado). No sistema, gere outro em <b>Agenda › Lembretes e Telegram › Ligar meu Telegram</b>.');
+  await gravarCfg(st, { pedidos: peds.filter(p => p !== ped) });
+  const ja = st.todas.find(c => String(c.chat_id) === chat), f = msg.from || {};
+  const novo = { ...(ja || {}), tipo: 'telegram_chat', chat_id: chat, nome: [f.first_name, f.last_name].filter(Boolean).join(' ') || f.username || 'Telegram', usuario: ped.usuario, usuario_uid: ped.uid,
+    ativo: 'sim', resumo: (ja && ja.resumo) || 'sim', ligado_em: new Date().toISOString() };
+  novo.assinatura = assinaturaChat(novo);
+  await R.gravarPlan(novo);
+  return mandar(chat, `✅ Pronto, ${esc(f.first_name || '')}! Este Telegram está ligado ao sistema da Vixsul (usuário <b>${esc(ped.usuario)}</b>).\n\n` + ajuda());
+}
+
+// ── mensagens e botões que chegam do Telegram ──
+const vistos = new Set();   // o Telegram repete a entrega se demorar: a mesma mensagem não é respondida duas vezes
+async function aoBotao(cq, st) {
+  const chat = cq.message && cq.message.chat && String(cq.message.chat.id);
+  const ok = txt => tg('answerCallbackQuery', { callback_query_id: cq.id, text: txt || '' }).catch(() => {});
+  if (!chat || !st.chats.some(c => String(c.chat_id) === chat)) return ok('Conversa não ligada ao sistema.');
+  const [acao, id, extra] = String(cq.data || '').split(':');
+  const l = st.lembretes.find(x => String(x._id) === id);
+  if (!l) return ok('Lembrete não encontrado.');
+  const kb = ((cq.message.reply_markup || {}).inline_keyboard || []).map(r => r.filter(b => b.callback_data !== cq.data)).filter(r => r.length);
+  const teclado = t => tg('editMessageReplyMarkup', { chat_id: chat, message_id: cq.message.message_id, reply_markup: { inline_keyboard: t } }).catch(() => {});
+  if (acao === 'apagar') {
+    if (l.ativo === 'nao') { await teclado(kb); return ok('Já estava apagado.'); }
+    await R.gravarPlan({ ...l, ativo: 'nao', adiar_ate: '' }); await teclado(kb);
+    await mandar(chat, `🗑 Lembrete apagado: ${esc(l.texto)}`); return ok('Apagado');
+  }
+  if (acao === 'adiar') {
+    const ag = agoraStr(), ate = extra === 'amanha' ? R.somaDias(ag.slice(0, 10), 1) + 'T' + (String(l.quando || '').slice(11, 16) || ag.slice(11)) : somaMin(ag, Math.min(1440, Math.max(5, +extra || 60)));
+    await R.gravarPlan({ ...l, adiar_ate: ate }); await teclado([]);
+    await mandar(chat, `⏱ Combinado: lembro de novo ${esc(quandoBR(ate))}.`); return ok('Adiado');
+  }
+  if (acao === 'feito') { await teclado([]); if (l.adiar_ate) await R.gravarPlan({ ...l, adiar_ate: '' }); return ok('✅ Feito'); }
+  return ok('');
+}
+async function aoReceber(up) {
+  if (up.update_id != null) { if (vistos.has(up.update_id)) return; vistos.add(up.update_id); if (vistos.size > 300) vistos.delete(vistos.values().next().value); }
+  const st = await estadoBanco();
+  if (up.callback_query) return aoBotao(up.callback_query, st);
+  const msg = up.message; if (!msg || !msg.chat) return;
+  const chat = String(msg.chat.id);
+  if (msg.chat.type !== 'private') return mandar(chat, 'Eu só converso em conversa particular.');
+  const texto = String(msg.text || msg.caption || '').trim();
+  const mc = texto.match(/^\/([a-z_]+)(?:@\w+)?(?:\s+([\s\S]*))?$/i), cmd = mc ? mc[1].toLowerCase() : '', arg = mc ? (mc[2] || '').trim() : texto;
+  if (cmd === 'start' && arg) return vincular(msg, arg, st);
+  const meu = st.chats.find(c => String(c.chat_id) === chat);
+  if (!meu) return mandar(chat, 'Olá! Este robô é particular da <b>Vixsul Empreendimentos</b>. Para usar, o Administrador gera o link de vínculo no sistema: <b>Agenda › Lembretes e Telegram › Ligar meu Telegram</b>.');
+  const ctx = { chat, meu, uid: meu.usuario_uid || '', usuario: meu.usuario || '', st, criados: [], D: null };
+  if (!texto) return mandar(chat, 'Por enquanto eu entendo só texto. Mande /ajuda para ver o que eu faço.');
+  tg('sendChatAction', { chat_id: chat, action: 'typing' }).catch(() => {});
+  const dados = async () => ctx.D || (ctx.D = await R.carregar()), hj = R.hojeBahia();
+  switch (cmd) {
+    case 'start': case 'ajuda': case 'help': return mandar(chat, ajuda());
+    case 'hoje': return mandar(chat, R.resumoTelegram(await R.montar({}, await dados())));
+    case 'contas': return mandar(chat, textoContas(await dados(), hj));
+    case 'agenda': return mandar(chat, textoAgenda(await dados(), hj));
+    case 'aportes': return mandar(chat, textoAportes(await dados(), hj));
+    case 'obras': return mandar(chat, textoObras(await dados()));
+    case 'lembretes': { const x = textoLembretes(st, ctx); return mandar(chat, x.texto, x.teclado); }
+    case 'lembrar': case 'lembrete': return arg ? lembrarPorTexto(arg, ctx) : mandar(chat, 'Escreva o lembrete junto: <i>/lembrar amanhã 9h pagar o aluguel</i>.');
+    case '': break;
+    default: return mandar(chat, 'Não conheço esse comando.\n\n' + ajuda());
+  }
+  if (CHAVE_IA) return responderIA(texto, (msg.reply_to_message && (msg.reply_to_message.text || msg.reply_to_message.caption)) || '', ctx);
+  if (/^(?:me\s+)?lembr/i.test(texto)) return lembrarPorTexto(texto, ctx);
+  return mandar(chat, 'Para responder perguntas livres eu preciso da leitura com IA ligada na Vercel. Enquanto isso, use os comandos:\n\n' + ajuda());
+}
+
+// ── a cada 15 minutos (tarefa do GitHub): lembretes, reuniões, resumo do dia, contas de hoje, aportes e o e-mail ──
+async function lerJson(caminho) { const r = await fetch(`${R.URL_SB}/rest/v1/${caminho}`, { headers: R.cabecalhos() }); if (!r.ok) throw new Error('banco: erro ' + r.status); return r.json(); }
+async function tick() {
+  const ag = agoraStr(), hj = ag.slice(0, 10), hora = ag.slice(11), feito = [];
+  if (hora >= '07:00') { try { const r = await require('./avisos').diario(); if (r && r.enviado) feito.push('e-mail do dia'); } catch (e) { feito.push('e-mail: ' + e.message); } }
+  if (!TOKEN) return { ok: true, feito, msg: 'O robô do Telegram ainda não foi configurado.' };
+  const st = await estadoBanco(), chats = st.chats, cfg = st.cfg, mud = {};
+  if (!chats.length) return { ok: true, feito, msg: 'Nenhum Telegram ligado.' };
+  let D = null; const dados = async () => D || (D = await R.carregar());
+  // 1) lembretes que chegaram na hora (ou adiados)
+  for (const l of st.lembretes) {
+    if (!lembreteVivo(l)) continue;
+    const prox = proxDoLembrete(l);
+    if (!prox || prox > ag) continue;
+    const para = destinos(l, chats);
+    const atraso = minutos(prox, ag), rep = l.repetir && l.repetir !== 'nao';
+    await R.gravarPlan({ ...l, ultimo_envio: ag, adiar_ate: '', ...(rep ? {} : { enviado: 'sim' }) });
+    if (!para.length) continue;
+    const id = l._id, txt = `⏰ <b>Lembrete</b>\n${esc(l.texto)}${rep ? `\n<i>(${REPETE[l.repetir]})</i>` : ''}${atraso > 45 ? `\n<i>era para ${esc(quandoBR(prox))}</i>` : ''}`;
+    await paraTodos(para, txt, [[{ text: '⏱ Daqui a 1 hora', callback_data: `adiar:${id}:60` }, { text: '⏱ Amanhã', callback_data: `adiar:${id}:amanha` }], [{ text: '✅ Feito', callback_data: `feito:${id}` }]]);
+    feito.push('lembrete ' + id);
+  }
+  // 2) aviso antes das reuniões de hoje (padrão: 60 minutos antes)
+  if (cfg.aviso_reuniao !== 'nao') {
+    const antes = Math.min(240, Math.max(10, +cfg.aviso_reuniao_min || 60));
+    const reus = (await lerJson(`reunioes?select=id,row_data&row_data->>data=like.${hj}*&limit=200`)).map(x => ({ ...(x.row_data || {}), _id: x.id })).filter(r => !r._lixeira_em && R.reuniaoValida(r));
+    const avisadas = (cfg.reunioes_avisadas || []).filter(k => String(k).split('|')[1] >= hj);
+    for (const r of reus) {
+      const h = String(r.hora || '').slice(0, 5); if (!/^\d{2}:\d{2}$/.test(h)) continue;
+      const ini = `${hj}T${h}`, falta = minutos(ag, ini), k = `${r._id}|${ini}`;
+      if (falta < 0 || falta > antes || avisadas.includes(k)) continue;
+      avisadas.push(k);
+      await paraTodos(chats, `📅 <b>Reunião às ${h}</b> (daqui a ${falta} min)\n${esc(r.titulo || r.tipo || 'Reunião')}${r.titulo_obra ? ' — ' + esc(r.titulo_obra) : ''}${r.local ? '\nLocal: ' + esc(r.local) : ''}${r.link ? '\n' + esc(r.link) : ''}`);
+      feito.push('reunião ' + r._id);
+    }
+    if (avisadas.length !== (cfg.reunioes_avisadas || []).length) mud.reunioes_avisadas = avisadas;
+  }
+  // 3) resumo do dia (padrão 7h)
+  const hRes = /^\d{2}:\d{2}$/.test(cfg.resumo_hora || '') ? cfg.resumo_hora : '07:00';
+  if (cfg.resumo !== 'nao' && hora >= hRes && cfg.ultimo_resumo !== hj) {
+    await gravarCfg(st, { ...mud, ultimo_resumo: hj });   // marca antes: dois disparos não repetem
+    const txt = R.resumoTelegram(await R.montar({}, await dados()));
+    await paraTodos(chats.filter(c => c.resumo !== 'nao'), txt);
+    feito.push('resumo do dia');
+  }
+  // 4) às 16h: contas que vencem hoje e ainda estão em aberto
+  if (cfg.aviso_tarde !== 'nao' && hora >= '16:00' && st.cfg.ultima_tarde !== hj) {
+    mud.ultima_tarde = hj;
+    const L = R.contasAbertas(D || { custos: await R.ler('custos'), despesas: await R.ler('despesas') }, hj).filter(x => x.v === hj);
+    if (L.length) { await paraTodos(chats, `⚠️ <b>Ainda em aberto hoje</b>: ${L.length} conta(s) que vencem hoje · ${R.reais(L.reduce((s, x) => s + x.valor, 0))}\n` + L.slice(0, 15).map(x => `• ${esc(x.forn)} — ${R.reais(x.valor)}${x.onde ? ' <i>(' + esc(x.onde) + ')</i>' : ''}`).join('\n')); feito.push('contas de hoje'); }
+  }
+  // 5) aportes lançados (novos ou somados ao mês) desde a última olhada
+  if (cfg.aviso_aportes !== 'nao') {
+    const rows = await lerJson('aportes?select=id,v:row_data->>valor_aportado,v2:row_data->>valor,q:row_data->>quem_aportou,o:row_data->>titulo_obra,m:row_data->>movimento,d:row_data->>data_aporte,x:row_data->>_lixeira_em&order=id.asc&limit=5000');
+    const atual = {}; rows.filter(a => !a.x).forEach(a => { atual[a.id] = Math.round(R.num(a.v != null ? a.v : a.v2) * 100) / 100; });
+    const antes = st.cfg.aportes_vistos;
+    if (!antes) mud.aportes_vistos = atual;
+    else {
+      const novos = rows.filter(a => !a.x && !/devolu/i.test(a.m || '') && atual[a.id] > 0 && (antes[a.id] == null || atual[a.id] > antes[a.id] + 0.005))
+        .map(a => ({ ...a, dif: antes[a.id] == null ? atual[a.id] : atual[a.id] - antes[a.id], somado: antes[a.id] != null }));
+      if (JSON.stringify(atual) !== JSON.stringify(antes)) mud.aportes_vistos = atual;
+      if (novos.length) {
+        const tot = novos.reduce((s, a) => s + a.dif, 0);
+        const txt = novos.length > 6 ? `💰 <b>${novos.length} aportes lançados</b> no sistema · ${R.reais(tot)}`
+          : novos.map(a => `💰 <b>Aporte ${a.somado ? 'somado ao mês' : 'lançado'}</b>: ${esc(a.q || 'Sócio')} · ${R.reais(a.dif)}${a.somado ? ` (total do mês ${R.reais(atual[a.id])})` : ''}${a.o ? ' · ' + esc(a.o) : ''}${a.d ? ' · ' + R.br(R.iso(a.d)) : ''}`).join('\n');
+        await paraTodos(chats, txt); feito.push('aportes');
+      }
+    }
+  }
+  if (Object.keys(mud).length) await gravarCfg(st, mud);
+  return { ok: true, feito };
+}
+
+// ── o que o sistema pede (Administrador logado) ──
+async function estadoPublico(st, comWebhook, uid) {
+  const o = { ok: true, token: !!TOKEN, ia: !!CHAVE_IA, bot: st.cfg.bot || '', modelos: MODELOS,
+    cfg: ['resumo', 'resumo_hora', 'aviso_reuniao', 'aviso_reuniao_min', 'aviso_tarde', 'aviso_aportes', 'modelo_ia', 'esforco_ia'].reduce((a, k) => { a[k] = st.cfg[k] || ''; return a; }, {}),
+    chats: st.chats.map(c => ({ id: c._id, nome: c.nome || '', usuario: c.usuario || '', ligado_em: c.ligado_em || '', resumo: c.resumo || 'sim', meu: !!uid && c.usuario_uid === uid })) };
+  if (TOKEN && comWebhook) { try { const w = await tg('getWebhookInfo', {}); o.webhook = w.url === URL_WEBHOOK; o.pendentes = w.pending_update_count || 0; o.erro = w.last_error_message || ''; } catch (e) { o.erroTelegram = e.message; } }
+  return o;
+}
+async function acaoSistema(b, l) {
+  const st = await estadoBanco(), uid = (l.p && l.p.app_uid) || '';
+  if (b.acao === 'estado') return estadoPublico(st, true, uid);
+  if (!TOKEN) return { ok: false, msg: 'Falta a chave do robô (TELEGRAM_BOT_TOKEN) na Vercel.' };
+  if (b.acao === 'conectar') {
+    let eu;
+    try { eu = await tg('getMe', {}); } catch (e) { return { ok: false, msg: e.codigo === 401 || e.codigo === 404 ? 'A chave do robô na Vercel não foi aceita pelo Telegram — confira se foi copiada inteira.' : e.message }; }
+    await tg('setWebhook', { url: URL_WEBHOOK, secret_token: segredoWebhook(), allowed_updates: ['message', 'callback_query'], drop_pending_updates: true, max_connections: 10 });
+    await tg('setMyCommands', { commands: [['hoje', 'Resumo do dia'], ['contas', 'Contas a pagar'], ['agenda', 'Reuniões e tarefas'], ['aportes', 'Aportes do mês e do ano'], ['obras', 'Números das obras'], ['lembretes', 'Meus lembretes'], ['lembrar', 'Criar um lembrete'], ['ajuda', 'O que o robô faz']].map(([command, description]) => ({ command, description })) }).catch(() => {});
+    await tg('setMyDescription', { description: 'Robô particular do sistema de gestão da Vixsul Empreendimentos: lembretes, avisos e consultas.' }).catch(() => {});
+    await gravarCfg(st, { bot: eu.username });
+    return estadoPublico(st, true, uid);
+  }
+  if (b.acao === 'vincular') {
+    if (!st.cfg.bot) return { ok: false, msg: 'Primeiro clique em "Ligar o robô".' };
+    const cod = crypto.randomBytes(16).toString('hex'), expira = new Date(Date.now() + 30 * 60e3).toISOString();
+    const peds = (st.cfg.pedidos || []).filter(p => new Date(p.expira).getTime() > Date.now()).slice(-4);
+    await gravarCfg(st, { pedidos: peds.concat({ hash: hashCodigo(cod), usuario: (l.p && l.p.nome) || 'Administrador', uid: (l.p && l.p.app_uid) || '', expira }) });
+    return { ok: true, link: `https://t.me/${st.cfg.bot}?start=${cod}`, expira, bot: st.cfg.bot };
+  }
+  const meus = st.chats.filter(c => !l.p || !l.p.app_uid || c.usuario_uid === l.p.app_uid), alvo = meus.length ? meus : st.chats;
+  if (b.acao === 'testar') {
+    if (!alvo.length) return { ok: false, msg: 'Nenhum Telegram ligado ainda — clique em "Ligar meu Telegram".' };
+    const f = await paraTodos(alvo, `✅ <b>Teste do sistema Vixsul</b>\nO Telegram está ligado. Mande /ajuda para ver o que eu faço.`);
+    return { ok: f.length < alvo.length, enviados: alvo.length - f.length, falhas: f };
+  }
+  if (b.acao === 'resumo') {
+    if (!alvo.length) return { ok: false, msg: 'Nenhum Telegram ligado ainda.' };
+    const f = await paraTodos(alvo, R.resumoTelegram(await R.montar({})));
+    return { ok: f.length < alvo.length, enviados: alvo.length - f.length, falhas: f };
+  }
+  if (b.acao === 'desligar') {
+    const c = st.todas.find(x => String(x._id) === String(b.id));
+    if (!c) return { ok: false, msg: 'Conversa não encontrada.' };
+    await R.gravarPlan({ ...c, ativo: 'nao', desligado_em: new Date().toISOString() });
+    try { await mandar(c.chat_id, 'Este Telegram foi desligado do sistema da Vixsul. Para ligar de novo, gere outro link no sistema.'); } catch (e) {}
+    return estadoPublico(await estadoBanco(), true, uid);
+  }
+  if (b.acao === 'salvar') {
+    const c = b.cfg || {}, mud = {};
+    ['resumo', 'aviso_reuniao', 'aviso_tarde', 'aviso_aportes'].forEach(k => { if (c[k] != null) mud[k] = c[k] === 'nao' ? 'nao' : 'sim'; });
+    if (/^\d{2}:\d{2}$/.test(c.resumo_hora || '')) mud.resumo_hora = c.resumo_hora;
+    if (c.aviso_reuniao_min != null) mud.aviso_reuniao_min = String(Math.min(240, Math.max(10, +c.aviso_reuniao_min || 60)));
+    if (MODELOS.includes(c.modelo_ia)) mud.modelo_ia = c.modelo_ia;
+    if (c.esforco_ia) mud.esforco_ia = c.esforco_ia === 'medium' ? 'medium' : 'low';
+    if (b.resumoChat && b.resumoChat.id) { const x = st.todas.find(y => String(y._id) === String(b.resumoChat.id)); if (x) await R.gravarPlan({ ...x, resumo: b.resumoChat.resumo === 'nao' ? 'nao' : 'sim' }); }
+    if (Object.keys(mud).length) await gravarCfg(st, mud);
+    return estadoPublico(await estadoBanco(), true, uid);
+  }
+  return { ok: false, msg: 'Ação desconhecida.' };
+}
+
+module.exports = async (req, res) => {
+  const responder = (st, o) => { res.statusCode = st; res.setHeader('Content-Type', 'application/json; charset=utf-8'); res.setHeader('Cache-Control', 'no-store'); res.end(JSON.stringify(o)); };
+  const corpo = () => (typeof req.body === 'string' ? (() => { try { return JSON.parse(req.body); } catch (e) { return {}; } })() : req.body) || {};
+  if (!CHAVE_SB) return responder(500, { ok: false, msg: 'Falta a chave de serviço do banco na Vercel.' });
+  // 1) o Telegram entregando mensagem (webhook): confere a senha do cabeçalho; responde 200 sempre (senão ele repete)
+  const segredo = req.headers['x-telegram-bot-api-secret-token'];
+  if (req.method === 'POST' && segredo != null) {
+    if (!TOKEN || !iguais(segredo, segredoWebhook())) return responder(401, { ok: false });
+    try { await aoReceber(corpo()); } catch (e) { console.error('telegram', e && e.message); try { const u = corpo(), ch = (u.message && u.message.chat && u.message.chat.id) || (u.callback_query && u.callback_query.message && u.callback_query.message.chat.id); if (ch) await mandar(ch, 'Deu um erro aqui: ' + esc(String(e.message || e).slice(0, 200)) + '. Tente de novo.'); } catch (x) {} }
+    return responder(200, { ok: true });
+  }
+  cors(req, res);
+  if (req.method === 'OPTIONS') { res.statusCode = 204; return res.end(); }
+  try {
+    // 2) a tarefa agendada (GitHub) — e um estado mínimo, sem dados, para conferir se está configurado
+    if (req.method === 'GET') {
+      if (req.query && req.query.tick) return responder(200, await tick());
+      return responder(200, { ok: true, token: !!TOKEN, ia: !!CHAVE_IA });
+    }
+    if (req.method !== 'POST') return responder(405, { ok: false, msg: 'Use GET ou POST.' });
+    // 3) o sistema (Administrador logado)
+    const l = exigirLogin(req);
+    if (!l.ok) return responder(401, { ok: false, sair: true, msg: 'A sessão terminou. Entre no sistema de novo.' });
+    if (!ORIGENS.some(r => r.test(req.headers.origin || ''))) return responder(403, { ok: false, msg: 'Origem não permitida.' });
+    if (l.p && !l.p.adm) return responder(403, { ok: false, msg: 'Só o Administrador liga o Telegram.' });
+    return responder(200, await acaoSistema(corpo(), l));
+  } catch (e) {
+    return responder(500, { ok: false, msg: (e && e.message) || String(e) });
+  }
+};

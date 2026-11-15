@@ -1,0 +1,18 @@
+# Lembretes do Telegram — a cada 15 minutos chama o sistema para mandar o que chegou na hora:
+# lembretes, aviso antes das reuniões, resumo do dia, contas de hoje ainda abertas (16h), aportes lançados
+# e, de reserva, o e-mail do dia. Não precisa de senha: a função só manda o que está na hora e não repete.
+# (O relógio do GitHub às vezes atrasa alguns minutos; por isso os minutos são "quebrados".)
+name: Lembretes do Telegram
+on:
+  schedule:
+    - cron: '4,19,34,49 * * * *'
+  workflow_dispatch:
+permissions: {}
+jobs:
+  tick:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Mandar o que chegou na hora
+        run: |
+          curl -sS --max-time 100 "https://vixsul.vercel.app/api/telegram?tick=1" || echo "a função não respondeu desta vez"

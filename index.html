@@ -820,6 +820,7 @@ input[type=checkbox]:disabled{opacity:.45;cursor:not-allowed;}
             <div class="vx-painel-itens">
               <button type="button" class="vx-item vx-alvo" id="nav-reunioes" onclick="UI.nav('reunioes')"><span class="vx-item-ico"><i class="fas fa-people-group"></i></span><span class="vx-item-txt"><b>Reuniões</b><small>Obra, planejamento e fiscalização · pauta sugerida e ata</small></span></button>
               <button type="button" class="vx-item vx-alvo" id="nav-acoes" onclick="UI.nav('acoes')"><span class="vx-item-ico"><i class="fas fa-list-check"></i></span><span class="vx-item-txt"><b>Tarefas e plano de ação</b><small>Agenda da equipe, pendências e Relatório de Três Gerações</small></span></button>
+              <button type="button" class="vx-item vx-alvo" id="nav-lembretes" style="display:none" onclick="UI.nav('lembretes')"><span class="vx-item-ico"><i class="fab fa-telegram"></i></span><span class="vx-item-txt"><b>Lembretes e Telegram</b><small>Lembretes no celular, resumo do dia e perguntas pelo Telegram</small></span></button>
             </div>
           </div>
         </li>
@@ -870,7 +871,7 @@ input[type=checkbox]:disabled{opacity:.45;cursor:not-allowed;}
               <button type="button" class="vx-item vx-alvo" id="nav-fornecedores" onclick="UI.nav('fornecedores')"><span class="vx-item-ico"><i class="fas fa-truck"></i></span><span class="vx-item-txt"><b>Fornecedores</b><small>Cadastro e quanto foi comprado de cada um</small></span></button>
               <button type="button" class="vx-item vx-alvo" id="nav-usuarios" style="display:none" onclick="UI.nav('usuarios')"><span class="vx-item-ico"><i class="fas fa-user-gear"></i></span><span class="vx-item-txt"><b>Usuários e permissões</b><small>Cadastro, senhas e o que cada pessoa vê</small></span></button>
               <button type="button" class="vx-item vx-alvo" id="nav-seguranca" style="display:none" onclick="UI.nav('seguranca')"><span class="vx-item-ico"><i class="fas fa-shield-halved"></i></span><span class="vx-item-txt"><b>Segurança</b><small>Duas etapas, cópia dos dados, espaço e auditoria</small></span></button>
-              <button type="button" class="vx-item" id="nav-avisos" style="display:none" onclick="GS.avisosEmail&&GS.avisosEmail()"><span class="vx-item-ico"><i class="fas fa-envelope-open-text"></i></span><span class="vx-item-txt"><b>Avisos por e-mail</b><small>O resumo do dia às 7h: contas, certidões, pessoal, diário e notas</small></span></button>
+              <button type="button" class="vx-item" id="nav-avisos" style="display:none" onclick="GS.avisosEmail&&GS.avisosEmail()"><span class="vx-item-ico"><i class="fas fa-envelope-open-text"></i></span><span class="vx-item-txt"><b>Avisos por e-mail</b><small>O resumo do dia às 7h: agenda, tarefas, contas, recebimentos, certidões e mais</small></span></button>
               <button type="button" class="vx-item vx-alvo" id="nav-lixeira" style="display:none" onclick="UI.nav('lixeira')"><span class="vx-item-ico"><i class="fas fa-trash-can"></i></span><span class="vx-item-txt"><b>Lixeira</b><small>Obras excluídas — dá para restaurar em até 15 dias</small></span><span id="nav-lixeira-badge" class="vx-badge" style="display:none">0</span></button>
             </div>
           </div>
@@ -1154,6 +1155,7 @@ input[type=checkbox]:disabled{opacity:.45;cursor:not-allowed;}
     <div class="view" id="view-documentos"><div class="cards-scroll"><div id="eng-documentos"></div></div></div>
     <div class="view" id="view-pessoal"><div class="cards-scroll"><div id="eng-pessoal"></div></div></div>
     <div class="view" id="view-licitacoes"><div class="cards-scroll"><div id="eng-licitacoes"></div></div></div>
+    <div class="view" id="view-lembretes"><div class="cards-scroll"><div id="vx-lembretes"></div></div></div>
     <div class="view" id="view-planejamento"><div class="cards-scroll"><div id="eng-planejamento"></div></div></div>
     <div class="view" id="view-acoes"><div class="cards-scroll"><div id="eng-acoes"></div></div></div>
     <div class="view" id="view-viabilidade"><div class="cards-scroll"><div id="eng-viabilidade"></div></div></div>
@@ -4137,7 +4139,7 @@ const UI={
     const nEl=document.getElementById('nav-'+v);if(nEl)nEl.classList.add('active');
     this._navMarcar();
     this._navFecharPaineis();
-    const titles={seguranca:'Segurança',inicio:'Início',faturamento:'Faturamento e recebimentos',reunioes:'Reuniões',socios:'Sócios e investimentos',orcamento:'Orçamento da empresa',projecao:'Fluxo de caixa projetado',dashboard:'Painel de indicadores',obras:'Contratos',custos:'Custos',faturamentos:'Faturamentos',aportes:'Aportes',cap:'CAP',orcamentos:'Orçamentos',usuarios:'Usuários e permissões',despesas:'Despesas da empresa',relatorios:'Relatórios',lixeira:'Lixeira',contas:'Contas a pagar',metas:'Metas e orçamento',conciliacao:'Conciliação bancária',medicoes:'Medições',diario:'Diário de obra',documentos:'Documentos e certidões',pessoal:'Pessoal e segurança',licitacoes:'Radar de licitações',fornecedores:'Fornecedores',contratos:'Contratos',planejamento:'Planejamento e cronograma',acoes:'Tarefas e plano de ação',viabilidade:'Viabilidade do contrato'};
+    const titles={seguranca:'Segurança',lembretes:'Lembretes e Telegram',inicio:'Início',faturamento:'Faturamento e recebimentos',reunioes:'Reuniões',socios:'Sócios e investimentos',orcamento:'Orçamento da empresa',projecao:'Fluxo de caixa projetado',dashboard:'Painel de indicadores',obras:'Contratos',custos:'Custos',faturamentos:'Faturamentos',aportes:'Aportes',cap:'CAP',orcamentos:'Orçamentos',usuarios:'Usuários e permissões',despesas:'Despesas da empresa',relatorios:'Relatórios',lixeira:'Lixeira',contas:'Contas a pagar',metas:'Metas e orçamento',conciliacao:'Conciliação bancária',medicoes:'Medições',diario:'Diário de obra',documentos:'Documentos e certidões',pessoal:'Pessoal e segurança',licitacoes:'Radar de licitações',fornecedores:'Fornecedores',contratos:'Contratos',planejamento:'Planejamento e cronograma',acoes:'Tarefas e plano de ação',viabilidade:'Viabilidade do contrato'};
     const ttl=document.getElementById('view-title');if(ttl)ttl.textContent=titles[v]||v;
     document.title=titles[v]||v; // título da aba do navegador acompanha a seção clicada
     if(v==='dashboard'&&App.state.data)App.renderDashboard();
@@ -10350,7 +10352,8 @@ const Auth={
     if(isAdmin)allowed.push('usuarios');
     const navS=document.getElementById('nav-seguranca');if(navS)navS.style.display=isAdmin?'':'none';
     const navAv=document.getElementById('nav-avisos');if(navAv)navAv.style.display=isAdmin?'':'none';
-    if(isAdmin)allowed.push('seguranca');
+    const navLb=document.getElementById('nav-lembretes');if(navLb)navLb.style.display=isAdmin?'':'none';
+    if(isAdmin)allowed.push('seguranca','lembretes');
     const navL=document.getElementById('nav-lixeira');
     if(navL)navL.style.display=isAdmin?'':'none';
     if(isAdmin){ allowed.push('lixeira'); App._lixeiraAtualizarBadge(); }
@@ -12572,6 +12575,7 @@ const Eng=(function(){
     let inp;
     const mx=c.max?(typeof c.max==='function'?c.max():c.max):'',trava=c.travado?' readonly tabindex="-1" style="background:#F3F5F9;cursor:default"':'';
     if(c.tipo==='data')inp=`<input type="date" data-f="${c.k}" value="${fe(val0?(dt(val0)?isoDe(dt(val0)):''):'')}"${mx?` max="${mx}"`:''}${trava}>`;
+    else if(c.tipo==='hora')inp=`<input type="time" data-f="${c.k}" value="${fe(/^\d{2}:\d{2}/.test(String(val0))?String(val0).slice(0,5):'')}" step="300"${trava}>`;
     else if(c.tipo==='sel')inp=`<select data-f="${c.k}"><option value="">Selecione…</option>${c.ops.map(o=>`<option ${String(o)===String(val0)?'selected':''}>${fe(o)}</option>`).join('')}${val0&&!c.ops.includes(val0)?`<option selected>${fe(val0)}</option>`:''}</select>`;
     else if(c.tipo==='obra')inp=`<select data-f="${c.k}"><option value="">${fe(c.vazio||'Selecione a obra…')}</option>${obrasNomes().map(o=>`<option ${o===val0?'selected':''}>${fe(o)}</option>`).join('')}${val0&&!obrasNomes().includes(val0)?`<option selected>${fe(val0)}</option>`:''}</select>`;
     else if(c.tipo==='area')inp=`<textarea data-f="${c.k}" rows="${c.linhas||3}" placeholder="${fe(c.ph||'')}">${fe(val0)}</textarea>`;
@@ -13297,16 +13301,17 @@ const Eng=(function(){
     const per=periodoRD(),obs=(RD.obra?[RD.obra]:obrasNomes()).filter(ob=>{if(RD.obra)return true;const r=resumoMaq(ob,per);return r.hm.h>0||r.n>0;});
     App._maqObras=obs;
     const kp=(rot,v,sub,tom)=>`<div class="maq-kpi${tom?' '+tom:''}"><small>${rot}</small><b>${v}</b>${sub?`<span>${sub}</span>`:''}</div>`,lh=n=>isNaN(n)?'—':n.toLocaleString('pt-BR',{maximumFractionDigits:1});
-    return `<div class="maq-painel"><div class="maq-cab"><div><b><i class="fas fa-tractor"></i> ${MAQ_FIXA} alugada — diesel, consumo e custo por hora</b><small>${per.todos?'Todos os meses':'No mês escolhido acima'} · as horas vêm do horímetro do diário</small></div>
+    return `<div class="maq-painel"><div class="maq-cab"><div><b><i class="fas fa-tractor"></i> ${MAQ_FIXA} alugada com operador — custo por hora</b><small>${per.todos?'Todos os meses':'No mês escolhido acima'} · o aluguel é da máquina com operador; o diesel é por conta da Vixsul · as horas vêm do horímetro do diário</small></div>
       <div class="maq-bts"><button type="button" class="fin-bt mini pri" data-rd="abast-novo"><i class="fas fa-gas-pump"></i> Registrar abastecimento</button><button type="button" class="fin-bt mini" data-rd="abast-lista"><i class="fas fa-list"></i> Abastecimentos</button><button type="button" class="fin-bt mini" data-rd="aluguel"><i class="fas fa-file-signature"></i> Aluguel da máquina</button></div></div>
       ${obs.length?obs.map((ob,i)=>{const r=resumoMaq(ob,per);
         return `<div class="maq-obra"><div class="maq-obra-nome">${fe(ob)}${r.temAluguel?'':` <button type="button" class="fin-bt mini" data-rd="aluguel" data-ob="${i}" title="Informe quanto custa o aluguel da máquina nesta obra">+ Informar o aluguel</button>`}</div><div class="maq-kpis">
           ${kp('Horas trabalhadas',r.hm.h?lh(r.hm.h)+' h':'—',r.hm.d?`${r.hm.d} dia${r.hm.d>1?'s':''} com horímetro`:'sem leituras no período')}
-          ${kp('Diesel',r.litros?lh(r.litros)+' L':'—',r.n?`${fmt(r.diesel)} · ${r.n} abastecimento${r.n>1?'s':''}`:'nenhum abastecimento')}
+          ${kp('Aluguel (máquina + operador)',r.temAluguel?fmt(r.al.tot):'—',r.temAluguel?r.al.det:'aluguel não informado')}
+          ${kp('Diesel (por conta da Vixsul)',r.litros?lh(r.litros)+' L':'—',r.n?`${fmt(r.diesel)} · ${r.n} abastecimento${r.n>1?'s':''}`:'nenhum abastecimento')}
           ${kp('Consumo',isNaN(r.consumo)?'—':lh(r.consumo)+' L/h',isNaN(r.consumo)?'precisa de horas e litros':'litros por hora trabalhada')}
-          ${kp('Aluguel no período',r.temAluguel?fmt(r.al.tot):'—',r.temAluguel?r.al.det:'aluguel não informado')}
-          ${kp('Custo por hora',isNaN(r.custoH)?'—':fmt(r.custoH),isNaN(r.custoH)?'':`aluguel ${isNaN(r.aluguelH)?'—':fmt(r.aluguelH)} + diesel ${isNaN(r.dieselH)?'—':fmt(r.dieselH)}`,'azul')}
-          ${kp('Custo total',r.tot?fmt(r.tot):'—','aluguel + diesel')}</div></div>`;}).join(''):'<p class="vk-dica">Nenhuma hora de horímetro nem abastecimento no período.</p>'}</div>`;}
+          ${kp('Hora da máquina com operador',isNaN(r.aluguelH)||!r.temAluguel?'—':fmt(r.aluguelH),'o aluguel dividido pelas horas')}
+          ${kp('Custo por hora com o diesel',isNaN(r.custoH)?'—':fmt(r.custoH),isNaN(r.custoH)?'':`máquina + operador ${isNaN(r.aluguelH)?'—':fmt(r.aluguelH)} + diesel ${isNaN(r.dieselH)?'—':fmt(r.dieselH)}`,'azul')}
+          ${kp('Custo total no período',r.tot?fmt(r.tot):'—','aluguel + diesel')}</div></div>`;}).join(''):'<p class="vk-dica">Nenhuma hora de horímetro nem abastecimento no período.</p>'}</div>`;}
   const CFG_ABAST={aba:'Planejamento',nomeItem:'abastecimento',larg:640,campos:[
     {k:'tipo',tipo:'oculto'},
     {k:'titulo_obra',label:'Obra',tipo:'obra',obrig:true,inteira:true},
@@ -13332,8 +13337,9 @@ const Eng=(function(){
     {k:'titulo_obra',label:'Obra',tipo:'obra',obrig:true,inteira:true},
     {k:'maquina',label:'Máquina',tipo:'sel',ops:[MAQ_FIXA],padrao:MAQ_FIXA,obrig:true},
     {k:'locadora',label:'Locadora',maiusc:true,ph:'De quem é a máquina'},
+    {k:'inclui',label:'O aluguel inclui',tipo:'sel',ops:['Máquina com operador','Só a máquina'],obrig:true,padrao:'Máquina com operador'},
     {k:'forma',label:'Como é cobrado',tipo:'sel',ops:FORMAS_ALUG,obrig:true,padrao:'Por mês'},
-    {k:'valor',label:'Valor do aluguel (R$)',tipo:'moeda',obrig:true},
+    {k:'valor',label:'Valor do aluguel (R$)',tipo:'moeda',obrig:true,padrao:'16000.00'},
     {k:'inicio',label:'Chegou na obra em',tipo:'data'},
     {k:'fim',label:'Saiu da obra em (se já saiu)',tipo:'data'},
     {k:'obs',label:'Observação',inteira:true}],
@@ -13351,7 +13357,7 @@ const Eng=(function(){
     j.addEventListener('click',ev=>{const e=ev.target.closest('[data-ab-ed]'),x=ev.target.closest('[data-ab-x]');if(e)formulario(CFG_ABAST,L[+e.dataset.abEd]);else if(x)apagar(CFG_ABAST,L[+x.dataset.abX],'abastecimento de '+brDe(dt(L[+x.dataset.abX].data)));});}
   // aluguéis informados (por obra), com novo, editar e excluir
   function listaAluguel(obPre){const L=alugueis(RD.obra||obPre||'');
-    const j=janela('Aluguel da máquina',`<div class="fin-resumo">Quanto custa a ${MAQ_FIXA} alugada em cada obra. Com isso o diário calcula o <b>custo por hora</b> (aluguel + diesel ÷ horas do horímetro). Se a máquina saiu e voltou, ou o preço mudou, cadastre um novo período.</div>
+    const j=janela('Aluguel da máquina',`<div class="fin-resumo">Quanto custa a ${MAQ_FIXA} alugada <b>com operador</b> em cada obra (ex.: R$ 16.000,00 por mês). O diesel é por conta da Vixsul e entra pelos abastecimentos. Com isso o diário calcula a <b>hora da máquina com operador</b> e o <b>custo por hora com o diesel</b>. Se a máquina saiu e voltou, ou o preço mudou, cadastre um novo período.</div>
       ${L.length?`<div class="lote-tab maq-tab"><table data-sem-ordem><thead><tr><th>Obra</th><th>Locadora</th><th>Cobrança</th><th>Valor</th><th>Período</th><th></th></tr></thead><tbody>${L.map((a,i)=>`<tr><td>${fe(a.titulo_obra)}</td><td>${fe(a.locadora||'—')}</td><td>${fe(a.forma||'')}</td><td class="num">${fmt(val(a.valor))}</td><td>${a.inicio?brDe(dt(a.inicio)):'—'} a ${a.fim?brDe(dt(a.fim)):'hoje'}</td>
         <td class="maq-acoes">${GS.podeMexer(a)?`<button type="button" class="fin-bt mini" data-al-ed="${i}" title="Alterar"><i class="fas fa-pen"></i></button><button type="button" class="fin-bt mini" data-al-x="${i}" title="Excluir"><i class="fas fa-trash"></i></button>`:''}</td></tr>`).join('')}</tbody></table></div>`:'<p class="vk-dica">Nenhum aluguel informado ainda.</p>'}`,
       [{html:'<i class="fas fa-plus"></i> Informar aluguel',cls:'pri',acao:()=>{setTimeout(()=>novoAluguel(RD.obra||obPre||''),0);}}],820);
@@ -15915,7 +15921,8 @@ const GS=(function(){
   new MutationObserver(ms=>{for(const m of ms)for(const n of m.addedNodes){if(n.nodeType!==1)continue;if(n.classList&&n.classList.contains('fin-kpi'))decorar(n.parentElement);else if(n.querySelector&&n.querySelector('.fin-kpi'))decorar(n);}}).observe(document.body,{childList:true,subtree:true});
 
   /* ═══════════════════════════ INÍCIO ═══════════════════════════ */
-  const INI={mes:mesHoje()};let graf12=null;
+  // o Início abre sempre em "Todos os períodos" (o mês ou o ano se escolhe na lista)
+  const INI={mes:'todos'};let graf12=null;
   function iconeAlerta(a){const t=cn(a.titulo);return /conta|pagar/.test(t)?'fa-file-invoice':/receb/.test(t)?'fa-hand-holding-dollar':/caixa/.test(t)?'fa-wallet':/concilia/.test(t)?'fa-building-columns':/prazo|vigencia/.test(t)?'fa-hourglass-half':/cronograma|frente/.test(t)?'fa-diagram-project':/custo/.test(t)?'fa-money-bill-trend-up':/proposta/.test(t)?'fa-envelope-open-text':/document|garantia/.test(t)?'fa-file-shield':/medic/.test(t)?'fa-ruler-combined':/contrato|reajuste/.test(t)?'fa-file-contract':/diario/.test(t)?'fa-book-open':/acao|acoes/.test(t)?'fa-list-check':'fa-circle-exclamation';}
   function conferencia(){
     const out=[],d=D(),h=hoje0();
@@ -23682,7 +23689,7 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
   /* AVISOS POR E-MAIL — quem manda é o servidor (api/avisos.js, todo dia às 7h, pela tarefa agendada da Vercel). Aqui o
      Administrador diz para quem vai e o que entra, vê a prévia de hoje e manda um teste. Fica em Planejamento ('cfg_avisos'). */
   const AV_API='https://vixsul.vercel.app/api/avisos';
-  const AV_ITENS=[['contas','Contas a pagar vencidas, de hoje e dos próximos 3 dias'],['documentos','Certidões e documentos vencendo (15 dias)'],['pessoal','ASO, treinamentos das NRs e CNH do pessoal (30 dias)'],['diario','Diário de obra de ontem sem preencher (obras com diário automático)'],['notas','Notas de compra recebidas ainda não lançadas'],['licitacoes','Licitações acompanhadas perto do prazo']];
+  const AV_ITENS=[['agenda','Agenda: reuniões de hoje e de amanhã (hora, local e link)'],['tarefas','Tarefas atrasadas e as de hoje e dos próximos 3 dias'],['contas','Contas a pagar vencidas, de hoje e dos próximos 3 dias'],['recebimentos','Notas emitidas que ainda não foram recebidas'],['aportes','Aportes do mês por sócio'],['contratos','Contratos com a vigência terminando (30 dias)'],['documentos','Certidões e documentos vencendo (15 dias)'],['pessoal','ASO, treinamentos das NRs e CNH do pessoal (30 dias)'],['diario','Diário de obra de ontem sem preencher (obras com diário automático)'],['notas','Notas de compra recebidas ainda não lançadas'],['licitacoes','Licitações acompanhadas perto do prazo'],['lembretes','Lembretes marcados para hoje']];
   async function avApi(corpo){let r;try{r=await fetch(AV_API,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(corpo)});}catch(e){throw new Error('O serviço de avisos não respondeu (internet ou serviço fora do ar).');}
     let j=null;try{j=await r.json();}catch(e){}if(!j)throw new Error('O serviço de avisos não respondeu direito (HTTP '+r.status+').');if(!j.ok&&j.msg)throw new Error(j.msg);return j;}
   function avisosEmail(){
@@ -23698,14 +23705,20 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
       <div class="av-bts"><button type="button" class="fin-bt" data-av-previa><i class="fas fa-eye"></i> Ver o e-mail de hoje</button><button type="button" class="fin-bt" data-av-teste><i class="fas fa-paper-plane"></i> Mandar um teste agora</button></div>
       <div class="av-previa" data-av-saida hidden></div>`,
       [{html:'<i class="fas fa-floppy-disk"></i> Salvar',cls:'pri',acao:async jj=>{const o=lerAv(jj);if(!o.emails)throw new Error('Informe pelo menos um e-mail.');
-        const ant=PLAN().find(p=>p.tipo==='cfg_avisos');await executar(()=>salvar('Planejamento',{...(ant?limpo(ant):{}),tipo:'cfg_avisos',...o},ant?ant.rowid:null));
+        // grava pelo servidor, em cima da linha mais nova (a cópia daqui pode estar sem o "último envio" de hoje)
+        const r=await avApi({acao:'salvar',cfg:o});const ant=PLAN().find(p=>p.tipo==='cfg_avisos');
+        if(r&&r.cfg){const {_id,...dd}=r.cfg;if(ant)Object.assign(ant,dd);else if(App.state&&App.state.data&&Array.isArray(App.state.data.planejamento))App.state.data.planejamento.push({...dd,rowid:_id});}
         toast(o.ativo==='nao'?'Avisos por e-mail desligados.':'Avisos por e-mail salvos — o próximo sai amanhã às 7h.','success');}}],660);
     const saida=j.querySelector('[data-av-saida]');
     j.addEventListener('click',async ev=>{const pv=ev.target.closest('[data-av-previa]'),te=ev.target.closest('[data-av-teste]');if(!pv&&!te)return;
       let cfg;try{cfg=lerAv(j);}catch(e){return toast(e.message,'error');}if(te&&!cfg.emails)return toast('Informe pelo menos um e-mail.','error');
       saida.hidden=false;saida.innerHTML=`<i class="fas fa-spinner fa-spin"></i> ${pv?'Montando o e-mail de hoje…':'Mandando…'}`;
       try{if(pv){const r=await avApi({acao:'previa',cfg});saida.innerHTML=(r.secoes||[]).length?r.secoes.map(x=>`<b>${fe(x.titulo)}</b><pre>${fe(x.texto)}</pre>`).join(''):'<b>Nada pendente hoje.</b>';}
-        else{const r=await avApi({acao:'testar',cfg});saida.innerHTML=r.enviado?`<b>Enviado para ${r.para} e-mail(s).</b>${r.falhas&&r.falhas.length?' Falhou: '+fe(r.falhas.join('; ')):''} Se for o primeiro envio para esse e-mail, confirme o pedido do FormSubmit que chegou lá.`:fe(r.msg||'');}}
+        else{const r=await avApi({acao:'testar',cfg});const at=r.ativar||[];
+          saida.innerHTML=(r.entregues?`<b><i class="fas fa-circle-check" style="color:#079455"></i> Enviado para ${r.entregues} e-mail(s).</b> Confira a caixa de entrada (e o Spam).`:'')
+            +(at.length?`<div class="av-ativar"><b><i class="fas fa-triangle-exclamation"></i> Falta um passo, uma vez só: ${fe(at.join(', '))}</b><ol><li>Abra a caixa de entrada desse e-mail (veja também <b>Spam</b> e <b>Promoções</b>).</li><li>Abra o e-mail do <b>FormSubmit</b> com o assunto "Action Required: Activate FormSubmit…".</li><li>Clique no botão <b>Activate Form</b>.</li><li>Volte aqui e clique em <b>Mandar um teste agora</b> de novo — aí o e-mail chega com as informações.</li></ol><small>Enquanto não clicar em "Activate Form", o FormSubmit (o serviço que manda os e-mails) não entrega nada para esse endereço.</small></div>`:'')
+            +(r.falhas&&r.falhas.length?`<div class="t-err">Falhou: ${fe(r.falhas.join('; '))}</div>`:'')
+            +(!r.entregues&&!at.length&&!(r.falhas&&r.falhas.length)?fe(r.msg||''):'');}}
       catch(e){saida.innerHTML=`<span class="t-err">${fe(e.message||String(e))}</span>`;}});}
   GS.avisosEmail=avisosEmail;
   GS.cert={tem:()=>{const c=certLocal();return !!(c&&c.b64);},info:certLocal,senhaGuardada:()=>!!senhaMem(),orcamentoAssinado,pdfAssinado,exportarRelatorio,_desenhar:desenharOrcamento,_preparar:prepararAssinatura,_libs:libsAssinar};
@@ -25044,6 +25057,168 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
   GS.docs={empresa,assinatura,contratantes,contratanteDe,salvarContratante,datalistContratantes,ehEmbasa,exigeDaps,marcarDaps,infoGarantia,retencao1aMed,imprimirDoc,gerados,gerarSolicitacaoGarantia,
     emitirNota,fichaNotaExtras,ligarFichaNota,antecipacao,desfazerAntecipacao,descontoAntecipacao,contratanteDaNota,cancelarNotaDoFaturamento,emitidasPendentes,listarArq,enviarArq,baixarArq,lerXmlNfse,KIT,_EC:EC,_SO2:SO2};
 })();
+
+/* ═══════════════ LEMBRETES E TELEGRAM (Agenda › Lembretes e Telegram — só Administrador) ═══════════════
+   Os lembretes ficam no Planejamento (tipo 'lembrete': texto, quando 'AAAA-MM-DDTHH:MM' no horário da Bahia, repetir
+   nao|diario|semanal|mensal, para eu|todos, ativo, ultimo_envio, adiar_ate, enviado). Quem manda é o servidor
+   (api/telegram.js, a cada 15 minutos pela tarefa "Lembretes do Telegram" do GitHub). Ao salvar, "ultimo_envio" vira o
+   agora: o lembrete conta a partir daí (nunca reenvia o que já passou). Aqui também se liga o robô, o Telegram de cada
+   Administrador e o que o robô manda sozinho (resumo do dia, aviso antes das reuniões, contas de hoje, aportes). */
+GS.lembretes=(function(){
+  const U=Fin.util,{executar,salvar,janela,confirmar,fe}=U;
+  const TG_API='https://vixsul.vercel.app/api/telegram';
+  const REP=[['nao','Não repete'],['diario','Todo dia'],['semanal','Toda semana'],['mensal','Todo mês']];
+  const PARA=[['eu','Só para mim'],['todos','Para todos que ligaram o Telegram']];
+  const MOD=[['claude-opus-5-5','Opus 5.5 — o mais preciso (custa mais por pergunta)'],['claude-sonnet-5-5','Sonnet 5.5 — equilibrado'],['claude-haiku-5-5','Haiku 5.5 — o mais econômico']];
+  const rot=(L,k)=>(L.find(x=>x[0]===k)||L[0])[1],cod=(L,r)=>(L.find(x=>x[1]===r)||L[0])[0];
+  const agoraBA=()=>new Date(Date.now()-3*3600e3).toISOString().slice(0,16);   // Bahia: UTC−3
+  const somaDia=(d,n)=>{const x=new Date(d+'T12:00:00Z');x.setUTCDate(x.getUTCDate()+n);return x.toISOString().slice(0,10);};
+  const limpo=o=>{const x={...o};delete x.rowid;delete x.visualId;delete x._aba;return x;};
+  const PLAN=()=>(App.state&&App.state.data&&App.state.data.planejamento)||[];
+  const lista=()=>PLAN().filter(p=>p.tipo==='lembrete'&&!p._lixeira_em);
+  const ST={filtro:'ativos',busca:'',tg:null,carregando:false,erro:'',prefAberta:false};
+  // a próxima vez que o lembrete toca (a mesma conta do servidor)
+  function proxima(l){
+    if(l.adiar_ate)return l.adiar_ate;
+    const q=String(l.quando||'').slice(0,16);if(!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(q))return null;
+    const rep=l.repetir||'nao',dep=l.ultimo_envio||'0000-00-00T00:00';if(rep==='nao')return q>dep?q:null;
+    const d=new Date(q+':00Z');let g=0;
+    while(d.toISOString().slice(0,16)<=dep&&g++<5000){if(rep==='diario')d.setUTCDate(d.getUTCDate()+1);else if(rep==='semanal')d.setUTCDate(d.getUTCDate()+7);else d.setUTCMonth(d.getUTCMonth()+1);}
+    return d.toISOString().slice(0,16);}
+  const vivo=l=>l.ativo!=='nao'&&!(l.repetir==='nao'&&l.enviado==='sim'&&!l.adiar_ate);
+  const DS=['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
+  const quandoTxt=q=>{if(!q)return '—';const d=q.slice(0,10),hj=agoraBA().slice(0,10);return `${d===hj?'Hoje':d===somaDia(hj,1)?'Amanhã':DS[new Date(d+'T12:00:00Z').getUTCDay()]}, ${d.slice(8,10)}/${d.slice(5,7)}/${d.slice(0,4)} às ${q.slice(11,16)}`;};
+  const situacao=l=>l.ativo==='nao'?['desligado','']:l.adiar_ate?['adiado','laranja']:l.repetir==='nao'&&l.enviado==='sim'?['enviado','verde']:['ativo','azul'];
+  const meusChats=()=>((ST.tg&&ST.tg.chats)||[]).filter(c=>c.meu);
+
+  async function tgApi(corpo){let r;try{r=await fetch(TG_API,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(corpo)});}catch(e){throw new Error('O serviço do Telegram não respondeu (internet ou serviço fora do ar).');}
+    let j=null;try{j=await r.json();}catch(e){}if(!j)throw new Error('O serviço do Telegram não respondeu direito (HTTP '+r.status+').');if(!j.ok&&j.msg)throw new Error(j.msg);return j;}
+  async function carregarTg(){if(ST.carregando)return;ST.carregando=true;ST.erro='';pintar();
+    try{ST.tg=await tgApi({acao:'estado'});}catch(e){ST.erro=e.message||String(e);}finally{ST.carregando=false;pintar();}}
+
+  // ── o formulário do lembrete (o padrão do sistema; dia, hora, repete e para quem viram os campos do registro) ──
+  const CFG={aba:'Planejamento',nomeItem:'lembrete',larg:600,campos:[
+      {k:'texto',label:'O que lembrar',tipo:'area',obrig:true,inteira:true,linhas:2,ph:'Ex.: pagar o aluguel do escritório'},
+      {k:'dia',label:'Dia',tipo:'data',obrig:true,padrao:()=>agoraBA().slice(0,10)},
+      {k:'hora',label:'Hora',tipo:'hora',obrig:true,padrao:'08:00'},
+      {k:'rep',label:'Repete?',tipo:'sel',ops:REP.map(x=>x[1]),obrig:true,padrao:'Não repete'},
+      {k:'para_rot',label:'Para quem vai',tipo:'sel',ops:PARA.map(x=>x[1]),obrig:true,padrao:'Só para mim'}],
+    extra:()=>`<p class="vk-dica" style="margin-top:10px"><i class="fab fa-telegram" style="color:#229ED9"></i> Chega pelo Telegram na hora marcada (às vezes alguns minutos depois — o relógio que dispara roda a cada 15 minutos), com os botões <b>Daqui a 1 hora</b>, <b>Amanhã</b> e <b>Feito</b>.${ST.tg&&ST.tg.token&&!meusChats().length?'<br><b style="color:#B54708">O seu Telegram ainda não está ligado</b> — sem ele, "Só para mim" não chega a lugar nenhum. Ligue em <b>Ligar meu Telegram</b>.':''}</p>`,
+    validar(o){
+      const q=`${o.dia}T${o.hora}`;if(!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(q))return 'Confira o dia e a hora.';
+      const rep=cod(REP,o.rep),ag=agoraBA();if(rep==='nao'&&q<=ag)return 'Esse dia e hora já passaram — escolha um horário mais à frente.';
+      const s=Auth._session||{};
+      Object.assign(o,{tipo:'lembrete',texto:String(o.texto||'').trim(),quando:q,repetir:rep,para:cod(PARA,o.para_rot),ativo:'sim',enviado:'',adiar_ate:'',ultimo_envio:ag,
+        usuario_uid:o.usuario_uid||s.uid||'',usuario:o.usuario||s.nome||'',origem:o.origem||'sistema'});
+      delete o.dia;delete o.hora;delete o.rep;delete o.para_rot;return '';},
+    depois(){setTimeout(pintar,250);}};
+  function abrir(l,aviso){
+    const v=l?{...l,dia:String(l.quando||'').slice(0,10),hora:String(l.quando||'').slice(11,16),rep:rot(REP,l.repetir||'nao'),para_rot:rot(PARA,l.para||'eu')}:null;
+    const j=Eng.formulario(CFG,v);if(aviso)toast(aviso,'info');return j;}
+  async function alternar(l){
+    if(GS.podeMexer&&!GS.podeMexer(l))return toast(GS.MSG_DONO,'error');
+    const ag=agoraBA();
+    if(l.ativo==='nao'||(l.repetir==='nao'&&l.enviado==='sim')){
+      if(!proxima({...l,adiar_ate:'',enviado:'',ultimo_envio:ag}))return abrir(l,'Esse lembrete já passou: escolha um novo dia e hora.');
+      await executar(()=>salvar('Planejamento',{...limpo(l),ativo:'sim',enviado:'',adiar_ate:'',ultimo_envio:ag},l.rowid));toast('Lembrete ligado de novo.','success');}
+    else{await executar(()=>salvar('Planejamento',{...limpo(l),ativo:'nao',adiar_ate:''},l.rowid));toast('Lembrete desligado — não toca mais (dá para ligar de novo).','success');}
+    setTimeout(pintar,250);}
+
+  // ── ligar o Telegram ──
+  let QRP=null;
+  const carregarQr=()=>window.qrcode?Promise.resolve():QRP||(QRP=new Promise((ok,er)=>{const s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js';s.onload=()=>ok();s.onerror=()=>{QRP=null;er(new Error('qr'));};document.head.appendChild(s);}));
+  function qrSvg(txt){const qr=window.qrcode(0,'M');qr.addData(txt);qr.make();const n=qr.getModuleCount();let d='';for(let r=0;r<n;r++)for(let c=0;c<n;c++)if(qr.isDark(r,c))d+=`M${c} ${r}h1v1h-1z`;
+    return `<svg viewBox="-2 -2 ${n+4} ${n+4}" width="210" height="210" shape-rendering="crispEdges" role="img" aria-label="Código para abrir no celular"><rect x="-2" y="-2" width="${n+4}" height="${n+4}" fill="#fff"/><path d="${d}" fill="#101828"/></svg>`;}
+  async function vincular(b){
+    let r;if(b)b.disabled=true;try{r=await tgApi({acao:'vincular'});}catch(e){return toast(e.message,'error');}finally{if(b)b.disabled=false;}
+    if(!r||!r.link)return toast((r&&r.msg)||'Não foi possível gerar o link.','error');
+    const j=janela('Ligar meu Telegram',`<div class="fin-resumo">Abra o link <b>no celular</b> — ou aponte a <b>câmera do iPhone</b> para o código — e toque em <b>Iniciar</b> no Telegram. O link vale <b>30 minutos</b> e serve uma vez só; ele liga o Telegram ao seu usuário (<b>${fe((Auth._session||{}).nome||'')}</b>).</div>
+      <div class="lb-qr" data-lb-qr><i class="fas fa-spinner fa-spin"></i></div>
+      <div class="av-bts" style="justify-content:center"><a class="fin-bt pri" href="${fe(r.link)}" target="_blank" rel="noopener"><i class="fab fa-telegram"></i> Abrir no Telegram</a><button type="button" class="fin-bt" data-lb-copiar><i class="fas fa-copy"></i> Copiar o link</button></div>
+      <p class="vk-dica" style="text-align:center">Quando o robô responder <b>"Pronto!"</b>, clique em <b>Já liguei</b>.</p>`,
+      [{html:'<i class="fas fa-check"></i> Já liguei',cls:'pri',acao:async()=>{setTimeout(carregarTg,100);}}],460);
+    j.addEventListener('click',ev=>{if(!ev.target.closest('[data-lb-copiar]'))return;const ok=()=>toast('Link copiado — cole no celular.','success'),nao=()=>toast('Não deu para copiar — use "Abrir no Telegram".','error');try{navigator.clipboard.writeText(r.link).then(ok,nao);}catch(e){nao();}});
+    try{await carregarQr();const el=j.querySelector('[data-lb-qr]');if(el)el.innerHTML=qrSvg(r.link);}catch(e){const el=j.querySelector('[data-lb-qr]');if(el)el.innerHTML='<small class="vk-dica">Não deu para desenhar o código — use o botão "Abrir no Telegram".</small>';}}
+  async function acao(a,b){if(b)b.disabled=true;
+    try{const r=await tgApi({acao:a});
+      if(a==='conectar'){ST.tg=r;toast(r.webhook?'Robô ligado. Agora clique em "Ligar meu Telegram".':'O Telegram não confirmou a ligação — clique em "Conferir de novo".',r.webhook?'success':'error');}
+      else toast(r.enviados?`Mandado para ${r.enviados} Telegram${r.enviados>1?'s':''}.${r.falhas&&r.falhas.length?' Falhou: '+r.falhas.join('; '):''}`:(r.msg||(r.falhas||[]).join('; ')||'Não foi possível mandar.'),r.enviados?'success':'error');}
+    catch(e){toast(e.message,'error');}finally{if(b)b.disabled=false;pintar();}}
+  async function salvarPref(b){
+    const box=document.getElementById('vx-lembretes'),g=k=>{const el=box&&box.querySelector(`[data-lbc="${k}"]`);return el?String(el.value||'').trim():'';};
+    const cfg={resumo:g('resumo'),resumo_hora:g('resumo_hora'),aviso_reuniao:g('aviso_reuniao'),aviso_reuniao_min:g('aviso_reuniao_min'),aviso_tarde:g('aviso_tarde'),aviso_aportes:g('aviso_aportes'),modelo_ia:g('modelo_ia')};
+    if(!/^\d{2}:\d{2}$/.test(cfg.resumo_hora))return toast('Confira a hora do resumo do dia.','error');
+    const m=parseInt(cfg.aviso_reuniao_min,10);if(cfg.aviso_reuniao!=='nao'&&!(m>=10&&m<=240))return toast('Aviso antes da reunião: de 10 a 240 minutos.','error');
+    if(b)b.disabled=true;try{ST.tg=await tgApi({acao:'salvar',cfg});toast('Salvo — o robô já segue o que foi escolhido.','success');}catch(e){toast(e.message,'error');}finally{if(b)b.disabled=false;pintar();}}
+
+  function cartaoTelegram(){
+    const T=ST.tg;
+    if(!T&&(ST.carregando||(!ST.erro)))return `<div class="lb-tg"><p class="vk-dica"><i class="fas fa-spinner fa-spin"></i> Conferindo o Telegram…</p></div>`;
+    if(!T)return `<div class="lb-tg"><div class="fin-aviso laranja"><div>${fe(ST.erro)}</div></div><div class="av-bts"><button type="button" class="fin-bt mini" data-lb="atualizar"><i class="fas fa-rotate"></i> Tentar de novo</button></div></div>`;
+    const ia=T.ia?'':'<div class="fin-aviso laranja"><div>A chave da IA (<b>ANTHROPIC_API_KEY</b>) não chegou ao servidor: sem ela o robô entende só os comandos (/hoje, /contas…), não as perguntas livres.</div></div>';
+    if(!T.token)return `<div class="lb-tg"><div class="lb-tg-cab"><i class="fab fa-telegram"></i><div><b>Criar o robô no Telegram (uma vez só, uns 5 minutos)</b><small>O Telegram é grátis e funciona no iPhone. A chave do robô fica só na Vercel — nunca no sistema nem no código.</small></div><button type="button" class="fin-bt mini" data-lb="atualizar" title="Conferir de novo"><i class="fas fa-rotate"></i></button></div>
+      <ol class="lb-passos"><li>Instale o <b>Telegram</b> no iPhone (App Store) e entre com o seu número.</li>
+        <li>No Telegram, abra o <b>@BotFather</b> (botão abaixo), toque em <b>Iniciar</b> e mande <b>/newbot</b>.</li>
+        <li>Ele pede o nome: escreva <b>Vixsul Gestão</b>. Depois pede o nome de usuário, que precisa terminar em <b>bot</b> — por exemplo <b>vixsul_gestao_bot</b>.</li>
+        <li>Ele responde com uma <b>chave comprida</b> (números, dois-pontos e letras). Toque nela para copiar.</li>
+        <li>Na Vercel (botão abaixo), abra o projeto <b>vixsul</b> › <b>Settings</b> › <b>Environment Variables</b> › <b>Add New</b>: em <b>Key</b> escreva <b>TELEGRAM_BOT_TOKEN</b>, em <b>Value</b> cole a chave, deixe <b>Production</b> marcado e clique em <b>Save</b>.</li>
+        <li>Avise o Claude no chat (ele publica de novo para a chave valer). Depois é só voltar aqui e clicar em <b>Ligar o robô</b>.</li></ol>
+      <div class="av-bts"><a class="fin-bt" href="https://t.me/BotFather" target="_blank" rel="noopener"><i class="fab fa-telegram"></i> Abrir o BotFather</a><a class="fin-bt" href="https://vercel.com/dashboard" target="_blank" rel="noopener"><i class="fas fa-arrow-up-right-from-square"></i> Abrir a Vercel</a></div>${ia}</div>`;
+    if(!T.bot||!T.webhook)return `<div class="lb-tg"><div class="lb-tg-cab"><i class="fab fa-telegram"></i><div><b>A chave do robô já está na Vercel</b><small>Falta ligar: o sistema aponta o Telegram para cá e cadastra os comandos.${T.erroTelegram?' · '+fe(T.erroTelegram):''}</small></div><button type="button" class="fin-bt mini" data-lb="atualizar" title="Conferir de novo"><i class="fas fa-rotate"></i></button></div><div class="av-bts"><button type="button" class="fin-bt pri" data-lb="conectar"><i class="fas fa-plug"></i> Ligar o robô</button></div>${ia}</div>`;
+    const c=T.cfg||{},sel=(k,a,b)=>`<select data-lbc="${k}"><option value="sim" ${c[k]==='nao'?'':'selected'}>${a}</option><option value="nao" ${c[k]==='nao'?'selected':''}>${b}</option></select>`,n=T.chats.length;
+    return `<div class="lb-tg"><div class="lb-tg-cab"><i class="fab fa-telegram"></i><div><b>Robô <a href="https://t.me/${fe(T.bot)}" target="_blank" rel="noopener">@${fe(T.bot)}</a> ligado</b><small>${n?`${n} Telegram ligado${n>1?'s':''}`:'Nenhum Telegram ligado ainda — clique em "Ligar meu Telegram".'}${T.pendentes?` · ${T.pendentes} mensagem(ns) esperando`:''}${T.erro?` · último erro do Telegram: ${fe(T.erro)}`:''}</small></div><button type="button" class="fin-bt mini" data-lb="atualizar" title="Conferir de novo"><i class="fas fa-rotate"></i></button></div>
+      <div class="av-bts"><button type="button" class="fin-bt pri" data-lb="vincular"><i class="fas fa-link"></i> Ligar meu Telegram</button><button type="button" class="fin-bt" data-lb="testar"${n?'':' disabled'}><i class="fas fa-paper-plane"></i> Mandar um teste</button><button type="button" class="fin-bt" data-lb="resumo"${n?'':' disabled'}><i class="fas fa-newspaper"></i> Mandar o resumo agora</button></div>
+      ${n?`<div class="lb-chats">${T.chats.map(x=>`<div class="lb-chat"><i class="fab fa-telegram"></i><span><b>${fe(x.nome||'Telegram')}${x.meu?' <em>você</em>':''}</b><small>usuário ${fe(x.usuario||'—')}${x.ligado_em?' · desde '+fe(new Date(x.ligado_em).toLocaleDateString('pt-BR')):''}</small></span><label class="lb-res"><input type="checkbox" data-lb-res="${fe(x.id)}" ${x.resumo==='nao'?'':'checked'}> recebe o resumo do dia</label><button type="button" class="fin-bt mini" data-lb="desligar" data-id="${fe(x.id)}" title="Desligar este Telegram"><i class="fas fa-link-slash"></i></button></div>`).join('')}</div>`:''}
+      <details class="lb-pref"${ST.prefAberta?' open':''}><summary><i class="fas fa-sliders"></i> O que o robô manda sozinho e o assistente das perguntas</summary>
+        <div class="fin-linha">
+          <div class="fin-fld"><label>Resumo do dia</label>${sel('resumo','Sim — todo dia','Não')}</div>
+          <div class="fin-fld"><label>Hora do resumo</label><input type="time" data-lbc="resumo_hora" value="${fe(c.resumo_hora||'07:00')}" step="300"></div>
+          <div class="fin-fld"><label>Aviso antes das reuniões</label>${sel('aviso_reuniao','Sim','Não')}</div>
+          <div class="fin-fld"><label>Quantos minutos antes</label><input data-lbc="aviso_reuniao_min" inputmode="numeric" value="${fe(c.aviso_reuniao_min||'60')}"></div>
+          <div class="fin-fld"><label>Contas de hoje ainda em aberto (16h)</label>${sel('aviso_tarde','Sim','Não')}</div>
+          <div class="fin-fld"><label>Aporte lançado no sistema</label>${sel('aviso_aportes','Sim — avisa','Não')}</div>
+          <div class="fin-fld" style="grid-column:1/-1"><label>Assistente das perguntas (IA)</label><select data-lbc="modelo_ia">${MOD.map(([k,r])=>`<option value="${k}" ${(c.modelo_ia||'claude-opus-5-5')===k?'selected':''}>${fe(r)}</option>`).join('')}</select></div>
+        </div>
+        <div class="av-bts"><button type="button" class="fin-bt pri" data-lb="pref"><i class="fas fa-floppy-disk"></i> Salvar</button></div></details>${ia}</div>`;
+  }
+
+  function pintar(){
+    const box=document.getElementById('vx-lembretes');if(!box||typeof Eng==='undefined')return;
+    const ag=agoraBA(),hj=ag.slice(0,10),T=ST.tg,mc=meusChats();
+    const L=lista().map(l=>({l,p:vivo(l)?proxima(l):null,s:situacao(l)}));
+    const ativos=L.filter(x=>x.p),hoje=ativos.filter(x=>x.p.slice(0,10)===hj),prox=ativos.slice().sort((a,b)=>a.p.localeCompare(b.p))[0];
+    let V=ST.filtro==='ativos'?ativos:ST.filtro==='outros'?L.filter(x=>!x.p):L;
+    const q=String(ST.busca||'').trim().toLowerCase();if(q)V=V.filter(x=>String(x.l.texto||'').toLowerCase().includes(q));
+    V=V.slice().sort((a,b)=>(a.p||'9999').localeCompare(b.p||'9999')||String(b.l.quando||'').localeCompare(String(a.l.quando||'')));
+    App._lbV=V;
+    box.innerHTML=`<div class="fin-wrap">${Eng.cab('Lembretes e Telegram','Os lembretes chegam no seu celular pelo <b>Telegram</b> na hora marcada. O mesmo robô manda o <b>resumo do dia</b> de manhã, avisa <b>antes de cada reunião</b>, lembra as <b>contas que vencem hoje</b> e os <b>aportes lançados</b> — e responde perguntas sobre os números do sistema (ex.: <i>quanto gastei na obra de Itarantim em outubro?</i>).',`<button type="button" class="fin-bt pri" data-lb="novo"><i class="fas fa-plus"></i> Lembrete</button>`)}
+      <div class="fin-kpis">${Eng.kpi(ativos.length?'azul':'','Lembretes ativos',ativos.length,'tocam na hora marcada')}${Eng.kpi('','Hoje',hoje.length,hoje.length?'ainda vão tocar hoje':'nenhum para hoje')}${Eng.kpi('','Próximo',prox?fe(quandoTxt(prox.p)):'—',prox?fe(String(prox.l.texto||'').slice(0,60)):'')}${Eng.kpi(mc.length?'verde':'laranja','Seu Telegram',T?(mc.length?'Ligado':'Não ligado'):'…',T?(mc.length?fe(mc.map(c=>c.nome).join(', ')):'ligue abaixo'):'conferindo')}</div>
+      ${cartaoTelegram()}
+      <div class="lb-cab"><h3><i class="fas fa-bell"></i> Lembretes</h3><div class="lb-filtros"><select class="filter-select" data-lb-filtro><option value="ativos" ${ST.filtro==='ativos'?'selected':''}>Ativos</option><option value="outros" ${ST.filtro==='outros'?'selected':''}>Já enviados e desligados</option><option value="todos" ${ST.filtro==='todos'?'selected':''}>Todos</option></select><input type="search" class="filter-select" data-lb-busca placeholder="Buscar…" value="${fe(ST.busca)}"></div></div>
+      ${V.length?`<div class="lote-tab lb-tab"><table data-sem-ordem><thead><tr><th>Próxima vez</th><th>O que lembrar</th><th>Repete</th><th>Para</th><th>Situação</th><th></th></tr></thead><tbody>${V.map((x,i)=>`<tr><td>${x.p?fe(quandoTxt(x.p)):'—'}</td><td><b>${fe(x.l.texto||'')}</b><small>${x.l.origem==='telegram'?'criado pelo Telegram':'criado no sistema'}${x.l.usuario?' · '+fe(x.l.usuario):''}</small></td><td>${fe(rot(REP,x.l.repetir||'nao'))}</td><td>${x.l.para==='todos'?'Todos':'Quem criou'}</td><td><span class="eng-pill ${x.s[1]}">${x.s[0]}</span></td>
+        <td class="maq-acoes"><button type="button" class="fin-bt mini" data-lb="editar" data-i="${i}" title="Editar"><i class="fas fa-pen"></i></button><button type="button" class="fin-bt mini" data-lb="alternar" data-i="${i}" title="${vivo(x.l)?'Desligar (não toca mais)':'Ligar de novo'}"><i class="fas ${vivo(x.l)?'fa-bell-slash':'fa-bell'}"></i></button><button type="button" class="fin-bt mini" data-lb="excluir" data-i="${i}" title="Excluir"><i class="fas fa-trash-can"></i></button></td></tr>`).join('')}</tbody></table></div>`
+        :`<p class="vk-dica">${ST.filtro==='ativos'&&!q?'Nenhum lembrete ativo. Clique em <b>+ Lembrete</b> — ou, com o Telegram ligado, mande para o robô: <i>me lembra amanhã às 9h de pagar o aluguel</i>.':'Nada por aqui.'}</p>`}</div>`;
+    box.onclick=ev=>{const b=ev.target.closest('[data-lb]');if(!b)return;const a=b.dataset.lb,x=App._lbV[+b.dataset.i];
+      if(a==='novo')return abrir(null);
+      if(a==='editar'&&x)return abrir(x.l);
+      if(a==='alternar'&&x)return alternar(x.l);
+      if(a==='excluir'&&x)return Eng.apagar({aba:'Planejamento',nomeItem:'lembrete'},x.l,x.l.texto||'Lembrete');
+      if(a==='atualizar')return carregarTg();
+      if(a==='vincular')return vincular(b);
+      if(a==='conectar'||a==='testar'||a==='resumo')return acao(a,b);
+      if(a==='pref')return salvarPref(b);
+      if(a==='desligar')return confirmar('Desligar este Telegram?','Ele para de receber o resumo, os avisos e os lembretes, e o robô deixa de responder a ele. Dá para ligar de novo com outro link.','Sim, desligar',async()=>{ST.tg=await tgApi({acao:'desligar',id:b.dataset.id});toast('Telegram desligado.','success');pintar();});};
+    box.onchange=ev=>{const f=ev.target.closest('[data-lb-filtro]');if(f){ST.filtro=f.value;return pintar();}
+      const r=ev.target.closest('[data-lb-res]');if(r)tgApi({acao:'salvar',resumoChat:{id:r.dataset.lbRes,resumo:r.checked?'sim':'nao'}}).then(o=>{ST.tg=o;toast(r.checked?'Vai receber o resumo do dia.':'Não recebe mais o resumo do dia.','success');}).catch(e=>{r.checked=!r.checked;toast(e.message,'error');});};
+    box.oninput=ev=>{const s=ev.target.closest('[data-lb-busca]');if(!s)return;ST.busca=s.value;clearTimeout(App._lbT);App._lbT=setTimeout(()=>{pintar();const n=document.querySelector('#vx-lembretes [data-lb-busca]');if(n){n.focus();n.setSelectionRange(n.value.length,n.value.length);}},300);};
+    const det=box.querySelector('details.lb-pref');if(det)det.addEventListener('toggle',()=>{ST.prefAberta=det.open;});
+  }
+  function render(){if(!ST.tg&&!ST.carregando)carregarTg();else pintar();}
+  // a tela entra pelo mesmo caminho das telas de engenharia; e se redesenha quando os dados mudam
+  const re=App._renderEng;App._renderEng=function(v){if(v==='lembretes'){try{render();}catch(e){console.error(e);}return;}return re&&re.apply(this,arguments);};
+  const ra=App.renderAll;App.renderAll=function(){ra.apply(this,arguments);try{if(document.getElementById('view-lembretes')?.classList.contains('active'))pintar();}catch(e){console.error(e);}};
+  return {render,pintar,abrir,proxima,lista,_ST:ST};
+})();
 </script>
 <style>
 .tb-ord{cursor:pointer;user-select:none;white-space:nowrap;} .tb-ord:hover{color:#1652D8;}
@@ -25376,6 +25551,24 @@ input[type=search].filter-select{background-image:none;padding-right:12px;}
 .av-itens{display:flex;flex-direction:column;gap:8px;padding:10px 12px;border:1px solid #EAECF0;border-radius:12px;background:#FCFCFD;} .av-itens label{display:flex;align-items:center;gap:8px;font-size:13px;color:#344054;cursor:pointer;}
 .av-bts{display:flex;flex-wrap:wrap;gap:8px;} .av-previa{border:1px solid #EAECF0;border-radius:12px;padding:12px 14px;background:#F8FAFC;font-size:12.5px;color:#344054;max-height:300px;overflow:auto;}
 .av-previa pre{white-space:pre-wrap;font:12.5px/1.5 Inter,sans-serif;margin:4px 0 10px;color:#475467;}
+.av-itens{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:8px 14px;}
+.fin-fld .av-itens label{text-transform:none;letter-spacing:0;font-weight:500;font-size:13px;line-height:1.35;color:#344054;align-items:flex-start;margin:0;} .fin-fld .av-itens label input{margin-top:1px;flex:none;}
+.av-ativar{margin-top:10px;padding:10px 12px;border-radius:12px;background:#FFFAEB;border:1px solid #FEDF89;color:#93370D;line-height:1.5;}
+.av-ativar ol{margin:6px 0;padding-left:20px;} .av-ativar small{color:#B54708;} .av-ativar i{color:#DC6803;}
+/* lembretes e Telegram */
+.lb-tg{border:1px solid #D1E9FF;background:linear-gradient(180deg,#F5FAFF,#fff 70%);border-radius:16px;padding:14px 16px;margin:14px 0;display:flex;flex-direction:column;gap:12px;}
+.lb-tg-cab{display:flex;align-items:flex-start;gap:12px;} .lb-tg-cab>i{font-size:28px;color:#229ED9;flex:none;margin-top:1px;}
+.lb-tg-cab>div{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px;} .lb-tg-cab b{font-size:14.5px;color:#101828;} .lb-tg-cab small{font-size:12.5px;color:#475467;line-height:1.45;} .lb-tg-cab a{color:#1652D8;}
+.lb-passos{margin:0;padding-left:22px;display:flex;flex-direction:column;gap:7px;font-size:13px;color:#344054;line-height:1.5;}
+.lb-chats{display:flex;flex-direction:column;gap:6px;}
+.lb-chat{display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid #EAECF0;border-radius:12px;background:#fff;} .lb-chat>i{color:#229ED9;font-size:18px;flex:none;}
+.lb-chat>span{flex:1;min-width:0;display:flex;flex-direction:column;} .lb-chat b{font-size:13px;color:#101828;} .lb-chat em{font-style:normal;font:700 10.5px Inter,sans-serif;background:#ECFDF3;color:#067647;border-radius:999px;padding:1px 7px;margin-left:4px;} .lb-chat small{font-size:12px;color:#667085;}
+.lb-res{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:#344054;white-space:nowrap;cursor:pointer;text-transform:none;letter-spacing:0;font-weight:500;}
+.lb-pref{border-top:1px solid #EAECF0;padding-top:10px;} .lb-pref summary{cursor:pointer;font:700 13px Inter,sans-serif;color:#344054;padding:2px 0;} .lb-pref summary i{color:#667085;margin-right:4px;} .lb-pref .fin-linha{margin:10px 0;}
+.lb-cab{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin:6px 0 8px;} .lb-cab h3{margin:0;font:800 15px Inter,sans-serif;color:#101828;display:flex;align-items:center;gap:8px;} .lb-cab h3 i{color:#667085;}
+.lb-filtros{display:flex;gap:8px;flex-wrap:wrap;} .lb-tab td small{display:block;color:#667085;font-size:11.5px;margin-top:2px;} .lb-tab td b{font-weight:600;color:#101828;}
+.lb-qr{display:flex;justify-content:center;padding:8px 0;min-height:60px;align-items:center;} .lb-qr svg{border:1px solid #EAECF0;border-radius:12px;}
+@media (max-width:640px){.lb-chat{flex-wrap:wrap;} .lb-res{order:3;width:100%;padding-left:28px;} .lb-filtros{width:100%;} .lb-filtros>*{flex:1;min-width:0;}}
 /* radar de licitações (PNCP) */
 .rad-lista{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:12px;margin-top:12px;}
 .rad-card{border:1px solid #EAECF0;border-radius:14px;background:#fff;padding:14px;display:flex;flex-direction:column;gap:8px;box-shadow:0 1px 2px rgba(16,24,40,.04);} .rad-card.acomp{border-color:#ABEFC6;background:#FCFFFD;}

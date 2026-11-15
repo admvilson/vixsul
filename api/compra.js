@@ -99,6 +99,8 @@ module.exports = async (req, res) => {
   cors(req, res);
   const responder = (st, o) => { res.statusCode = st; res.setHeader('Content-Type', 'application/json; charset=utf-8'); res.end(JSON.stringify(o)); };
   if (req.method === 'OPTIONS') { res.statusCode = 204; return res.end(); }
+  // conferência rápida, sem dados: a chave da leitura inteligente está na Vercel?
+  if (req.method === 'GET') return responder(200, { ok: true, ia: !!process.env.ANTHROPIC_API_KEY });
   if (req.method !== 'POST') return responder(405, { ok: false, msg: 'Use POST.' });
   // só quem entrou no sistema usa (depois que a segurança estiver configurada na Vercel)
   if (!exigirLogin(req).ok) return responder(401, { ok: false, sair: true, msg: 'A sessão terminou. Entre no sistema de novo.' });
