@@ -130,8 +130,9 @@ async function montar(cfg, Dpronto) {
     if (sem.length) sec.push([`Diário de obra de ontem (${br(ontem)}) sem preencher`, lista(sem, 10)]);
   }
   if (quer('notas')) {
-    const L = plan.filter(p => p.tipo === 'nota_recebida' && (p.situacao || 'nova') === 'nova');
-    if (L.length) sec.push(['Notas de compra recebidas (ainda não lançadas)', `${L.length} nota(s) — lance em Contas a pagar › Notas recebidas\n` + lista(L.map(n => `${br(iso(n.data_emissao))} — ${n.emitente_nome || 'Fornecedor'} — ${reais(num(n.valor))}`), 8)]);
+    // notas emitidas contra a Vixsul que o sistema encontrou desde ontem (ficam em Documentos e certidões › Notas fiscais)
+    const L = plan.filter(p => p.tipo === 'nota_recebida' && p.situacao !== 'cancelada' && String(p.recebida_em || '').slice(0, 10) >= ontem);
+    if (L.length) sec.push(['Notas fiscais recebidas desde ontem', `${L.length} nota(s) · ${reais(L.reduce((s, n) => s + num(n.valor), 0))} — PDF e XML em Documentos e certidões › Notas fiscais\n` + lista(L.map(n => `${br(iso(n.data_emissao))} — ${n.emitente_nome || 'Fornecedor'} — ${reais(num(n.valor))}`), 8)]);
   }
   if (quer('licitacoes')) {
     const L = plan.filter(p => p.tipo === 'licitacao' && ['Analisar', 'Vamos participar'].includes(p.situacao) && iso(p.encerramento) && iso(p.encerramento) >= hj && iso(p.encerramento) <= somaDias(hj, 5));

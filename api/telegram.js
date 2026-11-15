@@ -14,6 +14,9 @@
 const crypto = require('crypto');
 const { ORIGENS, cors, exigirLogin } = require('./_auth');
 const R = require('./_resumo');
+const P = require('./_perguntas');   // perguntas sem IA (grátis)
+const RL = require('./_relatorio');  // relatório semanal (PDF), alerta de caixa, cobrança, chuva e fechamento do mês
+const E = require('./_email');       // e-mail pelo Gmail do dono
 
 const TOKEN = process.env.TELEGRAM_BOT_TOKEN || '';
 const CHAVE_SB = process.env.SUPABASE_SERVICE_KEY || '';
@@ -76,6 +79,39 @@ async function mandar(chat_id, texto, teclado) {
   return ultimo;
 }
 async function paraTodos(chats, texto, teclado) { const falhas = []; for (const c of chats) { try { await mandar(c.chat_id, texto, teclado); } catch (e) { falhas.push((c.nome || c.chat_id) + ': ' + e.message); } } return falhas; }
+// um arquivo (o PDF do relatório) no Telegram
+async function mandarDoc(chat_id, buf, nome, legenda) {
+  const fd = new FormData(); fd.append('chat_id', String(chat_id)); if (legenda) fd.append('caption', String(legenda).slice(0, 1000));
+  fd.append('document', new Blob([buf], { type: 'application/pdf' }), nome);
+  let r; try { r = await fetch(`https://api.telegram.org/bot${TOKEN}/sendDocument`, { method: 'POST', body: fd }); } catch (e) { throw new Error('O Telegram não respondeu (internet do servidor).'); }
+  const j = await r.json().catch(() => null); if (!j || !j.ok) throw new Error((j && j.description) || ('O Telegram respondeu ' + r.status)); return j.result;
+}
+// e-mail automático (relatório semanal, fechamento) para os e-mails dos Avisos por e-mail, se o Gmail estiver ligado
+async function emailAuto(titulo, partes, anexos) {
+  if (!E.emailPronto()) return false;
+  try {
+    const ca = (await R.lerTipos(['cfg_avisos'])).sort((a, b) => (b._id || 0) - (a._id || 0))[0], para = E.emailsDe(ca && ca.emails);
+    if (!para.length || (ca && ca.ativo === 'nao')) return false;
+    await E.mandarEmail({ para, assunto: titulo + ' — Vixsul Empreendimentos', html: E.htmlPartes(titulo, partes), texto: E.textoPartes(titulo, partes), anexos: anexos || undefined });
+    return true;
+  } catch (e) { console.error('email', e && e.message); return false; }
+}
+// os textos das automações (também pedidos pelos comandos /relatorio /caixa /cobrar /fechamento)
+async function enviarRelatorio(chats, D, hj) {
+  const rel = RL.semanal(D, hj); let pdf = null;
+  try { pdf = RL.pdfDePartes(rel.titulo, 'Vixsul Empreendimentos — semana de ' + rel.rot, rel.partes); } catch (e) { console.error('pdf', e && e.message); }
+  for (const c of chats) { try { await mandar(c.chat_id, rel.tg); if (pdf) await mandarDoc(c.chat_id, pdf, rel.arquivo, 'Relatório semanal — ' + rel.rot); } catch (e) { console.error('relatorio', e && e.message); } }
+  return { rel, pdf };
+}
+function textoCaixa(cx) {
+  if (!cx) return 'Para o alerta de caixa, informe o saldo das contas em <b>Planejamento › Fluxo de caixa projetado</b> (o sistema parte dele).';
+  const base = `pelo saldo informado (${R.reais(cx.saldo)} em ${R.brAno(cx.dataSaldo)}) e pelo que está lançado`;
+  if (!cx.neg) return `✅ <b>Caixa dos próximos 15 dias</b>: ${base}, o saldo não fica negativo. O menor saldo é ${R.reais(cx.min)} em ${R.brAno(cx.dMin)}; no fim, ${R.reais(cx.fim)}.`;
+  return `🚨 <b>Alerta de caixa</b>\n${base[0].toUpperCase() + base.slice(1)}, o caixa fica <b>negativo em ${R.brAno(cx.neg)}</b> — o pior momento é ${R.brAno(cx.dMin)} (${R.reais(cx.min)}).` +
+    (cx.saidas.length ? '\nMaiores saídas até lá:\n' + cx.saidas.map(x => `• ${R.br(x.v)} — ${esc(x.forn)} — ${R.reais(x.valor)}`).join('\n') : '') + '\nVeja em Planejamento › Fluxo de caixa projetado.';
+}
+const textoCobranca = c => `💸 <b>Cobrança: NF ${esc(c.x.n)}</b>${c.x.obra ? ' — ' + esc(c.x.obra) : ''}\nEmitida em ${R.brAno(c.x.e)} (${c.dias} dias) · ${R.reais(c.x.liq)} a receber${c.contratante ? ' · ' + esc(c.contratante) : ''}\n\nTexto pronto (toque nele para copiar):\n<pre>${esc(c.texto)}</pre>`;
+const textoChuva = L => `🌧️ <b>Previsão de chuva amanhã (${R.brAno(L[0].amanha)})</b>\n` + L.map(c => `<b>${esc(c.cidade)}</b>${c.forte ? ' — <b>chuva forte</b>' : ''} · obra(s): ${esc(c.obras.join(', '))}\nManhã: ${esc(c.manha || '—')}\nTarde: ${esc(c.tarde || '—')}`).join('\n\n') + '\n\nSe tiver concretagem, aterro ou serviço externo marcado, vale replanejar.';
 
 // ── o que está no banco (só os tipos do Telegram: leitura leve) ──
 async function estadoBanco() {
@@ -104,9 +140,14 @@ const ajuda = () => `<b>O que eu faço</b>
 /obras — os números de cada obra
 /lembretes — os seus lembretes (com botão para apagar)
 /lembrar — criar um lembrete. Exemplo: <i>/lembrar amanhã 9h pagar o aluguel</i>
-${CHAVE_IA ? 'Ou escreva uma pergunta, como: <i>quanto gastei na obra de Itarantim em outubro?</i>, <i>quais contas vencem esta semana?</i> ou <i>me lembra sexta às 10h de ligar para o fiscal</i>. Para continuar um assunto, responda (deslize para a esquerda) a minha mensagem.' : '(Perguntas livres ficam disponíveis quando a leitura com IA estiver ligada na Vercel.)'}
+/relatorio — o relatório da semana passada (com PDF)
+/caixa — o caixa dos próximos 15 dias
+/cobrar — notas paradas há 30 dias ou mais, com o texto de cobrança pronto
+/fechamento — o que falta fechar do mês passado
+/chuva — previsão de chuva para amanhã nas obras
+${CHAVE_IA ? 'Ou escreva uma pergunta, como: <i>quanto gastei na obra de Itarantim em outubro?</i>, <i>quais contas vencem esta semana?</i> ou <i>me lembra sexta às 10h de ligar para o fiscal</i>. Para continuar um assunto, responda (deslize para a esquerda) a minha mensagem.' : 'Ou escreva a pergunta do seu jeito. ' + P.EXEMPLOS + '\n• <i>me lembra sexta às 10h de ligar para o fiscal</i>'}
 
-Sozinho eu mando: o resumo do dia de manhã, um aviso antes de cada reunião, os lembretes na hora marcada, as contas que vencem hoje e ainda estão em aberto (16h) e os aportes lançados.`;
+Sozinho eu mando: o resumo do dia (7h), o aviso antes de cada reunião, os lembretes na hora marcada, o alerta de caixa e as cobranças (8h), as contas de hoje ainda em aberto (16h), a chuva de amanhã nas obras (17h), os aportes lançados, o relatório semanal (segunda, 7h) e o fechamento do mês (dia 1º).`;
 
 function textoContas(D, hj) {
   const ab = R.contasAbertas(D, hj).sort((a, b) => a.v.localeCompare(b.v)), ate = R.somaDias(hj, 7);
@@ -275,9 +316,22 @@ function erroIA(e) {
   if (e.status === 400 && /credit|billing|balance/i.test(e.message || '')) return 'Acabou o crédito da conta da Anthropic (console.anthropic.com › Billing).';
   return 'A IA não respondeu agora (' + String(e.message || e).slice(0, 160) + ').';
 }
+// sem IA (ou se a IA falhar): o próprio sistema entende as perguntas mais comuns (grátis)
+async function responderLivre(texto, ctx) {
+  const D = ctx.D || (ctx.D = await R.carregar());
+  const r = P.responder(texto, D, { agenda: () => textoAgenda(D, R.hojeBahia()) });
+  if (r) return mandar(ctx.chat, r);
+  return mandar(ctx.chat, 'Não entendi essa pergunta. ' + P.EXEMPLOS + '\n\nOu use os comandos: /hoje /contas /agenda /aportes /obras /lembretes');
+}
 async function responderIA(texto, anterior, ctx) {
   let resp;
-  try { resp = paraHtml(await perguntarIA(texto, anterior, ctx)); } catch (e) { resp = esc(erroIA(e)); }
+  try { resp = paraHtml(await perguntarIA(texto, anterior, ctx)); }
+  catch (e) {
+    console.error('IA', e && e.message);
+    const D = ctx.D || (ctx.D = await R.carregar()), livre = P.responder(texto, D, { agenda: () => textoAgenda(D, R.hojeBahia()) });
+    if (livre) return mandar(ctx.chat, livre);
+    resp = esc(erroIA(e));
+  }
   const tec = ctx.criados.length ? ctx.criados.map(l => [{ text: '🗑 Apagar o lembrete criado' + (ctx.criados.length > 1 ? ' (' + R.br(l.quando.slice(0, 10)) + ')' : ''), callback_data: 'apagar:' + l._id }]) : undefined;
   return mandar(ctx.chat, resp, tec);
 }
@@ -345,13 +399,18 @@ async function aoReceber(up) {
     case 'aportes': return mandar(chat, textoAportes(await dados(), hj));
     case 'obras': return mandar(chat, textoObras(await dados()));
     case 'lembretes': { const x = textoLembretes(st, ctx); return mandar(chat, x.texto, x.teclado); }
+    case 'relatorio': case 'relatório': case 'semana': { await enviarRelatorio([meu], await dados(), hj); return; }
+    case 'caixa': return mandar(chat, textoCaixa(RL.caixa(await dados(), hj)));
+    case 'cobrar': case 'cobranca': { const n = +arg || 30, L = RL.cobrancas(await dados(), hj, n); if (!L.length) return mandar(chat, `Nenhuma nota emitida há ${n} dias ou mais esperando pagamento. 🎉`); for (const c of L.slice(0, 8)) await mandar(chat, textoCobranca(c)); return L.length > 8 ? mandar(chat, `… e mais ${L.length - 8} nota(s). Veja em Faturamento e recebimentos.`) : null; }
+    case 'fechamento': return mandar(chat, RL.fechamento(await dados(), hj).tg);
+    case 'chuva': { const L = await RL.chuva(await dados(), hj); return mandar(chat, L.length ? textoChuva(L) : '☀️ Sem previsão de chuva para amanhã nas cidades das obras em andamento.'); }
     case 'lembrar': case 'lembrete': return arg ? lembrarPorTexto(arg, ctx) : mandar(chat, 'Escreva o lembrete junto: <i>/lembrar amanhã 9h pagar o aluguel</i>.');
     case '': break;
     default: return mandar(chat, 'Não conheço esse comando.\n\n' + ajuda());
   }
+  if (/^(?:me\s+)?(?:lembr|avis[ae]\b)/i.test(texto)) return lembrarPorTexto(texto, ctx);   // lembrete: o leitor de frases resolve (grátis)
   if (CHAVE_IA) return responderIA(texto, (msg.reply_to_message && (msg.reply_to_message.text || msg.reply_to_message.caption)) || '', ctx);
-  if (/^(?:me\s+)?lembr/i.test(texto)) return lembrarPorTexto(texto, ctx);
-  return mandar(chat, 'Para responder perguntas livres eu preciso da leitura com IA ligada na Vercel. Enquanto isso, use os comandos:\n\n' + ajuda());
+  return responderLivre(texto, ctx);
 }
 
 // ── a cada 15 minutos (tarefa do GitHub): lembretes, reuniões, resumo do dia, contas de hoje, aportes e o e-mail ──
@@ -423,6 +482,44 @@ async function tick() {
       }
     }
   }
+  const dSem = new Date(hj + 'T12:00:00Z').getUTCDay();
+  // 6) relatório semanal dos sócios (segunda, 7h): resumo + PDF no Telegram e e-mail com o PDF
+  if (cfg.relatorio_semanal !== 'nao' && dSem === 1 && hora >= '07:00' && st.cfg.ultimo_relatorio !== hj) {
+    await gravarCfg(st, { ...mud, ultimo_relatorio: hj });
+    const { rel, pdf } = await enviarRelatorio(chats, await dados(), hj);
+    if (await emailAuto(rel.titulo, rel.partes, pdf ? [{ filename: rel.arquivo, content: pdf, contentType: 'application/pdf' }] : null)) feito.push('relatório por e-mail');
+    feito.push('relatório semanal');
+  }
+  // 7) fechamento do mês (dia 1º a 3, a partir das 8h): o que falta fechar do mês que passou
+  if (cfg.fechamento_mes !== 'nao' && +hj.slice(8, 10) <= 3 && hora >= '08:00' && st.cfg.ultimo_fechamento !== hj.slice(0, 7)) {
+    await gravarCfg(st, { ...mud, ultimo_fechamento: hj.slice(0, 7) });
+    const fx = RL.fechamento(await dados(), hj);
+    await paraTodos(chats, fx.tg); await emailAuto(fx.titulo, fx.partes);
+    feito.push('fechamento do mês');
+  }
+  // 8) às 8h: alerta de caixa (saldo negativo nos próximos 15 dias) e cobrança das notas paradas (dias úteis)
+  if (hora >= '08:00' && st.cfg.ultimo_8h !== hj && (cfg.alerta_caixa !== 'nao' || cfg.cobranca_dias !== '0')) {
+    mud.ultimo_8h = hj;
+    if (cfg.alerta_caixa !== 'nao') {
+      const cx = RL.caixa(await dados(), hj), ant = st.cfg.caixa_alerta || {};
+      if (cx && cx.neg) {
+        if (!ant.neg || cx.neg < ant.neg || R.diasEntre(ant.dia || '2000-01-01', hj) >= 3) { mud.caixa_alerta = { dia: hj, neg: cx.neg }; await paraTodos(chats, textoCaixa(cx)); feito.push('alerta de caixa'); }
+      } else if (ant.neg) mud.caixa_alerta = {};
+    }
+    const nCob = cfg.cobranca_dias === '0' ? 0 : (+cfg.cobranca_dias || 30);
+    if (nCob && dSem >= 1 && dSem <= 5) {
+      const D1 = await dados(), av = { ...(st.cfg.cobrancas || {}) }, todas = RL.cobrancas(D1, hj, nCob), vivas = new Set(RL.cobrancas(D1, hj, 0).map(c => c.chave));
+      const L = todas.filter(c => !av[c.chave] || R.diasEntre(av[c.chave], hj) >= 7).slice(0, 5);
+      for (const c of L) { av[c.chave] = hj; await paraTodos(chats, textoCobranca(c)); }
+      Object.keys(av).forEach(k => { if (!vivas.has(k)) delete av[k]; });   // a nota recebida sai da lista
+      mud.cobrancas = av; if (L.length) feito.push('cobranças ' + L.length);
+    }
+  }
+  // 9) às 17h: chuva amanhã na cidade das obras em andamento (INMET)
+  if (cfg.aviso_chuva !== 'nao' && hora >= '17:00' && st.cfg.ultima_chuva !== hj) {
+    mud.ultima_chuva = hj;
+    try { const L = await RL.chuva(await dados(), hj); if (L.length) { await paraTodos(chats, textoChuva(L)); feito.push('chuva'); } } catch (e) { feito.push('chuva: ' + e.message); }
+  }
   if (Object.keys(mud).length) await gravarCfg(st, mud);
   return { ok: true, feito };
 }
@@ -430,7 +527,8 @@ async function tick() {
 // ── o que o sistema pede (Administrador logado) ──
 async function estadoPublico(st, comWebhook, uid) {
   const o = { ok: true, token: !!TOKEN, ia: !!CHAVE_IA, bot: st.cfg.bot || '', modelos: MODELOS,
-    cfg: ['resumo', 'resumo_hora', 'aviso_reuniao', 'aviso_reuniao_min', 'aviso_tarde', 'aviso_aportes', 'modelo_ia', 'esforco_ia'].reduce((a, k) => { a[k] = st.cfg[k] || ''; return a; }, {}),
+    cfg: ['resumo', 'resumo_hora', 'aviso_reuniao', 'aviso_reuniao_min', 'aviso_tarde', 'aviso_aportes', 'relatorio_semanal', 'alerta_caixa', 'cobranca_dias', 'aviso_chuva', 'fechamento_mes', 'modelo_ia', 'esforco_ia'].reduce((a, k) => { a[k] = st.cfg[k] || ''; return a; }, {}),
+    email: E.emailPronto(),
     chats: st.chats.map(c => ({ id: c._id, nome: c.nome || '', usuario: c.usuario || '', ligado_em: c.ligado_em || '', resumo: c.resumo || 'sim', meu: !!uid && c.usuario_uid === uid })) };
   if (TOKEN && comWebhook) { try { const w = await tg('getWebhookInfo', {}); o.webhook = w.url === URL_WEBHOOK; o.pendentes = w.pending_update_count || 0; o.erro = w.last_error_message || ''; } catch (e) { o.erroTelegram = e.message; } }
   return o;
@@ -443,7 +541,7 @@ async function acaoSistema(b, l) {
     let eu;
     try { eu = await tg('getMe', {}); } catch (e) { return { ok: false, msg: e.codigo === 401 || e.codigo === 404 ? 'A chave do robô na Vercel não foi aceita pelo Telegram — confira se foi copiada inteira.' : e.message }; }
     await tg('setWebhook', { url: URL_WEBHOOK, secret_token: segredoWebhook(), allowed_updates: ['message', 'callback_query'], drop_pending_updates: true, max_connections: 10 });
-    await tg('setMyCommands', { commands: [['hoje', 'Resumo do dia'], ['contas', 'Contas a pagar'], ['agenda', 'Reuniões e tarefas'], ['aportes', 'Aportes do mês e do ano'], ['obras', 'Números das obras'], ['lembretes', 'Meus lembretes'], ['lembrar', 'Criar um lembrete'], ['ajuda', 'O que o robô faz']].map(([command, description]) => ({ command, description })) }).catch(() => {});
+    await tg('setMyCommands', { commands: [['hoje', 'Resumo do dia'], ['contas', 'Contas a pagar'], ['agenda', 'Reuniões e tarefas'], ['aportes', 'Aportes do mês e do ano'], ['obras', 'Números das obras'], ['lembretes', 'Meus lembretes'], ['lembrar', 'Criar um lembrete'], ['relatorio', 'Relatório da semana (PDF)'], ['caixa', 'Caixa dos próximos 15 dias'], ['cobrar', 'Notas paradas para cobrar'], ['fechamento', 'Fechamento do mês'], ['chuva', 'Chuva amanhã nas obras'], ['ajuda', 'O que o robô faz']].map(([command, description]) => ({ command, description })) }).catch(() => {});
     await tg('setMyDescription', { description: 'Robô particular do sistema de gestão da Vixsul Empreendimentos: lembretes, avisos e consultas.' }).catch(() => {});
     await gravarCfg(st, { bot: eu.username });
     return estadoPublico(st, true, uid);
@@ -466,6 +564,11 @@ async function acaoSistema(b, l) {
     const f = await paraTodos(alvo, R.resumoTelegram(await R.montar({})));
     return { ok: f.length < alvo.length, enviados: alvo.length - f.length, falhas: f };
   }
+  if (b.acao === 'relatorio') {
+    if (!alvo.length) return { ok: false, msg: 'Nenhum Telegram ligado ainda.' };
+    const { pdf } = await enviarRelatorio(alvo, await R.carregar(), R.hojeBahia());
+    return { ok: true, enviados: alvo.length, falhas: pdf ? [] : ['o PDF não pôde ser montado'] };
+  }
   if (b.acao === 'desligar') {
     const c = st.todas.find(x => String(x._id) === String(b.id));
     if (!c) return { ok: false, msg: 'Conversa não encontrada.' };
@@ -475,7 +578,8 @@ async function acaoSistema(b, l) {
   }
   if (b.acao === 'salvar') {
     const c = b.cfg || {}, mud = {};
-    ['resumo', 'aviso_reuniao', 'aviso_tarde', 'aviso_aportes'].forEach(k => { if (c[k] != null) mud[k] = c[k] === 'nao' ? 'nao' : 'sim'; });
+    ['resumo', 'aviso_reuniao', 'aviso_tarde', 'aviso_aportes', 'relatorio_semanal', 'alerta_caixa', 'aviso_chuva', 'fechamento_mes'].forEach(k => { if (c[k] != null) mud[k] = c[k] === 'nao' ? 'nao' : 'sim'; });
+    if (c.cobranca_dias != null) mud.cobranca_dias = String(Math.min(180, Math.max(0, parseInt(c.cobranca_dias, 10) || 0)));
     if (/^\d{2}:\d{2}$/.test(c.resumo_hora || '')) mud.resumo_hora = c.resumo_hora;
     if (c.aviso_reuniao_min != null) mud.aviso_reuniao_min = String(Math.min(240, Math.max(10, +c.aviso_reuniao_min || 60)));
     if (MODELOS.includes(c.modelo_ia)) mud.modelo_ia = c.modelo_ia;

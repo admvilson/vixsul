@@ -210,7 +210,8 @@ A.usuarios_salvar = async (b, req) => {
   if (!String(d.nome || '').trim()) return { ok: false, msg: 'Nome é obrigatório.' };
   if (tipo === 'interno' && !cpf) return { ok: false, msg: 'CPF é obrigatório para Usuário Interno.' };
   if (!email) return { ok: false, msg: 'E-mail é obrigatório.' };
-  if (tipo === 'externo' && !obras.length) return { ok: false, msg: 'Selecione ao menos uma obra que o Usuário Externo pode acessar.' };
+  // usuário externo: as obras são opcionais (sem nenhuma marcada vê todas, nas telas liberadas para ele nas Permissões;
+  // despesas da empresa e aportes continuam fechados para externos pelo próprio banco)
   if (cpf === SUPER_ADMIN_CPF) { tipo = 'interno'; perfil = 'admin'; }
   const us = await todosUsuarios();
   if (tipo === 'interno' && us.some(r => +r.id !== id && soDig(r.cpf) === cpf)) return { ok: false, msg: 'Já existe um usuário cadastrado com este CPF.' };

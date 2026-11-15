@@ -1370,7 +1370,7 @@ input[type=checkbox]:disabled{opacity:.45;cursor:not-allowed;}
         <div style="flex:1"><div style="font-size:12px;font-weight:700;color:var(--text-2);margin-bottom:4px">Status</div><select id="usr-status" class="field-input field-select" style="width:100%"><option value="ativo">Ativo</option><option value="inativo">Inativo</option></select></div>
       </div>
       <div id="usr-perfil-wrap" style="flex:1"><div style="font-size:12px;font-weight:700;color:var(--text-2);margin-bottom:4px">Perfil</div><select id="usr-perfil" class="field-input field-select" style="width:100%" onchange="UI._usrPerfilChange()"><option value="Usuário">Usuário</option><option value="Gestão">Gestão</option><option value="Sócio">Sócio</option><option value="admin">Administrador</option></select><div id="usr-perfil-nota" class="usr-perfil-nota" style="display:none"></div></div>
-      <div id="usr-externo-aviso" style="display:none;font-size:12px;color:var(--text-3);background:rgba(0,113,227,.06);border:1px solid rgba(0,113,227,.18);border-radius:8px;padding:10px 12px">O Usuário Externo entra com <strong>e-mail e senha</strong> e só vê as <strong>obras marcadas em Permissões</strong>. Ao salvar, a janela de Permissões abre para você marcar as obras e as telas.</div>
+      <div id="usr-externo-aviso" style="display:none;font-size:12px;color:var(--text-3);background:rgba(0,113,227,.06);border:1px solid rgba(0,113,227,.18);border-radius:8px;padding:10px 12px">O Usuário Externo entra com <strong>e-mail e senha</strong> e só vê as <strong>telas liberadas em Permissões</strong> (por exemplo, só Documentos e certidões › Notas fiscais, para a contabilidade). Marcar obras é opcional: sem nenhuma marcada, ele vê todas nessas telas. Ao salvar, a janela de Permissões abre para você escolher as telas.</div>
       <div id="usr-acessos-wrap" style="display:none">
         <div style="font-size:12px;font-weight:700;color:var(--text-2);margin-bottom:6px">Seções que pode acessar</div>
         <div id="usr-acessos" style="display:grid;grid-template-columns:1fr 1fr;gap:6px 14px"></div>
@@ -2309,7 +2309,8 @@ const App={
       const grid=document.getElementById('grid-obras');if(!grid)return;
       const stF=document.getElementById('filter-obras-status')?.value||'';
       const sess=Auth._session;
-      const obrasPermitidas=(sess&&sess.tipoUsuario==='externo')?(sess.obrasPermitidas||[]).map(String):null;
+      // usuário externo com obras marcadas vê só elas; sem nenhuma marcada, vê todas (nas telas liberadas para ele)
+      const obrasPermitidas=(sess&&sess.tipoUsuario==='externo'&&(sess.obrasPermitidas||[]).length)?(sess.obrasPermitidas||[]).map(String):null;
       const visiveis=base.filter(i=>!obrasPermitidas||obrasPermitidas.includes(String(i.rowid)));
       // Pastas por situação: sem busca e sem situação escolhida, a tela mostra uma pasta por
       // situação (Em andamento, Finalizada, Propostas…); entrar numa pasta — pelo card ou
@@ -2718,12 +2719,12 @@ const App={
       }
     }
     let obras=App.state.data.obras||[];
-    if(isExt){
+    if(isExt&&(sess.obrasPermitidas||[]).length){
       const permitidas=(sess.obrasPermitidas||[]).map(String);
       obras=obras.filter(o=>permitidas.includes(String(o.rowid)));
     }
     const nomes=obras.map(o=>getFuzzy(o,['titulo_obra','nome_obra','titulo'])||'').filter(Boolean);
-    sel.innerHTML=(isExt?'':'<option value="">Todas as Obras</option>')+nomes.map(n=>`<option value="${n}" ${n===atual?'selected':''}>${n}</option>`).join('');
+    sel.innerHTML=(isExt&&(sess.obrasPermitidas||[]).length?'':'<option value="">Todas as Obras</option>')+nomes.map(n=>`<option value="${n}" ${n===atual?'selected':''}>${n}</option>`).join('');
     if(isExt&&!sel.value&&nomes.length)sel.value=nomes[0];
     this._relatorioPopularAnos();
     this._relatorioGerar();
@@ -4354,8 +4355,7 @@ const UI={
     if(tipoUsuario==='interno'&&!this._validarCPF(dados.cpf)){document.getElementById('usr-cpf').classList.add('err');return fail('CPF inválido. Digite um CPF válido.');}
     if(!dados.email||!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(dados.email)){document.getElementById('usr-email').classList.add('err');return fail('Informe um e-mail válido (usado na recuperação de senha).');}
     if(!id&&!dados.senha)return fail('Defina uma senha para o novo usuário.');
-    // usuário externo só existe com obra marcada (sem nenhuma ele veria tudo; o servidor recusa): termina na janela Permissões
-    if(tipoUsuario==='externo'&&dados.obrasPermitidas.length===0){this.closeUsuario();return this.permissoesUsuario(id||null,{...dados,id:id?Number(id):null});}
+    // usuário externo: as obras são opcionais (sem nenhuma marcada vê todas, só nas telas liberadas nas Permissões)
     const btn=document.querySelector('#modal-usuario .confirm-yes');const prev=btn.innerHTML;btn.disabled=true;btn.innerHTML='Salvando…';
     google.script.run
       .withSuccessHandler(res=>{
@@ -4366,7 +4366,8 @@ const UI={
         this.closeUsuario();
         toast('Usuário salvo.','success');
         // usuário novo: já abre a janela para definir as telas e as obras dele
-        if(!id&&perfil!=='admin'){const cpf=String(dados.cpf||'').replace(/\D/g,''),novo=this._usuarios.find(x=>String(x.cpf||'').replace(/\D/g,'')===cpf);if(novo)this.permissoesUsuario(novo.id);}
+        if(!id&&(perfil!=='admin'||tipoUsuario==='externo')){const cpf=String(dados.cpf||'').replace(/\D/g,''),em=String(dados.email||'').trim().toLowerCase();
+          const novo=this._usuarios.find(x=>tipoUsuario==='externo'?(x.tipoUsuario==='externo'&&String(x.email||'').trim().toLowerCase()===em):String(x.cpf||'').replace(/\D/g,'')===cpf);if(novo)this.permissoesUsuario(novo.id);}
       })
       .withFailureHandler(()=>{btn.disabled=false;btn.innerHTML=prev;fail('Erro de conexão ao salvar.');})
       .salvarUsuario(dados,id?Number(id):null);
@@ -9092,7 +9093,7 @@ const UI={
   openObraHub(rowid){
     if(App.state._busy)return;
     const sessExt=Auth._session&&Auth._session.tipoUsuario==='externo';
-    if(sessExt&&rowid&&!(Auth._session.obrasPermitidas||[]).map(String).includes(String(rowid)))return;
+    if(sessExt&&rowid&&(Auth._session.obrasPermitidas||[]).length&&!(Auth._session.obrasPermitidas||[]).map(String).includes(String(rowid)))return;
     if(this._capCalcTimer){clearTimeout(this._capCalcTimer);this._capCalcTimer=null;}
     let obraName='';
     if(rowid){
@@ -9188,7 +9189,7 @@ const UI={
     const isExt=Auth._session&&Auth._session.tipoUsuario==='externo';
     // o cronograma da obra é editado no Planejamento e cronograma; aqui a aba fica só para o usuário externo (consulta)
     // Contrato reúne o antigo Resumo e a antiga aba Obra; obra nova só tem o formulário inicial; externo só vê o cronograma
-    const tabsList=isExt?this._OBRA_HUB_TABS.filter(([k])=>k==='etapas'):hub.isNew?this._OBRA_HUB_TABS.filter(([k])=>k==='dados'):this._OBRA_HUB_TABS.filter(([k])=>!['etapas','resumo','dados'].includes(k)&&(k!=='medicao'||(Eng.temContrato&&Eng.temContrato(hub.obraName))));
+    const tabsList=isExt?this._OBRA_HUB_TABS.filter(([k])=>k==='etapas'):hub.isNew?this._OBRA_HUB_TABS.filter(([k])=>k==='dados'):this._OBRA_HUB_TABS.filter(([k])=>!['etapas','resumo','dados'].includes(k)&&(k!=='medicao'||(Eng.temContrato&&Eng.temContrato(hub.obraName)))&&(!UI.podeSub||UI.podeSub('obras',k)));
     const tabs=tabsList.map(([k,l])=>{
       const on=hub.tab===k;
       return `<button type="button" onclick="UI._obraHubTab('${k}')" style="flex-shrink:0;border:none;background:none;padding:12px 11px;font-size:13px;font-weight:${on?'700':'500'};color:${on?'var(--blue)':'var(--text-2)'};border-bottom:2px solid ${on?'var(--blue)':'transparent'};cursor:pointer">${l}</button>`;
@@ -9208,6 +9209,9 @@ const UI={
   _obraHubTab(tab){
     const hub=App.state.obraHub;if(!hub)return;
     if(App.state._busy)return;
+    // aba bloqueada nas Permissões do usuário (subtelas da obra): vai para a primeira liberada
+    const SUBS_OBRA=['orcamentos','cap','contrato','medicao'];
+    if(UI.podeSub&&SUBS_OBRA.includes(tab)&&!UI.podeSub('obras',tab)){const alt=SUBS_OBRA.find(k=>UI.podeSub('obras',k)&&(k!=='medicao'||(Eng.temContrato&&Eng.temContrato(hub.obraName))));if(alt)tab=alt;}
     // Obra NOVA sem o nome confirmado: mostra SÓ a caixa do nome (esconde toda a barra de
     // abas/ações e o lápis).
     // Esconde a legenda "Campos com * são obrigatórios" enquanto estivermos na central da obra.
@@ -17694,7 +17698,7 @@ const Mascara=(function(){
     const filtroAtivo=f.busca||f.obra||f.per||f.aprovar||f.semForn||f.cat||f.forma||f.ord;
     const catsF=[...new Set(C.CATC().concat(C.podeEmpresa()?C.CATD():[]).concat(todas.map(o=>o.cat).filter(Boolean)))],formasF=[...new Set(FORMAS.concat(todas.map(o=>o.forma).filter(Boolean)))];
     box.innerHTML=`<div class="gf">
-      ${cabG('Contas a pagar','Tudo o que a empresa paga: compras e serviços de cada obra e as despesas da Empresa — só contas que já existem (a previsão de custo das obras vem do CAP). Um Administrador aprova (conta lançada por Administrador já nasce aprovada) e, quando pagar, arraste o cartão para <b>Paga</b>. Clique no cartão para ver e corrigir todos os dados.',(()=>{const n=gruposDupContas().length;return `<button type="button" class="gf-bt${n?' dup-on':''}" data-vk="dup" title="Procura contas lançadas em dobro (mesmo fornecedor, destino e valor em datas próximas)"><i class="fas fa-clone"></i> Verificar duplicados${n?` <b class="vk-badge">${n}</b>`:''}</button>`;})()+'<button type="button" class="gf-bt" data-vk="imprimir"><i class="fas fa-print"></i> Imprimir</button><button type="button" class="gf-bt" data-vk="exportar"><i class="fas fa-file-excel"></i> Exportar</button>'+(pode('contas')?`${selUI.modo(f.selModo,'data-vk="selecionar"','Marcar várias contas para excluir de uma vez')}${(()=>{const n=GS.notasRec?GS.notasRec.pendentes().length:0;return `<button type="button" class="gf-bt${n?' vk-nr-tem':''}" data-vk="notasrec" title="Notas fiscais emitidas contra a Vixsul (SEFAZ e Receita), para virar conta"><i class="fas fa-inbox"></i> Notas recebidas${n?` <span class="vk-nr-n">${n}</span>`:''}</button>`;})()}<button type="button" class="gf-bt pri" data-vk="nova"><i class="fas fa-plus"></i> Nova conta</button>`:''))}
+      ${cabG('Contas a pagar','Tudo o que a empresa paga: compras e serviços de cada obra e as despesas da Empresa — só contas que já existem (a previsão de custo das obras vem do CAP). Um Administrador aprova (conta lançada por Administrador já nasce aprovada) e, quando pagar, arraste o cartão para <b>Paga</b>. Clique no cartão para ver e corrigir todos os dados.',(()=>{const n=gruposDupContas().length;return `<button type="button" class="gf-bt${n?' dup-on':''}" data-vk="dup" title="Procura contas lançadas em dobro (mesmo fornecedor, destino e valor em datas próximas)"><i class="fas fa-clone"></i> Verificar duplicados${n?` <b class="vk-badge">${n}</b>`:''}</button>`;})()+'<button type="button" class="gf-bt" data-vk="imprimir"><i class="fas fa-print"></i> Imprimir</button><button type="button" class="gf-bt" data-vk="exportar"><i class="fas fa-file-excel"></i> Exportar</button>'+(pode('contas')?`${selUI.modo(f.selModo,'data-vk="selecionar"','Marcar várias contas para excluir de uma vez')}<button type="button" class="gf-bt pri" data-vk="nova"><i class="fas fa-plus"></i> Nova conta</button>`:''))}
       ${semAprov.length&&souAdmin()?`<div class="vk-aviso"><i class="fas fa-signature"></i><div><b>${semAprov.length} conta(s) esperando a sua aprovação</b> — ${fmt(S(semAprov))}. Abra o cartão (ou arraste para "Aprovada") para aprovar.</div><button type="button" class="gf-bt mini" data-vk="so-aprovar">${f.aprovar?'Ver todas':'Ver só elas'}</button></div>`:''}
       <div class="gf-kpis">
         ${kpiG(vencidas.length?'vermelho':'verde','fa-triangle-exclamation','Vencidas',Rk(S(vencidas)),vencidas.length?`${vencidas.length} conta(s) em atraso — juros e multa correndo`:'nenhuma conta atrasada')}
@@ -18969,7 +18973,7 @@ const Mascara=(function(){
   const quando=n=>n<0?`há ${-n} dia${n<-1?'s':''}`:n===0?'hoje':`em ${n} dia${n>1?'s':''}`;
   function obrasVisiveis(){
     let l=D().obras||[];
-    if(ehExt()){const p=((Auth._session||{}).obrasPermitidas||[]).map(String);l=l.filter(o=>p.includes(String(o.rowid)));}
+    if(ehExt()){const p=((Auth._session||{}).obrasPermitidas||[]).map(String);if(p.length)l=l.filter(o=>p.includes(String(o.rowid)));}
     return l;
   }
   function dadosObra(o){
@@ -20690,7 +20694,7 @@ const Mascara=(function(){
   UI._obraHubRenderTabs=function(){
     const bar=document.getElementById('obra-hub-tabs'),hub=App.state.obraHub;if(!bar||!hub)return;
     const isExt=!!(Auth._session&&Auth._session.tipoUsuario==='externo');
-    const lista=isExt?this._OBRA_HUB_TABS.filter(([k])=>k==='etapas'):hub.isNew?this._OBRA_HUB_TABS.filter(([k])=>k==='dados'):this._OBRA_HUB_TABS.filter(([k])=>!['etapas','resumo','dados'].includes(k)&&(k!=='medicao'||(Eng.temContrato&&Eng.temContrato(hub.obraName))));
+    const lista=isExt?this._OBRA_HUB_TABS.filter(([k])=>k==='etapas'):hub.isNew?this._OBRA_HUB_TABS.filter(([k])=>k==='dados'):this._OBRA_HUB_TABS.filter(([k])=>!['etapas','resumo','dados'].includes(k)&&(k!=='medicao'||(Eng.temContrato&&Eng.temContrato(hub.obraName)))&&(!UI.podeSub||UI.podeSub('obras',k)));
     bar.removeAttribute('style');bar.className='ohub-bar';
     bar.innerHTML=`<nav class="ohub-tabs" role="tablist">${lista.map(([k,l],i)=>`<button type="button" role="tab" aria-selected="${hub.tab===k}" class="ohub-tab ${hub.tab===k?'on':''}" onclick="UI._obraHubTab('${k}')"><i class="fas ${ICO[k]||'fa-circle'}"></i><span>${l}</span></button>`).join('')}</nav>
       <div class="ohub-acoes">${isExt?'':'<button type="button" id="ohub-salvar" class="ohub-bt ok" title="Salvar o que foi alterado nesta obra" onclick="UI._obraHubSalvar()"><i class="fas fa-floppy-disk"></i><span>Salvar</span></button>'}<button type="button" class="ohub-bt" title="Imprimir / exportar o PDF da aba aberta" onclick="UI._obraHubPDF()"><i class="fas fa-print"></i><span>PDF</span></button>${isExt?'':'<button type="button" class="ohub-bt err" title="Excluir a obra e tudo dentro dela (vai para a Lixeira)" onclick="UI._obraHubExcluirTudo()"><i class="fas fa-trash"></i></button>'}</div>`;
@@ -22407,6 +22411,8 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
 .perm-st.ok{background:#ECFDF3;color:#067647;} .perm-st.aviso{background:#FFFAEB;color:#93370D;}
 .perm-sub{font:800 10px Inter,sans-serif;text-transform:uppercase;letter-spacing:.06em;color:#98A2B3;margin:14px 0 6px;}
 .perm-grid{display:flex;flex-direction:column;gap:2px;}
+.perm-item{flex-wrap:wrap;} .perm-subs{flex-basis:100%;display:flex;flex-wrap:wrap;align-items:center;gap:4px 14px;padding:4px 0 4px 24px;} .perm-subs small{font:800 9.5px Inter,sans-serif;text-transform:uppercase;letter-spacing:.06em;color:#98A2B3;margin-right:2px;}
+.perm-subs.off{opacity:.45;pointer-events:none;}
 .perm-item{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:12.5px;padding:5px 0;border-bottom:1px dashed #EEF1F6;}
 .perm-item>span{color:#344054;display:flex;align-items:center;gap:8px;min-width:0;}
 .perm-item>span i{color:#98A2B3;width:16px;text-align:center;font-size:12px;flex-shrink:0;}
@@ -22470,6 +22476,32 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
   UI.podeExcluir=k=>UI.permNivel(k)==='excluir';
   UI.podeAprovar=k=>{if(ehAdm())return true;const cu=cfgUsr(sess());if(cu)return !!(cu.aprovar&&cu.aprovar[k]&&nivelCfg(cu,k)!=='nenhum');if(ehExt())return false;const cfg=cfgDe(perfilDe(sess().perfil));return !!(cfg&&cfg.aprovar&&cfg.aprovar[k]&&nivelCfg(cfg,k)!=='nenhum');};
   UI.podeRelatorio=r=>{if(ehAdm())return true;const cfg=cfgUsr(sess())||cfgDe(ehExt()?'Externo':perfilDe(sess().perfil));return !cfg||!cfg.relatorios||cfg.relatorios[r]!==false;};
+  /* ───── SUBTELAS (as abas de dentro de cada tela) ─────
+     Nas Permissões do usuário dá para liberar a tela e bloquear algumas abas dela (guardado em "subtelas":
+     {'tela.aba': false}). Aba bloqueada some da barra; se era a aberta, o sistema passa para a primeira liberada.
+     sel = o atributo dos botões da barra de abas da tela (o guarda abaixo esconde os bloqueados em qualquer desenho). */
+  UI._SUBTELAS={
+    documentos:{sel:'data-doc-aba|data-ec-aba',itens:[['lista','Certidões e documentos (a lista)'],['notas','Notas fiscais — recebidas e emitidas (PDF e XML)'],['kit','Kit de documentos'],['dados','Dados da empresa'],['ass','Assinatura'],['ct','Contratantes'],['mun','Municípios (DAPS)'],['nfse','Nota fiscal (NFS-e): certificado e emissão']]},
+    obras:{itens:[['orcamentos','Orçamento'],['cap','CAP'],['contrato','Contrato'],['medicao','Medição']]},
+    pessoal:{sel:'data-ps-aba',itens:[['cadastro','Funcionários, ASO, NRs e EPI'],['ponto','Ponto da equipe nas obras']]},
+    socios:{sel:'data-so2-aba',itens:[['mov','Movimentos'],['socio','Por sócio'],['obra','Por obra']]},
+    acoes:{sel:'data-ta-aba',itens:[['agenda','Agenda de tarefas'],['3g','Relatório de Três Gerações']]},
+    premoldados:{sel:'data-pm-aba',itens:[['painel','Painel'],['pecas','Peças e catálogo'],['planejamento','Planejamento'],['producao','Diário de produção'],['estoque','Estoque e avarias'],['vendas','Vendas'],['caixa','Fluxo de caixa'],['relatorios','Relatórios'],['parametros','Parâmetros']]}};
+  UI.podeSub=(tela,sub)=>{if(ehAdm())return true;if(UI.permNivel(tela)==='nenhum')return false;
+    const cfg=cfgUsr(sess())||cfgDe(ehExt()?'Externo':perfilDe(sess().perfil));return !cfg||!cfg.subtelas||cfg.subtelas[tela+'.'+sub]!==false;};
+  const ATTR_SUB=Object.entries(UI._SUBTELAS).flatMap(([tela,o])=>String(o.sel||'').split('|').filter(Boolean).map(a=>[a,tela]));
+  function subAplicar(){
+    if(!Auth._session||ehAdm())return;
+    for(const [attr,tela] of ATTR_SUB){
+      const bts=document.querySelectorAll(`[${attr}]`);if(!bts.length)continue;
+      const grupos=new Map();bts.forEach(b=>{const g=b.parentElement;if(!grupos.has(g))grupos.set(g,[]);grupos.get(g).push(b);});
+      grupos.forEach((L,g)=>{let ativoBloq=null,primeiro=null;
+        L.forEach(b=>{if(!UI.podeSub(tela,b.getAttribute(attr))){if(b.style.display!=='none')b.style.display='none';if(b.classList.contains('on')||b.getAttribute('aria-selected')==='true')ativoBloq=b;}else if(!primeiro)primeiro=b;});
+        if(ativoBloq&&primeiro&&!g._subTroca){g._subTroca=true;setTimeout(()=>{g._subTroca=false;primeiro.click();},0);}});
+    }
+  }
+  let subT=null;
+  new MutationObserver(()=>{if(subT)return;subT=setTimeout(()=>{subT=null;try{subAplicar();}catch(e){console.error(e);}},40);}).observe(document.body,{childList:true,subtree:true});
 
   /* ───── menu: o que o perfil (ou o próprio usuário) vê ───── */
   UI._permAplicarMenu=function(navegar){
@@ -22527,9 +22559,9 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
     const cu=cfgUsr(u),base=cu||(u.tipoUsuario==='externo'?cfgDe('Externo'):cfgDe(perfilDe(u.perfil))),rels=relatoriosLista();
     const pf=u.tipoUsuario==='externo'?'Externo':perfilDe(u.perfil),ext=u.tipoUsuario==='externo';
     // obras que pode ver: externo sempre as marcadas; interno, todas ou só as marcadas
-    const obrasU=(Array.isArray(u.obrasPermitidas)?u.obrasPermitidas:[]).map(String),marc=ext||obrasU.length>0;
+    const obrasU=(Array.isArray(u.obrasPermitidas)?u.obrasPermitidas:[]).map(String),marc=obrasU.length>0;
     const obras=((App.state.data&&App.state.data.obras)||[]).map(o=>({id:String(o.rowid),nome:getFuzzy(o,['titulo_obra','nome_obra','titulo'])||`Obra #${o.rowid}`})).sort((a,b)=>a.nome.localeCompare(b.nome,'pt-BR',{numeric:true}));
-    const blocoObras=`<div class="perm-sub">Obras que pode ver</div>${ext?'<p class="perm-obras-nota">O usuário externo só vê as obras marcadas: marque pelo menos uma.</p>':`<div class="perm-obras-modo"><label><input type="radio" name="perm-obras" value="todas" ${marc?'':'checked'}> Todas as obras</label><label><input type="radio" name="perm-obras" value="marcadas" ${marc?'checked':''}> Só as obras marcadas (vê só o que é delas)</label></div>`}
+    const blocoObras=`<div class="perm-sub">Obras que pode ver</div>${ext?'<p class="perm-obras-nota">Usuário externo: marcar obras é opcional — sem nenhuma, ele vê todas, só nas telas liberadas abaixo. Despesas da empresa e aportes ficam sempre fechados para externos.</p>':''}<div class="perm-obras-modo"><label><input type="radio" name="perm-obras" value="todas" ${marc?'':'checked'}> Todas as obras</label><label><input type="radio" name="perm-obras" value="marcadas" ${marc?'checked':''}> Só as obras marcadas (vê só o que é delas)</label></div>
       <div class="perm-obras" data-perm-obras ${marc?'':'hidden'}>${obras.length?obras.map(o=>`<label><input type="checkbox" data-obra="${fe(o.id)}" ${obrasU.includes(o.id)?'checked':''}> <span>${fe(o.nome)}</span></label>`).join(''):'<p class="perm-obras-nota">Nenhuma obra cadastrada ainda.</p>'}</div>`;
     // as obras ficam no cadastro do usuário (o servidor manda no banco por elas)
     const gravarObras=lista=>new Promise((ok,er)=>{const d=pend?{...pend,obrasPermitidas:lista}:{nome:u.nome,cpf:u.cpf||'',email:u.email||'',senha:'',perfil:u.perfil,status:u.status,tipoUsuario:u.tipoUsuario||'interno',acessos:Array.isArray(u.acessos)?u.acessos:null,obrasPermitidas:lista};
@@ -22539,7 +22571,8 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
       return `<div class="perm-item"><span><i class="fas ${ic}"></i>${fe(t)}</span><div class="perm-ctrl">
         <select data-tela="${k}" data-v="${cur}">${NIVEIS.map(([v,l])=>`<option value="${v}" ${cur===v?'selected':''}>${l}</option>`).join('')}</select>
         <label class="perm-chk ${cur!=='editar'?'off':''}"><input type="checkbox" data-excluir="${k}" ${nv==='excluir'?'checked':''} ${cur!=='editar'?'disabled':''}> Excluir</label>
-        ${APROVA.includes(k)?`<label class="perm-chk ${cur==='nenhum'?'off':''}"><input type="checkbox" data-aprov="${k}" ${apOn&&cur!=='nenhum'?'checked':''} ${cur==='nenhum'?'disabled':''}> Aprovar</label>`:''}</div></div>`;}).join('');
+        ${APROVA.includes(k)?`<label class="perm-chk ${cur==='nenhum'?'off':''}"><input type="checkbox" data-aprov="${k}" ${apOn&&cur!=='nenhum'?'checked':''} ${cur==='nenhum'?'disabled':''}> Aprovar</label>`:''}</div>
+        ${UI._SUBTELAS[k]?`<div class="perm-subs ${cur==='nenhum'?'off':''}" data-subs-de="${k}"><small>Subtelas</small>${UI._SUBTELAS[k].itens.map(([s,t])=>`<label class="perm-chk"><input type="checkbox" data-sub="${k}.${s}" ${base&&base.subtelas&&base.subtelas[k+'.'+s]===false?'':'checked'} ${cur==='nenhum'?'disabled':''}> ${fe(t)}</label>`).join('')}</div>`:''}</div>`;}).join('');
     const rel=rels.map(g=>`<div class="perm-relg"><small>${fe(g.grupo)}</small>${g.itens.map(([k,t])=>`<label class="perm-rel"><input type="checkbox" data-rel="${fe(k)}" ${!base||!base.relatorios||base.relatorios[k]!==false?'checked':''}> ${fe(t)}</label>`).join('')}</div>`).join('');
     const gravarU=o=>new Promise((ok,er)=>google.script.run.withSuccessHandler(res=>{if(res&&res.ok){if(res.data){App.state.data=res.data;try{App.renderAll();}catch(e){console.error(e);}}try{UI.renderUsuarios();}catch(e){}ok(res);}else er(new Error((res&&res.msg)||'Não foi possível salvar.'));})
       .withFailureHandler(e=>er(new Error('Erro de conexão ao salvar as permissões. Tente de novo.'))).upsertRegistro('Planejamento',o,o.rowid||null));
@@ -22547,19 +22580,22 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
       <div class="perm-card" style="border:0;padding:0;box-shadow:none">${blocoObras}<div class="perm-sub">Telas · nível de acesso e ações</div><div class="perm-grid">${itens}</div>
       <div class="perm-sub">Relatórios que pode abrir</div><div class="perm-rels">${rel}</div></div>`,
       [{html:'<i class="fas fa-floppy-disk"></i> Salvar permissões do usuário',cls:'pri',acao:async jj=>{
-        const modo=ext?'marcadas':(jj.querySelector('input[name="perm-obras"]:checked')||{}).value,marcadas=modo==='marcadas'?[...jj.querySelectorAll('[data-obra]:checked')].map(c=>c.dataset.obra):[];
-        if(modo==='marcadas'&&!marcadas.length)throw new Error(ext?'Marque pelo menos uma obra: o usuário externo só vê as obras marcadas.':'Marque as obras que o usuário pode ver (ou escolha "Todas as obras").');
-        const acessos={},aprovar={},relatorios={};
+        const modo=(jj.querySelector('input[name="perm-obras"]:checked')||{}).value,marcadas=modo==='marcadas'?[...jj.querySelectorAll('[data-obra]:checked')].map(c=>c.dataset.obra):[];
+        if(modo==='marcadas'&&!marcadas.length)throw new Error('Marque as obras que o usuário pode ver (ou escolha "Todas as obras").');
+        const acessos={},aprovar={},relatorios={},subtelas={};
+        jj.querySelectorAll('[data-sub]').forEach(c=>{subtelas[c.dataset.sub]=c.checked;});
+        Object.keys(UI._SUBTELAS).forEach(k=>{const s=jj.querySelector(`select[data-tela="${k}"]`);if(s&&s.value!=='nenhum'&&!UI._SUBTELAS[k].itens.some(([x])=>subtelas[k+'.'+x]))throw new Error(`Em "${TELAS.find(t=>t[0]===k)[1]}", deixe pelo menos uma subtela marcada (ou mude a tela para "Nenhum").`);});
         jj.querySelectorAll('select[data-tela]').forEach(s=>{let v=s.value;const ex=jj.querySelector(`[data-excluir="${s.dataset.tela}"]`);if(v==='editar'&&ex&&ex.checked)v='excluir';acessos[s.dataset.tela]=v;});
         jj.querySelectorAll('[data-aprov]').forEach(c=>aprovar[c.dataset.aprov]=c.checked);jj.querySelectorAll('[data-rel]').forEach(c=>relatorios[c.dataset.rel]=c.checked);
         if(!Object.values(acessos).some(v=>v!=='nenhum'))throw new Error('Libere ao menos uma tela (com nada liberado o usuário não consegue usar o sistema).');
         if(pend||marcadas.slice().sort().join()!==obrasU.slice().sort().join())await gravarObras(marcadas);
-        const r=cfgUsrDe(u),o={...(r||{}),tipo:'permissoes',usuario:chaveUsr(u),usuario_nome:u.nome||'',acessos,aprovar,relatorios,desligado:false,atualizado_por:sess().nome||'',atualizado_em:todayDateTime()};
+        const r=cfgUsrDe(u),o={...(r||{}),tipo:'permissoes',usuario:chaveUsr(u),usuario_nome:u.nome||'',acessos,aprovar,relatorios,subtelas,desligado:false,atualizado_por:sess().nome||'',atualizado_em:todayDateTime()};
         if(!r)o.data_lancamento=todayDateTime();delete o.perfil;
         await gravarU(o);toast(`Permissões de ${u.nome||'usuário'} salvas.`,'success');}}],920);
     j.querySelector('.fin-jan-corpo').addEventListener('change',ev=>{if(ev.target.name==='perm-obras'){j.querySelector('[data-perm-obras]').hidden=ev.target.value!=='marcadas';return;}const s=ev.target.closest('select[data-tela]');if(!s)return;s.dataset.v=s.value;const k=s.dataset.tela;
       const ex=j.querySelector(`[data-excluir="${k}"]`);if(ex){const ok=s.value==='editar';ex.disabled=!ok;if(!ok)ex.checked=false;ex.closest('.perm-chk').classList.toggle('off',!ok);}
-      const ap=j.querySelector(`[data-aprov="${k}"]`);if(ap){const ok=s.value!=='nenhum';ap.disabled=!ok;if(!ok)ap.checked=false;ap.closest('.perm-chk').classList.toggle('off',!ok);}});
+      const ap=j.querySelector(`[data-aprov="${k}"]`);if(ap){const ok=s.value!=='nenhum';ap.disabled=!ok;if(!ok)ap.checked=false;ap.closest('.perm-chk').classList.toggle('off',!ok);}
+      const sb=j.querySelector(`[data-subs-de="${k}"]`);if(sb){const ok=s.value!=='nenhum';sb.classList.toggle('off',!ok);sb.querySelectorAll('input').forEach(c=>{c.disabled=!ok;});}});
   }
   UI.permissoesUsuario=permissoesUsuario;
   /* ═══════════ SEGURANÇA (só o Administrador) ═══════════
@@ -23684,12 +23720,18 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
   // sozinho: a cada 6 horas, no computador do Administrador que tem o certificado com a senha guardada
   setInterval(()=>{try{if(!Auth._session||!GS.ehAdm()||!(App.state&&App.state.data)||App.state._busy||!senhaMem()||!((certLocal()||{}).b64))return;
       const u=(NRC()||{}).ultima_busca;if(u&&Date.now()-new Date(u).getTime()<6*3600000)return;
-      buscarNotasRec({silencioso:true}).then(r=>{if(r&&r.novas)toast(`${r.novas} nota${r.novas>1?'s':''} de compra nova${r.novas>1?'s':''} — veja em Contas a pagar › Notas recebidas.`,'success',false);}).catch(e=>console.warn('notas recebidas',e));}catch(e){}},5*60000);
-  GS.notasRec={abrir:abrirNotasRec,buscar:buscarNotasRec,pendentes:pendentesNR,lista:notasRec,ler:lerNotaRec};
+      buscarNotasRec({silencioso:true}).then(r=>{if(r&&r.novas)toast(`${r.novas} nota${r.novas>1?'s':''} fiscal${r.novas>1?'is':''} recebida${r.novas>1?'s':''} — veja em Documentos e certidões › Notas fiscais.`,'success',false);}).catch(e=>console.warn('notas recebidas',e));}catch(e){}},5*60000);
+  GS.notasRec={abrir:()=>irNotasFiscais(),buscar:buscarNotasRec,pendentes:pendentesNR,lista:notasRec,ler:lerNotaRec};
   /* AVISOS POR E-MAIL — quem manda é o servidor (api/avisos.js, todo dia às 7h, pela tarefa agendada da Vercel). Aqui o
      Administrador diz para quem vai e o que entra, vê a prévia de hoje e manda um teste. Fica em Planejamento ('cfg_avisos'). */
   const AV_API='https://vixsul.vercel.app/api/avisos';
-  const AV_ITENS=[['agenda','Agenda: reuniões de hoje e de amanhã (hora, local e link)'],['tarefas','Tarefas atrasadas e as de hoje e dos próximos 3 dias'],['contas','Contas a pagar vencidas, de hoje e dos próximos 3 dias'],['recebimentos','Notas emitidas que ainda não foram recebidas'],['aportes','Aportes do mês por sócio'],['contratos','Contratos com a vigência terminando (30 dias)'],['documentos','Certidões e documentos vencendo (15 dias)'],['pessoal','ASO, treinamentos das NRs e CNH do pessoal (30 dias)'],['diario','Diário de obra de ontem sem preencher (obras com diário automático)'],['notas','Notas de compra recebidas ainda não lançadas'],['licitacoes','Licitações acompanhadas perto do prazo'],['lembretes','Lembretes marcados para hoje']];
+  const AV_ITENS=[['agenda','Agenda: reuniões de hoje e de amanhã (hora, local e link)'],['tarefas','Tarefas atrasadas e as de hoje e dos próximos 3 dias'],['contas','Contas a pagar vencidas, de hoje e dos próximos 3 dias'],['recebimentos','Notas emitidas que ainda não foram recebidas'],['aportes','Aportes do mês por sócio'],['contratos','Contratos com a vigência terminando (30 dias)'],['documentos','Certidões e documentos vencendo (15 dias)'],['pessoal','ASO, treinamentos das NRs e CNH do pessoal (30 dias)'],['diario','Diário de obra de ontem sem preencher (obras com diário automático)'],['notas','Notas fiscais recebidas desde ontem'],['licitacoes','Licitações acompanhadas perto do prazo'],['lembretes','Lembretes marcados para hoje']];
+  // o envio sai pela própria conta do Gmail (api/_email.js): o passo a passo da senha de app, mostrado enquanto falta
+  const AV_PASSOS=`<div class="av-ativar"><b><i class="fas fa-envelope-circle-check"></i> Ligar o envio pelo seu Gmail (uma vez só, grátis):</b><ol>
+    <li>Abra <a href="https://myaccount.google.com/security" target="_blank" rel="noopener"><b>myaccount.google.com › Segurança</b></a> e confira se a <b>Verificação em duas etapas</b> está ligada (sem ela o Google não mostra o próximo passo).</li>
+    <li>Abra <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noopener"><b>Senhas de app</b></a>, escreva o nome <b>Vixsul</b> e clique em <b>Criar</b>. Aparece uma senha de 16 letras — copie.</li>
+    <li>Na Vercel, projeto <b>vixsul</b> › <b>Settings</b> › <b>Environment Variables</b> › <b>Add New</b>: em Key <b>GMAIL_USER</b> e em Value o seu endereço do Gmail; depois outra, Key <b>GMAIL_APP_PASSWORD</b> e Value as 16 letras. Deixe <b>Production</b> marcado e clique em <b>Save</b>.</li>
+    <li>Avise o Claude (ele publica de novo para valer) e clique em <b>Mandar um teste agora</b>.</li></ol><small>O e-mail sai da sua própria conta do Gmail para quem estiver na lista — sem custo (até 500 por dia). A senha de app fica só na Vercel.</small></div>`;
   async function avApi(corpo){let r;try{r=await fetch(AV_API,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(corpo)});}catch(e){throw new Error('O serviço de avisos não respondeu (internet ou serviço fora do ar).');}
     let j=null;try{j=await r.json();}catch(e){}if(!j)throw new Error('O serviço de avisos não respondeu direito (HTTP '+r.status+').');if(!j.ok&&j.msg)throw new Error(j.msg);return j;}
   function avisosEmail(){
@@ -23697,7 +23739,7 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
     const lerAv=jj=>{const g=k=>(jj.querySelector(`[data-k="${k}"]`).value||'').trim(),itens={};jj.querySelectorAll('[data-av]').forEach(x=>{itens[x.dataset.av]=x.checked;});
       const emails=g('emails').split(/[,;\s]+/).map(x=>x.trim().toLowerCase()).filter(Boolean),ruim=emails.find(e=>!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e));
       if(ruim)throw new Error('E-mail inválido: '+ruim);return {emails:emails.join(', '),itens,ativo:g('ativo'),sempre:g('sempre')};};
-    const j=janela('Avisos por e-mail',`<div class="fin-resumo">Todo dia às <b>7h</b> o sistema manda um e-mail com o que pede atenção. Ele sai pelo mesmo serviço do código de recuperação de senha: <b>no primeiro envio para cada e-mail chega um pedido de confirmação</b> (botão "Activate Form") — clique nele uma vez e os avisos passam a chegar.${c.ultimo_envio?`<br><small>Último: ${fe(String(c.ultimo_envio).split('-').reverse().join('/'))}${c.ultima_msg?' · '+fe(c.ultima_msg):''}</small>`:''}</div>
+    const j=janela('Avisos por e-mail',`<div class="fin-resumo">Todo dia às <b>7h</b> o sistema manda um e-mail com o que pede atenção. Ele sai pela <b>sua própria conta do Gmail</b> (grátis).<span data-av-rem></span>${c.ultimo_envio?`<br><small>Último: ${fe(String(c.ultimo_envio).split('-').reverse().join('/'))}${c.ultima_msg?' · '+fe(c.ultima_msg):''}</small>`:''}</div>
       <div class="fin-fld"><label>Mandar para (um ou mais e-mails, separados por vírgula) <span class="obg">*</span></label><input data-k="emails" value="${fe(c.emails||s.email||'')}" placeholder="seu@email.com" autocomplete="off"></div>
       <div class="fin-fld"><label>O que entra no e-mail</label><div class="av-itens">${AV_ITENS.map(([k,r])=>`<label><input type="checkbox" data-av="${k}" ${it[k]===false?'':'checked'}> ${fe(r)}</label>`).join('')}</div></div>
       <div class="fin-linha"><div class="fin-fld"><label>Avisos ligados?</label><select data-k="ativo"><option value="sim" ${c.ativo==='nao'?'':'selected'}>Sim — todo dia às 7h</option><option value="nao" ${c.ativo==='nao'?'selected':''}>Não — desligados</option></select></div>
@@ -23714,12 +23756,14 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
       let cfg;try{cfg=lerAv(j);}catch(e){return toast(e.message,'error');}if(te&&!cfg.emails)return toast('Informe pelo menos um e-mail.','error');
       saida.hidden=false;saida.innerHTML=`<i class="fas fa-spinner fa-spin"></i> ${pv?'Montando o e-mail de hoje…':'Mandando…'}`;
       try{if(pv){const r=await avApi({acao:'previa',cfg});saida.innerHTML=(r.secoes||[]).length?r.secoes.map(x=>`<b>${fe(x.titulo)}</b><pre>${fe(x.texto)}</pre>`).join(''):'<b>Nada pendente hoje.</b>';}
-        else{const r=await avApi({acao:'testar',cfg});const at=r.ativar||[];
-          saida.innerHTML=(r.entregues?`<b><i class="fas fa-circle-check" style="color:#079455"></i> Enviado para ${r.entregues} e-mail(s).</b> Confira a caixa de entrada (e o Spam).`:'')
-            +(at.length?`<div class="av-ativar"><b><i class="fas fa-triangle-exclamation"></i> Falta um passo, uma vez só: ${fe(at.join(', '))}</b><ol><li>Abra a caixa de entrada desse e-mail (veja também <b>Spam</b> e <b>Promoções</b>).</li><li>Abra o e-mail do <b>FormSubmit</b> com o assunto "Action Required: Activate FormSubmit…".</li><li>Clique no botão <b>Activate Form</b>.</li><li>Volte aqui e clique em <b>Mandar um teste agora</b> de novo — aí o e-mail chega com as informações.</li></ol><small>Enquanto não clicar em "Activate Form", o FormSubmit (o serviço que manda os e-mails) não entrega nada para esse endereço.</small></div>`:'')
-            +(r.falhas&&r.falhas.length?`<div class="t-err">Falhou: ${fe(r.falhas.join('; '))}</div>`:'')
-            +(!r.entregues&&!at.length&&!(r.falhas&&r.falhas.length)?fe(r.msg||''):'');}}
-      catch(e){saida.innerHTML=`<span class="t-err">${fe(e.message||String(e))}</span>`;}});}
+        else{const r=await avApi({acao:'testar',cfg});
+          saida.innerHTML=r.enviado?`<b><i class="fas fa-circle-check" style="color:#079455"></i> Enviado para ${r.entregues} e-mail(s).</b> Confira a caixa de entrada (e o Spam, na primeira vez).`
+            :r.config?AV_PASSOS:`<span class="t-err">${fe(r.msg||'Não foi possível mandar.')}</span>`;}}
+      catch(e){saida.innerHTML=`<span class="t-err">${fe(e.message||String(e))}</span>`;}});
+    // já ao abrir: o envio pelo Gmail está ligado? (se não, mostra o passo a passo)
+    avApi({acao:'estado'}).then(r=>{const rem=j.querySelector('[data-av-rem]');
+      if(r&&r.pronto){if(rem)rem.innerHTML=` Sai de <b>${fe(r.remetente||'')}</b>.`;}
+      else if(saida&&saida.hidden){saida.hidden=false;saida.innerHTML=AV_PASSOS;}}).catch(()=>{});}
   GS.avisosEmail=avisosEmail;
   GS.cert={tem:()=>{const c=certLocal();return !!(c&&c.b64);},info:certLocal,senhaGuardada:()=>!!senhaMem(),orcamentoAssinado,pdfAssinado,exportarRelatorio,_desenhar:desenharOrcamento,_preparar:prepararAssinatura,_libs:libsAssinar};
   const URL_CONSULTA=ch=>'https://www.nfse.gov.br/ConsultaPublica/?tpc=1&chave='+ch;
@@ -23749,8 +23793,9 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
       serv:{cTribNac:d.serv.cTribNac,desc:d.serv.xDescServ,cNBS:d.serv.cNBS||'',obra:ob?(ob.cObra?'CNO '+ob.cObra:[ob.xLgr,ob.nro,ob.xBairro,ob.cep?'CEP '+String(ob.cep).replace(/^(\d{5})(\d{3})$/,'$1-$2'):''].filter(Boolean).join(', ')):''},
       v:{serv:+v.vServ,ded,bc:+v.vServ-ded,aliq:+v.pAliq||0,iss:ret?iss:0,issRet:ret,cp:+v.vRetCP||0,irrf:+v.vRetIRRF||0,csll:+v.vRetCSLL||0,totRet,liq:Math.round((v.vServ-totRet)*100)/100}};
   }
-  async function pdfNota(n){
-    const JsPDF=await libsPdf(),doc=new JsPDF({unit:'mm',format:'a4'}),e=empresa();
+  // op.recebida: nota emitida CONTRA a Vixsul (sem a logo e sem os dados da Vixsul no lugar dos do prestador)
+  async function pdfNota(n,op){op=op||{};
+    const JsPDF=await libsPdf(),doc=new JsPDF({unit:'mm',format:'a4'}),e=op.recebida?{telefone:'',email:''}:empresa();
     const L1=s=>String(s==null?'':s).replace(/[—–]/g,'-').replace(/[“”]/g,'"').replace(/[‘’]/g,"'").replace(/•/g,'-').replace(/[^\x09\x0A\x0D\x20-\xFF]/g,'');
     const R=v=>'R$ '+brl(v),AZ=[22,82,216],CINZA=[102,112,133],ESC=[16,24,40],X=10,W=190;
     const txt=(s,x,y,o)=>doc.text(L1(s),x,y,o||{});
@@ -23761,7 +23806,8 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
     let y=10;
     // cabeçalho: logo, título, número e QR code da consulta pública
     caixa(X,y,W,30);
-    try{doc.addImage(PDF_LOGO_FULL_B64,'PNG',X+3,y+5.5,46,18.8);}catch(err){}
+    if(!op.recebida)try{doc.addImage(PDF_LOGO_FULL_B64,'PNG',X+3,y+5.5,46,18.8);}catch(err){}
+    else{fonte(7,true,CINZA);txt('NFS-e',X+4,y+12);fonte(10,true);doc.text(doc.splitTextToSize(L1(n.prest.nome||'-'),46).slice(0,3),X+4,y+17);}
     fonte(12.5,true,AZ);txt('NOTA FISCAL DE SERVIÇO ELETRÔNICA',X+55,y+9);fonte(8,false,CINZA);txt('NFS-e  ·  DANFSe — Documento Auxiliar da NFS-e',X+55,y+13.5);
     fonte(7,true,CINZA);txt('NÚMERO DA NFS-e',X+55,y+20);fonte(15,true);txt(n.numero||(n.previa?'PRÉVIA':'-'),X+55,y+26.5);
     fonte(7,true,CINZA);txt('EMISSÃO',X+95,y+20);fonte(9.5,false);txt(dataHora(n.dh)||'-',X+95,y+25.6);
@@ -23802,7 +23848,7 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
     // marca d'água: prévia ou ambiente de teste
     if(n.previa||n.amb!==1){try{doc.saveGraphicsState();doc.setGState(new doc.GState({opacity:.13}));}catch(err){}fonte(38,true,[180,35,24]);doc.text(n.previa?'PRÉVIA - SEM VALOR FISCAL':'TESTE - SEM VALOR FISCAL',105,190,{align:'center',angle:32});try{doc.restoreGraphicsState();}catch(err){}}
     // rodapé
-    fonte(7,false,CINZA);doc.text(L1(`${e.razao} · CNPJ ${e.cnpj} · ${e.endereco} · ${e.telefone} · ${e.email}`),105,290,{align:'center',maxWidth:W});
+    fonte(7,false,CINZA);doc.text(L1(op.recebida?'Representação gerada pelo sistema da Vixsul a partir do XML da NFS-e recebida — o arquivo XML é o documento fiscal.':`${e.razao} · CNPJ ${e.cnpj} · ${e.endereco} · ${e.telefone} · ${e.email}`),105,290,{align:'center',maxWidth:W});
     return doc.output('blob');
   }
   // abre o PDF numa aba (a aba abre na hora do clique, para o navegador não bloquear)
@@ -24464,7 +24510,8 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
   const EC={aba:'kit'};
   function htmlEmpresa(){
     const e=empresa(),cps=[['razao','Razão social',1],['cnpj','CNPJ'],['endereco','Endereço da sede (como sai nos documentos)',1],['cep','CEP'],['telefone','Celular'],['email','E-mail'],['representante','Representante legal'],['cpf','CPF do representante'],['rg','RG do representante'],['cargo','Cargo'],['nacionalidade','Nacionalidade'],['cidade_doc','Cidade da assinatura (data dos documentos)'],['oficio_ultimo','Último nº de ofício já usado'],['inscricao_municipal','Inscrição municipal'],['banco','Banco (sai na nota fiscal)'],['agencia','Agência'],['conta','Conta corrente']];
-    const abas=[['kit','fa-folder-open','Kit de documentos'],['dados','fa-building','Dados da empresa'],['ass','fa-signature','Assinatura'],['ct','fa-handshake','Contratantes'],['mun','fa-city','Municípios (DAPS)'],['nfse','fa-file-invoice-dollar','Nota fiscal (NFS-e)']];
+    const abas=[['kit','fa-folder-open','Kit de documentos'],['dados','fa-building','Dados da empresa'],['ass','fa-signature','Assinatura'],['ct','fa-handshake','Contratantes'],['mun','fa-city','Municípios (DAPS)'],['nfse','fa-file-invoice-dollar','Nota fiscal (NFS-e)']].filter(([k])=>podeSubDoc(k));
+    if(abas.length&&!abas.some(([k])=>k===EC.aba))EC.aba=abas[0][0];
     let corpo='';
     if(EC.aba==='kit')corpo='<p style="margin:0 0 8px;font-size:12px;color:#667085">Os documentos que a contratante pede junto com a nota. Ficam sempre prontos para baixar — também na ficha de cada nota emitida. Documento vencido não baixa: aparece o botão <b>Atualizar</b>, que abre o site do órgão e recebe o PDF novo (a validade é lida do próprio arquivo).</p><div data-kit-box data-kit-ger="1"></div>';
     else if(EC.aba==='dados')corpo=`<div class="fin-linha">${cps.map(([k,l,w])=>`<div class="fin-fld"${w?' style="grid-column:1/-1"':''}><label>${l}</label><input data-emp="${k}" value="${fe(e[k]||'')}"></div>`).join('')}</div><div style="display:flex;justify-content:flex-end;margin-top:8px"><button type="button" class="fin-bt pri" data-ec="salvar-dados"><i class="fas fa-floppy-disk"></i> Salvar</button></div>`;
@@ -24567,12 +24614,145 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
         const L=(await listarArq(EMP_ARQ,true)).filter(x=>x.aba==='assinatura');for(const x of L)await run('excluirAnexo',x.uid,x.rowid);ASS=null;delete ARQ.cache[EMP_ARQ];toast('Assinatura excluída.','success');setTimeout(()=>{const p=document.querySelector('[data-empc]');if(p)pintarAss(p);},300);});
     });
   }
+  /* ═══════════════ NOTAS FISCAIS (Documentos e certidões › Notas fiscais) ═══════════════
+     Para a contabilidade baixar: as notas emitidas CONTRA a Vixsul (recebidas — NF-e e NFS-e que o sistema busca com o
+     certificado) e as que a Vixsul EMITIU (os faturamentos com nota), separadas, cada uma com o PDF e o XML, e a soma do
+     período. Não lança nada em Contas a pagar (as contas seguem pela conciliação e pelos lançamentos). */
+  const DOCV={aba:'lista'},NF2={aba:'recebidas',per:'todos',busca:'',arqs:{},carregando:{}};
+  const podeSubDoc=s=>!UI.podeSub||UI.podeSub('documentos',s);
+  const isoNF=v=>{const s=String(v||'');const m=s.match(/^(\d{4}-\d{2}-\d{2})/);if(m)return m[1];const d=dt(v);return d?isoDe(d):'';};
+  const nomeArq=s=>String(s||'').replace(/[\\/:*?"<>|]+/g,' ').replace(/\s+/g,' ').trim().slice(0,80);
+  function recebidasNF(){return notasRec().map((n,i)=>({k:'r',i,n,data:isoNF(n.data_emissao),nome:n.emitente_nome||'—',doc:n.emitente_cnpj||'',tipo:n.origem==='nfse'?'NFS-e':'NF-e',numero:String(n.numero||''),desc:n.descricao||'',valor:+n.valor||0,cancelada:n.situacao==='cancelada',temXml:!!n.xml}));}
+  function emitidasNF(){
+    const F=GS.fat;if(!F)return [];const K=F.KF(),E=new Map(emitidas().map(p=>[String(p.chave),p]));
+    return (D().faturamentos||[]).filter(f=>String(f[K.nf]||'').trim()&&isoNF(f[K.em])&&F.ehReal(f,K)).map((f,i)=>{const e=f.nfse_chave?E.get(String(f.nfse_chave)):null;
+      return {k:'e',i,f,e,data:isoNF(f[K.em]),nome:contratanteDaNota(f,K)||'—',obra:f[K.obra]||'',numero:String(f[K.nf]).trim(),valor:val(f[K.bruto]),liq:F.liqDe(f,K),recebida:!!isoNF(f[K.rec]),fat_uid:f.fat_uid||'',chave:String(f.nfse_chave||''),medicao:f.medicao_numero||''};});}
+  // períodos: todos, um ano inteiro ou um mês (como no Início)
+  function periodosNF(L){const anos=new Set(),meses=new Set();L.forEach(x=>{if(x.data){anos.add(x.data.slice(0,4));meses.add(x.data.slice(0,7));}});
+    return {anos:[...anos].sort().reverse(),meses:[...meses].sort().reverse()};}
+  const noPer=(x,p)=>p==='todos'||(p.length===4?x.data.slice(0,4)===p:x.data.slice(0,7)===p);
+  const rotPer=p=>p==='todos'?'todos os períodos':p.length===4?p:`${MESES[+p.slice(5,7)-1]} de ${p.slice(0,4)}`;
+  // arquivos guardados das notas emitidas (anexos da obra, pelo fat_uid)
+  async function arqsObra(ob){if(NF2.arqs[ob])return NF2.arqs[ob];if(NF2.carregando[ob])return NF2.carregando[ob];
+    NF2.carregando[ob]=listarArq(ob).then(L=>{NF2.arqs[ob]=(L||[]).filter(a=>a.aba==='nf');delete NF2.carregando[ob];return NF2.arqs[ob];}).catch(e=>{delete NF2.carregando[ob];NF2.arqs[ob]=[];return [];});return NF2.carregando[ob];}
+  const arqDe=(x,doc)=>recente(((NF2.arqs[x.obra]||[]).filter(a=>a.fat_uid&&a.fat_uid===x.fat_uid&&(Array.isArray(doc)?doc.includes(a.doc):a.doc===doc))));
+  const baixarBlob=(b,nome)=>{const url=URL.createObjectURL(b),l=document.createElement('a');l.href=url;l.download=nome;document.body.appendChild(l);l.click();setTimeout(()=>{l.remove();URL.revokeObjectURL(url);},60000);};
+  // DANFE simplificado da NF-e (nota de material) a partir do XML completo
+  async function pdfDanfe(xml){
+    const d=new DOMParser().parseFromString(String(xml||''),'application/xml'),tg=(n,r)=>{const e=(r||d).getElementsByTagNameNS('*',n)[0];return e?e.textContent.trim():'';},fi=(p,n)=>p?[...p.children].find(c=>c.localName===n):null;
+    const inf=d.getElementsByTagNameNS('*','infNFe')[0];if(!inf)throw new Error('Este XML não é de uma NF-e completa.');
+    const ide=fi(inf,'ide'),em=fi(inf,'emit'),de=fi(inf,'dest'),tot=d.getElementsByTagNameNS('*','ICMSTot')[0],ee=fi(em,'enderEmit'),ed=fi(de,'enderDest');
+    const JsPDF=await libsPdf(),doc=new JsPDF({unit:'mm',format:'a4'}),X=10,W=190,R=v=>'R$ '+brl(v),AZ=[22,82,216],CINZA=[102,112,133],ESC=[16,24,40];
+    const L1=s=>String(s==null?'':s).replace(/[—–]/g,'-').replace(/[^\x09\x0A\x0D\x20-\xFF]/g,'');
+    const fonte=(t,n,c)=>{doc.setFont('helvetica',n?'bold':'normal');doc.setFontSize(t);doc.setTextColor(...(c||ESC));};
+    const caixa=(x,y,w,h)=>{doc.setDrawColor(208,213,221);doc.setLineWidth(.25);doc.rect(x,y,w,h);};
+    const campo=(rot,v,x,y,w,h)=>{caixa(x,y,w,h);fonte(6.3,true,CINZA);doc.text(L1(String(rot).toUpperCase()),x+1.6,y+3.1);fonte(8.4,false);doc.text(doc.splitTextToSize(L1(v||'-'),w-3.2).slice(0,Math.max(1,Math.floor((h-4.2)/3.5))),x+1.6,y+6.8);};
+    const faixa=(t,y)=>{doc.setFillColor(...AZ);doc.rect(X,y,W,5.2,'F');fonte(7.6,true,[255,255,255]);doc.text(L1(t),X+2,y+3.6);return y+5.2;};
+    const end=e=>[tg('xLgr',e),tg('nro',e),tg('xBairro',e),[tg('xMun',e),tg('UF',e)].filter(Boolean).join('/'),tg('CEP',e)?'CEP '+tg('CEP',e):''].filter(Boolean).join(', ');
+    const chave=(inf.getAttribute('Id')||'').replace(/^NFe/,'');let y=10;
+    caixa(X,y,W,24);fonte(13,true,AZ);doc.text('DANFE - NOTA FISCAL ELETRÔNICA',X+4,y+8);fonte(7.5,false,CINZA);doc.text(L1('Documento auxiliar simplificado, gerado pelo sistema a partir do XML (o XML é o documento fiscal)'),X+4,y+13);
+    fonte(7,true,CINZA);doc.text('NÚMERO / SÉRIE',X+130,y+7);fonte(12,true);doc.text(L1(`${tg('nNF',ide)} / ${tg('serie',ide)}`),X+130,y+13);fonte(7,true,CINZA);doc.text('EMISSÃO',X+130,y+18);fonte(9,false);doc.text(L1((tg('dhEmi',ide)||tg('dEmi',ide)).slice(0,10).split('-').reverse().join('/')),X+150,y+18);
+    y+=24;campo('Chave de acesso',chave.replace(/(\d{4})(?=\d)/g,'$1 '),X,y,W*.7,9.5);campo('Natureza da operação',tg('natOp',ide),X+W*.7,y,W*.3,9.5);y+=9.5;
+    y=faixa('EMITENTE',y+2);campo('Razão social',tg('xNome',em),X,y,W*.62,9.5);campo('CNPJ',fmtDoc(tg('CNPJ',em)||tg('CPF',em)),X+W*.62,y,W*.2,9.5);campo('Inscrição estadual',tg('IE',em),X+W*.82,y,W*.18,9.5);y+=9.5;campo('Endereço',end(ee),X,y,W,9.5);y+=9.5;
+    y=faixa('DESTINATÁRIO',y+2);campo('Nome / razão social',tg('xNome',de),X,y,W*.62,9.5);campo('CNPJ / CPF',fmtDoc(tg('CNPJ',de)||tg('CPF',de)),X+W*.62,y,W*.2,9.5);campo('Inscrição estadual',tg('IE',de),X+W*.82,y,W*.18,9.5);y+=9.5;campo('Endereço',end(ed),X,y,W,9.5);y+=9.5;
+    y=faixa('PRODUTOS',y+2);const cols=[['Código',22],['Descrição',78],['NCM',16],['CFOP',12],['Un',10],['Qtd',16],['Valor unit.',18],['Total',18]];
+    let cx=X;fonte(6.5,true,CINZA);cols.forEach(([t,w])=>{doc.text(L1(t),cx+1,y+3.5);cx+=w;});y+=5;
+    const dets=[...d.getElementsByTagNameNS('*','det')];
+    for(const it of dets){const p=fi(it,'prod');if(!p)continue;const desc=doc.splitTextToSize(L1(tg('xProd',p)),76),h=Math.max(5,desc.length*3.4+1.6);
+      if(y+h>270){doc.addPage();y=12;}
+      const vals=[tg('cProd',p),desc,tg('NCM',p),tg('CFOP',p),tg('uCom',p),(+tg('qCom',p)||0).toLocaleString('pt-BR',{maximumFractionDigits:4}),brl(+tg('vUnCom',p)||0),brl(+tg('vProd',p)||0)];
+      cx=X;fonte(7.2,false);vals.forEach((v,k)=>{const w=cols[k][1];if(Array.isArray(v))doc.text(v,cx+1,y+3.4);else doc.text(L1(String(v)).slice(0,w>20?60:14),cx+1,y+3.4);cx+=w;});doc.setDrawColor(234,236,240);doc.line(X,y+h,X+W,y+h);y+=h;}
+    if(y>245){doc.addPage();y=12;}
+    y=faixa('TOTAIS',y+3);const c4=W/4;campo('Produtos',R(+tg('vProd',tot)||0),X,y,c4,9.5);campo('Frete',R(+tg('vFrete',tot)||0),X+c4,y,c4,9.5);campo('Desconto',R(+tg('vDesc',tot)||0),X+2*c4,y,c4,9.5);campo('VALOR DA NOTA',R(+tg('vNF',tot)||0),X+3*c4,y,c4,9.5);y+=9.5;
+    campo('ICMS',R(+tg('vICMS',tot)||0),X,y,c4,9.5);campo('IPI',R(+tg('vIPI',tot)||0),X+c4,y,c4,9.5);campo('PIS',R(+tg('vPIS',tot)||0),X+2*c4,y,c4,9.5);campo('COFINS',R(+tg('vCOFINS',tot)||0),X+3*c4,y,c4,9.5);y+=9.5;
+    const cpl=tg('infCpl');if(cpl){y=faixa('INFORMAÇÕES COMPLEMENTARES',y+2);fonte(7.6,false,CINZA);const li=doc.splitTextToSize(L1(cpl),W-5).slice(0,12);caixa(X,y,W,li.length*3.4+4);doc.text(li,X+2.5,y+4);}
+    return doc.output('blob');
+  }
+  // os arquivos de uma nota: {pdf:()=>Blob, xml:()=>Blob} (ou null quando não há)
+  function arquivosNF(x){
+    const base=nomeArq(`${x.tipo||'NFS-e'} ${x.numero||'sem número'} - ${x.nome}`);
+    if(x.k==='r'){const n=x.n;
+      return {base,xml:n.xml?async()=>new Blob([n.xml],{type:'application/xml'}):null,
+        pdf:n.xml?async()=>n.origem==='nfse'?await pdfNota(danfseDoXml(n.xml),{recebida:true}):await pdfDanfe(n.xml):null};}
+    const ax=arqDe(x,'nf_xml'),ap=arqDe(x,'nf_pdf')||arqDe(x,'nf_pdf_oficial'),xmlE=x.e&&x.e.xml;
+    const b2=nomeArq(`NFS-e ${x.numero} - ${x.nome}${x.obra?' - '+x.obra:''}`);
+    return {base:b2,xml:ax?async()=>blobArq(ax):xmlE?async()=>new Blob([xmlE],{type:'application/xml'}):null,
+      pdf:ap?async()=>blobArq(ap):(ax||xmlE)?async()=>pdfNota(danfseDoXml(xmlE||await (await blobArq(ax)).text())):null};
+  }
+  async function baixarNF(x,tipo){const a=arquivosNF(x),f=a[tipo];if(!f)return toast(tipo==='xml'?'Esta nota não tem o XML guardado no sistema.':'Esta nota não tem o PDF nem o XML guardados no sistema.','error');
+    try{UI._showBusy(tipo==='pdf'?'Montando o PDF…':'Preparando o XML…');baixarBlob(await f(),`${a.base}.${tipo}`);}catch(e){toast(e.message||String(e),'error');}finally{UI._hideBusy();}}
+  async function baixarTodasNF(L,rot){
+    if(!L.length)return toast('Nenhuma nota neste filtro.','error');
+    UI._showBusy('Juntando as notas…');
+    try{await carregarJs('https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js',()=>window.JSZip);
+      if(L.some(x=>x.k==='e'))await Promise.all([...new Set(L.filter(x=>x.k==='e').map(x=>x.obra))].map(arqsObra));
+      const z=new window.JSZip(),usados=new Set(),falta=[];let n=0;
+      for(const x of L){const a=arquivosNF(x),pasta=(x.k==='r'?'recebidas (contra a Vixsul)':'emitidas pela Vixsul')+'/'+(x.data?x.data.slice(0,7):'sem data')+'/';
+        let nm=a.base,k=2;while(usados.has(pasta+nm))nm=a.base+' ('+(k++)+')';usados.add(pasta+nm);
+        for(const t of ['pdf','xml']){if(!a[t]){falta.push(`${a.base} (${t.toUpperCase()})`);continue;}try{z.file(`${pasta}${nm}.${t}`,await a[t]());n++;}catch(e){falta.push(`${a.base} (${t.toUpperCase()})`);}}}
+      if(falta.length)z.file('LEIA - arquivos que faltaram.txt','Estas notas não têm o arquivo guardado no sistema:\r\n'+falta.join('\r\n'));
+      baixarBlob(await z.generateAsync({type:'blob'}),nomeArq(`Notas fiscais Vixsul - ${rot}`)+'.zip');
+      toast(`${n} arquivo${n!==1?'s':''} no .zip${falta.length?` · ${falta.length} sem arquivo (lista dentro do .zip)`:''}.`,'success');}
+    catch(e){toast(e.message||String(e),'error');}finally{UI._hideBusy();}}
+  function htmlNotasFiscais(){
+    const R0=recebidasNF(),E0=emitidasNF(),pers=periodosNF(R0.concat(E0)),p=NF2.per,q=cn(NF2.busca||'');
+    if(p!=='todos'&&!pers.anos.includes(p)&&!pers.meses.includes(p))NF2.per='todos';
+    const filt=L=>L.filter(x=>noPer(x,NF2.per)&&(!q||cn([x.nome,x.doc,x.numero,x.desc,x.obra].join(' ')).includes(q))).sort((a,b)=>String(b.data).localeCompare(String(a.data)));
+    const R1=filt(R0),E1=filt(E0),validasR=R1.filter(x=>!x.cancelada),somaR=validasR.reduce((s,x)=>s+x.valor,0),somaEb=E1.reduce((s,x)=>s+x.valor,0),somaEl=E1.reduce((s,x)=>s+x.liq,0);
+    const ab=NF2.aba==='emitidas'?'emitidas':'recebidas',L=ab==='recebidas'?R1:E1;NF2._L=L;
+    const admCert=GS.ehAdm()&&!!((certLocal()||{}).b64),cfg=NRC()||{};
+    const bt=(x,t,ok,tit)=>`<button type="button" class="fin-bt mini${ok?'':' nf2-sem'}" data-nf2-baixar="${t}" data-i="${x.i}" title="${fe(ok?tit:'Arquivo não guardado no sistema')}"${ok?'':' disabled'}><i class="fas ${t==='pdf'?'fa-file-pdf':'fa-file-code'}"></i> ${t.toUpperCase()}</button>`;
+    const linhaR=x=>{const a=arquivosNF(x);return `<tr class="${x.cancelada?'nf2-canc':''}"><td>${x.data?x.data.split('-').reverse().join('/'):'—'}</td><td><b>${fe(x.nome)}</b><small>${fe(fmtDoc(x.doc))}</small></td><td>${fe(x.tipo)}${x.numero?' nº '+fe(x.numero):''}${x.desc?`<small>${fe(String(x.desc).slice(0,90))}</small>`:''}${!x.temXml?'<small class="nf2-aviso">a SEFAZ mandou só o resumo desta nota</small>':''}</td><td class="num">${fmt(x.valor)}${x.cancelada?'<small>cancelada</small>':''}</td><td class="nf2-bts">${bt(x,'pdf',!!a.pdf,'Baixar o PDF')}${bt(x,'xml',!!a.xml,'Baixar o XML')}</td></tr>`;};
+    const linhaE=x=>{const a=arquivosNF(x),carreg=!NF2.arqs[x.obra];return `<tr><td>${x.data.split('-').reverse().join('/')}</td><td><b>${fe(x.nome)}</b><small>${fe(x.obra)}${x.medicao?' · medição '+fe(x.medicao):''}</small></td><td>NFS-e nº ${fe(x.numero)}<small>${x.recebida?'recebida':'a receber'}</small></td><td class="num">${fmt(x.valor)}<small>líquido ${fmt(x.liq)}</small></td><td class="nf2-bts">${carreg&&!(x.e&&x.e.xml)?'<small class="vk-dica"><i class="fas fa-spinner fa-spin"></i></small>':bt(x,'pdf',!!a.pdf,'Baixar o PDF')+bt(x,'xml',!!a.xml,'Baixar o XML')}</td></tr>`;};
+    return `<div class="fin-cab"><div><h2>Notas fiscais</h2><p>As notas emitidas <b>contra a Vixsul</b> (compras e serviços contratados) e as que a <b>Vixsul emitiu</b>, separadas, com o PDF e o XML de cada uma — para a contabilidade baixar. Nada aqui lança em Contas a pagar.</p></div>
+        <div class="fin-filtros">${admCert?`<button type="button" class="fin-bt" data-nf2="buscar" title="Buscar na SEFAZ e na Receita as notas novas emitidas contra a Vixsul"><i class="fas fa-cloud-arrow-down"></i> Buscar notas novas</button>`:''}<button type="button" class="fin-bt pri" data-nf2="zip"><i class="fas fa-file-zipper"></i> Baixar todas (.zip)</button></div></div>
+      <div class="fin-kpis">${kpiNF('azul','Recebidas (contra a Vixsul)',fmt(somaR),`${validasR.length} nota${validasR.length!==1?'s':''} · ${rotPer(NF2.per)}`)}${kpiNF('verde','Emitidas pela Vixsul (bruto)',fmt(somaEb),`${E1.length} nota${E1.length!==1?'s':''} · líquido ${fmt(somaEl)}`)}</div>
+      <div class="fin-card"><div class="fin-card-cab"><div class="gf-abas"><button type="button" class="gf-aba ${ab==='recebidas'?'on':''}" data-nf2-aba="recebidas"><i class="fas fa-inbox"></i> Recebidas (${R1.length})</button><button type="button" class="gf-aba ${ab==='emitidas'?'on':''}" data-nf2-aba="emitidas"><i class="fas fa-paper-plane"></i> Emitidas pela Vixsul (${E1.length})</button></div>
+        <div class="fin-filtros"><select class="filter-select" data-nf2-per><option value="todos">Todos os períodos</option>${pers.anos.map(a=>`<option value="${a}" ${NF2.per===a?'selected':''}>${a} inteiro</option>`).join('')}${pers.meses.map(m=>`<option value="${m}" ${NF2.per===m?'selected':''}>${rotPer(m)}</option>`).join('')}</select><input type="search" class="filter-select" data-nf2-busca placeholder="Buscar nome, CNPJ, nº…" value="${fe(NF2.busca)}"></div></div>
+        ${ab==='recebidas'&&cfg.ultima_busca?`<p class="vk-dica" style="margin:0 0 8px">Última busca na SEFAZ e na Receita: ${fe(new Date(cfg.ultima_busca).toLocaleString('pt-BR'))}${cfg.ultima_msg?' · '+fe(cfg.ultima_msg):''}</p>`:''}
+        ${L.length?`<div class="fin-rolar"><table class="fin-tab nf2-tab"><thead><tr><th>Emissão</th><th>${ab==='recebidas'?'Fornecedor (emitente)':'Contratante (tomador)'}</th><th>Nota</th><th class="num">${ab==='recebidas'?'Valor':'Valor bruto'}</th><th>Baixar</th></tr></thead><tbody>${L.map(ab==='recebidas'?linhaR:linhaE).join('')}</tbody>
+          <tfoot><tr><td colspan="3"><b>Total ${ab==='recebidas'?'das recebidas':'das emitidas'} (${rotPer(NF2.per)})</b></td><td class="num"><b>${fmt(ab==='recebidas'?somaR:somaEb)}</b>${ab==='emitidas'?`<small>líquido ${fmt(somaEl)}</small>`:''}</td><td></td></tr></tfoot></table></div>`
+          :`<div class="fin-vazio">${ab==='recebidas'?(R0.length?'Nenhuma nota recebida neste filtro.':'Nenhuma nota recebida ainda. Elas chegam sozinhas (a cada 6 horas) no computador do Administrador que tem o certificado digital com a senha guardada.'):(E0.length?'Nenhuma nota emitida neste filtro.':'Nenhuma nota emitida ainda.')}</div>`}</div>`;
+  }
+  const kpiNF=(tom,rot,v,sub)=>`<div class="fin-kpi ${tom}"><small>${rot}</small><b>${v}</b><span>${sub||''}</span></div>`;
+  function pintarNotasFiscais(el){
+    if(!el)return;el.innerHTML=htmlNotasFiscais();
+    // as notas emitidas: carrega os anexos das obras e redesenha quando chegarem
+    if(NF2.aba==='emitidas'){const obras=[...new Set((NF2._L||[]).map(x=>x.obra).filter(o=>!NF2.arqs[o]))];
+      if(obras.length)Promise.all(obras.map(arqsObra)).then(()=>{const cur=document.querySelector('[data-nf-tela]');if(cur&&NF2.aba==='emitidas')pintarNotasFiscais(cur);});}
+  }
+  function ligarNotasFiscais(el){
+    el.addEventListener('click',async ev=>{
+      const a=ev.target.closest('[data-nf2-aba]');if(a){NF2.aba=a.dataset.nf2Aba;return pintarNotasFiscais(el);}
+      const b=ev.target.closest('[data-nf2-baixar]');if(b){const x=(NF2._L||[]).find(y=>String(y.i)===b.dataset.i);if(x)baixarNF(x,b.dataset.nf2Baixar);return;}
+      const c=ev.target.closest('[data-nf2]');if(!c)return;
+      if(c.dataset.nf2==='zip')return baixarTodasNF(NF2._L||[],`${NF2.aba==='emitidas'?'emitidas':'recebidas'} - ${rotPer(NF2.per)}`);
+      if(c.dataset.nf2==='buscar'){c.disabled=true;try{const r=await buscarNotasRec({senha:senhaMem()||''});toast(r?(r.novas?`${r.novas} nota${r.novas>1?'s':''} nova${r.novas>1?'s':''}.`:'Nenhuma nota nova.')+(r.avisos.length?' '+r.avisos.join(' · '):''):'Já está buscando — espere um instante.',r&&r.avisos.length&&!r.novas?'error':'success',!(r&&r.avisos.length));}
+        catch(e){toast(e.message||String(e),'error');}finally{c.disabled=false;pintarNotasFiscais(el);}}});
+    el.addEventListener('change',ev=>{const s=ev.target.closest('[data-nf2-per]');if(s){NF2.per=s.value;pintarNotasFiscais(el);}});
+    el.addEventListener('input',ev=>{const s=ev.target.closest('[data-nf2-busca]');if(!s)return;NF2.busca=s.value;clearTimeout(NF2._t);NF2._t=setTimeout(()=>{pintarNotasFiscais(el);const n=el.querySelector('[data-nf2-busca]');if(n){n.focus();n.setSelectionRange(n.value.length,n.value.length);}},300);});
+  }
+  // a tela Documentos e certidões ganha duas abas: "Certidões e documentos" (a lista + Empresa e kit) e "Notas fiscais"
+  function montarDocumentos(){
+    const box=document.getElementById('eng-documentos');if(!box)return;
+    const temLista=podeSubDoc('lista'),temNotas=podeSubDoc('notas'),chips=['kit','dados','ass','ct','mun','nfse'].filter(podeSubDoc);
+    if(DOCV.aba==='notas'&&!temNotas)DOCV.aba='lista';if(DOCV.aba==='lista'&&!temLista&&!chips.length&&temNotas)DOCV.aba='notas';
+    const barra=(temLista||chips.length)&&temNotas?`<div class="gf-abas doc-abas"><button type="button" class="gf-aba ${DOCV.aba==='lista'?'on':''}" data-doc-aba="lista"><i class="fas fa-file-shield"></i> Certidões e documentos</button><button type="button" class="gf-aba ${DOCV.aba==='notas'?'on':''}" data-doc-aba="notas"><i class="fas fa-file-invoice"></i> Notas fiscais</button></div>`:'';
+    if(!box._docAbas){box._docAbas=true;box.addEventListener('click',ev=>{const b=ev.target.closest('[data-doc-aba]');if(!b)return;DOCV.aba=b.dataset.docAba;App._renderEng('documentos');});}
+    if(DOCV.aba==='notas'){box.innerHTML=`<div class="fin-wrap">${barra}<div data-nf-tela></div></div>`;const el=box.querySelector('[data-nf-tela]');pintarNotasFiscais(el);ligarNotasFiscais(el);return;}
+    const w=box.querySelector('.fin-wrap');if(!w)return;
+    if(barra&&!w.querySelector('.doc-abas')){const t=document.createElement('div');t.innerHTML=barra;w.insertBefore(t.firstElementChild,w.firstElementChild);}
+    if(!temLista){w.querySelectorAll(':scope > .fin-kpis, :scope > .fin-card').forEach(e=>e.style.display='none');const cabB=w.querySelector(':scope > .fin-cab .fin-filtros');if(cabB)cabB.style.display='none';}
+    if(chips.length&&!w.querySelector('[data-empc]')){if(!chips.includes(EC.aba))EC.aba=chips[0];const t=document.createElement('div');t.innerHTML=htmlEmpresa();const cab=w.querySelector(':scope > .fin-cab');w.insertBefore(t.firstElementChild,cab?cab.nextSibling:null);ligarEmpresa(box);}
+  }
   const reEng=App._renderEng;
   App._renderEng=function(v){
     const r=reEng.apply(this,arguments);
-    if(v==='documentos'){try{const box=document.getElementById('eng-documentos'),w=box&&box.querySelector('.fin-wrap');if(w&&!w.querySelector('[data-empc]')){const t=document.createElement('div');t.innerHTML=htmlEmpresa();const cab=w.firstElementChild;w.insertBefore(t.firstElementChild,cab?cab.nextSibling:null);ligarEmpresa(box);}}catch(e){console.error(e);}}
+    if(v==='documentos'){try{montarDocumentos();}catch(e){console.error(e);}}
     return r;
   };
+  // abrir direto nas notas (o aviso das notas novas leva para cá)
+  function irNotasFiscais(){DOCV.aba='notas';NF2.aba='recebidas';UI.nav('documentos');}
 
   /* ═══════════════ SÓCIOS E INVESTIMENTOS: aportes entram, retiradas e devoluções saem ═══════════════ */
   const SO2={aba:'mov',obra:'',quem:'',tipo:'',ano:'',selModo:false,sel:new Set(),abertos:new Set()};
@@ -25146,7 +25326,10 @@ GS.lembretes=(function(){
     catch(e){toast(e.message,'error');}finally{if(b)b.disabled=false;pintar();}}
   async function salvarPref(b){
     const box=document.getElementById('vx-lembretes'),g=k=>{const el=box&&box.querySelector(`[data-lbc="${k}"]`);return el?String(el.value||'').trim():'';};
-    const cfg={resumo:g('resumo'),resumo_hora:g('resumo_hora'),aviso_reuniao:g('aviso_reuniao'),aviso_reuniao_min:g('aviso_reuniao_min'),aviso_tarde:g('aviso_tarde'),aviso_aportes:g('aviso_aportes'),modelo_ia:g('modelo_ia')};
+    const cfg={resumo:g('resumo'),resumo_hora:g('resumo_hora'),aviso_reuniao:g('aviso_reuniao'),aviso_reuniao_min:g('aviso_reuniao_min'),aviso_tarde:g('aviso_tarde'),aviso_aportes:g('aviso_aportes'),
+      relatorio_semanal:g('relatorio_semanal'),alerta_caixa:g('alerta_caixa'),cobranca_dias:g('cobranca_dias'),aviso_chuva:g('aviso_chuva'),fechamento_mes:g('fechamento_mes')};
+    if(!/^\d{1,3}$/.test(cfg.cobranca_dias)||+cfg.cobranca_dias>180)return toast('Cobrança: de 0 (não cobra) a 180 dias.','error');
+    if(g('modelo_ia'))cfg.modelo_ia=g('modelo_ia');
     if(!/^\d{2}:\d{2}$/.test(cfg.resumo_hora))return toast('Confira a hora do resumo do dia.','error');
     const m=parseInt(cfg.aviso_reuniao_min,10);if(cfg.aviso_reuniao!=='nao'&&!(m>=10&&m<=240))return toast('Aviso antes da reunião: de 10 a 240 minutos.','error');
     if(b)b.disabled=true;try{ST.tg=await tgApi({acao:'salvar',cfg});toast('Salvo — o robô já segue o que foi escolhido.','success');}catch(e){toast(e.message,'error');}finally{if(b)b.disabled=false;pintar();}}
@@ -25155,7 +25338,7 @@ GS.lembretes=(function(){
     const T=ST.tg;
     if(!T&&(ST.carregando||(!ST.erro)))return `<div class="lb-tg"><p class="vk-dica"><i class="fas fa-spinner fa-spin"></i> Conferindo o Telegram…</p></div>`;
     if(!T)return `<div class="lb-tg"><div class="fin-aviso laranja"><div>${fe(ST.erro)}</div></div><div class="av-bts"><button type="button" class="fin-bt mini" data-lb="atualizar"><i class="fas fa-rotate"></i> Tentar de novo</button></div></div>`;
-    const ia=T.ia?'':'<div class="fin-aviso laranja"><div>A chave da IA (<b>ANTHROPIC_API_KEY</b>) não chegou ao servidor: sem ela o robô entende só os comandos (/hoje, /contas…), não as perguntas livres.</div></div>';
+    const ia='';   // sem IA paga: as perguntas são respondidas pelo próprio sistema (grátis)
     if(!T.token)return `<div class="lb-tg"><div class="lb-tg-cab"><i class="fab fa-telegram"></i><div><b>Criar o robô no Telegram (uma vez só, uns 5 minutos)</b><small>O Telegram é grátis e funciona no iPhone. A chave do robô fica só na Vercel — nunca no sistema nem no código.</small></div><button type="button" class="fin-bt mini" data-lb="atualizar" title="Conferir de novo"><i class="fas fa-rotate"></i></button></div>
       <ol class="lb-passos"><li>Instale o <b>Telegram</b> no iPhone (App Store) e entre com o seu número.</li>
         <li>No Telegram, abra o <b>@BotFather</b> (botão abaixo), toque em <b>Iniciar</b> e mande <b>/newbot</b>.</li>
@@ -25167,7 +25350,7 @@ GS.lembretes=(function(){
     if(!T.bot||!T.webhook)return `<div class="lb-tg"><div class="lb-tg-cab"><i class="fab fa-telegram"></i><div><b>A chave do robô já está na Vercel</b><small>Falta ligar: o sistema aponta o Telegram para cá e cadastra os comandos.${T.erroTelegram?' · '+fe(T.erroTelegram):''}</small></div><button type="button" class="fin-bt mini" data-lb="atualizar" title="Conferir de novo"><i class="fas fa-rotate"></i></button></div><div class="av-bts"><button type="button" class="fin-bt pri" data-lb="conectar"><i class="fas fa-plug"></i> Ligar o robô</button></div>${ia}</div>`;
     const c=T.cfg||{},sel=(k,a,b)=>`<select data-lbc="${k}"><option value="sim" ${c[k]==='nao'?'':'selected'}>${a}</option><option value="nao" ${c[k]==='nao'?'selected':''}>${b}</option></select>`,n=T.chats.length;
     return `<div class="lb-tg"><div class="lb-tg-cab"><i class="fab fa-telegram"></i><div><b>Robô <a href="https://t.me/${fe(T.bot)}" target="_blank" rel="noopener">@${fe(T.bot)}</a> ligado</b><small>${n?`${n} Telegram ligado${n>1?'s':''}`:'Nenhum Telegram ligado ainda — clique em "Ligar meu Telegram".'}${T.pendentes?` · ${T.pendentes} mensagem(ns) esperando`:''}${T.erro?` · último erro do Telegram: ${fe(T.erro)}`:''}</small></div><button type="button" class="fin-bt mini" data-lb="atualizar" title="Conferir de novo"><i class="fas fa-rotate"></i></button></div>
-      <div class="av-bts"><button type="button" class="fin-bt pri" data-lb="vincular"><i class="fas fa-link"></i> Ligar meu Telegram</button><button type="button" class="fin-bt" data-lb="testar"${n?'':' disabled'}><i class="fas fa-paper-plane"></i> Mandar um teste</button><button type="button" class="fin-bt" data-lb="resumo"${n?'':' disabled'}><i class="fas fa-newspaper"></i> Mandar o resumo agora</button></div>
+      <div class="av-bts"><button type="button" class="fin-bt pri" data-lb="vincular"><i class="fas fa-link"></i> Ligar meu Telegram</button><button type="button" class="fin-bt" data-lb="testar"${n?'':' disabled'}><i class="fas fa-paper-plane"></i> Mandar um teste</button><button type="button" class="fin-bt" data-lb="resumo"${n?'':' disabled'}><i class="fas fa-newspaper"></i> Mandar o resumo agora</button><button type="button" class="fin-bt" data-lb="relatorio"${n?'':' disabled'}><i class="fas fa-file-pdf"></i> Mandar o relatório semanal agora</button></div>
       ${n?`<div class="lb-chats">${T.chats.map(x=>`<div class="lb-chat"><i class="fab fa-telegram"></i><span><b>${fe(x.nome||'Telegram')}${x.meu?' <em>você</em>':''}</b><small>usuário ${fe(x.usuario||'—')}${x.ligado_em?' · desde '+fe(new Date(x.ligado_em).toLocaleDateString('pt-BR')):''}</small></span><label class="lb-res"><input type="checkbox" data-lb-res="${fe(x.id)}" ${x.resumo==='nao'?'':'checked'}> recebe o resumo do dia</label><button type="button" class="fin-bt mini" data-lb="desligar" data-id="${fe(x.id)}" title="Desligar este Telegram"><i class="fas fa-link-slash"></i></button></div>`).join('')}</div>`:''}
       <details class="lb-pref"${ST.prefAberta?' open':''}><summary><i class="fas fa-sliders"></i> O que o robô manda sozinho e o assistente das perguntas</summary>
         <div class="fin-linha">
@@ -25177,7 +25360,12 @@ GS.lembretes=(function(){
           <div class="fin-fld"><label>Quantos minutos antes</label><input data-lbc="aviso_reuniao_min" inputmode="numeric" value="${fe(c.aviso_reuniao_min||'60')}"></div>
           <div class="fin-fld"><label>Contas de hoje ainda em aberto (16h)</label>${sel('aviso_tarde','Sim','Não')}</div>
           <div class="fin-fld"><label>Aporte lançado no sistema</label>${sel('aviso_aportes','Sim — avisa','Não')}</div>
-          <div class="fin-fld" style="grid-column:1/-1"><label>Assistente das perguntas (IA)</label><select data-lbc="modelo_ia">${MOD.map(([k,r])=>`<option value="${k}" ${(c.modelo_ia||'claude-opus-5-5')===k?'selected':''}>${fe(r)}</option>`).join('')}</select></div>
+          <div class="fin-fld"><label>Relatório semanal dos sócios (segunda, 7h, com PDF)</label>${sel('relatorio_semanal','Sim','Não')}</div>
+          <div class="fin-fld"><label>Alerta de caixa (8h: saldo negativo em 15 dias)</label>${sel('alerta_caixa','Sim','Não')}</div>
+          <div class="fin-fld"><label>Cobrar nota parada há quantos dias (0 = não cobra)</label><input data-lbc="cobranca_dias" inputmode="numeric" value="${fe(c.cobranca_dias===''||c.cobranca_dias==null?'30':c.cobranca_dias)}"></div>
+          <div class="fin-fld"><label>Chuva amanhã nas obras (17h, INMET)</label>${sel('aviso_chuva','Sim','Não')}</div>
+          <div class="fin-fld"><label>Fechamento do mês (dia 1º, 8h)</label>${sel('fechamento_mes','Sim','Não')}</div>
+          ${T.ia?`<div class="fin-fld" style="grid-column:1/-1"><label>Assistente das perguntas (IA)</label><select data-lbc="modelo_ia">${MOD.map(([k,r])=>`<option value="${k}" ${(c.modelo_ia||'claude-opus-5-5')===k?'selected':''}>${fe(r)}</option>`).join('')}</select></div>`:`<p class="vk-dica" style="grid-column:1/-1;margin:0"><i class="fas fa-circle-check" style="color:#079455"></i> As perguntas no Telegram (ex.: <i>quanto gastei na obra X em outubro?</i>) são respondidas pelo próprio sistema — sem custo.</p>`}
         </div>
         <div class="av-bts"><button type="button" class="fin-bt pri" data-lb="pref"><i class="fas fa-floppy-disk"></i> Salvar</button></div></details>${ia}</div>`;
   }
@@ -25205,7 +25393,7 @@ GS.lembretes=(function(){
       if(a==='excluir'&&x)return Eng.apagar({aba:'Planejamento',nomeItem:'lembrete'},x.l,x.l.texto||'Lembrete');
       if(a==='atualizar')return carregarTg();
       if(a==='vincular')return vincular(b);
-      if(a==='conectar'||a==='testar'||a==='resumo')return acao(a,b);
+      if(a==='conectar'||a==='testar'||a==='resumo'||a==='relatorio')return acao(a,b);
       if(a==='pref')return salvarPref(b);
       if(a==='desligar')return confirmar('Desligar este Telegram?','Ele para de receber o resumo, os avisos e os lembretes, e o robô deixa de responder a ele. Dá para ligar de novo com outro link.','Sim, desligar',async()=>{ST.tg=await tgApi({acao:'desligar',id:b.dataset.id});toast('Telegram desligado.','success');pintar();});};
     box.onchange=ev=>{const f=ev.target.closest('[data-lb-filtro]');if(f){ST.filtro=f.value;return pintar();}
@@ -25218,6 +25406,114 @@ GS.lembretes=(function(){
   const re=App._renderEng;App._renderEng=function(v){if(v==='lembretes'){try{render();}catch(e){console.error(e);}return;}return re&&re.apply(this,arguments);};
   const ra=App.renderAll;App.renderAll=function(){ra.apply(this,arguments);try{if(document.getElementById('view-lembretes')?.classList.contains('active'))pintar();}catch(e){console.error(e);}};
   return {render,pintar,abrir,proxima,lista,_ST:ST};
+})();
+
+/* ═══════════════ PONTO DA EQUIPE NAS OBRAS (Pessoal e segurança › Ponto nas obras) ═══════════════
+   Pelo celular, na obra: escolhe o funcionário e a marcação (entrada, saída e volta do almoço, saída), tira a selfie e
+   o sistema guarda a hora (a do momento, não dá para mudar), a obra e a localização (GPS do celular ou da foto).
+   Planejamento tipo 'ponto': func_id, func_nome, funcao, titulo_obra, evento, quando 'AAAA-MM-DDTHH:MM' (Bahia),
+   foto_uid/thumb_uid (a foto fica guardada sem entrar na galeria da obra), lat/lng/gps_prec, registrado_por.
+   As horas do dia = da entrada à saída, sem o almoço. Dia sem a saída marcada aparece como "ponto aberto". */
+GS.ponto=(function(){
+  const U=Fin.util,{executar,salvar,excluir,janela,confirmar,fe}=U;
+  const PV={aba:'cadastro',mes:'',obra:'',ultObra:'',seguir:true};
+  const agoraBA=()=>new Date(Date.now()-3*3600e3).toISOString().slice(0,16);
+  const PLAN=()=>(App.state&&App.state.data&&App.state.data.planejamento)||[];
+  const funcionarios=()=>PLAN().filter(p=>p.tipo==='funcionario'&&(p.situacao||'Ativo')==='Ativo'&&!p._lixeira_em).sort((a,b)=>String(a.nome||'').localeCompare(String(b.nome||''),'pt-BR'));
+  const registros=()=>PLAN().filter(p=>p.tipo==='ponto'&&!p._lixeira_em&&/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(String(p.quando||'')));
+  const EVENTOS=[['entrada','Entrada'],['almoco_saida','Saída para o almoço'],['almoco_volta','Volta do almoço'],['saida','Saída']];
+  const evRot=k=>(EVENTOS.find(e=>e[0]===k)||[k,k])[1];
+  const pode=s=>!UI.podeSub||UI.podeSub('pessoal',s);
+  const doDia=(fid,dia)=>registros().filter(r=>String(r.func_id)===String(fid)&&String(r.quando).slice(0,10)===dia).sort((a,b)=>String(a.quando).localeCompare(String(b.quando)));
+  const proximo=(fid,dia)=>{const L=doDia(fid,dia),u=L[L.length-1];return !u?'entrada':({entrada:'almoco_saida',almoco_saida:'almoco_volta',almoco_volta:'saida',saida:'entrada'}[u.evento]||'entrada');};
+  const minDe=(a,b)=>Math.round((new Date(b+':00Z')-new Date(a+':00Z'))/60000);
+  // minutos trabalhados no dia (pares entrada→saída/almoço) e se ficou aberto (sem a saída)
+  function horasDia(L){let t=0,ini=null;
+    for(const r of L.slice().sort((a,b)=>String(a.quando).localeCompare(String(b.quando)))){const q=String(r.quando).slice(0,16);
+      if(r.evento==='entrada'||r.evento==='almoco_volta')ini=q;else if((r.evento==='almoco_saida'||r.evento==='saida')&&ini){t+=Math.max(0,minDe(ini,q));ini=null;}}
+    return {min:t,aberto:!!ini};}
+  const hm=m=>`${Math.floor(m/60)}h${String(m%60).padStart(2,'0')}`;
+  const brD=d=>d?d.slice(8,10)+'/'+d.slice(5,7)+'/'+d.slice(0,4):'';
+  // resumo do mês: por pessoa, os dias, as horas, as obras e os dias com ponto aberto
+  function resumoMes(mes,obra){
+    const L=registros().filter(r=>String(r.quando).slice(0,7)===mes&&(!obra||r.titulo_obra===obra)),P={};
+    L.forEach(r=>{const k=String(r.func_id),dia=String(r.quando).slice(0,10);const p=P[k]=P[k]||{fid:k,nome:r.func_nome||'—',funcao:r.funcao||'',dias:{},obras:new Set()};(p.dias[dia]=p.dias[dia]||[]).push(r);p.obras.add(r.titulo_obra||'—');});
+    return Object.values(P).map(p=>{let min=0,abertos=0;const hj=agoraBA().slice(0,10);Object.entries(p.dias).forEach(([d,rs])=>{const h=horasDia(rs);min+=h.min;if(h.aberto&&d<hj)abertos++;});return {...p,nDias:Object.keys(p.dias).length,min,abertos,obras:[...p.obras]};})
+      .sort((a,b)=>a.nome.localeCompare(b.nome,'pt-BR'));}
+
+  function registrar(fixo){
+    const fs=funcionarios();if(!fs.length)return toast('Cadastre os funcionários na aba "Funcionários e segurança" primeiro.','error');
+    const obras=Eng.obrasNomes(),hj=agoraBA().slice(0,10);let gps=null,file=null;
+    const j=janela('Registrar ponto',`<div class="fin-linha">
+        <div class="fin-fld"><label>Obra <span class="obg">*</span></label><select data-k="obra"><option value="">Selecione…</option>${obras.map(o=>`<option ${o===((fixo&&fixo.obra)||PV.ultObra)?'selected':''}>${fe(o)}</option>`).join('')}</select></div>
+        <div class="fin-fld"><label>Funcionário <span class="obg">*</span></label><select data-k="func"><option value="">Selecione…</option>${fs.map(f=>`<option value="${fe(f.rowid)}">${fe(f.nome)}${f.funcao?' — '+fe(f.funcao):''}</option>`).join('')}</select></div>
+        <div class="fin-fld"><label>Marcação <span class="obg">*</span></label><select data-k="ev">${EVENTOS.map(([k,r])=>`<option value="${k}">${r}</option>`).join('')}</select></div>
+        <div class="fin-fld"><label>Hora</label><input data-k="hora" value="agora (${agoraBA().slice(11,16)})" readonly tabindex="-1" style="background:#F3F5F9"></div></div>
+      <div class="pt-foto"><label class="fin-bt pri pt-cam"><input type="file" accept="image/*" capture="user" data-k="foto" hidden><i class="fas fa-camera"></i> Tirar a foto do funcionário</label><div class="pt-prev" data-pt-prev></div></div>
+      <p class="vk-dica" data-pt-gps><i class="fas fa-spinner fa-spin"></i> Pegando a localização…</p>
+      <label class="pt-seguir"><input type="checkbox" data-k="seguir" ${PV.seguir?'checked':''}> Depois de registrar, abrir de novo para o próximo funcionário</label>`,
+      [{html:'<i class="fas fa-user-clock"></i> Registrar',cls:'pri',acao:async jj=>{
+        const g=k=>(jj.querySelector(`[data-k="${k}"]`).value||'').trim(),ob=g('obra'),fid=g('func'),ev=g('ev'),f=fs.find(x=>String(x.rowid)===fid);
+        if(!ob)throw new Error('Escolha a obra.');if(!f)throw new Error('Escolha o funcionário.');if(!file)throw new Error('Tire a foto do funcionário (é o que comprova a marcação).');
+        PV.ultObra=ob;PV.seguir=jj.querySelector('[data-k="seguir"]').checked;
+        let ft;UI._showBusy('Enviando a foto…');try{ft=await GS.fotoSis.soGuardar(ob,file);}finally{UI._hideBusy();}
+        const quando=agoraBA(),s=Auth._session||{};
+        await executar(()=>salvar('Planejamento',{tipo:'ponto',func_id:String(f.rowid),func_nome:f.nome||'',funcao:f.funcao||'',titulo_obra:ob,evento:ev,quando,foto_uid:ft.foto_uid,thumb_uid:ft.thumb_uid,...(gps?GS.gps.campos(gps):{}),registrado_por:s.nome||'',registrado_por_id:String(s.uid||''),data_lancamento:todayDateTime()},null));
+        toast(`${evRot(ev)} de ${f.nome} às ${quando.slice(11)}${gps?'':' (sem localização)'}.`,'success');
+        if(PV.seguir)setTimeout(()=>registrar({obra:ob}),350);}}],560);
+    const qs=k=>j.querySelector(`[data-k="${k}"]`),gpsEl=j.querySelector('[data-pt-gps]'),pinta=()=>{gpsEl.innerHTML=gps?`<i class="fas fa-location-dot" style="color:#079455"></i> Localização: ${GS.gps.htmlLink(gps)}${gps.prec?` <small>(± ${gps.prec} m)</small>`:''}`:'<i class="fas fa-location-dot" style="color:#B54708"></i> Sem localização — libere o acesso à localização no navegador do celular (ou a foto traz a do GPS).';};
+    GS.gps.agora(9000).then(v=>{if(v&&!gps)gps=v;pinta();});
+    qs('func').addEventListener('change',()=>{if(qs('func').value)qs('ev').value=proximo(qs('func').value,hj);});
+    qs('foto').addEventListener('change',async()=>{file=qs('foto').files[0]||null;const pv=j.querySelector('[data-pt-prev]');
+      if(!file){pv.innerHTML='';return;}const u=URL.createObjectURL(file);pv.innerHTML=`<img src="${u}" alt="foto">`;
+      const g2=await GS.gps.daFoto(file,8000);if(g2&&(!gps||g2.fonte==='foto'))gps=g2;pinta();});
+  }
+
+  function htmlPonto(){
+    const hj=agoraBA().slice(0,10),mes=PV.mes||hj.slice(0,7),meses=[...new Set(registros().map(r=>String(r.quando).slice(0,7)).concat(hj.slice(0,7)))].sort().reverse();
+    const hoje=registros().filter(r=>String(r.quando).slice(0,10)===hj&&(!PV.obra||r.titulo_obra===PV.obra)).sort((a,b)=>String(b.quando).localeCompare(String(a.quando)));
+    const pessoasHoje=[...new Set(hoje.map(r=>String(r.func_id)))],trabalhando=pessoasHoje.filter(fid=>horasDia(doDia(fid,hj)).aberto);
+    const R=resumoMes(mes,PV.obra),minMes=R.reduce((s,x)=>s+x.min,0),abertos=R.reduce((s,x)=>s+x.abertos,0);App._ptR=R;
+    const rotM=m=>`${['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'][+m.slice(5,7)-1]} de ${m.slice(0,4)}`;
+    return `${Eng.cab('Ponto da equipe nas obras','Pelo celular, na obra: escolha o funcionário e a marcação e tire a foto — a hora (a do momento), a obra e a localização ficam guardadas. As horas do dia vão da entrada à saída, sem o almoço.',`<button type="button" class="fin-bt" data-pt="csv"><i class="fas fa-file-csv"></i> Planilha do mês</button><button type="button" class="fin-bt pri" data-pt="registrar"><i class="fas fa-user-clock"></i> Registrar ponto</button>`)}
+      <div class="fin-kpis">${Eng.kpi(trabalhando.length?'verde':'','Trabalhando agora',trabalhando.length,'com entrada e sem saída hoje')}${Eng.kpi('','Marcações hoje',hoje.length,pessoasHoje.length+' pessoa(s)')}${Eng.kpi('azul','Horas no mês',hm(minMes),rotM(mes))}${Eng.kpi(abertos?'laranja':'','Pontos abertos',abertos,abertos?'dias sem a saída marcada':'nenhum esquecido')}</div>
+      <div class="fin-card"><div class="fin-card-cab"><b>Hoje — ${brD(hj)}</b><div class="fin-filtros"><select class="filter-select" data-pt-obra><option value="">Todas as obras</option>${Eng.obrasNomes().map(o=>`<option ${PV.obra===o?'selected':''}>${fe(o)}</option>`).join('')}</select></div></div>
+        ${hoje.length?`<div class="pt-hoje">${hoje.map(r=>`<div class="pt-mar"><img ${GS.fotoSis.attrs({foto_uid:r.foto_uid,thumb_uid:r.thumb_uid})} alt="" data-pt-foto="${fe(r.rowid)}"><div><b>${fe(r.func_nome)}</b><span>${fe(evRot(r.evento))} · <b>${String(r.quando).slice(11,16)}</b></span><small>${fe(r.titulo_obra||'')}${GS.gps.de(r)?' · '+GS.gps.htmlLink(r):' · sem localização'}</small></div></div>`).join('')}</div>`:'<div class="fin-vazio">Nenhuma marcação hoje.</div>'}</div>
+      <div class="fin-card"><div class="fin-card-cab"><b>Ponto do mês</b><div class="fin-filtros"><select class="filter-select" data-pt-mes>${meses.map(m=>`<option value="${m}" ${m===mes?'selected':''}>${rotM(m)}</option>`).join('')}</select></div></div>
+        ${R.length?`<div class="fin-rolar"><table class="fin-tab"><thead><tr><th>Funcionário</th><th class="num">Dias</th><th class="num">Horas</th><th>Obras</th><th>Pendências</th><th></th></tr></thead><tbody>${R.map((x,i)=>`<tr><td><b>${fe(x.nome)}</b><small>${fe(x.funcao)}</small></td><td class="num">${x.nDias}</td><td class="num">${hm(x.min)}</td><td>${fe(x.obras.join(', '))}</td><td>${x.abertos?`<span class="eng-pill laranja">${x.abertos} dia(s) sem saída</span>`:'<span class="eng-pill verde">ok</span>'}</td><td><button type="button" class="fin-bt mini" data-pt="ver" data-i="${i}">Ver os dias</button></td></tr>`).join('')}</tbody></table></div>`:'<div class="fin-vazio">Nenhuma marcação neste mês.</div>'}</div>`;
+  }
+  function verPessoa(x,mes){
+    const dias=Object.keys(x.dias).sort();
+    const j=janela(`Ponto de ${x.nome}`,`<div class="pt-dias">${dias.map(d=>{const rs=x.dias[d].slice().sort((a,b)=>String(a.quando).localeCompare(String(b.quando))),h=horasDia(rs);
+      return `<div class="pt-dia"><div class="pt-dia-cab"><b>${brD(d)}</b><span>${hm(h.min)}${h.aberto?' · <span class="eng-pill laranja">sem saída</span>':''}</span></div>${rs.map(r=>`<div class="pt-mar"><img ${GS.fotoSis.attrs({foto_uid:r.foto_uid,thumb_uid:r.thumb_uid})} alt=""><div><span>${fe(evRot(r.evento))} · <b>${String(r.quando).slice(11,16)}</b></span><small>${fe(r.titulo_obra||'')}${GS.gps.de(r)?' · '+GS.gps.htmlLink(r):''}${r.registrado_por?' · por '+fe(r.registrado_por):''}</small></div>${GS.ehAdm()?`<button type="button" class="fin-bt mini" data-pt-del="${fe(r.rowid)}" title="Excluir esta marcação"><i class="fas fa-trash-can"></i></button>`:''}</div>`).join('')}</div>`;}).join('')}</div>`,[],620);
+    j.addEventListener('click',ev=>{const b=ev.target.closest('[data-pt-del]');if(!b)return;const r=registros().find(y=>String(y.rowid)===b.dataset.ptDel);if(!r)return;
+      confirmar('Excluir esta marcação?',`${fe(evRot(r.evento))} de <b>${fe(r.func_nome)}</b> às ${String(r.quando).slice(11,16)} de ${brD(String(r.quando).slice(0,10))} vai para a Lixeira.`,'Sim, excluir',async()=>{await executar(()=>excluir('Planejamento',r.rowid));toast('Marcação excluída.','success');j.querySelector('[data-fin-fechar]')?.click();});});
+  }
+  function csvMes(){
+    const hj=agoraBA().slice(0,10),mes=PV.mes||hj.slice(0,7),L=registros().filter(r=>String(r.quando).slice(0,7)===mes&&(!PV.obra||r.titulo_obra===PV.obra)),G={};
+    L.forEach(r=>{const k=r.func_id+'|'+String(r.quando).slice(0,10);(G[k]=G[k]||[]).push(r);});
+    const q=v=>`"${String(v==null?'':v).replace(/"/g,'""')}"`,hora=(rs,e)=>{const r=rs.find(x=>x.evento===e);return r?String(r.quando).slice(11,16):'';};
+    const linhas=[['Data','Funcionário','Função','Obra','Entrada','Saída almoço','Volta almoço','Saída','Horas','Observação'].map(q).join(';')];
+    Object.values(G).sort((a,b)=>String(a[0].quando).localeCompare(String(b[0].quando))||String(a[0].func_nome).localeCompare(String(b[0].func_nome))).forEach(rs=>{const h=horasDia(rs);
+      linhas.push([brD(String(rs[0].quando).slice(0,10)),rs[0].func_nome,rs[0].funcao,[...new Set(rs.map(r=>r.titulo_obra))].join(', '),hora(rs,'entrada'),hora(rs,'almoco_saida'),hora(rs,'almoco_volta'),hora(rs,'saida'),hm(h.min),h.aberto?'sem saída':''].map(q).join(';'));});
+    const b=new Blob(['﻿'+linhas.join('\r\n')],{type:'text/csv;charset=utf-8'}),u=URL.createObjectURL(b),a=document.createElement('a');a.href=u;a.download=`Ponto ${mes}${PV.obra?' - '+PV.obra:''}.csv`;document.body.appendChild(a);a.click();setTimeout(()=>{a.remove();URL.revokeObjectURL(u);},30000);
+  }
+  // a tela Pessoal e segurança ganha duas abas: "Funcionários e segurança" e "Ponto nas obras"
+  function montar(){
+    const box=document.getElementById('eng-pessoal');if(!box)return;
+    const temC=pode('cadastro'),temP=pode('ponto');if(PV.aba==='ponto'&&!temP)PV.aba='cadastro';if(PV.aba==='cadastro'&&!temC&&temP)PV.aba='ponto';
+    const barra=temC&&temP?`<div class="gf-abas doc-abas"><button type="button" class="gf-aba ${PV.aba==='cadastro'?'on':''}" data-ps-aba="cadastro"><i class="fas fa-helmet-safety"></i> Funcionários e segurança</button><button type="button" class="gf-aba ${PV.aba==='ponto'?'on':''}" data-ps-aba="ponto"><i class="fas fa-user-clock"></i> Ponto nas obras</button></div>`:'';
+    if(!box._ptLig){box._ptLig=true;
+      box.addEventListener('click',ev=>{const a=ev.target.closest('[data-ps-aba]');if(a){PV.aba=a.dataset.psAba;App._renderEng('pessoal');return;}
+        const b=ev.target.closest('[data-pt]');if(!b||PV.aba!=='ponto')return;
+        if(b.dataset.pt==='registrar')return registrar();if(b.dataset.pt==='csv')return csvMes();
+        if(b.dataset.pt==='ver'){const x=(App._ptR||[])[+b.dataset.i];if(x)verPessoa(x);}});
+      box.addEventListener('change',ev=>{if(PV.aba!=='ponto')return;const m=ev.target.closest('[data-pt-mes]'),o=ev.target.closest('[data-pt-obra]');if(m){PV.mes=m.value;App._renderEng('pessoal');}if(o){PV.obra=o.value;App._renderEng('pessoal');}});}
+    if(PV.aba==='ponto'){box.innerHTML=`<div class="fin-wrap">${barra}${htmlPonto()}</div>`;return;}
+    const w=box.querySelector('.fin-wrap');if(w&&barra&&!w.querySelector('.doc-abas')){const t=document.createElement('div');t.innerHTML=barra;w.insertBefore(t.firstElementChild,w.firstElementChild);}
+  }
+  const re=App._renderEng;App._renderEng=function(v){const r=re&&re.apply(this,arguments);if(v==='pessoal'){try{montar();}catch(e){console.error(e);}}return r;};
+  return {registrar,resumoMes,horasDia,_PV:PV};
 })();
 </script>
 <style>
@@ -25296,7 +25592,10 @@ GS.fotoSis=(function(){
       nome_arquivo:item.file.name||'foto.jpg',etapa_obra:item.etapa||'durante',data_foto:item.data||'',descricao:[rot,d?`${d[3]}/${d[2]}/${d[1]}`:'',String(item.descricao||'').trim()].filter(Boolean).join(' • '),...GS.gps.campos(item.gps),...(item.extra||{})},null);
     return {foto_uid:base+'g',thumb_uid:base+'m'};}
   const apagar=f=>Promise.all([f.foto_uid,f.thumb_uid].filter(Boolean).map(uid=>run('excluirAnexo',uid,null).catch(()=>{})));
-  return {PIX,url,ja,falta,prep,attrs,enviar,apagar};
+  // só guarda a foto (ex.: a selfie do ponto), sem entrar na galeria de fotos da obra — devolve {foto_uid, thumb_uid}
+  async function soGuardar(ob,file){const base='fp'+Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+    const grande=await reduzir(file,1280,0.78),mini=await reduzir(file,320,0.7);await guardar(ob,grande,base+'g');await guardar(ob,mini,base+'m');return {foto_uid:base+'g',thumb_uid:base+'m'};}
+  return {PIX,url,ja,falta,prep,attrs,enviar,apagar,soGuardar};
 })();
 
 /* ═══════════════ DESCRIÇÃO RESUMIDA DOS ITENS DA SINAPI ═══════════════
@@ -25555,6 +25854,21 @@ input[type=search].filter-select{background-image:none;padding-right:12px;}
 .fin-fld .av-itens label{text-transform:none;letter-spacing:0;font-weight:500;font-size:13px;line-height:1.35;color:#344054;align-items:flex-start;margin:0;} .fin-fld .av-itens label input{margin-top:1px;flex:none;}
 .av-ativar{margin-top:10px;padding:10px 12px;border-radius:12px;background:#FFFAEB;border:1px solid #FEDF89;color:#93370D;line-height:1.5;}
 .av-ativar ol{margin:6px 0;padding-left:20px;} .av-ativar small{color:#B54708;} .av-ativar i{color:#DC6803;}
+/* Pessoal e segurança › Ponto nas obras */
+.pt-foto{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:10px;} .pt-cam{cursor:pointer;} .pt-prev img{width:84px;height:84px;object-fit:cover;border-radius:12px;border:1px solid #EAECF0;}
+.pt-seguir{display:flex;align-items:center;gap:8px;font-size:12.5px;color:#344054;margin-top:6px;cursor:pointer;}
+.pt-hoje{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:8px;}
+.pt-mar{display:flex;align-items:center;gap:10px;padding:8px;border:1px solid #EAECF0;border-radius:12px;background:#fff;} .pt-mar img{width:46px;height:46px;object-fit:cover;border-radius:10px;flex:none;background:#F2F4F7;}
+.pt-mar>div{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px;} .pt-mar b{font-size:13px;color:#101828;} .pt-mar span{font-size:12.5px;color:#344054;} .pt-mar small{font-size:11.5px;color:#667085;overflow-wrap:anywhere;}
+.pt-dias{display:flex;flex-direction:column;gap:12px;max-height:62vh;overflow:auto;} .pt-dia{display:flex;flex-direction:column;gap:6px;}
+.pt-dia-cab{display:flex;justify-content:space-between;align-items:center;font-size:13px;color:#101828;border-bottom:1px solid #EAECF0;padding-bottom:4px;}
+/* Documentos e certidões › Notas fiscais (para a contabilidade baixar) */
+.doc-abas{margin:0 0 14px;} .doc-abas .gf-aba,.nf2-tab ~ * .gf-aba{display:inline-flex;align-items:center;gap:6px;}
+.fin-card-cab .gf-abas .gf-aba{display:inline-flex;align-items:center;gap:6px;}
+.nf2-tab td small{display:block;color:#667085;font-size:11.5px;margin-top:2px;} .nf2-tab td b{font-weight:600;color:#101828;}
+.nf2-tab td.num,.nf2-tab th.num{text-align:right;white-space:nowrap;} .nf2-bts{white-space:nowrap;} .nf2-bts .fin-bt{margin:2px 3px 2px 0;}
+.nf2-tab .fin-bt.nf2-sem{opacity:.4;cursor:not-allowed;} .nf2-tab tr.nf2-canc td{color:#98A2B3;} .nf2-tab tr.nf2-canc td b{color:#98A2B3;text-decoration:line-through;}
+.nf2-tab small.nf2-aviso{color:#B54708;} .nf2-tab tfoot td{border-top:2px solid #EAECF0;background:#F9FAFB;padding-top:10px;padding-bottom:10px;}
 /* lembretes e Telegram */
 .lb-tg{border:1px solid #D1E9FF;background:linear-gradient(180deg,#F5FAFF,#fff 70%);border-radius:16px;padding:14px 16px;margin:14px 0;display:flex;flex-direction:column;gap:12px;}
 .lb-tg-cab{display:flex;align-items:flex-start;gap:12px;} .lb-tg-cab>i{font-size:28px;color:#229ED9;flex:none;margin-top:1px;}
