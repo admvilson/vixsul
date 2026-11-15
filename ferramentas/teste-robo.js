@@ -58,7 +58,7 @@ async function groq(url, op) {
   // a lista de modelos da Groq: aqui SEM o llama-4-scout (o robô tem de passar sozinho para o maverick)
   if (url.endsWith('/models')) return json(200, { data: ['meta-llama/llama-4-maverick-17b-128e-instruct', 'whisper-large-v3', 'llama-3.3-70b-versatile', 'meta-llama/llama-guard-4-12b'].map(id => ({ id, active: true })) });
   if (url.endsWith('/audio/transcriptions')) { const fd = op.body; GROQ_CHAMADAS.push('audio:' + (fd && fd.get ? fd.get('model') : '')); return json(200, { text: GROQ.transcricao }); }
-  const b = JSON.parse(op.body), foto = Array.isArray(b.messages[b.messages.length - 1].content);
+  const b = JSON.parse(op.body), foto = Array.isArray(b.messages[b.messages.length - 1].content); GROQ.ultimoCorpo = b;
   GROQ_CHAMADAS.push(foto ? 'foto:' + b.model : 'texto:' + b.model);
   return json(200, { choices: [{ message: { content: JSON.stringify(foto ? GROQ.visao : GROQ.intencao) } }] });
 }
@@ -143,6 +143,10 @@ function ultimoCartao() { for (let i = CALLS.length - 1; i >= 0; i--) { const c 
   ok(ni.tipo === 'cartao' && ni.pago && !ni.forn && ni.cnpj === '12345678000195' && ni.forma === 'Cartão de Crédito' && ni.parcCartao === 3, 'leitura da foto da maquininha (a Cielo não vira fornecedor): ' + JSON.stringify(ni));
   const mods = await T.modelosDe(['meta-llama/llama-4-scout-17b-16e-instruct', 'meta-llama/llama-4-maverick-17b-128e-instruct'], 'visao'), eg = await T.estadoGroq();
   ok(mods[0] === 'meta-llama/llama-4-maverick-17b-128e-instruct' && !mods.some(m => /guard/.test(m)), 'modelo da Groq que sumiu: passa sozinho para o que existe (' + mods.join(', ') + ')');
+  await T.chatJson([{ role: 'user', content: 'oi' }], ['openai/gpt-oss-120b'], 5000, 500);
+  ok(GROQ.ultimoCorpo.model === 'openai/gpt-oss-120b' && GROQ.ultimoCorpo.reasoning_effort === 'low' && GROQ.ultimoCorpo.max_completion_tokens >= 2000, 'modelo que "pensa" (gpt-oss): pensa pouco e tem espaço para responder');
+  await T.chatJson([{ role: 'user', content: 'oi' }], ['llama-3.3-70b-versatile'], 5000, 500);
+  ok(!('reasoning_effort' in GROQ.ultimoCorpo) && GROQ.ultimoCorpo.max_completion_tokens === 500, 'os outros modelos ficam como estão');
   ok(eg.groqOk && eg.modelos.foto === 'meta-llama/llama-4-maverick-17b-128e-instruct' && eg.modelos.audio === 'whisper-large-v3' && eg.modelos.texto === 'llama-3.3-70b-versatile', 'estado da Groq: ' + JSON.stringify(eg));
   // PDF de boleto (texto) e foto com QR do PIX: as bibliotecas de verdade
   const { jsPDF } = require('jspdf'); const doc = new jsPDF(); doc.setFontSize(10);

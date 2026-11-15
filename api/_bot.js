@@ -521,6 +521,8 @@ const jsonDe = t => { const s = String(t || ''), i = s.indexOf('{'), f = s.lastI
 async function chatJson(mensagens, lista, ms, max) {
   return comModelos(lista, async m => {
     const corpo = { model: m, temperature: 0, max_completion_tokens: max || 700, response_format: { type: 'json_object' }, messages: mensagens };
+    // modelos que "pensam" antes de responder (gpt-oss): pensar pouco e deixar espaço para a resposta
+    if (/gpt-oss/i.test(m)) { corpo.reasoning_effort = 'low'; corpo.max_completion_tokens = Math.max(corpo.max_completion_tokens, 2000); }
     let j; try { j = await groq('/chat/completions', corpo, ms); }
     catch (e) { if (e.status === 400 && /response_format|json/i.test(e.message)) { delete corpo.response_format; j = await groq('/chat/completions', corpo, ms); } else throw e; }
     return jsonDe(j && j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content);
@@ -1473,5 +1475,5 @@ module.exports = function criarRobo(io) {
   return { comando, texto, textoIA: (ctx, t) => GROQ ? porIA(ctx, t) : false, botao, arquivo, audio, limpar, temGroq: () => !!GROQ, estadoGroq };
 };
 // para os testes (funções que não falam com ninguém)
-module.exports.teste = { lerMaquininha, modelosDe, estadoGroq, cnpjOk, numBR, valorDe, dataDe, horaDe, formaDe, fornDe, trechoObra, obrasNoTexto, chutarCat, limparDesc, lerFrase, lerTarefa, lerReuniao, lerDiesel, intencao, numerosPorExtenso, lerPix, crc16, boletoDe, acharBoleto, chaveOk, acharChave, lerCodigo, lerXml, lerTextoDoc, normIA, qrDaImagem, textoPdf, somaMes, isoOk, tipoAcao, tipoReu, dataFator };
+module.exports.teste = { chatJson, lerMaquininha, modelosDe, estadoGroq, cnpjOk, numBR, valorDe, dataDe, horaDe, formaDe, fornDe, trechoObra, obrasNoTexto, chutarCat, limparDesc, lerFrase, lerTarefa, lerReuniao, lerDiesel, intencao, numerosPorExtenso, lerPix, crc16, boletoDe, acharBoleto, chaveOk, acharChave, lerCodigo, lerXml, lerTextoDoc, normIA, qrDaImagem, textoPdf, somaMes, isoOk, tipoAcao, tipoReu, dataFator };
 module.exports.GROQ = () => !!GROQ;
