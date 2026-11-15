@@ -55,7 +55,9 @@ async function telegram(url, op) {
 // ── Groq de mentira: as respostas que cada teste quer ──
 const GROQ = { transcricao: '', intencao: {}, visao: {} }, GROQ_CHAMADAS = [];
 async function groq(url, op) {
-  if (url.endsWith('/audio/transcriptions')) { GROQ_CHAMADAS.push('audio'); return json(200, { text: GROQ.transcricao }); }
+  // a lista de modelos da Groq: aqui SEM o llama-4-scout (o robô tem de passar sozinho para o maverick)
+  if (url.endsWith('/models')) return json(200, { data: ['meta-llama/llama-4-maverick-17b-128e-instruct', 'whisper-large-v3', 'llama-3.3-70b-versatile', 'meta-llama/llama-guard-4-12b'].map(id => ({ id, active: true })) });
+  if (url.endsWith('/audio/transcriptions')) { const fd = op.body; GROQ_CHAMADAS.push('audio:' + (fd && fd.get ? fd.get('model') : '')); return json(200, { text: GROQ.transcricao }); }
   const b = JSON.parse(op.body), foto = Array.isArray(b.messages[b.messages.length - 1].content);
   GROQ_CHAMADAS.push(foto ? 'foto:' + b.model : 'texto:' + b.model);
   return json(200, { choices: [{ message: { content: JSON.stringify(foto ? GROQ.visao : GROQ.intencao) } }] });
@@ -131,6 +133,17 @@ function ultimoCartao() { for (let i = CALLS.length - 1; i >= 0; i--) { const c 
   const XML = `<?xml version="1.0" encoding="UTF-8"?><nfeProc xmlns="http://www.portalfiscal.inf.br/nfe" versao="4.00"><NFe><infNFe Id="NFe${CHAVE}" versao="4.00"><ide><cUF>29</cUF><mod>55</mod><nNF>5678</nNF><dhEmi>2026-11-12T10:00:00-03:00</dhEmi></ide><emit><CNPJ>11222333000181</CNPJ><xNome>CASA DO CONSTRUTOR LTDA</xNome></emit><dest><CNPJ>64518375000120</CNPJ><xNome>VIXSUL</xNome></dest><det nItem="1"><prod><xProd>CIMENTO CP II 50KG</xProd></prod></det><det nItem="2"><prod><xProd>AREIA MEDIA</xProd></prod></det><total><ICMSTot><vNF>3000.00</vNF></ICMSTot></total><cobr><dup><nDup>001</nDup><dVenc>${em(25)}</dVenc><vDup>1000.00</vDup></dup><dup><nDup>002</nDup><dVenc>${em(55)}</dVenc><vDup>1000.00</vDup></dup><dup><nDup>003</nDup><dVenc>${em(85)}</dVenc><vDup>1000.00</vDup></dup></cobr></infNFe></NFe></nfeProc>`;
   const nx = T.lerXml(XML);
   ok(nx.tipo === 'nfe' && nx.forn === 'CASA DO CONSTRUTOR LTDA' && nx.valor === 3000 && nx.parcelas.length === 3 && nx.numero === '5678' && nx.chave === CHAVE, 'XML da NF-e com 3 parcelas');
+  // comprovante da maquininha (texto, como sai no papel)
+  const slip = 'CIELO\nVIA CLIENTE\nMADEIREIRA SAO JOSE\nITARANTIM - BA\nCNPJ: 12.345.678/0001-95\nDOC: 123456   AUT: 654321\n' + R.br(hj) + '/' + hj.slice(2, 4) + ' 14:32\nVISA CREDITO PARCELADO LOJA 3X\n************1234\nVALOR APROVADO: R$ 900,00\nTRANSACAO AUTORIZADA MEDIANTE SENHA';
+  const ms = T.lerTextoDoc(slip);
+  ok(ms.tipo === 'cartao' && ms.pago && ms.forma === 'Cartão de Crédito' && ms.parcCartao === 3 && ms.valor === 900 && ms.data === hj && ms.cnpj === '12345678000195', 'comprovante da maquininha (texto): ' + JSON.stringify(ms));
+  const md = T.lerTextoDoc('STONE\nVIA DO CLIENTE\nPADARIA BOM PAO\nDEBITO\nNSU 998877\nVALOR: R$ 18,50\n' + R.br(hj) + '/' + hj.slice(0, 4));
+  ok(md.tipo === 'cartao' && md.forma === 'Cartão de Débito' && !md.parcCartao && md.valor === 18.5, 'maquininha no débito: ' + JSON.stringify(md));
+  const ni = T.normIA({ tipo: 'cartao', fornecedor: 'CIELO', cnpj_cpf: '12.345.678/0001-95', valor: 900, data: hj, pago: true, forma: 'credito', parcelas: 3, descricao: 'material eletrico' });
+  ok(ni.tipo === 'cartao' && ni.pago && !ni.forn && ni.cnpj === '12345678000195' && ni.forma === 'Cartão de Crédito' && ni.parcCartao === 3, 'leitura da foto da maquininha (a Cielo não vira fornecedor): ' + JSON.stringify(ni));
+  const mods = await T.modelosDe(['meta-llama/llama-4-scout-17b-16e-instruct', 'meta-llama/llama-4-maverick-17b-128e-instruct'], 'visao'), eg = await T.estadoGroq();
+  ok(mods[0] === 'meta-llama/llama-4-maverick-17b-128e-instruct' && !mods.some(m => /guard/.test(m)), 'modelo da Groq que sumiu: passa sozinho para o que existe (' + mods.join(', ') + ')');
+  ok(eg.groqOk && eg.modelos.foto === 'meta-llama/llama-4-maverick-17b-128e-instruct' && eg.modelos.audio === 'whisper-large-v3' && eg.modelos.texto === 'llama-3.3-70b-versatile', 'estado da Groq: ' + JSON.stringify(eg));
   // PDF de boleto (texto) e foto com QR do PIX: as bibliotecas de verdade
   const { jsPDF } = require('jspdf'); const doc = new jsPDF(); doc.setFontSize(10);
   doc.text('Beneficiario: MADEIREIRA SAO JOSE LTDA  CNPJ 12.345.678/0001-95', 10, 20); doc.text('Vencimento: ' + R.brAno(em(15)), 10, 30); doc.text(lin, 10, 40);
@@ -317,6 +330,21 @@ function ultimoCartao() { for (let i = CALLS.length - 1; i >= 0; i--) { const c 
   ok(ab && ab.litros === '120' && ab.valor === '750.00' && ab.titulo_obra === 'SES ITARANTIM' && ab.fornecedor === 'POSTO CENTRAL', 'abastecimento gravado: ' + JSON.stringify(ab));
   ok(cd && cd.qtd === '120.00' && cd.p_unit === '6.25' && cd.p_total === '750.00' && cd.data_pgto === ab.data && cd.fator === 'L', 'conta do diesel (paga) gravada: ' + JSON.stringify(cd));
 
+  // N) comprovante da maquininha: crédito em 3x → 1ª parcela paga, as outras a pagar (casa com a fatura na Conciliação)
+  console.log('\nN) comprovante da maquininha (crédito em 3x)');
+  ARQS.f5 = { caminho: 'photos/f5.jpg', buf: cinza };
+  GROQ.visao = { tipo: 'cartao', fornecedor: 'CIELO', cnpj_cpf: '12345678000195', valor: 900, vencimento: '', data: hj, pago: true, forma: 'credito', parcelas: 3, numero: '', descricao: 'Material elétrico', linha_digitavel: '', chave: '' };
+  await webhook({ update_id: ++uid, message: { message_id: ++mid, chat: { id: CHAT, type: 'private' }, photo: [{ file_id: 'f5', width: 64, height: 64 }], caption: 'obra itarantim' } });
+  ok(/Li no comprovante da maquininha: R\$\s900,00 · MADEIREIRA SAO JOSE LTDA · crédito em 3x · compra em/.test(ultimoTexto()), 'leu o comprovante da maquininha');
+  ok(/MADEIREIRA SAO JOSE LTDA/.test(ultimoTexto()) && /cartão de crédito em 3x/.test(ultimoTexto()) && /\(paga\)/.test(ultimoTexto()), 'fornecedor pelo CNPJ (não a Cielo) e as 3 parcelas no cartão');
+  ok(GROQ_CHAMADAS.includes('foto:meta-llama/llama-4-maverick-17b-128e-instruct'), 'leu a foto com o modelo que a Groq tem');
+  await tocar('✓ Materiais'); await tocar('Lançar');
+  const mq = linhas('custos', r => /^Material elétrico/.test(r.descricao)).sort((a, b) => a.vencimento.localeCompare(b.vencimento));
+  ok(mq.length === 3 && mq.every(r => r.p_total === '300.00' && r.forma_pagamento === 'Cartão de Crédito' && r.titulo_obra === 'SES ITARANTIM') && mq[0].data_pgto === hj && mq[0].vencimento === hj && mq[1].data_pgto === '' && mq[1].vencimento === T.somaMes(hj, 1) && mq[2].vencimento === T.somaMes(hj, 2) && /\(1\/3\)$/.test(mq[0].descricao) && /Cartão de crédito em 3x/.test(mq[0].observacao) && /maquininha/.test(mq[0].observacao) && mq[0].grupo_parcelas === mq[2].grupo_parcelas, 'parcelas no cartão: ' + JSON.stringify(mq.map(r => [r.descricao, r.vencimento, r.data_pgto, r.p_total])));
+  await escrever('paguei 640 no cartão de crédito em 2x de areia obra itarantim fornecedor areial boa vista');
+  ok(/cartão de crédito em 2x/.test(ultimoTexto()) && /R\$\s320,00 \(paga\)/.test(ultimoTexto()), 'escrito: "paguei … no cartão de crédito em 2x"');
+  await escrever('/cancelar');
+
   // M) código do PIX colado, pergunta normal e a tarefa de 15 minutos
   console.log('\nM) código colado, pergunta e tarefa agendada');
   await escrever(PIX); ok(/Li no código do PIX: R\$\s120,50/.test(ultimoTexto()), 'PIX copia e cola colado na conversa');
@@ -326,7 +354,7 @@ function ultimoCartao() { for (let i = CALLS.length - 1; i >= 0; i--) { const c 
   await telegramJs({ method: 'GET', headers: {}, query: { tick: '1' } }, rq);
   const tk = JSON.parse(rq.corpo || '{}'); ok(rq.statusCode === 200 && tk.ok, 'tarefa de 15 minutos rodou: ' + rq.corpo);
   const rs = { statusCode: 0, setHeader() {}, end(b) { this.corpo = b; } };
-  await telegramJs({ method: 'GET', headers: {}, query: {} }, rs); ok(JSON.parse(rs.corpo).groq === true, 'estado diz que a leitura da Groq está ligada');
+  await telegramJs({ method: 'GET', headers: {}, query: {} }, rs); const es = JSON.parse(rs.corpo); ok(es.groq === true && es.groqOk === true && es.modelos && es.modelos.audio === 'whisper-large-v3', 'estado diz que a leitura da Groq está ligada e funcionando: ' + rs.corpo);
 
   console.log(`\n${passos - falhas} de ${passos} conferências certas.`);
   if (falhas) { console.log(`❌ ${falhas} falha(s).`); process.exit(1); }

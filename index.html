@@ -11580,14 +11580,16 @@ const Fin=(function(){
       if(ign.has(t.id))return props.push({t,st:'ignorado'});
       const dist=m=>m.venc?Math.abs(dias(m.venc,td)):999;
       const perto=(m,a,b)=>m.venc&&dias(m.venc,td)>=a&&dias(m.venc,td)<=b;
+      // parcela da linha ("3 de 10" na fatura do cartão) e a da conta ("… (3/10)"): se as duas dizem a parcela, têm de ser a mesma
+      const pl=parcelaDe(t),parcOk=m=>{if(!pl)return true;const x=String(m.desc||'').match(/\((\d{1,2})\/(\d{1,2})\)\s*$/);return !x||(+x[1]===pl.n&&+x[2]===pl.tot);};
       if(t.valor<0){
-        const cands=abertosS.filter(m=>!usados.has(idm(m))&&Math.abs(m.valor-v)<=0.01&&(!m.venc||perto(m,-30,60))).sort((a,b)=>nomeBate(b,t)-nomeBate(a,t)||dist(a)-dist(b));
+        const cands=abertosS.filter(m=>!usados.has(idm(m))&&Math.abs(m.valor-v)<=0.01&&(!m.venc||perto(m,-30,60))&&parcOk(m)).sort((a,b)=>nomeBate(b,t)-nomeBate(a,t)||dist(a)-dist(b));
         if(cands.length){
           const m=cands[0],unico=cands.length===1||nomeBate(m,t)>nomeBate(cands[1],t)||dist(cands[1])-dist(m)>5;
           usados.add(idm(m));
           return props.push({t,st:unico&&m.venc&&dist(m)<=15?'ok':'confira',acao:'baixar',alvos:[m],opcoes:cands.slice(0,8),nota:m.venc?'':'lançamento sem data — confira'});
         }
-        const ja=ms.find(m=>m.sent<0&&m.pago&&!m.r.conciliacao&&!usados.has(idm(m))&&Math.abs(m.valor-v)<=0.01&&m.dataBaixa&&Math.abs(dias(m.dataBaixa,td))<=3);
+        const ja=ms.find(m=>m.sent<0&&m.pago&&!m.r.conciliacao&&!usados.has(idm(m))&&Math.abs(m.valor-v)<=0.01&&m.dataBaixa&&Math.abs(dias(m.dataBaixa,td))<=3&&parcOk(m));
         if(ja){usados.add(idm(ja));return props.push({t,st:'vincular',acao:'vincular',alvos:[ja],nota:'já estava pago no sistema'});}
         const juros=abertosS.find(m=>!usados.has(idm(m))&&m.valor<v&&v<=m.valor*1.1&&perto(m,0,60));
         if(juros)return props.push({t,st:'sem',nota:`parecida: ${rotulo(juros)} — saiu ${fmt(v-juros.valor)} a mais (juros ou multa?). Se for ela, use "Associar à conta".`});
@@ -25427,10 +25429,11 @@ GS.lembretes=(function(){
   }
   // o que o robô faz no sistema e a leitura grátis de foto e áudio (chave da Groq, que fica só na Vercel)
   function htmlLeitura(T){
-    const faz=`<ul class="lb-faz"><li><b>Lançar conta</b> numa obra, rateada entre obras (pelo orçamento) ou na Empresa — escrevendo (<i>lança 350 de cimento na obra X</i>), pelo comando /conta ou mandando a foto, o PDF ou o XML do boleto, da nota ou do comprovante.</li>
+    const faz=`<ul class="lb-faz"><li><b>Lançar conta</b> numa obra, rateada entre obras (pelo orçamento) ou na Empresa — escrevendo (<i>lança 350 de cimento na obra X</i>), pelo comando /conta ou mandando a foto, o PDF ou o XML do boleto, da nota ou do comprovante (inclusive o da <b>maquininha de cartão</b>: no crédito parcelado, a 1ª parcela entra paga e as outras a pagar, uma por mês, para casar com a fatura na Conciliação).</li>
       <li><b>Dar baixa</b> numa conta em aberto (/pagar) · <b>buscar nota fiscal</b> e receber o PDF e o XML (/nota 1234) · <b>nova tarefa</b> (/tarefa) · <b>marcar reunião</b> (/reuniao) · <b>diesel</b> da retroescavadeira (/diesel).</li>
       <li>Antes de gravar, o robô mostra um cartão para conferir (<b>✅ Lançar</b>); depois, o botão <b>Desfazer</b> manda para a Lixeira.</li></ul>`;
-    const passos=T.groq?`<p class="vk-dica" style="margin:8px 0"><i class="fas fa-circle-check" style="color:#079455"></i> <b>Leitura de foto e áudio ligada.</b> O robô lê a foto de qualquer boleto, nota ou recibo e entende áudio. A foto e o áudio vão para a Groq só para serem lidos.</p>`
+    const passos=T.groq&&T.groqOk===false?`<div class="fin-aviso laranja" style="margin:8px 0"><div><b>A chave da Groq está na Vercel, mas não funcionou:</b> ${fe(T.groqMsg||'')}. Confira na Vercel (<b>Settings</b> › <b>Environment Variables</b> › <b>GROQ_API_KEY</b>) se a chave foi colada inteira — ela começa com <b>gsk_</b>.</div></div>`
+      :T.groq?`<p class="vk-dica" style="margin:8px 0"><i class="fas fa-circle-check" style="color:#079455"></i> <b>Leitura de foto e áudio ligada.</b> O robô lê a foto de qualquer boleto, nota, recibo ou comprovante da maquininha e entende áudio. A foto e o áudio vão para a Groq só para serem lidos.</p>`
       :`<p class="vk-dica" style="margin:8px 0">Sem custo, o robô já lê o <b>QR code do PIX e do cupom (NFC-e)</b>, o <b>PDF do boleto</b> e o <b>XML</b> das notas. Para ler a <b>foto de qualquer boleto, nota ou recibo</b> e entender <b>áudio</b>, ligue a leitura grátis da Groq (uma vez só, uns 3 minutos — não pede cartão de crédito):</p>
       <ol class="lb-passos"><li>Clique em <b>Abrir a Groq</b> (botão abaixo) e entre com a sua conta do <b>Google</b>.</li>
         <li>Na página <b>API Keys</b>, clique em <b>Create API Key</b>, escreva o nome <b>Vixsul</b> e clique em <b>Submit</b>. Aparece uma chave que começa com <b>gsk_</b>: clique no botão de copiar ao lado dela.</li>

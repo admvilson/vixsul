@@ -607,6 +607,7 @@ async function estadoPublico(st, comWebhook, uid) {
     email: E.emailPronto(), destinos: st.cfg.destinos || {},
     chats: st.chats.map(c => ({ id: c._id, nome: c.nome || '', usuario: c.usuario || '', ligado_em: c.ligado_em || '', resumo: c.resumo || 'sim', meu: !!uid && c.usuario_uid === uid })) };
   if (TOKEN && comWebhook) { try { const w = await tg('getWebhookInfo', {}); o.webhook = w.url === URL_WEBHOOK; o.pendentes = w.pending_update_count || 0; o.erro = w.last_error_message || ''; } catch (e) { o.erroTelegram = e.message; } }
+  try { Object.assign(o, await BOT.estadoGroq()); } catch (e) { o.groqOk = false; o.groqMsg = e.message; }
   return o;
 }
 async function acaoSistema(b, l) {
@@ -690,7 +691,7 @@ module.exports = async (req, res) => {
     // 2) a tarefa agendada (GitHub) — e um estado mínimo, sem dados, para conferir se está configurado
     if (req.method === 'GET') {
       if (req.query && req.query.tick) return responder(200, await tick());
-      return responder(200, { ok: true, token: !!TOKEN, ia: !!CHAVE_IA, email: E.emailPronto(), groq: BOT.temGroq() });
+      return responder(200, { ok: true, token: !!TOKEN, ia: !!CHAVE_IA, email: E.emailPronto(), ...(await BOT.estadoGroq().catch(e => ({ groq: BOT.temGroq(), groqOk: false, groqMsg: e.message }))) });
     }
     if (req.method !== 'POST') return responder(405, { ok: false, msg: 'Use GET ou POST.' });
     // 3) o sistema (Administrador logado)
