@@ -1,0 +1,25 @@
+# Teste do robô do Telegram — roda o ferramentas/teste-robo.js numa máquina do GitHub (Node), com dados de mentira:
+# o banco, o Telegram e a Groq são simulados no próprio teste (nada sai para a internet nem mexe no sistema).
+# Roda quando alguém manda código para o ramo "teste-robo" ou pelo botão "Run workflow".
+name: Teste do robô
+on:
+  push:
+    branches: [teste-robo]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  teste:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Instalar as bibliotecas
+        run: |
+          npm install --no-audit --no-fund
+          npm install --no-save --no-audit --no-fund qrcode@1.5.4
+      - name: Testar
+        run: node ferramentas/teste-robo.js

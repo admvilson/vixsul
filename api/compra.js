@@ -112,24 +112,31 @@ module.exports = async (req, res) => {
     return responder(200, await lerComIA(b));
   }
   if (b.acao !== 'nfce') return responder(400, { ok: false, msg: 'Ação desconhecida.' });
-  const url = String(b.url || '').trim();
-  if (!permitido(url)) return responder(400, { ok: false, msg: 'Este QR code não é de uma consulta da SEFAZ.' });
+  const r = await lerNfce(b.url);
+  return responder(r.ruim ? 400 : 200, (({ ruim, ...o }) => o)(r));
+};
+
+// a página de consulta da NFC-e (o endereço do QR do cupom): fornecedor, data, itens e total — também usada pelo robô do Telegram
+async function lerNfce(endereco) {
+  const url = String(endereco || '').trim();
+  if (!permitido(url)) return { ok: false, ruim: true, msg: 'Este QR code não é de uma consulta da SEFAZ.' };
   try {
     const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), 20000);
     const r = await fetch(url, { redirect: 'follow', signal: ctl.signal, headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36', Accept: 'text/html' } });
     clearTimeout(t);
-    if (!permitido(r.url || url)) return responder(400, { ok: false, msg: 'A consulta foi para um endereço que não é da SEFAZ.' });
+    if (!permitido(r.url || url)) return { ok: false, ruim: true, msg: 'A consulta foi para um endereço que não é da SEFAZ.' };
     const buf = Buffer.from(await r.arrayBuffer()), tipo = String(r.headers.get('content-type') || '');
     const html = /iso-8859-1|latin1|windows-1252/i.test(tipo) ? buf.toString('latin1') : buf.toString('utf8');
-    if (!r.ok) return responder(200, { ok: false, msg: `A SEFAZ respondeu com erro (HTTP ${r.status}).` });
+    if (!r.ok) return { ok: false, msg: `A SEFAZ respondeu com erro (HTTP ${r.status}).` };
     const itens = itensDaPagina(html);
     const forn = limpo((html.match(/class="txtTopo"[^>]*>([\s\S]*?)<\/div>/) || [])[1] || '');
     const cnpj = ((limpo(html).match(/CNPJ:?\s*([\d.\/-]{14,18})/) || [])[1] || '').replace(/\D/g, '');
     const dt = (limpo(html).match(/Emiss[ãa]o:?\s*(\d{2})\/(\d{2})\/(\d{4})/) || []), data = dt.length ? `${dt[3]}-${dt[2]}-${dt[1]}` : '';
     const total = num(limpo((html.match(/class="totalNumb txtMax"[^>]*>([\s\S]*?)<\/span>/) || html.match(/Valor a pagar[\s\S]*?class="totalNumb[^"]*"[^>]*>([\s\S]*?)<\/span>/) || [])[1] || ''));
     const numero = (limpo(html).match(/N[úu]mero:?\s*(\d{1,9})/) || [])[1] || '';
-    return responder(200, { ok: true, forn, cnpj, data, numero, total, itens, texto: itens.length ? '' : ent(html.replace(/<(script|style)[\s\S]*?<\/\1>/gi, ' ').replace(/<br\s*\/?>|<\/(tr|div|p|li)>/gi, '\n').replace(/<[^>]+>/g, ' ')).replace(/[ \t]+/g, ' ').replace(/\n\s*/g, '\n').trim().slice(0, 20000) });
+    return { ok: true, forn, cnpj, data, numero, total, itens, texto: itens.length ? '' : ent(html.replace(/<(script|style)[\s\S]*?<\/\1>/gi, ' ').replace(/<br\s*\/?>|<\/(tr|div|p|li)>/gi, '\n').replace(/<[^>]+>/g, ' ')).replace(/[ \t]+/g, ' ').replace(/\n\s*/g, '\n').trim().slice(0, 20000) };
   } catch (e) {
-    return responder(200, { ok: false, msg: e && e.name === 'AbortError' ? 'A SEFAZ demorou demais para responder.' : 'Não consegui abrir a consulta da SEFAZ: ' + ((e && e.message) || e) });
+    return { ok: false, msg: e && e.name === 'AbortError' ? 'A SEFAZ demorou demais para responder.' : 'Não consegui abrir a consulta da SEFAZ: ' + ((e && e.message) || e) };
   }
-};
+}
+module.exports.lerNfce = lerNfce;

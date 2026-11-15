@@ -24652,8 +24652,16 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
     // o registro da nota emitida: pela chave; senão (nota antiga, sem a chave no faturamento) pelo número ou por data e valor
     const regDe=f=>{if(f.nfse_chave&&E.get(String(f.nfse_chave)))return E.get(String(f.nfse_chave));const n=soNum(f[K.nf]),d=isoNF(f[K.em]),v=val(f[K.bruto]);
       return comXml.find(p=>n&&soNum(p.numero)===n)||comXml.find(p=>Math.abs((+p.valor||0)-v)<0.05&&p.emitida_em&&d&&Math.abs((new Date(String(p.emitida_em).slice(0,10)+'T12:00:00')-new Date(d+'T12:00:00'))/864e5)<=3)||null;};
-    return (D().faturamentos||[]).filter(f=>String(f[K.nf]||'').trim()&&isoNF(f[K.em])&&F.ehReal(f,K)).map((f,i)=>{const e=regDe(f);
-      return {k:'e',i,f,e,data:isoNF(f[K.em]),nome:contratanteDaNota(f,K)||'—',obra:f[K.obra]||'',numero:String(f[K.nf]).trim(),valor:val(f[K.bruto]),liq:F.liqDe(f,K),recebida:!!isoNF(f[K.rec]),fat_uid:f.fat_uid||'',chave:String(f.nfse_chave||(e&&e.chave)||''),medicao:f.medicao_numero||''};});}
+    const usados=new Set();
+    const L=(D().faturamentos||[]).filter(f=>String(f[K.nf]||'').trim()&&isoNF(f[K.em])&&F.ehReal(f,K)).map((f,i)=>{const e=regDe(f);if(e&&e.chave)usados.add(String(e.chave));
+      return {k:'e',i,f,e,data:isoNF(f[K.em]),nome:contratanteDaNota(f,K)||'—',obra:f[K.obra]||'',numero:String(f[K.nf]).trim(),valor:val(f[K.bruto]),liq:F.liqDe(f,K),recebida:!!isoNF(f[K.rec]),fat_uid:f.fat_uid||'',chave:String(f.nfse_chave||(e&&e.chave)||''),medicao:f.medicao_numero||''};});
+    // notas emitidas que o sistema achou na Receita (busca das antigas) e que não estão em nenhum faturamento: aparecem também,
+    // com o tomador e o valor tirados do próprio XML — assim toda nota encontrada fica disponível para baixar
+    REG.filter(p=>p.chave&&p.xml&&!usados.has(String(p.chave))&&String(p.amb||'1')==='1').forEach((p,j)=>{let nt=null;try{nt=danfseDoXml(p.xml);}catch(e){}
+      const cancel=/cancelada|substituida/.test(p.status||''),vs=nt&&nt.v?+nt.v.serv||0:0,vl=nt&&nt.v?+nt.v.liq||0:0;
+      L.push({k:'e',i:'r'+j,f:null,e:p,data:isoNF(p.emitida_em)||(nt&&String(nt.dh||'').slice(0,10))||'',nome:(nt&&nt.toma&&nt.toma.nome)||'—',obra:p.titulo_obra||'',numero:String(p.numero||(nt&&nt.numero)||''),
+        valor:vs||+p.valor||0,liq:vl||vs||+p.valor||0,recebida:false,fat_uid:'',chave:String(p.chave),medicao:'',semFat:true,cancelada:cancel});});
+    return L;}
   // períodos: todos, um ano inteiro ou um mês (como no Início)
   function periodosNF(L){const anos=new Set(),meses=new Set();L.forEach(x=>{if(x.data){anos.add(x.data.slice(0,4));meses.add(x.data.slice(0,7));}});
     return {anos:[...anos].sort().reverse(),meses:[...meses].sort().reverse()};}
@@ -24725,12 +24733,12 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
     const R0=recebidasNF(),E0=emitidasNF(),pers=periodosNF(R0.concat(E0)),p=NF2.per,q=cn(NF2.busca||'');
     if(p!=='todos'&&!pers.anos.includes(p)&&!pers.meses.includes(p))NF2.per='todos';
     const filt=L=>L.filter(x=>noPer(x,NF2.per)&&(!q||cn([x.nome,x.doc,x.numero,x.desc,x.obra].join(' ')).includes(q))).sort((a,b)=>String(b.data).localeCompare(String(a.data)));
-    const R1=filt(R0),E1=filt(E0),validasR=R1.filter(x=>!x.cancelada),somaR=validasR.reduce((s,x)=>s+x.valor,0),somaEb=E1.reduce((s,x)=>s+x.valor,0),somaEl=E1.reduce((s,x)=>s+x.liq,0);
+    const R1=filt(R0),E1=filt(E0),validasR=R1.filter(x=>!x.cancelada),somaR=validasR.reduce((s,x)=>s+x.valor,0),somaEb=E1.filter(x=>!x.cancelada).reduce((s,x)=>s+x.valor,0),somaEl=E1.filter(x=>!x.cancelada).reduce((s,x)=>s+x.liq,0);
     const ab=NF2.aba==='emitidas'?'emitidas':'recebidas',L=ab==='recebidas'?R1:E1;NF2._L=L;
     const admCert=GS.ehAdm()&&!!((certLocal()||{}).b64),cfg=NRC()||{};
     const bt=(x,t,ok,tit)=>`<button type="button" class="fin-bt mini${ok?'':' nf2-sem'}" data-nf2-baixar="${t}" data-i="${x.i}" title="${fe(ok?tit:'Arquivo não guardado no sistema')}"${ok?'':' disabled'}><i class="fas ${t==='pdf'?'fa-file-pdf':'fa-file-code'}"></i> ${t.toUpperCase()}</button>`;
     const linhaR=x=>{const a=arquivosNF(x);return `<tr class="${x.cancelada?'nf2-canc':''}"><td>${x.data?x.data.split('-').reverse().join('/'):'—'}</td><td><b>${fe(x.nome)}</b><small>${fe(fmtDoc(x.doc))}</small></td><td>${fe(x.tipo)}${x.numero?' nº '+fe(x.numero):''}${x.desc?`<small>${fe(String(x.desc).slice(0,90))}</small>`:''}${!x.temXml?`<small class="nf2-aviso">${x.n.ciencia_msg?'a SEFAZ recusou a ciência: '+fe(x.n.ciencia_msg):x.n.ciencia_em?'ciência feita — a nota completa chega na próxima busca':x.tipo==='NF-e'?'só o resumo — a nota completa é pedida à SEFAZ na próxima busca':'sem o XML guardado'}</small>`:''}</td><td class="num">${fmt(x.valor)}${x.cancelada?'<small>cancelada</small>':''}</td><td class="nf2-bts">${bt(x,'pdf',!!a.pdf,'Baixar o PDF')}${bt(x,'xml',!!a.xml,'Baixar o XML')}</td></tr>`;};
-    const linhaE=x=>{const a=arquivosNF(x),carreg=!NF2.arqs[x.obra];return `<tr><td>${x.data.split('-').reverse().join('/')}</td><td><b>${fe(x.nome)}</b><small>${fe(x.obra)}${x.medicao?' · medição '+fe(x.medicao):''}</small></td><td>NFS-e nº ${fe(x.numero)}<small>${x.recebida?'recebida':'a receber'}</small></td><td class="num">${fmt(x.valor)}<small>líquido ${fmt(x.liq)}</small></td><td class="nf2-bts">${carreg&&!(x.e&&x.e.xml)?'<small class="vk-dica"><i class="fas fa-spinner fa-spin"></i></small>':bt(x,'pdf',!!a.pdf,'Baixar o PDF')+bt(x,'xml',!!a.xml,'Baixar o XML')+(!a.xml&&x.chave&&admCert?`<button type="button" class="fin-bt mini" data-nf2-receita="${x.i}" title="Baixar o XML e o PDF desta nota na Receita"><i class="fas fa-cloud-arrow-down"></i> Buscar na Receita</button>`:'')}</td></tr>`;};
+    const linhaE=x=>{const a=arquivosNF(x),carreg=!!x.obra&&!NF2.arqs[x.obra];return `<tr class="${x.cancelada?'nf2-canc':''}"><td>${x.data?x.data.split('-').reverse().join('/'):'—'}</td><td><b>${fe(x.nome)}</b><small>${fe(x.obra)}${x.medicao?' · medição '+fe(x.medicao):''}</small></td><td>NFS-e nº ${fe(x.numero||'—')}<small>${x.cancelada?'cancelada':x.semFat?'<span class="nf2-aviso">achada na Receita — sem faturamento no sistema</span>':x.recebida?'recebida':'a receber'}</small></td><td class="num">${fmt(x.valor)}<small>líquido ${fmt(x.liq)}</small></td><td class="nf2-bts">${carreg&&!(x.e&&x.e.xml)?'<small class="vk-dica"><i class="fas fa-spinner fa-spin"></i></small>':bt(x,'pdf',!!a.pdf,'Baixar o PDF')+bt(x,'xml',!!a.xml,'Baixar o XML')+(!a.xml&&x.chave&&admCert?`<button type="button" class="fin-bt mini" data-nf2-receita="${x.i}" title="Baixar o XML e o PDF desta nota na Receita"><i class="fas fa-cloud-arrow-down"></i> Buscar na Receita</button>`:'')}</td></tr>`;};
     return `<div class="fin-cab"><div><h2>Notas fiscais</h2><p>As notas emitidas <b>contra a Vixsul</b> (compras e serviços contratados) e as que a <b>Vixsul emitiu</b>, separadas, com o PDF e o XML de cada uma — para a contabilidade baixar. Nada aqui lança em Contas a pagar.</p></div>
         <div class="fin-filtros">${admCert?`<button type="button" class="fin-bt" data-nf2="buscar" title="Buscar na SEFAZ e na Receita as notas novas (e pedir a nota completa das NF-e que vieram só em resumo)"><i class="fas fa-cloud-arrow-down"></i> Buscar notas novas</button><button type="button" class="fin-bt" data-nf2="antigas" title="Buscar na Receita, desde o começo, as NFS-e emitidas pela Vixsul e contra ela — guarda o XML das antigas que estão sem arquivo"><i class="fas fa-clock-rotate-left"></i> Buscar notas antigas</button>`:''}<button type="button" class="fin-bt pri" data-nf2="zip"><i class="fas fa-file-zipper"></i> Baixar todas (.zip)</button></div></div>
       <div class="fin-kpis">${kpiNF('azul','Recebidas (contra a Vixsul)',fmt(somaR),`${validasR.length} nota${validasR.length!==1?'s':''} · ${rotPer(NF2.per)}`)}${kpiNF('verde','Emitidas pela Vixsul (bruto)',fmt(somaEb),`${E1.length} nota${E1.length!==1?'s':''} · líquido ${fmt(somaEl)}`)}</div>
@@ -24759,7 +24767,7 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
   function pintarNotasFiscais(el){
     if(!el)return;el.innerHTML=htmlNotasFiscais();
     // as notas emitidas: carrega os anexos das obras e redesenha quando chegarem
-    if(NF2.aba==='emitidas'){const obras=[...new Set((NF2._L||[]).map(x=>x.obra).filter(o=>!NF2.arqs[o]))];
+    if(NF2.aba==='emitidas'){const obras=[...new Set((NF2._L||[]).map(x=>x.obra).filter(o=>o&&!NF2.arqs[o]))];
       if(obras.length)Promise.all(obras.map(arqsObra)).then(()=>{const cur=document.querySelector('[data-nf-tela]');if(cur&&NF2.aba==='emitidas')pintarNotasFiscais(cur);});}
   }
   function ligarNotasFiscais(el){
@@ -24772,6 +24780,8 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
       if(c.dataset.nf2==='buscar')return comSenhaCert(async s=>{c.disabled=true;try{const r=await buscarNotasRec({senha:s});toast(r?(r.novas?`${r.novas} nota${r.novas>1?'s':''} nova${r.novas>1?'s':''}.`:'Nenhuma nota nova.')+(r.emitidas?` ${r.emitidas} emitida${r.emitidas>1?'s':''} com o XML guardado.`:'')+(r.avisos.length?' '+r.avisos.join(' · '):''):'Já está buscando — espere um instante.',r&&r.avisos.length&&!r.novas?'error':'success',!(r&&r.avisos.length));}
         catch(e){toast(e.message||String(e),'error');}finally{c.disabled=false;pintarNotasFiscais(el);}});
       if(c.dataset.nf2==='antigas')return comSenhaCert(async s=>{c.disabled=true;try{const r=await buscarNotasRec({senha:s,antigas:true});
+          // mostra o que achou: todos os períodos e a aba das emitidas (se achou emitidas) ou das recebidas
+          if(r){NF2.per='todos';NF2.busca='';if(r.emitidas)NF2.aba='emitidas';else if(r.novas)NF2.aba='recebidas';}
           toast(r?`Notas antigas: ${r.novas} recebida${r.novas!==1?'s':''} nova${r.novas!==1?'s':''} e ${r.emitidas} emitida${r.emitidas!==1?'s':''} pela Vixsul com o XML guardado.${r.antigasFim?' Busca completa.':' Ainda há mais — clique de novo para continuar.'}`+(r.avisos.length?' '+r.avisos.join(' · '):''):'Já está buscando — espere um instante.','success',false);}
         catch(e){toast(e.message||String(e),'error');}finally{c.disabled=false;pintarNotasFiscais(el);}});});
     el.addEventListener('change',ev=>{const s=ev.target.closest('[data-nf2-per]');if(s){NF2.per=s.value;pintarNotasFiscais(el);}});
@@ -25413,7 +25423,22 @@ GS.lembretes=(function(){
           <div class="fin-fld"><label>Fechamento do mês (dia 1º, 8h)</label>${sel('fechamento_mes','Sim','Não')}</div>
           ${T.ia?`<div class="fin-fld" style="grid-column:1/-1"><label>Assistente das perguntas (IA)</label><select data-lbc="modelo_ia">${MOD.map(([k,r])=>`<option value="${k}" ${(c.modelo_ia||'claude-opus-5-5')===k?'selected':''}>${fe(r)}</option>`).join('')}</select></div>`:`<p class="vk-dica" style="grid-column:1/-1;margin:0"><i class="fas fa-circle-check" style="color:#079455"></i> As perguntas no Telegram (ex.: <i>quanto gastei na obra X em outubro?</i>) são respondidas pelo próprio sistema — sem custo.</p>`}
         </div>
-        <div class="av-bts"><button type="button" class="fin-bt pri" data-lb="pref"><i class="fas fa-floppy-disk"></i> Salvar</button></div></details>${htmlDestinos(T)}${ia}</div>`;
+        <div class="av-bts"><button type="button" class="fin-bt pri" data-lb="pref"><i class="fas fa-floppy-disk"></i> Salvar</button></div></details>${htmlDestinos(T)}${htmlLeitura(T)}${ia}</div>`;
+  }
+  // o que o robô faz no sistema e a leitura grátis de foto e áudio (chave da Groq, que fica só na Vercel)
+  function htmlLeitura(T){
+    const faz=`<ul class="lb-faz"><li><b>Lançar conta</b> numa obra, rateada entre obras (pelo orçamento) ou na Empresa — escrevendo (<i>lança 350 de cimento na obra X</i>), pelo comando /conta ou mandando a foto, o PDF ou o XML do boleto, da nota ou do comprovante.</li>
+      <li><b>Dar baixa</b> numa conta em aberto (/pagar) · <b>buscar nota fiscal</b> e receber o PDF e o XML (/nota 1234) · <b>nova tarefa</b> (/tarefa) · <b>marcar reunião</b> (/reuniao) · <b>diesel</b> da retroescavadeira (/diesel).</li>
+      <li>Antes de gravar, o robô mostra um cartão para conferir (<b>✅ Lançar</b>); depois, o botão <b>Desfazer</b> manda para a Lixeira.</li></ul>`;
+    const passos=T.groq?`<p class="vk-dica" style="margin:8px 0"><i class="fas fa-circle-check" style="color:#079455"></i> <b>Leitura de foto e áudio ligada.</b> O robô lê a foto de qualquer boleto, nota ou recibo e entende áudio. A foto e o áudio vão para a Groq só para serem lidos.</p>`
+      :`<p class="vk-dica" style="margin:8px 0">Sem custo, o robô já lê o <b>QR code do PIX e do cupom (NFC-e)</b>, o <b>PDF do boleto</b> e o <b>XML</b> das notas. Para ler a <b>foto de qualquer boleto, nota ou recibo</b> e entender <b>áudio</b>, ligue a leitura grátis da Groq (uma vez só, uns 3 minutos — não pede cartão de crédito):</p>
+      <ol class="lb-passos"><li>Clique em <b>Abrir a Groq</b> (botão abaixo) e entre com a sua conta do <b>Google</b>.</li>
+        <li>Na página <b>API Keys</b>, clique em <b>Create API Key</b>, escreva o nome <b>Vixsul</b> e clique em <b>Submit</b>. Aparece uma chave que começa com <b>gsk_</b>: clique no botão de copiar ao lado dela.</li>
+        <li>Na Vercel (botão abaixo), abra o projeto <b>vixsul</b> › <b>Settings</b> › <b>Environment Variables</b> › <b>Add New</b>: em <b>Key</b> escreva <b>GROQ_API_KEY</b>, em <b>Value</b> cole a chave, deixe <b>Production</b> marcado e clique em <b>Save</b>.</li>
+        <li>Avise o Claude no chat (ele publica de novo para a chave valer).</li></ol>
+      <div class="av-bts"><a class="fin-bt" href="https://console.groq.com/keys" target="_blank" rel="noopener"><i class="fas fa-arrow-up-right-from-square"></i> Abrir a Groq</a><a class="fin-bt" href="https://vercel.com/dashboard" target="_blank" rel="noopener"><i class="fas fa-arrow-up-right-from-square"></i> Abrir a Vercel</a></div>
+      <p class="vk-dica" style="margin:6px 0 0">A foto e o áudio vão para a Groq só para serem lidos; nada é gravado sem você tocar em <b>✅</b> no Telegram.</p>`;
+    return `<details class="lb-pref" data-lb-ler-det${ST.lerAberta||!T.groq?' open':''}><summary><i class="fas fa-robot"></i> O que o robô faz no sistema · ler fotos e entender áudios (grátis)</summary>${faz}${passos}</details>`;
   }
   // PARA QUEM VAI cada aviso automático: as conversas ligadas (caixinhas) e os e-mails de cada um (o Administrador escolhe)
   const AVISOS=[['resumo','Resumo do dia (7h)',false],['reuniao','Aviso antes das reuniões',false],['tarde','Contas de hoje ainda em aberto (16h)',false],['aportes','Aporte lançado',false],
@@ -25445,7 +25470,7 @@ GS.lembretes=(function(){
     const q=String(ST.busca||'').trim().toLowerCase();if(q)V=V.filter(x=>String(x.l.texto||'').toLowerCase().includes(q));
     V=V.slice().sort((a,b)=>(a.p||'9999').localeCompare(b.p||'9999')||String(b.l.quando||'').localeCompare(String(a.l.quando||'')));
     App._lbV=V;
-    box.innerHTML=`<div class="fin-wrap">${Eng.cab('Lembretes e Telegram','Os lembretes chegam no seu celular pelo <b>Telegram</b> na hora marcada. O mesmo robô manda o <b>resumo do dia</b> de manhã, avisa <b>antes de cada reunião</b>, lembra as <b>contas que vencem hoje</b> e os <b>aportes lançados</b> — e responde perguntas sobre os números do sistema (ex.: <i>quanto gastei na obra de Itarantim em outubro?</i>).',`<button type="button" class="fin-bt pri" data-lb="novo"><i class="fas fa-plus"></i> Lembrete</button>`)}
+    box.innerHTML=`<div class="fin-wrap">${Eng.cab('Lembretes e Telegram','Os lembretes chegam no seu celular pelo <b>Telegram</b> na hora marcada. O mesmo robô manda o <b>resumo do dia</b> de manhã, avisa <b>antes de cada reunião</b>, lembra as <b>contas que vencem hoje</b> e os <b>aportes lançados</b>, responde perguntas sobre os números do sistema (ex.: <i>quanto gastei na obra de Itarantim em outubro?</i>) — e também <b>lança contas</b>, dá baixa, busca notas, cria tarefas e reuniões, por texto, foto ou áudio.',`<button type="button" class="fin-bt pri" data-lb="novo"><i class="fas fa-plus"></i> Lembrete</button>`)}
       <div class="fin-kpis">${Eng.kpi(ativos.length?'azul':'','Lembretes ativos',ativos.length,'tocam na hora marcada')}${Eng.kpi('','Hoje',hoje.length,hoje.length?'ainda vão tocar hoje':'nenhum para hoje')}${Eng.kpi('','Próximo',prox?fe(quandoTxt(prox.p)):'—',prox?fe(String(prox.l.texto||'').slice(0,60)):'')}${Eng.kpi(mc.length?'verde':'laranja','Seu Telegram',T?(mc.length?'Ligado':'Não ligado'):'…',T?(mc.length?fe(mc.map(c=>c.nome).join(', ')):'ligue abaixo'):'conferindo')}</div>
       ${cartaoTelegram()}
       <div class="lb-cab"><h3><i class="fas fa-bell"></i> Lembretes</h3><div class="lb-filtros"><select class="filter-select" data-lb-filtro><option value="ativos" ${ST.filtro==='ativos'?'selected':''}>Ativos</option><option value="outros" ${ST.filtro==='outros'?'selected':''}>Já enviados e desligados</option><option value="todos" ${ST.filtro==='todos'?'selected':''}>Todos</option></select><input type="search" class="filter-select" data-lb-busca placeholder="Buscar…" value="${fe(ST.busca)}"></div></div>
@@ -25467,8 +25492,9 @@ GS.lembretes=(function(){
     box.onchange=ev=>{const f=ev.target.closest('[data-lb-filtro]');if(f){ST.filtro=f.value;return pintar();}
       const r=ev.target.closest('[data-lb-res]');if(r)tgApi({acao:'salvar',resumoChat:{id:r.dataset.lbRes,resumo:r.checked?'sim':'nao'}}).then(o=>{ST.tg=o;toast(r.checked?'Vai receber o resumo do dia.':'Não recebe mais o resumo do dia.','success');}).catch(e=>{r.checked=!r.checked;toast(e.message,'error');});};
     box.oninput=ev=>{const s=ev.target.closest('[data-lb-busca]');if(!s)return;ST.busca=s.value;clearTimeout(App._lbT);App._lbT=setTimeout(()=>{pintar();const n=document.querySelector('#vx-lembretes [data-lb-busca]');if(n){n.focus();n.setSelectionRange(n.value.length,n.value.length);}},300);};
-    const det=box.querySelector('details.lb-pref:not([data-lb-dest-det])');if(det)det.addEventListener('toggle',()=>{ST.prefAberta=det.open;});
+    const det=box.querySelector('details.lb-pref:not([data-lb-dest-det]):not([data-lb-ler-det])');if(det)det.addEventListener('toggle',()=>{ST.prefAberta=det.open;});
     const detD=box.querySelector('details[data-lb-dest-det]');if(detD)detD.addEventListener('toggle',()=>{ST.destAberta=detD.open;});
+    const detL=box.querySelector('details[data-lb-ler-det]');if(detL)detL.addEventListener('toggle',()=>{ST.lerAberta=detL.open;});
   }
   function render(){if(!ST.tg&&!ST.carregando)carregarTg();else pintar();}
   // a tela entra pelo mesmo caminho das telas de engenharia; e se redesenha quando os dados mudam
@@ -25946,6 +25972,7 @@ input[type=search].filter-select{background-image:none;padding-right:12px;}
 .lb-tg-cab{display:flex;align-items:flex-start;gap:12px;} .lb-tg-cab>i{font-size:28px;color:#229ED9;flex:none;margin-top:1px;}
 .lb-tg-cab>div{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px;} .lb-tg-cab b{font-size:14.5px;color:#101828;} .lb-tg-cab small{font-size:12.5px;color:#475467;line-height:1.45;} .lb-tg-cab a{color:#1652D8;}
 .lb-passos{margin:0;padding-left:22px;display:flex;flex-direction:column;gap:7px;font-size:13px;color:#344054;line-height:1.5;}
+.lb-faz{margin:8px 0 4px;padding-left:20px;display:flex;flex-direction:column;gap:6px;font-size:13px;color:#344054;line-height:1.5;}
 .lb-chats{display:flex;flex-direction:column;gap:6px;}
 .lb-chat{display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid #EAECF0;border-radius:12px;background:#fff;} .lb-chat>i{color:#229ED9;font-size:18px;flex:none;}
 .lb-chat>span{flex:1;min-width:0;display:flex;flex-direction:column;} .lb-chat b{font-size:13px;color:#101828;} .lb-chat em{font-style:normal;font:700 10.5px Inter,sans-serif;background:#ECFDF3;color:#067647;border-radius:999px;padding:1px 7px;margin-left:4px;} .lb-chat small{font-size:12px;color:#667085;}

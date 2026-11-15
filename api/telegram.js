@@ -5,7 +5,9 @@
      conversa fica ligada ao usuário dele. O banco guarda só o resumo (HMAC) do código, e cada conversa ligada leva uma
      assinatura feita com a chave do robô — linha forjada ou alterada no banco por outra pessoa não vale.
    - Só conversa ligada recebe resposta. Comandos: /hoje /contas /agenda /aportes /obras /lembretes /lembrar /ajuda;
-     texto livre vai para a IA (Claude, pela ANTHROPIC_API_KEY), que responde pelos números do sistema e cria lembretes.
+     texto livre: as perguntas mais comuns são respondidas de graça (_perguntas.js) e os lembretes pelo leitor de frases.
+   - O robô também FAZ coisas no sistema (_bot.js): lança contas (obra, rateio, empresa), dá baixa, busca nota fiscal,
+     cria tarefa e reunião, lança o diesel; lê foto/PDF/XML de pagamento e entende áudio (Groq, grátis).
    - GET ?tick=1 (tarefa "Lembretes do Telegram" do GitHub, a cada 15 minutos): manda os lembretes que chegaram na hora,
      o aviso antes das reuniões, o resumo do dia, as contas de hoje ainda abertas (16h), os aportes lançados e, de
      reserva, o e-mail do dia (avisos.js). Só grava no banco quando manda alguma coisa (cada gravação faz os sistemas
@@ -79,13 +81,16 @@ async function mandar(chat_id, texto, teclado) {
   return ultimo;
 }
 async function paraTodos(chats, texto, teclado) { const falhas = []; for (const c of chats) { try { await mandar(c.chat_id, texto, teclado); } catch (e) { falhas.push((c.nome || c.chat_id) + ': ' + e.message); } } return falhas; }
-// um arquivo (o PDF do relatório) no Telegram
-async function mandarDoc(chat_id, buf, nome, legenda) {
+// um arquivo (o PDF do relatório, o PDF e o XML de uma nota) no Telegram
+async function mandarArq(chat_id, buf, nome, mime, legenda) {
   const fd = new FormData(); fd.append('chat_id', String(chat_id)); if (legenda) fd.append('caption', String(legenda).slice(0, 1000));
-  fd.append('document', new Blob([buf], { type: 'application/pdf' }), nome);
+  fd.append('document', new Blob([buf], { type: mime || 'application/octet-stream' }), nome);
   let r; try { r = await fetch(`https://api.telegram.org/bot${TOKEN}/sendDocument`, { method: 'POST', body: fd }); } catch (e) { throw new Error('O Telegram não respondeu (internet do servidor).'); }
   const j = await r.json().catch(() => null); if (!j || !j.ok) throw new Error((j && j.description) || ('O Telegram respondeu ' + r.status)); return j.result;
 }
+const mandarDoc = (chat_id, buf, nome, legenda) => mandarArq(chat_id, buf, nome, 'application/pdf', legenda);
+// as ações do robô no sistema (contas, baixa, notas, tarefas, reuniões, diesel, foto e áudio)
+const BOT = require('./_bot')({ tg, mandar, mandarArq, TOKEN });
 /* PARA QUEM VAI cada aviso automático — o Administrador escolhe em Agenda › Lembretes e Telegram ("Para quem vai"):
    cfg_telegram.destinos = { aviso: { chats: [ids das conversas ligadas] , emails: 'a@b.com, c@d.com' } }.
    Sem escolha: todas as conversas ligadas; e-mail só no relatório semanal e no fechamento (os dos Avisos por e-mail). */
@@ -162,7 +167,19 @@ const ajuda = () => `<b>O que eu faço</b>
 /cobrar — notas paradas há 30 dias ou mais, com o texto de cobrança pronto
 /fechamento — o que falta fechar do mês passado
 /chuva — previsão de chuva para amanhã nas obras
-${CHAVE_IA ? 'Ou escreva uma pergunta, como: <i>quanto gastei na obra de Itarantim em outubro?</i>, <i>quais contas vencem esta semana?</i> ou <i>me lembra sexta às 10h de ligar para o fiscal</i>. Para continuar um assunto, responda (deslize para a esquerda) a minha mensagem.' : 'Ou escreva a pergunta do seu jeito. ' + P.EXEMPLOS + '\n• <i>me lembra sexta às 10h de ligar para o fiscal</i>'}
+
+<b>No sistema eu também faço</b> (sempre mostro um cartão para você conferir antes de gravar)
+/conta — lançar uma conta: numa obra, rateada entre obras ou na Empresa (custo indireto). Ou escreva: <i>lança 350 de cimento na obra Itarantim, vence dia 20</i> · <i>paguei 120 de gasolina no pix, empresa</i>
+/pagar — dar baixa numa conta em aberto
+/nota — buscar nota fiscal e receber o PDF e o XML. Ex.: <i>/nota 1234</i> ou <i>/nota casa do construtor</i>
+/tarefa — nova tarefa. Ex.: <i>/tarefa pedir a medição sexta obra Itarantim</i>
+/reuniao — marcar reunião. Ex.: <i>/reuniao amanhã 9h com a fiscalização</i>
+/diesel — abastecimento da retroescavadeira. Ex.: <i>/diesel 120 litros 750 reais obra Itarantim</i>
+/cancelar — desistir do que estiver pela metade
+📷 Mande a <b>foto</b>, o <b>PDF</b> ou o <b>XML</b> do boleto, da nota ou do comprovante (ou cole o código do PIX ou a linha do boleto): eu leio o valor e preparo a conta.
+🎤 Mande <b>áudio</b> falando o que quer${BOT.temGroq() ? '' : ' (falta ligar a leitura grátis de foto e áudio — Agenda › Lembretes e Telegram)'}.
+
+${CHAVE_IA ?'Ou escreva uma pergunta, como: <i>quanto gastei na obra de Itarantim em outubro?</i>, <i>quais contas vencem esta semana?</i> ou <i>me lembra sexta às 10h de ligar para o fiscal</i>. Para continuar um assunto, responda (deslize para a esquerda) a minha mensagem.' : 'Ou escreva a pergunta do seu jeito. ' + P.EXEMPLOS + '\n• <i>me lembra sexta às 10h de ligar para o fiscal</i>'}
 
 Sozinho eu mando: o resumo do dia (7h), o aviso antes de cada reunião, os lembretes na hora marcada, o alerta de caixa e as cobranças (8h), as contas de hoje ainda em aberto (16h), a chuva de amanhã nas obras (17h), os aportes lançados, o relatório semanal (segunda, 7h) e o fechamento do mês (dia 1º).`;
 
@@ -338,7 +355,11 @@ async function responderLivre(texto, ctx) {
   const D = ctx.D || (ctx.D = await R.carregar());
   const r = P.responder(texto, D, { agenda: () => textoAgenda(D, R.hojeBahia()) });
   if (r) return mandar(ctx.chat, r);
-  return mandar(ctx.chat, 'Não entendi essa pergunta. ' + P.EXEMPLOS + '\n\nOu use os comandos: /hoje /contas /agenda /aportes /obras /lembretes');
+  // com a chave grátis da Groq, o pedido que as regras não entenderam ainda pode virar uma ação (conta, tarefa…)
+  const ia = await BOT.textoIA(ctx, texto);
+  if (ia === true) return;
+  if (ia && ia.lembrete) return lembreteDaIA(ia.lembrete, texto, ctx);
+  return mandar(ctx.chat, 'Não entendi. ' + P.EXEMPLOS + '\n\nPara lançar uma conta: <i>lança 350 de cimento na obra X</i> (ou mande a foto do boleto).\nComandos: /hoje /contas /conta /pagar /nota /tarefa /ajuda');
 }
 async function responderIA(texto, anterior, ctx) {
   let resp;
@@ -374,6 +395,8 @@ async function aoBotao(cq, st) {
   const chat = cq.message && cq.message.chat && String(cq.message.chat.id);
   const ok = txt => tg('answerCallbackQuery', { callback_query_id: cq.id, text: txt || '' }).catch(() => {});
   if (!chat || !st.chats.some(c => String(c.chat_id) === chat)) return ok('Conversa não ligada ao sistema.');
+  // botões dos cartões do robô (conta, baixa, nota, tarefa, reunião, diesel)
+  if (String(cq.data || '').startsWith('b:')) { const meu = st.chats.find(c => String(c.chat_id) === chat); return BOT.botao({ chat, meu, uid: meu.usuario_uid || '', usuario: meu.usuario || '', st }, cq); }
   const [acao, id, extra] = String(cq.data || '').split(':');
   const l = st.lembretes.find(x => String(x._id) === id);
   if (!l) return ok('Lembrete não encontrado.');
@@ -405,9 +428,16 @@ async function aoReceber(up) {
   const meu = st.chats.find(c => String(c.chat_id) === chat);
   if (!meu) return mandar(chat, 'Olá! Este robô é particular da <b>Vixsul Empreendimentos</b>. Para usar, o Administrador gera o link de vínculo no sistema: <b>Agenda › Lembretes e Telegram › Ligar meu Telegram</b>.');
   const ctx = { chat, meu, uid: meu.usuario_uid || '', usuario: meu.usuario || '', st, criados: [], D: null };
-  if (!texto) return mandar(chat, 'Por enquanto eu entendo só texto. Mande /ajuda para ver o que eu faço.');
+  // foto, PDF ou XML (boleto, nota, comprovante): o robô lê e prepara a conta
+  if ((msg.photo && msg.photo.length) || msg.document) return BOT.arquivo(ctx, msg);
+  // áudio: vira texto (Groq, grátis) e segue como se tivesse sido escrito
+  let falado = '';
+  if (msg.voice || msg.audio || msg.video_note) { falado = await BOT.audio(ctx, msg); if (!falado) return; }
+  if (!texto && !falado) return mandar(chat, 'Eu entendo texto, foto, PDF, XML e áudio. Mande /ajuda para ver o que eu faço.');
   tg('sendChatAction', { chat_id: chat, action: 'typing' }).catch(() => {});
   const dados = async () => ctx.D || (ctx.D = await R.carregar()), hj = R.hojeBahia();
+  if (falado) return livre(falado, ctx, '', true);
+  if (cmd && await BOT.comando(ctx, cmd, arg)) return;
   switch (cmd) {
     case 'start': case 'ajuda': case 'help': return mandar(chat, ajuda());
     case 'hoje': return mandar(chat, R.resumoTelegram(await R.montar({}, await dados())));
@@ -425,9 +455,23 @@ async function aoReceber(up) {
     case '': break;
     default: return mandar(chat, 'Não conheço esse comando.\n\n' + ajuda());
   }
+  return livre(texto, ctx, (msg.reply_to_message && (msg.reply_to_message.text || msg.reply_to_message.caption)) || '', false);
+}
+// texto livre (escrito ou falado): resposta a um cartão do robô, pedido (conta, baixa, nota…), lembrete ou pergunta
+async function livre(texto, ctx, anterior, falado) {
+  const r = await BOT.texto(ctx, texto, { audio: falado });
+  if (r === true) return;
+  if (r && r.lembrete) return lembreteDaIA(r.lembrete, texto, ctx);
   if (/^(?:me\s+)?(?:lembr|avis[ae]\b)/i.test(texto)) return lembrarPorTexto(texto, ctx);   // lembrete: o leitor de frases resolve (grátis)
-  if (CHAVE_IA) return responderIA(texto, (msg.reply_to_message && (msg.reply_to_message.text || msg.reply_to_message.caption)) || '', ctx);
+  if (CHAVE_IA) return responderIA(texto, anterior, ctx);
   return responderLivre(texto, ctx);
+}
+// lembrete entendido no áudio (quando o leitor de frases não achou o dia e a hora)
+async function lembreteDaIA(o, texto, ctx) {
+  if (lerLembrete(texto, agoraStr())) return lembrarPorTexto(texto, ctx);
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(o.quando || '') || o.quando <= agoraStr()) return lembrarPorTexto(texto, ctx);
+  const l = await criarLembrete(o, ctx);
+  return mandar(ctx.chat, `✅ Lembrete criado para <b>${esc(quandoBR(o.quando))}</b>:\n${esc(o.texto)}`, [[{ text: '🗑 Apagar este lembrete', callback_data: 'apagar:' + l._id }]]);
 }
 
 // ── a cada 15 minutos (tarefa do GitHub): lembretes, reuniões, resumo do dia, contas de hoje, aportes e o e-mail ──
@@ -437,6 +481,7 @@ async function tick() {
   if (hora >= '07:00') { try { const r = await require('./avisos').diario(); if (r && r.enviado) feito.push('e-mail do dia'); } catch (e) { feito.push('e-mail: ' + e.message); } }
   if (!TOKEN) return { ok: true, feito, msg: 'O robô do Telegram ainda não foi configurado.' };
   const st = await estadoBanco(), cfg = st.cfg, mud = {};
+  await BOT.limpar().catch(() => {});   // rascunhos de conversa vencidos saem do banco
   // o robô se liga sozinho (webhook e comandos) assim que a chave aparece na Vercel — e de novo quando os comandos mudam
   if (cfg.bot_versao !== VERSAO_BOT) { try { await ligarRobo(st); feito.push('robô ligado: @' + st.cfg.bot); } catch (e) { feito.push('robô: ' + e.message); } }
   const chats = st.chats, temTg = chats.length > 0;
@@ -546,18 +591,18 @@ async function tick() {
 }
 
 // ── ligar o robô: aponta o Telegram para esta função (webhook com senha) e cadastra os comandos ──
-const VERSAO_BOT = '2';   // mude quando a lista de comandos mudar: o robô se recadastra sozinho na próxima tarefa
+const VERSAO_BOT = '3';   // mude quando a lista de comandos mudar: o robô se recadastra sozinho na próxima tarefa
 async function ligarRobo(st) {
   let eu;
   try { eu = await tg('getMe', {}); } catch (e) { throw new Error(e.codigo === 401 || e.codigo === 404 ? 'A chave do robô na Vercel não foi aceita pelo Telegram — confira se foi copiada inteira.' : e.message); }
   await tg('setWebhook', { url: URL_WEBHOOK, secret_token: segredoWebhook(), allowed_updates: ['message', 'callback_query'], drop_pending_updates: true, max_connections: 10 });
-  await tg('setMyCommands', { commands: [['hoje', 'Resumo do dia'], ['contas', 'Contas a pagar'], ['agenda', 'Reuniões e tarefas'], ['aportes', 'Aportes do mês e do ano'], ['obras', 'Números das obras'], ['lembretes', 'Meus lembretes'], ['lembrar', 'Criar um lembrete'], ['relatorio', 'Relatório da semana (PDF)'], ['caixa', 'Caixa dos próximos 15 dias'], ['cobrar', 'Notas paradas para cobrar'], ['fechamento', 'Fechamento do mês'], ['chuva', 'Chuva amanhã nas obras'], ['ajuda', 'O que o robô faz']].map(([command, description]) => ({ command, description })) }).catch(() => {});
-  await tg('setMyDescription', { description: 'Robô particular do sistema de gestão da Vixsul Empreendimentos: lembretes, avisos e consultas.' }).catch(() => {});
+  await tg('setMyCommands', { commands: [['hoje', 'Resumo do dia'], ['conta', 'Lançar uma conta (obra, rateio ou empresa)'], ['pagar', 'Dar baixa numa conta'], ['nota', 'Buscar nota fiscal (PDF e XML)'], ['tarefa', 'Nova tarefa'], ['reuniao', 'Marcar reunião'], ['diesel', 'Diesel da retroescavadeira'], ['contas', 'Contas a pagar'], ['agenda', 'Reuniões e tarefas'], ['aportes', 'Aportes do mês e do ano'], ['obras', 'Números das obras'], ['lembretes', 'Meus lembretes'], ['lembrar', 'Criar um lembrete'], ['relatorio', 'Relatório da semana (PDF)'], ['caixa', 'Caixa dos próximos 15 dias'], ['cobrar', 'Notas paradas para cobrar'], ['fechamento', 'Fechamento do mês'], ['chuva', 'Chuva amanhã nas obras'], ['cancelar', 'Desistir do que está pela metade'], ['ajuda', 'O que o robô faz']].map(([command, description]) => ({ command, description })) }).catch(() => {});
+  await tg('setMyDescription', { description: 'Robô particular do sistema de gestão da Vixsul Empreendimentos: lança contas, dá baixa, busca notas, cria tarefas e reuniões, lê fotos de boletos e entende áudio.' }).catch(() => {});
   await gravarCfg(st, { bot: eu.username, bot_versao: VERSAO_BOT, bot_ligado_em: new Date().toISOString() });
 }
 // ── o que o sistema pede (Administrador logado) ──
 async function estadoPublico(st, comWebhook, uid) {
-  const o = { ok: true, token: !!TOKEN, ia: !!CHAVE_IA, bot: st.cfg.bot || '', modelos: MODELOS,
+  const o = { ok: true, token: !!TOKEN, ia: !!CHAVE_IA, groq: BOT.temGroq(), bot: st.cfg.bot || '', modelos: MODELOS,
     cfg: ['resumo', 'resumo_hora', 'aviso_reuniao', 'aviso_reuniao_min', 'aviso_tarde', 'aviso_aportes', 'relatorio_semanal', 'alerta_caixa', 'cobranca_dias', 'aviso_chuva', 'fechamento_mes', 'modelo_ia', 'esforco_ia'].reduce((a, k) => { a[k] = st.cfg[k] || ''; return a; }, {}),
     email: E.emailPronto(), destinos: st.cfg.destinos || {},
     chats: st.chats.map(c => ({ id: c._id, nome: c.nome || '', usuario: c.usuario || '', ligado_em: c.ligado_em || '', resumo: c.resumo || 'sim', meu: !!uid && c.usuario_uid === uid })) };
@@ -645,7 +690,7 @@ module.exports = async (req, res) => {
     // 2) a tarefa agendada (GitHub) — e um estado mínimo, sem dados, para conferir se está configurado
     if (req.method === 'GET') {
       if (req.query && req.query.tick) return responder(200, await tick());
-      return responder(200, { ok: true, token: !!TOKEN, ia: !!CHAVE_IA, email: E.emailPronto() });
+      return responder(200, { ok: true, token: !!TOKEN, ia: !!CHAVE_IA, email: E.emailPronto(), groq: BOT.temGroq() });
     }
     if (req.method !== 'POST') return responder(405, { ok: false, msg: 'Use GET ou POST.' });
     // 3) o sistema (Administrador logado)
