@@ -175,6 +175,7 @@ function ultimoCartao() { for (let i = CALLS.length - 1; i >= 0; i--) { const c 
   const slip = 'CIELO\nVIA CLIENTE\nMADEIREIRA SAO JOSE\nITARANTIM - BA\nCNPJ: 12.345.678/0001-95\nDOC: 123456   AUT: 654321\n' + R.br(hj) + '/' + hj.slice(2, 4) + ' 14:32\nVISA CREDITO PARCELADO LOJA 3X\n************1234\nVALOR APROVADO: R$ 900,00\nTRANSACAO AUTORIZADA MEDIANTE SENHA';
   const ms = T.lerTextoDoc(slip);
   ok(ms.tipo === 'cartao' && ms.pago && ms.forma === 'Cartão de Crédito' && ms.parcCartao === 3 && ms.valor === 900 && ms.data === hj && ms.cnpj === '12345678000195', 'comprovante da maquininha (texto): ' + JSON.stringify(ms));
+  ok(ms.cartaoFinal === '1234' && T.cartaoFinalDe('Operação #185732442364\nCRÉDITO MASTERCARD 3434\n668499 NFC') === '3434', 'o final do cartão no comprovante (************1234 e "CRÉDITO MASTERCARD 3434")');
   const md = T.lerTextoDoc('STONE\nVIA DO CLIENTE\nPADARIA BOM PAO\nDEBITO\nNSU 998877\nVALOR: R$ 18,50\n' + R.br(hj) + '/' + hj.slice(0, 4));
   ok(md.tipo === 'cartao' && md.forma === 'Cartão de Débito' && !md.parcCartao && md.valor === 18.5, 'maquininha no débito: ' + JSON.stringify(md));
   const ni = T.normIA({ tipo: 'cartao', fornecedor: 'CIELO', cnpj_cpf: '12.345.678/0001-95', valor: 900, data: hj, pago: true, forma: 'credito', parcelas: 3, descricao: 'material eletrico' });
@@ -291,7 +292,7 @@ function ultimoCartao() { for (let i = CALLS.length - 1; i >= 0; i--) { const c 
   console.log('\nC) "paguei 250 da conta de luz no pix" → baixa da conta que já existia');
   await escrever('paguei 250 da conta de luz no pix'); ok(/achei conta em aberto com esse valor/.test(ultimoTexto()) && /COELBA/.test(ultimoTexto()), 'achou a conta da COELBA em aberto');
   await tocar('1'); await tocar('PIX');
-  ok(/<b>Quem pagou\?<\/b>/.test(ultimoTexto()) && /A empresa/.test(JSON.stringify(ultimoCartao().b.reply_markup)) && /Vilson Souza/.test(JSON.stringify(ultimoCartao().b.reply_markup)), 'a baixa pergunta quem pagou (a empresa ou um sócio)');
+  ok(/<b>Pago com dinheiro do sócio\?<\/b>/.test(ultimoTexto()) && /Não — dinheiro da empresa/.test(JSON.stringify(ultimoCartao().b.reply_markup)) && /Sim — Vilson Souza/.test(JSON.stringify(ultimoCartao().b.reply_markup)), 'a baixa pergunta "Pago com dinheiro do sócio?" (Não = empresa; Sim = qual sócio)');
   await tocar('Vilson Souza');
   let luz = DB.despesas.find(r => r.id === idLuz).row_data;
   ok(luz.status_pagamento === 'Pago' && luz.data_pagamento === hj && luz.forma_pagamento === 'PIX', 'baixa feita na despesa: ' + JSON.stringify(luz));
@@ -303,8 +304,8 @@ function ultimoCartao() { for (let i = CALLS.length - 1; i >= 0; i--) { const c 
   console.log('\nD) empresa (custo indireto) já paga');
   await escrever('lança 89,90 de papel sulfite empresa, pago hoje no débito'); ok(/Para <b>quem<\/b>/.test(ultimoTexto()), 'pergunta o fornecedor');
   await escrever('Kalunga'); ok(/✓ Material de Escritório/.test(JSON.stringify(ultimoCartao().b.reply_markup)), 'sugere a categoria Material de Escritório');
-  await tocar('✓ Material de Escritório'); ok(/<b>Quem pagou\?<\/b>/.test(ultimoTexto()), 'conta paga: pergunta quem pagou');
-  await tocar('A empresa'); ok(/confira e lance/.test(ultimoTexto()) && /Quem pagou: a empresa/.test(ultimoTexto()), 'pula direto para a conferência (pago, forma e quem pagou já ditos)');
+  await tocar('✓ Material de Escritório'); ok(/<b>Pago com dinheiro do sócio\?<\/b>/.test(ultimoTexto()), 'conta paga: pergunta se foi com dinheiro do sócio');
+  await tocar('dinheiro da empresa'); ok(/confira e lance/.test(ultimoTexto()) && /Pago com dinheiro do sócio: <b>Não<\/b>/.test(ultimoTexto()), 'pula direto para a conferência (pago, forma e "Não" já ditos)');
   await tocar('Lançar a conta');
   const dp = linhas('despesas', r => r.descricao === 'Papel sulfite')[0];
   ok(dp && dp.valor === '89.90' && dp.status_pagamento === 'Pago' && dp.data_pagamento === hj && dp.data_despesa === hj && dp.categoria === 'Material de Escritório' && dp.forma_pagamento === 'Cartão de Débito' && dp.tipo_despesa === 'Real', 'despesa da empresa gravada: ' + JSON.stringify(dp));
@@ -313,7 +314,7 @@ function ultimoCartao() { for (let i = CALLS.length - 1; i >= 0; i--) { const c 
   // E) /pagar
   console.log('\nE) /pagar areia');
   await escrever('/pagar areia'); ok(/AREIAL BOA VISTA/.test(ultimoTexto()), 'achou a conta da areia');
-  await tocar('1'); await tocar('Transferência/TED'); await tocar('A empresa');
+  await tocar('1'); await tocar('Transferência/TED'); await tocar('dinheiro da empresa');
   const ar = DB.custos.find(r => r.id === idAreia).row_data; ok(ar.data_pgto === hj && ar.forma_pagamento === 'Transferência/TED' && ar.aprovacao === 'pendente' && !ar.socio_pendente, 'baixa na conta da obra (data do pagamento), aguardando aprovação');
   ok(/aguardando sua aprovação/.test(ultimoTexto()), 'a mensagem da baixa avisa que aguarda a aprovação');
 
@@ -399,22 +400,33 @@ function ultimoCartao() { for (let i = CALLS.length - 1; i >= 0; i--) { const c 
   // N) comprovante da maquininha: crédito em 3x → 1ª parcela paga, as outras a pagar (casa com a fatura na Conciliação)
   console.log('\nN) comprovante da maquininha (crédito em 3x)');
   ARQS.f5 = { caminho: 'photos/f5.jpg', buf: cinza };
-  GROQ.visao = { tipo: 'cartao', fornecedor: 'CIELO', cnpj_cpf: '12345678000195', valor: 900, vencimento: '', data: hj, pago: true, forma: 'credito', parcelas: 3, numero: '', descricao: 'Material elétrico', linha_digitavel: '', chave: '' };
+  GROQ.visao = { tipo: 'cartao', fornecedor: 'CIELO', cnpj_cpf: '12345678000195', valor: 900, vencimento: '', data: hj, pago: true, forma: 'credito', parcelas: 3, cartao_final: '3434', numero: '', descricao: 'Material elétrico', linha_digitavel: '', chave: '' };
   await webhook({ update_id: ++uid, message: { message_id: ++mid, chat: { id: CHAT, type: 'private' }, photo: [{ file_id: 'f5', width: 64, height: 64 }], caption: 'obra itarantim' } });
-  ok(/Li no comprovante da maquininha: R\$\s900,00 · MADEIREIRA SAO JOSE LTDA · crédito em 3x · compra em/.test(ultimoTexto()), 'leu o comprovante da maquininha');
+  ok(/Li no comprovante da maquininha: R\$\s900,00 · MADEIREIRA SAO JOSE LTDA · crédito em 3x · cartão final 3434 · compra em/.test(ultimoTexto()), 'leu o comprovante da maquininha (com o final do cartão)');
   ok(/MADEIREIRA SAO JOSE LTDA/.test(ultimoTexto()) && /cartão de crédito em 3x/.test(ultimoTexto()) && /\(paga\)/.test(ultimoTexto()), 'fornecedor pelo CNPJ (não a Cielo) e as 3 parcelas no cartão');
   ok(GROQ_CHAMADAS[GROQ_CHAMADAS.length - 1] === 'foto:qwen/qwen3.8-27b', 'leu a foto direto com o modelo testado (qwen3.8), sem tentar os que falham');
-  await tocar('✓ Materiais'); await tocar('A empresa'); await tocar('Lançar');
+  await tocar('✓ Materiais');
+  ok(/Pago com dinheiro do sócio\?/.test(ultimoTexto()) && /Cartão final 3434: a resposta fica guardada/.test(ultimoTexto()), 'cartão novo: pergunta e avisa que vai guardar a resposta');
+  await tocar('dinheiro da empresa');
+  ok(DB.arquivos.some(r => r.row_data.tipo === 'telegram_cartoes' && r.row_data.mapa && r.row_data.mapa['3434'] && r.row_data.mapa['3434'].socio === ''), 'guardou: o cartão final 3434 é da empresa');
+  await tocar('Lançar');
   const mq = linhas('custos', r => /^Material elétrico/.test(r.descricao)).sort((a, b) => a.vencimento.localeCompare(b.vencimento));
   ok(mq.length === 3 && mq.every(r => r.p_total === '300.00' && r.forma_pagamento === 'Cartão de Crédito' && r.titulo_obra === 'SES ITARANTIM') && mq[0].data_pgto === hj && mq[0].vencimento === hj && mq[1].data_pgto === '' && mq[1].vencimento === T.somaMes(hj, 1) && mq[2].vencimento === T.somaMes(hj, 2) && /\(1\/3\)$/.test(mq[0].descricao) && /Cartão de crédito em 3x/.test(mq[0].observacao) && /maquininha/.test(mq[0].observacao) && mq[0].grupo_parcelas === mq[2].grupo_parcelas, 'parcelas no cartão: ' + JSON.stringify(mq.map(r => [r.descricao, r.vencimento, r.data_pgto, r.p_total])));
   await escrever('paguei 640 no cartão de crédito em 2x de areia obra itarantim fornecedor areial boa vista');
   ok(/cartão de crédito em 2x/.test(ultimoTexto()) && /R\$\s320,00 \(paga\)/.test(ultimoTexto()), 'escrito: "paguei … no cartão de crédito em 2x"');
   await escrever('/cancelar');
+  // o mesmo cartão de novo (o comprovante da churrascaria, R$ 30 no crédito, final 3434): não pergunta mais
+  ARQS.f6 = { caminho: 'photos/f6.jpg', buf: cinza };
+  GROQ.visao = { tipo: 'cartao', fornecedor: 'DOHA CHURRASCARIA', cnpj_cpf: '', valor: 30, vencimento: '', data: em(-1), pago: true, forma: 'credito', parcelas: 1, cartao_final: '3434', numero: '', descricao: 'Almoço', linha_digitavel: '', chave: '' };
+  await webhook({ update_id: ++uid, message: { message_id: ++mid, chat: { id: CHAT, type: 'private' }, photo: [{ file_id: 'f6', width: 64, height: 64 }], caption: 'empresa' } });
+  await tocar('✓ ');
+  ok(/confira e lance/.test(ultimoTexto()) && /Pago com dinheiro do sócio: <b>Não<\/b> — dinheiro da empresa \(o cartão final 3434 é da empresa\)/.test(ultimoTexto()), 'cartão conhecido: já sabe que é da empresa (não pergunta)');
+  await escrever('/cancelar');
 
   // P) quem pagou dito na frase: "com meu cartão" = quem está falando (Vilson é sócio) → o aporte entra quando aprovar
   console.log('\nP) "paguei com meu cartão" (sócio) — fica aguardando aprovação');
   await escrever('paguei 80 de almoço com meu cartão, empresa, fornecedor restaurante sabor');
-  ok(/Quem pagou: <b>Vilson Souza<\/b>/.test(ultimoTexto()), 'entendeu que o sócio que está falando pagou');
+  ok(/Pago com dinheiro do sócio: <b>Sim — Vilson Souza<\/b>/.test(ultimoTexto()), 'entendeu que o sócio que está falando pagou');
   await tocar('✓ '); ok(/confira e lance/.test(ultimoTexto()), 'não pergunta de novo quem pagou');
   await tocar('Lançar a conta');
   const alm = linhas('despesas', r => r.descricao === 'Almoço')[0];
@@ -490,7 +502,7 @@ function ultimoCartao() { for (let i = CALLS.length - 1; i >= 0; i--) { const c 
   ok(/SES ITARANTIM/.test(GROQ.ultimoPrompt || '') && /Vilson Souza/.test(GROQ.ultimoPrompt || ''), 'a "cola" do Whisper levou as obras e os sócios');
   const tr = CALLS.filter(c => c.m === 'sendMessage' && /🎤/.test(c.b.text || '')).pop();
   ok(tr && !/Amara/.test(tr.b.text) && /não ficou clara/.test(tr.b.text), 'tirou a frase inventada pelo Whisper e avisou que o áudio não ficou claro');
-  ok(/Quem pagou: <b>Vilson Souza<\/b>/.test(ultimoTexto()) && /R\$\s200,00/.test(ultimoTexto()), 'a IA entendeu "paguei com meu cartão": quem falou (sócio) pagou');
+  ok(/Pago com dinheiro do sócio: <b>Sim — Vilson Souza<\/b>/.test(ultimoTexto()) && /R\$\s200,00/.test(ultimoTexto()), 'a IA entendeu "paguei com meu cartão": quem falou (sócio) pagou');
   await escrever('/cancelar');
   ARQS.v3 = { caminho: 'voice/file_3.oga', buf: Buffer.from('OggS-audio-3') };
   GROQ.segmentos = null; GROQ.transcricao = 'lança 75 de pregos na obra de itapetinga, vence dia 28';
@@ -506,6 +518,7 @@ function ultimoCartao() { for (let i = CALLS.length - 1; i >= 0; i--) { const c 
   await escrever('qual o pix da casa do construtor?'); ok(/🏪 <b>CASA DO CONSTRUTOR LTDA<\/b>/.test(ultimoTexto()), 'pergunta escrita: "qual o pix da casa do construtor?"');
   await escrever('/buscar areia'); ok(/🔎 <b>\d+ conta\(s\) com “areia”<\/b>/.test(ultimoTexto()) && /AREIAL BOA VISTA/.test(ultimoTexto()), 'busca nas contas');
   await escrever('/receber'); ok(/💵 <b>A receber<\/b>: 1 nota/.test(ultimoTexto()) && /NF 19/.test(ultimoTexto()), 'o que falta receber');
+  await escrever('/avisos'); ok(/Para onde vão os avisos automáticos/.test(ultimoTexto()) && /Resumo do dia/.test(ultimoTexto()) && /📱 Vilson/.test(ultimoTexto()) && /Conversas ligadas ao robô<\/b>: Vilson/.test(ultimoTexto()), '/avisos: para onde vai cada aviso (Telegram e e-mail)');
 
   // M) código do PIX colado, pergunta normal e a tarefa de 15 minutos
   console.log('\nM) código colado, pergunta e tarefa agendada');

@@ -121,6 +121,20 @@ async function emailAuto(st, k, titulo, partes, anexos) {
     return true;
   } catch (e) { console.error('email', e && e.message); return false; }
 }
+// /avisos — para onde vai cada aviso automático (o escolhido em Agenda › Lembretes e Telegram › "Para quem vai cada aviso")
+const NOME_AVISO = { resumo: 'Resumo do dia', reuniao: 'Aviso antes das reuniões', tarde: 'Contas de hoje ainda em aberto (16h)', aportes: 'Aportes lançados', relatorio: 'Relatório semanal (segunda, 7h, com PDF)', caixa: 'Alerta de caixa (8h)', cobranca: 'Cobranças de notas paradas (8h)', chuva: 'Chuva amanhã nas obras (17h)', fechamento: 'Fechamento do mês (dia 1º)', email: 'Boletos e notas que chegam no e-mail' };
+function avisoLigado(cfg, k) { const m = { resumo: cfg.resumo, reuniao: cfg.aviso_reuniao, tarde: cfg.aviso_tarde, aportes: cfg.aviso_aportes, relatorio: cfg.relatorio_semanal, caixa: cfg.alerta_caixa, cobranca: cfg.cobranca_dias === '0' ? 'nao' : '', chuva: cfg.aviso_chuva, fechamento: cfg.fechamento_mes, email: cfg.email_caixa }; return m[k] !== 'nao'; }
+async function textoAvisos(st) {
+  const nome = c => c.nome || c.usuario || 'conversa ' + c.chat_id;
+  const ca = (await R.lerTipos(['cfg_avisos'])).sort((a, b) => (b._id || 0) - (a._id || 0))[0], dia = ca && ca.ativo !== 'nao' ? E.emailsDe(ca.emails) : [];
+  const L = [];
+  for (const k of AUTOS) {
+    const tgs = chatsPara(st, k).map(nome), em = await emailsPara(st, k);
+    L.push(`• <b>${NOME_AVISO[k]}</b>${avisoLigado(st.cfg, k) ? '' : ' — <i>desligado</i>'}\n   📱 ${tgs.length ? tgs.map(esc).join(', ') : 'ninguém'}${COM_EMAIL.includes(k) ? '\n   📧 ' + (em.length ? em.map(esc).join(', ') : 'nenhum e-mail') : ''}`);
+  }
+  return `📬 <b>Para onde vão os avisos automáticos</b>\n\n<b>E-mail do dia (7h)</b> — agenda, tarefas, contas, recebimentos, certidões…\n   📧 ${dia.length ? dia.map(esc).join(', ') : ca && ca.ativo === 'nao' ? 'desligado' : 'nenhum e-mail cadastrado'}\n\n` + L.join('\n') +
+    `\n\n<b>Lembretes</b>: cada um vai só para quem criou (ou para todos, quando marcado "todos").\n<b>Conversas ligadas ao robô</b>: ${st.chats.length ? st.chats.map(c => esc(nome(c)) + (c.usuario ? ' (usuário ' + esc(c.usuario) + ')' : '')).join(', ') : 'nenhuma'}\n<b>Quem manda os e-mails</b>: o Gmail do sistema${E.remetente() ? ' (' + esc(E.remetente()) + ')' : ''}.\n\nPara mudar: no sistema, <b>Agenda › Lembretes e Telegram › Para quem vai cada aviso</b>; o e-mail do dia em <b>Configurações › Avisos por e-mail</b>.`;
+}
 // os textos das automações (também pedidos pelos comandos /relatorio /caixa /cobrar /fechamento)
 async function enviarRelatorio(chats, D, hj) {
   const rel = RL.semanal(D, hj); let pdf = null;
@@ -169,6 +183,7 @@ const ajuda = () => `<b>O que eu faço</b>
 /receber — notas emitidas esperando o dinheiro e medições aprovadas sem nota
 /aprovar — as contas aguardando a sua aprovação
 /doc — documentos da empresa (certidões, FGTS, contrato social, cartão CNPJ…) e arquivos das obras. Ex.: <i>/doc fgts</i>
+/avisos — para onde vai cada aviso automático (quais conversas do Telegram e quais e-mails)
 /lembretes — os seus lembretes (com botão para apagar)
 /lembrar — criar um lembrete. Exemplo: <i>/lembrar amanhã 9h pagar o aluguel</i>
 /relatorio — o relatório da semana passada (com PDF)
@@ -553,6 +568,7 @@ async function aoReceber(up) {
     case 'fornecedor': case 'forn': return mandar(chat, textoFornecedor(await dados(), await R.ler('fornecedores').catch(() => []), arg, hj));
     case 'buscar': case 'busca': case 'procurar': return mandar(chat, textoBuscar(await dados(), arg, hj));
     case 'receber': case 'areceber': return mandar(chat, textoReceber(await dados(), hj));
+    case 'avisos': case 'destinos': return mandar(chat, await textoAvisos(st));
     case 'lembretes': { const x = textoLembretes(st, ctx); return mandar(chat, x.texto, x.teclado); }
     case 'relatorio': case 'relatório': case 'semana': { await enviarRelatorio([meu], await dados(), hj); return; }
     case 'caixa': return mandar(chat, textoCaixa(RL.caixa(await dados(), hj)));
@@ -712,12 +728,12 @@ async function tick() {
 }
 
 // ── ligar o robô: aponta o Telegram para esta função (webhook com senha) e cadastra os comandos ──
-const VERSAO_BOT = '4';   // mude quando a lista de comandos mudar: o robô se recadastra sozinho na próxima tarefa
+const VERSAO_BOT = '5';   // mude quando a lista de comandos mudar: o robô se recadastra sozinho na próxima tarefa
 async function ligarRobo(st) {
   let eu;
   try { eu = await tg('getMe', {}); } catch (e) { throw new Error(e.codigo === 401 || e.codigo === 404 ? 'A chave do robô na Vercel não foi aceita pelo Telegram — confira se foi copiada inteira.' : e.message); }
   await tg('setWebhook', { url: URL_WEBHOOK, secret_token: segredoWebhook(), allowed_updates: ['message', 'callback_query'], drop_pending_updates: true, max_connections: 10 });
-  await tg('setMyCommands', { commands: [['hoje', 'Resumo do dia'], ['conta', 'Lançar uma conta (obra, rateio ou empresa)'], ['pagar', 'Dar baixa numa conta'], ['aprovar', 'Contas aguardando aprovação'], ['recebi', 'Registrar o recebimento de uma nota'], ['nota', 'Buscar nota fiscal (PDF e XML)'], ['doc', 'Documentos da empresa e das obras'], ['tarefa', 'Nova tarefa'], ['concluir', 'Marcar tarefa como feita'], ['reuniao', 'Marcar reunião'], ['diesel', 'Diesel da retroescavadeira'], ['contas', 'Contas a pagar'], ['receber', 'O que falta receber'], ['buscar', 'Procurar nas contas'], ['fornecedor', 'Ficha de um fornecedor (com PIX)'], ['obra', 'Ficha de uma obra'], ['agenda', 'Reuniões e tarefas'], ['aportes', 'Aportes do mês e do ano'], ['obras', 'Números das obras'], ['lembretes', 'Meus lembretes'], ['lembrar', 'Criar um lembrete'], ['relatorio', 'Relatório da semana (PDF)'], ['caixa', 'Caixa dos próximos 15 dias'], ['cobrar', 'Notas paradas para cobrar'], ['fechamento', 'Fechamento do mês'], ['chuva', 'Chuva amanhã nas obras'], ['cancelar', 'Desistir do que está pela metade'], ['ajuda', 'O que o robô faz']].map(([command, description]) => ({ command, description })) }).catch(() => {});
+  await tg('setMyCommands', { commands: [['hoje', 'Resumo do dia'], ['conta', 'Lançar uma conta (obra, rateio ou empresa)'], ['pagar', 'Dar baixa numa conta'], ['aprovar', 'Contas aguardando aprovação'], ['recebi', 'Registrar o recebimento de uma nota'], ['nota', 'Buscar nota fiscal (PDF e XML)'], ['doc', 'Documentos da empresa e das obras'], ['tarefa', 'Nova tarefa'], ['concluir', 'Marcar tarefa como feita'], ['reuniao', 'Marcar reunião'], ['diesel', 'Diesel da retroescavadeira'], ['contas', 'Contas a pagar'], ['receber', 'O que falta receber'], ['buscar', 'Procurar nas contas'], ['fornecedor', 'Ficha de um fornecedor (com PIX)'], ['obra', 'Ficha de uma obra'], ['agenda', 'Reuniões e tarefas'], ['aportes', 'Aportes do mês e do ano'], ['obras', 'Números das obras'], ['avisos', 'Para onde vão os avisos automáticos'], ['lembretes', 'Meus lembretes'], ['lembrar', 'Criar um lembrete'], ['relatorio', 'Relatório da semana (PDF)'], ['caixa', 'Caixa dos próximos 15 dias'], ['cobrar', 'Notas paradas para cobrar'], ['fechamento', 'Fechamento do mês'], ['chuva', 'Chuva amanhã nas obras'], ['cancelar', 'Desistir do que está pela metade'], ['ajuda', 'O que o robô faz']].map(([command, description]) => ({ command, description })) }).catch(() => {});
   await tg('setMyDescription', { description: 'Robô particular do sistema de gestão da Vixsul Empreendimentos: lança contas, dá baixa, busca notas, cria tarefas e reuniões, lê fotos de boletos e entende áudio.' }).catch(() => {});
   await gravarCfg(st, { bot: eu.username, bot_versao: VERSAO_BOT, bot_ligado_em: new Date().toISOString() });
 }

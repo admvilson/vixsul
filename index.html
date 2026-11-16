@@ -6,17 +6,22 @@
 <!-- instalar no celular como aplicativo (e abrir sem internet: sw.js) -->
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#1652D8">
-<link rel="apple-touch-icon" href="img/icone-192.png">
+<link rel="apple-touch-icon" sizes="180x180" href="img/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="32x32" href="img/favicon-32.png">
+<link rel="icon" type="image/png" sizes="64x64" href="img/favicon-64.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Vixsul">
-<script>if('serviceWorker' in navigator&&/^https:|^http:\/\/localhost/.test(location.href)&&!/__teste/.test(location.pathname))window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));</script>
+<meta name="application-name" content="Vixsul">
+<script>if('serviceWorker' in navigator&&/^https:|^http:\/\/localhost/.test(location.href)&&!/__teste/.test(location.pathname))window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
+// o pedido de instalação do Chrome/Edge/Samsung chega cedo: fica guardado para o botão "Instalar o app" (VxApp)
+window.addEventListener('beforeinstallprompt',e=>{window.__vxPedido=e;});window.addEventListener('appinstalled',()=>{window.__vxPedido=null;window.__vxInstalado=true;});</script>
 <!-- segurança do navegador: não manda o endereço completo para outros sites, não aceita plugins nem troca da base
      dos links, só envia formulários para o próprio sistema, e não deixa abrir o sistema dentro de outro site -->
 <meta name="referrer" content="strict-origin-when-cross-origin"/>
 <meta http-equiv="Content-Security-Policy" content="object-src 'none'; base-uri 'self'; form-action 'self'; upgrade-insecure-requests"/>
 <script>if(window.top!==window.self){try{window.top.location.replace(window.self.location.href);}catch(e){document.documentElement.style.display='none';}}</script>
 <title>Acesso</title>
-  <link rel="icon" type="image/png" href="data:image/png;base64,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">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" integrity="sha512-iecdLmaskl7CVkqkXNQ/ZH/XLlvWZOJyj7Yy7tcenmpD1ypASozpmT/E0iPtmFIB46ZmdtAc9eNBvH0H/ZpiBw==" crossorigin="anonymous" referrerpolicy="no-referrer">
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
@@ -747,6 +752,9 @@ input[type=checkbox]:disabled{opacity:.45;cursor:not-allowed;}
       <span style="color:var(--border)">•</span>
       <button type="button" class="login-link" onclick="Auth._pwOpen('alterar')">Alterar senha</button>
     </div>
+    <div style="text-align:center;margin-top:10px">
+      <button type="button" class="login-link" data-vx-app onclick="VxApp.instalar()"><i class="fas fa-mobile-screen-button" aria-hidden="true"></i> Instalar o app no celular</button>
+    </div>
 
     <div class="login-footer">
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
@@ -755,7 +763,42 @@ input[type=checkbox]:disabled{opacity:.45;cursor:not-allowed;}
   </div>
   <div class="login-copy">Copyright © <span id="login-copy-yr"></span> Vixsul Empreendimentos LTDA&nbsp;&nbsp;•&nbsp;&nbsp;CNPJ 64.518.375/0001-20</div>
 </div>
-<script>document.getElementById('login-copy-yr').textContent = new Date().getFullYear();</script>
+<script>document.getElementById('login-copy-yr').textContent = new Date().getFullYear();
+/* APP NO CELULAR — o sistema é um "app da web": no Android e no computador o botão abre a janela de instalação do próprio
+   navegador (o pedido guardado no <head>); no iPhone o Safari não tem essa janela, então a tela mostra o caminho
+   (Compartilhar › Adicionar à Tela de Início). Instalado, abre pelo ícone da Vixsul, em tela cheia, sem a barra do
+   navegador e sem passar pelo Google. Os botões com data-vx-app somem quando o sistema já está aberto como app. */
+window.VxApp=(function(){
+  const ua=navigator.userAgent||'',ios=/iphone|ipad|ipod/i.test(ua)||(/Macintosh/.test(ua)&&navigator.maxTouchPoints>1),android=/android/i.test(ua);
+  const emOutroApp=/FBAN|FBAV|Instagram|WhatsApp|GSA\/|Line\/|; wv\)/i.test(ua);   // navegador de dentro do app do Google, do WhatsApp…
+  const instalado=()=>!!window.__vxInstalado||navigator.standalone===true||!!(window.matchMedia&&['standalone','fullscreen','minimal-ui'].some(m=>matchMedia('(display-mode: '+m+')').matches));
+  const ENDERECO=location.origin+'/';
+  const lista=(t,l)=>`<div class="fin-resumo" style="margin-bottom:10px"><b>${t}</b><ol style="margin:8px 0 0 18px;padding:0;line-height:1.65">${l.map(x=>`<li>${x}</li>`).join('')}</ol></div>`;
+  function passos(){
+    const comp='<b>Compartilhar</b> (o quadrado com a seta para cima)';
+    if(ios&&/CriOS/i.test(ua))return lista('No Chrome do iPhone',[`Toque em ${comp}, ao lado do endereço.`,'Toque em <b>Adicionar à Tela de Início</b>.','Toque em <b>Adicionar</b>.']);
+    if(ios&&(emOutroApp||!/Safari/i.test(ua)||/FxiOS|EdgiOS/i.test(ua)))return lista('No iPhone, instale pelo Safari',['Toque em <b>Copiar o endereço</b> (aqui embaixo).','Abra o <b>Safari</b> (a bússola azul) e cole o endereço.',`Toque em ${comp}, embaixo da tela › <b>Adicionar à Tela de Início</b> › <b>Adicionar</b>.`]);
+    if(ios)return lista('No iPhone (Safari)',[`Toque em ${comp}, embaixo da tela.`,'Role a lista e toque em <b>Adicionar à Tela de Início</b>.','Toque em <b>Adicionar</b>, no canto de cima.']);
+    if(android&&emOutroApp)return lista('Abra no Chrome primeiro',['Você está no navegador de dentro de outro aplicativo (Google, WhatsApp…), e ele não instala.','Toque nos <b>3 pontinhos</b> (⋮) › <b>Abrir no Chrome</b> — ou copie o endereço aqui embaixo e cole no Chrome.','No Chrome: <b>3 pontinhos</b> (⋮) › <b>Instalar app</b> (ou <b>Adicionar à tela inicial</b> › <b>Instalar</b>).']);
+    if(android&&/SamsungBrowser/i.test(ua))return lista('No navegador da Samsung',['Toque no menu <b>☰</b> (embaixo, à direita).','Toque em <b>Adicionar página a</b> › <b>Tela inicial</b>.','Toque em <b>Adicionar</b>.']);
+    if(android)return lista('No Android (Chrome)',['Toque nos <b>3 pontinhos</b> (⋮), no canto de cima.','Toque em <b>Instalar app</b> (em alguns celulares: <b>Adicionar à tela inicial</b> › <b>Instalar</b>).','Toque em <b>Instalar</b>.']);
+    return lista('No computador (Chrome ou Edge)',['Clique no ícone de <b>instalar</b> (um monitor com uma seta), no fim da barra de endereço.','Ou no menu <b>⋮</b> › <b>Transmitir, salvar e compartilhar</b> › <b>Instalar página como app</b> (no Edge: <b>Aplicativos</b> › <b>Instalar este site como um aplicativo</b>).']);
+  }
+  async function instalar(){
+    try{if(window.UI&&UI._euMenu)UI._euMenu(false);}catch(e){}
+    if(instalado())return toast('O app já está instalado: abra pelo ícone da Vixsul na tela do aparelho.','success');
+    const ped=window.__vxPedido;
+    if(ped){window.__vxPedido=null;try{await ped.prompt();const r=await ped.userChoice;if(r&&r.outcome==='accepted'){toast('Instalando — o ícone da Vixsul vai aparecer na tela do aparelho.','success');return;}}catch(e){}}
+    const corpo=`<div style="display:flex;gap:12px;align-items:center;margin-bottom:12px"><img src="img/icone-192.png" alt="" width="56" height="56" style="border-radius:14px;box-shadow:0 1px 4px rgba(0,0,0,.18);flex:none"><div>O sistema vira um <b>aplicativo</b>: o ícone da Vixsul fica na tela do aparelho e abre direto, em tela cheia — sem passar pelo Google e sem a barra do navegador. No canteiro sem sinal, o diário fica guardado e envia depois.</div></div>${passos()}<div style="font-size:12px;color:var(--text-3)">Se o app pedir, entre com o seu CPF e a senha (como no navegador).</div>`;
+    const J=typeof Fin!=='undefined'&&Fin.util&&Fin.util.janela;
+    if(!J){alert(corpo.replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim());return;}
+    J('Instalar o app da Vixsul',corpo,[{html:'<i class="fas fa-copy"></i> Copiar o endereço',acao:async()=>{try{await navigator.clipboard.writeText(ENDERECO);toast('Endereço copiado: '+ENDERECO,'success');}catch(e){toast('Copie este endereço: '+ENDERECO);}return false;}}],520);
+  }
+  const mostrar=()=>document.querySelectorAll('[data-vx-app]').forEach(b=>{b.hidden=instalado();});
+  window.addEventListener('appinstalled',mostrar);
+  if(document.readyState!=='loading')mostrar();else document.addEventListener('DOMContentLoaded',mostrar);
+  return {instalar,instalado,mostrar,passos};
+})();</script>
 
 <!-- ═══════════════ MODAL SENHA (esqueci / alterar) ═══════════════ -->
 <div class="pw-overlay" id="pw-overlay">
@@ -889,6 +932,7 @@ input[type=checkbox]:disabled{opacity:.45;cursor:not-allowed;}
           <span class="vx-seta"></span>
         </button>
         <div class="vx-eu-menu" id="vx-eu-menu">
+          <button type="button" class="vx-eu-op" data-vx-app onclick="VxApp.instalar()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="2" width="12" height="20" rx="2.5"/><line x1="11" y1="18" x2="13" y2="18"/></svg>Instalar o app no celular</button>
           <button type="button" class="vx-eu-op" onclick="UI._euMenu(false);Auth._pwOpen('alterar')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="7.5" cy="15.5" r="5.5"/><path d="M21 2l-9.6 9.6M15.5 7.5l3 3L22 7l-3-3"/></svg>Alterar minha senha</button>
           <button type="button" class="vx-eu-op sair" onclick="Auth.logout()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>Sair do sistema</button>
         </div>
@@ -12654,6 +12698,105 @@ const Eng=(function(){
     ms.filter(m=>m.sent<0&&m.pago&&m.quem&&(!desde||(m.dataBaixa&&m.dataBaixa>=desde))).forEach(m=>{const k=cn(m.quem);tot[k]=(tot[k]||0)+m.valor;});
     return tot;
   }
+  /* FORNECEDORES REPETIDOS — o mesmo fornecedor com o nome um pouco diferente ("CASA DO CONSTRUTOR" × "CASA DO CONSTRUTOR LTDA",
+     "MADEREIRA SÃO JOSÉ" × "MADEIREIRA SAO JOSE"), com o mesmo CNPJ/CPF ou com o mesmo telefone/PIX. Os parecidos viram grupos;
+     "Unificar" fica com o cadastro marcado (completa o que faltava nele com o dos outros), passa as contas dos outros nomes
+     (custos das obras e despesas da empresa) para o nome dele e manda os outros cadastros para a Lixeira (dá para restaurar).
+     "Não são o mesmo" guarda a resposta (Planejamento, tipo forn_nao_dup) e o grupo não volta. Nome que só existe nas contas
+     (sem cadastro) entra no grupo do cadastro parecido e também passa para o nome escolhido. */
+  const baseForn=s=>cn(s).replace(/\b(?:ltda|me|epp|eireli|mei|sa|s a|cia|ss|slu|filial|matriz)\b/g,' ').replace(/\b(?:de|da|do|das|dos|e)\b/g,' ').replace(/\s+/g,' ').trim();
+  const digForn=s=>String(s==null?'':s).replace(/\D/g,'');
+  function distForn(a,b){if(a===b)return 0;const m=a.length,n=b.length;if(!m||!n)return m||n;let ant=Array.from({length:n+1},(_,j)=>j),cur=new Array(n+1);
+    for(let i=1;i<=m;i++){cur[0]=i;for(let j=1;j<=n;j++)cur[j]=Math.min(ant[j]+1,cur[j-1]+1,ant[j-1]+(a[i-1]===b[j-1]?0:1));[ant,cur]=[cur,ant];}return ant[n];}
+  // por que os dois parecem o mesmo fornecedor ('' = não parecem)
+  function motivoForn(a,b){
+    if(a.doc&&a.doc===b.doc)return 'mesmo CNPJ/CPF';
+    const x=a.base,y=b.base;
+    if(x&&y){
+      if(x===y)return 'mesmo nome';
+      const curto=x.length<=y.length?x:y,longo=curto===x?y:x;
+      if(curto.length>=6&&(longo.startsWith(curto+' ')||longo.endsWith(' '+curto)||(curto.includes(' ')&&longo.includes(curto))))return 'um nome contém o outro';
+      if(Math.min(x.length,y.length)>=6&&1-distForn(x,y)/Math.max(x.length,y.length)>=0.84)return 'nome quase igual';
+      const A=new Set(x.split(' ').filter(w=>w.length>=3)),B=new Set(y.split(' ').filter(w=>w.length>=3)),com=[...A].filter(w=>B.has(w)).length;
+      if(com>=2&&com/new Set([...A,...B]).size>=0.6)return 'nome parecido';
+    }
+    if(a.tel&&a.tel===b.tel)return 'mesmo telefone';
+    if(a.pix&&a.pix===b.pix)return 'mesma chave PIX';
+    return '';
+  }
+  const fornDaDesp=r=>r.fornecedor_beneficiario||r.fornecedor||'';
+  function itensForn(){
+    const uso=new Map(),conta=(nome,v)=>{nome=String(nome||'').trim();if(!nome)return;const k=cn(nome),u=uso.get(k)||{n:0,v:0,nome};u.n++;u.v+=v;uso.set(k,u);};
+    (D().custos||[]).forEach(r=>{if(cn(r.tipo_de_custo||r.tipo_custo||'Real')!=='real')return;conta(r.fornecedor,val(r.p_total||r.valor_total||r.valor));});
+    (D().despesas||[]).forEach(r=>{if(/previst/i.test(r.tipo_despesa||''))return;conta(fornDaDesp(r),val(r.valor||r.valor_total));});
+    const cad=(D().fornecedores||[]).filter(f=>String(f.nome||'').trim()),naCad=new Set(cad.map(f=>cn(f.nome)));
+    const L=cad.map(f=>{const tel=digForn(f.telefone),pix=cn(f.pix||'').replace(/\s/g,'');
+      return {f,nome:String(f.nome).trim(),k:cn(f.nome),base:baseForn(f.nome),doc:(d=>d.length>=11?d:'')(digForn(f.documento||f.cnpj)),tel:tel.length>=10?tel.slice(-10):'',pix:pix.length>=8?pix:'',uso:uso.get(cn(f.nome))||{n:0,v:0}};});
+    uso.forEach((u,k)=>{if(!naCad.has(k))L.push({f:null,nome:u.nome,k,base:baseForn(u.nome),doc:'',tel:'',pix:'',uso:u});});
+    return L;
+  }
+  function gruposForn(){
+    const L=itensForn(),pai=L.map((_,i)=>i),raiz=i=>pai[i]===i?i:(pai[i]=raiz(pai[i])),arestas=[],nao=new Set();
+    (D().planejamento||[]).filter(p=>p.tipo==='forn_nao_dup').forEach(p=>{const ks=(Array.isArray(p.nomes)?p.nomes:[]).map(cn).sort();for(let i=0;i<ks.length;i++)for(let j=i+1;j<ks.length;j++)nao.add(ks[i]+'|'+ks[j]);});
+    for(let i=0;i<L.length;i++)for(let j=i+1;j<L.length;j++){
+      if(!L[i].f&&!L[j].f)continue;   // dois nomes só das contas: o grupo precisa de um cadastro
+      if(nao.has([L[i].k,L[j].k].sort().join('|')))continue;
+      const m=motivoForn(L[i],L[j]);if(!m)continue;
+      arestas.push([i,m]);const a=raiz(i),b=raiz(j);if(a!==b)pai[a]=b;
+    }
+    const G=new Map(),mot=new Map();L.forEach((x,i)=>{const r=raiz(i);(G.get(r)||G.set(r,[]).get(r)).push(x);});
+    arestas.forEach(([i,m])=>{const r=raiz(i);(mot.get(r)||mot.set(r,new Set()).get(r)).add(m);});
+    const peso=x=>(x.f?1e6:0)+(x.doc?1e5:0)+x.uso.n;
+    return [...G.entries()].filter(([,g])=>g.length>1&&g.some(x=>x.f)).map(([r,g])=>({itens:g.sort((a,b)=>peso(b)-peso(a)||a.nome.localeCompare(b.nome,'pt-BR')),motivos:[...(mot.get(r)||[])]}))
+      .sort((a,b)=>b.itens.reduce((s,x)=>s+x.uso.n,0)-a.itens.reduce((s,x)=>s+x.uso.n,0));
+  }
+  async function unificarForn(g,ii){
+    const fica=g.itens[ii];if(!fica||!fica.f)throw new Error('Marque um fornecedor do cadastro para ficar.');
+    const outros=g.itens.filter((x,i)=>i!==ii),alvo=new Set(outros.map(x=>x.k)),cadOut=outros.filter(x=>x.f),nome=fica.f.nome;
+    const cs=(D().custos||[]).filter(r=>alvo.has(cn(r.fornecedor))),ds=(D().despesas||[]).filter(r=>alvo.has(cn(fornDaDesp(r))));
+    const sem=o=>{const x={...o};delete x.rowid;delete x.visualId;delete x._aba;return x;};
+    await executar(async()=>{
+      // 1) o cadastro que fica, completado com o que os outros tinham (CNPJ, telefone, PIX…) e com os nomes antigos anotados
+      const n=sem(fica.f);
+      ['documento','cnpj','tipo','contato','telefone','email','cidade','pix'].forEach(k=>{if(!String(n[k]||'').trim()){const de=cadOut.find(x=>String(x.f[k]||'').trim());if(de)n[k]=de.f[k];}});
+      const obs=cadOut.map(x=>String(x.f.observacao||'').trim()).filter(Boolean);if(obs.length)n.observacao=[String(n.observacao||'').trim()].concat(obs).filter(Boolean).join(' · ');
+      n.nomes_antigos=[...new Set(String(n.nomes_antigos||'').split(' | ').filter(Boolean).concat(outros.map(x=>x.nome)))].join(' | ');
+      await salvar('Fornecedores',n,fica.f.rowid);
+      // 2) as contas com os outros nomes passam para o nome que fica
+      for(let i=0;i<cs.length;i+=10)await Promise.all(cs.slice(i,i+10).map(r=>salvar('Custos',{...sem(r),fornecedor:nome},r.rowid)));
+      for(let i=0;i<ds.length;i+=10)await Promise.all(ds.slice(i,i+10).map(r=>salvar('Despesas',{...sem(r),['fornecedor_beneficiario' in r||!('fornecedor' in r)?'fornecedor_beneficiario':'fornecedor']:nome},r.rowid)));
+      // 3) os outros cadastros vão para a Lixeira (mesmo lote: o Restaurar traz todos juntos)
+      for(const x of cadOut)await excluir('Fornecedores',x.f.rowid);
+    });
+    return {contas:cs.length+ds.length,cad:cadOut.length,nome};
+  }
+  function verDupForn(){
+    if(!GS.ehAdm())return toast('Só o Administrador unifica fornecedores (as contas mudam de nome).','error');
+    let G=gruposForn(),conf=-1;
+    if(!G.length)return toast('Nenhum fornecedor repetido ou parecido. 👍','success');
+    const j=janela('Fornecedores repetidos?',`<div class="fin-resumo">Estes parecem ser o mesmo fornecedor (nome parecido, mesmo CNPJ/CPF, telefone ou PIX). Marque o cadastro que <b>fica</b> e toque em <b>Unificar</b>: as contas dos outros nomes passam para ele, o que faltava no cadastro (CNPJ, telefone, PIX…) é completado e os outros cadastros vão para a Lixeira (dá para restaurar em até 15 dias). Se não forem o mesmo, toque em <b>Não são o mesmo</b> — o grupo não volta a aparecer.</div><div data-fd-box style="display:flex;flex-direction:column;gap:10px;margin-top:10px;max-height:62vh;overflow:auto"></div>`,[],760);
+    const box=j.querySelector('[data-fd-box]');
+    const det=x=>[x.f&&(x.f.documento||x.f.cnpj)?'CNPJ/CPF '+fe(x.f.documento||x.f.cnpj):'',x.f&&x.f.telefone?'tel. '+fe(x.f.telefone):'',x.f&&x.f.pix?'PIX '+fe(x.f.pix):'',x.uso.n?`${x.uso.n} conta${x.uso.n>1?'s':''} · ${fmt(x.uso.v)}`:'sem contas'].filter(Boolean).join(' · ');
+    const desenhar=()=>{
+      box.innerHTML=G.length?G.map((g,gi)=>{const ki=g.itens.findIndex(x=>x.f);
+        return `<div style="border:1px solid var(--border);border-radius:10px;padding:10px 12px"><div style="font-size:12px;color:var(--text-3);margin-bottom:6px"><i class="fas fa-clone"></i> ${fe(g.motivos.join(' · ')||'parecidos')}</div>
+          ${g.itens.map((x,ii)=>`<label style="display:flex;gap:10px;align-items:flex-start;padding:5px 0;cursor:${x.f?'pointer':'default'}">${x.f?`<input type="radio" name="fd${gi}" value="${ii}" ${ii===ki?'checked':''} style="margin-top:3px">`:'<span style="font-size:11px;color:var(--text-3);min-width:13px">↳</span>'}<span style="display:flex;flex-direction:column"><b>${fe(x.nome)}</b><small style="color:var(--text-3)">${x.f?'':'só nas contas (sem cadastro) · '}${det(x)}</small></span></label>`).join('')}
+          <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;margin-top:6px">${conf===gi?`<span style="flex:1 1 220px;font-size:12px">Unificar agora? As contas mudam de nome e os outros cadastros vão para a Lixeira.</span><button type="button" class="fin-bt mini" data-fd="voltar" data-g="${gi}">Voltar</button><button type="button" class="fin-bt mini pri" data-fd="sim" data-g="${gi}"><i class="fas fa-check"></i> Sim, unificar</button>`
+            :`<button type="button" class="fin-bt mini" data-fd="nao" data-g="${gi}">Não são o mesmo</button><button type="button" class="fin-bt mini pri" data-fd="unir" data-g="${gi}"><i class="fas fa-code-merge"></i> Unificar no marcado</button>`}</div></div>`;}).join('')
+        :'<div class="fin-vazio">Pronto: nenhum fornecedor repetido para conferir agora. 👍</div>';
+    };
+    desenhar();
+    box.addEventListener('click',async ev=>{
+      const b=ev.target.closest('button[data-fd]');if(!b)return;const gi=+b.dataset.g,g=G[gi];if(!g)return;
+      if(b.dataset.fd==='unir'){conf=gi;return desenhar();}
+      if(b.dataset.fd==='voltar'){conf=-1;return desenhar();}
+      try{
+        if(b.dataset.fd==='nao'){await executar(()=>salvar('Planejamento',{tipo:'forn_nao_dup',nomes:g.itens.map(x=>x.nome),em:new Date().toISOString(),por:(Auth._session||{}).nome||'',data_lancamento:todayDateTime()},null));toast('Anotado: não são o mesmo fornecedor.','success');}
+        else{const sel=box.querySelector(`input[name="fd${gi}"]:checked`),r=await unificarForn(g,sel?+sel.value:g.itens.findIndex(x=>x.f));toast(`Unificado em ${r.nome}: ${r.contas} conta(s) mudaram de nome${r.cad?` e ${r.cad} cadastro(s) foram para a Lixeira`:''}.`,'success');}
+      }catch(e){toast((e&&e.message)||String(e),'error');}
+      conf=-1;G=gruposForn();desenhar();try{renderFornecedores();}catch(e){}
+    });
+  }
   const FO={busca:'',tipo:''};
   function renderFornecedores(){
     const box=document.getElementById('eng-fornecedores');if(!box)return;
@@ -12666,7 +12809,7 @@ const Eng=(function(){
     const totAno=top.reduce((s,x)=>s+x.v,0);
     App._fornLista=filtrada;
     box.innerHTML=`<div class="fin-wrap">
-      ${cab('Fornecedores','Cadastro de quem vende e presta serviço para a Vixsul. O total comprado é calculado sozinho a partir dos custos de obra e das despesas pagas com o mesmo nome do fornecedor — por isso vale escolher o fornecedor da lista ao lançar.',`<button type="button" class="fin-bt pri" data-fo="novo">+ Novo fornecedor</button>`)}
+      ${cab('Fornecedores','Cadastro de quem vende e presta serviço para a Vixsul. O total comprado é calculado sozinho a partir dos custos de obra e das despesas pagas com o mesmo nome do fornecedor — por isso vale escolher o fornecedor da lista ao lançar.',`${GS.ehAdm()?(()=>{let n=0;try{n=gruposForn().length;}catch(e){}return `<button type="button" class="fin-bt${n?' dup-on':''}" data-fo="dup" title="Procura o mesmo fornecedor cadastrado com nome parecido, mesmo CNPJ/CPF, telefone ou PIX — e unifica"><i class="fas fa-clone"></i> Verificar duplicados${n?` (${n})`:''}</button>`;})():''}<button type="button" class="fin-bt pri" data-fo="novo">+ Novo fornecedor</button>`)}
       <div class="fin-kpis">${kpi('','Fornecedores cadastrados',lista.length,`${ativos} ativo${ativos!==1?'s':''}`)}${kpi('verde','Comprado nos últimos 12 meses',fmt(totAno),`de ${top.length} fornecedor${top.length!==1?'es':''} cadastrado${top.length!==1?'s':''}`)}${kpi('laranja','Maior fornecedor (12 meses)',top[0]?fmt(top[0].v):'—',top[0]?fe(top[0].f.nome)+(totAno?' · '+Math.round(top[0].v/totAno*100)+'% do total':''):'nenhuma compra ligada ainda')}</div>
       <div class="fin-card"><div class="fin-card-cab"><input class="eng-busca" data-fo="busca" placeholder="Buscar nome, CNPJ, contato ou cidade…" value="${fe(FO.busca)}"><select class="filter-select" data-fo="tipo"><option value="">Todos os tipos</option>${TIPOS_FORN.map(t=>`<option ${FO.tipo===t?'selected':''}>${fe(t)}</option>`).join('')}</select></div>
       ${filtrada.length?`<div class="fin-rolar"><table class="fin-tab"><thead><tr><th>Fornecedor</th><th class="fin-esconder-cel">Tipo</th><th class="fin-esconder-cel">Contato</th><th class="fin-esconder-cel">Cidade</th><th class="num">Comprado (12 meses)</th><th></th></tr></thead><tbody>
@@ -12679,6 +12822,7 @@ const Eng=(function(){
       if(b.dataset.fo==='novo')formulario(CFG_FORN,null);
       else if(b.dataset.fo==='editar'&&f)formulario(CFG_FORN,f);
       else if(b.dataset.fo==='excluir'&&f)apagar(CFG_FORN,f,f.nome);
+      else if(b.dataset.fo==='dup')verDupForn();
     };
   }
   // Lista de fornecedores (datalist) para os campos de fornecedor do sistema.

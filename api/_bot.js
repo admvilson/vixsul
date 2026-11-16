@@ -523,9 +523,16 @@ function lerMaquininha(t) {
   const o = { tipo: 'cartao', pago: true, forma: /debito/.test(s) && !/credito/.test(s) ? 'Cartão de Débito' : 'Cartão de Crédito' };
   let m = s.match(/parcelad[oa][^\n\d]{0,25}(\d{1,2})\s*x|(\d{1,2})\s*x\s*(?:de|sem\s+juros|s\/\s*juros)|em\s+(\d{1,2})\s+parcelas/);
   if (m && o.forma === 'Cartão de Crédito') { const n = +(m[1] || m[2] || m[3]); if (n >= 2 && n <= 24) o.parcCartao = n; }
-  if ((m = String(t).match(/valor(?:\s+aprovado|\s+total|\s+da\s+(?:venda|compra|transa[çc][ãa]o))?\s*:?\s*(?:R\$)?\s*(\d{1,3}(?:\.\d{3})*,\d{2})/i))) o.valor = numBR(m[1]);
+  if ((m = String(t).match(/(?:valor(?:\s+aprovado|\s+total|\s+da\s+(?:venda|compra|transa[çc][ãa]o))?|(?<![\wÀ-ÿ])total)\s*:?\s*(?:R\$)?\s*(\d{1,3}(?:\.\d{3})*,\d{2})/i))) o.valor = numBR(m[1]);
   if ((m = String(t).match(/\b(\d{2})\/(\d{2})\/(\d{2}|\d{4})\b(?:\s+(?:[àa]s\s+)?\d{2}:\d{2})?/))) { const a = m[3].length === 2 ? '20' + m[3] : m[3], d = `${a}-${m[2]}-${m[1]}`; if (isoOk(d)) { o.data = d; o.dataPg = d; } }
+  const cf = cartaoFinalDe(t); if (cf) o.cartaoFinal = cf;
   return o;
+}
+// o final do cartão no comprovante ("CRÉDITO MASTERCARD 3434", "************3434", "final 3434")
+function cartaoFinalDe(t) {
+  const s = String(t || ''); let m;
+  if ((m = s.match(/(?:cr[ée]dito|d[ée]bito)\s+(?:mastercard|master|visa|elo|hipercard|hiper|amex|cabal|maestro)?\s*(?:[*xX•]{2,}\s*)?(\d{4})(?!\d)/i)) || (m = s.match(/[*xX•]{4,}\s*(\d{4})(?!\d)/)) || (m = s.match(/(?<![\wÀ-ÿ])final\s+(\d{4})(?!\d)/i))) return m[1];
+  return '';
 }
 // texto do PDF (boleto, DANFE, NFS-e, comprovante): linha digitável, PIX, chave, CNPJ, beneficiário, valor, datas e número
 function lerTextoDoc(txt) {
@@ -622,9 +629,10 @@ async function chatUm(m, mensagens, ms, max) {
 }
 const chatJson = (mensagens, lista, ms, max) => comModelos(lista, m => chatUm(m, mensagens, ms, max));
 const PEDIDO_FOTO = `Leia este documento de pagamento (boleto, nota fiscal/DANFE, cupom, recibo, comprovante de PIX ou transferência, comprovante da maquininha de cartão — a "via do cliente" —, conta de luz/água/telefone) e responda SÓ com um JSON neste formato:
-{"tipo":"boleto|nota|cupom|recibo|comprovante|cartao|conta_consumo|outro","fornecedor":"","cnpj_cpf":"","valor":0,"vencimento":"","data":"","pago":false,"forma":"","parcelas":1,"numero":"","descricao":"","linha_digitavel":"","chave":""}
+{"tipo":"boleto|nota|cupom|recibo|comprovante|cartao|conta_consumo|outro","fornecedor":"","cnpj_cpf":"","valor":0,"vencimento":"","data":"","pago":false,"forma":"","parcelas":1,"cartao_final":"","numero":"","descricao":"","linha_digitavel":"","chave":""}
 - fornecedor: quem RECEBE o dinheiro (beneficiário, emitente, loja, prestador ou o recebedor do PIX) — nunca o pagador, comprador ou tomador. Quem paga é a VIXSUL EMPREENDIMENTOS.
 - comprovante da maquininha (Cielo, Stone, Rede, GetNet, PagSeguro, Mercado Pago, SumUp, Ton…): tipo "cartao", pago true; fornecedor = o nome da LOJA (estabelecimento) impresso no comprovante — nunca a empresa da maquininha nem a bandeira do cartão (Visa, Master, Elo); forma "credito" ou "debito"; parcelas = número de parcelas (1 se for à vista); data = data da compra; valor = valor aprovado da compra.
+- cartao_final: os 4 últimos números do cartão que pagou, se aparecerem (ex.: "CRÉDITO MASTERCARD 3434" ou "************3434" → "3434").
 - cnpj_cpf: do fornecedor, só os números.
 - valor: o total a pagar (ou o valor pago), número com ponto decimal (ex.: 1234.56).
 - vencimento e data (emissão ou dia do pagamento): AAAA-MM-DD.
@@ -657,6 +665,7 @@ function normIA(j) {
     o.forma = /debito/.test(fm) ? 'Cartão de Débito' : 'Cartão de Crédito';
     const n = parseInt(j.parcelas, 10); if (o.forma === 'Cartão de Crédito' && n >= 2 && n <= 24) o.parcCartao = n;
   } else if (/^pix$/.test(fm)) o.forma = 'PIX'; else if (/dinheiro/.test(fm)) o.forma = 'Dinheiro';
+  const cf = s('cartao_final').replace(/\D/g, ''); if (cf.length >= 4 && /cart|credito|debito/.test(nrm(s('tipo') + ' ' + fm))) o.cartaoFinal = cf.slice(-4);
   if (o.forn && RE_MAQ.test(o.forn)) delete o.forn;   // a empresa da maquininha ou a bandeira não é o fornecedor
   const lin = s('linha_digitavel').replace(/\D/g, ''); if (lin) { const b = boletoDe(lin); if (b) Object.keys(b).forEach(k => { if (b[k] !== '' && b[k] !== 0 && b[k] != null) o[k] = b[k]; }); }
   const ch = s('chave').replace(/\D/g, ''); if (chaveOk(ch)) o.chave = ch;
@@ -774,7 +783,19 @@ async function nomePorCnpj(c) {
   try { const L = await leve('fornecedores', ['nome', 'cnpj', 'documento']); const x = L.find(y => String(y.cnpj || y.documento || '').replace(/\D/g, '') === c); if (x) return x.nome; } catch (e) { /* segue */ }
   try { const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), 6000); const r = await fetch('https://brasilapi.com.br/api/cnpj/v1/' + c, { signal: ctl.signal }); clearTimeout(t); if (!r.ok) return ''; const j = await r.json(); return maiusc(j.nome_fantasia || j.razao_social || ''); } catch (e) { return ''; }
 }
-// os sócios / investidores que já aportaram (os mais frequentes primeiro) — os botões do "Quem pagou?"
+// a pergunta do aporte, igual à da tela "Nova conta" (Pago com dinheiro do sócio? Sim/Não)
+const PERG_SOCIO = '<b>Pago com dinheiro do sócio?</b>\n• <b>Não</b>: saiu da empresa (conta, PIX ou cartão da empresa) — nada vai para o aporte.\n• <b>Sim</b>: um sócio pagou com o dinheiro dele (cartão, PIX ou conta pessoal) — entra no aporte dele quando você aprovar, e volta para ele na devolução dos aportes.\nToque (ou escreva o nome do sócio):';
+// os cartões que o robô já conhece: o final de 4 números → a empresa ('') ou o sócio dono do cartão (tabela "arquivos",
+// tipo telegram_cartoes). Aprende com a resposta do "Pago com dinheiro do sócio?" e não pergunta de novo para esse cartão.
+async function cartoesConhecidos() { const x = ((await sb('arquivos?select=id,row_data&row_data->>tipo=eq.telegram_cartoes&order=id.desc&limit=1').catch(() => [])) || [])[0]; return x ? { id: x.id, mapa: (x.row_data || {}).mapa || {} } : { id: null, mapa: {} }; }
+async function lembrarCartao(final, socio, quem) {
+  if (!/^\d{4}$/.test(String(final || ''))) return;
+  try {
+    const c = await cartoesConhecidos(), row = { tipo: 'telegram_cartoes', mapa: { ...c.mapa, [final]: { socio: String(socio || ''), por: quem || '', em: new Date().toISOString() } } };
+    if (c.id) await sb(`arquivos?id=eq.${q(c.id)}`, { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: { row_data: row } }); else await inserir('arquivos', row);
+  } catch (e) { /* só não lembra desta vez */ }
+}
+// os sócios / investidores que já aportaram (os mais frequentes primeiro) — os botões do "Pago com dinheiro do sócio?"
 async function sociosLista() {
   const L = await leve('aportes', ['quem_aportou', 'quem', 'movimento']), cont = new Map();
   L.forEach(a => { if (/retir|devolu/i.test(a.movimento || '')) return; const q = String(a.quem_aportou || a.quem || '').trim(); if (q) cont.set(q, (cont.get(q) || 0) + 1); });
@@ -938,7 +959,9 @@ module.exports = function criarRobo(io) {
     if (f.desc) L.push(`O que foi: ${esc(f.desc)}`);
     const o = ondeTxt(f); if (o) L.push(`Onde: ${o}`);
     if (f.catOk && f.cat) L.push(`Categoria: ${esc(f.cat)}`);
-    if (f.pago && f.socio != null) L.push(f.socio ? `Quem pagou: <b>${esc(f.socio)}</b> (sócio — entra no aporte quando você aprovar)` : 'Quem pagou: a empresa');
+    // o mesmo "Pago com dinheiro do sócio? Sim/Não" da tela Nova conta: Não = nada no aporte; Sim = aporte do sócio na aprovação
+    if (f.pago && f.socio != null) L.push(f.socio ? `Pago com dinheiro do sócio: <b>Sim — ${esc(f.socio)}</b> (entra no aporte dele quando você aprovar)` : `Pago com dinheiro do sócio: <b>Não</b> — dinheiro da empresa${f.socioCartao && f.cartaoFinal ? ` (o cartão final ${esc(f.cartaoFinal)} é da empresa)` : ''}`);
+    else if (f.cartaoFinal) L.push(`Cartão final ${esc(f.cartaoFinal)}`);
     if (f.pagoOk) L.push(cartaoParc(f) ? `Pagamento: <b>cartão de crédito em ${n}x</b> (compra em ${brAno(f.pago)})` : f.pago ? `Pagamento: <b>pago em ${brAno(f.pago)}</b>` : 'Pagamento: a pagar');
     if (cartaoParc(f)) L.push('Parcelas: ' + parcelasConta(f).map(p => `${R.br(p.venc)} ${reais(p.valor)}${p.pago ? ' (paga)' : ''}`).join(' · '));
     else if (!f.pago && n > 1 && (f.venc || f.usarParcelas)) L.push('Parcelas: ' + parcelasConta(f).map(p => `${R.br(p.venc)} ${reais(p.valor)}`).join(' · '));
@@ -973,8 +996,8 @@ module.exports = function criarRobo(io) {
       perg = 'Qual a <b>categoria</b>?'; kb = grade(ord.map(c => B((c === g ? '✓ ' : '') + c, 'c', cats.indexOf(c))), emp ? 2 : 1);
     }
     else if (p === 'socio') {
-      perg = '<b>Quem pagou?</b> Se foi um sócio com o dinheiro dele (cartão, PIX ou conta pessoal), o valor entra no aporte dele quando você aprovar a conta. Toque ou escreva o nome:';
-      kb = [[B('🏢 A empresa (conta da empresa)', 'so', 'e')]].concat(grade((f.socios || []).map((s, i) => B('👤 ' + corta(s, 28), 'so', i)), 2));
+      perg = PERG_SOCIO + (f.cartaoFinal ? `\n<i>Cartão final ${esc(f.cartaoFinal)}: a resposta fica guardada para os próximos comprovantes desse cartão.</i>` : '');
+      kb = [[B('❌ Não — dinheiro da empresa', 'so', 'e')]].concat(grade((f.socios || []).map((s, i) => B('✅ Sim — ' + corta(s, 24), 'so', i)), 1));
     }
     else if (p === 'pago') { perg = '<b>Já foi paga?</b>'; kb = [[B('✅ Já paguei hoje', 'p', 'h')], [B('📅 Paguei em outro dia', 'p', 'o')], [B('⏳ Ainda não — fica a pagar', 'p', 'n')]]; }
     else if (p === 'pagoem') { perg = 'Em que dia foi pago? Escreva a data (ex.: 12/11) ou toque:'; kb = [[B('Ontem', 'p', 'y'), B('Anteontem', 'p', 'a')], [B('← Voltar', 'p', 'b')]]; }
@@ -983,7 +1006,7 @@ module.exports = function criarRobo(io) {
     else if (p === 'forma') { perg = '<b>Forma de pagamento</b>?'; kb = grade(FORMAS.map((x, i) => B(x, 'f', i)), 2); kb.push([B('Pular', 'f', 's')]); }
     else if (p === 'mudar') {
       perg = 'O que você quer mudar?';
-      const L = [['Valor', 'valor'], ['Fornecedor', 'forn'], ['O que foi', 'desc'], ['Obra / empresa', 'onde'], ['Categoria', 'cat'], ['Pagamento', 'pago']].concat(f.pago ? [['Quem pagou', 'socio']] : []).concat(f.pago ? []: [['Vencimento', 'venc']]).concat([['Forma', 'forma']]);
+      const L = [['Valor', 'valor'], ['Fornecedor', 'forn'], ['O que foi', 'desc'], ['Obra / empresa', 'onde'], ['Categoria', 'cat'], ['Pagamento', 'pago']].concat(f.pago ? [['Dinheiro do sócio?', 'socio']] : []).concat(f.pago ? []: [['Vencimento', 'venc']]).concat([['Forma', 'forma']]);
       kb = grade(L.map(([t, k]) => B(t, 'mx', k)), 2); kb.push([B('← Voltar', 'mx', 'conf')]);
     }
     else if (p === 'conf') { if (f.aviso) perg = '⚠️ ' + esc(f.aviso); kb = [[B(f.aviso ? '✅ Lançar mesmo assim' : '✅ Lançar a conta', 'k')], [B('✏️ Mudar algo', 'm'), B('❌ Cancelar', 'x')]]; }
@@ -1013,6 +1036,8 @@ module.exports = function criarRobo(io) {
   async function prepararConta(f) {
     const p = passoConta(f);
     if (p === 'onde') { await carregarLista(f); if (!f.listaR) await carregarRateio(f); }
+    // cartão já conhecido (o final dele): a resposta do "Pago com dinheiro do sócio?" vem da memória (dá para mudar no ✏️)
+    if (p === 'socio' && f.cartaoFinal && !f.cartaoVisto) { f.cartaoVisto = true; const m = (await cartoesConhecidos()).mapa[f.cartaoFinal]; if (m) { f.socio = m.socio || ''; f.socioCartao = true; return prepararConta(f); } }
     if (p === 'socio' && !f.socios) f.socios = await sociosLista().catch(() => []);
     if ((p === 'rateio' || f.onde === 'rateio') && !f.orcV) await carregarRateio(f);
     if (passoConta(f) === 'conf' && f.aviso == null) f.aviso = await duplicada(f);
@@ -1068,7 +1093,12 @@ module.exports = function criarRobo(io) {
     }
     else if (p === 'rateio') { const L = obrasNoTexto(t, await obrasAtivas()).filter(o => (f.orcV || {})[o.nome]); if (!L.length) { if (outro()) return false; await mandar(ctx.chat, 'Marque as obras nos botões do cartão acima.'); return true; } f.obras = [...new Set((f.obras || []).concat(L.map(o => o.nome)))]; f.passo = 'rateio'; }
     else if (p === 'cat') { const cats = f.onde === 'empresa' ? CATD : CATC, c = cats.find(x => cn(x) === cn(t)) || (cn(t).length >= 3 && cats.find(x => cn(x).startsWith(cn(t)))); if (!c) { if (outro()) return false; await mandar(ctx.chat, 'Toque numa das categorias do cartão acima.'); return true; } f.cat = c; f.catOk = true; }
-    else if (p === 'socio') { const s = nrm(t).trim(); if (/^(?:a\s+)?empresa\b|^n[aã]o\b|^ningu[eé]m|^vixsul$/.test(s)) f.socio = ''; else { if (outro()) return false; f.socio = acharSocio(t, f.socios || []); } }
+    else if (p === 'socio') {
+      const s = nrm(t).trim();
+      if (/^(?:a\s+)?empresa\b|^n[aã]o\b|^ningu[eé]m|^vixsul$|dinheiro\s+da\s+empresa/.test(s)) f.socio = '';
+      else { if (outro()) return false; f.socio = acharSocio(t.replace(/^\s*sim\b[\s,.:-]*/i, ''), f.socios || []); if (!f.socio) { await mandar(ctx.chat, 'Escreva o nome do sócio que pagou (ou toque em “Não — dinheiro da empresa”).'); return true; } }
+      f.socioCartao = false; if (f.cartaoFinal) await lembrarCartao(f.cartaoFinal, f.socio, ctx.usuario);
+    }
     else if (p === 'forma') { const fm = FORMAS.find(x => cn(x) === cn(t)) || formaDe(' ' + t + ' ').forma; if (!fm) { if (outro()) return false; await mandar(ctx.chat, 'Toque numa das formas do cartão acima (ou em Pular).'); return true; } f.forma = fm; f.formaOk = true; }
     else return false;
     if (p !== 'rateio') f.passo = null;
@@ -1100,7 +1130,7 @@ module.exports = function criarRobo(io) {
     else if (a === 'v') { f.venc = R.somaDias(hj, +x || 0); f.passo = null; }
     else if (a === 'f') { f.forma = x === 's' ? '' : (FORMAS[+x] || ''); f.formaOk = true; f.passo = null; }
     else if (a === 'pc') { f.usarParcelas = x === 's'; f.passo = null; }
-    else if (a === 'so') { if (x === 'e') f.socio = ''; else { const s = (f.socios || [])[+x]; if (!s) return ok(); f.socio = s; } f.passo = null; }
+    else if (a === 'so') { if (x === 'e') f.socio = ''; else { const s = (f.socios || [])[+x]; if (!s) return ok(); f.socio = s; } f.passo = null; f.socioCartao = false; if (f.cartaoFinal) await lembrarCartao(f.cartaoFinal, f.socio, ctx.usuario); }
     else if (a === 'sf') { if (x === 'w') { f.forn = f.sugDe; f.fornNovo = true; } else { const n = (f.sug || [])[+x]; if (!n) return ok(); f.forn = n; f.fornNovo = false; } f.sug = null; f.passo = null; }
     else if (a === 'sd') { const n = (f.sugD || [])[+x]; if (n) { f.desc = n; if (!f.catOk) f.cat = chutarCat(n, f.onde === 'empresa'); } f.passo = null; }
     else if (a === 'm') f.passo = 'mudar';
@@ -1129,7 +1159,7 @@ module.exports = function criarRobo(io) {
       parcs.forEach((p, i) => {
         const c = n > 1 ? (i < n - 1 ? Math.round(tot * p.valor / somaP) : tot - ac) : tot; ac += c; if (!c) return;
         const v = c / 100, desc = f.desc + (n > 1 ? ` (${i + 1}/${n})` : ''), venc = n > 1 ? p.venc : (f.venc || f.pago || hj), pago = p.pago != null ? p.pago : n > 1 ? '' : (f.pago || '');
-        const obs = [f.num ? 'Nota/recibo nº ' + f.num : '', rid ? `Rateio: ${pctTxt(d.pct)} de ${reais(f.valor)} (pelo orçamento)` : '', cartaoParc(f) ? `Cartão de crédito em ${n}x (compra em ${brAno(f.pago)})` : '', f.maquininha ? 'Comprovante da maquininha' : '', socio ? `Pago por ${socio} (sócio) — entra no aporte quando a conta for aprovada` : '', 'Lançada pelo Telegram'].filter(Boolean).join(' · ');
+        const obs = [f.num ? 'Nota/recibo nº ' + f.num : '', rid ? `Rateio: ${pctTxt(d.pct)} de ${reais(f.valor)} (pelo orçamento)` : '', cartaoParc(f) ? `Cartão de crédito em ${n}x (compra em ${brAno(f.pago)})` : '', f.maquininha ? 'Comprovante da maquininha' : '', f.cartaoFinal ? 'Cartão final ' + f.cartaoFinal : '', socio ? `Pago por ${socio} (sócio) — entra no aporte quando a conta for aprovada` : '', 'Lançada pelo Telegram'].filter(Boolean).join(' · ');
         const extra = { compra_id: compra, data_compra: isoOk(f.dataDoc) && f.dataDoc <= hj ? f.dataDoc : hj, ...(rid ? { rateio_id: rid } : {}), ...(n > 1 ? { grupo_parcelas: `gp${f.fid}_0_${di}` } : {}) };
         if (d.obra === EMP) out.push({ t: 'despesas', row: { data_lancamento: agora, tipo_despesa: 'Real', data_despesa: venc, categoria: f.cat, descricao: desc, fornecedor_beneficiario: f.forn, status_pagamento: pago ? 'Pago' : 'Pendente', data_pagamento: pago, valor: dinheiro(v), observacao: obs, forma_pagamento: f.forma || '', ...extra, ...aprov, ...dono } });
         else out.push({ t: 'custos', row: { titulo_obra: d.obra, data_lancamento: agora, tipo_de_custo: 'Real', tipo: f.cat, descricao: desc, fornecedor: f.forn, fator: 'UN', qtd: '1.00', p_unit: dinheiro(v), p_total: dinheiro(v), vencimento: venc, data_pgto: pago, observacao: obs, forma_pagamento: f.forma || '', ...extra, ...aprov, ...dono } });
@@ -1190,7 +1220,7 @@ module.exports = function criarRobo(io) {
     if (d.forn) P.push(corta(d.forn, 40));
     if (d.venc) P.push('vence ' + brAno(d.venc));
     if ((d.parcelas || []).length > 1) P.push(d.parcelas.length + ' parcelas');
-    if (d.tipo === 'cartao') P.push((d.forma === 'Cartão de Débito' ? 'débito' : 'crédito' + (d.parcCartao >= 2 ? ` em ${d.parcCartao}x` : ' à vista')) + (isoOk(d.data) ? ' · compra em ' + brAno(d.data) : ''));
+    if (d.tipo === 'cartao') P.push((d.forma === 'Cartão de Débito' ? 'débito' : 'crédito' + (d.parcCartao >= 2 ? ` em ${d.parcCartao}x` : ' à vista')) + (d.cartaoFinal ? ' · cartão final ' + d.cartaoFinal : '') + (isoOk(d.data) ? ' · compra em ' + brAno(d.data) : ''));
     else if (d.pago) P.push('já pago');
     const de = lido.fonte === 'XML' ? `no XML${d.tipo === 'nfe' ? ' da NF-e' : d.tipo === 'nfce' ? ' da NFC-e' : d.tipo === 'nfse' ? ' da NFS-e' : d.tipo === 'cte' ? ' do CT-e' : ''}${d.numero ? ' ' + d.numero : ''}`
       : lido.fonte === 'PDF' ? (d.tipo === 'boleto' ? 'na linha digitável do boleto (PDF)' : 'no PDF')
@@ -1221,7 +1251,8 @@ module.exports = function criarRobo(io) {
     if ((d.parcelas || []).length > 1) c.parcelas = d.parcelas.filter(p => isoOk(p.venc) && p.valor > 0).slice(0, 24);
     if (d.pago) { c.pago = [d.dataPg, d.data].find(x => isoOk(x) && x <= hj) || hj; c.pagoOk = true; }
     if (d.forma) { c.forma = d.forma; c.formaOk = true; }
-    if (d.tipo === 'cartao') { c.maquininha = true; if (d.parcCartao >= 2) c.nParc = d.parcCartao; }
+    if (d.cartaoFinal) c.cartaoFinal = d.cartaoFinal;
+    if (d.tipo === 'cartao') { c.maquininha = true; if(d.parcCartao >= 2) c.nParc = d.parcCartao; }
     if (cap) {
       const socios = await sociosLista().catch(() => []), x = lerFrase(cap, obras, hj, socios);
       ['onde', 'obra', 'obras', 'candidatas', 'pago', 'pagoOk', 'forma', 'formaOk', 'venc', 'nParc', 'socio'].forEach(k => { if (x[k] !== undefined) c[k] = x[k]; }); if (x.desc && !c.desc) c.desc = x.desc; if (x.forn) c.forn = x.forn; if (x.valor > 0 && !c.valor) c.valor = x.valor; if (x.num && !c.num) c.num = x.num;
@@ -1421,9 +1452,9 @@ module.exports = function criarRobo(io) {
     if (f.passo === 'data') return { texto: cab + '\n\nEm que dia foi pago? Escreva a data (ex.: 12/11) ou toque:', teclado: [[B('Hoje', 'bd', 0), B('Ontem', 'bd', 1), B('Anteontem', 'bd', 2)], [B('← Voltar', 'bd', 'f')]] };
     // quem pagou: a empresa ou um sócio (cartão, PIX ou conta pessoal) — o do sócio vira aporte quando a baixa for aprovada
     if (f.passo === 'socio') {
-      const kb = (x.ps ? [[B('👤 ' + corta(x.ps, 26) + ' (combinado)', 'bq', 'p')]] : []).concat([[B('🏢 A empresa (conta da empresa)', 'bq', 'e')]],
-        grade((f.socios || []).map((s, i) => [s, i]).filter(([s]) => cn(s) !== cn(x.ps || '')).map(([s, i]) => B('👤 ' + corta(s, 28), 'bq', i)), 2), [[B('← Voltar', 'bd', 'f'), B('❌ Cancelar', 'x')]]);
-      return { texto: cab + `\n\nPago em <b>${brAno(f.data)}</b> · ${esc(f.forma || '')}.\n<b>Quem pagou?</b> Se foi um sócio (cartão, PIX ou conta pessoal), o valor entra no aporte dele quando você aprovar. Toque ou escreva o nome:`, teclado: kb };
+      const kb = (x.ps ? [[B('✅ Sim — ' + corta(x.ps, 22) + ' (combinado)', 'bq', 'p')]] : []).concat([[B('❌ Não — dinheiro da empresa', 'bq', 'e')]],
+        grade((f.socios || []).map((s, i) => [s, i]).filter(([s]) => cn(s) !== cn(x.ps || '')).map(([s, i]) => B('✅ Sim — ' + corta(s, 24), 'bq', i)), 1), [[B('← Voltar', 'bd', 'f'), B('❌ Cancelar', 'x')]]);
+      return { texto: cab + `\n\nPago em <b>${brAno(f.data)}</b> · ${esc(f.forma || '')}.\n${PERG_SOCIO}`, teclado: kb };
     }
     const fm = f.forma || x.forma;
     return { texto: cab + `\n\nPago em <b>${brAno(f.data)}</b>. Como foi pago?`, teclado: grade(FORMAS.map((m, i) => B((m === fm ? '✓ ' : '') + m, 'bf', i)), 2).concat([[B('📅 Foi em outro dia', 'bd', 'o')], [B('← Outra conta', 'bd', 'l'), B('❌ Cancelar', 'x')]]) };
@@ -1453,8 +1484,8 @@ module.exports = function criarRobo(io) {
     if (f.passo === 'lista') { const n = parseInt(t, 10); if (/^\d{1,2}$/.test(t.trim()) && f.itens[n - 1]) { f.sel = n - 1; f.passo = 'forma'; await mostrar(ctx, f); return true; } if (intencao(t) || /\?\s*$/.test(t)) return false; await iniciarBaixa(ctx, t, 0); return true; }
     if (f.passo === 'socio') {
       const s = nrm(t).trim();
-      if (/^(?:a\s+)?empresa\b|^n[aã]o\b|^ningu[eé]m|^vixsul$/.test(s)) f.socio = '';
-      else { if (intencao(t) || /\?\s*$/.test(t) || t.length > 60) return false; f.socio = acharSocio(t, f.socios || []); }
+      if (/^(?:a\s+)?empresa\b|^n[aã]o\b|^ningu[eé]m|^vixsul$|dinheiro\s+da\s+empresa/.test(s)) f.socio = '';
+      else { if (intencao(t) || /\?\s*$/.test(t) || t.length > 60) return false; f.socio = acharSocio(t.replace(/^\s*sim\b[\s,.:-]*/i, ''), f.socios || []); if (!f.socio) { await mandar(ctx.chat, 'Escreva o nome do sócio que pagou (ou toque em “Não — dinheiro da empresa”).'); return true; } }
       await aplicarBaixa(ctx, f, f.forma); return true;
     }
     return false;
@@ -2099,7 +2130,7 @@ module.exports = function criarRobo(io) {
   return { comando, texto, textoIA: (ctx, t) => GROQ ? porIA(ctx, t) : false, botao, botaoEmail, arquivo, audio, limpar, caixaEmail, infoCaixa, temGroq: () => !!GROQ, estadoGroq, testarGroq, temGmail: () => !!(G_USER && G_PASS) };
 };
 // para os testes (funções que não falam com ninguém)
-module.exports.teste = { chatJson, chatUm, testarGroq, wavMudo, lerMaquininha, modelosDe, estadoGroq, semOi, quemPagou, promptVoz, transcreverDet, cnpjOk, numBR, valorDe, dataDe, horaDe, formaDe, fornDe, trechoObra, obrasNoTexto, chutarCat, limparDesc, lerFrase, lerTarefa, lerReuniao, lerDiesel, intencao, numerosPorExtenso, lerPix, crc16, boletoDe, acharBoleto, chaveOk, acharChave, lerCodigo, lerXml, lerTextoDoc, normIA, qrDaImagem, textoPdf, somaMes, isoOk, tipoAcao, tipoReu, dataFator };
+module.exports.teste = { chatJson, chatUm, testarGroq, wavMudo, lerMaquininha, cartaoFinalDe, modelosDe, estadoGroq, semOi, quemPagou, promptVoz, transcreverDet, cnpjOk, numBR, valorDe, dataDe, horaDe, formaDe, fornDe, trechoObra, obrasNoTexto, chutarCat, limparDesc, lerFrase, lerTarefa, lerReuniao, lerDiesel, intencao, numerosPorExtenso, lerPix, crc16, boletoDe, acharBoleto, chaveOk, acharChave, lerCodigo, lerXml, lerTextoDoc, normIA, qrDaImagem, textoPdf, somaMes, isoOk, tipoAcao, tipoReu, dataFator };
 module.exports.GROQ = () => !!GROQ;
 // o que o telegram.js usa para as consultas (/obra, /fornecedor, /buscar)
 module.exports.util = { cn, corta, valorDe, obrasNoTexto, semOi };
