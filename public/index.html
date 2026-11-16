@@ -764,6 +764,22 @@ input[type=checkbox]:disabled{opacity:.45;cursor:not-allowed;}
   <div class="login-copy">Copyright © <span id="login-copy-yr"></span> Vixsul Empreendimentos LTDA&nbsp;&nbsp;•&nbsp;&nbsp;CNPJ 64.518.375/0001-20</div>
 </div>
 <script>document.getElementById('login-copy-yr').textContent = new Date().getFullYear();
+/* PERGUNTA SIM/NÃO NO VISUAL DO SISTEMA — no lugar da caixa nativa do navegador ("… diz" com OK/Cancelar), que não segue
+   o visual do sistema. vxPergunta(título, texto, rótulo do Sim, rótulo do Não) → Promise<true|false>. Fica por cima de
+   tudo (até de outra janela aberta, que continua lá embaixo). Esc ou o X = Não; Enter = Sim. */
+window.vxPergunta=function(titulo,texto,sim,nao){
+  return new Promise(ok=>{
+    const esc=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    const ov=document.createElement('div');ov.className='vx-perg-ov';ov.setAttribute('role','dialog');ov.setAttribute('aria-modal','true');
+    ov.innerHTML=`<div class="vx-perg"><div class="vx-perg-cab"><b>${esc(titulo||'Confirme')}</b><button type="button" class="fin-x" data-vp="nao" aria-label="Fechar" title="Fechar"><i class="fas fa-xmark" aria-hidden="true"></i></button></div>
+      <div class="vx-perg-corpo">${texto||''}</div><div class="vx-perg-pe"><button type="button" class="fin-bt" data-vp="nao">${esc(nao||'Não')}</button><button type="button" class="fin-bt pri" data-vp="sim">${esc(sim||'Sim')}</button></div></div>`;
+    let feito=false;const fim=v=>{if(feito)return;feito=true;document.removeEventListener('keydown',tecla,true);ov.remove();ok(v);};
+    const tecla=e=>{if(e.key==='Escape'){e.preventDefault();e.stopPropagation();fim(false);}else if(e.key==='Enter'){e.preventDefault();e.stopPropagation();fim(true);}};
+    ov.addEventListener('click',e=>{const b=e.target.closest('[data-vp]');if(b)fim(b.dataset.vp==='sim');});
+    document.addEventListener('keydown',tecla,true);document.body.appendChild(ov);
+    setTimeout(()=>{const b=ov.querySelector('[data-vp="sim"]');if(b)b.focus();},30);
+  });
+};
 /* APP — instalar com o menor número de toques (o sistema é um "app da web": grátis, sem loja de aplicativos):
    • Android e computador (Chrome, Edge, Samsung): o botão já abre a pergunta do próprio aparelho, "Instalar app?" › Instalar.
      O navegador só libera essa pergunta depois de a pessoa ficar uns segundos na página: até lá o botão espera
@@ -822,7 +838,7 @@ window.VxApp=(function(){
   }
   function abrir(){
     const J=typeof Fin!=='undefined'&&Fin.util&&Fin.util.janela;
-    if(!J){alert('Para instalar o app da Vixsul, abra: '+LINK);return;}
+    if(!J){vxPergunta('Instalar o app da Vixsul','Para instalar, abra este endereço no celular:<br><b>'+LINK+'</b>','Entendi','Fechar');return;}
     const html=`<div data-vxa-caixa><div style="display:flex;gap:12px;align-items:center;margin-bottom:12px"><img src="img/vixsul-app-192.png" alt="" width="56" height="56" style="flex:none"><div>O sistema vira um <b>aplicativo</b>: o ícone da Vixsul fica na tela e abre direto, em tela cheia — sem Google e sem a barra do navegador. No canteiro sem sinal, o diário fica guardado e envia depois.</div></div><div data-vxa-corpo></div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;padding-top:10px;border-top:1px solid var(--border)">${peq('copiar','<i class="fas fa-copy"></i> Copiar o link')}${peq('mandar','<i class="fas fa-share-nodes"></i> Mandar o link para a equipe')}</div></div>`;
     const j=J('Instalar o app da Vixsul',html,[],520);
@@ -10913,6 +10929,14 @@ window.onload=()=>{
 .fin-jan-corpo{padding:16px 22px;overflow-y:auto;display:flex;flex-direction:column;gap:12px;}
 .fin-jan-pe{display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:8px;padding:12px 22px 18px;border-top:1px solid var(--border);}
 .fin-jan-pe .fin-bt{max-width:100%;}
+/* a pergunta Sim/Não do sistema (vxPergunta) — mesmo visual das janelas, por cima de tudo */
+.vx-perg-ov{position:fixed;inset:0;z-index:10050;background:rgba(0,0,0,.42);display:flex;align-items:center;justify-content:center;padding:20px;}
+.vx-perg{background:#fff;border-radius:18px;width:100%;max-width:440px;box-shadow:0 24px 64px -12px rgba(16,24,40,.32),0 0 0 1px rgba(16,24,40,.04);display:flex;flex-direction:column;}
+.vx-perg-cab{display:flex;align-items:center;justify-content:space-between;padding:18px 22px 12px;border-bottom:1px solid var(--border);}
+.vx-perg-cab b{font-size:17px;font-weight:800;color:var(--text-1);}
+.vx-perg-corpo{padding:16px 22px;font-size:14px;line-height:1.5;color:var(--text-2);}
+.vx-perg-pe{display:flex;justify-content:flex-end;flex-wrap:wrap;gap:8px;padding:12px 22px 18px;border-top:1px solid var(--border);}
+@media (max-width:640px){.vx-perg-ov{padding:12px 8px;}}
 .fin-jan-erro{flex:1 1 100%;font-size:12px;color:var(--red);font-weight:600;text-align:right;} .fin-jan-erro:empty{display:none;}
 .fin-jan-corpo>*{min-width:0;} #fin-jan [hidden]{display:none!important;}
 .fin-fld label{display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text-2);margin-bottom:5px;}
@@ -12922,7 +12946,9 @@ const Eng=(function(){
   const DC={obra:'',sit:''};
   function renderDocumentos(){
     const box=document.getElementById('eng-documentos');if(!box)return;
-    const todos=(D().documentos||[]).map(d=>({d,s:situacaoDoc(d)}));
+    // os aditivos de contrato moram na mesma tabela, mas só aparecem na aba Contrato da obra
+    const todos=(D().documentos||[]).filter(d=>d.tipo!=='Aditivo contratual').map(d=>({d,s:situacaoDoc(d)}));
+    if(DC.sit==='adt')DC.sit='';
     const lista=todos.filter(x=>(!DC.obra||(DC.obra==='__empresa'?!x.d.titulo_obra:x.d.titulo_obra===DC.obra))&&(!DC.sit||(DC.sit==='venc'?x.s.ord===0:DC.sit==='breve'?(x.s.dias!=null&&x.s.dias>=0&&x.s.dias<=30):DC.sit==='adt'?!!x.s.adt:x.s.tom==='verde')))
       .sort((a,b)=>a.s.ord-b.s.ord||((a.s.dias==null?9e9:a.s.dias)-(b.s.dias==null?9e9:b.s.dias)));
     const venc=todos.filter(x=>x.s.ord===0).length,breve=todos.filter(x=>x.s.dias!=null&&x.s.dias>=0&&x.s.dias<=30).length;
@@ -12931,7 +12957,7 @@ const Eng=(function(){
       ${cab('Documentos e certidões','Certidões negativas, seguros, ART, licenças e contratos, com a validade de cada um. Em obra pública, certidão vencida trava a medição e o pagamento — o sistema avisa no Dashboard 15 dias antes de vencer.',`<button type="button" class="fin-bt" data-dc="pdf"><i class="fas fa-file-pdf"></i> Exportar PDF</button><button type="button" class="fin-bt pri" data-dc="novo">+ Novo documento</button>`)}
       <div class="fin-kpis">${kpi(venc?'vermelho':'verde','Vencidos',venc,venc?'renove o quanto antes':'nenhum vencido')}${kpi(breve?'laranja':'verde','Vencem em até 30 dias',breve,'programe a renovação')}${kpi('','Documentos cadastrados',todos.length,'da empresa e das obras')}</div>
       <div class="fin-card"><div class="fin-card-cab"><div class="fin-filtros"><select class="filter-select" data-dc="obra"><option value="">Empresa e todas as obras</option><option value="__empresa" ${DC.obra==='__empresa'?'selected':''}>Só os da empresa</option>${obrasNomes().map(o=>`<option ${DC.obra===o?'selected':''}>${fe(o)}</option>`).join('')}</select>
-        <select class="filter-select" data-dc="sit"><option value="">Todas as situações</option><option value="venc" ${DC.sit==='venc'?'selected':''}>Vencidos</option><option value="breve" ${DC.sit==='breve'?'selected':''}>Vencem em até 30 dias</option><option value="ok" ${DC.sit==='ok'?'selected':''}>Válidos</option><option value="adt" ${DC.sit==='adt'?'selected':''}>Aditivos de contrato</option></select></div></div>
+        <select class="filter-select" data-dc="sit"><option value="">Todas as situações</option><option value="venc" ${DC.sit==='venc'?'selected':''}>Vencidos</option><option value="breve" ${DC.sit==='breve'?'selected':''}>Vencem em até 30 dias</option><option value="ok" ${DC.sit==='ok'?'selected':''}>Válidos</option></select></div></div>
       ${lista.length?`<div class="fin-rolar"><table class="fin-tab"><thead><tr><th>Situação</th><th>Documento</th><th class="fin-esconder-cel">Obra</th><th>Validade</th><th></th></tr></thead><tbody>
         ${lista.map((x,i)=>`<tr><td><span class="eng-pill ${x.s.tom}">${x.s.rot}</span></td><td><b>${fe(x.d.tipo)}${x.s.adt&&x.d.numero?' — '+fe(x.d.numero):''}</b><small>${fe(x.s.adt?[x.d.aditivo_valor?'valor '+fmt(val(x.d.aditivo_valor)):'',x.d.novo_termino?'novo término '+brDe(dt(x.d.novo_termino)):'',x.d.descricao].filter(Boolean).join(' · '):[x.d.descricao,x.d.numero?'nº '+x.d.numero:'',x.d.orgao].filter(Boolean).join(' · '))}</small></td><td class="fin-esconder-cel">${fe(x.d.titulo_obra||'Empresa')}</td><td style="white-space:nowrap">${x.d.data_validade?brDe(dt(x.d.data_validade)):'—'}<small>${x.d.data_emissao?(x.s.adt?'assinado ':'emitido ')+brDe(dt(x.d.data_emissao)):''}</small></td><td><div class="eng-acoes">${x.d.link?`<a class="fin-bt mini" href="${fe(x.d.link)}" target="_blank" rel="noopener">Abrir</a>`:''}${x.s.adt?'':`<button type="button" class="fin-bt mini" data-dc="renovar" data-i="${i}" title="Cadastrar a nova via deste documento">Renovar</button>`}<button type="button" class="fin-bt mini" data-dc="editar" data-i="${i}">Editar</button><button type="button" class="fin-bt mini" data-dc="excluir" data-i="${i}">Excluir</button></div></td></tr>`).join('')}
       </tbody></table></div>`:`<div class="fin-vazio">${todos.length?'Nenhum documento neste filtro.':'Nenhum documento cadastrado ainda. Comece pelas certidões negativas (Federal, Estadual, Municipal, FGTS e Trabalhista).'}</div>`}</div>
@@ -13010,7 +13036,7 @@ const Eng=(function(){
   const hm=d=>String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
   const PMF=()=>window.PM_FABRICA||{};
   // pergunta "Sim, …" / "Não" do Diário de produção (com a janela simples de reserva)
-  const simNaoRdo=(tit,msg,sim,ico)=>PMF().simNao?PMF().simNao(tit,msg,sim,ico):Promise.resolve(window.confirm(msg.replace(/<[^>]+>/g,'')));
+  const simNaoRdo=(tit,msg,sim,ico)=>PMF().simNao?PMF().simNao(tit,msg,sim,ico):window.vxPergunta(tit,msg,sim||'Sim','Não');
   async function fecharDiaRdo(r){
     if(!r||rdoFechado(r))return toast('Este dia já está fechado.','success');if(!meuRdo(r))return toast('Só quem registrou (ou o Administrador) fecha este dia.','error');
     if(incompletoRdo(r))return toast(`Ainda falta: ${faltaRegistro(r).join(', ')}. Termine o diário (Continuar → Salvar) antes de fechar o dia.`,'error');
@@ -14076,8 +14102,8 @@ const Eng=(function(){
           ${r.ms.length?`<div class="fin-rolar"><table class="fin-tab"><thead><tr><th>Nº</th><th>Período</th><th class="fin-esconder-cel">Data</th><th>Situação</th><th class="num">Valor</th><th class="num fin-esconder-cel">Acumulado</th><th class="fin-esconder-cel">% do contrato</th><th></th></tr></thead><tbody>
             ${(()=>{let ac=0;return r.ms.map((m,i)=>{ac+=valorMed(m);const p=r.contrato?ac/r.contrato*100:0;return `<tr><td><b>${fe(m.numero)}</b></td><td>${m.periodo_ini?brDe(dt(m.periodo_ini)):'—'} a ${m.periodo_fim?brDe(dt(m.periodo_fim)):'—'}</td><td class="fin-esconder-cel">${brDe(dt(m.data_medicao))}</td><td><span class="eng-pill ${tomMed(m.status)}">${fe(m.status||'—')}</span></td><td class="num"><b>${fmt(valorMed(m))}</b></td><td class="num fin-esconder-cel">${fmt(ac)}</td><td class="fin-esconder-cel" style="min-width:120px"><div style="display:flex;gap:8px;align-items:center">${barra(p)}<small style="margin:0">${pct(p)}</small></div></td>
               <td><div class="eng-acoes"><button type="button" class="fin-bt mini" data-me="abrir" data-i="${i}">Abrir</button><button type="button" class="fin-bt mini" data-me="pdf" data-i="${i}">PDF</button>${m.status==='Aprovada'?`<button type="button" class="fin-bt mini verde" data-me="faturar" data-i="${i}" title="Lançar o faturamento previsto desta medição">Faturar</button>`:''}<button type="button" class="fin-bt mini" data-me="excluir" data-i="${i}">Excluir</button></div></td></tr>`;}).join('');})()}
-          </tbody></table></div>`:'<div class="fin-vazio">Nenhuma medição ainda. Clique em “+ Nova medição” para lançar a 1ª.</div>'}</div>`
-          +Eng.aditivosCard(ob);
+          </tbody></table></div>`:'<div class="fin-vazio">Nenhuma medição ainda. Clique em “+ Nova medição” para lançar a 1ª.</div>'}</div>`;
+        // os aditivos ficam só na aba Contrato da obra (aqui entram apenas no valor do contrato vigente)
       }
       box.innerHTML=`<div class="fin-wrap">${cab('Medições — '+fe(ob),texto,selObra+(r.orc?'<button type="button" class="fin-bt pri" data-me="novo">+ Nova medição</button>':''))}${corpo}</div>`;
       App._medLista=r.ms;
@@ -14208,8 +14234,9 @@ const Eng=(function(){
       if(b.dataset.me==='desc-add'||b.dataset.me==='desc-x'){if(b.dataset.me==='desc-add')E.desc.push({desc:'',valor:0});else E.desc.splice(+b.dataset.i,1);
         const tbd=box.querySelector('[data-me-desc]');tbd.innerHTML=E.desc.map((x,i)=>linhaDesc(x,i)).join('');totaisEditor();if(b.dataset.me==='desc-add'){const ins=tbd.querySelectorAll('input[data-dsc="desc"]');ins[ins.length-1].focus();}return;}
       if(b.dataset.me==='cancelar'){
-        if(Eng.medicaoMudou()&&!window.confirm('Sair sem salvar? O que foi digitado nesta medição será perdido.'))return;
-        ME.edit=null;renderMedicoes();
+        const sair=()=>{ME.edit=null;renderMedicoes();};
+        if(Eng.medicaoMudou()){vxPergunta('Sair sem salvar?','O que foi digitado nesta medição será perdido.','Sim, sair','Continuar editando').then(s=>{if(s)sair();});return;}
+        sair();
       }
       else if(b.dataset.me==='salvar')salvarMedicao(b);
     };
@@ -14225,7 +14252,7 @@ const Eng=(function(){
     const descs=(E.desc||[]).filter(x=>(+x.valor||0)>0||String(x.desc||'').trim());
     if(descs.some(x=>!(+x.valor>0)||!String(x.desc||'').trim()))return toast('Em cada desconto/abatimento, descreva o que está sendo abatido e informe o valor.','error');
     if(r2(descs.reduce((s,x)=>s+x.valor,0))>=r2(tot.v))return toast('Os descontos não podem ser maiores que o valor medido.','error');
-    if(tot.est&&!window.confirm(`${tot.est} item(ns) passa(m) da quantidade do contrato. Isso normalmente pede um aditivo. Salvar assim mesmo?`))return;
+    if(tot.est&&!(await vxPergunta('Passa da quantidade do contrato',`<b>${tot.est} item(ns)</b> passa(m) da quantidade do contrato. Isso normalmente pede um aditivo (na aba <b>Contrato</b> da obra).<br><br>Salvar a medição assim mesmo?`,'Sim, salvar','Não')))return;
     let numero=E.numero;
     if(!E.reg&&medsDaObra(E.obra).some(m=>(+m.numero||0)===numero))numero=medsDaObra(E.obra).reduce((m,x)=>Math.max(m,+x.numero||0),0)+1;
     const o=E.reg?{...E.reg}:{data_lancamento:todayDateTime()};
@@ -14402,7 +14429,7 @@ const Eng=(function(){
     // usado pelo botão "Exportar PDF" da tela Documentos (com os mesmos filtros da tela)
     'eng-documentos':{titulo:'Documentos e Vencimentos',gerar(obraSel,ano,mes,sit){
       const okSit=s=>!sit||(sit==='venc'?s.ord===0:sit==='breve'?(s.dias!=null&&s.dias>=0&&s.dias<=30):sit==='adt'?!!s.adt:s.tom==='verde');
-      const docs=(D().documentos||[]).filter(d=>!obraSel||(obraSel==='__empresa'?!d.titulo_obra:d.titulo_obra===obraSel)).map(d=>({d,s:Eng.situacaoDoc(d)})).filter(x=>okSit(x.s)).sort((a,b)=>a.s.ord-b.s.ord||((a.s.dias==null?9e9:a.s.dias)-(b.s.dias==null?9e9:b.s.dias)));
+      const docs=(D().documentos||[]).filter(d=>d.tipo!=='Aditivo contratual').filter(d=>!obraSel||(obraSel==='__empresa'?!d.titulo_obra:d.titulo_obra===obraSel)).map(d=>({d,s:Eng.situacaoDoc(d)})).filter(x=>okSit(x.s)).sort((a,b)=>a.s.ord-b.s.ord||((a.s.dias==null?9e9:a.s.dias)-(b.s.dias==null?9e9:b.s.dias)));
       const v=docs.filter(x=>x.s.ord===0).length,b=docs.filter(x=>x.s.dias!=null&&x.s.dias>=0&&x.s.dias<=30).length;
       return {kpis:[['Vencidos',String(v),v?'renove o quanto antes':'nenhum',v?'vermelho':'verde'],['Vencem em até 30 dias',String(b),'programe a renovação',b?'laranja':'verde'],['Documentos',String(docs.length),obraSel?'da obra e da empresa':'da empresa e das obras','']],
         cols:[C('Situação'),C('Documento'),C('Número'),C('Órgão emissor'),C('Obra'),C('Emissão',1),C('Validade',1)],
@@ -15156,7 +15183,7 @@ const Eng=(function(){
           ${linha('Data-base do reajuste <small style="color:var(--text-3)">(envio da proposta)</small>',brDe(x.dataBase))}${linha('Índice de reajuste',fe(c.indice_reajuste||'—'))}
           ${linha('Reajuste disponível a partir de',x.reaj?sem(x.reajDisp?'amarelo':'verde',brDe(x.reaj)):'—')}
           ${linha('Aditivos de valor',x.ads.length?`${fmt(x.adV)} · ${pct(x.adPct)} <small style="color:var(--text-3)">(limite 25%)</small>`:'nenhum')}
-          <div class="op-acoes" style="margin-top:8px"><button type="button" class="fin-bt mini" data-ct="aditivo">+ Aditivo</button>${pode('acoes')?'<button type="button" class="fin-bt mini" data-ct="acao">+ Ação</button>':''}</div>
+          <div class="op-acoes" style="margin-top:8px">${pode('acoes')?'<button type="button" class="fin-bt mini" data-ct="acao">+ Ação</button>':''}</div>
         </div>
       </div>
       <div class="fin-card"><div class="fin-card-cab"><div><h3>Ciclo de vida do contrato</h3><p class="fin-sub" style="margin-bottom:0">${x.feitos} de ${x.total} passos concluídos. Os passos com "automático" o sistema reconhece pelo que já foi lançado; os outros, marque quando acontecerem.</p></div><div class="ct-barra" style="width:180px"><i style="width:${x.feitos/x.total*100}%"></i></div></div>
@@ -16666,7 +16693,7 @@ const GS=(function(){
     </div>`;
     sujo=false;
     box.oninput=()=>{sujo=true;};
-    box.onchange=ev=>{if(ev.target.matches('[data-mt-ano]')){if(sujo&&!window.confirm('Trocar de ano sem salvar a meta digitada?'))return ev.target.value=MT.ano;MT.ano=ev.target.value;renderMetas();}};
+    box.onchange=ev=>{if(ev.target.matches('[data-mt-ano]')){const novo=ev.target.value,ir=()=>{MT.ano=novo;renderMetas();};if(sujo){ev.target.value=MT.ano;vxPergunta('Trocar de ano?','A meta digitada ainda não foi salva e será perdida.','Sim, trocar','Não').then(s=>{if(s)ir();});return;}ir();}};
     box.onclick=ev=>{
       const t=ev.target;
       const sug=t.closest('[data-mt-sug]');if(sug){const p=+sug.dataset.mtSug/100;[['medicao',x=>x.medido],['faturamento',x=>x.fatL],['resultado',x=>x.resultado]].forEach(([kk,fn])=>{const el=box.querySelector(`[data-mt="${kk}"]`);el.value=n2(Math.max(0,media3(hk,fn)*12*(1+p)));});sujo=true;return;}
@@ -16703,7 +16730,7 @@ const GS=(function(){
     sujo=false;
     const ler=()=>{const v={};box.querySelectorAll('[data-or-cat]').forEach(el=>{const n=moeda(el.value);if(n>0)v[el.dataset.orCat]=dinheiro(n);});return v;};
     box.oninput=()=>{sujo=true;};
-    box.onchange=ev=>{if(ev.target.matches('[data-or-mes]')){if(sujo&&!window.confirm('Trocar de mês sem salvar o orçamento digitado?'))return ev.target.value=OR.mes;OR.mes=ev.target.value;renderOrcamento();}};
+    box.onchange=ev=>{if(ev.target.matches('[data-or-mes]')){const novo=ev.target.value,ir=()=>{OR.mes=novo;renderOrcamento();};if(sujo){ev.target.value=OR.mes;vxPergunta('Trocar de mês?','O orçamento digitado ainda não foi salvo e será perdido.','Sim, trocar','Não').then(s=>{if(s)ir();});return;}ir();}};
     box.onclick=ev=>{const b=ev.target.closest('[data-or]');if(!b)return;const a=b.dataset.or;
       if(a==='media'){const soma={};for(let i=1;i<=3;i++)despDoMes(mesDesloc(k,-i)).forEach(m=>{const c=catDesp(m);soma[c]=(soma[c]||0)+m.valor/3;});box.querySelectorAll('[data-or-cat]').forEach(el=>{const v=soma[el.dataset.orCat];el.value=v?n2(Math.ceil(v/10)*10):'';});sujo=true;}
       else if(a==='anterior'){const ant=planDe('orcamento',mesDesloc(k,-1));if(!ant)return toast('O mês anterior não tem orçamento.','error');box.querySelectorAll('[data-or-cat]').forEach(el=>{const v=val((ant.valores||{})[el.dataset.orCat]);el.value=v?n2(v):'';});sujo=true;}
@@ -17348,7 +17375,7 @@ const PL2=(function(){
     </div>`;
     if(SO.aba==='aportes'){PL2.render('aportes');const pl=document.getElementById('gs-socios-pl');const cab=pl&&pl.querySelector('.gf-cab');if(cab)cab.querySelector('h2').style.fontSize='18px';}
     box.onclick=ev=>{
-      const a=ev.target.closest('[data-so-aba]');if(a){if(PL2.sujo()&&!window.confirm('Há aportes alterados e não salvos. Trocar de aba e perder as alterações?'))return;SO.aba=a.dataset.soAba;GS.renderSocios();return;}
+      const a=ev.target.closest('[data-so-aba]');if(a){const ir=()=>{SO.aba=a.dataset.soAba;GS.renderSocios();};if(PL2.sujo()){vxPergunta('Trocar de aba?','Há aportes alterados e não salvos — as alterações serão perdidas.','Sim, trocar','Não').then(s=>{if(s)ir();});return;}ir();return;}
       const d=ev.target.closest('[data-so="desp"]');if(d)GS.abrirPlanilha('contas',{obra:EMP,aba:'todas'});
     };
   };
@@ -17398,7 +17425,8 @@ const PL2=(function(){
   UI.nav=function(v){
     v=ALIAS[v]||v;
     // sair de uma planilha com linhas não salvas pergunta antes
-    if(PL2.sujo()&&!document.getElementById('view-'+v)?.classList.contains('active')&&!window.confirm('Há linhas alteradas e não salvas nesta planilha. Sair e perder as alterações?'))return;
+    if(!UI._navSemPerguntar&&PL2.sujo()&&!document.getElementById('view-'+v)?.classList.contains('active')){const eu=this;
+      vxPergunta('Sair da planilha?','Há linhas alteradas e não salvas nesta planilha — as alterações serão perdidas.','Sim, sair','Não').then(s=>{if(!s)return;UI._navSemPerguntar=true;try{UI.nav.call(eu,v);}finally{UI._navSemPerguntar=false;}});return;}
     const r=navOrig.call(this,v);
     try{if(MENU_DE[v]&&document.getElementById('view-'+v)?.classList.contains('active')){document.getElementById('nav-'+MENU_DE[v])?.classList.add('active');UI._navMarcar();}}catch(e){}
     return r;
@@ -19627,7 +19655,9 @@ const Mascara=(function(){
     return r;
   };
   // trocar de obra no Planejamento com etapas sem salvar pergunta antes
-  document.getElementById('eng-planejamento')?.addEventListener('change',ev=>{if(ev.target.matches('select[data-pl="obra"]')&&PL2.sujo()&&!window.confirm('Há etapas alteradas e não salvas. Trocar de obra e perder as alterações?')){ev.stopImmediatePropagation();ev.target.value=Eng._PL.obra;}},true);
+  document.getElementById('eng-planejamento')?.addEventListener('change',ev=>{const s=ev.target;if(!s.matches('select[data-pl="obra"]')||s._vxSemPerguntar||!PL2.sujo())return;
+    ev.stopImmediatePropagation();const novo=s.value;s.value=Eng._PL.obra;
+    vxPergunta('Trocar de obra?','Há etapas alteradas e não salvas — as alterações serão perdidas.','Sim, trocar','Não').then(ok=>{if(!ok)return;s.value=novo;s._vxSemPerguntar=true;try{s.dispatchEvent(new Event('change',{bubbles:true}));}finally{s._vxSemPerguntar=false;}});},true);
   document.getElementById('eng-planejamento')?.addEventListener('change',ev=>{if(ev.target.matches('select[data-pl="obra"]'))setTimeout(()=>{try{completarPlanejamento();}catch(e){console.error(e);}},0);});
   // dados recarregados: o quadro de contratos e a aba Contrato da obra se atualizam
   const ra=App.renderAll;
