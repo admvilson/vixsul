@@ -12138,32 +12138,52 @@ const Fin=(function(){
         <td><select data-i="nota" aria-label="Nota que recebeu este valor"><option value="">Escolha a nota…</option>${ord.map(x=>`<option value="${x.k}">${fe(rotulo(x.m))}</option>`).join('')}</select></td>
         <td class="num"><b>${fmt(v)}</b></td><td class="num" data-i="dif">—</td>
         <td><button type="button" class="bt-tirar" data-i="tirar" title="Tirar esta linha" aria-label="Tirar esta linha"><i class="fas fa-trash-can"></i></button></td></tr>`;};
-    const j=janela(lista.length>1?`Registrar ${lista.length} recebimentos`:'Registrar recebimento',`<div class="fin-resumo">Cada linha do banco registra o recebimento de uma nota de <b>Nota emitida · a receber</b>, na data do banco (as notas de valor mais próximo aparecem primeiro). O recebimento da nota fica com o valor que entrou no banco; se for diferente do líquido esperado, a diferença aparece na linha.</div>
+    const umaNota=lista.length>1?`<div class="fin-fld" style="max-width:560px"><label>Todas as linhas são da mesma nota? (recebimento em partes)</label><select data-k="todas"><option value="">Não — escolho a nota em cada linha</option>${ms.map((m,k)=>({m,k})).sort((a,b)=>Math.abs(a.m.valor-lista.reduce((s,p)=>s+entrou(p),0))-Math.abs(b.m.valor-lista.reduce((s,p)=>s+entrou(p),0))).slice(0,80).map(x=>`<option value="${x.k}">${fe(rotulo(x.m))}</option>`).join('')}</select></div>`:'';
+    const j=janela(lista.length>1?`Registrar ${lista.length} recebimentos`:'Registrar recebimento',`<div class="fin-resumo">Cada linha do banco registra o recebimento de uma nota de <b>Nota emitida · a receber</b>, na data do banco (as notas de valor mais próximo aparecem primeiro). O recebimento da nota fica com o valor que entrou no banco; se for diferente do líquido esperado, a diferença aparece.<br><b>Recebeu em partes</b> (duas ou mais transferências para a mesma nota)? Escolha a mesma nota nessas linhas: a nota fica recebida com a <b>soma</b> delas, na data da última, e todas as linhas ficam conciliadas.</div>${umaNota}
       <div class="lote-tab cc-lt cc-lr"><table data-sem-ordem><thead><tr><th>No banco</th><th>Nota a receber <span class="obg">*</span></th><th>Entrou</th><th>Diferença</th><th></th></tr></thead><tbody data-k="linhas">${lista.map(linhaHtml).join('')}</tbody></table></div>
       <div class="lote-tot" data-k="tot"></div>`,
       [{html:'<i class="fas fa-circle-check"></i> Registrar recebimento',cls:'pri',acao:async()=>{
         const its=[...tb.rows].map(tr=>({p:lista[+tr.dataset.ln],k:tr.querySelector('[data-i="nota"]').value}));
         if(!its.length)throw new Error('Não sobrou nenhuma linha.');
         const falta=its.findIndex(x=>x.k==='');if(falta>=0)throw new Error(its.length>1?`Linha ${falta+1}: escolha a nota.`:'Escolha a nota que recebeu este valor.');
-        if(new Set(its.map(x=>x.k)).size<its.length)throw new Error('A mesma nota foi escolhida em duas linhas.');
-        if(!(await confirmarAssociacao(its.map(x=>({t:x.p.t,m:ms[+x.k]})),its.length>1?`Estas ${its.length} entradas vão registrar o recebimento`:'Esta entrada vai registrar o recebimento')))return false;
-        const r=await executar(()=>aplicar(its.map(x=>({t:x.p.t,acao:'baixar',alvos:[ms[+x.k]],ajustar:true}))));
+        // a mesma nota em várias linhas (recebida em partes): uma baixa só, com a soma, na data da última, e todas as linhas ligadas
+        const grupos=new Map();its.forEach(x=>{(grupos.get(x.k)||grupos.set(x.k,[]).get(x.k)).push(x);});
+        const conf=[...grupos.entries()].map(([k,g])=>{if(g.length===1)return {t:g[0].p.t,m:ms[+k]};
+          const soma=Math.round(g.reduce((s,x)=>s+entrou(x.p),0)*100)/100,ult=g.map(x=>x.p.t).sort((a,b)=>String(isoDeBR(a.data)).localeCompare(String(isoDeBR(b.data)))).pop();
+          return {t:{...ult,desc:`${g.length} entradas somadas (${g.map(x=>fmt(entrou(x.p))).join(' + ')})`,valor:soma},m:ms[+k],v:soma};});
+        if(!(await confirmarAssociacao(conf,its.length>1?`Estas ${its.length} entradas vão registrar o recebimento`:'Esta entrada vai registrar o recebimento')))return false;
+        const sozinhas=[...grupos.values()].filter(g=>g.length===1).map(g=>g[0]),partes=[...grupos.entries()].filter(([,g])=>g.length>1);
+        const r=await executar(async()=>{
+          const r0=sozinhas.length?await aplicar(sozinhas.map(x=>({t:x.p.t,acao:'baixar',alvos:[ms[+x.k]],ajustar:true}))):{ok:0,falhas:[]};
+          for(const [k,g] of partes){const m=ms[+k];
+            try{const soma=Math.round(g.reduce((s,x)=>s+entrou(x.p),0)*100)/100,ult=g.map(x=>isoDeBR(x.p.t.data)).filter(Boolean).sort().pop();
+              await baixar(m,ult,{conc:g.map(x=>x.p.t.id).join(','),desc:g.map(x=>x.p.t.desc).join(' + '),valor:soma,ajustar:true});r0.ok+=g.length;}
+            catch(e){r0.falhas.push(`${rotulo(m)}: ${(e&&e.message)||e}`);}}
+          return r0;});
         its.forEach(x=>CONC.selSem.delete(x.p.t.id));
-        if(r.falhas.length)toast(`${r.ok} recebimento(s) registrado(s). Não deu em ${r.falhas.length}: ${r.falhas.join('; ')}`,'error',false);
-        else toast(its.length>1?`${its.length} recebimentos registrados e conciliados.`:'Recebimento registrado e conciliado.','success');
+        const np=partes.length?` (${partes.length} nota${partes.length>1?'s':''} recebida${partes.length>1?'s':''} em partes)`:'';
+        if(r.falhas.length)toast(`${r.ok} entrada(s) conciliada(s). Não deu em ${r.falhas.length}: ${r.falhas.join('; ')}`,'error',false);
+        else toast(its.length>1?`${its.length} entradas conciliadas${np}.`:'Recebimento registrado e conciliado.','success');
       }}],960);
     const tb=j.querySelector('[data-k="linhas"]');
-    const pintar=()=>{const sels=[...tb.querySelectorAll('[data-i="nota"]')],usadas=new Set(sels.map(s=>s.value).filter(Boolean));let ent=0,esp=0,todas=sels.length>0;
-      [...tb.rows].forEach(tr=>{const s=tr.querySelector('[data-i="nota"]'),v=entrou(lista[+tr.dataset.ln]),m=s.value===''?null:ms[+s.value],c=tr.querySelector('[data-i="dif"]');ent+=v;
-        [...s.options].forEach(o=>{o.disabled=!!o.value&&o.value!==s.value&&usadas.has(o.value);});
+    // a diferença é por nota: as linhas da mesma nota (recebida em partes) somam e são comparadas juntas com o líquido dela
+    const pintar=()=>{let ent=0,esp=0,todas=tb.rows.length>0;const soma={},qtd={};
+      [...tb.rows].forEach(tr=>{const s=tr.querySelector('[data-i="nota"]'),v=entrou(lista[+tr.dataset.ln]);ent+=v;if(s.value!==''){soma[s.value]=(soma[s.value]||0)+v;qtd[s.value]=(qtd[s.value]||0)+1;}});
+      const contadas=new Set();
+      [...tb.rows].forEach(tr=>{const s=tr.querySelector('[data-i="nota"]'),m=s.value===''?null:ms[+s.value],c=tr.querySelector('[data-i="dif"]');
         if(!m){todas=false;c.textContent='—';return;}
-        esp+=m.valor;const d=Math.round((v-m.valor)*100)/100;
-        c.innerHTML=Math.abs(d)<0.01?'<b class="t-ok">bate</b>':`<b class="${d<0?'t-err':'t-warn'}">${d>0?'+':'−'} ${fmt(Math.abs(d))}</b><small>esperado ${fmt(m.valor)}</small>`;});
+        if(!contadas.has(s.value)){contadas.add(s.value);esp+=m.valor;}
+        const d=Math.round((soma[s.value]-m.valor)*100)/100,emPartes=qtd[s.value]>1?`<small>${qtd[s.value]} linhas somam ${fmt(soma[s.value])}</small>`:'';
+        c.innerHTML=(Math.abs(d)<0.01?'<b class="t-ok">bate</b>':`<b class="${d<0?'t-err':'t-warn'}">${d>0?'+':'−'} ${fmt(Math.abs(d))}</b><small>esperado ${fmt(m.valor)}</small>`)+emPartes;});
       const n=tb.rows.length,dif=Math.round((ent-esp)*100)/100;
       j.querySelector('[data-k="tot"]').innerHTML=n?`${n} linha${n>1?'s':''} · entrou <b>${fmt(ent)}</b>${todas?` · líquido esperado ${fmt(esp)}${Math.abs(dif)>=0.01?` · diferença <b>${dif>0?'+':'−'} ${fmt(Math.abs(dif))}</b>`:''}`:''}`:'<span class="t-err">Nenhuma linha — feche e marque as entradas de novo.</span>';};
     // nota com o valor idêntico já vem escolhida (uma nota só para cada linha); o resto a pessoa escolhe
     const ja=new Set();[...tb.rows].forEach(tr=>{const v=entrou(lista[+tr.dataset.ln]),k=ms.findIndex((m,i)=>!ja.has(i)&&Math.abs(m.valor-v)<=0.01);if(k>=0){ja.add(k);tr.querySelector('[data-i="nota"]').value=String(k);}});
-    j.onchange=pintar;
+    // nenhuma linha bate sozinha, mas a SOMA de todas bate com uma nota: são as partes dela (já vem escolhida em todas)
+    const todasSel=j.querySelector('[data-k="todas"]'),tot0=lista.reduce((s,p)=>s+entrou(p),0);
+    if(lista.length>1&&!ja.size){const k=ms.findIndex(m=>Math.abs(m.valor-tot0)<=0.01);if(k>=0){[...tb.querySelectorAll('[data-i="nota"]')].forEach(s=>{s.value=String(k);});if(todasSel)todasSel.value=String(k);}}
+    j.onchange=ev=>{if(todasSel&&ev.target===todasSel){if(todasSel.value!=='')[...tb.querySelectorAll('[data-i="nota"]')].forEach(s=>{s.value=todasSel.value;});}
+      else if(todasSel&&ev.target.matches('[data-i="nota"]'))todasSel.value='';pintar();};
     tb.addEventListener('click',ev=>{const b=ev.target.closest('[data-i="tirar"]');if(b){b.closest('tr').remove();pintar();}});
     pintar();
   }
@@ -12328,7 +12348,8 @@ const Fin=(function(){
     dosSocios.forEach(m=>{if(m.tipo==='retirada')return efeitos.push(`o lançamento "${fe(m.desc)}" de ${fmt(m.valor)} é excluído`);
       const x=parteAp(m);if(x>0.004)efeitos.push(`${fmt(x)} sai do aporte de ${fe(m.quem)} deste período${aps.length>1?' ('+fe(m.r[K.obra]||'Empresa')+')':''}`);});
     const efeito=efeitos.length?efeitos.join('; '):'Só a ligação com o extrato é desfeita — os lançamentos continuam pagos';
-    confirmar('Desfazer conciliação?',`${efeito}. A linha de ${fmt(p.t.valor)} de ${fe(p.t.data)} volta para a conferência.`,'Sim, desfazer',async()=>{
+    const partesJuntas=alvos.filter(m=>m.tipo==='fat'&&temId(m.r.conciliacao_baixa,id)).reduce((n,m)=>n+idsDe(m.r.conciliacao_baixa).filter(i=>i!==id).length,0);
+    confirmar('Desfazer conciliação?',`${efeito}. A linha de ${fmt(p.t.valor)} de ${fe(p.t.data)} volta para a conferência.${partesJuntas?`<br><br>Esta nota foi recebida em partes: ${partesJuntas===1?'a outra linha do banco também volta':`as outras ${partesJuntas} linhas do banco também voltam`} para a conferência.`:''}`,'Sim, desfazer',async()=>{
       // a devolução é pela obra: o que o sócio já recebeu de volta nela não pode ficar maior do que o aporte que sobra
       for(const m of aps)if(GS.socios&&GS.socios.saldoObra){const x=parteAp(m);if(!(x>0.004))continue;const s=GS.socios.saldoObra(m.r[K.quem]||m.quem,m.r[K.obra]||'Empresa');
         if(s.dev>s.ap-x+0.004)throw new Error(`Nesta obra o sócio já recebeu de volta ${fmt(s.dev)} — sem este valor, o aporte dele ficaria menor que isso. Exclua ou ajuste a devolução antes.`);}
@@ -12345,7 +12366,9 @@ const Fin=(function(){
             if(m.tipo==='custo'||m.tipo==='despesa'){const q=socioDaConta(contaDoReg(m.tipo,m.r));if(q){const ko=kRow(m.r,['observacao','obs'],'observacao');o.pago_por_socio=q;o[ko]=obsSocio(m.r[ko],q,true);}}
             if(m.tipo==='custo'){o[m.kTipo]=m.r.tipo_antes_conc||'Previsto';o[m.kData]='';o.tipo_antes_conc='';}
             else if(m.tipo==='despesa'){o[m.kSt]='Pendente';o[m.kPg]='';o[m.kTipo]=m.r.tipo_antes_conc||'Prevista';o.tipo_antes_conc='';}
-            else if(m.tipo==='fat'){o[m.kRec]=m.r.antecipada==='sim'&&m.r.antec_previsto?m.r.antec_previsto:'';o.antec_recebida='';o.antec_depositado='';}
+            else if(m.tipo==='fat'){o[m.kRec]=m.r.antecipada==='sim'&&m.r.antec_previsto?m.r.antec_previsto:'';o.antec_recebida='';o.antec_depositado='';
+              // nota recebida em partes (várias linhas do banco): desfazer uma parte solta todas — a nota volta a "a receber"
+              idsDe(m.r.conciliacao_baixa).filter(i=>i!==id).forEach(i=>{o.conciliacao=tirarId(o.conciliacao,i);o.conciliacao_baixa=tirarId(o.conciliacao_baixa,i);});}
             voltarAjuste(o,m);
           }
           await salvar(aba,o,m.r.rowid);
