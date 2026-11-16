@@ -13295,7 +13295,7 @@ const Eng=(function(){
   function htmlEquip(reg){const l=(jsonDe(reg&&reg.equip_json)||[]),sem=l.filter(x=>x.hor===false),x=maqDe(reg),L=leituras(x),h=horasEq(x),dia=reg?reg.data:'';
     return `<datalist id="rdo-equip-sem">${EQUIP_SEM.map(e=>`<option value="${fe(e)}">`).join('')}</datalist>
       <div class="rdo-eq-tit"><b><i class="fas fa-gauge-high"></i> ${MAQ_FIXA} — horímetro</b><small>as 4 leituras do dia: tire a foto do horímetro no horário de cada uma — o número é lido da foto (o campo fica travado) e a hora fica gravada nela; as horas são calculadas</small></div>
-      <div class="rdo-hor" data-rdo-hor>${LEIT.map(([k,rot])=>{const f=x[fk(k)],tr=!(f&&f.uid)&&janelaHor(k,dia);return `<div class="rdo-hl"><label>${rot} <span class="obg">*</span></label><div class="rdo-hval"><input data-eq="${k}" inputmode="decimal" value="${fe(L[k]||'')}" placeholder="lido da foto" readonly class="rdo-lido" title="Lido da foto do horímetro — não se digita">${ehAdmRdo()?`<button type="button" class="rdo-hcorr" data-hcorr="${k}" title="Corrigir a leitura à mão (Administrador)" aria-label="Corrigir a leitura à mão"><i class="fas fa-pen"></i></button>`:''}</div>
+      <div class="rdo-hor" data-rdo-hor>${LEIT.map(([k,rot])=>{const f=x[fk(k)],tr=!(f&&f.uid)&&janelaHor(k,dia);return `<div class="rdo-hl"><label>${rot} <span class="obg">*</span></label><div class="rdo-hval"><input data-eq="${k}" inputmode="decimal" value="${fe(L[k]||'')}" placeholder="${f&&f.uid&&!L[k]?'não lido — a conferir':'lido da foto'}" readonly class="rdo-lido" title="Lido da foto do horímetro — não se digita">${ehAdmRdo()?`<button type="button" class="rdo-hcorr" data-hcorr="${k}" title="Corrigir a leitura à mão (Administrador)" aria-label="Corrigir a leitura à mão"><i class="fas fa-pen"></i></button>`:''}</div>
           <div class="rdo-hfoto${f&&f.uid?' ok':''}${tr?' trava':''}" data-hfoto="${k}" role="button" tabindex="0" aria-label="Foto do horímetro — ${rot}">${fotoHorHtml(f&&f.uid?{ref:f}:null,dia,k)}</div><input type="file" accept="image/*" hidden data-hfile="${k}"></div>`;}).join('')}
         <div class="rdo-hl rdo-hl-tot"><label>Horas no dia</label><input data-eq="h" value="${!isNaN(h.tot)&&h.tot>=0?fmtH(h.tot):''}" disabled title="Calculado: (meio-dia − início do dia) + (fim da tarde − início da tarde)"><label style="margin-top:8px">Observação</label><input data-eq="obs" value="${fe(x.obs||'')}" placeholder="opcional"></div></div>
       <div class="rdo-eq-tit" style="margin-top:14px"><b><i class="fas fa-toolbox"></i> Máquinas e equipamentos sem horímetro</b><small>opcional</small></div>
@@ -13396,10 +13396,12 @@ const Eng=(function(){
     if(reg&&rdoFechado(reg))return `O dia ${brDe(dt(reg.data))} está fechado — só o Administrador reabre.`;
     if(o.data>hojeRdo())return 'Este dia ainda não chegou.';
     if(!reg&&passouHoraRdo(o.data)){if(!ehAdmRdo())return `O diário de ${brDe(dt(o.data))} encerrou às 19h. Peça ao Administrador para registrar este dia.`;o.aberto_ate=new Date(Date.now()+3600e3).toISOString();}
-    // foto do horímetro escolhida: espera a leitura e tem que ter o número (nos dois botões)
-    if(j&&j._hor){const x=eqs.find(y=>y.hor!==false)||{};
+    // foto do horímetro escolhida: espera a leitura. Se o número não foi lido, salva assim mesmo — a leitura fica "a conferir"
+    // (hor_conferir) e o Administrador preenche olhando a foto (botão do lápis); preenchida, a marca some sozinha
+    if(j&&j._hor){const x=eqs.find(y=>y.hor!==false)||{},semNum=[];
       for(const [k,rot] of LEIT){const v=j._hor[k];if(!(v&&(v.ref||v.file)))continue;if(v.lendo)return `${MAQ_FIXA}: espere terminar a leitura da foto — ${rot}.`;
-        if(isNaN(nBR(x[k])))return `${MAQ_FIXA}: o número do horímetro (${rot.toLowerCase()}) não foi lido da foto — tire a foto de novo, mais de perto.`;}}
+        if(isNaN(nBR(x[k])))semNum.push(rot.toLowerCase());}
+      o.hor_conferir=semNum.join(', ');}
     // tudo é obrigatório, menos Ocorrências, Visitas e os equipamentos sem horímetro (e a observação do horímetro):
     // no Salvar o que falta impede; no "Salvar e continuar depois" grava e o dia fica em preenchimento
     const falta=faltaRdo(o,reg,j,eqs);
@@ -13491,7 +13493,8 @@ const Eng=(function(){
         // o número do horímetro sai da foto (o original, sem o carimbo) — o campo fica travado com ele
         let n=null;try{n=await lerHorimetro(file,leituraAntes(k));}catch(e){console.warn('horímetro',e);}
         v.lendo=false;pintarFoto(k);
-        if(n==null){inp.value='';somaEquip();return toast(`Não consegui ler o número do horímetro nesta foto (${rot.toLowerCase()}). Tire outra foto, mais de perto, com os números retos e bem iluminados.`,'error');}
+        // não leu: a foto fica e o diário salva normalmente — o número fica "a conferir" e o Administrador preenche olhando a foto
+        if(n==null){inp.value='';inp.placeholder='não lido — a conferir';somaEquip();return toast(`Não consegui ler o número do horímetro nesta foto (${rot.toLowerCase()}). Pode salvar normalmente: a foto fica guardada e o Administrador confere e preenche o número.`,'info');}
         inp.value=String(n).replace('.',',');somaEquip();toast(`Horímetro — ${rot.toLowerCase()}: ${inp.value} h (lido da foto).`,'success');
         const dia=H('data').value;if(dia&&data!==dia)toast(`A foto do ${rot.toLowerCase()} é de ${brDe(t)} ${hora}, não do dia do diário (${brDe(dt(dia))}). Confira se é a foto certa.`,'error');}
       catch(e){Object.keys(v).forEach(x=>delete v[x]);Object.assign(v,antes);pintarFoto(k);toast(e.message||String(e),'error');}});
@@ -13666,6 +13669,7 @@ const Eng=(function(){
           :fech?`<span class="pm-st-dia fe"><i class="fas fa-lock"></i> ${fechadoManual(r)?`Fechado por ${fe(f.por||'')}${f.em?' · '+fe(brDe(dt(String(f.em).slice(0,10))).slice(0,5))+' '+fe(String(f.em).slice(11,16)):''}`:'Fechado às 19h (automático)'}</span>`
           :inc?`<span class="pm-st-dia ab rdo-auto"><i class="fas fa-hourglass-half"></i> Em preenchimento${reabertoRdo(r)?` · reaberto até ${hm(new Date(r.aberto_ate))}`:hj?' · fecha às 19h':''}</span>`
           :`<span class="pm-st-dia ab"><i class="fas fa-lock-open"></i> Aberto${reabertoRdo(r)?` · reaberto até ${hm(new Date(r.aberto_ate))}`:hj?' · fecha às 19h':''}</span>`;
+        const conferir=r.hor_conferir?` <span class="pm-st-dia fe rdo-nao" title="A foto do horímetro não foi lida (${fe(r.hor_conferir)}): ${ehAdmRdo()?'abra o dia, confira a foto e preencha o número pelo lápis':'o Administrador confere e preenche'}"><i class="fas fa-gauge-high"></i> Horímetro a conferir</span>`:'';
         const acao=r.ocorrencias&&Eng.novaAcao&&(!UI._allowedViews||UI._allowedViews.includes('acoes'))?`<button type="button" class="fin-bt mini" data-rd="acao" data-i="${i}" title="Transformar a ocorrência numa ação do plano, com responsável e prazo">→ Ação</button>`:'';
         const baixar=temFoto?`<button type="button" class="fin-bt mini" data-rd="baixar" data-i="${i}" title="Baixar as fotos deste dia (as do horímetro e as do dia)"><i class="fas fa-download"></i> Baixar fotos</button>`:'';
         const bts=vazio?(fech?`${ehAdmRdo()?`<button type="button" class="fin-bt mini" data-rd="reabrir" data-i="${i}"><i class="fas fa-lock-open"></i> Reabrir</button><button type="button" class="fin-bt mini" data-rd="excluir" data-i="${i}" title="Excluir este dia em branco"><i class="fas fa-trash"></i></button>`:''}`
@@ -13674,7 +13678,7 @@ const Eng=(function(){
           :`${acao}${podeFotoRdo()?`<button type="button" class="fin-bt mini" data-rd="fotos" data-i="${i}" title="Incluir fotos deste dia (vão também para a galeria da obra)"><i class="fas fa-camera"></i> Fotos</button>`:''}${baixar}<button type="button" class="fin-bt mini" data-rd="pdfdia" data-i="${i}"><i class="fas fa-file-pdf"></i> PDF</button>${meu?`${r.auto!=='sim'||ehAdmRdo()?`<button type="button" class="fin-bt mini" data-rd="excluir" data-i="${i}" title="Excluir este registro"><i class="fas fa-trash"></i></button>`:''}${inc?'':`<button type="button" class="fin-bt mini" data-rd="fechar" data-i="${i}"><i class="fas fa-lock"></i> Fechar o dia</button>`}<button type="button" class="fin-bt mini pri" data-rd="editar" data-i="${i}">${inc?'<i class="fas fa-pen"></i> Continuar':'<i class="fas fa-pen"></i> Alterar'}</button>`:''}`;
         return `<article class="pm-dia2 rdo-dia2${fech?' fech':''}"><div class="pm-dia2-cab">
           <div class="pm-cal${fech?' fech':''}"><span class="m">${d?fe(MESES_RDO[d.getMonth()].slice(0,3).toUpperCase()):''}</span><span class="d">${d?d.getDate():'—'}</span><span class="s">${d?fe(DIAS_SEM[d.getDay()].slice(0,3).toLowerCase()):''}</span></div>
-          <div class="pm-dia2-meta"><div class="pm-dia2-tit"><b>${d?`${fe(DIAS_SEM[d.getDay()])}, ${d.getDate()} de ${fe(MESES_RDO[d.getMonth()])}`:'Sem data'}</b>${st}</div>
+          <div class="pm-dia2-meta"><div class="pm-dia2-tit"><b>${d?`${fe(DIAS_SEM[d.getDay()])}, ${d.getDate()} de ${fe(MESES_RDO[d.getMonth()])}`:'Sem data'}</b>${st}${conferir}</div>
             ${RD.obra?'':`<div class="rdo-obra" title="${fe(r.titulo_obra)}"><i class="fas fa-helmet-safety"></i> ${fe(r.titulo_obra)}</div>`}
             <div class="rdo-pills"><span class="eng-pill ${tomCond(r.condicao)}">${fe(r.condicao||'—')}</span><span class="eng-pill ${choveu(r)?'azul':''}"><i class="fas ${choveu(r)?'fa-cloud-rain':'fa-sun'}"></i> manhã: ${fe(r.clima_manha||'—')} · tarde: ${fe(r.clima_tarde||'—')}</span>${r.efetivo_total?`<span class="eng-pill"><i class="fas fa-people-group"></i> ${fe(r.efetivo_total)} pessoas</span>`:''}</div></div>
           <div class="pm-dia2-bt rdo-bts">${bts}</div></div>
