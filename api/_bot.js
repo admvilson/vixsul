@@ -2,8 +2,9 @@
    • Lançar conta (/conta; ou escrevendo "lança 350 de cimento na obra X", "paguei 120 de gasolina no pix, empresa";
      ou mandando a foto, o PDF ou o XML do boleto, da nota ou do comprovante): valor, fornecedor, o que foi, onde entra
      (uma obra, rateio entre obras pelo orçamento de cada uma — como a tela — ou Empresa = custo indireto), categoria,
-     se já foi paga, vencimento e forma. Grava em Contas a pagar do mesmo jeito da tela "Nova conta" (custos da obra /
-     despesas da empresa), já aprovada: só o Administrador usa o robô. "Desfazer" manda para a Lixeira.
+     se já foi paga, vencimento, forma e quem pagou (a empresa ou um sócio). Grava em Contas a pagar do mesmo jeito da
+     tela "Nova conta" (custos da obra / despesas da empresa), em "Aguardando aprovação": o dono confere e aprova no
+     sistema, e só então o que o sócio pagou entra no aporte dele. "Desfazer" manda para a Lixeira.
    • Dar baixa (/pagar), buscar nota fiscal (/nota — manda o PDF e o XML guardados), nova tarefa (/tarefa), nova
      reunião (/reuniao) e o diesel da retroescavadeira (/diesel).
    • Lê de graça: QR do PIX e da NFC-e na foto, texto do PDF (linha digitável do boleto, chave da nota), XML (NF-e,
@@ -23,7 +24,8 @@ const modelos = (env, padrao) => [...new Set(String(process.env[env] || '').spli
 // (2026: a Groq desligou os llama-4 de imagem; a foto passou para o qwen3.8 — e o teste automático acha o que funciona)
 const M_VISAO = modelos('GROQ_VISION_MODEL', ['qwen/qwen3.8-27b', 'qwen/qwen3.6-27b', 'meta-llama/llama-4-scout-17b-16e-instruct']);
 const M_TEXTO = modelos('GROQ_TEXT_MODEL', ['openai/gpt-oss-120b', 'openai/gpt-oss-20b', 'qwen/qwen3.8-27b', 'llama-3.3-70b-versatile']);
-const M_AUDIO = modelos('GROQ_AUDIO_MODEL', ['whisper-large-v3-turbo', 'whisper-large-v3']);
+// áudio: o whisper-large-v3 inteiro erra menos no português que o "turbo" (que fica de reserva)
+const M_AUDIO = modelos('GROQ_AUDIO_MODEL', ['whisper-large-v3', 'whisper-large-v3-turbo']);
 // os modelos que a Groq tem hoje (ela aposenta modelos de tempos em tempos): a lista dela fica guardada por 1 hora
 let cacheMod = { t: 0, ids: null, erro: '' };
 async function idsGroq() {
@@ -45,9 +47,9 @@ const usarTeste = t => { if (t) TESTADO = { visao: t.foto || '', audio: t.audio 
 async function lerTesteGroq() { const j = (await sb('arquivos?select=id,row_data&row_data->>tipo=eq.telegram_groq&order=id.desc&limit=3')) || []; return j[0] ? { ...(j[0].row_data || {}), _id: j[0].id } : null; }
 async function carregarTestado() { if (Date.now() - testadoEm < 600e3) return; testadoEm = Date.now(); try { usarTeste(await lerTesteGroq()); } catch (e) { /* segue com a lista */ } }
 // o testado, os preferidos que existem e depois os parecidos que a Groq tiver (se um sumir, o robô usa o próximo sozinho)
-async function modelosDe(pref, tipo) {
+async function modelosDe(pref, tipo, semTeste) {
   await carregarTestado();
-  const t = TESTADO[tipo];
+  const t = semTeste ? '' : TESTADO[tipo];   // o próprio teste segue a ordem de preferência
   let ids; try { ids = await idsGroq(); } catch (e) { return [...new Set([t].filter(Boolean).concat(pref))]; }
   const ok = t && ids.includes(t) ? [t] : [], tem = pref.filter(m => ids.includes(m) && !ok.includes(m));
   const outros = ids.filter(m => RE_MOD[tipo].test(m) && !/guard|tts|playai|orpheus|compound|prompt/i.test(m) && !tem.includes(m) && !ok.includes(m));
@@ -62,20 +64,22 @@ async function estadoGroq() {
 }
 // TESTE AUTOMÁTICO (a tarefa de 15 em 15 minutos chama; roda a cada 12 h, ou 1 h se algo falhou): manda uma imagem
 // pequena, um áudio mudo e uma pergunta curta a cada modelo da lista e guarda o primeiro que respondeu certo
+const VER_TESTE = 2;   // 2: o áudio passou a preferir o whisper-large-v3
 function wavMudo(seg) { const sr = 16000, n = Math.round(sr * seg), b = Buffer.alloc(44 + n * 2); b.write('RIFF', 0); b.writeUInt32LE(36 + n * 2, 4); b.write('WAVE', 8); b.write('fmt ', 12); b.writeUInt32LE(16, 16); b.writeUInt16LE(1, 20); b.writeUInt16LE(1, 22); b.writeUInt32LE(sr, 24); b.writeUInt32LE(sr * 2, 28); b.writeUInt16LE(2, 32); b.writeUInt16LE(16, 34); b.write('data', 36); b.writeUInt32LE(n * 2, 40); return b; }
 async function testarGroq(forcar) {
   if (!GROQ) return null;
   const ant = await lerTesteGroq().catch(() => null);
   if (ant) usarTeste(ant);
-  const idade = ant && ant.quando ? Date.now() - new Date(ant.quando).getTime() : Infinity, falhou = !ant || !(ant.foto && ant.audio && ant.texto);
+  // teste de outra versão (a ordem dos modelos mudou) conta como vencido: roda de novo no próximo aviso de 15 minutos
+  const idade = ant && ant.quando && ant.versao === VER_TESTE ? Date.now() - new Date(ant.quando).getTime() : Infinity, falhou = !ant || !(ant.foto && ant.audio && ant.texto);
   if (!forcar && idade < (falhou ? 3600e3 : 12 * 3600e3)) return null;
-  const r = { tipo: 'telegram_groq', quando: new Date().toISOString(), foto: '', audio: '', texto: '', erros: {} };
+  const r = { tipo: 'telegram_groq', versao: VER_TESTE, quando: new Date().toISOString(), foto: '', audio: '', texto: '', erros: {} };
   const tentar = async (lista, fn) => { for (const m of lista) { try { await fn(m); return m; } catch (e) { r.erros[m] = corta(String(e.message || e), 160); } } return ''; };
   const img = 'data:image/jpeg;base64,' + Buffer.from(require('jpeg-js').encode({ data: Buffer.alloc(64 * 64 * 4, 230), width: 64, height: 64 }, 80).data).toString('base64');
   const PED = 'Responda só com este JSON: {"ok": true}';
-  r.foto = await tentar(await modelosDe(M_VISAO, 'visao'), async m => { if (!(await chatUm(m, [{ role: 'user', content: [{ type: 'text', text: PED }, { type: 'image_url', image_url: { url: img } }] }], 30000, 300))) throw new Error('não devolveu os dados'); });
-  r.audio = await tentar(await modelosDe(M_AUDIO, 'audio'), async m => { await transcreverUm(m, wavMudo(1), 'teste.wav', 'audio/wav', ''); });
-  r.texto = await tentar(await modelosDe(M_TEXTO, 'texto'), async m => { if (!(await chatUm(m, [{ role: 'user', content: PED }], 25000, 300))) throw new Error('não devolveu os dados'); });
+  r.foto = await tentar(await modelosDe(M_VISAO, 'visao', true), async m => { if (!(await chatUm(m, [{ role: 'user', content: [{ type: 'text', text: PED }, { type: 'image_url', image_url: { url: img } }] }], 30000, 300))) throw new Error('não devolveu os dados'); });
+  r.audio = await tentar(await modelosDe(M_AUDIO, 'audio', true), async m => { await transcreverUm(m, wavMudo(1), 'teste.wav', 'audio/wav', ''); });
+  r.texto = await tentar(await modelosDe(M_TEXTO, 'texto', true), async m => { if (!(await chatUm(m, [{ role: 'user', content: PED }], 25000, 300))) throw new Error('não devolveu os dados'); });
   usarTeste(r); testadoEm = Date.now();
   if (ant && ant._id) await sb(`arquivos?id=eq.${q(ant._id)}`, { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: { row_data: r } }); else await inserir('arquivos', r);
   return r;
@@ -84,6 +88,11 @@ async function testarGroq(forcar) {
 // ── os mesmos nomes e listas da tela ──
 const CNPJ_VIXSUL = '64518375000120';
 const EMP = 'Empresa', MAQ = 'Retroescavadeira';
+const SITE = 'https://gestao.vixsulempreendimentos.com.br';
+// o kit de documentos da empresa (Documentos e certidões › Kit da empresa): os arquivos ficam na "pasta" __empresa__
+const EMP_ARQ = '__empresa__';
+const KIT_NOMES = { alvara: 'Alvará de Funcionamento', cartao_cnpj: 'Cartão CNPJ', contrato_social: 'Contrato Social', cnd_federal: 'Certidão Negativa de Débitos Federais (RFB/PGFN)', crf_fgts: 'Certificado de Regularidade do FGTS (CRF)', simples: 'Termo de opção pelo Simples Nacional', dctfweb: 'DCTFWeb — recibo de entrega', cnh: 'CNH-e do representante legal' };
+const KIT_VENCE = new Set(['alvara', 'cnd_federal', 'crf_fgts', 'dctfweb', 'cnh']);
 const CATC = ['Mão de obra', 'Equipamentos e locações', 'Materiais'];
 const EMP_PADRAO = {
   'Aluguel': ['Aluguel do escritório', 'Aluguel de galpão / depósito', 'Condomínio'],
@@ -215,10 +224,11 @@ function horaDe(txt) {
 function formaDe(txt) {
   const s = String(txt || ''); let m;
   const t = (re, f) => ((m = s.match(re)) ? { forma: f, tirar: m[0] } : null);
-  return t(/\b(?:n?o\s+|pelo\s+|via\s+|por\s+)?pix\b/i, 'PIX') || t(/\b(?:n?o\s+|pelo\s+|via\s+|por\s+)?boleto\b/i, 'Boleto')
-    || t(/\b(?:em\s+|no\s+)?(?:dinheiro|esp[ée]cie)\b/i, 'Dinheiro') || t(/\b(?:n?o\s+)?cart[ãa]o\s+de\s+d[ée]bito\b|\bno\s+d[ée]bito\b/i, 'Cartão de Débito')
-    || t(/\b(?:n?o\s+)?cart[ãa]o(?:\s+de\s+cr[ée]dito)?(?![\wÀ-ÿ])|\bno\s+cr[ée]dito\b/i, 'Cartão de Crédito')
-    || t(/\b(?:por\s+|via\s+|com\s+)?(?:transfer[êe]ncia|ted)(?![\wÀ-ÿ])/i, 'Transferência/TED') || t(/\b(?:no\s+|com\s+|em\s+)?cheque\b/i, 'Cheque') || { forma: '', tirar: '' };
+  // começo de palavra = sem letra antes (o \b acharia um "o" solto no fim de "almoço" e levaria junto)
+  return t(/(?<![\wÀ-ÿ])(?:n?o\s+|pelo\s+|via\s+|por\s+)?pix\b/i, 'PIX') || t(/(?<![\wÀ-ÿ])(?:n?o\s+|pelo\s+|via\s+|por\s+)?boleto\b/i, 'Boleto')
+    || t(/(?<![\wÀ-ÿ])(?:em\s+|no\s+)?(?:dinheiro|esp[ée]cie)(?![\wÀ-ÿ])/i, 'Dinheiro') || t(/(?<![\wÀ-ÿ])(?:n?o\s+)?cart[ãa]o\s+de\s+d[ée]bito(?![\wÀ-ÿ])|(?<![\wÀ-ÿ])no\s+d[ée]bito(?![\wÀ-ÿ])/i, 'Cartão de Débito')
+    || t(/(?<![\wÀ-ÿ])(?:n?o\s+)?cart[ãa]o(?:\s+de\s+cr[ée]dito)?(?![\wÀ-ÿ])|(?<![\wÀ-ÿ])no\s+cr[ée]dito(?![\wÀ-ÿ])/i, 'Cartão de Crédito')
+    || t(/(?<![\wÀ-ÿ])(?:por\s+|via\s+|com\s+)?(?:transfer[êe]ncia|ted)(?![\wÀ-ÿ])/i, 'Transferência/TED') || t(/(?<![\wÀ-ÿ])(?:no\s+|com\s+|em\s+)?cheque\b/i, 'Cheque') || { forma: '', tirar: '' };
 }
 // onde termina o nome dito (do fornecedor, da obra…): na próxima informação da frase
 const PARA = '(?=\\s+(?:vence|vencimento|venc\\b|pag[oa]\\b|paguei|no\\s+pix|pelo\\s+pix|pix|boleto|em\\s+dinheiro|dinheiro|cart[ãa]o|transfer|cheque|n[ao]\\s+obra|obras?\\b|empresa|escrit|dia\\s+\\d|hoje|amanh|ontem|r\\$|categoria|nota|nf\\b|valor|parcel|rate|\\d)|\\s*[,.;]|\\s*$)';
@@ -287,13 +297,42 @@ function limparDesc(s) {
   return t.length >= 3 ? capital(t.slice(0, 140)) : '';
 }
 
+// quem pagou, dito na frase: a empresa ("no cartão da empresa", "a empresa pagou") ou um sócio ("do meu bolso", "com meu
+// cartão", "pago pelo sócio Vilson") — o do sócio vira aporte quando a conta for aprovada no sistema
+// (o começo de palavra é "sem letra antes" — o \b do JavaScript acha que o "o" de "almoço" é uma palavra solta)
+const RE_PG_EMP = /(?:(?<![\wÀ-ÿ])(?:com|n[oa]|pel[oa]|via|d[oa]|o|a|meu)\s+)*(?<![\wÀ-ÿ])(cart[ãa]o(?:\s+de\s+(?:cr[ée]dito|d[ée]bito))?|pix|dinheiro)\s+d[ae]\s+(?:a\s+)?(?:empresa|vixsul)(?![\wÀ-ÿ])|(?<![\wÀ-ÿ])(?:com|pel[oa]|via|d[oa])\s+(?:a\s+|o\s+)?(?:conta|caixa)(?:\s+(?:banc[áa]ria|corrente))?\s+d[ae]\s+(?:a\s+)?(?:empresa|vixsul)(?![\wÀ-ÿ])/i;
+const RE_EMP_PAGOU = /(?<![\wÀ-ÿ])(?:a\s+)?(?:empresa|vixsul)\s+(?:que\s+)?(pagou|paga|quitou)(?![\wÀ-ÿ])|(?<![\wÀ-ÿ])(pag[oa]|paguei|pagamos|pagou|quitad[oa])\s+pel[ao]\s+(?:pr[óo]pria\s+)?(?:empresa|vixsul)(?![\wÀ-ÿ])/i;
+const RE_PG_MEU = /(?:(?<![\wÀ-ÿ])(?:com|n[oa]|pel[oa]|via|d[oa]|o|a|eu)\s+)*(?<![\wÀ-ÿ])(?:meu|minha)\s+(?:pr[óo]pri[oa]\s+)?(cart[ãa]o(?:\s+de\s+(?:cr[ée]dito|d[ée]bito))?|conta(?:\s+(?:pessoal|banc[áa]ria|corrente))?|pix|dinheiro|bolso)(?![\wÀ-ÿ])|(?<![\wÀ-ÿ])do\s+(?:pr[óo]prio\s+)?bolso(?![\wÀ-ÿ])|(?<![\wÀ-ÿ])(?:com\s+)?dinheiro\s+(?:meu|pr[óo]prio)(?![\wÀ-ÿ])/i;
+const RE_PG_SOCIO = /(?<![\wÀ-ÿ])(?:pel[oa]\s+|o\s+|a\s+)?s[óo]ci[oa]\s+(?!(?:que|pagou|paga|pago|com|no|na|de|do|da|e|vai|j[áa])(?![\wÀ-ÿ]))([A-Za-zÀ-ÿ]{3,})/i;
+// com a lista dos sócios: "quem pagou foi o Vilson", "pago pelo Vilson", "o Vilson pagou" ([regra, grupo do nome, grupo do verbo])
+const PG_NOMES = [[/(?<![\wÀ-ÿ])quem\s+(pagou)\s+foi\s+(?:o\s+|a\s+)?([A-Za-zÀ-ÿ]{3,})/gi, 2, 1], [/(?<![\wÀ-ÿ])(pag[oa]|paguei|pagou|quitad[oa])\s+pel[oa]\s+([A-Za-zÀ-ÿ]{3,})/gi, 2, 1],
+  [/(?<![\wÀ-ÿ])(?:o\s+|a\s+)?([A-Za-zÀ-ÿ]{3,})\s+(?:que\s+)?(pag(?:ou|a))(?![\wÀ-ÿ])/gi, 1, 2]];
+function quemPagou(s, socios) {
+  const meio = x => /cart|pix|dinheiro/i.test(x || '') ? ' ' + x + ' ' : ' ';
+  // o "pagou" do trecho fica na frase (é ele que diz que já foi pago), a não ser que a frase já tenha outro
+  const semTrecho = (tr, verbo) => { const resto = s.replace(tr, ' '); return /\b(?:paguei|pagamos|pagou|pagaram|pago|paga|quitei|quitad[oa])\b/i.test(resto) ? resto : s.replace(tr, ' ' + verbo + ' '); };
+  let m;
+  if ((m = s.match(RE_PG_EMP))) return { socio: '', s: s.replace(m[0], meio(m[1])) };
+  if ((m = s.match(RE_EMP_PAGOU))) return { socio: '', s: semTrecho(m[0], m[1] || m[2]) };
+  if ((m = s.match(RE_PG_MEU))) return { eu: true, s: s.replace(m[0], meio(m[1])) };
+  if ((m = s.match(RE_PG_SOCIO))) return { nome: capital(m[1]), s: s.replace(m[0], ' ') };
+  const L = Array.isArray(socios) ? socios : [];
+  if (L.length) for (const [re, gn, gv] of PG_NOMES) for (const x of s.matchAll(re)) {
+    const w = cn(x[gn]), soc = w.length >= 3 && L.find(n => cn(n) === w || cn(n).split(' ')[0] === w);
+    if (soc) return { socio: soc, s: semTrecho(x[0], x[gv]) };
+  }
+  return null;
+}
 // ── a frase de uma conta: valor, pago/a pagar, vencimento, forma, fornecedor, obra/empresa/rateio e o que foi ──
-function lerFrase(txt, obras, hj) {
+function lerFrase(txt, obras, hj, socios) {
   const o = {}; let s = ' ' + numerosPorExtenso(String(txt || '').replace(/\s+/g, ' ')) + ' ';
   const tira = x => { x = String(x || '').trim(); if (x) s = s.replace(x, ' '); };
   const naoPago = /\b(?:a\s+pagar|para\s+pagar|pra\s+pagar|vou\s+pagar|vamos\s+pagar|n[ãa]o\s+(?:foi\s+)?pag[oa]|ainda\s+n[ãa]o\s+pag\w*|em\s+aberto)\b/i;
   const pagoRe = /\b(?:paguei|pagamos|pagou|pagaram|pago|paga|quitei|quitado|quitada|j[áa]\s+(?:foi\s+)?pag[oa]|foi\s+pag[oa])\b/i;
   let m;
+  // quem pagou sai da frase antes (o "da empresa" do cartão não é a conta da empresa; o "pago" fica para a data)
+  const qp = quemPagou(s, socios);
+  if (qp) { s = qp.s; if (qp.socio !== undefined) o.socio = qp.socio; else if (qp.eu) o.socioEu = true; else if (qp.nome) o.socioNome = qp.nome; }
   if ((m = s.match(naoPago))) { o.pagoOk = true; o.pago = ''; tira(m[0]); }
   else if ((m = s.match(pagoRe))) { tira(m[0]); const d = dataDe(s, hj, 'passado'); if (d.dia && d.dia <= hj) { o.pago = d.dia; tira(d.tirar); } else o.pago = hj; o.pagoOk = true; }
   if (!o.pago) {
@@ -347,6 +386,9 @@ function lerDiesel(txt, obras, hj) {
   const v = valorDe(s); if (v.valor > 0) o.valor = v.valor;
   return o;
 }
+// "Oi robô, bom dia, por favor lança…" → "lança…" (o começo falado que não muda o pedido)
+const RE_OI = /^(?:\s*(?:oi+|ol[áa]|opa|ei|e\s+a[íi]|[ôó]|rob[ôo]|bom\s+dia|boa\s+tarde|boa\s+noite|tudo\s+bem|por\s+favor|pfv|pf|ent[ãa]o|bom|bem|[ée]h?|ah+|hum+|hmm+|ok|okay|beleza|blz|seguinte|olha|escuta|me\s+fa[zç]a?\s+um\s+favor|fa[zç]a?\s+um\s+favor|fa[zç]a?\s+o\s+seguinte|vixsul)(?![\wÀ-ÿ])\s*[,.!?:;-]*)+/i;
+const semOi = t => { const s = String(t || '').replace(RE_OI, '').trim(); return s.length >= 3 ? s : String(t || '').trim(); };
 // o pedido escrito: o que a pessoa quer que o robô faça (sem IA, de graça)
 function intencao(t) {
   const s = nrm(t).trim();
@@ -356,6 +398,10 @@ function intencao(t) {
   if (/^(?:cri[ae]r?|nova|novo|anot[ae]r?|registr[ae]r?|adicion[ae]r?|inclu(?:i|ir|a)|coloc[ae]r?|poe)\s+(?:uma?\s+)?(?:tarefa|pendencia|acao)\b/.test(s) || /^(?:tarefa|pendencia)\s*:/.test(s)) return 'tarefa';
   if (/^(?:marc[ae]r?|agend[ae]r?|cri[ae]r?|nova|novo)\s+(?:uma?\s+)?(?:reuniao|visita)\b/.test(s)) return 'reuniao';
   if (/\b(?:diesel|abasteci|abastecimento|abastecer)\b/.test(s) && /\d\s*(?:l|lt|lts|litros?)\b/.test(s)) return 'diesel';
+  // dinheiro que ENTROU (nota emitida recebida) — "recebi a nota do fornecedor" é conta, não recebimento
+  if (/^(?:recebi|recebemos|recebeu|entrou|entraram|caiu|cairam)\b/.test(s) && (/\b(?:pagamento|dinheiro|deposito|transferencia|medicao|prefeitura|embasa|contratante|cliente)\b/.test(s) || /\b(?:nota|nf|nfse)\s*(?:fiscal\s*)?(?:n\S?\s*)?\d/.test(s) || valorDe(t).valor > 0) && !/\b(?:boleto|fornecedor|conta\s+d[aeo])\b/.test(s)) return 'receb';
+  if (/^(?:conclui|concluir|concluimos|conclua|terminei|terminamos|termina|finalizei|finalizamos|fiz|feita|feito|marca(?:r)?\s+(?:a\s+)?(?:tarefa|pendencia)\s+como)\b/.test(s) && /\b(?:tarefa|pendencia|acao)\b/.test(s)) return 'concluir';
+  if (/^(?:manda|mande|me\s+manda|me\s+mande|envia|envie|me\s+envia|preciso\s+d[aoe]s?|quero|cade|busca|buscar|procura|procurar)\s+(?:o\s+|a\s+|os\s+|as\s+|um\s+|uma\s+)?(?:certidao|certidoes|cnd|crf|alvara|contrato\s+social|cartao\s+(?:do\s+)?cnpj|documento|documentos|kit|dctfweb|simples\s+nacional)\b/.test(s)) return 'doc';
   const temValor = valorDe(t).valor > 0;
   if (/^(?:por\s+favor\s+)?(?:lanca|lancar|lance|registr[ae]r?|cadastr[ae]r?|anot[ae]r?|inclu(?:i|ir|a)|adicion[ae]r?|coloc[ae]r?|bota|botar|nova\s+conta|novo\s+gasto|nova\s+despesa|conta\s+d[eoa]|despesa|gasto|paguei|pagamos|comprei|compramos|gastei|gastamos)\b/.test(s) && (temValor || /\b(?:conta|despesa|gasto|boleto|compra)\b/.test(s))) return 'conta';
   if (/^(?:r\$\s*)?\d[\d.,]*\s*(?:reais\s+)?(?:de|do|da|com|em|no|na|pra|para)\s+\S/.test(s) && temValor) return 'conta';
@@ -616,21 +662,61 @@ function normIA(j) {
   const ch = s('chave').replace(/\D/g, ''); if (chaveOk(ch)) o.chave = ch;
   return o;
 }
-async function transcreverUm(m, buf, nome, mime, prompt) {
-  const fd = new FormData();
-  fd.append('model', m); fd.append('language', 'pt'); fd.append('temperature', '0'); fd.append('response_format', 'json');
-  if (prompt) fd.append('prompt', prompt);
-  fd.append('file', new Blob([buf], { type: mime || 'audio/ogg' }), nome || 'audio.ogg');
-  const j = await groq('/audio/transcriptions', fd, 45000);
-  return String((j && j.text) || '').trim();
+// frases que o Whisper "inventa" no silêncio ou no barulho (vêm das legendas de vídeo com que ele aprendeu)
+const RE_INVENTADO = [/[^.!?]*amara\.org[^.!?]*[.!?]?/gi, /(?:legendas?|legendado|transcri[çc][ãa]o)\s+(?:pela|por|feitas?\s+por|da)\s+[^.!?]*[.!?]?/gi, /obrigad[oa]s?\s+por\s+(?:assistir|ver|ouvir)[^.!?]*[.!?]?/gi,
+  /inscreva-se[^.!?]*[.!?]?/gi, /ative\s+o\s+sininho[^.!?]*[.!?]?/gi, /deixe\s+(?:seu|o\s+seu)\s+like[^.!?]*[.!?]?/gi, /at[ée]\s+o\s+pr[óo]ximo\s+v[íi]deo[^.!?]*[.!?]?/gi];
+const semInventado = s => RE_INVENTADO.reduce((t, re) => t.replace(re, ' '), String(s || '')).replace(/\s+/g, ' ').trim();
+// o áudio vira texto; com "verbose_json" vem também a confiança de cada trecho (o que o Whisper não ouviu bem)
+async function transcreverDet(m, buf, nome, mime, prompt) {
+  const mk = (fmt, pr) => { const fd = new FormData(); fd.append('model', m); fd.append('language', 'pt'); fd.append('temperature', '0'); fd.append('response_format', fmt); if (pr) fd.append('prompt', pr); fd.append('file', new Blob([buf], { type: mime || 'audio/ogg' }), nome || 'audio.ogg'); return fd; };
+  let j;
+  try { j = await groq('/audio/transcriptions', mk('verbose_json', prompt), 45000); }
+  catch (e) {
+    if (e.status !== 400) throw e;
+    if (/response_format|verbose/i.test(e.message || '')) j = await groq('/audio/transcriptions', mk('json', prompt), 45000);
+    else if (prompt && /prompt|token/i.test(e.message || '')) j = await groq('/audio/transcriptions', mk('verbose_json', ''), 45000);   // a "cola" passou do tamanho
+    else throw e;
+  }
+  // cada trecho: sai o silêncio (sem fala e sem confiança) e a frase inventada; a confiança é a média dos trechos que ficaram
+  const comSeg = !!(j && Array.isArray(j.segments)), vazio = s => !s || /^[\s.,!?-]*$/.test(s);
+  const segs = (comSeg ? j.segments : []).filter(s => !(+s.no_speech_prob > 0.6 && +s.avg_logprob < -1)).map(s => ({ ...s, text: semInventado(s.text) })).filter(s => !vazio(s.text));
+  let txt = comSeg ? segs.map(s => s.text).join(' ') : semInventado(j && j.text); if (vazio(txt)) txt = '';
+  const ps = segs.filter(s => typeof s.avg_logprob === 'number'), peso = s => Math.max(1, s.text.length);
+  const media = ps.length ? ps.reduce((a, s) => a + s.avg_logprob * peso(s), 0) / ps.reduce((a, s) => a + peso(s), 0) : 0;
+  return { texto: txt.trim(), duvida: !!txt && ps.length > 0 && (media < -0.75 || ps.some(s => +s.compression_ratio > 2.6)) };
 }
-async function transcrever(buf, nome, mime, obras) {
-  const prompt = corta('Vixsul. Lançar conta, fornecedor, obra, empresa, rateio, PIX, boleto, diesel, retroescavadeira, tarefa, reunião, nota fiscal. Obras: ' + (obras || []).join(', '), 600);
-  return comModelos(await modelosDe(M_AUDIO, 'audio'), m => transcreverUm(m, buf, nome, mime, prompt));
+async function transcreverUm(m, buf, nome, mime, prompt) { return (await transcreverDet(m, buf, nome, mime, prompt)).texto; }
+// a "cola" do Whisper: um exemplo do jeito de falar (com os números escritos em algarismos) e os nomes da empresa
+function promptVoz(v) {
+  v = v || {};
+  let p = 'Vixsul Empreendimentos. Lança 350 reais de cimento na obra, paguei no PIX. Conta de R$ 1.200,00 do aluguel da empresa, vence dia 20/11, boleto. Rateio entre as obras, diesel da retroescavadeira, nota fiscal, tarefa, reunião.';
+  for (const [t, L] of [['Obras', v.obras], ['Sócios', v.socios], ['Fornecedores', v.forns]]) {
+    const nomes = [...new Set((L || []).map(n => corta(String(n || '').replace(/\s+/g, ' ').trim(), 45)).filter(Boolean))];
+    let s = ''; for (const n of nomes.slice(0, 12)) { const z = (s ? s + ', ' : ` ${t}: `) + n; if ((p + z).length + 1 > 480) break; s = z; }   // o Whisper lê até ~224 pedaços de palavra
+    if (s) p += s + '.';
+  }
+  return p;
+}
+// os nomes que mais aparecem (obras em andamento, sócios e os fornecedores das últimas contas): o Whisper escreve certo
+let cacheVoz = { t: 0, v: null };
+async function vocabulario() {
+  if (cacheVoz.v && Date.now() - cacheVoz.t < 30 * 60e3) return cacheVoz.v;
+  const forns = async () => {
+    const c = new Map();
+    for (const [t, k] of [['custos', 'fornecedor'], ['despesas', 'fornecedor_beneficiario']]) ((await sb(`${t}?select=f:row_data->>${k}&order=id.desc&limit=300`).catch(() => [])) || []).forEach(x => { const n = String(x.f || '').trim(); if (n.length >= 3) c.set(n, (c.get(n) || 0) + 1); });
+    return [...c.entries()].sort((a, b) => b[1] - a[1]).map(x => x[0]).slice(0, 12);
+  };
+  const [ob, so, fo] = await Promise.all([obrasAtivas().catch(() => []), sociosLista().catch(() => []), forns().catch(() => [])]);
+  cacheVoz = { t: Date.now(), v: { obras: ob.filter(o => o.fase !== 'entregue').map(o => o.nome), socios: so, forns: fo } };
+  return cacheVoz.v;
+}
+async function transcrever(buf, nome, mime, voc) {
+  const prompt = promptVoz(voc);
+  return comModelos(await modelosDe(M_AUDIO, 'audio'), m => transcreverDet(m, buf, nome, mime, prompt));
 }
 const SIS_INTENCAO = `Você transforma pedidos (escritos ou falados) para o robô do sistema de gestão de uma construtora em JSON. Responda SÓ com o JSON, sem texto em volta.
 Formato:
-{"acao":"conta|baixa|nota|tarefa|reuniao|diesel|lembrete|pergunta|outro","valor":null,"fornecedor":"","descricao":"","onde":"obra|empresa|rateio|","obra":"","obras":[],"pago":null,"data_pagamento":"","vencimento":"","forma":"","litros":null,"horimetro":null,"quando":"","hora":"","titulo":"","quem":"","prioridade":"","local":"","busca":""}
+{"acao":"conta|baixa|nota|tarefa|reuniao|diesel|recebimento|concluir|documento|lembrete|pergunta|outro","valor":null,"fornecedor":"","descricao":"","onde":"obra|empresa|rateio|","obra":"","obras":[],"pago":null,"data_pagamento":"","vencimento":"","forma":"","parcelas":null,"quem_pagou":"","litros":null,"horimetro":null,"quando":"","hora":"","titulo":"","quem":"","prioridade":"","local":"","busca":""}
 O que cada ação quer dizer:
 - conta: lançar uma conta, despesa, compra ou pagamento NOVO (ex.: "paguei 350 de cimento", "lança o aluguel de 1.200 da empresa").
 - baixa: marcar como paga uma conta que JÁ está lançada (ex.: "dá baixa na conta da internet").
@@ -638,9 +724,12 @@ O que cada ação quer dizer:
 - tarefa: criar tarefa ou pendência (titulo = o que fazer; quando = prazo; quem = responsável).
 - reuniao: marcar reunião (titulo = assunto; quando, hora, local).
 - diesel: abastecimento de diesel da máquina (litros, valor, obra, fornecedor = posto, horimetro).
+- recebimento: dinheiro que ENTROU para a Vixsul — pagamento de uma nota emitida ou de uma medição (ex.: "recebi 50 mil da Embasa", "entrou o pagamento da nota 123"); busca = número da nota ou contratante; obra; valor. Nota de fornecedor que chegou é "conta".
+- concluir: marcar uma tarefa como feita (busca = palavras da tarefa).
+- documento: pedir um documento da empresa (certidão, CND, FGTS/CRF, contrato social, cartão CNPJ, alvará, DCTFWeb) ou um arquivo de uma obra (busca = o documento; obra).
 - lembrete: pedir para lembrar de algo (titulo = o que lembrar; quando e hora).
 - pergunta: pergunta sobre números ou situação do sistema. outro: qualquer outra coisa.
-Regras: valor em reais como número (1.234,56 → 1234.56; "trezentos e cinquenta" → 350). Datas AAAA-MM-DD e hora HH:MM, contando a partir de hoje. "empresa", "escritório" ou "custo indireto" → onde "empresa"; "ratear" ou "dividir entre as obras" → onde "rateio" (obras = as citadas). obra e obras: copie o nome EXATO da lista de obras (deixe vazio se não tiver certeza). forma: PIX, Boleto, Transferência/TED, Dinheiro, Cartão de Débito, Cartão de Crédito ou Cheque. pago: true se disse que já pagou; false se disse que ainda vai pagar; null se não disse. descricao: o que foi comprado ou pago, curto. Não invente nada: deixe vazio o que não foi dito.`;
+Regras: valor em reais como número (1.234,56 → 1234.56; "trezentos e cinquenta" → 350). Datas AAAA-MM-DD e hora HH:MM, contando a partir de hoje. "empresa", "escritório" ou "custo indireto" → onde "empresa"; "ratear" ou "dividir entre as obras" → onde "rateio" (obras = as citadas). obra e obras: copie o nome EXATO da lista de obras (deixe vazio se não tiver certeza). forma: PIX, Boleto, Transferência/TED, Dinheiro, Cartão de Débito, Cartão de Crédito ou Cheque. pago: true se disse que já pagou; false se disse que ainda vai pagar; null se não disse. descricao: o que foi comprado ou pago, curto. parcelas: número de parcelas se disse (ex.: "em 3 vezes" → 3). quem_pagou: "empresa" se disse que saiu do dinheiro, da conta ou do cartão da empresa; "eu" se disse que pagou do próprio bolso, cartão, PIX ou conta pessoal ("paguei com meu cartão"); o nome do sócio se disse que outra pessoa pagou do bolso dela ("o Vilson pagou"); vazio se não disse. O pedido pode ter vindo de áudio: corrija pelo sentido as palavras que o reconhecimento de voz errou (nomes de obras parecidos com os da lista, números falados). Não invente nada: deixe vazio o que não foi dito.`;
 
 // ── banco (chave de serviço; nunca vai ao navegador) ──
 const q = encodeURIComponent;
@@ -685,13 +774,24 @@ async function nomePorCnpj(c) {
   try { const L = await leve('fornecedores', ['nome', 'cnpj', 'documento']); const x = L.find(y => String(y.cnpj || y.documento || '').replace(/\D/g, '') === c); if (x) return x.nome; } catch (e) { /* segue */ }
   try { const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), 6000); const r = await fetch('https://brasilapi.com.br/api/cnpj/v1/' + c, { signal: ctl.signal }); clearTimeout(t); if (!r.ok) return ''; const j = await r.json(); return maiusc(j.nome_fantasia || j.razao_social || ''); } catch (e) { return ''; }
 }
+// os sócios / investidores que já aportaram (os mais frequentes primeiro) — os botões do "Quem pagou?"
+async function sociosLista() {
+  const L = await leve('aportes', ['quem_aportou', 'quem', 'movimento']), cont = new Map();
+  L.forEach(a => { if (/retir|devolu/i.test(a.movimento || '')) return; const q = String(a.quem_aportou || a.quem || '').trim(); if (q) cont.set(q, (cont.get(q) || 0) + 1); });
+  return [...cont.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'pt-BR')).map(x => x[0]).slice(0, 8);
+}
+// o nome dito (ou escrito) → o sócio do jeito que está nos aportes ("vilson" → "Vilson Souza"); sem igual, o nome dito
+const achouSocio = (t, lista) => { const c = cn(t); if (!c) return ''; return (lista || []).find(s => cn(s) === c) || (lista || []).find(s => cn(s).startsWith(c) || c.startsWith(cn(s))) || (lista || []).find(s => cn(s).split(' ')[0] === c.split(' ')[0]) || ''; };
+const acharSocio = (t, lista) => achouSocio(t, lista) || (cn(t) ? capital(String(t).trim().slice(0, 60)) : '');
+// o sócio que ficou de pagar a conta ("Será paga por X (aporte)" ou o campo pago_por_socio)
+const socioCombinado = r => String(r.pago_por_socio || (String(r.observacao || r.obs || '').match(/Ser[aá] paga por (.+?) \(aporte\)/i) || [])[1] || '').trim();
 // contas em aberto (Real, sem pagamento), com a tabela e o id para dar baixa
 async function contasEmAberto() {
   const hj = R.hojeBahia(), [C, Dp] = await Promise.all([R.ler('custos'), R.ler('despesas')]), L = [];
   C.forEach(c => { if (String(R.campo(c, 'tipo_de_custo', 'tipo_custo')).toLowerCase() !== 'real') return; const pg = R.iso(R.campo(c, 'data_pgto', 'data_pagamento')); if (pg && pg <= hj) return;
-    L.push({ t: 'custos', id: c._id, venc: R.iso(R.campo(c, 'vencimento', 'data_vencimento')), forn: R.campo(c, 'fornecedor') || '', desc: R.campo(c, 'descricao') || '', valor: R.num(R.campo(c, 'p_total', 'valor_total', 'valor')), onde: c.titulo_obra || '', forma: c.forma_pagamento || '' }); });
+    L.push({ t: 'custos', id: c._id, venc: R.iso(R.campo(c, 'vencimento', 'data_vencimento')), forn: R.campo(c, 'fornecedor') || '', desc: R.campo(c, 'descricao') || '', valor: R.num(R.campo(c, 'p_total', 'valor_total', 'valor')), onde: c.titulo_obra || '', forma: c.forma_pagamento || '', ps: socioCombinado(c) }); });
   Dp.forEach(d => { if (String(R.campo(d, 'status_pagamento')).toLowerCase() === 'pago' || /previst/i.test(String(R.campo(d, 'tipo_despesa')))) return;
-    L.push({ t: 'despesas', id: d._id, venc: R.iso(R.campo(d, 'data_despesa', 'vencimento')), forn: R.campo(d, 'fornecedor_beneficiario', 'fornecedor') || '', desc: d.descricao || '', valor: R.num(R.campo(d, 'valor', 'valor_total')), onde: EMP, forma: d.forma_pagamento || '' }); });
+    L.push({ t: 'despesas', id: d._id, venc: R.iso(R.campo(d, 'data_despesa', 'vencimento')), forn: R.campo(d, 'fornecedor_beneficiario', 'fornecedor') || '', desc: d.descricao || '', valor: R.num(R.campo(d, 'valor', 'valor_total')), onde: EMP, forma: d.forma_pagamento || '', ps: socioCombinado(d) }); });
   return L.filter(x => x.venc && x.valor > 0).sort((a, b) => a.venc.localeCompare(b.venc));
 }
 // os anexos de uma nota emitida (PDF e XML guardados no sistema) e o conteúdo deles (Storage ou partes no banco)
@@ -761,6 +861,9 @@ module.exports = function criarRobo(io) {
     if (f.k === 'tarefa') return cartaoTarefa(f);
     if (f.k === 'reuniao') return cartaoReu(f);
     if (f.k === 'diesel') return cartaoDiesel(f);
+    if (f.k === 'receb') return cartaoReceb(f);
+    if (f.k === 'concluir') return cartaoConcluir(f);
+    if (f.k === 'foto') return cartaoFoto(f);
     return { texto: '…', teclado: [] };
   }
   async function baixarTg(file_id, max) {
@@ -815,6 +918,7 @@ module.exports = function criarRobo(io) {
     if (f.onde === 'rateio' && !((f.obras || []).length >= 2)) return 'rateio';
     if (!f.catOk || !(f.onde === 'empresa' ? CATD : CATC).includes(f.cat)) return 'cat';
     if (!f.pagoOk) return 'pago';
+    if (f.pago && f.socio == null) return 'socio';   // pago com dinheiro da empresa ou de um sócio (aporte)?
     if (!f.pago && (f.parcelas || []).length > 1 && f.usarParcelas == null) return 'parc';
     if (!f.pago && !f.venc && !(f.usarParcelas && (f.parcelas || []).length > 1)) return 'venc';
     if (!f.formaOk) return 'forma';
@@ -834,6 +938,7 @@ module.exports = function criarRobo(io) {
     if (f.desc) L.push(`O que foi: ${esc(f.desc)}`);
     const o = ondeTxt(f); if (o) L.push(`Onde: ${o}`);
     if (f.catOk && f.cat) L.push(`Categoria: ${esc(f.cat)}`);
+    if (f.pago && f.socio != null) L.push(f.socio ? `Quem pagou: <b>${esc(f.socio)}</b> (sócio — entra no aporte quando você aprovar)` : 'Quem pagou: a empresa');
     if (f.pagoOk) L.push(cartaoParc(f) ? `Pagamento: <b>cartão de crédito em ${n}x</b> (compra em ${brAno(f.pago)})` : f.pago ? `Pagamento: <b>pago em ${brAno(f.pago)}</b>` : 'Pagamento: a pagar');
     if (cartaoParc(f)) L.push('Parcelas: ' + parcelasConta(f).map(p => `${R.br(p.venc)} ${reais(p.valor)}${p.pago ? ' (paga)' : ''}`).join(' · '));
     else if (!f.pago && n > 1 && (f.venc || f.usarParcelas)) L.push('Parcelas: ' + parcelasConta(f).map(p => `${R.br(p.venc)} ${reais(p.valor)}`).join(' · '));
@@ -867,6 +972,10 @@ module.exports = function criarRobo(io) {
       const emp = f.onde === 'empresa', cats = emp ? CATD : CATC, g = cats.includes(f.cat) ? f.cat : chutarCat(f.desc, emp), ord = [g].concat(cats.filter(c => c !== g));
       perg = 'Qual a <b>categoria</b>?'; kb = grade(ord.map(c => B((c === g ? '✓ ' : '') + c, 'c', cats.indexOf(c))), emp ? 2 : 1);
     }
+    else if (p === 'socio') {
+      perg = '<b>Quem pagou?</b> Se foi um sócio com o dinheiro dele (cartão, PIX ou conta pessoal), o valor entra no aporte dele quando você aprovar a conta. Toque ou escreva o nome:';
+      kb = [[B('🏢 A empresa (conta da empresa)', 'so', 'e')]].concat(grade((f.socios || []).map((s, i) => B('👤 ' + corta(s, 28), 'so', i)), 2));
+    }
     else if (p === 'pago') { perg = '<b>Já foi paga?</b>'; kb = [[B('✅ Já paguei hoje', 'p', 'h')], [B('📅 Paguei em outro dia', 'p', 'o')], [B('⏳ Ainda não — fica a pagar', 'p', 'n')]]; }
     else if (p === 'pagoem') { perg = 'Em que dia foi pago? Escreva a data (ex.: 12/11) ou toque:'; kb = [[B('Ontem', 'p', 'y'), B('Anteontem', 'p', 'a')], [B('← Voltar', 'p', 'b')]]; }
     else if (p === 'parc') { const P = f.parcelas; perg = `A nota tem <b>${P.length} parcelas</b>: ${P.map(x => R.br(x.venc) + ' ' + reais(x.valor)).join(' · ')}. Lançar assim?`; kb = [[B(`✅ Sim, em ${P.length} parcelas`, 'pc', 's')], [B('Não — uma conta só', 'pc', 'n')]]; }
@@ -874,7 +983,7 @@ module.exports = function criarRobo(io) {
     else if (p === 'forma') { perg = '<b>Forma de pagamento</b>?'; kb = grade(FORMAS.map((x, i) => B(x, 'f', i)), 2); kb.push([B('Pular', 'f', 's')]); }
     else if (p === 'mudar') {
       perg = 'O que você quer mudar?';
-      const L = [['Valor', 'valor'], ['Fornecedor', 'forn'], ['O que foi', 'desc'], ['Obra / empresa', 'onde'], ['Categoria', 'cat'], ['Pagamento', 'pago']].concat(f.pago ? [] : [['Vencimento', 'venc']]).concat([['Forma', 'forma']]);
+      const L = [['Valor', 'valor'], ['Fornecedor', 'forn'], ['O que foi', 'desc'], ['Obra / empresa', 'onde'], ['Categoria', 'cat'], ['Pagamento', 'pago']].concat(f.pago ? [['Quem pagou', 'socio']] : []).concat(f.pago ? []: [['Vencimento', 'venc']]).concat([['Forma', 'forma']]);
       kb = grade(L.map(([t, k]) => B(t, 'mx', k)), 2); kb.push([B('← Voltar', 'mx', 'conf')]);
     }
     else if (p === 'conf') { if (f.aviso) perg = '⚠️ ' + esc(f.aviso); kb = [[B(f.aviso ? '✅ Lançar mesmo assim' : '✅ Lançar a conta', 'k')], [B('✏️ Mudar algo', 'm'), B('❌ Cancelar', 'x')]]; }
@@ -904,6 +1013,7 @@ module.exports = function criarRobo(io) {
   async function prepararConta(f) {
     const p = passoConta(f);
     if (p === 'onde') { await carregarLista(f); if (!f.listaR) await carregarRateio(f); }
+    if (p === 'socio' && !f.socios) f.socios = await sociosLista().catch(() => []);
     if ((p === 'rateio' || f.onde === 'rateio') && !f.orcV) await carregarRateio(f);
     if (passoConta(f) === 'conf' && f.aviso == null) f.aviso = await duplicada(f);
   }
@@ -921,13 +1031,19 @@ module.exports = function criarRobo(io) {
     if (antesEmp !== agoraEmp || !(agoraEmp ? CATD : CATC).includes(f.cat)) { f.catOk = false; f.cat = chutarCat(f.desc, agoraEmp); }
   }
   async function iniciarConta(ctx, c) {
-    c = c || {};
+    c = { ...(c || {}) };
+    // quem pagou dito na frase: "meu cartão" = quem está falando (se for sócio); "sócio X" = o X da lista (ou o nome dito)
+    if (c.socioEu || c.socioNome) {
+      const L = c.socios || (c.socios = await sociosLista().catch(() => []));
+      if (c.socio === undefined) { const x = c.socioEu ? achouSocio(ctx.usuario, L) : acharSocio(c.socioNome, L); if (x) c.socio = x; }
+    }
+    delete c.socioEu; delete c.socioNome;
     // "paguei 350…" ou "paguei a conta da internet": se já existe conta em aberto assim, talvez seja só dar baixa nela
     if (c.pago && !c.semOferta) {
       const ab = await contasEmAberto(); let L = [];
       if (c.valor > 0) L = ab.filter(x => Math.abs(x.valor - c.valor) < 0.005);
       else { const ws = cn([c.forn, c.desc].filter(Boolean).join(' ')).split(' ').filter(w => w.length >= 4 && !/^(conta|contas|pagamento|boleto|fatura)$/.test(w)); if (ws.length) L = ab.filter(x => { const a = cn([x.forn, x.desc].join(' ')); return ws.some(w => a.includes(w)); }); }
-      if (L.length && L.length <= 6) { const f = await trocar(ctx, novo('baixa', { itens: L.map(enxugar), passo: 'lista', data: c.pago, forma: c.forma || '', alt: c })); return mostrar(ctx, f); }
+      if (L.length && L.length <= 6) { const f = await trocar(ctx, novo('baixa', { itens: L.map(enxugar), passo: 'lista', data: c.pago, forma: c.forma || '', alt: c, ...(c.socio !== undefined ? { socio: c.socio } : {}), ...(c.socios ? { socios: c.socios } : {}) })); return mostrar(ctx, f); }
     }
     const { semOferta, ...campos } = c;
     const f = await trocar(ctx, novo('conta', campos));
@@ -952,6 +1068,7 @@ module.exports = function criarRobo(io) {
     }
     else if (p === 'rateio') { const L = obrasNoTexto(t, await obrasAtivas()).filter(o => (f.orcV || {})[o.nome]); if (!L.length) { if (outro()) return false; await mandar(ctx.chat, 'Marque as obras nos botões do cartão acima.'); return true; } f.obras = [...new Set((f.obras || []).concat(L.map(o => o.nome)))]; f.passo = 'rateio'; }
     else if (p === 'cat') { const cats = f.onde === 'empresa' ? CATD : CATC, c = cats.find(x => cn(x) === cn(t)) || (cn(t).length >= 3 && cats.find(x => cn(x).startsWith(cn(t)))); if (!c) { if (outro()) return false; await mandar(ctx.chat, 'Toque numa das categorias do cartão acima.'); return true; } f.cat = c; f.catOk = true; }
+    else if (p === 'socio') { const s = nrm(t).trim(); if (/^(?:a\s+)?empresa\b|^n[aã]o\b|^ningu[eé]m|^vixsul$/.test(s)) f.socio = ''; else { if (outro()) return false; f.socio = acharSocio(t, f.socios || []); } }
     else if (p === 'forma') { const fm = FORMAS.find(x => cn(x) === cn(t)) || formaDe(' ' + t + ' ').forma; if (!fm) { if (outro()) return false; await mandar(ctx.chat, 'Toque numa das formas do cartão acima (ou em Pular).'); return true; } f.forma = fm; f.formaOk = true; }
     else return false;
     if (p !== 'rateio') f.passo = null;
@@ -983,6 +1100,7 @@ module.exports = function criarRobo(io) {
     else if (a === 'v') { f.venc = R.somaDias(hj, +x || 0); f.passo = null; }
     else if (a === 'f') { f.forma = x === 's' ? '' : (FORMAS[+x] || ''); f.formaOk = true; f.passo = null; }
     else if (a === 'pc') { f.usarParcelas = x === 's'; f.passo = null; }
+    else if (a === 'so') { if (x === 'e') f.socio = ''; else { const s = (f.socios || [])[+x]; if (!s) return ok(); f.socio = s; } f.passo = null; }
     else if (a === 'sf') { if (x === 'w') { f.forn = f.sugDe; f.fornNovo = true; } else { const n = (f.sug || [])[+x]; if (!n) return ok(); f.forn = n; f.fornNovo = false; } f.sug = null; f.passo = null; }
     else if (a === 'sd') { const n = (f.sugD || [])[+x]; if (n) { f.desc = n; if (!f.catOk) f.cat = chutarCat(n, f.onde === 'empresa'); } f.passo = null; }
     else if (a === 'm') f.passo = 'mudar';
@@ -990,7 +1108,8 @@ module.exports = function criarRobo(io) {
       f.passo = null;
       if (x === 'valor') f.valor = 0; else if (x === 'forn') { f.forn = ''; f.fornNovo = false; } else if (x === 'desc') f.desc = '';
       else if (x === 'onde') { f.onde = ''; f.obra = ''; f.obras = []; } else if (x === 'cat') f.catOk = false;
-      else if (x === 'pago') { f.pagoOk = false; f.pago = ''; } else if (x === 'venc') f.venc = ''; else if (x === 'forma') f.formaOk = false;
+      else if (x === 'pago') { f.pagoOk = false; f.pago = ''; f.socio = undefined; } else if (x === 'venc') f.venc = ''; else if (x === 'forma') f.formaOk = false;
+      else if (x === 'socio') f.socio = undefined;
     }
     else if (a === 'k') { ok('Lançando…'); return lancarConta(ctx, f, cq); }
     ok();
@@ -1001,13 +1120,16 @@ module.exports = function criarRobo(io) {
   function linhasDaConta(f, ctx) {
     const hj = R.hojeBahia(), agora = lancAgora(), nome = ctx.usuario || 'Administrador', uid = ctx.uid || '';
     const compra = 'cp' + f.fid, rid = f.onde === 'rateio' ? 'rt' + f.fid : '', parcs = parcelasConta(f), n = parcs.length, somaP = parcs.reduce((a, p) => a + p.valor, 0), out = [];
-    const aprov = { aprovacao: 'aprovada', aprovado_por: nome, aprovado_em: hj, lancado_por: nome }, dono = { criado_por_id: uid, criado_por: nome };
+    // tudo o que vem do Telegram espera a conferência: "Aguardando aprovação" em Contas a pagar (mesmo já paga). O sócio que
+    // pagou fica em socio_pendente e vira aporte só na aprovação (o sistema faz isso no botão Aprovar)
+    const socio = f.pago ? String(f.socio || '').trim() : '';
+    const aprov = { aprovacao: 'pendente', aprovado_por: '', aprovado_em: '', lancado_por: nome, origem_lanc: 'telegram', ...(socio ? { socio_pendente: socio } : {}) }, dono = { criado_por_id: uid, criado_por: nome };
     destinosConta(f).forEach((d, di) => {
       const tot = Math.round(d.valor * 100); let ac = 0;
       parcs.forEach((p, i) => {
         const c = n > 1 ? (i < n - 1 ? Math.round(tot * p.valor / somaP) : tot - ac) : tot; ac += c; if (!c) return;
         const v = c / 100, desc = f.desc + (n > 1 ? ` (${i + 1}/${n})` : ''), venc = n > 1 ? p.venc : (f.venc || f.pago || hj), pago = p.pago != null ? p.pago : n > 1 ? '' : (f.pago || '');
-        const obs = [f.num ? 'Nota/recibo nº ' + f.num : '', rid ? `Rateio: ${pctTxt(d.pct)} de ${reais(f.valor)} (pelo orçamento)` : '', cartaoParc(f) ? `Cartão de crédito em ${n}x (compra em ${brAno(f.pago)})` : '', f.maquininha ? 'Comprovante da maquininha' : '', 'Lançada pelo Telegram'].filter(Boolean).join(' · ');
+        const obs = [f.num ? 'Nota/recibo nº ' + f.num : '', rid ? `Rateio: ${pctTxt(d.pct)} de ${reais(f.valor)} (pelo orçamento)` : '', cartaoParc(f) ? `Cartão de crédito em ${n}x (compra em ${brAno(f.pago)})` : '', f.maquininha ? 'Comprovante da maquininha' : '', socio ? `Pago por ${socio} (sócio) — entra no aporte quando a conta for aprovada` : '', 'Lançada pelo Telegram'].filter(Boolean).join(' · ');
         const extra = { compra_id: compra, data_compra: isoOk(f.dataDoc) && f.dataDoc <= hj ? f.dataDoc : hj, ...(rid ? { rateio_id: rid } : {}), ...(n > 1 ? { grupo_parcelas: `gp${f.fid}_0_${di}` } : {}) };
         if (d.obra === EMP) out.push({ t: 'despesas', row: { data_lancamento: agora, tipo_despesa: 'Real', data_despesa: venc, categoria: f.cat, descricao: desc, fornecedor_beneficiario: f.forn, status_pagamento: pago ? 'Pago' : 'Pendente', data_pagamento: pago, valor: dinheiro(v), observacao: obs, forma_pagamento: f.forma || '', ...extra, ...aprov, ...dono } });
         else out.push({ t: 'custos', row: { titulo_obra: d.obra, data_lancamento: agora, tipo_de_custo: 'Real', tipo: f.cat, descricao: desc, fornecedor: f.forn, fator: 'UN', qtd: '1.00', p_unit: dinheiro(v), p_total: dinheiro(v), vencimento: venc, data_pgto: pago, observacao: obs, forma_pagamento: f.forma || '', ...extra, ...aprov, ...dono } });
@@ -1040,7 +1162,8 @@ module.exports = function criarRobo(io) {
     if (precisaDesc) { try { await inserir('planejamento', { tipo: 'desc_gasto', grupo: f.onde === 'empresa' ? 'empresa' : 'obra', categoria: f.cat, descricao: String(f.desc).replace(/\s+/g, ' ').trim(), ativo: 'sim', criado_por: ctx.usuario || '', criado_por_id: ctx.uid || '', data_lancamento: lancAgora() }); } catch (e) { /* idem */ } }
     const resumo = linhasConta({ ...f, fornNovo: false, aviso: '' });
     const fim = { k: 'feito', fid: f.fid, ids, vale_min: 120, _rid: f._rid, msg: f.msg };
-    return mostrar(ctx, fim, cq, `✅ <b>Conta lançada</b> em Contas a pagar${L.length > 1 ? ` (${L.length} lançamentos)` : ''}\n${resumo}`, [[bt(fim, '↩️ Desfazer', 'u')]]);
+    const soc = f.pago ? String(f.socio || '').trim() : '';
+    return mostrar(ctx, fim, cq, `✅ <b>Conta lançada</b> em Contas a pagar — <b>aguardando sua aprovação</b>${L.length > 1 ? ` (${L.length} lançamentos)` : ''}\n${resumo}\n\n<i>Confira e aprove no sistema: Contas a pagar › Aguardando aprovação${soc ? `. O aporte de ${esc(soc)} entra em Sócios e investimentos quando você aprovar` : ''}.</i>`, [[bt(fim, '↩️ Desfazer', 'u')]]);
   }
 
   /* ─────────────── LEITURA: foto, PDF, XML, código colado ─────────────── */
@@ -1099,7 +1222,13 @@ module.exports = function criarRobo(io) {
     if (d.pago) { c.pago = [d.dataPg, d.data].find(x => isoOk(x) && x <= hj) || hj; c.pagoOk = true; }
     if (d.forma) { c.forma = d.forma; c.formaOk = true; }
     if (d.tipo === 'cartao') { c.maquininha = true; if (d.parcCartao >= 2) c.nParc = d.parcCartao; }
-    if (cap) { const x = lerFrase(cap, obras, hj); ['onde', 'obra', 'obras', 'candidatas', 'pago', 'pagoOk', 'forma', 'formaOk', 'venc', 'nParc'].forEach(k => { if (x[k] !== undefined) c[k] = x[k]; }); if (x.desc && !c.desc) c.desc = x.desc; if (x.forn) c.forn = x.forn; if (x.valor > 0 && !c.valor) c.valor = x.valor; if (x.num && !c.num) c.num = x.num; }
+    if (cap) {
+      const socios = await sociosLista().catch(() => []), x = lerFrase(cap, obras, hj, socios);
+      ['onde', 'obra', 'obras', 'candidatas', 'pago', 'pagoOk', 'forma', 'formaOk', 'venc', 'nParc', 'socio'].forEach(k => { if (x[k] !== undefined) c[k] = x[k]; }); if (x.desc && !c.desc) c.desc = x.desc; if (x.forn) c.forn = x.forn; if (x.valor > 0 && !c.valor) c.valor = x.valor; if (x.num && !c.num) c.num = x.num;
+      // "paguei com meu cartão" na legenda = quem mandou (se for sócio); "pago pelo sócio X" = o X
+      if (x.socioEu || x.socioNome) { const s = x.socioEu ? achouSocio(ctx.usuario, socios) : acharSocio(x.socioNome, socios); if (s) c.socio = s; }
+      c.socios = socios;
+    }
     c.lido = resumoLido(lido, d);
     // continua a conta que estava pela metade (ex.: /conta e depois a foto) — se ela ainda não veio de outro documento
     const f0 = await fluxoDe(ctx);
@@ -1109,10 +1238,18 @@ module.exports = function criarRobo(io) {
       if (f0.desc && !f0.catOk) f0.cat = chutarCat(f0.desc, f0.onde === 'empresa');
       await prepararConta(f0); return mostrar(ctx, f0);
     }
+    // foto sem nada de pagamento (nem valor, nem fornecedor, nem número): pode ser foto de obra — pergunta antes
+    if (lido.foto && !(c.valor > 0) && !c.forn && !c.num) { const f = await trocar(ctx, novo('foto', { foto: lido.foto, etapa: 'durante', legenda: '', passo: 'pergunta', conta: c, vale_min: 60 })); return mostrar(ctx, f); }
     return iniciarConta(ctx, c);
   }
   const albuns = new Set();
   async function arquivo(ctx, msg) {
+    const cap = String(msg.caption || '').replace(/^\/[a-z_]+(?:@\w+)?\s*/i, '').trim();
+    // foto de obra (legenda "fotos da obra X" — e as outras fotos do mesmo álbum): vai para a galeria da obra
+    if (msg.photo && msg.photo.length) {
+      try { if (await talvezFotoObra(ctx, msg, cap)) return; }
+      catch (e) { console.error('foto obra', e && e.message); return mandar(ctx.chat, 'Não consegui guardar a foto agora (' + esc(corta(String(e.message || e), 120)) + '). Tente de novo.'); }
+    }
     if (msg.media_group_id) { if (albuns.has(msg.media_group_id)) return; albuns.add(msg.media_group_id); if (albuns.size > 200) albuns.delete(albuns.values().next().value); }
     let file = null, mime = '', nome = '';
     if (msg.photo && msg.photo.length) { file = msg.photo.slice().sort((a, b) => (b.width * b.height) - (a.width * a.height))[0]; mime = 'image/jpeg'; nome = 'foto.jpg'; }
@@ -1123,8 +1260,9 @@ module.exports = function criarRobo(io) {
     tg('sendChatAction', { chat_id: ctx.chat, action: 'typing' }).catch(() => {});
     const { buf } = await baixarTg(file.file_id, 20e6);
     let lido; try { lido = await lerDocumento(buf, mime, nome); } catch (e) { lido = { d: {}, fonte: /pdf/i.test(mime) || /\.pdf$/i.test(nome) ? 'PDF' : 'foto', erroIA: String(e.message || e) }; }
-    if (msg.media_group_id) await mandar(ctx.chat, 'Você mandou várias de uma vez: eu leio a primeira. Mande as outras uma por vez.');
-    return iniciarDeLeitura(ctx, lido, String(msg.caption || '').replace(/^\/[a-z_]+(?:@\w+)?\s*/i, '').trim());
+    if (msg.media_group_id) await mandar(ctx.chat, 'Você mandou várias de uma vez: eu leio a primeira. Mande as outras uma por vez (para fotos de obra, escreva na legenda: <i>fotos da obra X</i>).');
+    if (msg.photo && msg.photo.length) lido.foto = fotoDaMsg(msg);
+    return iniciarDeLeitura(ctx, lido, cap);
   }
   async function audio(ctx, msg) {
     const a = msg.voice || msg.audio || msg.video_note; if (!a) return null;
@@ -1133,10 +1271,11 @@ module.exports = function criarRobo(io) {
     tg('sendChatAction', { chat_id: ctx.chat, action: 'typing' }).catch(() => {});
     const { buf, caminho } = await baixarTg(a.file_id, 20e6);
     let ext = (String(caminho).match(/\.(\w{2,4})$/) || [])[1] || (msg.video_note ? 'mp4' : 'ogg'); if (ext === 'oga') ext = 'ogg';
-    let t = ''; try { t = await transcrever(buf, 'audio.' + ext, a.mime_type || (ext === 'mp4' ? 'video/mp4' : 'audio/ogg'), (await obrasAtivas().catch(() => [])).map(o => o.nome)); }
+    let r = null; try { r = await transcrever(buf, 'audio.' + ext, a.mime_type || (ext === 'mp4' ? 'video/mp4' : 'audio/ogg'), await vocabulario().catch(() => ({}))); }
     catch (e) { await mandar(ctx.chat, 'Não consegui entender o áudio agora (' + esc(corta(String(e.message || e), 150)) + '). Tente de novo ou escreva.'); return null; }
+    const t = String((r && r.texto) || '').trim();
     if (!t) { await mandar(ctx.chat, 'Não ouvi nada nesse áudio. Tente de novo, falando mais perto do celular.'); return null; }
-    await mandar(ctx.chat, '🎤 <i>' + esc(corta(t, 900)) + '</i>');
+    await mandar(ctx.chat, '🎤 <i>' + esc(corta(t, 900)) + '</i>' + (r.duvida ? '\n⚠️ <i>Parte do áudio não ficou clara — confira o cartão antes de gravar (ou mande de novo, falando mais perto do celular e sem barulho em volta).</i>' : ''));
     return t;
   }
 
@@ -1260,7 +1399,7 @@ module.exports = function criarRobo(io) {
   }
 
   /* ─────────────── DAR BAIXA ─────────────── */
-  const enxugar = x => ({ t: x.t, id: x.id, venc: x.venc, forn: corta(x.forn, 50), desc: corta(x.desc, 60), valor: x.valor, onde: corta(x.onde, 40), forma: x.forma });
+  const enxugar = x => ({ t: x.t, id: x.id, venc: x.venc, forn: corta(x.forn, 50), desc: corta(x.desc, 60), valor: x.valor, onde: corta(x.onde, 40), forma: x.forma, ...(x.ps ? { ps: corta(x.ps, 60) } : {}) });
   async function iniciarBaixa(ctx, filtro, valor) {
     const L = await contasEmAberto(), hj = R.hojeBahia(), t = String(filtro || '').trim(), v = valor > 0 ? valor : (t && /\d/.test(t) ? valorDe(t).valor : 0);
     let itens;
@@ -1280,6 +1419,12 @@ module.exports = function criarRobo(io) {
     }
     const x = f.itens[f.sel] || {}, cab = `✅ <b>Dar baixa</b>\n${esc(x.forn || 'Conta')} — <b>${reais(x.valor || 0)}</b>${x.desc ? '\n' + esc(x.desc) : ''}\nVencimento ${brAno(x.venc)}${x.onde ? ' · ' + esc(x.onde) : ''}`;
     if (f.passo === 'data') return { texto: cab + '\n\nEm que dia foi pago? Escreva a data (ex.: 12/11) ou toque:', teclado: [[B('Hoje', 'bd', 0), B('Ontem', 'bd', 1), B('Anteontem', 'bd', 2)], [B('← Voltar', 'bd', 'f')]] };
+    // quem pagou: a empresa ou um sócio (cartão, PIX ou conta pessoal) — o do sócio vira aporte quando a baixa for aprovada
+    if (f.passo === 'socio') {
+      const kb = (x.ps ? [[B('👤 ' + corta(x.ps, 26) + ' (combinado)', 'bq', 'p')]] : []).concat([[B('🏢 A empresa (conta da empresa)', 'bq', 'e')]],
+        grade((f.socios || []).map((s, i) => [s, i]).filter(([s]) => cn(s) !== cn(x.ps || '')).map(([s, i]) => B('👤 ' + corta(s, 28), 'bq', i)), 2), [[B('← Voltar', 'bd', 'f'), B('❌ Cancelar', 'x')]]);
+      return { texto: cab + `\n\nPago em <b>${brAno(f.data)}</b> · ${esc(f.forma || '')}.\n<b>Quem pagou?</b> Se foi um sócio (cartão, PIX ou conta pessoal), o valor entra no aporte dele quando você aprovar. Toque ou escreva o nome:`, teclado: kb };
+    }
     const fm = f.forma || x.forma;
     return { texto: cab + `\n\nPago em <b>${brAno(f.data)}</b>. Como foi pago?`, teclado: grade(FORMAS.map((m, i) => B((m === fm ? '✓ ' : '') + m, 'bf', i)), 2).concat([[B('📅 Foi em outro dia', 'bd', 'o')], [B('← Outra conta', 'bd', 'l'), B('❌ Cancelar', 'x')]]) };
   }
@@ -1288,7 +1433,17 @@ module.exports = function criarRobo(io) {
     if (a === 'bs') { if (!f.itens[+x]) return ok(); f.sel = +x; f.passo = 'forma'; }
     else if (a === 'bn') { ok(); const c = { ...(f.alt || {}), semOferta: true }; return iniciarConta(ctx, c); }
     else if (a === 'bd') { if (x === 'o') f.passo = 'data'; else if (x === 'l') f.passo = 'lista'; else if (x === 'f') f.passo = 'forma'; else { f.data = R.somaDias(hj, -(+x || 0)); f.passo = 'forma'; } }
-    else if (a === 'bf') { const m = FORMAS[+x]; if (!m) return ok(); ok('Dando baixa…'); return aplicarBaixa(ctx, f, m, cq); }
+    else if (a === 'bf') {
+      const m = FORMAS[+x]; if (!m) return ok(); f.forma = m;
+      if (f.socio != null) { ok('Dando baixa…'); return aplicarBaixa(ctx, f, m, cq); }   // já dito na frase ("paguei do meu bolso…")
+      if (!f.socios) f.socios = await sociosLista().catch(() => []);
+      f.passo = 'socio';
+    }
+    else if (a === 'bq') {
+      const it = f.itens[f.sel] || {};
+      if (x === 'e') f.socio = ''; else if (x === 'p') { if (!it.ps) return ok(); f.socio = it.ps; } else { const s = (f.socios || [])[+x]; if (!s) return ok(); f.socio = s; }
+      ok('Dando baixa…'); return aplicarBaixa(ctx, f, f.forma, cq);
+    }
     ok();
     return mostrar(ctx, f, cq);
   }
@@ -1296,6 +1451,12 @@ module.exports = function criarRobo(io) {
     const hj = R.hojeBahia();
     if (f.passo === 'data') { const d = dataDe(' ' + t + ' ', hj, 'passado').dia; if (!d || d > hj) { await mandar(ctx.chat, 'Escreva o dia em que foi pago, assim: <b>12/11</b> (ou /cancelar).'); return true; } f.data = d; f.passo = 'forma'; await mostrar(ctx, f); return true; }
     if (f.passo === 'lista') { const n = parseInt(t, 10); if (/^\d{1,2}$/.test(t.trim()) && f.itens[n - 1]) { f.sel = n - 1; f.passo = 'forma'; await mostrar(ctx, f); return true; } if (intencao(t) || /\?\s*$/.test(t)) return false; await iniciarBaixa(ctx, t, 0); return true; }
+    if (f.passo === 'socio') {
+      const s = nrm(t).trim();
+      if (/^(?:a\s+)?empresa\b|^n[aã]o\b|^ningu[eé]m|^vixsul$/.test(s)) f.socio = '';
+      else { if (intencao(t) || /\?\s*$/.test(t) || t.length > 60) return false; f.socio = acharSocio(t, f.socios || []); }
+      await aplicarBaixa(ctx, f, f.forma); return true;
+    }
     return false;
   }
   async function aplicarBaixa(ctx, f, forma, cq) {
@@ -1305,20 +1466,27 @@ module.exports = function criarRobo(io) {
     const ehC = x.t === 'custos', kPg = ehC ? ('data_pgto' in r || !('data_pagamento' in r) ? 'data_pgto' : 'data_pagamento') : ('data_pagamento' in r || !('data_pgto' in r) ? 'data_pagamento' : 'data_pgto');
     const ja = ehC ? !!(R.iso(r[kPg]) && R.iso(r[kPg]) <= hj) : String(R.campo(r, 'status_pagamento')).toLowerCase() === 'pago';
     if (ja) return mostrar(ctx, { ...f, k: 'fim' }, cq, `✅ Essa conta já estava paga: ${esc(x.forn || 'Conta')} — ${reais(x.valor)}.`, []);
-    const antes = {}; [kPg, 'forma_pagamento', 'status_pagamento', 'aprovacao', 'aprovado_por', 'aprovado_em'].forEach(k => { antes[k] = r[k] === undefined ? null : r[k]; });
+    const kObs = 'observacao' in r || !('obs' in r) ? 'observacao' : 'obs';
+    const antes = {}; [kPg, 'forma_pagamento', 'status_pagamento', 'aprovacao', 'aprovado_por', 'aprovado_em', 'pago_por_socio', 'socio_pendente', 'baixa_telegram', kObs].forEach(k => { antes[k] = r[k] === undefined ? null : r[k]; });
     const n = { ...r, [kPg]: f.data, forma_pagamento: forma };
     if (!ehC) n.status_pagamento = 'Pago';
-    if (n.aprovacao === 'pendente') Object.assign(n, { aprovacao: 'aprovada', aprovado_por: nome, aprovado_em: hj });
+    // a baixa feita pelo Telegram também espera a conferência ("Aguardando aprovação" em Contas a pagar). O sócio que pagou
+    // (respondido no cartão, ou o que ficou combinado: "Será paga por X") vai para o socio_pendente: o aporte só entra na aprovação
+    const prev = socioCombinado(r), soc = String(f.socio != null ? f.socio : prev).trim();
+    Object.assign(n, { aprovacao: 'pendente', aprovado_por: '', aprovado_em: '', baixa_telegram: `${brAno(f.data)} · ${forma} · ${nome}` });
+    if (prev || r.pago_por_socio) n.pago_por_socio = '';
+    if (soc) n.socio_pendente = soc; else delete n.socio_pendente;
+    n[kObs] = [String(r[kObs] || '').split(' · ').filter(s => !/^Ser[aá] paga por .+ \(aporte\)$/i.test(s.trim())).join(' · '), `Baixa pelo Telegram em ${brAno(f.data)} (${forma})`, soc ? `Pago por ${soc} (sócio) — entra no aporte quando a conta for aprovada` : ''].filter(Boolean).join(' · ');
     await regravar(x.t, x.id, n);
     const fim = { k: 'feito', fid: f.fid, restaurar: [{ t: x.t, id: x.id, antes }], vale_min: 120, _rid: f._rid, msg: f.msg };
-    return mostrar(ctx, fim, cq, `✅ <b>Baixa feita</b>: ${esc(x.forn || 'Conta')} — ${reais(x.valor)}${x.onde ? ' (' + esc(x.onde) + ')' : ''}\nPago em ${brAno(f.data)} · ${esc(forma)}`, [[bt(fim, '↩️ Desfazer', 'u')]]);
+    return mostrar(ctx, fim, cq, `✅ <b>Baixa registrada</b> — <b>aguardando sua aprovação</b>: ${esc(x.forn || 'Conta')} — ${reais(x.valor)}${x.onde ? ' (' + esc(x.onde) + ')' : ''}\nPago em ${brAno(f.data)} · ${esc(forma)}${soc ? `\nPaga por ${esc(soc)}: o aporte entra quando você aprovar.` : ''}\n\n<i>Confira e aprove em Contas a pagar › Aguardando aprovação.</i>`, [[bt(fim, '↩️ Desfazer', 'u')]]);
   }
   // desfaz o que o robô acabou de fazer: o que ele lançou vai para a Lixeira; a baixa volta a ficar em aberto
   async function desfazer(ctx, f, cq) {
     const nome = ctx.usuario || 'Telegram', lote = 'tg' + Date.now().toString(36);
     for (const y of f.ids || []) { const r = await linha(y.t, y.id); if (r && !r._lixeira_em) await regravar(y.t, y.id, { ...r, _lixeira_em: new Date().toISOString(), _lixeira_obra_id: 'avulso', _lixeira_motivo: 'Desfeito pelo Telegram', _lixeira_lote: lote, _lixeira_por: nome }); }
     for (const y of f.restaurar || []) { const r = await linha(y.t, y.id); if (!r) continue; const n = { ...r }; Object.entries(y.antes || {}).forEach(([k, v]) => { if (v === null) delete n[k]; else n[k] = v; }); await regravar(y.t, y.id, n); }
-    return mostrar(ctx, { ...f, k: 'fim' }, cq, (f.ids || []).length ? '↩️ <b>Desfeito</b>: o que o robô lançou foi para a <b>Lixeira</b> (dá para restaurar em até 15 dias).' : '↩️ <b>Desfeito</b>: a conta voltou a ficar em aberto.', []);
+    return mostrar(ctx, { ...f, k: 'fim' }, cq, (f.ids || []).length ? '↩️ <b>Desfeito</b>: o que o robô lançou foi para a <b>Lixeira</b> (dá para restaurar em até 15 dias).' : '↩️ <b>Desfeito</b>: ' + (f.desfeito || 'a conta voltou a ficar em aberto.'), []);
   }
 
   /* ─────────────── NOTA FISCAL ─────────────── */
@@ -1383,6 +1551,251 @@ module.exports = function criarRobo(io) {
       if (!xmlOk) { const xml = await xmlRegistro(x); if (xml) await mandarArq(ctx.chat, Buffer.from(xml, 'utf8'), base + '.xml', 'application/xml'); else falta.push('o XML'); }
     }
     return mandar(ctx.chat, `🧾 <b>${x.tipo} ${esc(x.numero || 's/nº')}</b> — ${x.emitida ? 'emitida pela Vixsul' : 'recebida'}${x.nome && x.k === 'r' ? ' · ' + esc(x.nome) : ''}${x.obra ? ' · ' + esc(x.obra) : ''}\n${x.data ? 'Emitida em ' + brAno(x.data) + ' · ' : ''}${reais(x.valor)}${x.chave ? '\nChave: <code>' + esc(x.chave) + '</code>' : ''}${falta.length ? '\n\n<i>Não veio: ' + esc(falta.join('; ')) + '.</i>' : ''}`);
+  }
+
+  /* ─────────────── AGUARDANDO APROVAÇÃO (/aprovar): o que espera a conferência em Contas a pagar ─────────────── */
+  async function pendentesAprov() {
+    const fl = '&row_data->>aprovacao=eq.pendente', hj = R.hojeBahia(), L = [];
+    const [C, Dp] = await Promise.all([
+      leve('custos', ['fornecedor', 'descricao', 'p_total', 'valor_total', 'valor', 'titulo_obra', 'data_pgto', 'vencimento', 'origem_lanc', 'socio_pendente', 'tipo_de_custo', 'tipo_custo', 'baixa_telegram'], fl),
+      leve('despesas', ['fornecedor_beneficiario', 'fornecedor', 'descricao', 'valor', 'valor_total', 'data_pagamento', 'data_despesa', 'status_pagamento', 'origem_lanc', 'socio_pendente', 'tipo_despesa', 'baixa_telegram'], fl)]);
+    C.forEach(c => { if (cn(c.tipo_de_custo || c.tipo_custo) !== 'real') return; const pg = R.iso(c.data_pgto);
+      L.push({ forn: c.fornecedor || c.descricao || 'Conta', valor: R.num(c.p_total || c.valor_total || c.valor), onde: c.titulo_obra || '', pago: pg && pg <= hj ? pg : '', venc: R.iso(c.vencimento), tg: c.origem_lanc === 'telegram' || !!c.baixa_telegram, socio: c.socio_pendente || '' }); });
+    Dp.forEach(d => { if (/previst/i.test(d.tipo_despesa || '')) return; const pg = /^pago$/i.test(d.status_pagamento || '') ? (R.iso(d.data_pagamento) || hj) : '';
+      L.push({ forn: d.fornecedor_beneficiario || d.fornecedor || d.descricao || 'Despesa', valor: R.num(d.valor || d.valor_total), onde: EMP, pago: pg, venc: R.iso(d.data_despesa), tg: d.origem_lanc === 'telegram' || !!d.baixa_telegram, socio: d.socio_pendente || '' }); });
+    return L.sort((a, b) => (a.pago || a.venc || '9').localeCompare(b.pago || b.venc || '9'));
+  }
+  async function aprovar(ctx) {
+    tg('sendChatAction', { chat_id: ctx.chat, action: 'typing' }).catch(() => {});
+    const L = await pendentesAprov();
+    if (!L.length) return mandar(ctx.chat, '✅ Nenhuma conta aguardando aprovação.');
+    const tot = L.reduce((s, x) => s + x.valor, 0), nTg = L.filter(x => x.tg).length, comSocio = L.some(x => x.socio);
+    const lin = x => `• ${x.tg ? '📱 ' : ''}${esc(corta(x.forn, 40))} — <b>${reais(x.valor)}</b>${x.onde ? ' <i>(' + esc(corta(x.onde, 30)) + ')</i>' : ''} — ${x.pago ? 'paga ' + R.br(x.pago) : x.venc ? 'vence ' + R.br(x.venc) : 'sem data'}${x.socio ? ' · 👤 ' + esc(corta(x.socio, 25)) : ''}`;
+    return mandar(ctx.chat, `🖊️ <b>Aguardando aprovação</b>: ${L.length} conta(s) · ${reais(tot)}${nTg ? `\n📱 ${nTg} vieram pelo Telegram` : ''}\n\n` + L.slice(0, 25).map(lin).join('\n') + (L.length > 25 ? `\n• … e mais ${L.length - 25}` : '') +
+      `${comSocio ? '\n\n👤 = paga por sócio: o aporte entra em Sócios e investimentos quando você aprovar.' : ''}\n\nConfira e aprove no sistema: <b>Contas a pagar › Aguardando aprovação</b>.`, [[{ text: '🌐 Abrir o sistema', url: SITE }]]);
+  }
+
+  /* ─────────────── RECEBIMENTO (/recebi): a nota emitida que entrou na conta ─────────────── */
+  // as notas emitidas ainda a receber (sem recebimento, ou só com o recebimento combinado para depois de hoje)
+  async function notasAReceber() {
+    const hj = R.hojeBahia(), L = await R.ler('faturamentos');
+    return L.filter(f => R.iso(R.campo(f, 'emissao_nf', 'data_emissao')) && String(R.campo(f, 'n_nf', 'numero_nf')).trim() && !/previst/i.test(String(R.campo(f, 'tipo_faturamento'))))
+      .filter(f => { const r = R.iso(R.campo(f, 'data_recebimento', 'recebimento')), antPend = f.antecipada === 'sim' && f.antec_recebida !== 'sim' && !f.antec_depositado; return !(r && r <= hj) || antPend; })
+      .map(f => ({ id: f._id, n: String(R.campo(f, 'n_nf', 'numero_nf')).trim(), obra: corta(f.titulo_obra || '', 60), e: R.iso(R.campo(f, 'emissao_nf', 'data_emissao')), liq: R.num(R.campo(f, 'faturamento_liquido', 'valor_liquido')) || R.num(R.campo(f, 'faturamento_bruto', 'valor_bruto')), bruto: R.num(R.campo(f, 'faturamento_bruto', 'valor_bruto')), ...(f.antecipada === 'sim' ? { ant: true } : {}) }))
+      .sort((a, b) => a.e.localeCompare(b.e));
+  }
+  function filtrarReceb(L, t, valor, obras) {
+    const s = ' ' + String(t || '') + ' '; let x = L;
+    const mN = s.match(/\b(?:nota|nf|nfs-?e)\s*(?:fiscal\s*)?(?:n[º°o.]?\s*)?(\d{1,9})\b/i) || s.match(/^\s*(\d{1,9})\s*$/);
+    if (mN) { const n = mN[1].replace(/^0+/, ''); return x.filter(y => y.n.replace(/\D/g, '').replace(/^0+/, '') === n); }
+    const ob = obrasNoTexto(s, obras); if (ob.length) { const nm = new Set(ob.map(o => cn(o.nome))); x = x.filter(y => nm.has(cn(y.obra))); }
+    const v = valor > 0 ? valor : /r\$|reais|mil\b|\d[.,]\d{2}\b|\d{3,}/i.test(s) ? valorDe(s).valor : 0;
+    if (v > 0) { const tol = Math.max(1, v * 0.005), y = x.filter(z => Math.abs(z.liq - v) <= tol || Math.abs(z.bruto - v) <= tol); if (y.length) x = y; }
+    return x;
+  }
+  async function iniciarReceb(ctx, filtro, valor) {
+    tg('sendChatAction', { chat_id: ctx.chat, action: 'typing' }).catch(() => {});
+    const L = await notasAReceber(), t = String(filtro || '').trim();
+    if (!L.length) return mandar(ctx.chat, 'Nenhuma nota emitida esperando recebimento. 🎉');
+    const itens = t || valor > 0 ? filtrarReceb(L, t, valor, await obrasAtivas()) : L;
+    if (!itens.length) return mandar(ctx.chat, `Não achei nota a receber com “${esc(t || reais(valor))}”. Mande /recebi para ver todas as notas a receber.`);
+    const f = await trocar(ctx, novo('receb', { itens: itens.slice(0, 12), mais: Math.max(0, itens.length - 12), passo: 'lista', data: R.hojeBahia() }));
+    if (itens.length === 1) { f.sel = 0; if (!itens[0].ant) f.passo = 'conf'; else return escolherReceb(ctx, f, 0); }
+    return mostrar(ctx, f);
+  }
+  async function escolherReceb(ctx, f, i, cq) {
+    const it = f.itens[i]; if (!it) return;
+    // antecipada (Avançar Fornecedores): o desconto é refeito pelo valor que entrou — só pela tela
+    if (it.ant) return mostrar(ctx, { ...f, k: 'fim' }, cq, `A NF ${esc(it.n)} (${esc(it.obra)}) foi <b>antecipada</b>: registre o recebimento no sistema, em <b>Faturamento e recebimentos › Registrar recebimento</b> — lá o desconto da antecipação é calculado pelo valor que entrou na conta.`, []);
+    f.sel = i; f.passo = 'conf'; return mostrar(ctx, f, cq);
+  }
+  function cartaoReceb(f) {
+    const B = (t, a, x) => bt(f, t, a, x);
+    if (f.passo === 'lista') return { texto: '💰 <b>Registrar recebimento</b> — qual nota entrou na conta?\n' + f.itens.map((x, i) => `${i + 1}) NF ${esc(x.n)} — ${esc(corta(x.obra, 34))} — emitida ${R.br(x.e)}/${x.e.slice(2, 4)} — líquido ${reais(x.liq)}${x.ant ? ' (antecipada)' : ''}`).join('\n') + (f.mais ? `\n… e mais ${f.mais}: escreva o número da nota ou a obra.` : ''),
+      teclado: grade(f.itens.map((x, i) => B(String(i + 1), 'rs', i)), 6).concat([[B('❌ Cancelar', 'x')]]) };
+    const x = f.itens[f.sel] || {}, cab = `💰 <b>Registrar recebimento</b>\nNF ${esc(x.n || '')} — ${esc(x.obra || '')}\nEmitida em ${brAno(x.e)} · líquido esperado <b>${reais(x.liq || 0)}</b>`;
+    if (f.passo === 'data') return { texto: cab + '\n\nEm que dia o dinheiro entrou na conta? Escreva a data (ex.: 12/11) ou toque:', teclado: [[B('Hoje', 'rd', 0), B('Ontem', 'rd', 1), B('Anteontem', 'rd', 2)], [B('← Voltar', 'rd', 'f')]] };
+    return { texto: cab + `\n\nEntrou na conta em <b>${brAno(f.data)}</b>?`, teclado: [[B('✅ Confirmar recebimento', 'rk')], [B('📅 Foi em outro dia', 'rd', 'o')], [B('← Outra nota', 'rd', 'l'), B('❌ Cancelar', 'x')]] };
+  }
+  async function botaoReceb(ctx, f, a, x, cq, ok) {
+    const hj = R.hojeBahia();
+    if (a === 'rs') { if (!f.itens[+x]) return ok(); ok(); return escolherReceb(ctx, f, +x, cq); }
+    if (a === 'rd') { if (x === 'o') f.passo = 'data'; else if (x === 'l') f.passo = 'lista'; else if (x === 'f') f.passo = 'conf'; else { f.data = R.somaDias(hj, -(+x || 0)); f.passo = 'conf'; } }
+    else if (a === 'rk') { ok('Registrando…'); return gravarReceb(ctx, f, cq); }
+    ok(); return mostrar(ctx, f, cq);
+  }
+  async function respostaReceb(ctx, f, t) {
+    const hj = R.hojeBahia();
+    if (f.passo === 'data') { const d = dataDe(' ' + t + ' ', hj, 'passado').dia; if (!d || d > hj) { await mandar(ctx.chat, 'Escreva o dia em que o dinheiro entrou, assim: <b>12/11</b> (ou /cancelar).'); return true; } f.data = d; f.passo = 'conf'; await mostrar(ctx, f); return true; }
+    if (f.passo === 'lista') { const n = parseInt(t, 10); if (/^\d{1,2}$/.test(t.trim()) && f.itens[n - 1]) { await escolherReceb(ctx, f, n - 1); return true; } if (intencao(t) || /\?\s*$/.test(t)) return false; await iniciarReceb(ctx, t, 0); return true; }
+    return false;
+  }
+  async function gravarReceb(ctx, f, cq) {
+    const x = f.itens[f.sel]; if (!x) return;
+    const r = await linha('faturamentos', x.id), hj = R.hojeBahia();
+    if (!r || r._lixeira_em) return mostrar(ctx, { ...f, k: 'fim' }, cq, '⚠️ Essa nota não está mais no sistema.', []);
+    const kR = 'data_recebimento' in r || !('recebimento' in r) ? 'data_recebimento' : 'recebimento', ja = R.iso(r[kR]);
+    if (ja && ja <= hj && r.antecipada !== 'sim') return mostrar(ctx, { ...f, k: 'fim' }, cq, `✅ Essa nota já estava recebida (em ${brAno(ja)}).`, []);
+    const antes = { [kR]: r[kR] === undefined ? null : r[kR], recebido_telegram: r.recebido_telegram === undefined ? null : r.recebido_telegram };
+    await regravar('faturamentos', x.id, { ...r, [kR]: f.data, recebido_telegram: `${brAno(f.data)} · ${ctx.usuario || 'Telegram'}` });
+    const fim = { k: 'feito', fid: f.fid, restaurar: [{ t: 'faturamentos', id: x.id, antes }], desfeito: 'a nota voltou para "a receber".', vale_min: 120, _rid: f._rid, msg: f.msg };
+    return mostrar(ctx, fim, cq, `✅ <b>Recebimento registrado</b>: NF ${esc(x.n)} — ${esc(x.obra)}\nEntrou em ${brAno(f.data)} · líquido ${reais(x.liq)}\n<i>Se entrou outro valor, ajuste em Faturamento e recebimentos.</i>`, [[bt(fim, '↩️ Desfazer', 'u')]]);
+  }
+
+  /* ─────────────── CONCLUIR TAREFA (/concluir) ─────────────── */
+  async function tarefasAbertas() {
+    const L = await leve('acoes', ['o_que', 'quando', 'quem', 'status', 'titulo_obra']);
+    return L.filter(t => R.tarefaAberta(t) && t.o_que).map(t => ({ id: t._id, oque: corta(t.o_que, 70), quando: R.iso(t.quando), quem: corta(t.quem || '', 30), obra: corta(t.titulo_obra || '', 30) }))
+      .sort((a, b) => (a.quando || '9').localeCompare(b.quando || '9'));
+  }
+  async function iniciarConcluir(ctx, filtro) {
+    let L = await tarefasAbertas(); const t = String(filtro || '').trim();
+    if (t) { const ws = cn(t).split(' ').filter(w => w.length >= 3 && !/^(tarefa|tarefas|pendencia|pendencias|concluir|conclui|concluida|feita|feito|terminei|finalizei|que|das|dos|uma|ja)$/.test(w)); if (ws.length) L = L.filter(x => { const a = cn([x.oque, x.obra, x.quem].join(' ')); return ws.every(w => a.includes(w)); }); }
+    if (!L.length) return mandar(ctx.chat, t ? `Não achei tarefa em aberto com “${esc(t)}”. Mande /concluir para ver as abertas.` : 'Nenhuma tarefa em aberto. 🎉');
+    const f = await trocar(ctx, novo('concluir', { itens: L.slice(0, 12), mais: Math.max(0, L.length - 12) }));
+    return mostrar(ctx, f);
+  }
+  function cartaoConcluir(f) {
+    const hj = R.hojeBahia(), B = (t, a, x) => bt(f, t, a, x);
+    return { texto: '☑️ <b>Concluir tarefa</b> — qual foi feita?\n' + f.itens.map((x, i) => `${i + 1}) ${x.quando ? R.br(x.quando) + (x.quando < hj ? ' ⚠️' : '') + ' — ' : ''}${esc(x.oque)}${x.quem ? ' · ' + esc(x.quem) : ''}${x.obra ? ' <i>(' + esc(x.obra) + ')</i>' : ''}`).join('\n') + (f.mais ? `\n… e mais ${f.mais}: escreva parte do nome da tarefa.` : '') + '\n\nToque no número da tarefa feita:',
+      teclado: grade(f.itens.map((x, i) => B(String(i + 1), 'cs', i)), 6).concat([[B('❌ Cancelar', 'x')]]) };
+  }
+  async function botaoConcluir(ctx, f, a, x, cq, ok) { if (a !== 'cs') return ok(); const it = f.itens[+x]; if (!it) return ok(); ok('Concluindo…'); return gravarConcluir(ctx, f, it, cq); }
+  async function respostaConcluir(ctx, f, t) { const n = parseInt(t, 10); if (/^\d{1,2}$/.test(t.trim()) && f.itens[n - 1]) { await gravarConcluir(ctx, f, f.itens[n - 1]); return true; } if (intencao(t) || /\?\s*$/.test(t)) return false; await iniciarConcluir(ctx, t); return true; }
+  async function gravarConcluir(ctx, f, it, cq) {
+    const r = await linha('acoes', it.id), hj = R.hojeBahia();
+    if (!r || r._lixeira_em) return mostrar(ctx, { ...f, k: 'fim' }, cq, '⚠️ Essa tarefa não está mais no sistema.', []);
+    if (!R.tarefaAberta(r)) return mostrar(ctx, { ...f, k: 'fim' }, cq, `Essa tarefa já estava ${esc(String(r.status || 'concluída').toLowerCase())}.`, []);
+    const antes = { status: r.status === undefined ? null : r.status, data_conclusao: r.data_conclusao === undefined ? null : r.data_conclusao };
+    await regravar('acoes', it.id, { ...r, status: 'Concluída', data_conclusao: hj });
+    const fim = { k: 'feito', fid: f.fid, restaurar: [{ t: 'acoes', id: it.id, antes }], desfeito: 'a tarefa voltou a ficar em aberto.', vale_min: 120, _rid: f._rid, msg: f.msg };
+    return mostrar(ctx, fim, cq, `☑️ <b>Tarefa concluída</b>: ${esc(it.oque)}${it.obra ? ' (' + esc(it.obra) + ')' : ''}\nConcluída em ${brAno(hj)}.`, [[bt(fim, '↩️ Desfazer', 'u')]]);
+  }
+
+  /* ─────────────── DOCUMENTOS (/doc): o kit da empresa (certidões, contrato social…) e os arquivos das obras ─────────────── */
+  async function docsDisponiveis(termo) {
+    const t = String(termo || '').trim(), obras = await obrasAtivas(), ob = t ? obrasNoTexto(t, obras) : [], hj = R.hojeBahia();
+    const pastas = [EMP_ARQ].concat(ob.slice(0, 3).map(o => o.nome)), H = [];
+    for (const p of pastas) ((await sb(`arquivos?select=id,row_data&row_data->>tipo=eq.anexo&row_data->>titulo_obra=eq.${q(p)}&order=id.desc&limit=400`)) || []).forEach(x => { const h = x.row_data || {}; if (!h._lixeira_em && h.uid) H.push(h); });
+    const extras = {}; try { (await R.lerTipos(['kit_item'])).forEach(k => { if (k.k && k.nome) extras[k.k] = { nome: k.nome, venc: k.venc === true || k.venc === 'true' }; }); } catch (e) { /* só o kit padrão */ }
+    const vistos = new Set(), out = [];
+    H.forEach(h => {
+      const kit = h.titulo_obra === EMP_ARQ && h.aba === 'kit' && h.kit ? h.kit : '';
+      if (kit) { if (vistos.has(kit)) return; vistos.add(kit); }   // do kit, só a versão mais nova de cada documento
+      const vence = !!kit && (KIT_VENCE.has(kit) || !!(extras[kit] || {}).venc), val = R.iso(h.validade);
+      out.push({ uid: h.uid, nome: corta(h.nome || 'arquivo', 90), mime: h.mime || '', rot: corta(kit ? (KIT_NOMES[kit] || (extras[kit] || {}).nome || h.nome) : (h.nome || 'arquivo'), 70), onde: h.titulo_obra === EMP_ARQ ? '' : corta(h.titulo_obra, 40), kit: !!kit, val: vence ? val : '', vencido: !!(vence && val && val < hj) });
+    });
+    let ws = cn(t).split(' ').filter(w => w.length >= 3 && !/^(documento|documentos|doc|docs|arquivo|arquivos|manda|mande|envia|envie|quero|preciso|obra|obras|empresa|vixsul|para|pra|com|cade|busca|buscar|procura)$/.test(w) && !ob.some(o => tokensObra(o.nome + ' ' + (o.cidade || '')).includes(w)));
+    // "certidão do FGTS" = o FGTS: as palavras gerais só contam quando são as únicas
+    const geral = w => /^(?:certidao|certidoes|certificado|negativa|comprovante|declaracao|regularidade)$/.test(w); if (ws.some(w => !geral(w))) ws = ws.filter(w => !geral(w));
+    const tem = (x, w) => cn([x.rot, x.nome].join(' ')).includes(w);
+    let L = out; if (ws.length) { L = out.filter(x => ws.every(w => tem(x, w))); if (!L.length) L = out.filter(x => ws.some(w => tem(x, w))); }
+    else if (!ob.length) L = out.filter(x => x.kit);   // sem pedido: o kit da empresa
+    return L.sort((a, b) => (b.kit - a.kit) || a.rot.localeCompare(b.rot, 'pt-BR'));
+  }
+  async function documentos(ctx, termo) {
+    tg('sendChatAction', { chat_id: ctx.chat, action: 'typing' }).catch(() => {});
+    const L = await docsDisponiveis(termo);
+    if (!L.length) return mandar(ctx.chat, termo ? `Não achei documento com “${esc(termo)}”. Mande /doc para ver o kit da empresa, ou /doc e o nome (ex.: <i>/doc fgts</i>, <i>/doc contrato obra Itarantim</i>).` : 'O kit da empresa ainda não tem arquivos. Envie em <b>Documentos e certidões › Kit da empresa</b>.');
+    const itens = L.slice(0, 12), f = await trocar(ctx, novo('docs', { itens, vale_min: 30 }));
+    if (itens.length === 1) { await mostrar(ctx, f, null, '📁 Achei 1 documento — mandando…', []); return enviarDoc(ctx, f, 0); }
+    const lin = (x, i) => `${i + 1}) ${esc(x.rot)}${x.onde ? ' <i>(' + esc(x.onde) + ')</i>' : ''}${x.vencido ? ' — ⚠️ <b>vencido</b> em ' + R.br(x.val) + '/' + x.val.slice(2, 4) : x.val ? ' — válido até ' + R.br(x.val) + '/' + x.val.slice(2, 4) : ''}`;
+    return mostrar(ctx, f, null, `📁 <b>Documentos</b>${termo ? '' : ' — kit da empresa'}:\n` + itens.map(lin).join('\n') + (L.length > 12 ? `\n… e mais ${L.length - 12}: escreva parte do nome (ex.: /doc certidão).` : '') + '\n\nToque no número para receber o arquivo:', grade(itens.map((x, i) => bt(f, String(i + 1), 'dk', i)), 4).concat([[bt(f, '✖️ Fechar', 'x')]]));
+  }
+  async function enviarDoc(ctx, f, i) {
+    const x = f.itens[i]; if (!x) return;
+    if (x.vencido) return mandar(ctx.chat, `⚠️ <b>${esc(x.rot)}</b> está <b>vencido</b> desde ${brAno(x.val)}. Atualize o arquivo em <b>Documentos e certidões › Kit da empresa</b> (o sistema também não deixa baixar documento vencido).`);
+    tg('sendChatAction', { chat_id: ctx.chat, action: 'upload_document' }).catch(() => {});
+    try { await mandarArq(ctx.chat, await bytesAnexo(x), nomeArq(x.nome), x.mime || 'application/octet-stream', `${x.rot}${x.onde ? ' — ' + x.onde : ''}${x.val ? ' · válido até ' + brAno(x.val) : ''}`.slice(0, 1000)); }
+    catch (e) { return mandar(ctx.chat, `Não consegui mandar “${esc(x.rot)}” (${esc(corta(String(e.message || e), 120))}). Baixe pelo sistema: Documentos e certidões.`); }
+  }
+
+  /* ─────────────── FOTO DA OBRA: a foto com legenda "foto(s) da obra X" vai para a galeria da obra ─────────────── */
+  // fotos de um álbum chegam juntas e só a primeira tem legenda: a obra dela fica anotada por 10 minutos para as outras
+  const chaveAlbum = mg => crypto.createHmac('sha256', TOKEN).update('album|' + mg).digest('hex').slice(0, 24);
+  async function marcarAlbum(mg, obra, etapa) { try { await inserir('arquivos', { tipo: 'telegram_album', chave: chaveAlbum(mg), obra, etapa, expira: new Date(Date.now() + 10 * 60e3).toISOString() }); } catch (e) { /* segue */ } }
+  async function obraDoAlbum(mg) {
+    for (let i = 0; i < 4; i++) {
+      const x = ((await sb(`arquivos?select=id,row_data&row_data->>tipo=eq.telegram_album&row_data->>chave=eq.${chaveAlbum(mg)}&limit=1`).catch(() => [])) || [])[0];
+      if (x && x.row_data && x.row_data.obra) return x.row_data;
+      if (i < 3) await new Promise(r => setTimeout(r, 1300));
+    }
+    return null;
+  }
+  const etapaDe = t => /\b(?:in[íi]cio|antes)\b/i.test(t) ? 'inicio' : /\b(?:fim|final|finalizad[ao]|conclu[íi]d[ao]|pront[ao]|entregue|depois)\b/i.test(t) ? 'fim' : 'durante';
+  const ETAPA_ROT = { inicio: 'Início da Obra', durante: 'Durante a Obra', fim: 'Fim da Obra' };
+  const fotoDaMsg = msg => { const P = (msg.photo || []).slice().sort((a, b) => a.width * a.height - b.width * b.height), g = P[P.length - 1], m = P.find(p => Math.max(p.width, p.height) >= 300) || g; return g ? { g: g.file_id, m: m.file_id } : null; };
+  // o arquivo da foto no Storage (como a tela guarda: p/<uid>/0000); sem o Storage, em partes na tabela "arquivos"
+  async function guardarBytes(ob, uid, buf) {
+    const cam = `p/${String(uid).replace(/[^A-Za-z0-9_-]/g, '_').slice(0, 120)}/0000`;
+    try { const r = await fetch(`${R.URL_SB}/storage/v1/object/anexos/${cam}`, { method: 'POST', headers: { ...R.cabecalhos(), 'Content-Type': 'application/octet-stream', 'x-upsert': 'true' }, body: buf }); if (r.ok) return; } catch (e) { /* vai para o banco */ }
+    const b64 = buf.toString('base64'), P = 600000;
+    for (let i = 0; i * P < b64.length; i++) await inserir('arquivos', { titulo_obra: ob, tipo: 'anexo_parte', anexo_uid: uid, ordem: i, conteudo: b64.slice(i * P, (i + 1) * P) });
+  }
+  async function gravarFotoObra(ctx, foto, obra, etapa, legenda) {
+    const base = 'ft' + Date.now().toString(36) + crypto.randomBytes(3).toString('hex'), hj = R.hojeBahia();
+    const g = await baixarTg(foto.g, 20e6), m = foto.m && foto.m !== foto.g ? await baixarTg(foto.m, 20e6) : g;
+    await guardarBytes(obra, base + 'g', g.buf); await guardarBytes(obra, base + 'm', m.buf);
+    const et = ETAPA_ROT[etapa] ? etapa : 'durante';
+    return inserir('obra_imagens', { titulo_obra: obra, enviado_por: ctx.usuario || 'Telegram', enviado_por_id: ctx.uid || '', foto_uid: base + 'g', thumb_uid: base + 'm', origem: 'sistema', enviado_pelo: 'telegram',
+      nome_arquivo: `telegram-${hj}-${base.slice(-4)}.jpg`, etapa_obra: et, data_foto: hj, descricao: [ETAPA_ROT[et], brAno(hj), corta(legenda || '', 200)].filter(Boolean).join(' • ') });
+  }
+  const RE_FOTO_OBRA = /\b(?:fotos?|imagens?|andamento|evolu[çc][ãa]o|galeria|registro\s+d[ae]\s+obra|frente\s+de\s+servi[çc]o)\b/i;
+  const RE_PAGTO = /\b(?:boleto|nota|nf|nfe|danfe|cupom|recibo|comprovante|pix|pagamento|paguei|pago|fatura)\b|r\$/i;
+  // true = era foto de obra (guardada, ou o cartão para escolher a obra já foi mostrado)
+  async function talvezFotoObra(ctx, msg, cap) {
+    const foto = fotoDaMsg(msg), mg = msg.media_group_id || ''; if (!foto) return false;
+    if (!cap) {
+      if (!mg) return false;
+      const al = await obraDoAlbum(mg); if (!al) return false;
+      await gravarFotoObra(ctx, foto, al.obra, al.etapa); tg('setMessageReaction', { chat_id: ctx.chat, message_id: msg.message_id, reaction: [{ type: 'emoji', emoji: '👍' }] }).catch(() => {});
+      return true;
+    }
+    if (!RE_FOTO_OBRA.test(cap) || RE_PAGTO.test(cap)) return false;
+    const obras = await obrasAtivas(), tr = trechoObra(' ' + cap + ' '), L = obrasNoTexto(tr.trecho || cap, obras), et = etapaDe(cap);
+    const leg = capital(cap.replace(tr.tirar || '\u0000', ' ').replace(/\b(?:fotos?|imagens?)\b(?:\s+d[aeo]s?\b)?/gi, ' ').replace(/\s+/g, ' ').replace(/^[\s,.;:-]+|[\s,.;:-]+$/g, '').trim());
+    const legOk = leg.length >= 4 && !L.some(o => cn(leg) === cn(o.nome)) ? leg : '';
+    if (L.length === 1) {
+      if (mg) await marcarAlbum(mg, L[0].nome, et);
+      tg('sendChatAction', { chat_id: ctx.chat, action: 'upload_photo' }).catch(() => {});
+      const id = await gravarFotoObra(ctx, foto, L[0].nome, et, legOk);
+      if (mg) { tg('setMessageReaction', { chat_id: ctx.chat, message_id: msg.message_id, reaction: [{ type: 'emoji', emoji: '👍' }] }).catch(() => {}); await mandar(ctx.chat, `📷 Guardando as fotos em <b>${esc(L[0].nome)}</b> › Imagens da obra (${ETAPA_ROT[et].toLowerCase()}). Cada foto guardada ganha um 👍.`); return true; }
+      const f = await trocar(ctx, novo('feito', { ids: [{ t: 'obra_imagens', id }], vale_min: 120 }));
+      await mostrar(ctx, f, null, `📷 <b>Foto guardada</b> em <b>${esc(L[0].nome)}</b> › Imagens da obra (${ETAPA_ROT[et].toLowerCase()})${legOk ? '\n' + esc(legOk) : ''}`, [[bt(f, '↩️ Desfazer', 'u')]]);
+      return true;
+    }
+    // "foto" sem a obra certa: o cartão pergunta qual (do álbum, só a primeira)
+    const f = await trocar(ctx, novo('foto', { foto, etapa: et, legenda: legOk, candidatas: L.map(o => o.nome), passo: 'obra', vale_min: 60 }));
+    await carregarLista(f); await mostrar(ctx, f); return true;
+  }
+  function cartaoFoto(f) {
+    const B = (t, a, x) => bt(f, t, a, x);
+    if (f.passo === 'pergunta') return { texto: '📷 Não achei boleto, nota nem comprovante nessa foto.\nÉ uma <b>foto de obra</b>? Eu guardo na galeria da obra (Obras › Imagens).', teclado: [[B('📷 Sim — guardar na galeria da obra', 'fo', 's')], [B('🧾 Não — lançar a conta assim mesmo', 'fo', 'c')], [B('❌ Cancelar', 'x')]] };
+    return { texto: `📷 <b>Foto da obra</b>${f.legenda ? '\n' + esc(f.legenda) : ''}\nDe qual <b>obra</b>? Toque ou escreva o nome.\nEtapa: <b>${ETAPA_ROT[f.etapa] || ETAPA_ROT.durante}</b>`, teclado: tecladoObras(f, 'fb').concat([[B('🏁 Etapa: ' + (ETAPA_ROT[f.etapa] || ETAPA_ROT.durante), 'fe')], [B('❌ Cancelar', 'x')]]) };
+  }
+  async function botaoFoto(ctx, f, a, x, cq, ok) {
+    if (a === 'fo') {
+      if (x === 'c') { ok(); const c = f.conta || {}; return iniciarConta(ctx, c); }
+      f.passo = 'obra';
+    }
+    else if (a === 'fe') { const E = ['inicio', 'durante', 'fim']; f.etapa = E[(E.indexOf(f.etapa) + 1) % 3] || 'durante'; }
+    else if (a === 'fb') {
+      if (x === 'v') { f.verEntregues = true; f.lista = null; }
+      else { const ob = (f.lista || [])[+x]; if (!ob) return ok(); ok('Guardando…'); return guardarDoCartao(ctx, f, ob, cq); }
+    }
+    ok(); await carregarLista(f); return mostrar(ctx, f, cq);
+  }
+  async function respostaFoto(ctx, f, t) {
+    if (f.passo !== 'obra') return false;
+    const L = obrasNoTexto(t, await obrasAtivas());
+    if (L.length !== 1) { if (intencao(t) || /\?\s*$/.test(t)) return false; await mandar(ctx.chat, L.length ? 'Achei mais de uma obra com esse nome — toque num dos botões do cartão.' : 'Não achei essa obra. Toque num dos botões do cartão acima.'); return true; }
+    await guardarDoCartao(ctx, f, L[0].nome); return true;
+  }
+  async function guardarDoCartao(ctx, f, obra, cq) {
+    tg('sendChatAction', { chat_id: ctx.chat, action: 'upload_photo' }).catch(() => {});
+    const id = await gravarFotoObra(ctx, f.foto, obra, f.etapa, f.legenda);
+    const fim = { k: 'feito', fid: f.fid, ids: [{ t: 'obra_imagens', id }], vale_min: 120, _rid: f._rid, msg: f.msg };
+    return mostrar(ctx, fim, cq, `📷 <b>Foto guardada</b> em <b>${esc(obra)}</b> › Imagens da obra (${(ETAPA_ROT[f.etapa] || ETAPA_ROT.durante).toLowerCase()})${f.legenda ? '\n' + esc(f.legenda) : ''}`, [[bt(fim, '↩️ Desfazer', 'u')]]);
   }
 
   /* ─────────────── TAREFA ─────────────── */
@@ -1530,16 +1943,19 @@ module.exports = function criarRobo(io) {
     const ids = [{ t: 'planejamento', id: await inserir('planejamento', { tipo: 'abastecimento', titulo_obra: f.obra, data: f.data, maquina: MAQ, litros: String(l), valor: dinheiro(v), horimetro: f.horimetro > 0 ? String(f.horimetro) : '', fornecedor: f.posto || '', obs: 'Lançado pelo Telegram', data_lancamento: agora, criado_por_id: uid, criado_por: nome }) }];
     if (f.conta) {
       const qtd = dinheiro(l), pu = Math.round(v / l * 1e6) / 1e6;
-      ids.push({ t: 'custos', id: await inserir('custos', { titulo_obra: f.obra, data_lancamento: agora, tipo_de_custo: 'Real', tipo: 'Equipamentos e locações', descricao: 'Óleo diesel', fornecedor: f.posto || '', fator: 'L', qtd, p_unit: String(pu), p_total: dinheiro(+qtd * pu), vencimento: f.data, data_pgto: f.data, observacao: `Abastecimento da ${MAQ} — ${String(l).replace('.', ',')} L (lançado pelo Telegram)`, forma_pagamento: '', aprovacao: 'aprovada', aprovado_por: nome, aprovado_em: hj, lancado_por: nome, criado_por_id: uid, criado_por: nome }) });
+      ids.push({ t: 'custos', id: await inserir('custos', { titulo_obra: f.obra, data_lancamento: agora, tipo_de_custo: 'Real', tipo: 'Equipamentos e locações', descricao: 'Óleo diesel', fornecedor: f.posto || '', fator: 'L', qtd, p_unit: String(pu), p_total: dinheiro(+qtd * pu), vencimento: f.data, data_pgto: f.data, observacao: `Abastecimento da ${MAQ} — ${String(l).replace('.', ',')} L (lançado pelo Telegram)`, forma_pagamento: '', aprovacao: 'pendente', aprovado_por: '', aprovado_em: '', lancado_por: nome, origem_lanc: 'telegram', criado_por_id: uid, criado_por: nome }) });
     }
     const fim = { k: 'feito', fid: f.fid, ids, vale_min: 120, _rid: f._rid, msg: f.msg };
-    return mostrar(ctx, fim, cq, `✅ <b>Abastecimento lançado</b> (Pessoal e diário › máquina)\n${esc(f.obra)} · ${fmtN(l)} L · ${reais(v)}${f.conta ? '\nE a conta paga em Contas a pagar ("Óleo diesel").' : ''}`, [[bt(fim, '↩️ Desfazer', 'u')]]);
+    return mostrar(ctx, fim, cq, `✅ <b>Abastecimento lançado</b> (Pessoal e diário › máquina)\n${esc(f.obra)} · ${fmtN(l)} L · ${reais(v)}${f.conta ? '\nE a conta paga em Contas a pagar ("Óleo diesel") — aguardando sua aprovação.' : ''}`, [[bt(fim, '↩️ Desfazer', 'u')]]);
   }
 
   /* ─────────────── entradas (o telegram.js chama) ─────────────── */
   function esperaTexto(f) {
-    if (f.k === 'conta') return ['valor', 'forn', 'desc', 'pagoem', 'venc', 'onde', 'cat', 'forma', 'rateio'].includes(passoConta(f));
-    if (f.k === 'baixa') return ['lista', 'data'].includes(f.passo);
+    if (f.k === 'conta') return ['valor', 'forn', 'desc', 'pagoem', 'venc', 'onde', 'cat', 'forma', 'rateio', 'socio'].includes(passoConta(f));
+    if (f.k === 'baixa') return ['lista', 'data', 'socio'].includes(f.passo);
+    if (f.k === 'receb') return ['lista', 'data'].includes(f.passo);
+    if (f.k === 'concluir') return true;
+    if (f.k === 'foto') return f.passo === 'obra';
     if (f.k === 'tarefa') return ['oque', 'quando', 'obra', 'quem'].includes(passoTarefa(f));
     if (f.k === 'reuniao') return ['titulo', 'data', 'hora', 'obra'].includes(passoReu(f));
     if (f.k === 'diesel') return ['obra', 'litros', 'valor'].includes(passoDiesel(f));
@@ -1551,17 +1967,25 @@ module.exports = function criarRobo(io) {
     if (f.k === 'tarefa') return respostaTarefa(ctx, f, t);
     if (f.k === 'reuniao') return respostaReu(ctx, f, t);
     if (f.k === 'diesel') return respostaDiesel(ctx, f, t);
+    if (f.k === 'receb') return respostaReceb(ctx, f, t);
+    if (f.k === 'concluir') return respostaConcluir(ctx, f, t);
+    if (f.k === 'foto') return respostaFoto(ctx, f, t);
     return false;
   }
   const tirarVerbo = (t, re) => String(t || '').replace(re, '').trim();
+  // a frase da conta lida pelas regras, já com a lista dos sócios (para "pago pelo Vilson") — a lista vai junto para o cartão
+  async function contaDaFrase(t, obras, hj) { const socios = await sociosLista().catch(() => []); return { ...lerFrase(t, obras || await obrasAtivas(), hj || R.hojeBahia(), socios), socios }; }
   async function agir(ctx, it, t) {
     const hj = R.hojeBahia(), obras = await obrasAtivas();
-    if (it === 'conta') return iniciarConta(ctx, lerFrase(t, obras, hj));
+    if (it === 'conta') return iniciarConta(ctx, await contaDaFrase(t, obras, hj));
     if (it === 'baixa') return iniciarBaixa(ctx, tirarVerbo(t, /^\s*(?:d[aá]r?\s+baixa|baixa|baixar|marcar?\s+como\s+pag[oa]|quitar|quitei)\s*(?:n[ao]s?|d[ao]s?|em|a|o)?\s*/i), 0);
     if (it === 'nota') return nota(ctx, tirarVerbo(t, /^\s*(?:busca|buscar|busque|procura|procurar|procure|acha|achar|ache|manda|mandar|mande|me\s+manda|me\s+mande|me\s+envia|envia|enviar|envie|cad[êe]|quero|preciso\s+d[ao])?\s*(?:a|o|as|os|uma|um)?\s*(?:nota|notas|nf-?e?|nfs-?e|danfe|xml)(?:\s+fiscal|\s+fiscais)?\s*(?:d[aeo]s?\s+|n[º°o.]\s*|n[úu]mero\s+)?/i));
     if (it === 'tarefa') return novaTarefa(ctx, lerTarefa(t, obras, hj));
     if (it === 'reuniao') return novaReuniao(ctx, lerReuniao(t, obras, hj));
     if (it === 'diesel') return novoDiesel(ctx, lerDiesel(t, obras, hj));
+    if (it === 'receb') return iniciarReceb(ctx, t, 0);
+    if (it === 'concluir') return iniciarConcluir(ctx, t);
+    if (it === 'doc') return documentos(ctx, t);
   }
   // o pedido entendido pela Groq (áudio, ou texto que as regras não entenderam)
   async function porIA(ctx, t) {
@@ -1570,7 +1994,8 @@ module.exports = function criarRobo(io) {
     catch (e) { console.error('groq texto', e && e.message); return false; }
     if (!ia || typeof ia !== 'object') return false;
     const hj = R.hojeBahia(), obras = await obrasAtivas(), a = String(ia.acao || '');
-    const obraDe = n => { const c = cn(n); if (!c) return ''; const x = obras.find(o => cn(o.nome) === c) || obras.find(o => cn(o.nome).includes(c) || c.includes(cn(o.nome))); return x ? x.nome : ''; };
+    // o nome da obra dito (às vezes com erro de áudio): igual, contido, ou pelas palavras que só aquela obra tem
+    const obraDe = n => { const c = cn(n); if (!c) return ''; const x = obras.find(o => cn(o.nome) === c) || obras.find(o => cn(o.nome).includes(c) || c.includes(cn(o.nome))); if (x) return x.nome; const L = obrasNoTexto(n, obras); return L.length === 1 ? L[0].nome : ''; };
     const num = v => typeof v === 'number' ? v : numBR(v);
     if (a === 'conta') {
       const c = {}, v = num(ia.valor); if (v > 0) c.valor = Math.round(v * 100) / 100;
@@ -1583,6 +2008,22 @@ module.exports = function criarRobo(io) {
       else if (ia.pago === false && /pagar|vence|vencimento|n[ãa]o\s+pag|em\s+aberto/i.test(t)) { c.pago = ''; c.pagoOk = true; }
       if (isoOk(ia.vencimento) && !c.pago) c.venc = ia.vencimento;
       const fm = FORMAS.find(x => cn(x) === cn(ia.forma)) || (ia.forma ? formaDe(' ' + ia.forma + ' ').forma : ''); if (fm) { c.forma = fm; c.formaOk = true; }
+      const np = num(ia.parcelas); if (np >= 2 && np <= 24) c.nParc = Math.round(np);
+      const qp = cn(ia.quem_pagou);
+      if (/^(?:a )?(?:empresa|vixsul)\b/.test(qp)) c.socio = ''; else if (/^(?:eu|eu mesmo|eu mesma|meu|minha|proprio)$/.test(qp)) c.socioEu = true; else if (qp) c.socioNome = capital(corta(ia.quem_pagou, 60));
+      // o que a IA deixou em branco, as regras completam (valor, obra, forma, vencimento, quem pagou…)
+      const r = await contaDaFrase(t, obras, hj); c.socios = r.socios;
+      if (!c.valor && r.valor) c.valor = r.valor;
+      if (!c.forn && r.forn) c.forn = r.forn;
+      if (!c.desc && r.desc) c.desc = r.desc;
+      if (!c.onde && r.onde) { c.onde = r.onde; if (r.obra) c.obra = r.obra; if (r.obras) c.obras = r.obras; }
+      else if (!c.onde && r.candidatas) c.candidatas = r.candidatas;
+      if (!c.pagoOk && r.pagoOk) { c.pago = r.pago; c.pagoOk = true; }
+      if (!c.pago && !c.venc && r.venc) c.venc = r.venc;
+      if (!c.formaOk && r.formaOk) { c.forma = r.forma; c.formaOk = true; }
+      if (!c.nParc && r.nParc) c.nParc = r.nParc;
+      if (!c.num && r.num) c.num = r.num;
+      if (c.socio === undefined && !c.socioEu && !c.socioNome) { if (r.socio !== undefined) c.socio = r.socio; else if (r.socioEu) c.socioEu = true; else if (r.socioNome) c.socioNome = r.socioNome; }
       await iniciarConta(ctx, c); return true;
     }
     if (a === 'baixa') { await iniciarBaixa(ctx, String(ia.busca || ia.fornecedor || ia.descricao || ''), num(ia.valor) > 0 ? num(ia.valor) : 0); return true; }
@@ -1590,12 +2031,15 @@ module.exports = function criarRobo(io) {
     if (a === 'tarefa') { await novaTarefa(ctx, { oque: capital(corta(ia.titulo || ia.descricao || '', 200)), quando: isoOk(ia.quando) ? ia.quando : '', obra: obraDe(ia.obra), quem: capital(corta(ia.quem || '', 60)), prio: PRIO.includes(ia.prioridade) ? ia.prioridade : '' }); return true; }
     if (a === 'reuniao') { await novaReuniao(ctx, { titulo: capital(corta(ia.titulo || ia.descricao || '', 160)), data: isoOk(ia.quando) && ia.quando >= hj ? ia.quando : '', hora: /^\d{2}:\d{2}$/.test(ia.hora || '') ? ia.hora : '', obra: obraDe(ia.obra), local: capital(corta(ia.local || '', 80)) }); return true; }
     if (a === 'diesel') { await novoDiesel(ctx, { obra: obraDe(ia.obra), litros: num(ia.litros) > 0 ? num(ia.litros) : 0, valor: num(ia.valor) > 0 ? num(ia.valor) : 0, posto: ia.fornecedor ? maiusc(corta(ia.fornecedor, 60)) : '', horimetro: num(ia.horimetro) > 0 ? num(ia.horimetro) : 0, data: isoOk(ia.data_pagamento) && ia.data_pagamento <= hj ? ia.data_pagamento : hj }); return true; }
+    if (a === 'recebimento') { await iniciarReceb(ctx, [ia.busca, obraDe(ia.obra) || ia.obra].filter(Boolean).join(' '), num(ia.valor) > 0 ? num(ia.valor) : 0); return true; }
+    if (a === 'concluir') { await iniciarConcluir(ctx, String(ia.busca || ia.titulo || ia.descricao || '')); return true; }
+    if (a === 'documento') { await documentos(ctx, [ia.busca || ia.descricao, obraDe(ia.obra)].filter(Boolean).join(' ')); return true; }
     if (a === 'lembrete' && (ia.titulo || ia.descricao) && isoOk(ia.quando)) return { lembrete: { texto: capital(corta(ia.titulo || ia.descricao, 500)), quando: ia.quando + 'T' + (/^\d{2}:\d{2}$/.test(ia.hora || '') ? ia.hora : '08:00'), repetir: 'nao' } };
     return false;
   }
   // texto livre: resposta ao cartão em andamento, código colado (PIX/boleto/chave) ou um pedido. true = tratou
   async function texto(ctx, t, op) {
-    op = op || {}; t = String(t || '').trim(); if (!t) return false;
+    op = op || {}; t = semOi(String(t || '').trim()); if (!t) return false;
     const f = await fluxoDe(ctx), lemb = /^(?:me\s+)?(?:lembr|avis[ae]\b)/i.test(t);
     if (f && !lemb && esperaTexto(f)) { const r = await responder(ctx, f, t); if (r !== false) return true; }
     if (lemb) return false;
@@ -1609,8 +2053,12 @@ module.exports = function criarRobo(io) {
   async function comando(ctx, cmd, arg) {
     const hj = R.hojeBahia();
     switch (cmd) {
-      case 'conta': case 'lancar': case 'despesa': case 'gasto': await iniciarConta(ctx, arg ? lerFrase(arg, await obrasAtivas(), hj) : {}); return true;
+      case 'conta': case 'lancar': case 'despesa': case 'gasto': await iniciarConta(ctx, arg ? await contaDaFrase(arg, null, hj) : {}); return true;
       case 'pagar': case 'baixa': await iniciarBaixa(ctx, arg, 0); return true;
+      case 'aprovar': case 'aprovacao': case 'pendentes': await aprovar(ctx); return true;
+      case 'recebi': case 'recebimento': await iniciarReceb(ctx, arg, 0); return true;
+      case 'concluir': case 'feito': case 'feita': await iniciarConcluir(ctx, arg); return true;
+      case 'doc': case 'docs': case 'documento': case 'documentos': case 'certidao': case 'certidoes': await documentos(ctx, arg); return true;
       case 'nota': case 'notas': case 'nf': await nota(ctx, arg); return true;
       case 'tarefa': await novaTarefa(ctx, lerTarefa(arg, await obrasAtivas(), hj)); return true;
       case 'reuniao': await novaReuniao(ctx, lerReuniao(arg, await obrasAtivas(), hj)); return true;
@@ -1629,22 +2077,29 @@ module.exports = function criarRobo(io) {
     const [, fid, a, x] = String(cq.data || '').split(':');
     const f = await fluxoDe(ctx);
     if (!f || f.fid !== fid) { ok('Este cartão não vale mais.'); if (cq.message) tirarBotoes(ctx, cq.message.message_id); return; }
-    if (a === 'x') { ok(f.k === 'nota' ? 'Fechado' : 'Cancelado'); return mostrar(ctx, { ...f, k: 'fim' }, cq, f.k === 'nota' ? '✔️ Fechado.' : '❌ Cancelado — nada foi gravado.', []); }
+    const soVer = f.k === 'nota' || f.k === 'docs';
+    if (a === 'x') { ok(soVer ? 'Fechado' : 'Cancelado'); return mostrar(ctx, { ...f, k: 'fim' }, cq, soVer ? '✔️ Fechado.' : '❌ Cancelado — nada foi gravado.', []); }
     if (a === 'u') { if (f.k !== 'feito') return ok(); ok('Desfazendo…'); return desfazer(ctx, f, cq); }
     if (f.k === 'conta') return botaoConta(ctx, f, a, x, cq, ok);
     if (f.k === 'baixa') return botaoBaixa(ctx, f, a, x, cq, ok);
     if (f.k === 'nota') { if (a === 'n') { ok('Mandando…'); return enviarNota(ctx, f, +x); } return ok(); }
+    if (f.k === 'docs') { if (a === 'dk') { ok('Mandando…'); return enviarDoc(ctx, f, +x); } return ok(); }
     if (f.k === 'tarefa') return botaoTarefa(ctx, f, a, x, cq, ok);
     if (f.k === 'reuniao') return botaoReu(ctx, f, a, x, cq, ok);
     if (f.k === 'diesel') return botaoDiesel(ctx, f, a, x, cq, ok);
+    if (f.k === 'receb') return botaoReceb(ctx, f, a, x, cq, ok);
+    if (f.k === 'concluir') return botaoConcluir(ctx, f, a, x, cq, ok);
+    if (f.k === 'foto') return botaoFoto(ctx, f, a, x, cq, ok);
     return ok();
   }
   // rascunhos vencidos saem do banco (a tarefa de 15 em 15 minutos chama)
-  async function limpar() { await sb(`arquivos?row_data->>tipo=in.(telegram_fluxo,telegram_email)&row_data->>expira=lt.${q(new Date().toISOString())}`, { method: 'DELETE', headers: { Prefer: 'return=minimal' } }); }
+  async function limpar() { await sb(`arquivos?row_data->>tipo=in.(telegram_fluxo,telegram_email,telegram_album)&row_data->>expira=lt.${q(new Date().toISOString())}`, { method: 'DELETE', headers: { Prefer: 'return=minimal' } }); }
   // o que a tela e o estado mostram da caixa de e-mail (sem nada do conteúdo dos e-mails)
   async function infoCaixa() { const e = await estadoCaixa().catch(() => ({})); return { ultima: e.ultima || '', erro: e.erro || '', erro_em: e.erro_em || '', avisados: +e.avisados || 0, ultimo_aviso: e.ultimo_aviso || '' }; }
   return { comando, texto, textoIA: (ctx, t) => GROQ ? porIA(ctx, t) : false, botao, botaoEmail, arquivo, audio, limpar, caixaEmail, infoCaixa, temGroq: () => !!GROQ, estadoGroq, testarGroq, temGmail: () => !!(G_USER && G_PASS) };
 };
 // para os testes (funções que não falam com ninguém)
-module.exports.teste = { chatJson, chatUm, testarGroq, wavMudo, lerMaquininha, modelosDe, estadoGroq, cnpjOk, numBR, valorDe, dataDe, horaDe, formaDe, fornDe, trechoObra, obrasNoTexto, chutarCat, limparDesc, lerFrase, lerTarefa, lerReuniao, lerDiesel, intencao, numerosPorExtenso, lerPix, crc16, boletoDe, acharBoleto, chaveOk, acharChave, lerCodigo, lerXml, lerTextoDoc, normIA, qrDaImagem, textoPdf, somaMes, isoOk, tipoAcao, tipoReu, dataFator };
+module.exports.teste = { chatJson, chatUm, testarGroq, wavMudo, lerMaquininha, modelosDe, estadoGroq, semOi, quemPagou, promptVoz, transcreverDet, cnpjOk, numBR, valorDe, dataDe, horaDe, formaDe, fornDe, trechoObra, obrasNoTexto, chutarCat, limparDesc, lerFrase, lerTarefa, lerReuniao, lerDiesel, intencao, numerosPorExtenso, lerPix, crc16, boletoDe, acharBoleto, chaveOk, acharChave, lerCodigo, lerXml, lerTextoDoc, normIA, qrDaImagem, textoPdf, somaMes, isoOk, tipoAcao, tipoReu, dataFator };
 module.exports.GROQ = () => !!GROQ;
+// o que o telegram.js usa para as consultas (/obra, /fornecedor, /buscar)
+module.exports.util = { cn, corta, valorDe, obrasNoTexto, semOi };

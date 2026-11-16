@@ -93,6 +93,7 @@ async function mandarArq(chat_id, buf, nome, mime, legenda, teclado) {
 const mandarDoc = (chat_id, buf, nome, legenda) => mandarArq(chat_id, buf, nome, 'application/pdf', legenda);
 // as ações do robô no sistema (contas, baixa, notas, tarefas, reuniões, diesel, foto e áudio)
 const BOT = require('./_bot')({ tg, mandar, mandarArq, TOKEN });
+const BU = require('./_bot').util;   // cn, corta, valorDe, obrasNoTexto, semOi
 /* PARA QUEM VAI cada aviso automático — o Administrador escolhe em Agenda › Lembretes e Telegram ("Para quem vai"):
    cfg_telegram.destinos = { aviso: { chats: [ids das conversas ligadas] , emails: 'a@b.com, c@d.com' } }.
    Sem escolha: todas as conversas ligadas; e-mail só no relatório semanal e no fechamento (os dos Avisos por e-mail). */
@@ -162,6 +163,12 @@ const ajuda = () => `<b>O que eu faço</b>
 /agenda — reuniões e tarefas dos próximos 7 dias
 /aportes — aportes do mês e do ano por sócio
 /obras — os números de cada obra
+/obra — a ficha de uma obra (números, contas em aberto, a receber, tarefas, último diário). Ex.: <i>/obra Itarantim</i>
+/fornecedor — cadastro (com o PIX para copiar), quanto já foi pago e o que está em aberto. Ex.: <i>/fornecedor casa do construtor</i>
+/buscar — procurar nas contas pelo nome, pelo que foi comprado ou pelo valor. Ex.: <i>/buscar cimento</i>
+/receber — notas emitidas esperando o dinheiro e medições aprovadas sem nota
+/aprovar — as contas aguardando a sua aprovação
+/doc — documentos da empresa (certidões, FGTS, contrato social, cartão CNPJ…) e arquivos das obras. Ex.: <i>/doc fgts</i>
 /lembretes — os seus lembretes (com botão para apagar)
 /lembrar — criar um lembrete. Exemplo: <i>/lembrar amanhã 9h pagar o aluguel</i>
 /relatorio — o relatório da semana passada (com PDF)
@@ -171,14 +178,18 @@ const ajuda = () => `<b>O que eu faço</b>
 /chuva — previsão de chuva para amanhã nas obras
 
 <b>No sistema eu também faço</b> (sempre mostro um cartão para você conferir antes de gravar)
-/conta — lançar uma conta: numa obra, rateada entre obras ou na Empresa (custo indireto). Ou escreva: <i>lança 350 de cimento na obra Itarantim, vence dia 20</i> · <i>paguei 120 de gasolina no pix, empresa</i>
+/conta — lançar uma conta: numa obra, rateada entre obras ou na Empresa (custo indireto). Ou escreva: <i>lança 350 de cimento na obra Itarantim, vence dia 20</i> · <i>paguei 120 de gasolina no pix, empresa</i> · <i>paguei 80 de almoço com meu cartão</i>
+🖊️ Tudo o que eu lanço em Contas a pagar fica <b>Aguardando aprovação</b> até você conferir no sistema. Se um sócio pagou (cartão, PIX ou conta pessoal), eu pergunto quem foi: o aporte dele entra quando você aprovar.
 /pagar — dar baixa numa conta em aberto
+/recebi — registrar que o dinheiro de uma nota emitida entrou. Ou escreva: <i>recebi a nota 123</i>
+/concluir — marcar uma tarefa como feita
 /nota — buscar nota fiscal e receber o PDF e o XML. Ex.: <i>/nota 1234</i> ou <i>/nota casa do construtor</i>
 /tarefa — nova tarefa. Ex.: <i>/tarefa pedir a medição sexta obra Itarantim</i>
 /reuniao — marcar reunião. Ex.: <i>/reuniao amanhã 9h com a fiscalização</i>
 /diesel — abastecimento da retroescavadeira. Ex.: <i>/diesel 120 litros 750 reais obra Itarantim</i>
 /cancelar — desistir do que estiver pela metade
 📷 Mande a <b>foto</b>, o <b>PDF</b> ou o <b>XML</b> do boleto, da nota ou do comprovante (ou cole o código do PIX ou a linha do boleto): eu leio o valor e preparo a conta.
+🏗 <b>Fotos da obra</b>: mande com a legenda <i>fotos da obra Itarantim</i> (pode ser várias de uma vez) — vão para a galeria da obra.
 📧 Eu também olho o <b>e-mail</b> da empresa e aviso quando chega boleto ou nota, com o botão <b>Lançar conta</b>.
 🎤 Mande <b>áudio</b> falando o que quer${BOT.temGroq() ? '' : ' (falta ligar a leitura grátis de foto e áudio — Agenda › Lembretes e Telegram)'}.
 
@@ -213,6 +224,93 @@ function textoObras(D) {
   const L = R.porObra(D).slice(0, 15);
   if (!L.length) return 'Nenhuma obra com números lançados.';
   return '<b>Números das obras</b> (as de maior gasto primeiro)\n\n' + L.map(x => `<b>${esc(x.obra)}</b>\n` + [x.contrato ? 'Contrato ' + R.reais(x.contrato) : '', x.medido ? 'Medido ' + R.reais(x.medido) : '', 'Notas ' + R.reais(x.faturado), 'Recebido ' + R.reais(x.recebido), 'Gasto ' + R.reais(x.gasto), x.aportes ? 'Aportes ' + R.reais(x.aportes) : ''].filter(Boolean).join(' · ')).join('\n\n');
+}
+// ── consultas novas: uma obra, um fornecedor, busca nas contas e o que falta receber ──
+// todas as contas (custos das obras + despesas da empresa) num formato só
+function contasTodas(D, hj) {
+  const L = [];
+  D.custos.forEach(c => { const real = String(R.campo(c, 'tipo_de_custo', 'tipo_custo')).toLowerCase() === 'real', pg = R.iso(R.campo(c, 'data_pgto', 'data_pagamento'));
+    L.push({ forn: String(R.campo(c, 'fornecedor') || ''), desc: String(R.campo(c, 'descricao') || ''), valor: R.num(R.campo(c, 'p_total', 'valor_total', 'valor')), onde: c.titulo_obra || '', venc: R.iso(R.campo(c, 'vencimento', 'data_vencimento')), pago: real && pg && pg <= hj ? pg : '', prev: !real, pend: c.aprovacao === 'pendente' }); });
+  D.despesas.forEach(d => { const prev = /previst/i.test(String(R.campo(d, 'tipo_despesa'))), pago = String(R.campo(d, 'status_pagamento')).toLowerCase() === 'pago';
+    L.push({ forn: String(R.campo(d, 'fornecedor_beneficiario', 'fornecedor') || ''), desc: String(d.descricao || ''), valor: R.num(R.campo(d, 'valor', 'valor_total')), onde: 'Empresa', venc: R.iso(R.campo(d, 'data_despesa', 'vencimento')), pago: pago ? (R.iso(R.campo(d, 'data_pagamento')) || R.iso(R.campo(d, 'data_despesa'))) : '', prev, pend: d.aprovacao === 'pendente' }); });
+  return L.filter(x => x.valor > 0);
+}
+const dAno = d => d ? R.br(d) + '/' + d.slice(2, 4) : '—';
+const marca = (x, hj) => x.pend ? '🖊️' : x.pago ? '✅' : x.venc && x.venc < hj ? '⚠️' : '🕒';
+const LEGENDA = '✅ paga · 🕒 a pagar · ⚠️ vencida · 🖊️ aguardando aprovação';
+const PALAVRAS_VAZIAS = /^(?:de|do|da|dos|das|com|para|pra|pro|na|no|nas|nos|em|um|uma|o|a|os|as|e|conta|contas|gasto|gastos|pagamento|pagamentos|quanto|qual|quais|tudo|todas|todos)$/;
+function textoBuscar(D, termo, hj) {
+  const t = String(termo || '').trim();
+  if (!t) return 'O que procurar? Exemplos: <i>/buscar cimento</i>, <i>/buscar casa do construtor</i>, <i>/buscar 1.500,00</i>, <i>/buscar areia Itarantim</i>.';
+  const v = /\d[.,]\d{2}\b|r\$|reais/i.test(t) ? BU.valorDe(t).valor : 0, ws = BU.cn(t).split(' ').filter(w => w.length >= 3 && !PALAVRAS_VAZIAS.test(w));
+  let L = contasTodas(D, hj).filter(x => !x.prev);
+  L = v > 0 ? L.filter(x => Math.abs(x.valor - v) < 0.01) : ws.length ? L.filter(x => { const a = BU.cn([x.forn, x.desc, x.onde].join(' ')); return ws.every(w => a.includes(w)); }) : [];
+  if (!L.length) return `Não achei conta com “${esc(t)}”. Tente outra palavra (o fornecedor, o que foi comprado, a obra) ou o valor (ex.: 1.500,00).`;
+  L.sort((a, b) => (b.pago || b.venc || '').localeCompare(a.pago || a.venc || ''));
+  const soma = M => R.reais(M.reduce((s, x) => s + x.valor, 0)), pg = L.filter(x => x.pago), ab = L.filter(x => !x.pago);
+  return `🔎 <b>${L.length} conta(s) com “${esc(t)}”</b> · ${soma(L)}\nPagas: ${soma(pg)} (${pg.length}) · em aberto: ${soma(ab)} (${ab.length})\n\n` +
+    L.slice(0, 15).map(x => `${marca(x, hj)} ${dAno(x.pago || x.venc)} — ${esc(BU.corta(x.forn || x.desc || 'Conta', 40))}${x.forn && x.desc ? ' · ' + esc(BU.corta(x.desc, 30)) : ''} — <b>${R.reais(x.valor)}</b>${x.onde ? ' <i>(' + esc(BU.corta(x.onde, 30)) + ')</i>' : ''}`).join('\n') +
+    (L.length > 15 ? `\n… e mais ${L.length - 15}` : '') + '\n\n' + LEGENDA;
+}
+function textoFornecedor(D, forns, termo, hj) {
+  const t = BU.cn(termo), ws = t.split(' ').filter(w => w.length >= 2 && !PALAVRAS_VAZIAS.test(w));
+  if (!ws.length) return 'Qual fornecedor? Exemplo: <i>/fornecedor casa do construtor</i> (mostro o cadastro com o PIX, o que já foi pago e o que está em aberto).';
+  const bate = s => { const a = BU.cn(s); return ws.every(w => a.includes(w)); };
+  const cad = (forns || []).filter(f => f.nome && bate([f.nome, f.documento || f.cnpj || ''].join(' ')));
+  const todas = contasTodas(D, hj).filter(x => !x.prev && x.forn && bate(x.forn));
+  const nomes = [...new Map(cad.map(f => f.nome).concat(todas.map(x => x.forn)).map(n => [BU.cn(n), n])).values()];
+  if (!nomes.length) return `Não achei fornecedor com “${esc(termo)}”. Veja os cadastrados na tela <b>Fornecedores</b> do sistema.`;
+  const exato = nomes.find(n => BU.cn(n) === t);
+  if (nomes.length > 1 && !exato) return `Achei ${nomes.length} fornecedores com “${esc(termo)}”:\n` + nomes.slice(0, 10).map(n => '• ' + esc(n)).join('\n') + '\n\nMande /fornecedor e o nome mais completo.';
+  const nome = exato || nomes[0], f = cad.find(x => BU.cn(x.nome) === BU.cn(nome)) || {}, deles = todas.filter(x => BU.cn(x.forn) === BU.cn(nome));
+  const ano = hj.slice(0, 4), pgAno = deles.filter(x => x.pago && x.pago.startsWith(ano)), ab = deles.filter(x => !x.pago).sort((a, b) => (a.venc || '9').localeCompare(b.venc || '9'));
+  const soma = M => R.reais(M.reduce((s, x) => s + x.valor, 0));
+  const cadL = [f.documento || f.cnpj ? 'CNPJ/CPF: ' + esc(f.documento || f.cnpj) : '', f.contato || f.telefone ? [f.contato ? 'Contato: ' + esc(f.contato) : '', f.telefone ? 'Tel.: ' + esc(f.telefone) : ''].filter(Boolean).join(' · ') : '', f.email ? 'E-mail: ' + esc(f.email) : '', f.cidade ? 'Cidade: ' + esc(f.cidade) : '', f.pix ? 'PIX / banco (toque para copiar): <code>' + esc(f.pix) + '</code>' : ''].filter(Boolean);
+  return `🏪 <b>${esc(nome)}</b>${f.tipo ? ' · ' + esc(f.tipo) : ''}${f.situacao === 'Inativo' ? ' · <i>inativo</i>' : ''}\n` + (cadL.length ? cadL.join('\n') : '<i>Sem cadastro em Fornecedores (só aparece nas contas).</i>') +
+    `\n\nPago em ${ano}: <b>${soma(pgAno)}</b> (${pgAno.length} conta(s)) · desde o início: ${soma(deles.filter(x => x.pago))}` +
+    `\nEm aberto: <b>${soma(ab)}</b> (${ab.length})${ab.length ? ' — a próxima vence ' + dAno(ab[0].venc) : ''}` +
+    (deles.length ? '\n\nÚltimas contas:\n' + deles.slice().sort((a, b) => (b.pago || b.venc || '').localeCompare(a.pago || a.venc || '')).slice(0, 8).map(x => `${marca(x, hj)} ${dAno(x.pago || x.venc)} — ${esc(BU.corta(x.desc || 'Conta', 36))} — ${R.reais(x.valor)}${x.onde ? ' <i>(' + esc(BU.corta(x.onde, 28)) + ')</i>' : ''}`).join('\n') + '\n\n' + LEGENDA : '');
+}
+// notas emitidas ainda sem o dinheiro (as antecipadas sem a confirmação também) e as medições aprovadas sem nota
+function textoReceber(D, hj) {
+  const L = D.faturamentos.filter(f => R.iso(R.campo(f, 'emissao_nf')) && String(R.campo(f, 'n_nf')).trim() && !/previst/i.test(String(f.tipo_faturamento || '')))
+    .filter(f => { const r = R.iso(R.campo(f, 'data_recebimento')), antPend = f.antecipada === 'sim' && f.antec_recebida !== 'sim' && !f.antec_depositado; return !(r && r <= hj) || antPend; })
+    .map(f => ({ n: String(R.campo(f, 'n_nf')).trim(), obra: f.titulo_obra || '', e: R.iso(R.campo(f, 'emissao_nf')), liq: R.num(f.faturamento_liquido) || R.num(f.faturamento_bruto), comb: R.iso(R.campo(f, 'data_recebimento')), ant: f.antecipada === 'sim' }))
+    .sort((a, b) => a.e.localeCompare(b.e));
+  const med = D.medicoes.filter(m => /aprov/i.test(String(m.status || '')) && !/fatur/i.test(String(m.status || '')) && !m.faturado_em);
+  if (!L.length && !med.length) return '✅ Nada a receber: todas as notas emitidas já foram recebidas.';
+  const tot = L.reduce((s, x) => s + x.liq, 0);
+  return `💵 <b>A receber</b>: ${L.length} nota(s) · ${R.reais(tot)} líquido\n` + L.slice(0, 25).map(x => `• NF ${esc(x.n)} — ${esc(BU.corta(x.obra, 34))} — emitida ${dAno(x.e)} (${R.diasEntre(x.e, hj)} dias) — <b>${R.reais(x.liq)}</b>${x.ant ? ' · antecipada' : ''}${x.comb && x.comb > hj ? ' · combinado ' + dAno(x.comb) : ''}`).join('\n') + (L.length > 25 ? `\n• … e mais ${L.length - 25}` : '') +
+    (med.length ? `\n\n📐 <b>Medições aprovadas ainda sem nota</b>: ${med.length} · ${R.reais(med.reduce((s, m) => s + R.num(m.valor_total), 0))}\n` + med.slice(0, 10).map(m => `• Medição nº ${esc(m.numero || '—')} — ${esc(BU.corta(m.titulo_obra || '', 34))} — ${R.reais(R.num(m.valor_total))}`).join('\n') : '') +
+    '\n\nQuando o dinheiro entrar: /recebi (ou escreva <i>recebi a nota 123</i>). Para cobrar as paradas: /cobrar.';
+}
+// a ficha de uma obra: números, o que falta pagar e receber, tarefas, reuniões e o último diário
+function textoObra(D, termo, hj) {
+  const lista = [...new Map(D.obras.map(o => ({ nome: o.titulo_obra || o.nome_obra || o.titulo || '', cidade: o.cidade_obra || o.cidade || '', st: String(o.status_proposta || o.status_obra || o.status_da_obra || o.status || '') })).filter(o => o.nome).map(o => [o.nome, o])).values()];
+  const ganhas = lista.filter(o => /^ganha/i.test(BU.cn(o.st)));
+  let L = BU.obrasNoTexto(termo, ganhas); if (!L.length) L = BU.obrasNoTexto(termo, lista);
+  if (!L.length) return `Não achei obra com “${esc(termo)}”. Mande /obras para ver os números de todas.`;
+  if (L.length > 1) return 'Achei mais de uma obra:\n' + L.slice(0, 8).map(o => '• ' + esc(o.nome)).join('\n') + '\n\nMande /obra e uma palavra que só a obra que você quer tem (a cidade, o bairro…).';
+  const ob = L[0].nome, x = R.porObra(D).find(y => y.obra === ob) || { contrato: 0, medido: 0, faturado: 0, recebido: 0, gasto: 0, pago: 0, aportes: 0 };
+  const contas = contasTodas(D, hj).filter(c => c.onde === ob && !c.prev), ab = contas.filter(c => !c.pago).sort((a, b) => (a.venc || '9').localeCompare(b.venc || '9')), venc = ab.filter(c => c.venc && c.venc < hj);
+  const aRec = D.faturamentos.filter(f => f.titulo_obra === ob && R.iso(R.campo(f, 'emissao_nf')) && !/previst/i.test(String(f.tipo_faturamento || '')) && !(R.iso(f.data_recebimento) && R.iso(f.data_recebimento) <= hj)).reduce((s, f) => s + (R.num(f.faturamento_liquido) || R.num(f.faturamento_bruto)), 0);
+  const tar = D.acoes.filter(t => R.tarefaAberta(t) && t.titulo_obra === ob).sort((a, b) => (R.iso(a.quando) || '9').localeCompare(R.iso(b.quando) || '9'));
+  const reu = D.reunioes.filter(r => R.reuniaoValida(r) && r.titulo_obra === ob && R.iso(r.data) >= hj).sort((a, b) => (R.iso(a.data) + (a.hora || '')).localeCompare(R.iso(b.data) + (b.hora || '')));
+  const dia = D.diario_obra.filter(d => d.titulo_obra === ob && R.iso(d.data)).sort((a, b) => R.iso(b.data).localeCompare(R.iso(a.data)))[0];
+  const meds = D.medicoes.filter(m => m.titulo_obra === ob).sort((a, b) => (+b.numero || 0) - (+a.numero || 0));
+  const pct = (a, b) => b > 0 ? ` (${Math.round(a / b * 100)}% do contrato)` : '', soma = M => R.reais(M.reduce((s, c) => s + c.valor, 0));
+  const P = [`🏗 <b>${esc(ob)}</b>${L[0].st ? ' · ' + esc(L[0].st) : ''}`,
+    [x.contrato ? 'Contrato ' + R.reais(x.contrato) : '', x.medido ? 'Medido ' + R.reais(x.medido) + pct(x.medido, x.contrato) : ''].filter(Boolean).join(' · '),
+    `Notas ${R.reais(x.faturado)} · Recebido ${R.reais(x.recebido)}${aRec ? ' · a receber ' + R.reais(aRec) : ''}`,
+    `Gasto ${R.reais(x.gasto)} (pago ${R.reais(x.pago)})${x.aportes ? ' · Aportes ' + R.reais(x.aportes) : ''}`,
+    `Resultado até agora (recebido − gasto): <b>${R.reais(x.recebido - x.gasto)}</b>`].filter(Boolean);
+  if (meds[0]) P.push(`Última medição: nº ${esc(meds[0].numero || '—')} · ${esc(meds[0].status || '—')} · ${R.reais(R.num(meds[0].valor_total))}`);
+  if (ab.length) P.push(`\n<b>Contas em aberto</b>: ${ab.length} · ${soma(ab)}${venc.length ? ` — ⚠️ ${venc.length} vencida(s): ${soma(venc)}` : ''}\n` + ab.slice(0, 6).map(c => `${marca(c, hj)} ${dAno(c.venc)} — ${esc(BU.corta(c.forn || c.desc, 36))} — ${R.reais(c.valor)}`).join('\n'));
+  if (tar.length) P.push(`\n<b>Tarefas abertas</b>: ${tar.length}\n` + tar.slice(0, 5).map(t => `• ${R.iso(t.quando) ? dAno(R.iso(t.quando)) + (R.iso(t.quando) < hj ? ' ⚠️' : '') + ' — ' : ''}${esc(BU.corta(t.o_que || 'Tarefa', 60))}${t.quem ? ' · ' + esc(t.quem) : ''}`).join('\n'));
+  if (reu.length) P.push(`\n<b>Próximas reuniões</b>\n` + reu.slice(0, 3).map(r => `• ${dAno(R.iso(r.data))}${r.hora ? ' ' + esc(r.hora) : ''} — ${esc(BU.corta(r.titulo || r.tipo || 'Reunião', 60))}`).join('\n'));
+  if (dia) P.push(`\n<b>Último diário</b> (${dAno(R.iso(dia.data))}): ${[dia.efetivo_total ? dia.efetivo_total + ' pessoa(s)' : '', dia.condicao || dia.clima_manha || ''].filter(Boolean).map(esc).join(' · ')}${dia.atividades ? '\n' + esc(BU.corta(dia.atividades, 300)) : ''}`);
+  else P.push('\n<i>Nenhum diário de obra registrado.</i>');
+  return P.join('\n');
 }
 function textoLembretes(st, ctx) {
   const L = st.lembretes.filter(l => lembreteVivo(l) && destinos(l, [ctx.meu]).length).map(l => ({ l, p: proxDoLembrete(l) })).filter(x => x.p).sort((a, b) => a.p.localeCompare(b.p)).slice(0, 20);
@@ -451,6 +549,10 @@ async function aoReceber(up) {
     case 'agenda': return mandar(chat, textoAgenda(await dados(), hj));
     case 'aportes': return mandar(chat, textoAportes(await dados(), hj));
     case 'obras': return mandar(chat, textoObras(await dados()));
+    case 'obra': return mandar(chat, arg ? textoObra(await dados(), arg, hj) : 'Qual obra? Exemplo: <i>/obra Itarantim</i> (os números de todas: /obras).');
+    case 'fornecedor': case 'forn': return mandar(chat, textoFornecedor(await dados(), await R.ler('fornecedores').catch(() => []), arg, hj));
+    case 'buscar': case 'busca': case 'procurar': return mandar(chat, textoBuscar(await dados(), arg, hj));
+    case 'receber': case 'areceber': return mandar(chat, textoReceber(await dados(), hj));
     case 'lembretes': { const x = textoLembretes(st, ctx); return mandar(chat, x.texto, x.teclado); }
     case 'relatorio': case 'relatório': case 'semana': { await enviarRelatorio([meu], await dados(), hj); return; }
     case 'caixa': return mandar(chat, textoCaixa(RL.caixa(await dados(), hj)));
@@ -468,7 +570,13 @@ async function livre(texto, ctx, anterior, falado) {
   const r = await BOT.texto(ctx, texto, { audio: falado });
   if (r === true) return;
   if (r && r.lembrete) return lembreteDaIA(r.lembrete, texto, ctx);
-  if (/^(?:me\s+)?(?:lembr|avis[ae]\b)/i.test(texto)) return lembrarPorTexto(texto, ctx);   // lembrete: o leitor de frases resolve (grátis)
+  const t = BU.semOi(texto), hj = R.hojeBahia(), dados = async () => ctx.D || (ctx.D = await R.carregar());   // sem o "oi, bom dia…" do começo
+  if (/^(?:me\s+)?(?:lembr|avis[ae]\b)/i.test(t)) return lembrarPorTexto(t, ctx);   // lembrete: o leitor de frases resolve (grátis)
+  // "qual o pix do fornecedor X?", "como está a obra de Itarantim?" — respondidos sem IA
+  const mF = t.match(/^(?:qual|quais|me\s+(?:passa|manda|d[áa]|envia))\s+(?:[ée]\s+)?(?:o\s+|a\s+|os\s+|as\s+)?(?:pix|chave(?:\s+(?:do\s+)?pix)?|cnpj|cpf|telefone|whats(?:app)?|contato|dados\s+banc[áa]rios|banco)\s+d[oa]s?\s+(?:fornecedor\s+)?(.{2,80}?)\s*\??\s*$/i);
+  if (mF) return mandar(ctx.chat, textoFornecedor(await dados(), await R.ler('fornecedores').catch(() => []), mF[1], hj));
+  const mO = t.match(/^(?:como\s+(?:est[áa]|anda|vai)|qual\s+[ée]\s+a\s+situa[çc][ãa]o|situa[çc][ãa]o|resumo|n[úu]meros)\s+d[ae]\s+obra\s+(?:d[ea]\s+|do\s+)?(.{2,80}?)\s*\??\s*$/i);
+  if (mO) return mandar(ctx.chat, textoObra(await dados(), mO[1], hj));
   if (CHAVE_IA) return responderIA(texto, anterior, ctx);
   return responderLivre(texto, ctx);
 }
@@ -604,12 +712,12 @@ async function tick() {
 }
 
 // ── ligar o robô: aponta o Telegram para esta função (webhook com senha) e cadastra os comandos ──
-const VERSAO_BOT = '3';   // mude quando a lista de comandos mudar: o robô se recadastra sozinho na próxima tarefa
+const VERSAO_BOT = '4';   // mude quando a lista de comandos mudar: o robô se recadastra sozinho na próxima tarefa
 async function ligarRobo(st) {
   let eu;
   try { eu = await tg('getMe', {}); } catch (e) { throw new Error(e.codigo === 401 || e.codigo === 404 ? 'A chave do robô na Vercel não foi aceita pelo Telegram — confira se foi copiada inteira.' : e.message); }
   await tg('setWebhook', { url: URL_WEBHOOK, secret_token: segredoWebhook(), allowed_updates: ['message', 'callback_query'], drop_pending_updates: true, max_connections: 10 });
-  await tg('setMyCommands', { commands: [['hoje', 'Resumo do dia'], ['conta', 'Lançar uma conta (obra, rateio ou empresa)'], ['pagar', 'Dar baixa numa conta'], ['nota', 'Buscar nota fiscal (PDF e XML)'], ['tarefa', 'Nova tarefa'], ['reuniao', 'Marcar reunião'], ['diesel', 'Diesel da retroescavadeira'], ['contas', 'Contas a pagar'], ['agenda', 'Reuniões e tarefas'], ['aportes', 'Aportes do mês e do ano'], ['obras', 'Números das obras'], ['lembretes', 'Meus lembretes'], ['lembrar', 'Criar um lembrete'], ['relatorio', 'Relatório da semana (PDF)'], ['caixa', 'Caixa dos próximos 15 dias'], ['cobrar', 'Notas paradas para cobrar'], ['fechamento', 'Fechamento do mês'], ['chuva', 'Chuva amanhã nas obras'], ['cancelar', 'Desistir do que está pela metade'], ['ajuda', 'O que o robô faz']].map(([command, description]) => ({ command, description })) }).catch(() => {});
+  await tg('setMyCommands', { commands: [['hoje', 'Resumo do dia'], ['conta', 'Lançar uma conta (obra, rateio ou empresa)'], ['pagar', 'Dar baixa numa conta'], ['aprovar', 'Contas aguardando aprovação'], ['recebi', 'Registrar o recebimento de uma nota'], ['nota', 'Buscar nota fiscal (PDF e XML)'], ['doc', 'Documentos da empresa e das obras'], ['tarefa', 'Nova tarefa'], ['concluir', 'Marcar tarefa como feita'], ['reuniao', 'Marcar reunião'], ['diesel', 'Diesel da retroescavadeira'], ['contas', 'Contas a pagar'], ['receber', 'O que falta receber'], ['buscar', 'Procurar nas contas'], ['fornecedor', 'Ficha de um fornecedor (com PIX)'], ['obra', 'Ficha de uma obra'], ['agenda', 'Reuniões e tarefas'], ['aportes', 'Aportes do mês e do ano'], ['obras', 'Números das obras'], ['lembretes', 'Meus lembretes'], ['lembrar', 'Criar um lembrete'], ['relatorio', 'Relatório da semana (PDF)'], ['caixa', 'Caixa dos próximos 15 dias'], ['cobrar', 'Notas paradas para cobrar'], ['fechamento', 'Fechamento do mês'], ['chuva', 'Chuva amanhã nas obras'], ['cancelar', 'Desistir do que está pela metade'], ['ajuda', 'O que o robô faz']].map(([command, description]) => ({ command, description })) }).catch(() => {});
   await tg('setMyDescription', { description: 'Robô particular do sistema de gestão da Vixsul Empreendimentos: lança contas, dá baixa, busca notas, cria tarefas e reuniões, lê fotos de boletos e entende áudio.' }).catch(() => {});
   await gravarCfg(st, { bot: eu.username, bot_versao: VERSAO_BOT, bot_ligado_em: new Date().toISOString() });
 }

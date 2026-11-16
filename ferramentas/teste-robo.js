@@ -26,7 +26,7 @@ const SB = 'https://sb.teste';
 
 // ── banco de mentira (PostgREST: select com apelidos, filtros eq/in/like/ilike/lt, order, limit, offset, Range) ──
 const DB = {}; let seq = 1;
-['custos', 'despesas', 'planejamento', 'obras', 'orcamentos', 'fornecedores', 'faturamentos', 'arquivos', 'acoes', 'reunioes', 'documentos', 'diario_obra', 'aportes', 'contratos', 'medicoes'].forEach(t => { DB[t] = []; });
+['custos', 'despesas', 'planejamento', 'obras', 'orcamentos', 'fornecedores', 'faturamentos', 'arquivos', 'acoes', 'reunioes', 'documentos', 'diario_obra', 'aportes', 'contratos', 'medicoes', 'obra_imagens'].forEach(t => { DB[t] = []; });
 const add = (t, row) => { const id = seq++; DB[t].push({ id, row_data: JSON.parse(JSON.stringify(row)) }); return id; };
 const STORAGE = {};
 const resp = (st, corpo, tipo) => new Response(corpo == null ? null : corpo, { status: st, headers: { 'Content-Type': tipo || 'application/json' } });
@@ -63,6 +63,7 @@ async function telegram(url, op) {
   if (op.body instanceof FormData) { for (const [k, v] of op.body.entries()) b[k] = typeof v === 'string' ? v : { nome: v.name, tipo: v.type, tam: v.size, texto: Buffer.from(await v.arrayBuffer()).toString('utf8').slice(0, 300) }; }
   else if (op.body) b = JSON.parse(op.body);
   let r = true;
+  if (m === 'getMe') r = { id: 1, is_bot: true, username: 'vixsul_gestao_bot' };
   if (m === 'sendMessage' || m === 'sendDocument') r = { message_id: ++msgId, chat: { id: b.chat_id } };
   if (m === 'editMessageText') r = { message_id: b.message_id };
   if (m === 'getFile') { const a = ARQS[b.file_id]; if (!a) return json(400, { ok: false, description: 'arquivo não existe' }); r = { file_id: b.file_id, file_path: a.caminho, file_size: a.buf.length }; }
@@ -74,7 +75,9 @@ const GROQ = { transcricao: '', intencao: {}, visao: {} }, GROQ_CHAMADAS = [];
 async function groq(url, op) {
   // a lista de modelos da Groq (como em 2026): o scout ainda aparece, mas foi desligado; o qwen3.6 não aceita imagem
   if (url.endsWith('/models')) return json(200, { data: ['meta-llama/llama-4-scout-17b-16e-instruct', 'qwen/qwen3.6-27b', 'qwen/qwen3.8-27b', 'openai/gpt-oss-120b', 'openai/gpt-oss-20b', 'whisper-large-v3', 'meta-llama/llama-guard-4-12b', 'openai/gpt-oss-safeguard-20b'].map(id => ({ id, active: true })) });
-  if (url.endsWith('/audio/transcriptions')) { const fd = op.body; GROQ_CHAMADAS.push('audio:' + (fd && fd.get ? fd.get('model') : '')); return json(200, { text: GROQ.transcricao }); }
+  // áudio: com "verbose_json" vem a confiança de cada trecho (o teste escolhe com GROQ.segmentos); guarda a "cola" (prompt)
+  if (url.endsWith('/audio/transcriptions')) { const fd = op.body; GROQ_CHAMADAS.push('audio:' + (fd && fd.get ? fd.get('model') : '')); GROQ.ultimoPrompt = (fd && fd.get && fd.get('prompt')) || ''; const vj = fd && fd.get && fd.get('response_format') === 'verbose_json';
+    return json(200, vj ? { text: GROQ.transcricao, segments: GROQ.segmentos || [{ text: GROQ.transcricao, avg_logprob: -0.2, no_speech_prob: 0.01, compression_ratio: 1.2 }] } : { text: GROQ.transcricao }); }
   const b = JSON.parse(op.body), foto = Array.isArray(b.messages[b.messages.length - 1].content); GROQ.ultimoCorpo = b;
   GROQ_CHAMADAS.push(foto ? 'foto:' + b.model : 'texto:' + b.model);
   if (/scout|maverick/.test(b.model)) return json(400, { error: { message: `The model \`${b.model}\` has been decommissioned and is no longer supported.` } });
@@ -85,7 +88,7 @@ global.fetch = async (url, op = {}) => {
   url = String(url); const metodo = String(op.method || 'GET').toUpperCase();
   if (url.startsWith(SB + '/rest/v1/')) return rest(url, metodo, op);
   if (url.startsWith(SB + '/storage/v1/object/list/')) { const pre = JSON.parse(op.body).prefix + '/'; return json(200, Object.keys(STORAGE).filter(k => k.startsWith(pre)).map(k => ({ id: 'x' + k, name: k.slice(pre.length) }))); }
-  if (url.startsWith(SB + '/storage/v1/object/')) { const k = url.split('/storage/v1/object/anexos/')[1]; return STORAGE[k] ? resp(200, STORAGE[k], 'application/octet-stream') : json(404, {}); }
+  if (url.startsWith(SB + '/storage/v1/object/')) { const k = url.split('/storage/v1/object/anexos/')[1]; if (metodo === 'POST') { STORAGE[k] = Buffer.from(op.body); return json(200, { Key: 'anexos/' + k }); } return STORAGE[k] ? resp(200, STORAGE[k], 'application/octet-stream') : json(404, {}); }
   if (url.startsWith(`https://api.telegram.org/file/bot${TOKEN}/`)) { const c = url.split(`/file/bot${TOKEN}/`)[1], a = Object.values(ARQS).find(x => x.caminho === c); return a ? resp(200, a.buf, 'application/octet-stream') : json(404, {}); }
   if (url.startsWith('https://api.telegram.org/bot')) return telegram(url, op);
   if (url.startsWith('https://api.groq.com/')) return groq(url, op);
@@ -126,6 +129,22 @@ function ultimoCartao() { for (let i = CALLS.length - 1; i >= 0; i--) { const c 
   ok(T.chutarCat('Aluguel de container', false) === 'Equipamentos e locações' && T.chutarCat('Diária de pedreiro', false) === 'Mão de obra' && T.chutarCat('Cimento', false) === 'Materiais', 'categoria das obras');
   ok(T.chutarCat('Papel sulfite', true) === 'Material de Escritório' && T.chutarCat('Conta de luz', true) === 'Água, Luz e Internet' && T.chutarCat('Internet', true) === 'Água, Luz e Internet', 'categoria da empresa');
   ok(T.intencao('lança 350 de cimento') === 'conta' && T.intencao('paguei 120 de gasolina') === 'conta' && T.intencao('busca a nota 1234') === 'nota' && T.intencao('criar tarefa ligar pro fiscal') === 'tarefa' && T.intencao('marcar reunião amanhã') === 'reuniao' && T.intencao('quanto gastei em outubro?') === '', 'o que a pessoa quer (intenção)');
+  ok(T.intencao('recebi a nota 19') === 'receb' && T.intencao('recebi 50 mil da Embasa') === 'receb' && T.intencao('recebi a nota do fornecedor de 300') !== 'receb' && T.intencao('terminei a tarefa de pedir a medição') === 'concluir' && T.intencao('manda a certidão do fgts') === 'doc', 'pedidos novos: recebimento, concluir tarefa e documento');
+  // quem pagou, dito na frase (a empresa ou um sócio — o do sócio vira aporte na aprovação)
+  const SOC = ['Vilson Souza', 'Carlos Lima'];
+  f = T.lerFrase('paguei 350 de cimento na obra de itarantim com o cartão da empresa', OB, hj, SOC);
+  ok(f.socio === '' && f.onde === 'obra' && f.forma === 'Cartão de Crédito' && f.desc === 'Cimento' && f.pago === hj, '"cartão da empresa": a empresa pagou (e a conta é da obra): ' + JSON.stringify(f));
+  f = T.lerFrase('paguei 120 de gasolina do meu bolso, empresa', OB, hj, SOC);
+  ok(f.socioEu === true && f.onde === 'empresa' && f.desc === 'Gasolina', '"do meu bolso": quem está falando pagou: ' + JSON.stringify(f));
+  f = T.lerFrase('lança 500 de areia na obra itarantim, pago pelo sócio Carlos no pix', OB, hj, SOC);
+  ok(f.socioNome === 'Carlos' && f.forma === 'PIX' && f.obra === 'SES ITARANTIM' && f.desc === 'Areia', '"pago pelo sócio Carlos": ' + JSON.stringify(f));
+  f = T.lerFrase('paguei 80 de almoço, quem pagou foi o Vilson', OB, hj, SOC);
+  ok(f.socio === 'Vilson Souza' && f.desc === 'Almoço' && f.pago === hj, '"quem pagou foi o Vilson" (da lista dos sócios): ' + JSON.stringify(f));
+  f = T.lerFrase('lança uma conta da empresa de 300 de internet vence dia 28', OB, hj, SOC);
+  ok(f.onde === 'empresa' && f.socio === undefined && f.desc === 'Internet', '"conta da empresa" continua sendo custo indireto (não é quem pagou): ' + JSON.stringify(f));
+  ok(T.semOi('Oi robô, bom dia, por favor lança 300 de cimento') === 'lança 300 de cimento' && T.semOi('Eis o boleto') === 'Eis o boleto', 'tira o "oi robô, bom dia" do começo');
+  const pv = T.promptVoz({ obras: ['SES ITARANTIM', 'ESCOLA ITAPETINGA'], socios: SOC, forns: ['CASA DO CONSTRUTOR LTDA'] });
+  ok(pv.length <= 480 && /SES ITARANTIM/.test(pv) && /Vilson Souza/.test(pv) && /CASA DO CONSTRUTOR/.test(pv) && /R\$ 1\.200,00/.test(pv), 'a "cola" do áudio tem as obras, os sócios e os fornecedores (' + pv.length + ' letras)');
   // boleto: linha digitável montada com os dígitos de controle certos
   const mod10 = s => { let soma = 0, p = 2; for (let i = s.length - 1; i >= 0; i--) { let n = +s[i] * p; if (n > 9) n -= 9; soma += n; p = p === 2 ? 1 : 2; } return (10 - soma % 10) % 10; };
   const mod11b = s => { let soma = 0, p = 2; for (let i = s.length - 1; i >= 0; i--) { soma += +s[i] * p; p = p === 9 ? 2 : p + 1; } const d = 11 - soma % 11; return d === 0 || d === 10 || d === 11 ? 1 : d; };
@@ -197,7 +216,13 @@ function ultimoCartao() { for (let i = CALLS.length - 1; i >= 0; i--) { const c 
   add('obras', { titulo_obra: 'PROPOSTA QUALQUER', status_proposta: 'Em análise' });
   add('orcamentos', { titulo: 'SES ITARANTIM', total_obra: '600000.00', data_lancamento: '01/01/2026 10:00' });
   add('orcamentos', { titulo: 'ESCOLA ITAPETINGA', total_obra: '400000.00', data_lancamento: '02/01/2026 10:00' });
-  add('fornecedores', { nome: 'CASA DO CONSTRUTOR LTDA', cnpj: '11.222.333/0001-81' });
+  add('fornecedores', { nome: 'CASA DO CONSTRUTOR LTDA', cnpj: '11.222.333/0001-81', telefone: '(77) 3333-0000', pix: '11.222.333/0001-81' });
+  add('aportes', { quem_aportou: 'Vilson Souza', valor_aportado: '1000.00', titulo_obra: 'SES ITARANTIM', movimento: 'Aporte', data_aporte: em(-30) });
+  // kit da empresa: o FGTS em dia e a certidão federal vencida
+  add('arquivos', { tipo: 'anexo', titulo_obra: '__empresa__', aba: 'kit', kit: 'crf_fgts', uid: 'axFGTS', nome: 'CRF FGTS.pdf', mime: 'application/pdf', validade: em(20) });
+  STORAGE['p/axFGTS/0000'] = Buffer.from('%PDF-1.4 crf fgts');
+  add('arquivos', { tipo: 'anexo', titulo_obra: '__empresa__', aba: 'kit', kit: 'cnd_federal', uid: 'axCND', nome: 'CND federal.pdf', mime: 'application/pdf', validade: em(-3) });
+  STORAGE['p/axCND/0000'] = Buffer.from('%PDF-1.4 cnd');
   const idAreia = add('custos', { titulo_obra: 'SES ITARANTIM', tipo_de_custo: 'Real', tipo: 'Materiais', fornecedor: 'AREIAL BOA VISTA', descricao: 'Areia', p_total: '480.00', vencimento: em(2), data_pgto: '' });
   const idLuz = add('despesas', { tipo_despesa: 'Real', data_despesa: em(1), fornecedor_beneficiario: 'COELBA', descricao: 'Energia elétrica', valor: '250.00', status_pagamento: 'Pendente', categoria: 'Água, Luz e Internet' });
   add('planejamento', { tipo: 'nota_recebida', origem: 'nfe', chave: '29' + '0'.repeat(42), numero: '1234', emitente_nome: 'CASA DO CONSTRUTOR LTDA', emitente_cnpj: '11222333000181', valor: '1500.00', data_emissao: em(-5), completa: 'sim', xml: '<nfeProc>nota 1234</nfeProc>', situacao: 'nova' });
@@ -241,7 +266,9 @@ function ultimoCartao() { for (let i = CALLS.length - 1; i >= 0; i--) { const c 
   await tocar('Boleto'); ok(/confira e lance/.test(ultimoTexto()), 'cartão de conferência');
   await tocar('Lançar a conta');
   let c1 = linhas('custos', r => r.descricao === 'Cimento cp2');
-  ok(c1.length === 1 && c1[0].titulo_obra === 'SES ITARANTIM' && c1[0].p_total === '350.00' && c1[0].p_unit === '350.00' && c1[0].qtd === '1.00' && c1[0].fator === 'UN' && c1[0].vencimento === em(7) && c1[0].data_pgto === '' && c1[0].tipo === 'Materiais' && c1[0].tipo_de_custo === 'Real' && c1[0].forma_pagamento === 'Boleto' && c1[0].aprovacao === 'aprovada' && c1[0].criado_por === 'Vilson' && /^cp/.test(c1[0].compra_id) && /Lançada pelo Telegram/.test(c1[0].observacao), 'conta gravada em Contas a pagar (custos da obra): ' + JSON.stringify(c1[0]));
+  ok(c1.length === 1 && c1[0].titulo_obra === 'SES ITARANTIM' && c1[0].p_total === '350.00' && c1[0].p_unit === '350.00' && c1[0].qtd === '1.00' && c1[0].fator === 'UN' && c1[0].vencimento === em(7) && c1[0].data_pgto === '' && c1[0].tipo === 'Materiais' && c1[0].tipo_de_custo === 'Real' && c1[0].forma_pagamento === 'Boleto' && c1[0].criado_por === 'Vilson' && /^cp/.test(c1[0].compra_id) && /Lançada pelo Telegram/.test(c1[0].observacao), 'conta gravada em Contas a pagar (custos da obra): ' + JSON.stringify(c1[0]));
+  ok(c1[0].aprovacao === 'pendente' && c1[0].origem_lanc === 'telegram' && c1[0].lancado_por === 'Vilson' && !c1[0].aprovado_por, 'a conta do Telegram fica "Aguardando aprovação" (origem telegram)');
+  ok(/aguardando sua aprovação/.test(ultimoTexto()), 'a mensagem avisa que aguarda a aprovação');
   ok(linhas('planejamento', r => r.tipo === 'desc_gasto' && r.descricao === 'Cimento cp2' && r.categoria === 'Materiais').length === 1, 'descrição nova entrou em Categoria › Descrição');
   ok(DB.fornecedores.length === 1, 'fornecedor do cadastro não foi duplicado');
   ok(/Conta lançada/.test(ultimoTexto()), 'confirmou: conta lançada');
@@ -264,25 +291,31 @@ function ultimoCartao() { for (let i = CALLS.length - 1; i >= 0; i--) { const c 
   console.log('\nC) "paguei 250 da conta de luz no pix" → baixa da conta que já existia');
   await escrever('paguei 250 da conta de luz no pix'); ok(/achei conta em aberto com esse valor/.test(ultimoTexto()) && /COELBA/.test(ultimoTexto()), 'achou a conta da COELBA em aberto');
   await tocar('1'); await tocar('PIX');
+  ok(/<b>Quem pagou\?<\/b>/.test(ultimoTexto()) && /A empresa/.test(JSON.stringify(ultimoCartao().b.reply_markup)) && /Vilson Souza/.test(JSON.stringify(ultimoCartao().b.reply_markup)), 'a baixa pergunta quem pagou (a empresa ou um sócio)');
+  await tocar('Vilson Souza');
   let luz = DB.despesas.find(r => r.id === idLuz).row_data;
   ok(luz.status_pagamento === 'Pago' && luz.data_pagamento === hj && luz.forma_pagamento === 'PIX', 'baixa feita na despesa: ' + JSON.stringify(luz));
+  ok(luz.aprovacao === 'pendente' && luz.socio_pendente === 'Vilson Souza' && /PIX/.test(luz.baixa_telegram || '') && /Pago por Vilson Souza \(sócio\)/.test(luz.observacao || '') && !DB.aportes.some(r => r.row_data.valor_aportado === '250.00'), 'baixa do sócio: aguarda aprovação e o aporte só entra quando aprovar');
   await tocar('Desfazer'); luz = DB.despesas.find(r => r.id === idLuz).row_data;
-  ok(luz.status_pagamento === 'Pendente' && !luz.data_pagamento, 'Desfazer da baixa voltou a conta para em aberto');
+  ok(luz.status_pagamento === 'Pendente' && !luz.data_pagamento && !('socio_pendente' in luz) && !('aprovacao' in luz) && !('baixa_telegram' in luz), 'Desfazer da baixa voltou a conta para em aberto (como era antes)');
 
   // D) despesa da empresa já paga
   console.log('\nD) empresa (custo indireto) já paga');
   await escrever('lança 89,90 de papel sulfite empresa, pago hoje no débito'); ok(/Para <b>quem<\/b>/.test(ultimoTexto()), 'pergunta o fornecedor');
   await escrever('Kalunga'); ok(/✓ Material de Escritório/.test(JSON.stringify(ultimoCartao().b.reply_markup)), 'sugere a categoria Material de Escritório');
-  await tocar('✓ Material de Escritório'); ok(/confira e lance/.test(ultimoTexto()), 'pula direto para a conferência (pago e forma já ditos)');
+  await tocar('✓ Material de Escritório'); ok(/<b>Quem pagou\?<\/b>/.test(ultimoTexto()), 'conta paga: pergunta quem pagou');
+  await tocar('A empresa'); ok(/confira e lance/.test(ultimoTexto()) && /Quem pagou: a empresa/.test(ultimoTexto()), 'pula direto para a conferência (pago, forma e quem pagou já ditos)');
   await tocar('Lançar a conta');
   const dp = linhas('despesas', r => r.descricao === 'Papel sulfite')[0];
   ok(dp && dp.valor === '89.90' && dp.status_pagamento === 'Pago' && dp.data_pagamento === hj && dp.data_despesa === hj && dp.categoria === 'Material de Escritório' && dp.forma_pagamento === 'Cartão de Débito' && dp.tipo_despesa === 'Real', 'despesa da empresa gravada: ' + JSON.stringify(dp));
+  ok(dp.aprovacao === 'pendente' && dp.origem_lanc === 'telegram' && !dp.socio_pendente, 'paga pela empresa: aguarda aprovação, sem sócio');
 
   // E) /pagar
   console.log('\nE) /pagar areia');
   await escrever('/pagar areia'); ok(/AREIAL BOA VISTA/.test(ultimoTexto()), 'achou a conta da areia');
-  await tocar('1'); await tocar('Transferência/TED');
-  const ar = DB.custos.find(r => r.id === idAreia).row_data; ok(ar.data_pgto === hj && ar.forma_pagamento === 'Transferência/TED', 'baixa na conta da obra (data do pagamento)');
+  await tocar('1'); await tocar('Transferência/TED'); await tocar('A empresa');
+  const ar = DB.custos.find(r => r.id === idAreia).row_data; ok(ar.data_pgto === hj && ar.forma_pagamento === 'Transferência/TED' && ar.aprovacao === 'pendente' && !ar.socio_pendente, 'baixa na conta da obra (data do pagamento), aguardando aprovação');
+  ok(/aguardando sua aprovação/.test(ultimoTexto()), 'a mensagem da baixa avisa que aguarda a aprovação');
 
   // F) notas
   console.log('\nF) /nota');
@@ -361,6 +394,7 @@ function ultimoCartao() { for (let i = CALLS.length - 1; i >= 0; i--) { const c 
   const ab = linhas('planejamento', r => r.tipo === 'abastecimento')[0], cd = linhas('custos', r => r.descricao === 'Óleo diesel')[0];
   ok(ab && ab.litros === '120' && ab.valor === '750.00' && ab.titulo_obra === 'SES ITARANTIM' && ab.fornecedor === 'POSTO CENTRAL', 'abastecimento gravado: ' + JSON.stringify(ab));
   ok(cd && cd.qtd === '120.00' && cd.p_unit === '6.25' && cd.p_total === '750.00' && cd.data_pgto === ab.data && cd.fator === 'L', 'conta do diesel (paga) gravada: ' + JSON.stringify(cd));
+  ok(cd.aprovacao === 'pendente' && cd.origem_lanc === 'telegram' && /aguardando sua aprovação/.test(ultimoTexto()), 'a conta do diesel também aguarda a aprovação');
 
   // N) comprovante da maquininha: crédito em 3x → 1ª parcela paga, as outras a pagar (casa com a fatura na Conciliação)
   console.log('\nN) comprovante da maquininha (crédito em 3x)');
@@ -370,12 +404,108 @@ function ultimoCartao() { for (let i = CALLS.length - 1; i >= 0; i--) { const c 
   ok(/Li no comprovante da maquininha: R\$\s900,00 · MADEIREIRA SAO JOSE LTDA · crédito em 3x · compra em/.test(ultimoTexto()), 'leu o comprovante da maquininha');
   ok(/MADEIREIRA SAO JOSE LTDA/.test(ultimoTexto()) && /cartão de crédito em 3x/.test(ultimoTexto()) && /\(paga\)/.test(ultimoTexto()), 'fornecedor pelo CNPJ (não a Cielo) e as 3 parcelas no cartão');
   ok(GROQ_CHAMADAS[GROQ_CHAMADAS.length - 1] === 'foto:qwen/qwen3.8-27b', 'leu a foto direto com o modelo testado (qwen3.8), sem tentar os que falham');
-  await tocar('✓ Materiais'); await tocar('Lançar');
+  await tocar('✓ Materiais'); await tocar('A empresa'); await tocar('Lançar');
   const mq = linhas('custos', r => /^Material elétrico/.test(r.descricao)).sort((a, b) => a.vencimento.localeCompare(b.vencimento));
   ok(mq.length === 3 && mq.every(r => r.p_total === '300.00' && r.forma_pagamento === 'Cartão de Crédito' && r.titulo_obra === 'SES ITARANTIM') && mq[0].data_pgto === hj && mq[0].vencimento === hj && mq[1].data_pgto === '' && mq[1].vencimento === T.somaMes(hj, 1) && mq[2].vencimento === T.somaMes(hj, 2) && /\(1\/3\)$/.test(mq[0].descricao) && /Cartão de crédito em 3x/.test(mq[0].observacao) && /maquininha/.test(mq[0].observacao) && mq[0].grupo_parcelas === mq[2].grupo_parcelas, 'parcelas no cartão: ' + JSON.stringify(mq.map(r => [r.descricao, r.vencimento, r.data_pgto, r.p_total])));
   await escrever('paguei 640 no cartão de crédito em 2x de areia obra itarantim fornecedor areial boa vista');
   ok(/cartão de crédito em 2x/.test(ultimoTexto()) && /R\$\s320,00 \(paga\)/.test(ultimoTexto()), 'escrito: "paguei … no cartão de crédito em 2x"');
   await escrever('/cancelar');
+
+  // P) quem pagou dito na frase: "com meu cartão" = quem está falando (Vilson é sócio) → o aporte entra quando aprovar
+  console.log('\nP) "paguei com meu cartão" (sócio) — fica aguardando aprovação');
+  await escrever('paguei 80 de almoço com meu cartão, empresa, fornecedor restaurante sabor');
+  ok(/Quem pagou: <b>Vilson Souza<\/b>/.test(ultimoTexto()), 'entendeu que o sócio que está falando pagou');
+  await tocar('✓ '); ok(/confira e lance/.test(ultimoTexto()), 'não pergunta de novo quem pagou');
+  await tocar('Lançar a conta');
+  const alm = linhas('despesas', r => r.descricao === 'Almoço')[0];
+  ok(alm && alm.socio_pendente === 'Vilson Souza' && alm.aprovacao === 'pendente' && alm.status_pagamento === 'Pago' && /Pago por Vilson Souza \(sócio\) — entra no aporte quando a conta for aprovada/.test(alm.observacao || '') && DB.aportes.length === 1, 'conta paga pelo sócio: socio_pendente gravado e nenhum aporte antes da aprovação: ' + JSON.stringify(alm || { ultimas: DB.despesas.slice(-2).map(r => r.row_data), custos: DB.custos.slice(-1).map(r => r.row_data), texto: textos(4) }));
+  ok(/O aporte de <b>Vilson Souza<\/b>|aporte de Vilson Souza|Vilson Souza/.test(ultimoTexto()) && /aguardando sua aprovação/.test(ultimoTexto()), 'a mensagem fala do aporte na aprovação');
+
+  // Q) /aprovar — o que espera a conferência
+  console.log('\nQ) /aprovar');
+  await escrever('/aprovar');
+  ok(/Aguardando aprovação<\/b>: \d+ conta/.test(ultimoTexto()) && /📱/.test(ultimoTexto()) && /RESTAURANTE SABOR/.test(ultimoTexto()) && /👤 Vilson Souza/.test(ultimoTexto()), 'lista as contas aguardando aprovação (as do Telegram com 📱 e quem pagou)');
+
+  // R) /recebi — o dinheiro da nota emitida entrou
+  console.log('\nR) recebimento de nota emitida');
+  await escrever('recebi a nota 19');
+  ok(/Registrar recebimento/.test(ultimoTexto()) && /NF 19/.test(ultimoTexto()) && /Entrou na conta em/.test(ultimoTexto()), 'achou a NF 19 a receber e confirma a data');
+  await tocar('Confirmar recebimento');
+  let fat = DB.faturamentos[0].row_data;
+  ok(fat.data_recebimento === hj && /Vilson/.test(fat.recebido_telegram || '') && /Recebimento registrado/.test(ultimoTexto()), 'recebimento gravado na nota: ' + JSON.stringify(fat));
+  await tocar('Desfazer'); fat = DB.faturamentos[0].row_data;
+  ok(!('data_recebimento' in fat) && !('recebido_telegram' in fat) && /voltou para "a receber"/.test(ultimoTexto()), 'Desfazer: a nota voltou para "a receber"');
+
+  // S) /concluir — tarefa feita
+  console.log('\nS) concluir tarefa');
+  await escrever('/concluir medição');
+  ok(/Concluir tarefa/.test(ultimoTexto()) && /Pedir a medição à fiscalização/.test(ultimoTexto()), 'lista a tarefa aberta');
+  await tocar('1');
+  let tf = linhas('acoes', r => r.o_que === 'Pedir a medição à fiscalização')[0];
+  ok(tf.status === 'Concluída' && tf.data_conclusao === hj, 'tarefa concluída: ' + JSON.stringify(tf));
+  await tocar('Desfazer'); tf = linhas('acoes', r => r.o_que === 'Pedir a medição à fiscalização')[0];
+  ok(tf.status === 'Aberta' && tf.data_conclusao === '', 'Desfazer: a tarefa voltou a ficar aberta');
+
+  // T) /doc — documentos do kit da empresa
+  console.log('\nT) documentos da empresa');
+  n0 = CALLS.length; await escrever('/doc');
+  ok(/Documentos<\/b> — kit da empresa/.test(ultimoTexto()) && /vencido<\/b>/.test(ultimoTexto()) && /FGTS/.test(ultimoTexto()), 'lista o kit (a certidão vencida marcada)');
+  await tocar('2');
+  docs = CALLS.slice(n0).filter(c => c.m === 'sendDocument');
+  ok(docs.length === 1 && /crf fgts/.test(docs[0].b.document.texto) && docs[0].b.document.nome === 'CRF FGTS.pdf', 'mandou o PDF do FGTS');
+  await tocar('1'); ok(/está <b>vencido<\/b>/.test(ultimoTexto()), 'documento vencido não vai (como no sistema)');
+  n0 = CALLS.length; await escrever('manda a certidão do fgts');
+  ok(CALLS.slice(n0).some(c => c.m === 'sendDocument' && /crf fgts/.test(c.b.document.texto)), 'pedido escrito ("certidão do FGTS"): achou e mandou o FGTS');
+
+  // U) fotos da obra
+  console.log('\nU) fotos da obra');
+  ARQS.p1 = { caminho: 'photos/p1.jpg', buf: cinza }; ARQS.p1m = { caminho: 'photos/p1m.jpg', buf: cinza };
+  const g1 = GROQ_CHAMADAS.length;
+  await webhook({ update_id: ++uid, message: { message_id: ++mid, chat: { id: CHAT, type: 'private' }, photo: [{ file_id: 'p1m', width: 320, height: 240 }, { file_id: 'p1', width: 1280, height: 960 }], caption: 'fotos da obra itarantim, concretagem da laje' } });
+  let im = linhas('obra_imagens', () => true);
+  ok(im.length === 1 && im[0].titulo_obra === 'SES ITARANTIM' && im[0].origem === 'sistema' && im[0].etapa_obra === 'durante' && /Concretagem da laje/.test(im[0].descricao) && !!STORAGE['p/' + im[0].foto_uid + '/0000'] && !!STORAGE['p/' + im[0].thumb_uid + '/0000'], 'foto guardada na galeria da obra (no Storage): ' + JSON.stringify(im[0]));
+  ok(/Foto guardada<\/b> em <b>SES ITARANTIM/.test(ultimoTexto()) && GROQ_CHAMADAS.length === g1, 'confirmou (sem gastar leitura da Groq)');
+  await tocar('Desfazer'); ok(!!linhas('obra_imagens', () => true)[0]._lixeira_em, 'Desfazer mandou a foto para a Lixeira');
+  ARQS.p2 = { caminho: 'photos/p2.jpg', buf: cinza }; ARQS.p3 = { caminho: 'photos/p3.jpg', buf: cinza };
+  await webhook({ update_id: ++uid, message: { message_id: ++mid, chat: { id: CHAT, type: 'private' }, photo: [{ file_id: 'p2', width: 800, height: 600 }], caption: 'fotos obra itapetinga', media_group_id: 'al1' } });
+  await webhook({ update_id: ++uid, message: { message_id: ++mid, chat: { id: CHAT, type: 'private' }, photo: [{ file_id: 'p3', width: 800, height: 600 }], media_group_id: 'al1' } });
+  im = linhas('obra_imagens', r => r.titulo_obra === 'ESCOLA ITAPETINGA');
+  ok(im.length === 2 && CALLS.filter(c => c.m === 'setMessageReaction').length === 2, 'álbum (legenda só na 1ª): as 2 fotos foram para a obra da legenda, com 👍');
+  GROQ.visao = { tipo: 'outro', fornecedor: '', cnpj_cpf: '', valor: 0, vencimento: '', data: '', pago: false, numero: '', descricao: '', linha_digitavel: '', chave: '' };
+  ARQS.p4 = { caminho: 'photos/p4.jpg', buf: cinza };
+  await webhook({ update_id: ++uid, message: { message_id: ++mid, chat: { id: CHAT, type: 'private' }, photo: [{ file_id: 'p4', width: 64, height: 64 }] } });
+  ok(/É uma <b>foto de obra<\/b>/.test(ultimoTexto()), 'foto sem boleto nem comprovante: pergunta se é foto de obra');
+  await tocar('Sim'); await tocar('ESCOLA ITAPETINGA');
+  ok(linhas('obra_imagens', r => r.titulo_obra === 'ESCOLA ITAPETINGA').length === 3 && /Foto guardada/.test(ultimoTexto()), 'guardou na obra escolhida');
+
+  // V) áudio: quem pagou, a "cola" do Whisper, a frase inventada e o aviso de áudio pouco claro
+  console.log('\nV) áudio mais certeiro');
+  ARQS.v2 = { caminho: 'voice/file_2.oga', buf: Buffer.from('OggS-audio-2') };
+  GROQ.transcricao = 'Oi robô, lança 200 de internet da empresa, já paguei com meu cartão. Legendas pela comunidade Amara.org';
+  GROQ.segmentos = [{ text: 'Oi robô, lança 200 de internet da empresa, já paguei com meu cartão.', avg_logprob: -1.05, no_speech_prob: 0.05, compression_ratio: 1.3 }, { text: ' Legendas pela comunidade Amara.org', avg_logprob: -0.3, no_speech_prob: 0.1, compression_ratio: 1.1 }];
+  GROQ.intencao = { acao: 'conta', valor: 200, fornecedor: '', descricao: 'internet', onde: 'empresa', obra: '', pago: true, forma: '', quem_pagou: 'eu' };
+  const a0 = GROQ_CHAMADAS.length;
+  await webhook({ update_id: ++uid, message: { message_id: ++mid, chat: { id: CHAT, type: 'private' }, voice: { file_id: 'v2', duration: 5, mime_type: 'audio/ogg' } } });
+  ok(GROQ_CHAMADAS.slice(a0).includes('audio:whisper-large-v3'), 'o áudio foi no whisper-large-v3 (o mais preciso)');
+  ok(/SES ITARANTIM/.test(GROQ.ultimoPrompt || '') && /Vilson Souza/.test(GROQ.ultimoPrompt || ''), 'a "cola" do Whisper levou as obras e os sócios');
+  const tr = CALLS.filter(c => c.m === 'sendMessage' && /🎤/.test(c.b.text || '')).pop();
+  ok(tr && !/Amara/.test(tr.b.text) && /não ficou clara/.test(tr.b.text), 'tirou a frase inventada pelo Whisper e avisou que o áudio não ficou claro');
+  ok(/Quem pagou: <b>Vilson Souza<\/b>/.test(ultimoTexto()) && /R\$\s200,00/.test(ultimoTexto()), 'a IA entendeu "paguei com meu cartão": quem falou (sócio) pagou');
+  await escrever('/cancelar');
+  ARQS.v3 = { caminho: 'voice/file_3.oga', buf: Buffer.from('OggS-audio-3') };
+  GROQ.segmentos = null; GROQ.transcricao = 'lança 75 de pregos na obra de itapetinga, vence dia 28';
+  GROQ.intencao = { acao: 'conta', valor: 75, descricao: 'pregos', onde: '', obra: '', pago: null };
+  await webhook({ update_id: ++uid, message: { message_id: ++mid, chat: { id: CHAT, type: 'private' }, voice: { file_id: 'v3', duration: 3, mime_type: 'audio/ogg' } } });
+  ok(/ESCOLA ITAPETINGA/.test(ultimoTexto()) && /R\$\s75,00/.test(ultimoTexto()), 'o que a IA deixou em branco (a obra), as regras completaram');
+  await escrever('/cancelar');
+
+  // W) consultas novas
+  console.log('\nW) consultas: /obra, /fornecedor, /buscar, /receber');
+  await escrever('/obra itarantim'); ok(/🏗 <b>SES ITARANTIM<\/b>/.test(ultimoTexto()) && /Contas em aberto/.test(ultimoTexto()), 'ficha da obra');
+  await escrever('/fornecedor casa do construtor'); ok(/🏪 <b>CASA DO CONSTRUTOR LTDA<\/b>/.test(ultimoTexto()) && /<code>11\.222\.333\/0001-81<\/code>/.test(ultimoTexto()), 'ficha do fornecedor com o PIX para copiar');
+  await escrever('qual o pix da casa do construtor?'); ok(/🏪 <b>CASA DO CONSTRUTOR LTDA<\/b>/.test(ultimoTexto()), 'pergunta escrita: "qual o pix da casa do construtor?"');
+  await escrever('/buscar areia'); ok(/🔎 <b>\d+ conta\(s\) com “areia”<\/b>/.test(ultimoTexto()) && /AREIAL BOA VISTA/.test(ultimoTexto()), 'busca nas contas');
+  await escrever('/receber'); ok(/💵 <b>A receber<\/b>: 1 nota/.test(ultimoTexto()) && /NF 19/.test(ultimoTexto()), 'o que falta receber');
 
   // M) código do PIX colado, pergunta normal e a tarefa de 15 minutos
   console.log('\nM) código colado, pergunta e tarefa agendada');
@@ -385,6 +515,8 @@ function ultimoCartao() { for (let i = CALLS.length - 1; i >= 0; i--) { const c 
   const rq = { statusCode: 0, setHeader() {}, end(b) { this.corpo = b; } };
   await telegramJs({ method: 'GET', headers: {}, query: { tick: '1' } }, rq);
   const tk = JSON.parse(rq.corpo || '{}'); ok(rq.statusCode === 200 && tk.ok, 'tarefa de 15 minutos rodou: ' + rq.corpo);
+  const cmds = CALLS.filter(c => c.m === 'setMyCommands').pop();
+  ok(cmds && ['aprovar', 'recebi', 'concluir', 'doc', 'obra', 'fornecedor', 'buscar', 'receber'].every(k => cmds.b.commands.some(x => x.command === k)), 'o menu de comandos do Telegram foi atualizado sozinho (versão 4)');
   const rs = { statusCode: 0, setHeader() {}, end(b) { this.corpo = b; } };
   await telegramJs({ method: 'GET', headers: {}, query: {} }, rs); const es = JSON.parse(rs.corpo); ok(es.groq === true && es.groqOk === true && es.modelos && es.modelos.audio === 'whisper-large-v3', 'estado diz que a leitura da Groq está ligada e funcionando: ' + rs.corpo);
 

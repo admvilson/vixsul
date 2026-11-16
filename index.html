@@ -16791,10 +16791,10 @@ const PL2=(function(){
   }
   async function salvarTudo(T,box){
     const trs=[...box.querySelectorAll('tr.dirty,tr.novo')];if(!trs.length)return;
-    const lote=[];let erro=null;
+    const lote=[],pares=[];let erro=null;
     trs.forEach(tr=>{
       const id=tr.dataset.rowid,orig=achar(T,id);
-      const o=Object.assign({},orig||T.novo(T.st),lerLinha(T,tr));
+      const o=Object.assign({},orig||T.novo(T.st),lerLinha(T,tr));pares.push([o,orig]);
       if(!T.montar){delete o.rowid;delete o.visualId;delete o._aba;if(!orig)o[T.kLanc]=todayDateTime();}
       if(T.finalizar)T.finalizar(o,orig);
       const falta=T.cols().filter(c=>c.t!=='ro'&&(typeof c.obrig==='function'?c.obrig(o):c.obrig)&&!String(o[c.k]||'').trim());
@@ -16804,7 +16804,10 @@ const PL2=(function(){
       if(T.montar)lote.push(...T.montar(o,orig));else lote.push({aba:T.aba,dados:o,rowid:orig?orig.rowid:null});
     });
     if(erro){erro.tr.style.display='';erro.tr.scrollIntoView({block:'center'});return toast(erro.msg,'error');}
-    try{await executar(()=>Promise.all(lote.map(x=>x.excluir?excluir(x.aba,x.rowid):salvar(x.aba,x.dados,x.rowid||null))));
+    // T.conferirSalvar: confere antes (ex.: o aporte do sócio não fica menor que a devolução); T.aposSalvar: o que muda junto
+    // no mesmo clique (ex.: a conta paga pelo sócio muda → o aporte dele acompanha)
+    try{if(T.conferirSalvar)T.conferirSalvar(pares);}catch(e){return toast(e.message||String(e),'error');}
+    try{await executar(async()=>{await Promise.all(lote.map(x=>x.excluir?excluir(x.aba,x.rowid):salvar(x.aba,x.dados,x.rowid||null)));if(T.aposSalvar)await T.aposSalvar(pares);});
       toast(`${trs.length} lançamento${trs.length>1?'s':''} salvo${trs.length>1?'s':''}.`,'success');
       box.querySelectorAll('tr.dirty,tr.novo').forEach(tr=>tr.classList.remove('dirty','novo'));if(T.rerender)T.rerender();else render(T.id);}
     catch(e){toast(e.message||String(e),'error');}
@@ -16948,10 +16951,10 @@ const PL2=(function(){
   const aprovDe=r=>({aprov:r.aprovacao==='pendente'?'pendente':'aprovada',aprovPor:r.aprovado_por||'',aprovEm:r.aprovado_em||'',lancPor:r.lancado_por||''});
   function deCusto(r){const K=KC(),h=h0(),real=cn(r[K.tipoCusto])==='real',pg=dt(r[K.pgto]),pago=real&&pg&&pg<=h?isoDe(pg):'';
     return {_t:'c',_r:r,rowid:r.rowid,centro:r[K.obra]||'',tipo:real?'Real':'Previsto',cat:catC(r,K),desc:r[K.desc]||'',forn:r[K.forn]||'',qtd:r[K.qtd]||'',fator:r[K.fator]||'',pUnit:r[K.pUnit]||'',total:r[K.pTotal]||'',
-      venc:isoOu(r[K.venc])||(!pago&&pg?isoDe(pg):''),pago,obs:r[K.obs]||'',lanc:r[K.lanc]||'',forma:r.forma_pagamento||'',desconto:r.desconto_item||'',rateio:r.rateio_id||'',grupo:r.grupo_parcelas||'',compra:r.compra_id||'',dataCompra:isoOu(r.data_compra)||'',...aprovDe(r)};}
+      venc:isoOu(r[K.venc])||(!pago&&pg?isoDe(pg):''),pago,obs:r[K.obs]||'',lanc:r[K.lanc]||'',forma:r.forma_pagamento||'',desconto:r.desconto_item||'',rateio:r.rateio_id||'',grupo:r.grupo_parcelas||'',compra:r.compra_id||'',dataCompra:isoOu(r.data_compra)||'',origem:r.origem_lanc||'',...aprovDe(r)};}
   function deDesp(r){const K=KD(),pago=cn(r[K.st])==='pago'?(isoOu(r[K.pg])||isoOu(r[K.venc])):'';
     return {_t:'d',_r:r,rowid:r.rowid,centro:EMP,tipo:cn(r[K.tipo])==='real'||pago?'Real':'Previsto',cat:r[K.cat]||'',desc:r[K.desc]||'',forn:r[K.forn]||'',qtd:'',fator:'',pUnit:'',total:r[K.valor]||'',
-      venc:isoOu(r[K.venc]),pago,obs:r[K.obs]||'',lanc:r[K.lanc]||'',forma:r[K.fpg]||'',rateio:r.rateio_id||'',grupo:r.grupo_parcelas||'',compra:r.compra_id||'',dataCompra:isoOu(r.data_compra)||'',...aprovDe(r)};}
+      venc:isoOu(r[K.venc]),pago,obs:r[K.obs]||'',lanc:r[K.lanc]||'',forma:r[K.fpg]||'',rateio:r.rateio_id||'',grupo:r.grupo_parcelas||'',compra:r.compra_id||'',dataCompra:isoOu(r.data_compra)||'',origem:r.origem_lanc||'',...aprovDe(r)};}
   // situação da conta: [texto, cor, ordem]
   function sitP(o){const h=h0(),p=dt(o.pago);if(p&&p<=h)return ['Pago','ok',4];const v=dt(o.venc);
     if(o.tipo!=='Real')return v&&v<h?['Previsão vencida','warn',3]:['Previsto','cinza',3];
@@ -16965,7 +16968,8 @@ const PL2=(function(){
   function aprovCampos(o,orig){
     const adm=souAdmin(),nome=quem(),hoje=isoDe(h0());
     if(!orig)return adm||!nome?{aprovacao:'aprovada',aprovado_por:nome,aprovado_em:hoje,lancado_por:nome}:{aprovacao:'pendente',aprovado_por:'',aprovado_em:'',lancado_por:nome};
-    let ap=o.aprov||'aprovada';if(ap==='pendente'&&o.pago&&adm)ap='aprovada';
+    // conta do Telegram espera a aprovação de verdade (o botão Aprovar): editar ou pagar não aprova sozinho
+    let ap=o.aprov||'aprovada';if(ap==='pendente'&&o.pago&&adm&&orig.origem!=='telegram')ap='aprovada';
     if(ap===(orig.aprov||'aprovada')&&!o.aprovMudou)return {};
     return {aprovacao:ap,aprovado_por:ap==='aprovada'?(o.aprovPor&&o.aprovMudou?o.aprovPor:nome):'',aprovado_em:ap==='aprovada'?hoje:''};
   }
@@ -16979,6 +16983,7 @@ const PL2=(function(){
       if(o.forma!=null)base.forma_pagamento=o.forma;
       // quem pagou com dinheiro do sócio (o aporte acompanha a conta: Fin.aporteConta)
       if(o.pagoPorSocio!=null)base.pago_por_socio=o.pagoPorSocio;
+      if(o.socioPendente!=null)base.socio_pendente=o.socioPendente;   // sócio dito no Telegram: vira aporte na aprovação
       if(o.desconto!=null)base.desconto_item=o.desconto||'';if(o.rateio)base.rateio_id=o.rateio;if(o.grupo)base.grupo_parcelas=o.grupo;if(o.compra)base.compra_id=o.compra;if(o.dataCompra)base.data_compra=o.dataCompra;
       if(K.espec!==K.tipo&&(CATC().includes(base[K.espec])||CAT_ANTIGA(base[K.espec])))base[K.espec]=o.cat;
       if(!base[K.lanc])base[K.lanc]=o.lanc||todayDateTime();
@@ -16988,6 +16993,7 @@ const PL2=(function(){
       Object.assign(base,{[K.tipo]:o.tipo==='Real'?'Real':'Prevista',[K.venc]:o.venc||o.pago||(o.tipo==='Real'?isoDe(h0()):''),[K.cat]:o.cat,[K.desc]:o.desc,[K.forn]:o.forn,[K.st]:o.pago?'Pago':'Pendente',[K.pg]:o.pago,[K.valor]:o.total,[K.obs]:o.obs});
       if(o.forma!=null)base[K.fpg]=o.forma;
       if(o.pagoPorSocio!=null)base.pago_por_socio=o.pagoPorSocio;
+      if(o.socioPendente!=null)base.socio_pendente=o.socioPendente;
       if(o.rateio)base.rateio_id=o.rateio;if(o.grupo)base.grupo_parcelas=o.grupo;if(o.compra)base.compra_id=o.compra;if(o.dataCompra)base.data_compra=o.dataCompra;
       if(!base[K.lanc])base[K.lanc]=o.lanc||todayDateTime();
       Object.assign(base,aprovCampos(o,orig));
@@ -17070,7 +17076,10 @@ const PL2=(function(){
     finalizar:finalizarConta,
     validar:o=>{if(!(val(o.total)>0))return 'Informe o valor da conta.';if(o.pago&&o.aprov==='pendente'&&!souAdmin())return 'Esta conta ainda aguarda aprovação (de um Administrador ou de quem tem permissão para aprovar) — o pagamento só é registrado depois dela.';const p=dt(o.pago);if(p&&p>h0())return 'Pago em não pode ser uma data futura — para pagamento agendado use a coluna Vencimento.';if(o.centro===EMP&&!podeEmpresa())return 'Você não tem acesso às despesas da empresa.';return '';},
     montar:montarConta,
-    excluir:o=>excluir(o._t==='c'?'Custos':'Despesas',o.rowid),
+    // conta paga com dinheiro do sócio: editar ou excluir pela planilha leva o aporte junto (como no quadro e na ficha)
+    conferirSalvar:pares=>Fin.aporteConta.conferir(pares.filter(([o,orig])=>orig).flatMap(([o,orig])=>Fin.aporteConta.troca(orig,o).sai)),
+    aposSalvar:async pares=>{for(const [o,orig] of pares)if(orig)await Fin.aporteConta.mudou(orig,o);},
+    excluir:async o=>{const pa=[Fin.aporteConta.parte(o)].filter(Boolean);Fin.aporteConta.conferir(pa);await excluir(o._t==='c'?'Custos':'Despesas',o.rowid);if(pa.length)await Fin.aporteConta.tirar([o],'foi para a Lixeira');},
     kpis:l=>{const h=h0(),S=a=>a.reduce((s,o)=>s+val(o.total),0),k=mesHoje();
       const atr=l.filter(o=>sitP(o)[2]===0),sete=l.filter(o=>{const s=sitP(o);if(s[2]!==1)return false;const v=dt(o.venc);return v&&dias(h,v)<=7;}),abertas=l.filter(o=>sitP(o)[2]<=2),semV=l.filter(o=>sitP(o)[2]===2);
       const pagoMes=l.filter(o=>sitP(o)[2]===4&&isoOu(o.pago).slice(0,7)===k),prev=l.filter(o=>sitP(o)[2]===3);
@@ -17084,6 +17093,9 @@ const PL2=(function(){
   // para os quadros (Contas a pagar e Faturamento, como na VTC) usarem as mesmas regras da planilha
   GS.contas={EMP,KC,KD,CATC,CATD,podeEmpresa,deCusto,deDesp,sitP,montarConta,finalizarConta,parcelar,limparParc,somaMes,souAdmin,quem,isoOu};
   GS.fat={KF,ehReal,sitF,vencF,liqDe,temRet,pctObra,RET};
+  // quantas contas pagas pelo sócio formam este lançamento de aporte (mesmo sócio, obra e mês)
+  const contasDoAporteR=r=>{if(!r||/retir|devolu/i.test(r.movimento||''))return 0;const K=KA(),q=r[K.quem],ob=r[K.obra]||'Empresa',d=dt(r.periodo_fim)||dt(r[K.data]);if(!q||!d)return 0;const m=isoDe(d).slice(0,7),AC=Fin.aporteConta;
+    return (D().custos||[]).map(deCusto).concat((D().despesas||[]).map(deDesp)).map(AC.parte).filter(p=>p&&cn(p.quem)===cn(q)&&cn(p.obra)===cn(ob)&&p.data.slice(0,7)===m).length;};
   /* ═══════════════ APORTES (dentro de Sócios e investimentos, como na VTC) ═══════════════ */
   const KA=()=>({obra:ch('aportes',c=>c.includes('titulo_obra'),'titulo_obra'),lanc:ch('aportes',c=>c.includes('lancamento'),'data_lancamento'),quem:ch('aportes',c=>c.includes('quem_aportou')||c.includes('quem'),'quem_aportou'),
     data:ch('aportes',c=>c.includes('data_aporte'),'data_aporte'),valor:ch('aportes',c=>c.includes('valor_aportado')||c.includes('valor_aporte')||c.includes('valor'),'valor_aportado'),obs:ch('aportes',c=>c.includes('observ')||c.includes('obs'),'observacao')});
@@ -17097,6 +17109,11 @@ const PL2=(function(){
       {id:'quem',k:K.quem,l:'Investidor',t:'sel',ops:()=>typeof QUEM_APORTOU!=='undefined'?QUEM_APORTOU:['Vixsul','Externo'],w:150,obrig:true},{id:'data',k:K.data,l:'Data',t:'data',w:140,obrig:true},
       {id:'valor',k:K.valor,l:'Valor (caixa)',t:'moeda',w:140,obrig:true},{id:'obs',k:K.obs,l:'Observações',t:'texto',w:260}];},
     kpis:()=>'',rerender:()=>GS.renderSocios(),totaisPdf:l=>{const K=KA();return `<div style="margin-top:12px;border:1px solid #e5e5ea;border-radius:8px;padding:10px 14px;font-size:12px">Total aportado: <b>${fmt(l.reduce((s,o)=>s+val(o[K.valor]),0))}</b></div>`;},
+    // aporte que é a soma de contas pagas pelo sócio: valor, obra, data e sócio mudam pelas contas (Movimentos › Editar),
+    // para a conta e o aporte nunca ficarem diferentes; a observação continua livre aqui
+    validar:(o,orig)=>{if(!orig)return '';const K=KA(),mudou=['obra','quem','data','valor'].some(c=>c==='valor'?Math.abs(val(o[K.valor])-val(orig[K.valor]))>0.004:String(o[K[c]]||'')!==String(orig[K[c]]||''));
+      const n=mudou?contasDoAporteR(orig):0;return n?`Este aporte é a soma de ${n} conta${n>1?'s pagas':' paga'} pelo sócio. Para mudar valor, obra, data ou sócio, use Sócios e investimentos › Movimentos › Editar — a conta muda junto em Contas a pagar.`:'';},
+    excluir:o=>{const n=contasDoAporteR(o);if(n)throw new Error(`Este aporte tem ${n} conta${n>1?'s':''} paga${n>1?'s':''} pelo sócio ligada${n>1?'s':''} a ele. Exclua em Sócios e investimentos › Movimentos — as contas vão junto para a Lixeira (e voltam juntas se restaurar).`);return excluir('Aportes financeiros',o.rowid);},
     vazio:'Nenhum aporte lançado.'});
 
   /* ═══════════════ SÓCIOS E INVESTIMENTOS (abas como na VTC) ═══════════════ */
@@ -17547,7 +17564,16 @@ const Mascara=(function(){
   /* ═══════════════ CONTAS A PAGAR ═══════════════ */
   const COLS_CP=[{k:'previstas',rot:'Previstas (estimativas)',cor:'#7F56D9',ico:'fa-clock'},{k:'aprovar',rot:'Aguardando aprovação',cor:'#B54708',ico:'fa-signature'},{k:'pagar',rot:'Aprovada · a pagar',cor:'#1652D8',ico:'fa-file-invoice-dollar'},{k:'paga',rot:'Paga',cor:'#067647',ico:'fa-circle-check'}];
   const pagoC=o=>{const p=dt(o.pago);return !!(p&&p<=hoje0());};
-  const colConta=o=>pagoC(o)?'paga':o.tipo!=='Real'?'previstas':o.aprov==='pendente'?'aprovar':'pagar';
+  // aguardando aprovação vem primeiro: a conta lançada pelo Telegram (às vezes já paga) espera a conferência ali
+  const colConta=o=>o.tipo==='Real'&&o.aprov==='pendente'?'aprovar':pagoC(o)?'paga':o.tipo!=='Real'?'previstas':'pagar';
+  /* CONTA DO TELEGRAM (origem_lanc 'telegram'): entra "Aguardando aprovação" e só sai dali pelo Aprovar. O sócio que pagou,
+     dito no Telegram (socio_pendente), vira "pago com dinheiro do sócio" na aprovação — e o aporte entra nessa hora. Depois
+     de aprovada, não volta mais para "Aguardando aprovação": dá para editar ou excluir, como as outras. */
+  const ehTg=o=>!!o&&(o.origem==='telegram'||(o._r&&o._r.origem_lanc==='telegram'));
+  const AVISO_APORTE_TG=/entra no aporte quando a conta for aprovada/i;
+  function aprovacaoTg(o){const q=String((o._r&&o._r.socio_pendente)||'').trim(),u={...o,aprov:'aprovada',aprovPor:C.quem(),aprovMudou:true};
+    if(q){u.pagoPorSocio=q;u.socioPendente='';u.obs=obsSocio(String(o.obs||'').split(' · ').filter(s=>!AVISO_APORTE_TG.test(s)).join(' · '),q,!pagoC(o));}
+    return {u,q};}
   const idC=o=>o._t+o.rowid;
   const todasContas=()=>(D().custos||[]).map(C.deCusto).concat(C.podeEmpresa()?(D().despesas||[]).map(C.deDesp):[]);
   const acharConta=id=>todasContas().find(o=>idC(o)===id);
@@ -17558,7 +17584,7 @@ const Mascara=(function(){
   function cartaoConta(o){
     const col=colConta(o),pc=parcDe(o.desc),ms=marcaSel([idC(o)]);
     return `<article class="vk-card${ms.cls}" style="--cor:${COLS_CP.find(c=>c.k===col).cor}" draggable="${pode('contas')&&!QC.selModo?'true':'false'}" data-card="${idC(o)}" tabindex="0">
-      <div class="vk-top">${ms.html}<b>${fe(o.forn||C.limparParc(o.desc)||'Conta')}</b>${o.centro===EMP?pill('empresa','info'):''}</div>
+      <div class="vk-top">${ms.html}<b>${fe(o.forn||C.limparParc(o.desc)||'Conta')}</b>${o.centro===EMP?pill('empresa','info'):''}${ehTg(o)?pill('Telegram','info','fa-paper-plane'):''}</div>
       ${o.forn&&o.desc?`<div class="vk-sub">${fe(C.limparParc(o.desc))}${pc?' '+pill(pc,''):''}</div>`:pc?`<div class="vk-sub">${pill(pc,'')}</div>`:''}
       ${o.centro!==EMP?`<div class="vk-obra" title="${fe(o.centro)}"><i class="fas fa-helmet-safety"></i>${fe(o.centro)}</div>`:''}
       <div class="vk-val"><span>${fe(o.cat||'')}</span><b>${fmt(val(o.total))}</b></div>
@@ -17578,7 +17604,7 @@ const Mascara=(function(){
     const L=g.lista,o=L[0],col=colConta(o),tot=L.reduce((s,x)=>s+val(x.total),0),obras=[...new Set(L.map(x=>x.centro))],dc=diaCompra(o),rat=L.some(x=>x.rateio),ms=marcaSel(L.map(idC));
     (App._vkCompras=App._vkCompras||{})[g.id]=L;
     return `<article class="vk-card vk-compra${ms.cls}" style="--cor:${COLS_CP.find(c=>c.k===col).cor}" draggable="${pode('contas')&&!QC.selModo?'true':'false'}" data-card="${fe(g.id)}" tabindex="0">
-      <div class="vk-top">${ms.html}<b>${fe(o.forn||'Compra')}</b>${obras.length===1&&obras[0]===EMP?pill('empresa','info'):''}</div>
+      <div class="vk-top">${ms.html}<b>${fe(o.forn||'Compra')}</b>${obras.length===1&&obras[0]===EMP?pill('empresa','info'):''}${L.some(ehTg)?pill('Telegram','info','fa-paper-plane'):''}</div>
       <div class="vk-sub"><i class="fas fa-basket-shopping"></i> ${L.length} itens${dc?` · compra de ${brDe(dt(dc))}`:''}</div>
       ${obras.some(x=>x!==EMP)?`<div class="vk-obra" title="${fe(obras.join(' · '))}"><i class="fas fa-helmet-safety"></i>${fe(obras.length===1?obras[0]:obras.length+' obras')}</div>`:''}
       <ul class="vk-itens">${L.slice(0,5).map(x=>`<li><span>${fe(C.limparParc(x.desc)||x.cat||'Item')}</span><b>${fmt(val(x.total))}</b></li>`).join('')}${L.length>5?`<li class="mais">+ ${L.length-5} item(ns)</li>`:''}</ul>
@@ -17615,7 +17641,8 @@ const Mascara=(function(){
       ${donos?'':'<p class="vk-dica"><i class="fas fa-lock"></i> Só quem lançou esta compra ou um Administrador pode alterar ou excluir.</p>'}`;
     const bts=[];
     if((GS.ehAdm()||(!pg&&donos))&&pode('contas'))bts.push({html:'<i class="fas fa-trash"></i> Excluir a compra',acao:()=>{setTimeout(()=>excluirCompra(L),10);}});
-    if(souAdmin()&&!pg&&o.tipo==='Real')bts.push({html:o.aprov==='pendente'?'<i class="fas fa-signature"></i> Aprovar a compra':'<i class="fas fa-rotate-left"></i> Desaprovar',acao:()=>{setTimeout(()=>aprovarCompra(L,o.aprov==='pendente'),10);}});
+    const pend=L.some(x=>x.aprov==='pendente');
+    if(souAdmin()&&o.tipo==='Real'&&(pend||(!pg&&!L.some(ehTg))))bts.push({html:pend?'<i class="fas fa-signature"></i> Aprovar a compra':'<i class="fas fa-rotate-left"></i> Desaprovar',acao:()=>{setTimeout(()=>aprovarCompra(L,pend),10);}});
     if(pg&&pode('contas'))bts.push({html:'<i class="fas fa-rotate-left"></i> Desfazer pagamento',acao:()=>{setTimeout(()=>desfazerPagCompra(L),10);}});
     if(!pg&&pode('contas')&&(o.aprov!=='pendente'||souAdmin())&&o.tipo==='Real')bts.push({html:'<i class="fas fa-circle-check"></i> Registrar pagamento',cls:'pri',acao:()=>{setTimeout(()=>pagarCompra(L),10);}});
     janela((o.forn||'Compra')+' · '+L.length+' itens',corpo,bts,780);
@@ -17642,9 +17669,15 @@ const Mascara=(function(){
   }
   function aprovarCompra(L,aprovar){
     if(!souAdmin())return toast('Só o Administrador ou quem tem permissão para aprovar (Usuários e permissões) aprova contas.','error');
-    const tot=L.reduce((s,x)=>s+val(x.total),0);
-    confirmar(aprovar?'Aprovar a compra':'Desaprovar a compra',aprovar?`Aprovar os ${L.length} itens da compra de <b>${fe(L[0].forn||'fornecedor')}</b> (${fmt(tot)})? Com a aprovação ela fica liberada para pagamento.`:`Tirar a aprovação dos ${L.length} itens (${fmt(tot)})? Eles voltam para "Aguardando aprovação".`,aprovar?'Sim, aprovar':'Sim, desaprovar',
-      async()=>{await gravarVarias(L.filter(x=>!pagoC(x)).map(x=>[{...x,aprov:aprovar?'aprovada':'pendente',aprovPor:C.quem(),aprovMudou:true},x]));toast(aprovar?'Compra aprovada.':'Aprovação retirada.','success');});
+    if(!aprovar&&L.some(ehTg))return toast('Compra lançada pelo Telegram: depois de aprovada ela não volta para "Aguardando aprovação" — dá para editar ou excluir.','error');
+    // aprovar: os itens que aguardam (pagos ou não); desaprovar: só os que ainda não foram pagos (como antes)
+    const alvo=aprovar?L.filter(x=>x.aprov==='pendente'):L.filter(x=>!pagoC(x)),tot=alvo.reduce((s,x)=>s+val(x.total),0),aps={};
+    const pares=alvo.map(x=>{if(!aprovar)return [{...x,aprov:'pendente',aprovPor:C.quem(),aprovMudou:true},x];
+      const {u,q}=aprovacaoTg(x);if(q&&pagoC(x)){const d=isoDe(dt(x.pago)),k=cn(q)+'|'+cn(x.centro)+'|'+d.slice(0,7);(aps[k]=aps[k]||{quem:q,obra:x.centro,data:d,valor:0,forma:x.forma||''}).valor+=val(x.total);}return [u,x];});
+    const L2=Object.values(aps),avAp=L2.length?` O aporte de ${[...new Set(L2.map(a=>fe(a.quem)))].map(q=>`<b>${q}</b>`).join(', ')} (${fmt(L2.reduce((s,a)=>s+a.valor,0))}) entra agora em Sócios e investimentos.`:'';
+    confirmar(aprovar?'Aprovar a compra':'Desaprovar a compra',aprovar?`Aprovar os ${alvo.length} itens da compra de <b>${fe(L[0].forn||'fornecedor')}</b> (${fmt(tot)})?${avAp||(L.every(pagoC)?'':' Com a aprovação ela fica liberada para pagamento.')}${L.some(ehTg)?'<br><small>Lançada pelo Telegram: depois de aprovada, não volta para "Aguardando aprovação" (dá para editar ou excluir).</small>':''}`:`Tirar a aprovação dos ${alvo.length} itens (${fmt(tot)})? Eles voltam para "Aguardando aprovação".`,aprovar?'Sim, aprovar':'Sim, desaprovar',
+      async()=>{await gravarVarias(pares,L2.length?async()=>{for(const a of L2)await Fin.somarAporte({...a,valor:Math.round(a.valor*100)/100,obs:`Pagou a compra de ${L[0].forn||'fornecedor'} (Contas a pagar · Telegram)`,origem:'contas'});}:null);
+        toast(aprovar?(L2.length?'Compra aprovada e aporte lançado em Sócios e investimentos.':'Compra aprovada.'):'Aprovação retirada.','success');});
   }
   // pagamento desfeito: volta para "a pagar", com o valor lançado se a conciliação tinha ajustado
   // paga pelo sócio: volta como estava antes do pagamento — "Será paga por X (aporte)", e o aporte entra de novo no próximo pagamento
@@ -17795,11 +17828,13 @@ const Mascara=(function(){
     if(!box._arraste){box._arraste=1;ligarArraste(box,(id,col)=>{
       if(String(id).startsWith('g:')){const L=(App._vkCompras||{})[id];if(!L)return;const de=colConta(L[0]);if(de===col)return;
         if(!pode('contas'))return toast('Seu perfil não mexe em contas a pagar.','error');
+        if(de==='aprovar'&&(col==='paga'||col==='pagar')&&L.some(pagoC))return aprovarCompra(L,true);   // a do Telegram já paga: arrastar aprova
         if(col==='paga')return pagarCompra(L);if(de==='paga')return desfazerPagCompra(L);
         if(col==='pagar'&&de==='aprovar')return aprovarCompra(L,true);if(col==='aprovar'&&de==='pagar')return aprovarCompra(L,false);
         return toast('Abra o cartão para mexer nos itens desta compra.','info');}
       const o=acharConta(id);if(!o)return;const de=colConta(o);if(de===col)return;
       if(!pode('contas'))return toast('Seu perfil não mexe em contas a pagar.','error');
+      if(de==='aprovar'&&pagoC(o)&&(col==='paga'||col==='pagar'))return aprovarConta(o,true);   // a do Telegram já paga: arrastar aprova
       if(col==='paga')return pagarConta(o);
       if(de==='paga')return desfazerPagamento(o);
       if(de==='previstas')return virarConta(o);
@@ -17824,9 +17859,17 @@ const Mascara=(function(){
   async function gravarConta(o,orig,depois){const ops=C.montarConta(o,orig);await executar(async()=>{await Promise.all(ops.map(x=>x.excluir?excluir(x.aba,x.rowid):salvar(x.aba,x.dados,x.rowid||null)));if(depois)await depois();});}
   function aprovarConta(o,aprovar){
     if(!souAdmin())return toast('Só o Administrador ou quem tem permissão para aprovar (Usuários e permissões) aprova contas.','error');
-    if(pagoC(o))return toast('Conta já paga — a aprovação não muda mais.','error');
-    const txt=aprovar?`Aprovar a conta de <b>${fe(o.forn||o.desc)}</b>: ${fmt(val(o.total))}, vence ${brDe(dt(o.venc))}? Com a aprovação ela fica liberada para pagamento.`:`Tirar a aprovação da conta de <b>${fe(o.forn||o.desc)}</b> (${fmt(val(o.total))})? Ela volta para "Aguardando aprovação".`;
-    confirmar(aprovar?'Aprovar conta':'Desaprovar conta',txt,aprovar?'Sim, aprovar':'Sim, desaprovar',async()=>{await gravarConta({...o,aprov:aprovar?'aprovada':'pendente',aprovPor:C.quem(),aprovMudou:true},o);toast(aprovar?'Conta aprovada.':'Aprovação retirada.','success');});
+    if(!aprovar&&ehTg(o))return toast('Conta lançada pelo Telegram: depois de aprovada ela não volta para "Aguardando aprovação" — dá para editar ou excluir.','error');
+    if(!aprovar&&pagoC(o))return toast('Conta já paga — a aprovação não muda mais.','error');
+    if(aprovar&&o.aprov!=='pendente')return toast('Esta conta já está aprovada.','info');
+    // aprovar a conta já paga também vale (a do Telegram chega paga quando veio do comprovante)
+    const {u,q}=aprovacaoTg(o),comAp=!!q&&pagoC(o),pg=pagoC(o);
+    const txt=aprovar?`Aprovar a conta de <b>${fe(o.forn||o.desc)}</b>: ${fmt(val(o.total))}, ${pg?'paga em '+brDe(dt(o.pago)):'vence '+brDe(dt(o.venc))}?${comAp?` O aporte de <b>${fe(q)}</b> (${fmt(val(o.total))}) entra agora em Sócios e investimentos.`:q?` Quando for paga, entra no aporte de <b>${fe(q)}</b>.`:pg?'':' Com a aprovação ela fica liberada para pagamento.'}${ehTg(o)?'<br><small>Lançada pelo Telegram: depois de aprovada, não volta para "Aguardando aprovação" (dá para editar ou excluir).</small>':''}`
+      :`Tirar a aprovação da conta de <b>${fe(o.forn||o.desc)}</b> (${fmt(val(o.total))})? Ela volta para "Aguardando aprovação".`;
+    confirmar(aprovar?'Aprovar conta':'Desaprovar conta',txt,aprovar?'Sim, aprovar':'Sim, desaprovar',async()=>{
+      if(!aprovar){await gravarConta({...o,aprov:'pendente',aprovPor:C.quem(),aprovMudou:true},o);return toast('Aprovação retirada.','success');}
+      await gravarConta(u,o,comAp?()=>Fin.somarAporte({obra:o.centro,quem:q,data:isoDe(dt(o.pago)),valor:Math.round(val(o.total)*100)/100,forma:o.forma||'',obs:`Pagou ${o.forn||C.limparParc(o.desc)||'a conta'} (Contas a pagar · Telegram)`,origem:'contas',conc:String(o._r.conciliacao||'')}):null);
+      toast(comAp?`Conta aprovada e aporte de ${q} lançado em Sócios e investimentos.`:'Conta aprovada.','success');});
   }
   // estimativa → conta de verdade (chegou o boleto / a nota do fornecedor)
   function virarConta(o){
@@ -18487,6 +18530,8 @@ const Mascara=(function(){
         <li><i class="fas fa-calendar-day"></i> Vencimento ${brDe(dt(o.venc))}${o.forma?' · '+fe(o.forma):''}${o.lancPor?` · lançada por ${fe(o.lancPor)}`:''}</li>
         ${pagoC(o)?`<li><i class="fas fa-circle-check"></i> Paga em ${brDe(dt(o.pago))}</li>`:''}
         ${o.tipo==='Real'?`<li><i class="fas fa-signature"></i> ${o.aprov==='pendente'?'Aguardando aprovação':o.aprovPor?`Aprovada por ${fe(o.aprovPor)}${o.aprovEm?' em '+brDe(dt(o.aprovEm)):''}`:'Aprovada'}</li>`:''}
+        ${ehTg(o)?`<li><i class="fas fa-paper-plane"></i> Lançada pelo Telegram${o.aprov==='pendente'?' — confira e aprove; depois de aprovada não volta para "Aguardando aprovação"':''}</li>`:''}
+        ${o._r.socio_pendente?`<li><i class="fas fa-hand-holding-dollar"></i> Paga por <b>${fe(o._r.socio_pendente)}</b> (sócio): o aporte entra em Sócios e investimentos quando a conta for aprovada</li>`:''}
         ${(()=>{const a=Fin.util.ajusteDe(o._r);return a?`<li><i class="fas fa-scale-balanced"></i> Valor ajustado na conciliação: lançado <b>${fmt(a.orig)}</b> · banco <b>${fmt(a.novo)}</b> · diferença <b>${Fin.util.txtDif(a.dif)}</b></li>`:'';})()}
         ${o.obs?`<li><i class="fas fa-note-sticky"></i> ${fe(o.obs)}</li>`:''}
       </ul>
@@ -18496,7 +18541,7 @@ const Mascara=(function(){
     if(parcDe(o.desc)&&pode('contas')&&dono)bts.push({html:'<i class="fas fa-layer-group"></i> Desfazer parcelamento',acao:()=>{setTimeout(()=>desfazerParcelamento(o),10);}});
     else if(!pagoC(o)&&pode('contas')&&dono)bts.push({html:'<i class="fas fa-clone"></i> Parcelar / repetir',acao:()=>{setTimeout(()=>C.parcelar(o),10);}});
     if(o.tipo!=='Real'&&pode('contas')&&dono)bts.push({html:'<i class="fas fa-file-invoice-dollar"></i> A conta chegou',acao:()=>{setTimeout(()=>virarConta(o),10);}});
-    if(souAdmin()&&!pagoC(o)&&o.tipo==='Real')bts.push({html:o.aprov==='pendente'?'<i class="fas fa-signature"></i> Aprovar':'<i class="fas fa-rotate-left"></i> Desaprovar',acao:()=>{setTimeout(()=>aprovarConta(o,o.aprov==='pendente'),10);}});
+    if(souAdmin()&&o.tipo==='Real'&&(o.aprov==='pendente'||(!pagoC(o)&&!ehTg(o))))bts.push({html:o.aprov==='pendente'?'<i class="fas fa-signature"></i> Aprovar':'<i class="fas fa-rotate-left"></i> Desaprovar',cls:o.aprov==='pendente'?'pri':'',acao:()=>{setTimeout(()=>aprovarConta(o,o.aprov==='pendente'),10);}});
     if(pagoC(o)&&pode('contas'))bts.push({html:'<i class="fas fa-rotate-left"></i> Desfazer pagamento',acao:()=>{setTimeout(()=>desfazerPagamento(o),10);}});
     if(!pagoC(o)&&pode('contas')&&(o.aprov!=='pendente'||souAdmin())&&o.tipo==='Real')bts.push({html:'<i class="fas fa-circle-check"></i> Registrar pagamento',acao:()=>{setTimeout(()=>pagarConta(o),10);}});
     // conta paga pelo sócio: quem pagou fica gravado na conta, e o aporte acompanha o valor e a obra novos
@@ -25433,7 +25478,8 @@ GS.lembretes=(function(){
     const faz=`<ul class="lb-faz"><li><b>Lançar conta</b> numa obra, rateada entre obras (pelo orçamento) ou na Empresa — escrevendo (<i>lança 350 de cimento na obra X</i>), pelo comando /conta ou mandando a foto, o PDF ou o XML do boleto, da nota ou do comprovante (inclusive o da <b>maquininha de cartão</b>: no crédito parcelado, a 1ª parcela entra paga e as outras a pagar, uma por mês, para casar com a fatura na Conciliação).</li>
       <li><b>Dar baixa</b> numa conta em aberto (/pagar) · <b>buscar nota fiscal</b> e receber o PDF e o XML (/nota 1234) · <b>nova tarefa</b> (/tarefa) · <b>marcar reunião</b> (/reuniao) · <b>diesel</b> da retroescavadeira (/diesel).</li>
       <li><b>E-mail:</b> a cada 15 minutos o robô olha a caixa de entrada do Gmail do sistema (só lê — não marca como lido, não apaga) e, quando chega <b>boleto ou nota</b> em PDF ou XML, manda no Telegram com <b>💸 Lançar conta</b> e <b>🙈 Ignorar</b>.</li>
-      <li>Antes de gravar, o robô mostra um cartão para conferir (<b>✅ Lançar</b>); depois, o botão <b>Desfazer</b> manda para a Lixeira.</li></ul>`;
+      <li>Antes de gravar, o robô mostra um cartão para conferir (<b>✅ Lançar</b>); depois, o botão <b>Desfazer</b> manda para a Lixeira.</li>
+      <li><b>Toda conta lançada pelo Telegram</b> (e toda baixa feita por ele) entra em <b>Contas a pagar › Aguardando aprovação</b>, mesmo já paga, para você conferir e aprovar. Se foi paga com dinheiro de um sócio, o robô pergunta quem — e o <b>aporte só entra quando você aprova</b>. Aprovada, ela não volta mais para "Aguardando aprovação" (dá para editar ou excluir, como as outras) e pode ser conciliada com o extrato normalmente.</li></ul>`;
     const dh=s=>{const d=new Date(s);return isNaN(d)?'':d.toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});},cx=T.caixa||{},te=T.teste;
     const sitEmail=!T.gmailLer?'<span class="vk-dica">E-mail: o Gmail do sistema ainda não está ligado na Vercel.</span>'
       :cx.erro?`<div class="fin-aviso laranja" style="margin:6px 0"><div><b>Caixa de e-mail:</b> ${fe(cx.erro)}. Confira no Gmail do sistema: <b>Configurações</b> (engrenagem) › <b>Ver todas as configurações</b> › <b>Encaminhamento e POP/IMAP</b> › <b>Ativar IMAP</b> › <b>Salvar alterações</b>.</div></div>`
