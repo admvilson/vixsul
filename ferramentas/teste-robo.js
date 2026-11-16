@@ -93,6 +93,7 @@ global.fetch = async (url, op = {}) => {
   if (url.startsWith('https://api.telegram.org/bot')) return telegram(url, op);
   if (url.startsWith('https://api.groq.com/')) return groq(url, op);
   if (url.startsWith('https://brasilapi.com.br/')) return json(200, { razao_social: 'MADEIREIRA SAO JOSE LTDA' });
+  if (url.startsWith('https://gestao.vixsulempreendimentos.com.br/img/')) return resp(200, Buffer.from('\x89PNG-icone-de-teste'), 'image/png');
   return json(404, { erro: 'sem internet no teste: ' + url });
 };
 
@@ -519,6 +520,11 @@ function ultimoCartao() { for (let i = CALLS.length - 1; i >= 0; i--) { const c 
   await escrever('/buscar areia'); ok(/🔎 <b>\d+ conta\(s\) com “areia”<\/b>/.test(ultimoTexto()) && /AREIAL BOA VISTA/.test(ultimoTexto()), 'busca nas contas');
   await escrever('/receber'); ok(/💵 <b>A receber<\/b>: 1 nota/.test(ultimoTexto()) && /NF 19/.test(ultimoTexto()), 'o que falta receber');
   await escrever('/avisos'); ok(/Para onde vão os avisos automáticos/.test(ultimoTexto()) && /Resumo do dia/.test(ultimoTexto()) && /📱 Vilson/.test(ultimoTexto()) && /Conversas ligadas ao robô<\/b>: Vilson/.test(ultimoTexto()), '/avisos: para onde vai cada aviso (Telegram e e-mail)');
+  await escrever('/app'); ok(/https:\/\/gestao\.vixsulempreendimentos\.com\.br\/\?instalar=1/.test(ultimoTexto()), '/app: o link que abre direto na instalação');
+  // o "perfil" do iPhone (api/app.js): ícone da Vixsul na tela de início, em tela cheia
+  const appJs = require('../api/app.js'), rp = { statusCode: 0, h: {}, setHeader(k, v) { this.h[String(k).toLowerCase()] = v; }, end(b) { this.corpo = b; } };
+  await appJs({ method: 'GET', headers: {}, query: {} }, rp);
+  ok(rp.statusCode === 200 && rp.h['content-type'] === 'application/x-apple-aspen-config' && /attachment; filename="Vixsul\.mobileconfig"/.test(rp.h['content-disposition'] || '') && /com\.apple\.webClip\.managed/.test(rp.corpo) && /<key>FullScreen<\/key><true\/>/.test(rp.corpo) && /<key>Icon<\/key><data>[A-Za-z0-9+\/=]+<\/data>/.test(rp.corpo) && /<string>https:\/\/gestao\.vixsulempreendimentos\.com\.br\/<\/string>/.test(rp.corpo), 'perfil do iPhone: tipo certo, ícone e endereço em tela cheia');
 
   // M) código do PIX colado, pergunta normal e a tarefa de 15 minutos
   console.log('\nM) código colado, pergunta e tarefa agendada');

@@ -6,16 +6,16 @@
 <!-- instalar no celular como aplicativo (e abrir sem internet: sw.js) -->
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#1652D8">
-<link rel="apple-touch-icon" sizes="180x180" href="img/apple-touch-icon.png">
-<link rel="icon" type="image/png" sizes="32x32" href="img/favicon-32.png">
-<link rel="icon" type="image/png" sizes="64x64" href="img/favicon-64.png">
+<link rel="apple-touch-icon" sizes="180x180" href="img/vixsul-app-180.png">
+<link rel="icon" type="image/png" sizes="32x32" href="img/vixsul-favicon-32.png">
+<link rel="icon" type="image/png" sizes="64x64" href="img/vixsul-favicon-64.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Vixsul">
 <meta name="application-name" content="Vixsul">
 <script>if('serviceWorker' in navigator&&/^https:|^http:\/\/localhost/.test(location.href)&&!/__teste/.test(location.pathname))window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
 // o pedido de instalação do Chrome/Edge/Samsung chega cedo: fica guardado para o botão "Instalar o app" (VxApp)
-window.addEventListener('beforeinstallprompt',e=>{window.__vxPedido=e;});window.addEventListener('appinstalled',()=>{window.__vxPedido=null;window.__vxInstalado=true;});</script>
+window.__vxInicio=Date.now();window.addEventListener('beforeinstallprompt',e=>{window.__vxPedido=e;});window.addEventListener('appinstalled',()=>{window.__vxPedido=null;window.__vxInstalado=true;});</script>
 <!-- segurança do navegador: não manda o endereço completo para outros sites, não aceita plugins nem troca da base
      dos links, só envia formulários para o próprio sistema, e não deixa abrir o sistema dentro de outro site -->
 <meta name="referrer" content="strict-origin-when-cross-origin"/>
@@ -764,41 +764,100 @@ input[type=checkbox]:disabled{opacity:.45;cursor:not-allowed;}
   <div class="login-copy">Copyright © <span id="login-copy-yr"></span> Vixsul Empreendimentos LTDA&nbsp;&nbsp;•&nbsp;&nbsp;CNPJ 64.518.375/0001-20</div>
 </div>
 <script>document.getElementById('login-copy-yr').textContent = new Date().getFullYear();
-/* APP NO CELULAR — o sistema é um "app da web": no Android e no computador o botão abre a janela de instalação do próprio
-   navegador (o pedido guardado no <head>); no iPhone o Safari não tem essa janela, então a tela mostra o caminho
-   (Compartilhar › Adicionar à Tela de Início). Instalado, abre pelo ícone da Vixsul, em tela cheia, sem a barra do
-   navegador e sem passar pelo Google. Os botões com data-vx-app somem quando o sistema já está aberto como app. */
+/* APP — instalar com o menor número de toques (o sistema é um "app da web": grátis, sem loja de aplicativos):
+   • Android e computador (Chrome, Edge, Samsung): o botão já abre a pergunta do próprio aparelho, "Instalar app?" › Instalar.
+     O navegador só libera essa pergunta depois de a pessoa ficar uns segundos na página: até lá o botão espera
+     ("Preparando…") e fica pronto sozinho; se não liberar, mostra o caminho pelo menu (⋮ › Instalar app).
+   • Dentro do app do Google, do Instagram, do Telegram… (que não instalam): um toque abre o Chrome já na instalação.
+   • iPhone: a Apple não deixa site nenhum se instalar sozinho. No Safari, uma seta aponta o botão Compartilhar (3 toques:
+     Compartilhar › Adicionar à Tela de Início › Adicionar); ou o iPhone baixa um "perfil" e instala o ícone pelos Ajustes
+     (/api/app — ele pede autorização e a senha do aparelho). Fora do Safari, um toque abre o endereço no Safari.
+   • O link …/?instalar=1 abre direto nesta janela — é o link para mandar à equipe (botão "Mandar o link", e /app no Telegram).
+   Os botões com data-vx-app somem quando o sistema já está aberto como app. */
 window.VxApp=(function(){
-  const ua=navigator.userAgent||'',ios=/iphone|ipad|ipod/i.test(ua)||(/Macintosh/.test(ua)&&navigator.maxTouchPoints>1),android=/android/i.test(ua);
-  const emOutroApp=/FBAN|FBAV|Instagram|WhatsApp|GSA\/|Line\/|; wv\)/i.test(ua);   // navegador de dentro do app do Google, do WhatsApp…
+  const ua=navigator.userAgent||'',ipad=/ipad/i.test(ua)||(/Macintosh/.test(ua)&&navigator.maxTouchPoints>1),ios=ipad||/iphone|ipod/i.test(ua),android=/android/i.test(ua);
+  const outroApp=/FBAN|FBAV|Instagram|WhatsApp|GSA\/|Line\/|Telegram|; wv\)/i.test(ua);   // navegador de dentro de outro aplicativo
+  const safari=ios&&/Safari\//.test(ua)&&!/CriOS|FxiOS|EdgiOS|OPiOS|GSA\/|FBAN|FBAV|Instagram|Line\/|Telegram/i.test(ua),chromeIos=ios&&/CriOS/i.test(ua),samsung=/SamsungBrowser/i.test(ua);
+  const LINK=location.origin+'/?instalar=1',PERFIL='https://vixsul.vercel.app/api/app';
   const instalado=()=>!!window.__vxInstalado||navigator.standalone===true||!!(window.matchMedia&&['standalone','fullscreen','minimal-ui'].some(m=>matchMedia('(display-mode: '+m+')').matches));
-  const ENDERECO=location.origin+'/';
-  const lista=(t,l)=>`<div class="fin-resumo" style="margin-bottom:10px"><b>${t}</b><ol style="margin:8px 0 0 18px;padding:0;line-height:1.65">${l.map(x=>`<li>${x}</li>`).join('')}</ol></div>`;
-  function passos(){
-    const comp='<b>Compartilhar</b> (o quadrado com a seta para cima)';
-    if(ios&&/CriOS/i.test(ua))return lista('No Chrome do iPhone',[`Toque em ${comp}, ao lado do endereço.`,'Toque em <b>Adicionar à Tela de Início</b>.','Toque em <b>Adicionar</b>.']);
-    if(ios&&(emOutroApp||!/Safari/i.test(ua)||/FxiOS|EdgiOS/i.test(ua)))return lista('No iPhone, instale pelo Safari',['Toque em <b>Copiar o endereço</b> (aqui embaixo).','Abra o <b>Safari</b> (a bússola azul) e cole o endereço.',`Toque em ${comp}, embaixo da tela › <b>Adicionar à Tela de Início</b> › <b>Adicionar</b>.`]);
-    if(ios)return lista('No iPhone (Safari)',[`Toque em ${comp}, embaixo da tela.`,'Role a lista e toque em <b>Adicionar à Tela de Início</b>.','Toque em <b>Adicionar</b>, no canto de cima.']);
-    if(android&&emOutroApp)return lista('Abra no Chrome primeiro',['Você está no navegador de dentro de outro aplicativo (Google, WhatsApp…), e ele não instala.','Toque nos <b>3 pontinhos</b> (⋮) › <b>Abrir no Chrome</b> — ou copie o endereço aqui embaixo e cole no Chrome.','No Chrome: <b>3 pontinhos</b> (⋮) › <b>Instalar app</b> (ou <b>Adicionar à tela inicial</b> › <b>Instalar</b>).']);
-    if(android&&/SamsungBrowser/i.test(ua))return lista('No navegador da Samsung',['Toque no menu <b>☰</b> (embaixo, à direita).','Toque em <b>Adicionar página a</b> › <b>Tela inicial</b>.','Toque em <b>Adicionar</b>.']);
-    if(android)return lista('No Android (Chrome)',['Toque nos <b>3 pontinhos</b> (⋮), no canto de cima.','Toque em <b>Instalar app</b> (em alguns celulares: <b>Adicionar à tela inicial</b> › <b>Instalar</b>).','Toque em <b>Instalar</b>.']);
-    return lista('No computador (Chrome ou Edge)',['Clique no ícone de <b>instalar</b> (um monitor com uma seta), no fim da barra de endereço.','Ou no menu <b>⋮</b> › <b>Transmitir, salvar e compartilhar</b> › <b>Instalar página como app</b> (no Edge: <b>Aplicativos</b> › <b>Instalar este site como um aplicativo</b>).']);
+  let caixa=null,seta=null,relogio=null;
+  const passos=l=>`<ol style="margin:6px 0 0 18px;padding:0;line-height:1.7">${l.map(x=>`<li>${x}</li>`).join('')}</ol>`;
+  const grande=(acao,html,extra)=>`<button type="button" class="fin-bt pri" data-vxa="${acao}" style="width:100%;justify-content:center;font-size:16px;padding:14px 10px;margin:4px 0 10px;${extra||''}">${html}</button>`;
+  const peq=(acao,html)=>`<button type="button" class="fin-bt mini" data-vxa="${acao}">${html}</button>`;
+  // o que a janela mostra, conforme o aparelho e o momento
+  function corpo(){
+    if(instalado())return '<div class="fin-resumo">✅ O app já está instalado neste aparelho — abra pelo ícone da Vixsul.</div>';
+    if(ios){
+      if(!safari)return grande('safari','<i class="fab fa-safari"></i> Abrir no Safari para instalar')+'<div style="font-size:13px">No iPhone, a instalação é pelo <b>Safari</b> (a bússola azul). Se o botão não abrir, toque em <b>Copiar o link</b> (aqui embaixo) e cole no Safari.</div>'
+        +(chromeIos?'<div style="font-size:13px;margin-top:8px">Ou aqui mesmo no Chrome: toque em <b>Compartilhar</b> (⬆ ao lado do endereço) › <b>Adicionar à Tela de Início</b> › <b>Adicionar</b>.</div>':'');
+      return '<div style="font-size:15px"><b>No iPhone são 3 toques</b> (a Apple não deixa instalar com um toque só):</div>'
+        +passos([`Toque em <b>Compartilhar</b> <span style="display:inline-block;border:1.5px solid currentColor;border-radius:5px;padding:0 5px;font-size:12px">⬆</span> — ${ipad?'no alto, à direita':'embaixo, no meio da tela (a seta azul mostra)'}.`,'Role a lista e toque em <b>Adicionar à Tela de Início</b> ➕.','Toque em <b>Adicionar</b>. Pronto: o ícone da Vixsul aparece na tela.'])
+        +`<div style="margin-top:12px;font-size:13px;color:var(--text-2)">Outra forma: o próprio iPhone baixa e instala o ícone pelos <b>Ajustes</b> (pede a sua autorização e a senha do iPhone; aparece "não verificado" porque não vem da App Store).</div><div style="margin-top:6px">${peq('perfil','<i class="fas fa-download"></i> Baixar e instalar pelos Ajustes')}</div>`;
+    }
+    if(android&&outroApp)return grande('chrome','<i class="fab fa-chrome"></i> Abrir no Chrome e instalar')+'<div style="font-size:13px">Este navegador (de dentro de outro aplicativo) não instala. O botão abre o Chrome já na instalação.</div>';
+    if(window.__vxPedido)return grande('instalar','<i class="fas fa-download"></i> Instalar agora')+`<div style="font-size:13px;text-align:center">O ${android?'celular':'computador'} vai perguntar <b>"Instalar app?"</b> — toque em <b>Instalar</b>.</div>`;
+    const falta=Math.max(0,32-Math.round((Date.now()-(window.__vxInicio||Date.now()))/1000));
+    if(falta>0)return grande('esperando',`<i class="fas fa-spinner fa-spin"></i> Preparando a instalação… ${falta}s`,'opacity:.75')+`<div style="font-size:13px;text-align:center">O ${samsung?'navegador':'Chrome'} libera a instalação depois de alguns segundos nesta página — o botão fica pronto sozinho.</div>`;
+    return '<div class="fin-resumo" style="margin-bottom:8px">O navegador não liberou a instalação automática. Faça assim (é uma vez só):</div>'+(samsung?passos(['Toque no menu <b>☰</b> (embaixo, à direita).','Toque em <b>Adicionar página a</b> › <b>Tela inicial</b>.','Toque em <b>Adicionar</b>.'])
+      :android?passos(['Toque nos <b>3 pontinhos</b> (⋮), no canto de cima.','Toque em <b>Instalar app</b> (ou <b>Adicionar à tela inicial</b> › <b>Instalar</b>).'])
+      :passos(['Clique no ícone de <b>instalar</b> (um monitor com uma seta), no fim da barra de endereço.','Ou no menu <b>⋮</b> › <b>Transmitir, salvar e compartilhar</b> › <b>Instalar página como app</b> (no Edge: <b>Aplicativos</b> › <b>Instalar este site como um aplicativo</b>).']));
   }
-  async function instalar(){
-    try{if(window.UI&&UI._euMenu)UI._euMenu(false);}catch(e){}
-    if(instalado())return toast('O app já está instalado: abra pelo ícone da Vixsul na tela do aparelho.','success');
-    const ped=window.__vxPedido;
-    if(ped){window.__vxPedido=null;try{await ped.prompt();const r=await ped.userChoice;if(r&&r.outcome==='accepted'){toast('Instalando — o ícone da Vixsul vai aparecer na tela do aparelho.','success');return;}}catch(e){}}
-    const corpo=`<div style="display:flex;gap:12px;align-items:center;margin-bottom:12px"><img src="img/icone-192.png" alt="" width="56" height="56" style="border-radius:14px;box-shadow:0 1px 4px rgba(0,0,0,.18);flex:none"><div>O sistema vira um <b>aplicativo</b>: o ícone da Vixsul fica na tela do aparelho e abre direto, em tela cheia — sem passar pelo Google e sem a barra do navegador. No canteiro sem sinal, o diário fica guardado e envia depois.</div></div>${passos()}<div style="font-size:12px;color:var(--text-3)">Se o app pedir, entre com o seu CPF e a senha (como no navegador).</div>`;
+  function parar(){clearInterval(relogio);relogio=null;if(seta){seta.remove();seta=null;}caixa=null;}
+  function desenhar(){
+    if(!caixa||!document.body.contains(caixa))return parar();
+    caixa.querySelector('[data-vxa-corpo]').innerHTML=corpo();
+    // iPhone no Safari: a seta azul aponta o botão Compartilhar (ele fica na barra do Safari, fora da página)
+    if(ios&&safari&&!instalado()&&!seta){seta=document.createElement('div');seta.className='vx-app-seta'+(ipad?' ipad':'');seta.innerHTML=ipad?'<b>⬆</b><span>Compartilhar</span>':'<span>Toque em Compartilhar</span><b>⬇</b>';document.body.appendChild(seta);}
+  }
+  const ok=t=>{try{toast(t,'success');}catch(e){}};
+  async function clique(ev){
+    const b=ev.target.closest('[data-vxa]');if(!b)return;const a=b.dataset.vxa;
+    if(a==='instalar'){const ped=window.__vxPedido;if(!ped)return desenhar();window.__vxPedido=null;try{await ped.prompt();const r=await ped.userChoice;if(r&&r.outcome==='accepted'){window.__vxInstalado=true;ok('Instalando — o ícone da Vixsul vai aparecer na tela.');}}catch(e){}return desenhar();}
+    if(a==='chrome'){location.href=`intent://${location.host}/?instalar=1#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=${encodeURIComponent(LINK)};end`;return;}
+    if(a==='safari'){location.href='x-safari-'+LINK;return;}
+    if(a==='perfil'){location.href=PERFIL;return;}
+    if(a==='copiar'){try{await navigator.clipboard.writeText(LINK);ok('Link copiado: '+LINK);}catch(e){toast('Copie este link: '+LINK);}return;}
+    if(a==='mandar'){if(navigator.share){try{await navigator.share({title:'App da Vixsul',text:'Instale o app do sistema da Vixsul (abre direto na instalação):',url:LINK});}catch(e){}return;}
+      try{await navigator.clipboard.writeText(LINK);ok('Link de instalação copiado — cole no WhatsApp ou no Telegram.');}catch(e){toast('Mande este link: '+LINK);}}
+  }
+  function abrir(){
     const J=typeof Fin!=='undefined'&&Fin.util&&Fin.util.janela;
-    if(!J){alert(corpo.replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim());return;}
-    J('Instalar o app da Vixsul',corpo,[{html:'<i class="fas fa-copy"></i> Copiar o endereço',acao:async()=>{try{await navigator.clipboard.writeText(ENDERECO);toast('Endereço copiado: '+ENDERECO,'success');}catch(e){toast('Copie este endereço: '+ENDERECO);}return false;}}],520);
+    if(!J){alert('Para instalar o app da Vixsul, abra: '+LINK);return;}
+    const html=`<div data-vxa-caixa><div style="display:flex;gap:12px;align-items:center;margin-bottom:12px"><img src="img/vixsul-app-192.png" alt="" width="56" height="56" style="flex:none"><div>O sistema vira um <b>aplicativo</b>: o ícone da Vixsul fica na tela e abre direto, em tela cheia — sem Google e sem a barra do navegador. No canteiro sem sinal, o diário fica guardado e envia depois.</div></div><div data-vxa-corpo></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;padding-top:10px;border-top:1px solid var(--border)">${peq('copiar','<i class="fas fa-copy"></i> Copiar o link')}${peq('mandar','<i class="fas fa-share-nodes"></i> Mandar o link para a equipe')}</div></div>`;
+    const j=J('Instalar o app da Vixsul',html,[],520);
+    caixa=j.querySelector('[data-vxa-caixa]');caixa.addEventListener('click',clique);
+    const volta=j._aoFechar;j._aoFechar=()=>{parar();if(volta)volta();};
+    desenhar();clearInterval(relogio);
+    relogio=setInterval(()=>{if(!caixa||!document.body.contains(caixa))return parar();if(!ios&&!(android&&outroApp)&&!window.__vxPedido&&!instalado())desenhar();},1000);
+  }
+  function instalar(){
+    try{if(window.UI&&UI._euMenu)UI._euMenu(false);}catch(e){}
+    // instalação já liberada (Android/computador): a pergunta do próprio aparelho aparece na hora — só falta tocar em Instalar
+    const ped=window.__vxPedido;
+    if(ped&&!instalado()&&!(android&&outroApp)){window.__vxPedido=null;try{ped.prompt();ped.userChoice.then(r=>{if(r&&r.outcome==='accepted'){window.__vxInstalado=true;ok('Instalando — o ícone da Vixsul vai aparecer na tela.');}else abrir();}).catch(()=>abrir());return;}catch(e){}}
+    abrir();
   }
   const mostrar=()=>document.querySelectorAll('[data-vx-app]').forEach(b=>{b.hidden=instalado();});
-  window.addEventListener('appinstalled',mostrar);
-  if(document.readyState!=='loading')mostrar();else document.addEventListener('DOMContentLoaded',mostrar);
-  return {instalar,instalado,mostrar,passos};
+  window.addEventListener('beforeinstallprompt',()=>setTimeout(desenhar,0));
+  window.addEventListener('appinstalled',()=>{window.__vxInstalado=true;mostrar();desenhar();});
+  // o link de instalação (…/?instalar=1) abre direto nesta janela (e o endereço volta a ficar limpo)
+  function inicio(){
+    mostrar();
+    if(/[?&]instalar=1(?:&|$)/.test(location.search)){try{history.replaceState(null,'',location.pathname+location.search.replace(/([?&])instalar=1(&|$)/,(m,a,b)=>b?a:'').replace(/^&/,'?').replace(/[?&]$/,'')+location.hash);}catch(e){}setTimeout(abrir,700);}
+  }
+  if(document.readyState!=='loading')inicio();else document.addEventListener('DOMContentLoaded',inicio);
+  return {instalar,abrir,instalado,mostrar,corpo,LINK};
 })();</script>
+<style>
+/* a seta que mostra o botão Compartilhar do Safari no iPhone (fica por cima de tudo, sem pegar o toque) */
+.vx-app-seta{position:fixed;left:50%;bottom:4px;transform:translateX(-50%);z-index:100000;display:flex;flex-direction:column;align-items:center;gap:2px;pointer-events:none;animation:vxSetaB 1.1s ease-in-out infinite}
+.vx-app-seta span{background:#1652D8;color:#fff;font:700 14px/1.2 system-ui,-apple-system,sans-serif;border-radius:999px;padding:7px 14px;box-shadow:0 4px 14px rgba(0,0,0,.28);white-space:nowrap}
+.vx-app-seta b{font-size:36px;line-height:1;color:#1652D8;text-shadow:0 0 6px #fff,0 0 2px #fff}
+.vx-app-seta.ipad{top:4px;bottom:auto;left:auto;right:18px;transform:none;animation-name:vxSetaC}
+@keyframes vxSetaB{0%,100%{translate:0 0}50%{translate:0 9px}}
+@keyframes vxSetaC{0%,100%{translate:0 0}50%{translate:0 -9px}}
+</style>
 
 <!-- ═══════════════ MODAL SENHA (esqueci / alterar) ═══════════════ -->
 <div class="pw-overlay" id="pw-overlay">

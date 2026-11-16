@@ -184,6 +184,7 @@ const ajuda = () => `<b>O que eu faço</b>
 /aprovar — as contas aguardando a sua aprovação
 /doc — documentos da empresa (certidões, FGTS, contrato social, cartão CNPJ…) e arquivos das obras. Ex.: <i>/doc fgts</i>
 /avisos — para onde vai cada aviso automático (quais conversas do Telegram e quais e-mails)
+/app — o link que instala o app da Vixsul no celular (para mandar à equipe)
 /lembretes — os seus lembretes (com botão para apagar)
 /lembrar — criar um lembrete. Exemplo: <i>/lembrar amanhã 9h pagar o aluguel</i>
 /relatorio — o relatório da semana passada (com PDF)
@@ -569,6 +570,7 @@ async function aoReceber(up) {
     case 'buscar': case 'busca': case 'procurar': return mandar(chat, textoBuscar(await dados(), arg, hj));
     case 'receber': case 'areceber': return mandar(chat, textoReceber(await dados(), hj));
     case 'avisos': case 'destinos': return mandar(chat, await textoAvisos(st));
+    case 'app': case 'instalar': return mandar(chat, `📲 <b>App da Vixsul</b>\nPara instalar no celular (ou no computador), abra este link — ele já abre na instalação:\n${SITE}/?instalar=1\n\nMande este link para a equipe. No Android é só tocar em <b>Instalar</b>; no iPhone a tela mostra os 3 toques no Safari (ou instala pelos Ajustes).`);
     case 'lembretes': { const x = textoLembretes(st, ctx); return mandar(chat, x.texto, x.teclado); }
     case 'relatorio': case 'relatório': case 'semana': { await enviarRelatorio([meu], await dados(), hj); return; }
     case 'caixa': return mandar(chat, textoCaixa(RL.caixa(await dados(), hj)));
@@ -728,12 +730,12 @@ async function tick() {
 }
 
 // ── ligar o robô: aponta o Telegram para esta função (webhook com senha) e cadastra os comandos ──
-const VERSAO_BOT = '5';   // mude quando a lista de comandos mudar: o robô se recadastra sozinho na próxima tarefa
+const VERSAO_BOT = '6';   // mude quando a lista de comandos mudar: o robô se recadastra sozinho na próxima tarefa
 async function ligarRobo(st) {
   let eu;
   try { eu = await tg('getMe', {}); } catch (e) { throw new Error(e.codigo === 401 || e.codigo === 404 ? 'A chave do robô na Vercel não foi aceita pelo Telegram — confira se foi copiada inteira.' : e.message); }
   await tg('setWebhook', { url: URL_WEBHOOK, secret_token: segredoWebhook(), allowed_updates: ['message', 'callback_query'], drop_pending_updates: true, max_connections: 10 });
-  await tg('setMyCommands', { commands: [['hoje', 'Resumo do dia'], ['conta', 'Lançar uma conta (obra, rateio ou empresa)'], ['pagar', 'Dar baixa numa conta'], ['aprovar', 'Contas aguardando aprovação'], ['recebi', 'Registrar o recebimento de uma nota'], ['nota', 'Buscar nota fiscal (PDF e XML)'], ['doc', 'Documentos da empresa e das obras'], ['tarefa', 'Nova tarefa'], ['concluir', 'Marcar tarefa como feita'], ['reuniao', 'Marcar reunião'], ['diesel', 'Diesel da retroescavadeira'], ['contas', 'Contas a pagar'], ['receber', 'O que falta receber'], ['buscar', 'Procurar nas contas'], ['fornecedor', 'Ficha de um fornecedor (com PIX)'], ['obra', 'Ficha de uma obra'], ['agenda', 'Reuniões e tarefas'], ['aportes', 'Aportes do mês e do ano'], ['obras', 'Números das obras'], ['avisos', 'Para onde vão os avisos automáticos'], ['lembretes', 'Meus lembretes'], ['lembrar', 'Criar um lembrete'], ['relatorio', 'Relatório da semana (PDF)'], ['caixa', 'Caixa dos próximos 15 dias'], ['cobrar', 'Notas paradas para cobrar'], ['fechamento', 'Fechamento do mês'], ['chuva', 'Chuva amanhã nas obras'], ['cancelar', 'Desistir do que está pela metade'], ['ajuda', 'O que o robô faz']].map(([command, description]) => ({ command, description })) }).catch(() => {});
+  await tg('setMyCommands', { commands: [['hoje', 'Resumo do dia'], ['conta', 'Lançar uma conta (obra, rateio ou empresa)'], ['pagar', 'Dar baixa numa conta'], ['aprovar', 'Contas aguardando aprovação'], ['recebi', 'Registrar o recebimento de uma nota'], ['nota', 'Buscar nota fiscal (PDF e XML)'], ['doc', 'Documentos da empresa e das obras'], ['tarefa', 'Nova tarefa'], ['concluir', 'Marcar tarefa como feita'], ['reuniao', 'Marcar reunião'], ['diesel', 'Diesel da retroescavadeira'], ['contas', 'Contas a pagar'], ['receber', 'O que falta receber'], ['buscar', 'Procurar nas contas'], ['fornecedor', 'Ficha de um fornecedor (com PIX)'], ['obra', 'Ficha de uma obra'], ['agenda', 'Reuniões e tarefas'], ['aportes', 'Aportes do mês e do ano'], ['obras', 'Números das obras'], ['avisos', 'Para onde vão os avisos automáticos'], ['app', 'Link para instalar o app no celular'], ['lembretes', 'Meus lembretes'], ['lembrar', 'Criar um lembrete'], ['relatorio', 'Relatório da semana (PDF)'], ['caixa', 'Caixa dos próximos 15 dias'], ['cobrar', 'Notas paradas para cobrar'], ['fechamento', 'Fechamento do mês'], ['chuva', 'Chuva amanhã nas obras'], ['cancelar', 'Desistir do que está pela metade'], ['ajuda', 'O que o robô faz']].map(([command, description]) => ({ command, description })) }).catch(() => {});
   await tg('setMyDescription', { description: 'Robô particular do sistema de gestão da Vixsul Empreendimentos: lança contas, dá baixa, busca notas, cria tarefas e reuniões, lê fotos de boletos e entende áudio.' }).catch(() => {});
   await gravarCfg(st, { bot: eu.username, bot_versao: VERSAO_BOT, bot_ligado_em: new Date().toISOString() });
 }

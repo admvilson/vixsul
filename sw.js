@@ -3,8 +3,8 @@
    mesmo sem sinal. Os DADOS nunca passam por aqui: o banco, os serviços (Vercel) e os sites do governo vão sempre pela
    internet — quem guarda a última carga dos dados e a fila do diário é o gas-shim.js. A página abre primeiro pela
    internet (pega a versão nova) e só usa a guardada quando não há conexão. Trocar VERSAO limpa o que estava guardado. */
-const VERSAO = 'vx-2026-11-16a';   // 16/11: ícone novo (só o símbolo da Vixsul)
-const BASE = ['./', 'index.html', 'manifest.webmanifest', 'img/logo-vixsul.png', 'img/icone-192.png', 'img/icone-512.png', 'img/icone-maskable-192.png', 'img/icone-maskable-512.png', 'img/apple-touch-icon.png', 'img/favicon-32.png', 'img/favicon-64.png'];
+const VERSAO = 'vx-2026-11-16b';   // 16/11: ícone novo (o símbolo da Vixsul num quadrado branco de cantos redondos)
+const BASE = ['./', 'index.html', 'manifest.webmanifest', 'img/logo-vixsul.png', 'img/vixsul-app-192.png', 'img/vixsul-app-512.png', 'img/vixsul-app-maskable-192.png', 'img/vixsul-app-maskable-512.png', 'img/vixsul-app-180.png', 'img/vixsul-favicon-32.png', 'img/vixsul-favicon-64.png'];
 self.addEventListener('install', e => {
   self.skipWaiting();
   e.waitUntil(caches.open(VERSAO).then(c => Promise.all(BASE.map(u => c.add(u).catch(() => null)))));
