@@ -3,7 +3,7 @@
    mesmo sem sinal. Os DADOS nunca passam por aqui: o banco, os serviços (Vercel) e os sites do governo vão sempre pela
    internet — quem guarda a última carga dos dados e a fila do diário é o gas-shim.js. A página abre primeiro pela
    internet (pega a versão nova) e só usa a guardada quando não há conexão. Trocar VERSAO limpa o que estava guardado. */
-const VERSAO = 'vx-2026-11-16b';   // 16/11: ícone novo (o símbolo da Vixsul num quadrado branco de cantos redondos)
+const VERSAO = 'vx-2026-11-16c';   // 16/11: manifesto e ícones primeiro pela internet (o ícone novo chega logo)
 const BASE = ['./', 'index.html', 'manifest.webmanifest', 'img/logo-vixsul.png', 'img/vixsul-app-192.png', 'img/vixsul-app-512.png', 'img/vixsul-app-maskable-192.png', 'img/vixsul-app-maskable-512.png', 'img/vixsul-app-180.png', 'img/vixsul-favicon-32.png', 'img/vixsul-favicon-64.png'];
 self.addEventListener('install', e => {
   self.skipWaiting();
@@ -24,6 +24,13 @@ self.addEventListener('fetch', e => {
   if (r.mode === 'navigate') {
     e.respondWith(fetch(r).then(resp => { if (resp && resp.ok) { const cp = resp.clone(); caches.open(VERSAO).then(c => c.put('index.html', cp)); } return resp; })
       .catch(() => caches.match(r).then(m => m || caches.match('index.html'))));
+    return;
+  }
+  // o manifesto e os ícones: primeiro a internet (o Chrome confere por eles se o app mudou — com a cópia guardada, o
+  // ícone novo nunca chegava ao atalho); sem conexão, o guardado
+  if (u.origin === self.location.origin && (/\/manifest\.webmanifest$/.test(u.pathname) || /\/img\//.test(u.pathname))) {
+    e.respondWith(fetch(r).then(resp => { if (resp && resp.ok) { const cp = resp.clone(); caches.open(VERSAO).then(c => c.put(r, cp)); } return resp; })
+      .catch(() => caches.match(r).then(m => m || Response.error())));
     return;
   }
   const mesmo = u.origin === self.location.origin, cdn = CDN.test(u.hostname);
