@@ -18,6 +18,32 @@ function _tokenAtual() { const t = _lerToken(); return t && t.token && t.exp > D
 // um cliente só: a cada pedido ele pega o passe atual (o renovado também) — sem passe, usa a chave pública
 const _sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { accessToken: async () => { const t = _tokenAtual(); return t ? t.token : null; } });
 function _usarToken(t) { try { _sb.realtime.setAuth(t ? t.token : null); } catch (e) { } }
+
+// ─── O QUE MUDOU DESDE A ÚLTIMA LEITURA ───────────────────────────────────────
+// Depois de salvar, o sistema relia as 18 tabelas inteiras (~2 MB, 1,5 a 3 s a cada clique). Agora toda gravação feita por
+// este cliente marca a tabela como "suja" e a recarga seguinte lê só as sujas (as outras são remontadas da última leitura,
+// sempre em objetos novos). Mudança de outra máquina/aba chega pelo tempo real e marca a tabela dela. Por segurança, a cada
+// 3 minutos (ou no botão Atualizar) a leitura é completa.
+const _sujas = new Set();
+const _minhas = new Map();   // 'tabela:id' → quando ESTE cliente alterou/excluiu a linha (o aviso do tempo real dela não recarrega de novo)
+{ const from0 = _sb.from.bind(_sb);
+  _sb.from = function (t) {
+    const q = from0(t);
+    ['insert', 'update', 'upsert', 'delete'].forEach(m => { const f = q[m]; if (typeof f === 'function') q[m] = function () { _sujas.add(t); return f.apply(q, arguments); }; });
+    return q;
+  }; }
+function _marcarMinha(chave, id) {
+  _sujas.add(chave); if (id == null || !(Number(id) > 0)) return;
+  _minhas.set(chave + ':' + Number(id), Date.now());
+  if (_minhas.size > 400) { const lim = Date.now() - 60000; for (const [k, t] of _minhas) if (t < lim) _minhas.delete(k); }
+}
+// o aviso do tempo real é de uma alteração feita aqui mesmo (nos últimos 20 s)? — cada alteração "gasta" um aviso só
+function _ehMinha(chave, payload) {
+  if (!payload || payload.eventType === 'INSERT') return false;
+  const r = (payload.new && payload.new.id != null ? payload.new : payload.old) || {}, k = chave + ':' + Number(r.id), t = _minhas.get(k);
+  if (t && Date.now() - t < 20000) { _minhas.delete(k); return true; }
+  return false;
+}
 function _guardarToken(r) { const t = { token: r.token, exp: r.exp }; try { sessionStorage.setItem(_TOK_KEY, JSON.stringify(t)); } catch (e) { } _usarToken(t); try { localStorage.setItem('vx_seg', '1'); } catch (e) { } }
 function _segLigada() { try { return localStorage.getItem('vx_seg') === '1'; } catch (e) { return false; } }
 // sessão vencida (ou do modo antigo depois que a segurança foi ligada): volta para a tela de login
@@ -105,18 +131,41 @@ async function _lerTabela(chave) {
   }
 }
 
+// a última resposta do banco de cada tabela (nunca vai para a tela: cada carga monta objetos novos a partir dela),
+// de quem ela é (troca de usuário = leitura completa) e quando cada tabela foi lida (uma leitura mais antiga que termina
+// depois não passa por cima de uma mais nova)
+const _cru = {}, _lidaEm = {};
+let _cruDono = null, _completaEm = 0;
+const _clonar = v => { try { return structuredClone(v); } catch (e) { return JSON.parse(JSON.stringify(v)); } };
 async function _getSistemaData() {
   const pacote = { obras:[], custos:[], faturamentos:[], aportes:[], cap:[], metadata:{}, lixeira:{} };
+  const dono = _euId(_sessaoAtual());
+  if (dono !== _cruDono) { _CHAVES.forEach(c => { delete _cru[c]; delete _lidaEm[c]; }); _cruDono = dono; _completaEm = 0; }
+  // só as tabelas do carregamento contam (arquivos, usuários… não vêm aqui); nada sujo = leitura completa (botão Atualizar)
+  [..._sujas].forEach(c => { if (!_CHAVES.includes(c)) _sujas.delete(c); });
+  const parcial = _CHAVES.every(c => _cru[c]) && _sujas.size > 0 && Date.now() - _completaEm < 180000;
+  const ler = parcial ? _CHAVES.filter(c => _sujas.has(c)) : _CHAVES.slice();
+  const inicio = Date.now();
+  ler.forEach(c => _sujas.delete(c));
 
   // Busca as tabelas em paralelo (antes era uma de cada vez, em sequência —
   // isso sozinho já multiplicava o tempo de qualquer atualização/sincronização).
-  const resultados = await Promise.all(_CHAVES.map(_lerTabela));
+  let resultados;
+  try { resultados = await Promise.all(ler.map(_lerTabela)); }
+  catch (e) { ler.forEach(c => _sujas.add(c)); throw e; }
 
   // passe vencido (ou sessão do modo antigo depois que a segurança foi ligada): volta para o login
   if ((_segLigada() && !_tokenAtual()) || resultados.some(r => r.error && /jwt|token/i.test(String(r.error.message || '')))) { _encerrarSessao(true); return pacote; }
-  _CHAVES.forEach((chave, idx) => {
-    const { data, error } = resultados[idx];
-    if (error || !data || data.length === 0) {
+  // guarda o que veio (só se esta leitura é mais nova que a guardada); erro de rede: a tabela continua "suja"
+  ler.forEach((chave, idx) => {
+    const r = resultados[idx];
+    if (r.error && !/does not exist|Could not find|PGRST20[05]|schema cache|42P01/i.test(String(r.error.message || ''))) { _sujas.add(chave); if (!_cru[chave]) _cru[chave] = { data: [] }; return; }
+    if (!(_lidaEm[chave] > inicio)) { _cru[chave] = { data: r.error ? [] : (r.data || []) }; _lidaEm[chave] = inicio; }
+  });
+  if (!parcial) _completaEm = inicio;
+  _CHAVES.forEach((chave) => {
+    const data = _clonar((_cru[chave] || { data: [] }).data);
+    if (!data || data.length === 0) {
       pacote[chave] = []; pacote.metadata[chave] = []; pacote.lixeira[chave] = []; return;
     }
 
@@ -132,6 +181,9 @@ async function _getSistemaData() {
     pacote.lixeira[chave] = todos.filter(r => r._lixeira_em);
   });
   _filtrarPorObras(pacote);
+  // carimbo: a hora em que esta carga ficou pronta (a tela não troca uma carga mais nova por uma mais velha). Fica fora da
+  // lista de chaves (não enumerável) para não atrapalhar quem percorre as tabelas do pacote.
+  try { Object.defineProperty(pacote, '_carga', { value: Date.now(), enumerable: false }); } catch (e) { }
   return pacote;
 }
 
@@ -192,13 +244,22 @@ async function _manterDono(chave, rowId, rowData) {
 }
 const _MSG_DONO = 'Só quem lançou (ou um Administrador) pode excluir.';
 
+// Inclusão que pode chegar duas vezes (fila do sem-internet reenviada; resposta que se perdeu depois de o banco gravar): o
+// registro leva uma marca única (_ins_uid) e, se já existe uma linha com ela, a gravação vira atualização dessa linha.
+async function _jaGravado(chave, rowData) {
+  const u = rowData && rowData._ins_uid; if (!u) return null;
+  try { const { data } = await _sb.from(chave).select('id').eq('row_data->>_ins_uid', String(u)).limit(1); return data && data[0] ? data[0].id : null; }
+  catch (e) { return null; }
+}
+
 async function _upsertRegistro(abaNome, dados, rowId) {
   const chave = _NOME_PARA_CHAVE[abaNome] || abaNome.toLowerCase();
   const { rowid, visualId, _aba, ...rowData } = dados;
 
   let error;
+  if (!(rowId && Number(rowId) > 0)) { const ja = await _jaGravado(chave, rowData); if (ja) rowId = ja; }
   if (rowId && Number(rowId) > 0) {
-    ({ error } = await _sb.from(chave).update({ row_data: await _manterDono(chave, rowId, rowData) }).eq('id', Number(rowId)));
+    _marcarMinha(chave, rowId); ({ error } = await _sb.from(chave).update({ row_data: await _manterDono(chave, rowId, rowData) }).eq('id', Number(rowId)));
   } else {
     ({ error } = await _sb.from(chave).insert({ row_data: _carimbar(rowData) }));
   }
@@ -212,7 +273,7 @@ async function _excluirRegistro(abaNome, rowId) {
   if (!rowId || Number(rowId) <= 0) return { ok: false, msg: 'Registro inválido.' };
   const chave = _NOME_PARA_CHAVE[abaNome] || abaNome.toLowerCase();
   if (!(await _donoPermite(chave, rowId))) return { ok: false, msg: _MSG_DONO };
-  const { error } = await _sb.from(chave).delete().eq('id', Number(rowId));
+  _marcarMinha(chave, rowId); const { error } = await _sb.from(chave).delete().eq('id', Number(rowId));
   if (error) return { ok: false, msg: error.message };
   const data = await _getSistemaData();
   return { ok: true, data };
@@ -228,10 +289,11 @@ async function _upsertRegistroLote(abaNome, dados, rowId) {
   const chave = _NOME_PARA_CHAVE[abaNome] || abaNome.toLowerCase();
   const { rowid, visualId, _aba, ...rowData } = dados;
   let error;
+  if (!(rowId && Number(rowId) > 0)) { const ja = await _jaGravado(chave, rowData); if (ja) rowId = ja; }
   if (rowId && Number(rowId) > 0) {
     // desenho já no Storage: a tela devolve o conteúdo remontado — não grava de novo no banco
     if (chave === 'arquivos' && rowData.conteudo_st && /^data:/.test(rowData.conteudo || '')) rowData.conteudo = '';
-    ({ error } = await _sb.from(chave).update({ row_data: await _manterDono(chave, rowId, rowData) }).eq('id', Number(rowId)));
+    _marcarMinha(chave, rowId); ({ error } = await _sb.from(chave).update({ row_data: await _manterDono(chave, rowId, rowData) }).eq('id', Number(rowId)));
   } else {
     // conteúdo pesado (parte de anexo, desenho do projeto) vai para o Storage; o banco fica só com o cabeçalho
     if (chave === 'arquivos' && (await _arquivoParaStorage(rowData)) === 'ok') return { ok: true };
@@ -356,7 +418,7 @@ async function _excluirRegistroLote(abaNome, rowId) {
   if (!(await _donoPermite(chave, rowId))) return { ok: false, msg: _MSG_DONO };
   let st = '';
   if (chave === 'arquivos') { try { const { data: r0 } = await _sb.from('arquivos').select('st:row_data->>conteudo_st').eq('id', Number(rowId)).maybeSingle(); st = (r0 && r0.st) || ''; } catch (e) { } }
-  const { error } = await _sb.from(chave).delete().eq('id', Number(rowId));
+  _marcarMinha(chave, rowId); const { error } = await _sb.from(chave).delete().eq('id', Number(rowId));
   if (error) return { ok: false, msg: error.message };
   if (st) await _stApagar([st]);
   return { ok: true };
@@ -386,7 +448,7 @@ async function _marcarLixeira(abaNome, rowId, marca) {
     _lixeira_lote: String(m._lixeira_lote || ''),
     _lixeira_por: String(m._lixeira_por || '')
   });
-  const { error } = await _sb.from(chave).update({ row_data: novo }).eq('id', Number(rowId));
+  _marcarMinha(chave, rowId); const { error } = await _sb.from(chave).update({ row_data: novo }).eq('id', Number(rowId));
   if (error) return { ok: false, msg: error.message };
   return { ok: true };
 }
@@ -399,7 +461,7 @@ async function _tirarLixeira(abaNome, rowId) {
   if (!data) return { ok: false, msg: 'Este item já não existe.' };
   const rd = Object.assign({}, data.row_data || {});
   Object.keys(rd).forEach(k => { if (k.indexOf('_lixeira_') === 0) delete rd[k]; });
-  const { error } = await _sb.from(chave).update({ row_data: rd }).eq('id', Number(rowId));
+  _marcarMinha(chave, rowId); const { error } = await _sb.from(chave).update({ row_data: rd }).eq('id', Number(rowId));
   if (error) return { ok: false, msg: error.message };
   return { ok: true };
 }
@@ -860,7 +922,7 @@ async function _redefinirSenhaPorEmail(email, senhaNova, ticket) {
 function subscribeRealtime(onChange) {
   const canal = _sb.channel('vixsul-mudancas');
   _CHAVES.filter(c => !_CHAVES_ENG.includes(c)).forEach((chave) => {
-    canal.on('postgres_changes', { event: '*', schema: 'public', table: chave }, () => onChange(chave));
+    canal.on('postgres_changes', { event: '*', schema: 'public', table: chave }, p => { if (_ehMinha(chave, p)) return; _sujas.add(chave); onChange(chave); });
   });
   canal.subscribe();
   // Canal separado para as tabelas de engenharia: se o SQL delas ainda não rodou (ou a
@@ -869,7 +931,7 @@ function subscribeRealtime(onChange) {
   try {
     const canalEng = _sb.channel('vixsul-engenharia');
     _CHAVES_ENG.forEach((chave) => {
-      canalEng.on('postgres_changes', { event: '*', schema: 'public', table: chave }, () => onChange(chave));
+      canalEng.on('postgres_changes', { event: '*', schema: 'public', table: chave }, p => { if (_ehMinha(chave, p)) return; _sujas.add(chave); onChange(chave); });
     });
     canalEng.subscribe();
   } catch (e) { console.warn('Tempo real das tabelas de engenharia indisponível:', e); }
@@ -993,15 +1055,26 @@ window.google = {
     ORIG[nome] = _FNS[nome];
     _FNS[nome] = async (aba, dados, rowId) => {
       const pode = OFF_ABAS.includes(aba);
+      // inclusão do diário / fotos: a marca única vai ANTES da 1ª tentativa — se a resposta se perder e o registro cair na
+      // fila, o reenvio acha a linha já gravada e só atualiza (não duplica). As partes do anexo vão para o Storage pelo
+      // caminho (gravar de novo no mesmo caminho não duplica) e ficam sem a marca.
+      if (pode && dados && !(rowId && Number(rowId) > 0) && dados.tipo !== 'anexo_parte' && !dados._ins_uid)
+        dados = Object.assign({}, dados, { _ins_uid: 'i' + Date.now().toString(36) + Math.random().toString(36).slice(2, 10) });
       if (pode && !navigator.onLine) return enfileirar(nome, aba, dados, rowId);
       if (pode && rowId && String(rowId).indexOf('off-') === 0) return enfileirar(nome, aba, dados, rowId);
       try { const r = await ORIG[nome](aba, dados, rowId); if (pode && r && r.ok === false && semRede(r.msg)) return enfileirar(nome, aba, dados, rowId); return r; }
       catch (e) { if (pode && semRede(e && e.message)) return enfileirar(nome, aba, dados, rowId); throw e; }
     };
   });
-  // a internet voltou: manda a fila, na ordem
+  // a internet voltou: manda a fila, na ordem. Uma aba de cada vez: com o sistema aberto em duas abas (ou o app instalado e o
+  // navegador), as duas mandavam a mesma fila ao mesmo tempo — o diário entrava em dobro.
   let enviando = false;
-  async function enviarFila() {
+  function enviarFila() {
+    if (enviando || !navigator.onLine) return Promise.resolve();
+    if (navigator.locks && navigator.locks.request) return navigator.locks.request('vx-fila-offline', { ifAvailable: true }, lock => lock ? enviarFila1() : null).catch(() => { });
+    return enviarFila1();
+  }
+  async function enviarFila1() {
     if (enviando || !navigator.onLine) return; let L; try { L = (await filaTodas()) || []; } catch (e) { return; } if (!L.length) { contar(); return; }
     enviando = true; nFila = L.length; faixa(); let n = 0; const falhas = [];
     try {

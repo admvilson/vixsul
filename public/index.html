@@ -696,7 +696,7 @@ input[type=checkbox]:disabled{opacity:.45;cursor:not-allowed;}
     html:not([data-authed="1"]) #app-shell{display:none;}
     #app-shell.hidden{display:none!important;}
   </style>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0/dist/umd/supabase.js" integrity="sha384-TcHRA3zBbn+Lexh5n+Oil4guNPOS3rjNDpGRAN46u/s/mB2IZ50ceC6TYDU2yvgK" crossorigin="anonymous"></script><script src="gas-shim.js?v=20261114a"></script><script src="espera.js?v=20261110a"></script><script src="https://accounts.google.com/gsi/client" async defer></script></head>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0/dist/umd/supabase.js" integrity="sha384-TcHRA3zBbn+Lexh5n+Oil4guNPOS3rjNDpGRAN46u/s/mB2IZ50ceC6TYDU2yvgK" crossorigin="anonymous"></script><script src="gas-shim.js?v=20261117a"></script><script src="espera.js?v=20261110a"></script><script src="https://accounts.google.com/gsi/client" async defer></script></head>
 <body>
 <div class="toast" id="toast"><span id="toast-icon"></span><span id="toast-msg">—</span></div>
 
@@ -1807,6 +1807,14 @@ const App={
     if(!silent)btn.classList.add('loading');
     google.script.run
       .withSuccessHandler(res=>{
+        /* uma carga MAIS VELHA nunca passa por cima da que já está na tela: cada carga vem carimbada com a hora em que ficou
+           pronta (gas-shim, _carga). Antes, com duas recargas ao mesmo tempo (a do Salvar e a do aviso de outra máquina), a
+           mais antiga às vezes chegava por último e a tela voltava sem o que acabou de ser salvo — parecia que não tinha
+           gravado e a pessoa salvava de novo (lançamento em dobro). A cópia guardada no aparelho (sem internet) não tem
+           carimbo: só entra se a tela ainda está vazia. */
+        const carga=(res&&res._carga)||0,ja=this._cargaAplicada||0;
+        if(ja&&this.state.data&&carga<ja){if(!silent)btn.classList.remove('loading');if(onDone)onDone();return;}
+        if(carga)this._cargaAplicada=carga;
         this.state.data=res;this.renderAll();this._refreshDetailsIfOpen&&this._refreshDetailsIfOpen();
         if(!silent)btn.classList.remove('loading');
         lucide.createIcons();
@@ -11083,6 +11091,11 @@ const Fin=(function(){
   const txtDif=d=>`${d>0?'+':'−'} ${fmt(Math.abs(d))}`;
   const CAMPOS_AJUSTE={valor_original:'',valor_ajustado:'',valor_diferenca:'',p_unit_original:'',liq_esperado:''};
   // o Desfazer volta o valor lançado e apaga o registro do ajuste
+  /* a coluna do desconto da antecipação: "antecipacao_nf…" sem ser a da data (nas planilhas antigas: antecipacao_nf_237 e
+     antecipacao_nf_data — o kRow pegava a primeira que contém o nome, que podia ser a da data) */
+  const kAntec=r=>Object.keys(r||{}).find(k=>/^antecipacao_nf/.test(k)&&!/data/.test(k))||col('faturamentos',['antecipacao_nf'],'antecipacao_nf');
+  // desfazer o recebimento de uma nota antecipada: o desconto e o líquido voltam a ser os de antes da baixa
+  function voltarAntecipacao(o,r){const a=r&&r.antec_antes;if(a&&typeof a==='object'){o[kAntec(r)]=a.a;o[kRow(r,['faturamento_liquido','liquido'],'faturamento_liquido')]=a.l;}if(r&&r.antec_antes!=null)o.antec_antes='';}
   function voltarAjuste(o,m){const r=m.r;if(!ajusteDe(r))return;
     if(m.tipo==='custo'){o[kRow(r,['p_total','ptotal'],'p_total')]=r.valor_original;if(r.p_unit_original)o[kRow(r,['p_unit','punit'],'p_unit')]=r.p_unit_original;}
     else if(m.tipo==='despesa')o[kRow(r,['valor'],'valor')]=r.valor_original;
@@ -11283,9 +11296,10 @@ const Fin=(function(){
     else if(m.tipo==='fat'){obj[m.kTipo]='Real';obj[m.kRec]=dataISO;if(r.antecipada==='sim')obj.antec_recebida='sim';if(extra.nf)obj[kRow(r,['n_nf'],'n_nf')]=extra.nf;
       // antecipada (Avançar Fornecedores): o desconto que vale é o que a EMBASA realmente descontou = líquido da nota − depósito
       let ajustou=false;
-      if(r.antecipada==='sim'&&extra.valor>0){const k=(kw,fb)=>kRow(r,kw,fb),kB=k(['faturamento_bruto','bruto'],'faturamento_bruto'),kA=k(['antecipacao_nf'],'antecipacao_nf'),kL=k(['faturamento_liquido','liquido'],'faturamento_liquido');
+      if(r.antecipada==='sim'&&extra.valor>0){const k=(kw,fb)=>kRow(r,kw,fb),kB=k(['faturamento_bruto','bruto'],'faturamento_bruto'),kA=kAntec(r),kL=k(['faturamento_liquido','liquido'],'faturamento_liquido');
         const vf=val(r[kB])-val(r[k(['imposto_inss','inss'],'imposto_inss')])-val(r[k(['imposto_irpf','irpf'],'imposto_irpf')])-val(r.iss_retido)-val(r[k(['seguro_contrato','seguro'],'seguro_contrato')]),desc=Math.round((vf-extra.valor)*100)/100;
-        if(desc>=0&&desc<vf){obj[kA]=dinheiro(desc);obj[kL]=dinheiro(vf-desc);obj.antec_depositado=dinheiro(extra.valor);ajustou=true;}}
+        // o desconto e o líquido de antes ficam guardados: o Desfazer volta exatamente como estava
+        if(desc>=0&&desc<vf){if(!r.antec_antes)obj.antec_antes={a:String(r[kA]==null?'':r[kA]),l:String(r[kL]==null?'':r[kL])};obj[kA]=dinheiro(desc);obj[kL]=dinheiro(vf-desc);obj.antec_depositado=dinheiro(extra.valor);ajustou=true;}}
       // recebimento registrado na Conciliação: o líquido da nota passa a ser o que entrou no banco (o esperado fica guardado para o Desfazer)
       if(!ajustou&&extra.ajustar&&extra.valor>0&&Math.abs(extra.valor-m.valor)>=0.01){obj.liq_esperado=dinheiro(m.valor);obj[kRow(r,['faturamento_liquido','liquido'],'faturamento_liquido')]=dinheiro(extra.valor);}}
     // associação com valor diferente: o lançamento passa a ter o valor do banco e ficam registrados o lançado, o ajustado e a diferença
@@ -11336,7 +11350,11 @@ const Fin=(function(){
   function janela(titulo,corpo,botoes,larg){
     // o X do cabeçalho já fecha a janela: botão que só cancela/fecha (sem ação) não aparece
     botoes=(botoes||[]).filter(b=>b.acao||!/^(cancelar|fechar|agora não|não|voltar)$/i.test(String(b.html||"").replace(/<[^>]+>/g,"").trim()));
-    const ov=document.getElementById('fin-ov'),j=document.getElementById('fin-jan');
+    const ov=document.getElementById('fin-ov');let j=document.getElementById('fin-jan');
+    /* cada janela começa num elemento NOVO: o que uma janela anterior pendurou com addEventListener no #fin-jan (clique para
+       lançar a nota recebida, excluir, mandar o teste do aviso…) ficava preso nele e se acumulava — abrindo a mesma janela de
+       novo, um clique disparava a ação duas, três vezes (lançamento em dobro). O clone leva só os atributos, sem os ouvintes. */
+    {const novo=j.cloneNode(false);novo.removeAttribute('style');j.replaceWith(novo);j=novo;}
     j.style.maxWidth=(larg||520)+'px';
     j.onchange=null;j.oninput=null;j._aoFechar=null;
     j.innerHTML=`<div class="fin-jan-cab"><b>${fe(titulo)}</b><button type="button" class="fin-x" data-fin-fechar aria-label="Fechar" title="Fechar"><i class="fas fa-xmark" aria-hidden="true"></i></button></div>
@@ -12290,13 +12308,15 @@ const Fin=(function(){
               obs:[obsRat,socio?`Paga por ${quem} (aporte)`:'','Lançada pela conciliação bancária'].filter(Boolean).join(' · '),qtd:'',fator:'',pUnit:'',lanc:'',compra:'cb'+T0+'_'+i,dataCompra:p.t.compra?isoDeBR(p.t.compra):iso};
             if(rid)u.rateio=rid;
             if(parc)u.grupo='gp'+T0+'_'+i+'_'+pi;
-            C.finalizarConta(u);C.montarConta(u,null).forEach(op=>{Object.assign(op.dados,{conciliacao:p.t.id,conciliacao_baixa:p.t.id,extrato_desc:p.t.desc});ops.push(op);});
+            // conc_origem: a conta nasceu desta linha (o Desfazer da Conciliação a tira, em vez de deixá-la "em aberto")
+            C.finalizarConta(u);C.montarConta(u,null).forEach(op=>{Object.assign(op.dados,{conciliacao:p.t.id,conciliacao_baixa:p.t.id,extrato_desc:p.t.desc,conc_origem:p.t.id});ops.push(op);});
             // compra parcelada: as próximas parcelas ficam a pagar, uma por mês; no mês seguinte é só associar
-            if(parc){const fut=parcelasFuturas({...u,obsBase:[obsRat,socio?`Será paga por ${quem} (aporte)`:''].filter(Boolean).join(' · ')},x.desc,x.pn,x.pt,iso,{extrato_desc:p.t.desc,...(socio?{pago_por_socio:quem}:{})});nFut+=fut.length;ops.push(...fut);}
-            if(socio){const k=dd.obra+'|'+iso.slice(0,7),a=aps[k]=aps[k]||{obra:dd.obra,valor:0,data:iso};a.valor+=dd.valor;if(iso>a.data)a.data=iso;}});});
+            if(parc){const fut=parcelasFuturas({...u,obsBase:[obsRat,socio?`Será paga por ${quem} (aporte)`:''].filter(Boolean).join(' · ')},x.desc,x.pn,x.pt,iso,{extrato_desc:p.t.desc,conc_origem_fut:p.t.id,...(socio?{pago_por_socio:quem}:{})});nFut+=fut.length;ops.push(...fut);}
+            // o aporte do sócio fica ligado às linhas do banco que o formaram (o Desfazer tira dele só a parte daquela linha)
+            if(socio){const k=dd.obra+'|'+iso.slice(0,7),a=aps[k]=aps[k]||{obra:dd.obra,valor:0,data:iso,ids:new Set()};a.valor+=dd.valor;a.ids.add(p.t.id);if(iso>a.data)a.data=iso;}});});
         // aporte do sócio: soma no lançamento do mês dele em cada obra (ou Empresa)
         const forns=[...new Set(its.map(x=>x.forn).filter(Boolean))],formas=[...new Set(its.map(x=>x.forma).filter(Boolean))];
-        const regsAp=Object.values(aps).map(a=>({obra:a.obra,quem,data:a.data,valor:Math.round(a.valor*100)/100,forma:formas.length===1?formas[0]:formas.length?'Várias':'',formas,origem:'contas',
+        const regsAp=Object.values(aps).map(a=>({obra:a.obra,quem,data:a.data,valor:Math.round(a.valor*100)/100,forma:formas.length===1?formas[0]:formas.length?'Várias':'',formas,origem:'contas',conc:[...a.ids].join(','),
           obs:`Pagou ${forns.slice(0,4).join(', ')||'contas'}${forns.length>4?' e outros':''} (${its.length} saída${its.length>1?'s':''} do extrato, lançadas em Contas a pagar)`}));
         // fornecedores novos entram no cadastro; descrições novas entram em Categoria › Descrição
         const podeF=!UI._allowedViews||UI._allowedViews.includes('fornecedores');
@@ -12335,9 +12355,19 @@ const Fin=(function(){
   /* Desfaz o que uma linha do extrato fez. Só volta para "em aberto" o que a PRÓPRIA
      conciliação baixou (conciliacao_baixa); o que já estava pago e só foi ligado ao
      extrato apenas se solta. */
+  /* a conta NASCEU desta linha do banco (Registrar saída / Lançar marcados): o Desfazer a tira (Lixeira) em vez de deixá-la
+     "em aberto" — senão ficava em Contas a pagar uma conta que nunca existiu. As novas levam conc_origem; as antigas são
+     reconhecidas pela observação "Lançada pela conciliação bancária", sem o tipo_antes_conc (que só a baixa de uma conta
+     que já existia grava) e ligadas só a esta linha. */
+  const nasceuDaLinha=(r,id)=>{if(r.conc_origem)return String(r.conc_origem)===String(id);
+    return /Lançada pela conciliação bancária/.test(String(getFuzzy(r,['observacao','obs'])||''))&&!Object.prototype.hasOwnProperty.call(r,'tipo_antes_conc')&&idsDe(r.conciliacao_baixa).length===1&&temId(r.conciliacao_baixa,id);};
+  // as parcelas futuras que a mesma saída criou (compra parcelada no cartão) e que ainda estão a pagar, sem ligação com o banco
+  const futurasDaLinha=(criadas,id)=>movimentos().filter(m=>(m.tipo==='custo'||m.tipo==='despesa')&&!m.pago&&!String(m.r.conciliacao||'').trim()&&
+    (m.r.conc_origem_fut?String(m.r.conc_origem_fut)===String(id):criadas.some(c=>c.tipo===m.tipo&&c.r.compra_id&&m.r.compra_id===c.r.compra_id&&String(m.r.extrato_desc||'')===String(c.r.extrato_desc||'')&&String(m.r.rowid)!==String(c.r.rowid)&&/Parcela lançada pela conciliação bancária/.test(String(getFuzzy(m.r,['observacao','obs'])||'')))));
   function desfazer(p){
     const alvos=p.alvos||[],id=p.t.id,v=Math.abs(p.t.valor),K=KAporte(),entrada=p.t.valor>0;
     const baixados=alvos.filter(m=>temId(m.r.conciliacao_baixa,id)),dosSocios=baixados.filter(m=>m.tipo==='aporte'||m.tipo==='retirada'),nContas=baixados.length-dosSocios.length;
+    const criadas=baixados.filter(m=>(m.tipo==='custo'||m.tipo==='despesa')&&nasceuDaLinha(m.r,id)),ehCriada=m=>criadas.includes(m),futuras=futurasDaLinha(criadas,id);
     /* quanto cada aporte perde: no depósito do sócio (entrada), o valor do banco; no que o sócio pagou (saída), só a parte das
        contas daquela obra e mês que voltam para "em aberto" — numa saída rateada entre 3 obras, antes cada obra perdia o valor
        inteiro do banco */
@@ -12345,21 +12375,31 @@ const Fin=(function(){
     const parteAp=m=>{if(!temId(m.r.conciliacao_baixa,id))return 0;if(entrada){const cp=m.r.conc_partes&&m.r.conc_partes[id];return Math.min(cp!=null?+cp:v,m.valor);}
       const k=chaveAp(m.r[K.quem]||m.quem,m.r[K.obra]||'Empresa',mesDoAporte(m.r,K));return Math.round(partesC.filter(c=>chaveAp(c.quem,c.obra,c.data.slice(0,7))===k).reduce((s,c)=>s+c.valor,0)*100)/100;};
     const aps=dosSocios.filter(m=>m.tipo==='aporte'),efeitos=[];
-    if(nContas)efeitos.push(`${nContas} lançamento(s) voltam para "em aberto" (sem data de pagamento/recebimento)`);
-    if(baixados.some(m=>ajusteDe(m.r)))efeitos.push('o valor lançado volta a valer');
+    // a parte do sócio das contas que não está num aporte ligado a esta linha (contas lançadas pela conciliação antes de o aporte
+    // levar a ligação com o banco): sai do aporte do mês pelo mesmo caminho da conta que vai para a Lixeira
+    const cobertas=new Set(aps.filter(m=>temId(m.r.conciliacao_baixa,id)).map(m=>chaveAp(m.r[K.quem]||m.quem,m.r[K.obra]||'Empresa',mesDoAporte(m.r,K))));
+    const semAporte=entrada?[]:partesC.filter(c=>!cobertas.has(chaveAp(c.quem,c.obra,c.data.slice(0,7))));
+    const nVoltam=nContas-criadas.length;
+    if(nVoltam>0)efeitos.push(`${nVoltam} lançamento(s) voltam para "em aberto" (sem data de pagamento/recebimento)`);
+    if(criadas.length)efeitos.push(`${criadas.length===1?'a conta lançada por esta linha vai':`as ${criadas.length} contas lançadas por esta linha vão`} para a Lixeira${futuras.length?` — com ${futuras.length===1?'a parcela futura':`as ${futuras.length} parcelas futuras`} da mesma compra`:''}`);
+    if(baixados.some(m=>!ehCriada(m)&&ajusteDe(m.r)))efeitos.push('o valor lançado volta a valer');
     dosSocios.forEach(m=>{if(m.tipo==='retirada')return efeitos.push(`o lançamento "${fe(m.desc)}" de ${fmt(m.valor)} é excluído`);
       const x=parteAp(m);if(x>0.004)efeitos.push(`${fmt(x)} sai do aporte de ${fe(m.quem)} deste período${aps.length>1?' ('+fe(m.r[K.obra]||'Empresa')+')':''}`);});
+    {const por={};semAporte.forEach(c=>{por[c.quem]=(por[c.quem]||0)+c.valor;});Object.entries(por).forEach(([q,x])=>efeitos.push(`${fmt(x)} sai do aporte de ${fe(q)}`));}
     const efeito=efeitos.length?efeitos.join('; '):'Só a ligação com o extrato é desfeita — os lançamentos continuam pagos';
     const partesJuntas=alvos.filter(m=>m.tipo==='fat'&&temId(m.r.conciliacao_baixa,id)).reduce((n,m)=>n+idsDe(m.r.conciliacao_baixa).filter(i=>i!==id).length,0);
     confirmar('Desfazer conciliação?',`${efeito}. A linha de ${fmt(p.t.valor)} de ${fe(p.t.data)} volta para a conferência.${partesJuntas?`<br><br>Esta nota foi recebida em partes: ${partesJuntas===1?'a outra linha do banco também volta':`as outras ${partesJuntas} linhas do banco também voltam`} para a conferência.`:''}`,'Sim, desfazer',async()=>{
       // a devolução é pela obra: o que o sócio já recebeu de volta nela não pode ficar maior do que o aporte que sobra
       for(const m of aps)if(GS.socios&&GS.socios.saldoObra){const x=parteAp(m);if(!(x>0.004))continue;const s=GS.socios.saldoObra(m.r[K.quem]||m.quem,m.r[K.obra]||'Empresa');
         if(s.dev>s.ap-x+0.004)throw new Error(`Nesta obra o sócio já recebeu de volta ${fmt(s.dev)} — sem este valor, o aporte dele ficaria menor que isso. Exclua ou ajuste a devolução antes.`);}
+      if(semAporte.length)AporteConta.conferir(semAporte);
       await executar(async()=>{
         for(const m of alvos){
           // aporte: o valor que sai e a ligação com esta linha vão pela fila (uma gravação por lançamento do mês, no fim)
           if(m.tipo==='aporte'){await tirarDoAporte({rowid:m.r.rowid,quem:m.r[K.quem]||m.quem,obra:m.r[K.obra]||'Empresa',data:(mesDoAporte(m.r,K)||isoDe(hoje0()).slice(0,7))+'-01',valor:parteAp(m),soltar:id,obsTirar:entrada&&temId(m.r.conciliacao_baixa,id)?obsDoExtrato(p.t):'',lixeira:entrada});continue;}
           const o={...m.r,conciliacao:tirarId(m.r.conciliacao,id)},aba=m.r._aba||ABA[m.tipo];
+          // a conta nasceu desta linha: vai para a Lixeira (no mesmo lote — o Restaurar traz tudo junto)
+          if(ehCriada(m)){await excluir(aba,m.r.rowid);continue;}
           if(temId(m.r.conciliacao_baixa,id)){
             o.conciliacao_baixa=tirarId(m.r.conciliacao_baixa,id);
             // a retirada nasceu desta linha do banco: sai junto
@@ -12372,9 +12412,12 @@ const Fin=(function(){
               // nota recebida em partes (várias linhas do banco): desfazer uma parte solta todas — a nota volta a "a receber"
               idsDe(m.r.conciliacao_baixa).filter(i=>i!==id).forEach(i=>{o.conciliacao=tirarId(o.conciliacao,i);o.conciliacao_baixa=tirarId(o.conciliacao_baixa,i);});}
             voltarAjuste(o,m);
+            if(m.tipo==='fat')voltarAntecipacao(o,m.r);
           }
           await salvar(aba,o,m.r.rowid);
         }
+        for(const f of futuras)await excluir(f.r._aba||ABA[f.tipo],f.r.rowid);
+        for(const c of semAporte)await tirarDoAporte({...c,obs:`Saiu ${fmt(c.valor)}: ${c.forn?'conta de '+c.forn:'conta'} — conciliação desfeita`});
       });
       toast('Conciliação desfeita — a linha voltou para a conferência.','success');
     });
@@ -12386,7 +12429,7 @@ const Fin=(function(){
   }
   return {renderContas,renderConciliacao,aoAtualizar,movimentos,prazoReceb,lerSaldo,somarAporte,aporteConta:AporteConta,parcelasFuturas,_conciliar:conciliar,_lerOFX:lerOFX,_lerCSV:lerCSVExtrato,_pdfParaCsv:pdfParaCsv,_lerLinhasPdf:lerLinhasPdf,
     // utilitários compartilhados com os módulos de engenharia (Eng)
-    util:{janela,confirmar,executar,salvar,excluir,excluirDeVez,formasAporte:formasReg,juntarFormas,simNao,simNaoValor,simNaoLigar,fe,cn,dt,brDe,isoDe,isoDeBR,hoje0,addD,dias,col,kRow,dinheiro,val,juntarId,ajusteDe,txtDif,periodoMes,obsDoExtrato,listaExc}};
+    util:{janela,confirmar,executar,salvar,excluir,excluirDeVez,formasAporte:formasReg,juntarFormas,simNao,simNaoValor,simNaoLigar,fe,cn,dt,brDe,isoDe,isoDeBR,hoje0,addD,dias,col,kRow,dinheiro,val,juntarId,ajusteDe,txtDif,periodoMes,obsDoExtrato,listaExc,voltarAntecipacao}};
 })();
 App._renderContas=()=>Fin.renderContas();
 App._renderConciliacao=()=>Fin.renderConciliacao();
@@ -14013,6 +14056,22 @@ const Eng=(function(){
   /* ═══════════════ base: orçamento = contrato ═══════════════ */
   const STATUS_MED=['Em elaboração','Enviada à fiscalização','Aprovada','Faturada'];
   const tomMed=s=>s==='Faturada'?'verde':s==='Aprovada'?'azul':s==='Enviada à fiscalização'?'laranja':'';
+  /* MEDIÇÃO FATURADA = TEM O FATURAMENTO LIGADO (não basta a palavra "Faturada"): a medição marcada como faturada sem o
+     faturamento sumia de todas as telas (a de Faturamento escondia a medição e não havia nota para mostrar no lugar) e o
+     dinheiro dela ficava fora das contas. Ligação: medicao_rowid do faturamento; nos faturamentos antigos, sem ele, a
+     mesma obra + o nº da medição (medicao_numero). */
+  const _fdm={ref:null,por:new Map()};
+  function fatDaMed(m){
+    if(!m)return null;const d=D();
+    if(_fdm.ref!==d){_fdm.ref=d;_fdm.por=new Map();const fs=d.faturamentos||[];
+      fs.forEach(f=>{if(f.medicao_rowid)_fdm.por.set('r'+f.medicao_rowid,f);});
+      fs.forEach(f=>{if(!f.medicao_rowid&&f.medicao_numero&&f.titulo_obra){const k='n'+cn(f.titulo_obra)+'|'+(+f.medicao_numero||f.medicao_numero);if(!_fdm.por.has(k))_fdm.por.set(k,f);}});}
+    return _fdm.por.get('r'+m.rowid)||_fdm.por.get('n'+cn(m.titulo_obra)+'|'+(+m.numero||m.numero))||null;
+  }
+  const medFaturada=m=>!!fatDaMed(m);
+  // a situação que vale: "Faturada" só com o faturamento; marcada como faturada sem ele = aprovada (esperando a nota)
+  const statusMed=m=>!m?'':medFaturada(m)?'Faturada':m.status==='Faturada'?'Aprovada':(m.status||'');
+  const semNotaMed=m=>!!m&&m.status==='Faturada'&&!medFaturada(m);
   const orcDe=id=>id?(D().orcamentos||[]).find(o=>String(o.rowid)===String(id)):null;
   const tituloOrc=o=>getFuzzy(o,['titulo','nome_obra','titulo_obra'])||'';
   const dataOrc=o=>dt(getFuzzy(o,['data_lancamento']))||new Date(0);
@@ -14088,7 +14147,7 @@ const Eng=(function(){
     const adts=aditivosDaObra(ob),adtValor=adts.reduce((s,a)=>s+val(a.aditivo_valor),0);
     const contrato=orc?base+adtValor:0;
     const medido=ms.reduce((s,m)=>s+valorMed(m),0);
-    const soma=st=>ms.filter(m=>m.status===st).reduce((s,m)=>s+valorMed(m),0);
+    const soma=st=>ms.filter(m=>statusMed(m)===st).reduce((s,m)=>s+valorMed(m),0);
     return {orc,ms,base,adts,adtValor,contrato,medido,pct:contrato?medido/contrato*100:0,saldo:contrato-medido,faturado:soma('Faturada'),aprovado:soma('Aprovada'),ult:ms[ms.length-1]||null};
   }
   const aditivosDaObra=ob=>(D().documentos||[]).filter(d=>d.tipo==='Aditivo contratual'&&d.titulo_obra===ob).sort((a,b)=>String(a.data_emissao||'').localeCompare(String(b.data_emissao||'')));
@@ -14109,7 +14168,7 @@ const Eng=(function(){
       box.innerHTML=`<div class="fin-wrap">${cab('Medições',texto,selObra+(lista.length?'<button type="button" class="fin-bt" data-me="painel-pdf" title="Medições e saldo contratual de todas as obras"><i class="fas fa-file-pdf"></i> Exportar PDF</button>':''))}
         <div class="fin-kpis">${kpi('','Contratos (obras do painel)',fmt(T('contrato')),`${lista.length} obra${lista.length!==1?'s':''} em andamento ou com medição`)}${kpi('verde','Medido acumulado',fmt(T('medido')),T('contrato')?pct(T('medido')/T('contrato')*100)+' dos contratos':'')}${kpi('laranja','Saldo a medir',fmt(T('saldo')),'o que ainda vira faturamento')}${kpi(T('aprovado')?'vermelho':'verde','Aprovado e não faturado',fmt(T('aprovado')),T('aprovado')?'emita a nota dessas medições':'nada parado')}</div>
         ${lista.length?`<div class="eng-obras-grade">${lista.map((x,i)=>`<div class="fin-card eng-obra-card" data-me="ir" data-i="${i}" title="Abrir as medições desta obra">
-            <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start"><b style="font-size:14px;line-height:1.3">${fe(x.ob)}</b><span class="eng-pill ${x.r.ult?tomMed(x.r.ult.status):''}">${x.r.ms.length} ${x.r.ms.length===1?'medição':'medições'}</span></div>
+            <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start"><b style="font-size:14px;line-height:1.3">${fe(x.ob)}</b><span class="eng-pill ${x.r.ult?tomMed(statusMed(x.r.ult)):''}">${x.r.ms.length} ${x.r.ms.length===1?'medição':'medições'}</span></div>
             ${x.r.orc?`<div style="margin:12px 0 6px;display:flex;justify-content:space-between;font-size:12px;color:var(--text-2)"><span>Medido <b style="color:var(--text-1)">${fmt(x.r.medido)}</b></span><b style="color:var(--text-1)">${pct(x.r.pct)}</b></div>${barra(x.r.pct)}
               <div style="margin-top:8px;font-size:11.5px;color:var(--text-3)">Contrato ${fmt(x.r.contrato)} · saldo ${fmt(x.r.saldo)}${x.r.ult?`<br>Última: nº ${fe(x.r.ult.numero)} em ${brDe(dt(x.r.ult.data_medicao))} · ${fe(x.r.ult.status||'')}`:''}</div>`
             :`<div style="margin-top:12px;font-size:12px;color:var(--text-2)">Sem orçamento ligado — abra para escolher qual orçamento é o contrato.</div>`}
@@ -14129,8 +14188,8 @@ const Eng=(function(){
           <div class="fin-card"><div class="fin-card-cab"><div><h3>Boletins de medição</h3><p class="fin-sub" style="margin-bottom:0">${r.pct?barra(r.pct).replace('eng-barra','eng-barra" style="max-width:360px;margin-top:6px'):''}</p></div>
             ${!r.ms.length&&outros.length?`<button type="button" class="fin-bt" data-me="trocarorc" title="Escolher outra revisão do orçamento como contrato">Trocar orçamento-base</button>`:''}</div>
           ${r.ms.length?`<div class="fin-rolar"><table class="fin-tab"><thead><tr><th>Nº</th><th>Período</th><th class="fin-esconder-cel">Data</th><th>Situação</th><th class="num">Valor</th><th class="num fin-esconder-cel">Acumulado</th><th class="fin-esconder-cel">% do contrato</th><th></th></tr></thead><tbody>
-            ${(()=>{let ac=0;return r.ms.map((m,i)=>{ac+=valorMed(m);const p=r.contrato?ac/r.contrato*100:0;return `<tr><td><b>${fe(m.numero)}</b></td><td>${m.periodo_ini?brDe(dt(m.periodo_ini)):'—'} a ${m.periodo_fim?brDe(dt(m.periodo_fim)):'—'}</td><td class="fin-esconder-cel">${brDe(dt(m.data_medicao))}</td><td><span class="eng-pill ${tomMed(m.status)}">${fe(m.status||'—')}</span></td><td class="num"><b>${fmt(valorMed(m))}</b></td><td class="num fin-esconder-cel">${fmt(ac)}</td><td class="fin-esconder-cel" style="min-width:120px"><div style="display:flex;gap:8px;align-items:center">${barra(p)}<small style="margin:0">${pct(p)}</small></div></td>
-              <td><div class="eng-acoes"><button type="button" class="fin-bt mini" data-me="abrir" data-i="${i}">Abrir</button><button type="button" class="fin-bt mini" data-me="pdf" data-i="${i}">PDF</button>${m.status==='Aprovada'?`<button type="button" class="fin-bt mini verde" data-me="faturar" data-i="${i}" title="Lançar o faturamento previsto desta medição">Faturar</button>`:''}<button type="button" class="fin-bt mini" data-me="excluir" data-i="${i}">Excluir</button></div></td></tr>`;}).join('');})()}
+            ${(()=>{let ac=0;return r.ms.map((m,i)=>{ac+=valorMed(m);const p=r.contrato?ac/r.contrato*100:0;return `<tr><td><b>${fe(m.numero)}</b></td><td>${m.periodo_ini?brDe(dt(m.periodo_ini)):'—'} a ${m.periodo_fim?brDe(dt(m.periodo_fim)):'—'}</td><td class="fin-esconder-cel">${brDe(dt(m.data_medicao))}</td><td><span class="eng-pill ${tomMed(statusMed(m))}">${fe(statusMed(m)||'—')}</span>${semNotaMed(m)?'<br><small class="t-warn" title="Estava marcada como faturada, mas o faturamento (a nota) não está no sistema — use Faturar">sem a nota no sistema</small>':''}</td><td class="num"><b>${fmt(valorMed(m))}</b></td><td class="num fin-esconder-cel">${fmt(ac)}</td><td class="fin-esconder-cel" style="min-width:120px"><div style="display:flex;gap:8px;align-items:center">${barra(p)}<small style="margin:0">${pct(p)}</small></div></td>
+              <td><div class="eng-acoes"><button type="button" class="fin-bt mini" data-me="abrir" data-i="${i}">Abrir</button><button type="button" class="fin-bt mini" data-me="pdf" data-i="${i}">PDF</button>${statusMed(m)==='Aprovada'?`<button type="button" class="fin-bt mini verde" data-me="faturar" data-i="${i}" title="Lançar o faturamento previsto desta medição">Faturar</button>`:''}<button type="button" class="fin-bt mini" data-me="excluir" data-i="${i}">Excluir</button></div></td></tr>`;}).join('');})()}
           </tbody></table></div>`:'<div class="fin-vazio">Nenhuma medição ainda. Clique em “+ Nova medição” para lançar a 1ª.</div>'}</div>`;
         // os aditivos ficam só na aba Contrato da obra (aqui entram apenas no valor do contrato vigente)
       }
@@ -14154,7 +14213,7 @@ const Eng=(function(){
       else if(a==='excluir'&&m&&!GS.podeMexer(m))toast(GS.MSG_DONO,'error');
       else if(a==='excluir'&&m){
         const depois=medsDaObra(ME.obra).filter(x=>(+x.numero||0)>(+m.numero||0)).length;
-        confirmar('Excluir a medição?',`Medição nº <b>${fe(m.numero)}</b> de <b>${fe(ME.obra)}</b> (${fmt(valorMed(m))}) vai para a Lixeira (dá para restaurar em até 15 dias).${depois?`<br><br>⚠ Existe${depois>1?'m':''} ${depois} ${depois>1?'medições':'medição'} depois dela: o acumulado anterior delas vai diminuir.`:''}${m.status==='Faturada'?'<br><br>O faturamento que ela gerou continua em Financeiro › Faturamento — exclua lá se for o caso.':''}`,'Sim, excluir',async()=>{await executar(()=>excluir('Medições',m.rowid));toast('Medição excluída.','success');});
+        confirmar('Excluir a medição?',`Medição nº <b>${fe(m.numero)}</b> de <b>${fe(ME.obra)}</b> (${fmt(valorMed(m))}) vai para a Lixeira (dá para restaurar em até 15 dias).${depois?`<br><br>⚠ Existe${depois>1?'m':''} ${depois} ${depois>1?'medições':'medição'} depois dela: o acumulado anterior delas vai diminuir.`:''}${medFaturada(m)?'<br><br>O faturamento que ela gerou continua em Financeiro › Faturamento — exclua lá se for o caso.':''}`,'Sim, excluir',async()=>{await executar(()=>excluir('Medições',m.rowid));toast('Medição excluída.','success');});
       }
     };
   }
@@ -14175,7 +14234,7 @@ const Eng=(function(){
     const iniPad=ult&&dt(ult.periodo_fim)?isoDe(addD(dt(ult.periodo_fim),1)):(obra&&dt(getFuzzy(obra,['inicio_obra','data_inicio']))?isoDe(dt(getFuzzy(obra,['inicio_obra','data_inicio']))):'');
     const qtd={};(reg&&reg.itens||[]).forEach(it=>qtd[it.chave]=+it.qtd||0);
     ME.edit={reg,obra:ob,orcRowid:orc.rowid,numero,qtd,busca:'',so:!!reg,desc:reg?descontosMed(reg).map(x=>({desc:x.desc||'',valor:+x.valor||0})):[],
-      campos:{periodo_ini:reg?reg.periodo_ini||'':iniPad,periodo_fim:reg?reg.periodo_fim||'':(iniPad&&iniPad>isoDe(hoje0())?'':isoDe(hoje0())),data_medicao:reg?reg.data_medicao||'':isoDe(hoje0()),status:reg?reg.status||'Em elaboração':'Em elaboração',observacao:reg?reg.observacao||'':''}};
+      campos:{periodo_ini:reg?reg.periodo_ini||'':iniPad,periodo_fim:reg?reg.periodo_fim||'':(iniPad&&iniPad>isoDe(hoje0())?'':isoDe(hoje0())),data_medicao:reg?reg.data_medicao||'':isoDe(hoje0()),status:reg?statusMed(reg)||'Em elaboração':'Em elaboração',observacao:reg?reg.observacao||'':''}};
     ME.edit._ini=reg?assMed(ME.edit):assMed({qtd:{},desc:[],campos:ME.edit.campos});
     renderMedicoes();
     document.querySelector('#view-medicoes .cards-scroll')?.scrollTo(0,0);
@@ -14211,12 +14270,13 @@ const Eng=(function(){
       <div><button type="button" class="vx-pasta-voltar" data-me="cancelar">← Voltar às medições</button></div>
       ${cab(`Medição nº ${E.numero} — ${fe(E.obra)}`,`Contrato: orçamento “${fe(tituloOrc(orc)||'—')}” · ${E._itens.length} itens. Digite a quantidade executada no período — ou um percentual do item (ex.: <b>30%</b>). O botão <b>Saldo</b> mede tudo o que ainda falta do item.`,'')}
       ${depois?`<div class="fin-aviso laranja"><div>Existe${depois>1?'m':''} ${depois} ${depois>1?'medições':'medição'} depois desta — mudar as quantidades aqui muda o acumulado anterior delas.</div></div>`:''}
-      ${E.reg&&E.reg.status==='Faturada'?'<div class="fin-aviso laranja"><div>Esta medição já foi <b>faturada</b>. Se mudar os valores, ajuste também o faturamento em Obras › Faturamentos.</div></div>':''}
+      ${E.reg&&medFaturada(E.reg)?'<div class="fin-aviso laranja"><div>Esta medição já foi <b>faturada</b>. Se mudar os valores, ajuste também o faturamento em Financeiro › Faturamento e recebimentos.</div></div>':''}
       <div class="fin-card"><div class="fin-linha" style="grid-template-columns:repeat(auto-fit,minmax(170px,1fr))">
         <div class="fin-fld"><label>Período — de</label><input type="date" data-mc="periodo_ini" value="${fe(c.periodo_ini)}"></div>
         <div class="fin-fld"><label>Período — até</label><input type="date" data-mc="periodo_fim" value="${fe(c.periodo_fim)}"></div>
         <div class="fin-fld"><label>Data da medição <span class="obg">*</span></label><input type="date" data-mc="data_medicao" value="${fe(c.data_medicao)}"></div>
-        <div class="fin-fld"><label>Situação</label><select data-mc="status">${STATUS_MED.map(s=>`<option ${c.status===s?'selected':''}>${s}</option>`).join('')}</select></div>
+        ${E.reg&&medFaturada(E.reg)?`<div class="fin-fld"><label>Situação</label><input value="Faturada${fatDaMed(E.reg).n_nf?' — NF '+fe(fatDaMed(E.reg).n_nf):''}" readonly title="Muda pelo Faturamento: a medição está faturada porque tem o faturamento ligado"></div>`
+          :`<div class="fin-fld"><label>Situação</label><select data-mc="status">${STATUS_MED.filter(s=>s!=='Faturada').map(s=>`<option ${c.status===s?'selected':''}>${s}</option>`).join('')}</select>${semNotaMed(E.reg)?'<div class="capx-dica t-warn">Estava marcada como faturada, mas a nota não está no sistema: salve como Aprovada e use <b>Faturar</b>.</div>':''}</div>`}
         <div class="fin-fld" style="grid-column:1/-1"><label>Observação</label><input data-mc="observacao" value="${fe(c.observacao)}" placeholder="Ex.: medição conferida com o fiscal em campo"></div>
       </div></div>
       <div class="fin-card"><div class="fin-card-cab"><input class="eng-busca" data-me="busca" placeholder="Buscar item, código ou descrição…" value="${fe(E.busca)}"><label style="display:flex;gap:7px;align-items:center;font-size:12.5px;font-weight:600;color:var(--text-2);cursor:pointer"><input type="checkbox" data-me="so" ${E.so?'checked':''} style="width:16px;height:16px"> Só os itens desta medição</label></div>
@@ -14285,7 +14345,7 @@ const Eng=(function(){
     let numero=E.numero;
     if(!E.reg&&medsDaObra(E.obra).some(m=>(+m.numero||0)===numero))numero=medsDaObra(E.obra).reduce((m,x)=>Math.max(m,+x.numero||0),0)+1;
     const o=E.reg?{...E.reg}:{data_lancamento:todayDateTime()};
-    Object.assign(o,{titulo_obra:E.obra,orcamento_rowid:String(E.orcRowid),numero:String(numero),periodo_ini:c.periodo_ini,periodo_fim:c.periodo_fim,data_medicao:c.data_medicao,status:c.status,observacao:(c.observacao||'').trim(),itens,descontos:descs.length?JSON.stringify(descs.map(x=>({desc:String(x.desc).trim(),valor:r2(x.valor)}))):'',valor_descontos:descs.length?dinheiro(descs.reduce((s,x)=>s+x.valor,0)):'',valor_total:dinheiro(itens.reduce((s,it)=>s+r2(it.qtd*it.p_unit),0))});
+    Object.assign(o,{titulo_obra:E.obra,orcamento_rowid:String(E.orcRowid),numero:String(numero),periodo_ini:c.periodo_ini,periodo_fim:c.periodo_fim,data_medicao:c.data_medicao,status:E.reg&&medFaturada(E.reg)?'Faturada':(c.status==='Faturada'?'Aprovada':c.status),observacao:(c.observacao||'').trim(),itens,descontos:descs.length?JSON.stringify(descs.map(x=>({desc:String(x.desc).trim(),valor:r2(x.valor)}))):'',valor_descontos:descs.length?dinheiro(descs.reduce((s,x)=>s+x.valor,0)):'',valor_total:dinheiro(itens.reduce((s,it)=>s+r2(it.qtd*it.p_unit),0))});
     btn.disabled=true;
     try{await executar(()=>salvar('Medições',o,E.reg?E.reg.rowid:null));}
     catch(e){btn.disabled=false;return toast(e.message||String(e),'error');}
@@ -14588,7 +14648,7 @@ const Eng=(function(){
       if(v&&!(v==='medicoes'&&ME.edit))App._renderEng(v);
     }catch(e){console.error(e);}
   };
-  Object.assign(Eng,{pdfBoletim,descontosMed,totDescMed,valorFaturar,renderMedicoes,alertas,resumoMedicoes,fisico,capOrcado,custoReal,fatReal,REL,_ME:ME,aditivosDaObra,datasObra,valorMed,medsDaObra,emAndamento,barra,cor,pct,itensBase,itensDaObra,itensVigentes,avancoItens,avancoEtapa,baseDaObra,acumulado,orcDe});
+  Object.assign(Eng,{fatDaMed,medFaturada,statusMed,semNotaMed,pdfBoletim,descontosMed,totDescMed,valorFaturar,renderMedicoes,alertas,resumoMedicoes,fisico,capOrcado,custoReal,fatReal,REL,_ME:ME,aditivosDaObra,datasObra,valorMed,medsDaObra,emAndamento,barra,cor,pct,itensBase,itensDaObra,itensVigentes,avancoItens,avancoEtapa,baseDaObra,acumulado,orcDe});
 })();
 </script>
 <!-- ═══════════════════ ENGENHARIA (parte 3): fotos do diário, aditivos, painel da obra, saúde das obras ═══════════════════ -->
@@ -16212,8 +16272,8 @@ const GS=(function(){
     if(dup.length)out.push({tom:'err',ico:'fa-clone',t:`${dup.length} custo(s) que parecem lançados em dobro`,s:'Mesma obra, mesmo valor, mesma data e mesma descrição. Se for repetição, exclua um — senão o custo da obra conta duas vezes.',go:()=>UI.nav('obras')});
     const fv={},dupF=[];(d.faturamentos||[]).forEach(f=>{const n=String(getFuzzy(f,['n_nf'])||'').trim();if(!n)return;const k=getFuzzy(f,['titulo_obra'])+'|'+n;if(fv[k])dupF.push(f);else fv[k]=1;});
     if(dupF.length)out.push({tom:'err',ico:'fa-clone',t:`${dupF.length} nota(s) fiscal(is) repetida(s) na mesma obra`,s:'O mesmo nº de NF aparece mais de uma vez — o faturamento da obra fica maior do que é.',go:()=>UI.nav('obras')});
-    const medFat=(d.medicoes||[]).filter(m=>m.status==='Faturada'&&!(d.faturamentos||[]).some(f=>String(f.medicao_rowid||'')===String(m.rowid)));
-    if(medFat.length)out.push({tom:'info',ico:'fa-link-slash',t:`${medFat.length} medição(ões) "Faturada" sem faturamento ligado`,s:'Marcadas como faturadas, mas sem o faturamento lançado pelo botão Faturar — confira se a nota foi lançada na obra.',go:()=>UI.nav('medicoes')});
+    const medFat=(d.medicoes||[]).filter(m=>Eng.semNotaMed?Eng.semNotaMed(m):(m.status==='Faturada'&&!(d.faturamentos||[]).some(f=>String(f.medicao_rowid||'')===String(m.rowid))));
+    if(medFat.length)out.push({tom:'err',ico:'fa-link-slash',t:`${medFat.length} medição(ões) marcada(s) como faturada(s) sem a nota no sistema`,s:`${medFat.slice(0,3).map(m=>`${String(m.titulo_obra||'').split(' - ')[0]} · medição nº ${m.numero}`).join(' — ')}${medFat.length>3?'…':''}: o valor fica fora do faturado e do caixa. Elas estão em Financeiro › Faturamento e recebimentos, na coluna A faturar — emita (ou use) a nota.`,go:()=>UI.nav('faturamento')});
     return out;
   }
   function renderInicio(){
@@ -16784,10 +16844,10 @@ const GS=(function(){
     // (nem no saldo a medir da carteira). Entra = bruto × o que sobra das retenções da obra, na data
     // provável: aprovação (se ainda falta) + emissão da nota + o prazo médio que a obra costuma pagar.
     if(PJ.obras){const fats=D().faturamentos||[],lig=new Set(fats.map(f=>String(f.medicao_rowid||'')).filter(Boolean));
-      (D().medicoes||[]).filter(m=>!/faturad/i.test(m.status||'')&&!lig.has(String(m.rowid))).forEach(m=>{
+      (D().medicoes||[]).filter(m=>!(Eng.medFaturada?Eng.medFaturada(m):(/faturad/i.test(m.status||'')||lig.has(String(m.rowid))))).forEach(m=>{
         const bruto=Eng.valorMed(m);if(!(bruto>0))return;
         const o=(D().obras||[]).find(x=>Eng.nomeObra(x)===m.titulo_obra);let fl=.88;try{if(o){const sv=Eng.saude(o);if(sv&&sv.fatorLiq)fl=sv.fatorLiq;}}catch(e){}
-        const st=String(m.status||''),base=dt(m.data_aprovacao)||dt(m.data_medicao)||h,ate=/aprovad/i.test(st)?5:/enviada/i.test(st)?20:30;
+        const st=String((Eng.statusMed?Eng.statusMed(m):m.status)||''),base=dt(m.data_aprovacao)||dt(m.data_medicao)||h,ate=/aprovad/i.test(st)?5:/enviada/i.test(st)?20:30;
         let d=addD(base,ate);if(d<h)d=h;d=addD(d,Fin.prazoReceb?Fin.prazoReceb(m.titulo_obra):30);
         const i=dias(h,d);if(i<0||i>N)return;const v=bruto*fl;dia[i].ent+=v;dia[i].itens.push({tipo:'med',sent:1,valor:v,venc:d,desc:'Medição nº '+(m.numero||''),origem:m.titulo_obra,pago:false});medEnt+=v;});}
     if(PJ.obras||PJ.fixas){
@@ -18712,15 +18772,15 @@ const Mascara=(function(){
               const qq=x.un==='VB'?1:(x.qtd>0?x.qtd:1)*(rep==='mes'?1:cent/tot)*(dd.valor/x.liq),q4=Math.round(qq*10000)/10000||1,pu=x.pUnit>0?x.pUnit:vt/q4,dsc=Math.round((q4*pu-vt)*100)/100;
               u.qtd=String(q4);u.fator=x.un||'UN';
               if(dsc<-0.004||!(x.pUnit>0))u.pUnit=String(Math.round(vt/q4*1e6)/1e6);else{u.pUnit=String(Math.round(pu*1e6)/1e6);if(dsc>=0.005)u.desconto=dinheiro(dsc);}}
-            C.finalizarConta(u);C.montarConta(u,null).forEach(op=>{if(cc)Object.assign(op.dados,{conciliacao:cc.id,conciliacao_baixa:cc.id,extrato_desc:cc.desc});ops.push(op);});
-            if(parcCC){const fut=Fin.parcelasFuturas({...u,obsBase:[x.num?'Nota/recibo nº '+x.num:'',rat?`Rateio: ${pctTxt(dd.pct)} de ${fmt(x.liq)} (pelo orçamento)`:'',socio?`Será paga por ${quem} (aporte)`:''].filter(Boolean).join(' · ')},x.desc||x.cat,pn,pt,cc.data,{extrato_desc:cc.desc,...(socio?{pago_por_socio:quem}:{})});nFut+=fut.length;ops.push(...fut);}
+            C.finalizarConta(u);C.montarConta(u,null).forEach(op=>{if(cc)Object.assign(op.dados,{conciliacao:cc.id,conciliacao_baixa:cc.id,extrato_desc:cc.desc,conc_origem:cc.id});ops.push(op);});
+            if(parcCC){const fut=Fin.parcelasFuturas({...u,obsBase:[x.num?'Nota/recibo nº '+x.num:'',rat?`Rateio: ${pctTxt(dd.pct)} de ${fmt(x.liq)} (pelo orçamento)`:'',socio?`Será paga por ${quem} (aporte)`:''].filter(Boolean).join(' · ')},x.desc||x.cat,pn,pt,cc.data,{extrato_desc:cc.desc,conc_origem_fut:cc.id,...(socio?{pago_por_socio:quem}:{})});nFut+=fut.length;ops.push(...fut);}
             if(socio){const k=centro;aps[k]=(aps[k]||0)+vt;}}}}
       // fornecedores novos entram no cadastro; descrições novas entram em Categoria › Descrição
       const forns=[...new Set(its.map(x=>x.forn).filter(Boolean))];
       for(const fo of forns)if(!(D().fornecedores||[]).some(f=>cn(f.nome)===cn(fo))&&pode('fornecedores')){try{await salvar('Fornecedores',{nome:fo,cnpj:CNPJ_LIDO,tipo:centro0===EMP?'Escritório / administrativo':'Material de construção',situacao:'Ativo',data_lancamento:todayDateTime()},null);}catch(e){}}
       for(const x of its)await registrarGasto(centro0===EMP,x.cat,x.desc);
       const nfs=[...new Set(its.map(x=>x.num).filter(Boolean))];
-      const regsAp=Object.entries(aps).map(([ob,v])=>({obra:ob,quem,data:pagoEm,valor:Math.round(v*100)/100,forma,origem:'contas',obs:`Pagou ${forns.join(', ')||'a conta'}${nfs.length?' · nota nº '+nfs.join(', '):''} (lançado em Contas a pagar)`}));
+      const regsAp=Object.entries(aps).map(([ob,v])=>({obra:ob,quem,data:pagoEm,valor:Math.round(v*100)/100,forma,origem:'contas',conc:cc?cc.id:'',obs:`Pagou ${forns.join(', ')||'a conta'}${nfs.length?' · nota nº '+nfs.join(', '):''} (lançado em Contas a pagar)`}));
       await executar(async()=>{await Promise.all(ops.map(x=>salvar(x.aba,x.dados,null)));for(const a of regsAp)await Fin.somarAporte(a);});
       if(cc){toast(`Compra lançada (${ops.length-nFut} ${ops.length-nFut>1?'itens':'item'}) e conciliada com o extrato${nFut?` · ${nFut} parcela(s) futura(s) ficaram a pagar`:''}${socio?` · aporte de ${quem} registrado em Sócios e investimentos`:''}.`,'success');return;}
       toast(`${ops.length>1?ops.length+' contas lançadas':'Conta lançada'}${socio?` e ${regsAp.length>1?regsAp.length+' aportes':'o aporte'} de ${fe(quem)} registrado${regsAp.length>1?'s':''}`:''}${souAdmin()||socio?'.':' — aguardando a aprovação (de um Administrador ou de quem tem permissão para aprovar).'}`,'success');}}],1240);
@@ -18894,13 +18954,15 @@ const Mascara=(function(){
   const recebidaF=(r,K)=>{const d=dt(r[K.rec]);return !!(Fa.ehReal(r,K)&&d&&d<=hoje0()&&!antecPendente(r));};
   const liqF=r=>{const K=KF();return val(r[K.liq])||Fa.liqDe(r,K);};
   const valorMed=m=>Eng.valorFaturar?Eng.valorFaturar(m):Eng.valorMed(m);
-  const ehAprov=m=>/aprovad/i.test(m.status||''),ehFatMed=m=>/faturad/i.test(m.status||'');
+  // a situação que vale (Eng.statusMed): "marcada como faturada" sem o faturamento ligado conta como aprovada (vai para A faturar)
+  const stMed=m=>Eng.statusMed?Eng.statusMed(m):(m.status||''),ehAprov=m=>/aprovad/i.test(stMed(m)),ehFatMed=m=>Eng.medFaturada?Eng.medFaturada(m):/faturad/i.test(m.status||'');
   // um item do quadro: medição ainda sem nota ('m') ou faturamento ('f')
   function itensFat(){
-    const K=KF(),fats=D().faturamentos||[],ligadas=new Set(fats.map(f=>String(f.medicao_rowid||'')).filter(Boolean));
+    const K=KF(),fats=D().faturamentos||[];
     // garantia na modalidade "Retenção na 1ª medição": o valor dela sai do líquido da 1ª medição da obra
     const ret1=m=>{try{return GS.docs?GS.docs.retencao1aMed(m.titulo_obra,m):0;}catch(e){return 0;}};
-    const meds=(D().medicoes||[]).filter(m=>!ehFatMed(m)&&!ligadas.has(String(m.rowid))).map(m=>{const rt=ret1(m);return {k:'m',id:'m'+m.rowid,r:m,obra:m.titulo_obra||'',col:ehAprov(m)?'faturar':'medicao',bruto:valorMed(m),ret:rt,liq:valorMed(m)*fatorLiq(m.titulo_obra)-rt,data:dt(m.data_aprovacao)||dt(m.data_medicao)};});
+    // só sai do quadro a medição que tem o faturamento (aí quem aparece é o cartão do faturamento)
+    const meds=(D().medicoes||[]).filter(m=>!ehFatMed(m)).map(m=>{const rt=ret1(m);return {k:'m',id:'m'+m.rowid,r:m,obra:m.titulo_obra||'',col:ehAprov(m)?'faturar':'medicao',bruto:valorMed(m),ret:rt,liq:valorMed(m)*fatorLiq(m.titulo_obra)-rt,data:dt(m.data_aprovacao)||dt(m.data_medicao)};});
     const fs=fats.map(r=>({k:'f',id:'f'+r.rowid,r,obra:r[K.obra]||'',col:!Fa.ehReal(r,K)?'faturar':recebidaF(r,K)?'recebida':'receber',bruto:val(r[K.bruto]),liq:liqF(r),data:recebidaF(r,K)?dt(r[K.rec]):Fa.vencF(r,K)||dt(r[K.lanc])}));
     return meds.concat(fs);
   }
@@ -18912,6 +18974,7 @@ const Mascara=(function(){
     if(x.k==='m'){const d=dt(r.data_aprovacao)||dt(r.data_medicao),parado=x.col==='faturar'&&d?dias(d,hoje0()):0;
       return `<article class="vk-card${ms.cls}"${ms.tit} style="--cor:${cc.cor}" draggable="${arrasta}" data-card="${x.id}" tabindex="0">
         <div class="vk-top">${ms.html}<b>Medição nº ${fe(r.numero||'?')}</b>${pill(x.col==='faturar'?'aprovada':(STM[r.status]||[r.status||'medição'])[0],x.col==='faturar'?'ok':(STM[r.status]||['',''])[1],'fa-ruler-combined')}</div>
+        ${Eng.semNotaMed&&Eng.semNotaMed(r)?`<div class="vk-sub">${pill('estava como faturada — falta a nota no sistema','err','fa-link-slash')}</div>`:''}
         <div class="vk-obra" title="${fe(x.obra)}"><i class="fas fa-helmet-safety"></i>${fe(x.obra)}</div>
         ${r.periodo_ini||r.periodo_fim?`<div class="vk-sub">período ${r.periodo_ini?brDe(dt(r.periodo_ini)).slice(0,5):'—'} a ${r.periodo_fim?brDe(dt(r.periodo_fim)).slice(0,5):'—'}</div>`:''}
         <div class="vk-val"><span>bruto</span><b>${fmt(x.bruto)}</b></div>
@@ -19095,7 +19158,7 @@ const Mascara=(function(){
       [{html:'Cancelar'},{html:'<i class="fas fa-circle-check"></i> Confirmar recebimento',cls:'pri',acao:async j=>{
         const d=j.querySelector('[data-k="data"]').value;if(!d)throw new Error('Informe a data.');if(d>isoDe(hoje0()))throw new Error('A data não pode ser depois de hoje.');
         const o=copiaF(r);o[K.rec]=d;if(r.antecipada==='sim')o.antec_recebida='sim';
-        if(ant){o[K.antec]=dinheiro(Mascara.numero(j.querySelector('[data-k="desc"]').value)||0);const dep=Mascara.numero(j.querySelector('[data-k="dep"]').value)||0;if(dep>0)o.antec_depositado=dinheiro(dep);o[K.liq]=dinheiro(val(o[K.bruto])-Fa.RET.reduce((s,k)=>s+val(o[K[k]]),0));if(val(o[K.liq])<0)throw new Error('O desconto passa do líquido da nota.');}
+        if(ant){if(!r.antec_antes)o.antec_antes={a:String(r[K.antec]==null?'':r[K.antec]),l:String(r[K.liq]==null?'':r[K.liq])};o[K.antec]=dinheiro(Mascara.numero(j.querySelector('[data-k="desc"]').value)||0);const dep=Mascara.numero(j.querySelector('[data-k="dep"]').value)||0;if(dep>0)o.antec_depositado=dinheiro(dep);o[K.liq]=dinheiro(val(o[K.bruto])-Fa.RET.reduce((s,k)=>s+val(o[K[k]]),0));if(val(o[K.liq])<0)throw new Error('O desconto passa do líquido da nota.');}
         await executar(()=>salvar('Faturamentos',o,r.rowid));toast(ant?'Recebimento registrado — nota recebida por antecipação.':'Recebimento registrado.','success');}}],480);
     if(!ant)return;
     const j=jan(),dIn=j.querySelector('[data-k="data"]'),dsc=j.querySelector('[data-k="desc"]'),dica=j.querySelector('[data-desc-dica]'),lq=j.querySelector('[data-liq-rec]');
@@ -19126,7 +19189,7 @@ const Mascara=(function(){
       await executar(async()=>{await salvar('Faturamentos',{...copiaF(r),_lixeira_em:new Date().toISOString(),_lixeira_obra_id:'avulso',_lixeira_motivo:'Faturamento desfeito (medição nº '+(m.numero||'')+' voltou para a fiscalização)'},r.rowid);
         await salvar('Medições',{...copiaF(m),status:'Enviada à fiscalização',faturado_em:''},m.rowid);});
       toast('Voltou para "Medição em andamento".','success');});}
-  function desfazerRecebimento(r){const K=KF();confirmar('Desfazer recebimento',`${r[K.nf]?'A NF '+fe(r[K.nf]):'A nota'} volta para "a receber".`,'Sim, desfazer',async()=>{const o=copiaF(r);o[K.rec]=r.antecipada==='sim'&&dt(r.antec_previsto)?r.antec_previsto:'';o.antec_recebida='';o.antec_depositado='';if(r.liq_esperado){o[K.liq]=r.liq_esperado;o.liq_esperado='';}Object.assign(o,{conciliacao:'',conciliacao_baixa:'',valor_original:'',valor_ajustado:'',valor_diferenca:''});await executar(()=>salvar('Faturamentos',o,r.rowid));toast('Voltou para "a receber".','success');});}
+  function desfazerRecebimento(r){const K=KF();confirmar('Desfazer recebimento',`${r[K.nf]?'A NF '+fe(r[K.nf]):'A nota'} volta para "a receber".`,'Sim, desfazer',async()=>{const o=copiaF(r);o[K.rec]=r.antecipada==='sim'&&dt(r.antec_previsto)?r.antec_previsto:'';o.antec_recebida='';o.antec_depositado='';if(r.liq_esperado){o[K.liq]=r.liq_esperado;o.liq_esperado='';}Fin.util.voltarAntecipacao(o,r);Object.assign(o,{conciliacao:'',conciliacao_baixa:'',valor_original:'',valor_ajustado:'',valor_diferenca:''});await executar(()=>salvar('Faturamentos',o,r.rowid));toast('Voltou para "a receber".','success');});}
   function fichaMedicao(x){
     const m=x.r,rm=Eng.resumoMedicoes(m.titulo_obra),cc=COLS_F.find(c=>c.k===x.col);
     const corpo=`<div class="vk-ficha-cab"><span class="vk-etq" style="--cor:${cc.cor}"><i class="fas ${cc.ico}"></i> ${cc.rot}</span>
@@ -19134,7 +19197,7 @@ const Mascara=(function(){
       <ul class="vk-lista">
         <li><i class="fas fa-helmet-safety"></i> <b>${fe(m.titulo_obra)}</b> · medição nº ${fe(m.numero)}</li>
         <li><i class="fas fa-calendar-day"></i> Período ${m.periodo_ini?brDe(dt(m.periodo_ini)):'—'} a ${m.periodo_fim?brDe(dt(m.periodo_fim)):'—'} · medida em ${brDe(dt(m.data_medicao))}${m.data_aprovacao?' · aprovada em '+brDe(dt(m.data_aprovacao)):''}</li>
-        <li><i class="fas fa-scale-balanced"></i> Situação: ${fe(m.status||'—')}${rm.contrato?` · acumulado da obra ${pct(rm.pct)} do contrato · saldo ${fmt(rm.saldo)}`:''}</li>
+        <li><i class="fas fa-scale-balanced"></i> Situação: ${fe((Eng.statusMed?Eng.statusMed(m):m.status)||'—')}${Eng.semNotaMed&&Eng.semNotaMed(m)?' <b class="t-err">(estava marcada como faturada, mas a nota não está no sistema — emita ou use a nota)</b>':''}${rm.contrato?` · acumulado da obra ${pct(rm.pct)} do contrato · saldo ${fmt(rm.saldo)}`:''}</li>
         ${x.ret?`<li><i class="fas fa-shield-halved"></i> <b>Garantia retida nesta 1ª medição: ${fmt(x.ret)}</b> — o contrato tem a garantia na modalidade "Retenção na 1ª medição"; o valor já sai do líquido estimado e entra no "Seguro do contrato" ao emitir a nota.</li>`:''}
       </ul>`;
     const bts=[];
@@ -24299,7 +24362,7 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
     const meds=ob=>(D().medicoes||[]).filter(m=>m.titulo_obra===ob).sort((a,b)=>(+a.numero||0)-(+b.numero||0));
     return `<p class="nfc-dica" style="margin:0 0 6px">Cada nota aparece na janela <b>Emitir a nota</b> da medição escolhida aqui, com o botão "Usar esta nota".</p>`+L.map((p,i)=>`<div class="nfc-pv" data-pv="${i}"><div class="nm"><b>NFS-e nº ${fe(p.numero||'?')}</b> · ${fmt(+p.valor||0)}${p.emitida_em?' · '+brDe(new Date(p.emitida_em)):''}<br><small>${fe(((String(p.xml||'').match(/<(?:\w+:)?xDescServ>([^<]{0,140})/)||[])[1]||'').replace(/&amp;/g,'&'))}</small></div>
       <select data-pv-ob><option value="">Obra…</option>${obras.map(o=>`<option ${o===p.titulo_obra?'selected':''}>${fe(o)}</option>`).join('')}</select>
-      <select data-pv-med><option value="">Medição…</option>${meds(p.titulo_obra).map(m=>`<option value="${m.rowid}" ${String(m.rowid)===String(p.medicao_rowid)?'selected':''}>Medição nº ${fe(m.numero)}${/faturad/i.test(m.status||'')?' (já faturada)':''}</option>`).join('')}</select>
+      <select data-pv-med><option value="">Medição…</option>${meds(p.titulo_obra).map(m=>`<option value="${m.rowid}" ${String(m.rowid)===String(p.medicao_rowid)?'selected':''}>Medição nº ${fe(m.numero)}${(Eng.medFaturada?Eng.medFaturada(m):/faturad/i.test(m.status||''))?' (já faturada)':''}</option>`).join('')}</select>
       <button type="button" class="fin-bt mini pri" data-ec="nf-pv-salvar" data-i="${i}"><i class="fas fa-link"></i> Salvar vínculo</button></div>`).join('');
   }
   async function cliqueNfse(a,ec,refazer,bt0){
@@ -24922,7 +24985,7 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
     ec.addEventListener('change',ev=>{
       if(ev.target.matches('[data-nfs="lembrar"]')){const c0=certLocal();if(c0){const o={...c0,lembrar:ev.target.checked};if(!ev.target.checked)delete o.s;guardarCert(o);if(!ev.target.checked)SENHA=null;}toast(ev.target.checked?'A senha será lembrada neste computador na próxima vez que for usada.':'A senha não fica mais guardada neste computador.','info');return;}
       const s=ev.target.closest('[data-pv-ob]');if(!s)return;const md=s.closest('[data-pv]').querySelector('[data-pv-med]');
-      md.innerHTML='<option value="">Medição…</option>'+(D().medicoes||[]).filter(m=>m.titulo_obra===s.value).sort((x,y)=>(+x.numero||0)-(+y.numero||0)).map(m=>`<option value="${m.rowid}">Medição nº ${fe(m.numero)}${/faturad/i.test(m.status||'')?' (já faturada)':''}</option>`).join('');});
+      md.innerHTML='<option value="">Medição…</option>'+(D().medicoes||[]).filter(m=>m.titulo_obra===s.value).sort((x,y)=>(+x.numero||0)-(+y.numero||0)).map(m=>`<option value="${m.rowid}">Medição nº ${fe(m.numero)}${(Eng.medFaturada?Eng.medFaturada(m):/faturad/i.test(m.status||''))?' (já faturada)':''}</option>`).join('');});
     ec.addEventListener('click',async ev=>{
       const kb=ec.querySelector('[data-kit-box]');if(kb&&kb.contains(ev.target))return cliqueKit(ev,kb);
       const ab=ev.target.closest('[data-ec-aba]');if(ab){EC.aba=ab.dataset.ecAba;const t=document.createElement('div');t.innerHTML=htmlEmpresa();ec.replaceWith(t.firstElementChild);ligarEmpresa(box);return;}
@@ -25559,12 +25622,14 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
           <select data-so2f="tipo"><option value="">Entradas e saídas</option>${['Aporte','Retirada','Retirada do lucro','Pró-labore','Devolução de aporte'].map(t=>`<option value="${t}" ${f.tipo===t?'selected':''}>${t==='Retirada'?'Todas as retiradas':t}</option>`).join('')}</select>
           <select data-so2f="ano"><option value="">Todos os anos</option>${anos.map(a=>`<option ${f.ano===String(a)?'selected':''}>${a}</option>`).join('')}</select>
           ${podeEd?(()=>{const n=GS.dup.grupos(itensDupSocios()).length;return `<button type="button" class="gf-bt mini${n?' dup-on':''}" data-so2="dup" title="Procura lançamentos em dobro (mesmo sócio, obra e valor em datas próximas)"><i class="fas fa-clone"></i> Verificar duplicados${n?` <b class="vk-badge">${n}</b>`:''}</button>`;})():''}${podeEd?GS.sel.modo(f.selModo,'data-so2="selecionar"','Marcar vários lançamentos para devolver ou excluir de uma vez','mini'):''}</div>
-        ${vis.length?`<div class="gf-rolar"><table class="so2-tab so2-mov"><thead><tr><th>Obra / data</th><th>Movimento</th><th>Sócio · obra</th><th style="text-align:right">Valor</th><th style="text-align:right">Devolvido ao sócio</th><th>Observação</th><th></th></tr></thead><tbody>
-          ${linhasMov.map(z=>z.itens?linhaObra(z):((x,i)=>{const per=x.ini&&x.fim&&isoDe(x.ini)!==isoDe(x.fim)?`${brDe(x.ini).slice(0,5)} a<br>${brDe(x.fim)}`:x.data?brDe(x.data):'—';
+        ${vis.length?`<div class="gf-rolar"><table class="so2-tab so2-mov"><thead><tr><th>Obra / data</th><th>Movimento</th><th>Sócio</th><th style="text-align:right">Valor</th><th style="text-align:right">Devolvido ao sócio</th><th>Observação</th><th></th></tr></thead><tbody>
+          ${linhasMov.map(z=>z.itens?linhaObra(z):((x,i)=>{
+            // o mesmo padrão da linha do aporte: a obra na 1ª coluna (negrito) com a data (ou o período) embaixo; o sócio sozinho na coluna dele
+            const cel1=`<b title="${fe(x.obra)}">${fe(x.obra)}</b><small class="so2-l2">${fe(perDe(x))}</small>`;
             const trav=f.selModo?travaSo(x):'';
-            return `<tr${f.selModo?` class="so2-lin${trav?' trava':''}" data-so2-lin="${i}" tabindex="0"${trav?` title="${fe(trav)}"`:''}`:''}><td class="so2-dt" data-ord-valor="${x.data?brDe(x.data):''}">${f.selModo?`<div class="so2-dt-sel"><span class="vk-marca" aria-hidden="true"><i class="fas ${trav?'fa-lock':'fa-check'}"></i></span><span>${per}</span></div>`:per}</td>
+            return `<tr${f.selModo?` class="so2-lin${trav?' trava':''}" data-so2-lin="${i}" tabindex="0"${trav?` title="${fe(trav)}"`:''}`:''}><td class="so2-dt so2-ob" data-ord-valor="${x.data?brDe(x.data):''}">${f.selModo?`<div class="so2-dt-sel"><span class="vk-marca" aria-hidden="true"><i class="fas ${trav?'fa-lock':'fa-check'}"></i></span><span>${cel1}</span></div>`:cel1}</td>
             <td><span class="so2-tipo ${!x.sai?'ent':x.dev?'dev':'sai'}"><i class="fas ${!x.sai?'fa-arrow-down':'fa-arrow-up'}"></i> ${x.dev?'Devolução':(x.rot||x.tipo)}</span>${x.forma?`<small class="so2-l2">${fe(x.forma)}</small>`:''}</td>
-            <td class="so2-quem"><b>${fe(x.quem)}</b><small class="so2-l2" title="${fe(x.obra)}">${fe(x.obra)}${x.rateio?' <span class="so2-mini">rateio</span>':''}</small></td>
+            <td class="so2-quem"><b>${fe(x.quem)}</b>${x.rateio?'<small class="so2-l2"><span class="so2-mini">rateio</span></small>':''}</td>
             <td class="num ${x.sai?'sai':'ent'}" data-ord-valor="${x.sai?'-':''}${x.valor.toFixed(2).replace('.',',')}">${x.sai?'−':'+'} ${fmt(x.valor)}</td>
             <td class="num"></td>
             <td class="so2-obs"><div title="${fe(x.obs)}">${fe(x.obs)}</div></td>
