@@ -1177,12 +1177,14 @@ module.exports = function criarRobo(io) {
     return true;
   }
   async function lancarConta(ctx, f, cq) {
+    // o Telegram repete o clique se a resposta demora: com o 1º lançamento ainda gravando, o repetido não grava de novo
+    if (f.passo === 'gravando' && Date.now() - (+f.gravando_em || 0) < 120000) return;
     if (passoConta({ ...f, passo: null }) !== 'conf') { f.passo = null; await prepararConta(f); return mostrar(ctx, f, cq); }
     const compra = 'cp' + f.fid;
     const ja = ((await sb(`custos?select=id&row_data->>compra_id=eq.${compra}&limit=1`)) || []).concat((await sb(`despesas?select=id&row_data->>compra_id=eq.${compra}&limit=1`)) || []);
     if (ja.length) return mostrar(ctx, { ...f, k: 'fim' }, cq, '✅ Esta conta já tinha sido lançada.', []);
     let precisaDesc = false; try { precisaDesc = await descricaoNova(f); } catch (e) { precisaDesc = false; }
-    f.passo = 'gravando'; await gravarFluxo(ctx.chat, f);
+    f.passo = 'gravando'; f.gravando_em = Date.now(); await gravarFluxo(ctx.chat, f);
     const L = linhasDaConta(f, ctx), ids = [];
     try { for (const l of L) ids.push({ t: l.t, id: await inserir(l.t, l.row) }); }
     catch (e) { for (const y of ids) await apagarLinha(y.t, y.id).catch(() => {}); f.passo = null; await gravarFluxo(ctx.chat, f); throw e; }
@@ -1970,12 +1972,20 @@ module.exports = function criarRobo(io) {
   }
   async function gravarDiesel(ctx, f, cq) {
     if (!f.obra || !(f.litros > 0) || !(f.valor > 0) || f.litros > 3000) { f.passo = null; return mostrar(ctx, f, cq); }
+    // o Telegram repete o clique se a resposta demora: o mesmo abastecimento não entra duas vezes (marca tg_fid + "gravando")
+    if (f.gravando_em && Date.now() - (+f.gravando_em || 0) < 120000) return;
+    const ja = (await sb(`planejamento?select=id&row_data->>tipo=eq.abastecimento&row_data->>tg_fid=eq.${encodeURIComponent(String(f.fid))}&limit=1`)) || [];
+    if (ja.length) return mostrar(ctx, { ...f, k: 'fim' }, cq, '✅ Este abastecimento já tinha sido lançado.', []);
+    f.gravando_em = Date.now(); await gravarFluxo(ctx.chat, f);
     const l = Math.round(f.litros * 100) / 100, v = Math.round(f.valor * 100) / 100, nome = ctx.usuario || 'Administrador', uid = ctx.uid || '', agora = lancAgora(), hj = R.hojeBahia();
-    const ids = [{ t: 'planejamento', id: await inserir('planejamento', { tipo: 'abastecimento', titulo_obra: f.obra, data: f.data, maquina: MAQ, litros: String(l), valor: dinheiro(v), horimetro: f.horimetro > 0 ? String(f.horimetro) : '', fornecedor: f.posto || '', obs: 'Lançado pelo Telegram', data_lancamento: agora, criado_por_id: uid, criado_por: nome }) }];
-    if (f.conta) {
-      const qtd = dinheiro(l), pu = Math.round(v / l * 1e6) / 1e6;
-      ids.push({ t: 'custos', id: await inserir('custos', { titulo_obra: f.obra, data_lancamento: agora, tipo_de_custo: 'Real', tipo: 'Equipamentos e locações', descricao: 'Óleo diesel', fornecedor: f.posto || '', fator: 'L', qtd, p_unit: String(pu), p_total: dinheiro(+qtd * pu), vencimento: f.data, data_pgto: f.data, observacao: `Abastecimento da ${MAQ} — ${String(l).replace('.', ',')} L (lançado pelo Telegram)`, forma_pagamento: '', aprovacao: 'pendente', aprovado_por: '', aprovado_em: '', lancado_por: nome, origem_lanc: 'telegram', criado_por_id: uid, criado_por: nome }) });
-    }
+    const ids = [];
+    try {
+      ids.push({ t: 'planejamento', id: await inserir('planejamento', { tipo: 'abastecimento', titulo_obra: f.obra, data: f.data, maquina: MAQ, litros: String(l), valor: dinheiro(v), horimetro: f.horimetro > 0 ? String(f.horimetro) : '', fornecedor: f.posto || '', obs: 'Lançado pelo Telegram', tg_fid: String(f.fid), data_lancamento: agora, criado_por_id: uid, criado_por: nome }) });
+      if (f.conta) {
+        const qtd = dinheiro(l), pu = Math.round(v / l * 1e6) / 1e6;
+        ids.push({ t: 'custos', id: await inserir('custos', { titulo_obra: f.obra, data_lancamento: agora, tipo_de_custo: 'Real', tipo: 'Equipamentos e locações', descricao: 'Óleo diesel', fornecedor: f.posto || '', fator: 'L', qtd, p_unit: String(pu), p_total: dinheiro(+qtd * pu), vencimento: f.data, data_pgto: f.data, observacao: `Abastecimento da ${MAQ} — ${String(l).replace('.', ',')} L (lançado pelo Telegram)`, forma_pagamento: '', aprovacao: 'pendente', aprovado_por: '', aprovado_em: '', lancado_por: nome, origem_lanc: 'telegram', tg_fid: String(f.fid), criado_por_id: uid, criado_por: nome }) });
+      }
+    } catch (e) { for (const y of ids) await apagarLinha(y.t, y.id).catch(() => {}); f.gravando_em = 0; await gravarFluxo(ctx.chat, f); throw e; }
     const fim = { k: 'feito', fid: f.fid, ids, vale_min: 120, _rid: f._rid, msg: f.msg };
     return mostrar(ctx, fim, cq, `✅ <b>Abastecimento lançado</b> (Pessoal e diário › máquina)\n${esc(f.obra)} · ${fmtN(l)} L · ${reais(v)}${f.conta ? '\nE a conta paga em Contas a pagar ("Óleo diesel") — aguardando sua aprovação.' : ''}`, [[bt(fim, '↩️ Desfazer', 'u')]]);
   }
