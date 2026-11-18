@@ -702,7 +702,7 @@ input[type=checkbox]:disabled{opacity:.45;cursor:not-allowed;}
     html:not([data-authed="1"]) #app-shell{display:none;}
     #app-shell.hidden{display:none!important;}
   </style>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0/dist/umd/supabase.js" integrity="sha384-TcHRA3zBbn+Lexh5n+Oil4guNPOS3rjNDpGRAN46u/s/mB2IZ50ceC6TYDU2yvgK" crossorigin="anonymous"></script><script src="gas-shim.js?v=20261117a"></script><script src="espera.js?v=20261110a"></script><script src="https://accounts.google.com/gsi/client" async defer></script></head>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0/dist/umd/supabase.js" integrity="sha384-TcHRA3zBbn+Lexh5n+Oil4guNPOS3rjNDpGRAN46u/s/mB2IZ50ceC6TYDU2yvgK" crossorigin="anonymous"></script><script src="gas-shim.js?v=20261118a"></script><script src="espera.js?v=20261110a"></script><script src="https://accounts.google.com/gsi/client" async defer></script></head>
 <body>
 <div class="toast" id="toast"><span id="toast-icon"></span><span id="toast-msg">—</span></div>
 
@@ -11254,8 +11254,11 @@ const Fin=(function(){
 
   /* ───── gravação ───── */
   // Tabela que ainda não existe no banco (SQL de instalação não rodado) → mensagem clara.
+  // A regra de segurança do banco recusou (row-level security) → em português, dizendo o que fazer.
   const traduzirErro=m=>/schema cache|does not exist|relation .* does not exist|42P01/i.test(String(m||''))
-    ?'Esta tela ainda não foi instalada no banco de dados: rode o SQL de instalação (Supabase › SQL Editor) e tente de novo.':m;
+    ?'Esta tela ainda não foi instalada no banco de dados: rode o SQL de instalação (Supabase › SQL Editor) e tente de novo.'
+    :/row-level security|violates row level|42501|permission denied/i.test(String(m||''))
+    ?'O banco de dados não deixou o seu usuário gravar aqui (permissão). Peça ao Administrador para conferir o seu acesso a esta obra e a esta tela — e, se você acabou de ganhar a permissão, saia do sistema e entre de novo.':m;
   function salvar(aba,dados,rowid){
     return new Promise((ok,erro)=>{
       google.script.run
@@ -25794,7 +25797,7 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
   const U=Fin.util,{fe,cn,janela,confirmar,executar,salvar,excluir}=U;
   const D=()=>App.state.data||{},PLAN=()=>D().planejamento||[];
   const ACOES=[['incluir','Inclui linhas','registra os serviços com o ajuste necessário (um a um ou colando da planilha) e acerta os dados das linhas'],['excluir','Exclui linhas','tira linhas da tabela (vão para a Lixeira)'],['reprovar','Aceita ou rejeita','aceita a correção ou rejeita novamente (pede um novo ajuste)'],['responder','Responde','informa a correção de cada ajuste']];
-  const TIPOS={livre:'Letras e números',num:'Apenas números',letras:'Apenas letras'};
+  const TIPOS={livre:'Letras e números',num:'Apenas números (e o ponto)',letras:'Apenas letras'};
   const ST={reprovado:{rot:'Aguardando correção',cls:'err',ico:'fa-circle-xmark',ord:0},respondido:{rot:'Corrigido — aguardando conferência',cls:'warn',ico:'fa-hourglass-half',ord:1},aprovado:{rot:'Aceito',cls:'ok',ico:'fa-circle-check',ord:2}};
   const ROT_EV={respondeu:'respondeu',aprovou:'aceitou a correção',alterou:'alterou os dados da linha',editou:'editou o próprio texto',atualizou:'atualizou o ajuste necessário (linha repetida)',excluiu:'excluiu a linha'};
   const rotEv=e=>e.acao==='reprovou'?(e.inicial==='sim'?'incluiu a linha (ajuste necessário)':'rejeitou novamente (novo ajuste)'):ROT_EV[e.acao]||e.acao;
@@ -25848,56 +25851,39 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
     aprovou:{tit:'Aceitar a correção',rot:'Observação (opcional)',ph:'',obg:false,bt:'<i class="fas fa-check"></i> Aceitar',ok:n=>n>1?`${n} correções aceitas.`:'Correção aceita.'},
     reprovou:{tit:'Rejeitar novamente',rot:'Ajuste necessário (o que continua errado)',ph:'Ex.: a caixa continua fora do nível…',obg:true,bt:'<i class="fas fa-circle-xmark"></i> Rejeitar novamente',ok:n=>n>1?`${n} serviços rejeitados novamente — novo ajuste em cada um.`:'Rejeitado novamente — novo ajuste registrado.'}};
   /* ── o que cada coluna aceita — o Administrador define em Configurar a tabela: o tipo, se é obrigatória, se aceita valor
-     repetido ("Sem repetir") e quantos caracteres cabem ("Máx. de caracteres"; nos números contam só os algarismos) ── */
-  /* NÚMERO: inteiro, com o ponto do milhar (1.234) e sem casas decimais — 0 é "0", nunca "0,00". O que vem depois da vírgula
-     não entra (no colado da planilha também); um ponto com 1 ou 2 algarismos no fim é a casa decimal de planilha em inglês
-     (1234.50) e também não entra. */
-  const soInteiro=x=>{let s=String(x==null?'':x).trim();if(!s)return '';const vg=s.indexOf(',');if(vg>=0)s=s.slice(0,vg);else if(/\.\d{1,2}$/.test(s))s=s.replace(/\.\d{1,2}$/,'');return s.replace(/\D/g,'').replace(/^0+(?=\d)/,'');};
-  const milhar=d=>d?String(d).replace(/\B(?=(\d{3})+(?!\d))/g,'.'):'';
-  const fmtNum=x=>milhar(soInteiro(x));
-  // o número que veio colado (ou já gravado): com cara de número, vai para o formato; com letras, fica como veio (e acusa)
-  const numColado=x=>{const s=String(x==null?'':x).trim();return /^[\d\s.,]+$/.test(s)&&/\d/.test(s)?fmtNum(s):s;};
-  const mostrar=(c,x)=>{const s=String(x==null?'':x).trim();return c&&c.tipo==='num'&&s?numColado(s):s;};
-  const igualValor=(c,a,b)=>c.tipo==='num'?mostrar(c,a)===mostrar(c,b):String(a==null?'':a).trim()===String(b==null?'':b).trim();
-  const tamanho=(c,v)=>c.tipo==='num'?soInteiro(v).length:String(v).length;
-  const ehNum=s=>/^(\d+|\d{1,3}(\.\d{3})+)$/.test(s);
+     repetido ("Sem repetir") e quantos caracteres cabem ("Máx. de caracteres") ── */
+  /* NÚMERO: só algarismos e o ponto (ex.: a ordem de serviço 1057420961.1) — sem máscara nenhuma: o valor fica exatamente
+     como foi escrito ou colado. No celular, a vírgula do teclado numérico vira ponto. */
+  const mostrar=(c,x)=>String(x==null?'':x).trim();
+  const igualValor=(c,a,b)=>mostrar(c,a)===mostrar(c,b);
+  const ehNum=s=>/^[\d.]+$/.test(s)&&/\d/.test(s);
   const ehLetras=s=>/^[A-Za-zÀ-ÖØ-öø-ÿ\s'´`^~.,;:()\/&ºª°"-]+$/.test(s);
   const erroValor=(c,v)=>{v=String(v==null?'':v).trim();if(!v)return c.obg?'obrigatório':'';
-    if(c.tipo==='num'&&!ehNum(v))return /^[\d.]+,\d*$/.test(v)?'sem casas decimais':'só números';
+    if(c.tipo==='num'&&!ehNum(v))return 'só números e o ponto';
     if(c.tipo==='letras'&&!ehLetras(v))return 'só letras';
-    const mx=+c.max||0;if(mx>0&&tamanho(c,v)>mx)return c.tipo==='num'?`no máximo ${mx} algarismo${mx>1?'s':''}`:`no máximo ${mx} caractere${mx>1?'s':''} (tem ${v.length})`;
+    const mx=+c.max||0;if(mx>0&&v.length>mx)return `no máximo ${mx} caractere${mx>1?'s':''} (tem ${v.length})`;
     return '';};
   // a regra da coluna, em poucas palavras (embaixo do nome do campo e no cabeçalho)
-  const regra=c=>[TIPOS[c.tipo]||TIPOS.livre,+c.max>0?`até ${+c.max} ${c.tipo==='num'?'algarismos':'caracteres'}`:'',c.unico?'sem repetir':''].filter(Boolean).join(' · ');
-  const filtrar=(tipo,v)=>tipo==='letras'?String(v).replace(/\d/g,''):String(v);
-  // a máscara do número: só algarismos digitados (vírgula e ponto nem entram); o ponto do milhar vem sozinho, o cursor fica
-  // depois do mesmo algarismo e, com limite, não passa de tantos algarismos
-  function mascaraNum(i,e){
-    const v=i.value,pos=i.selectionStart==null?v.length:i.selectionStart,mx=+i.dataset.rvMax||0;
-    let d=(e&&/^insertFrom(Paste|Drop)/.test(e.inputType||''))||v.includes(',')?soInteiro(v):v.replace(/\D/g,'').replace(/^0+(?=\d)/,'');
-    if(mx>0)d=d.slice(0,mx);
-    const f=milhar(d);if(f===v)return;
-    const n=Math.min(v.slice(0,pos).replace(/\D/g,'').length,d.length);let p=0,k=0;while(p<f.length&&k<n){if(/\d/.test(f[p]))k++;p++;}
-    i.value=f;try{i.setSelectionRange(p,p);}catch(x){}}
-  // os campos tipados já não deixam digitar o que não aceitam (o colado também é conferido antes de gravar)
+  const regra=c=>[TIPOS[c.tipo]||TIPOS.livre,+c.max>0?`até ${+c.max} caracteres`:'',c.unico?'sem repetir':''].filter(Boolean).join(' · ');
+  const filtrar=(tipo,v)=>tipo==='num'?String(v).replace(/,/g,'.').replace(/[^\d.]/g,''):tipo==='letras'?String(v).replace(/\d/g,''):String(v);
+  // os campos tipados já não deixam digitar o que não aceitam (o colado da planilha é conferido e acusa em vermelho)
   function ligarTipos(el){if(!el)return;
-    // a vírgula ou o ponto digitados nem entram; um trecho com algarismos (teclado que manda vários de uma vez) entra e a
-    // máscara arruma — o que vem depois da vírgula sai
-    el.addEventListener('beforeinput',e=>{const i=e.target&&e.target.closest?e.target.closest('input[data-rv-tipo="num"]'):null;if(i&&e.inputType==='insertText'&&e.data&&!/\d/.test(e.data))e.preventDefault();});
-    el.addEventListener('input',e=>{const i=e.target.closest('input[data-rv-tipo]');if(!i)return;const t=i.dataset.rvTipo;
-      if(t==='num')return mascaraNum(i,e);
-      if(t!=='letras')return;const f=filtrar(t,i.value);if(f!==i.value){const p=Math.max(0,(i.selectionStart||0)-(i.value.length-f.length));i.value=f;try{i.setSelectionRange(p,p);}catch(x){}}});}
-  const atrsCampo=c=>`data-rv-tipo="${fe(c.tipo||'livre')}"${c.tipo==='num'?` inputmode="numeric"${+c.max>0?` data-rv-max="${+c.max}"`:''}`:+c.max>0?` maxlength="${+c.max}"`:''}`;
+    // no número, o que não é algarismo, ponto (ou a vírgula, que vira ponto) nem entra; um trecho com algo que serve (teclado
+    // que manda vários de uma vez) entra e é filtrado
+    el.addEventListener('beforeinput',e=>{const i=e.target&&e.target.closest?e.target.closest('input[data-rv-tipo="num"]'):null;if(i&&e.inputType==='insertText'&&e.data&&!/[\d.,]/.test(e.data))e.preventDefault();});
+    el.addEventListener('input',e=>{const i=e.target.closest('input[data-rv-tipo]');if(!i)return;const t=i.dataset.rvTipo;if(t!=='num'&&t!=='letras')return;
+      const f=filtrar(t,i.value);if(f!==i.value){const p=Math.max(0,(i.selectionStart||0)-(i.value.length-f.length));i.value=f;try{i.setSelectionRange(p,p);}catch(x){}}});}
+  const atrsCampo=c=>`data-rv-tipo="${fe(c.tipo||'livre')}"${c.tipo==='num'?' inputmode="decimal"':''}${+c.max>0?` maxlength="${+c.max}"`:''}`;
   const campoCol=(c,v)=>`<div class="fin-fld"><label>${fe(c.nome)}${c.obg?' <span class="obg">*</span>':''} <small class="rv-tipo">${fe(regra(c))}</small></label><input data-rv-c="${fe(c.k)}" ${atrsCampo(c)} value="${fe(mostrar(c,v))}"></div>`;
-  const lerCampos=(j,cols)=>{const v={};let erro='';cols.forEach(c=>{const el=j.querySelector(`[data-rv-c="${c.k}"]`);let x=String(el?el.value:'').trim();if(c.tipo==='num')x=numColado(x);const e=erroValor(c,x);if(e&&!erro)erro=`${c.nome}: ${e}.`;v[c.k]=x;});return {v,erro};};
+  const lerCampos=(j,cols)=>{const v={};let erro='';cols.forEach(c=>{const el=j.querySelector(`[data-rv-c="${c.k}"]`),x=String(el?el.value:'').trim(),e=erroValor(c,x);if(e&&!erro)erro=`${c.nome}: ${e}.`;v[c.k]=x;});return {v,erro};};
   const resumoValores=(it,cols)=>{const v=lerJ(it.valores,{});return cols.map(c=>mostrar(c,v[c.k])).filter(Boolean).join(' · ');};
   /* ── REPETIDAS: as colunas marcadas "Sem repetir" identificam o serviço. Uma linha com os mesmos valores em TODAS elas (sem
-     diferença de maiúsculas, acentos e espaços; nos números, 1.234 = 1234) é o mesmo serviço e não entra de novo: quem inclui
-     revê os dados ou leva o ajuste novo para a que já existe. Sem coluna marcada, a tabela aceita repetidas. ── */
+     diferença de maiúsculas, acentos e espaços) é o mesmo serviço e não entra de novo: quem inclui revê os dados ou leva o
+     ajuste novo para a que já existe. Sem coluna marcada, a tabela aceita repetidas. ── */
   const colsUnicas=cols=>cols.filter(c=>c.unico);
   const nomesUnicas=cols=>colsUnicas(cols).map(c=>c.nome).join(' + ');
   const naoAceita=cols=>`${nomesUnicas(cols)} não aceita${colsUnicas(cols).length>1?'m':''} repetidos`;
-  const chaveDe=(cols,v)=>{const U=colsUnicas(cols);if(!U.length)return '';const p=U.map(c=>c.tipo==='num'?soInteiro(v[c.k]):cn(v[c.k]));return p.some(Boolean)?p.join('\u0001'):'';};
+  const chaveDe=(cols,v)=>{const U=colsUnicas(cols);if(!U.length)return '';const p=U.map(c=>cn(v[c.k]));return p.some(Boolean)?p.join('\u0001'):'';};
   // as chaves das linhas da obra (entre repetidas antigas, vale a que ainda espera alguma coisa — não a já aceita)
   function chavesObra(ob,cols,fora){const m=new Map();
     itensDe(ob).sort((a,b)=>(+numDe(a)||0)-(+numDe(b)||0)).forEach(it=>{if(fora&&fora.has(it.uid))return;const k=chaveDe(cols,lerJ(it.valores,{}));if(!k)return;const j=m.get(k);if(!j||(estado(j).st==='aprovado'&&estado(it).st!=='aprovado'))m.set(k,it);});
@@ -25913,6 +25899,12 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
     const e=s.ultRep;if(String(e.texto||'').trim()===t)return [];
     const ed=lerJ(e.edicoes,[]);ed.push({texto:e.texto||'',em:agora});
     return [[{...limpo(e),texto:t,editado_em:agora,edicoes:ed},e.rowid],[ev(it,'atualizou',t,{antes:e.texto||'',ref:String(e.rowid)}),null]];}
+  // grava em lotes (tam de cada vez); se algum falhar, para no fim do lote e diz quantos já foram — para não repetir o que
+  // já entrou (a tela é recarregada do banco do mesmo jeito)
+  async function emLotes(itens,fn,tam){let feitos=0;
+    try{for(let i=0;i<itens.length;i+=tam){const rs=await Promise.allSettled(itens.slice(i,i+tam).map(fn));feitos+=rs.filter(x=>x.status==='fulfilled').length;const f=rs.find(x=>x.status==='rejected');if(f)throw f.reason;}}
+    catch(x){const m=(x&&x.message)||String(x);throw new Error(feitos?`${m} — ${feitos} de ${itens.length} já tinham sido gravadas antes do erro; confira a tabela antes de repetir.`:m);}
+    return feitos;}
   // Incluir linha: a repetida não entra — rever os dados (a janela continua aberta) ou levar o ajuste para a que já existe
   async function perguntarDup(ob,cols,it,t){
     const s=estado(it),rej=destinoDup(it)==='rejeitar',n=numDe(it);
@@ -26101,8 +26093,10 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
     confirmar(n>1?`Excluir ${n} linhas?`:'Excluir a linha?',`${n>1?U.listaExc(its,it=>`<li>Nº ${fe(numDe(it))} · ${fe(resumoValores(it,cols)||'—')}</li>`,'linha(s)'):`O serviço <b>nº ${fe(numDe(its[0]))}</b>${resumoValores(its[0],cols)?` (${fe(resumoValores(its[0],cols))})`:''}`} ${n>1?'As linhas':'A linha'} e ${nEv===1?'o movimento':`os ${nEv} movimentos`} vão para a Lixeira — dá para restaurar em até 15 dias. Fica no histórico da obra quem excluiu e quando; as linhas de baixo sobem de número.`,n>1?`Sim, excluir ${n}`:'Sim, excluir',async()=>{
       // as marcações saem ANTES de gravar (a tela é redesenhada no fim da gravação e já vem sem elas)
       its.forEach(it=>RV.sel.delete(it.uid));
-      await executar(async()=>{for(const it of its){const s=estado(it),res=resumoValores(it,cols),nn=String(numDe(it));
-        for(const e of s.ev)await excluir('Planejamento',e.rowid);await excluir('Planejamento',it.rowid);await salvar('Planejamento',ev(it,'excluiu',res,{resumo:res,item_n:nn}),null);}});
+      // a linha sai primeiro (some da tabela) e depois os movimentos dela; se der erro no meio, diz quantas já saíram
+      await executar(async()=>{let feitas=0;try{for(const it of its){const s=estado(it),res=resumoValores(it,cols),nn=String(numDe(it));
+        await excluir('Planejamento',it.rowid);for(const e of s.ev)await excluir('Planejamento',e.rowid);await salvar('Planejamento',ev(it,'excluiu',res,{resumo:res,item_n:nn}),null);feitas++;}}
+        catch(x){const m=(x&&x.message)||String(x);throw new Error(feitas?`${m} — ${feitas} de ${its.length} linha(s) já tinham sido excluídas antes do erro.`:m);}});
       toast(n>1?`${n} linhas excluídas.`:'Linha excluída.','success');});
   }
   function editarTexto(uid,rowid){
@@ -26143,7 +26137,7 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
         const evs=agora.map(it=>ev(it,A,txt.get(it.uid)||''));
         // as marcações saem ANTES de gravar (a tela é redesenhada no fim da gravação); se der erro, voltam
         agora.forEach(it=>RV.sel.delete(it.uid));
-        try{await executar(async()=>{for(let i=0;i<evs.length;i+=6)await Promise.all(evs.slice(i,i+6).map(e=>salvar('Planejamento',e,null)));});}
+        try{await executar(()=>emLotes(evs,e=>salvar('Planejamento',e,null),6));}
         catch(x){agora.forEach(it=>RV.sel.add(it.uid));throw x;}
         toast(T.ok(agora.length),'success');}}],780);
     j.addEventListener('input',e=>{const t=e.target.closest('[data-rv-lt]');if(t&&t.value.trim())t.closest('[data-rv-it]').classList.remove('rv-lt-falta');});
@@ -26159,7 +26153,7 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
       [{html:'<i class="fas fa-floppy-disk"></i> Salvar',cls:'pri',acao:async j=>{
         const ops=[],erros=[],fin=new Map();
         j.querySelectorAll('tr[data-rv-it]').forEach(tr=>{const it=itemDe(tr.dataset.rvIt);if(!it)return;const v0=lerJ(it.valores,{}),v={};
-          cols.forEach(c=>{const el=tr.querySelector(`[data-rv-c="${c.k}"]`);let x=String(el?el.value:'').trim();if(c.tipo==='num')x=numColado(x);const e=erroValor(c,x);
+          cols.forEach(c=>{const el=tr.querySelector(`[data-rv-c="${c.k}"]`),x=String(el?el.value:'').trim(),e=erroValor(c,x);
             if(el)el.classList.toggle('rv-err-cel',!!e);if(e)erros.push(`nº ${numDe(it)} — ${c.nome}: ${e}`);v[c.k]=x;});
           // só o que mudou de verdade (1234 e 1.234 são o mesmo número)
           const muda=cols.filter(c=>!igualValor(c,v0[c.k],v[c.k]));
@@ -26174,7 +26168,7 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
               const tr=j.querySelector(`tr[data-rv-it="${a.uid}"]`);if(tr)colsUnicas(cols).forEach(c=>{const el=tr.querySelector(`[data-rv-c="${c.k}"]`);if(el)el.classList.add('rv-err-cel');});}});
           if(rep.length)throw new Error(`${rep.slice(0,3).join(' · ')}${rep.length>3?` (e mais ${rep.length-3})`:''} — ${naoAceita(cols)}. Reveja os dados.`);}
         const antes=[...RV.sel];RV.sel.clear();
-        try{await executar(async()=>{for(let i=0;i<ops.length;i+=5)await Promise.all(ops.slice(i,i+5).map(async([o,rid,e])=>{await salvar('Planejamento',o,rid);await salvar('Planejamento',e,null);}));});}
+        try{await executar(()=>emLotes(ops,async([o,rid,e])=>{await salvar('Planejamento',o,rid);await salvar('Planejamento',e,null);},5));}
         catch(x){antes.forEach(u=>RV.sel.add(u));throw x;}
         toast(`${ops.length} linha${ops.length>1?'s':''} acertada${ops.length>1?'s':''}.`,'success');}}],Math.min(1200,380+cols.length*170));
     ligarTipos(j);
@@ -26273,8 +26267,8 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
     const cols=colunas(ob);if(!cols.length)return toast('Configure a tabela desta obra antes (Configurar a tabela).','error');
     const MOT='__ajuste',ALVOS=[...cols.map(c=>({k:c.k,nome:c.nome})),{k:MOT,nome:'Ajuste necessário'}],P={linhas:[],mapa:[],esc:new Map()};
     const colDe=k=>cols.find(c=>c.k===k),UN=colsUnicas(cols);
-    // o valor de cada célula já no formato da coluna (número: 1.234, sem o que vem depois da vírgula)
-    const valCel=(k,x)=>{const c=colDe(k);return c&&c.tipo==='num'?numColado(x):String(x==null?'':x).trim();};
+    // o valor de cada célula, como veio (sem máscara; o que a coluna não aceita fica em vermelho para corrigir ali mesmo)
+    const valCel=(k,x)=>String(x==null?'':x).trim();
     const erroCel=(k,x)=>{if(!k)return '';if(k===MOT)return String(x||'').trim()?'':'obrigatório';const c=colDe(k);return c?erroValor({...c,obg:false},valCel(k,x)):'';};
     /* cada linha colada: os valores, o ajuste, os problemas e — com colunas "Sem repetir" — se é repetida de uma linha que já
        está na tabela (dup: desconsiderar ou levar o ajuste para ela) ou de outra linha desta colagem (dupCola: fica de fora;
@@ -26282,7 +26276,7 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
     function validar(){const ch=UN.length?chavesObra(ob,cols):null,vistas=new Map();
       return P.linhas.map((r,li)=>{const v={},er=[];let mot='';
         P.mapa.forEach((k,i)=>{if(!k)return;const x=String(r[i]||'').trim();if(!x)return;if(k===MOT){mot=mot?mot+' — '+x:x;return;}v[k]=v[k]?v[k]+' '+x:x;});
-        cols.forEach(c=>{if(c.tipo==='num'&&v[c.k])v[c.k]=numColado(v[c.k]);const e=erroValor(c,v[c.k]);if(e)er.push(`${c.nome}: ${e}`);});
+        cols.forEach(c=>{const e=erroValor(c,v[c.k]);if(e)er.push(`${c.nome}: ${e}`);});
         if(!mot)er.push('Ajuste necessário: obrigatório');
         const o={li,v,mot,er,dup:null,dupCola:null,pode:false,esc:'ignorar'};
         if(ch&&!UN.some(c=>erroValor(c,v[c.k]))){const k=chaveDe(cols,v);if(k){if(vistas.has(k))o.dupCola=vistas.get(k);else{vistas.set(k,li);o.dup=ch.get(k)||null;}}}
@@ -26314,7 +26308,7 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
         // as repetidas, com os dados de agora (outra pessoa pode ter mexido na linha enquanto a janela estava aberta)
         let nRej=0,nAtu=0,nIgual=0,nFora=0;
         atu.forEach(x=>{const it2=itemDe(x.dup.uid);if(!it2||!podeDup(ob,it2)){nFora++;return;}const L=opsDup(it2,x.mot);if(!L.length){nIgual++;return;}if(destinoDup(it2)==='rejeitar')nRej++;else nAtu++;ops.push(L);});
-        if(ops.length)await executar(async()=>{for(let i=0;i<ops.length;i+=5)await Promise.all(ops.slice(i,i+5).map(async L=>{for(const [o,r] of L)await salvar('Planejamento',o,r);}));});
+        if(ops.length)await executar(()=>emLotes(ops,async L=>{for(const [o,r] of L)await salvar('Planejamento',o,r);},5));
         toast([novas.length?`${novas.length} serviço(s) incluído(s)`:'',nRej?`${nRej} rejeitado(s) novamente`:'',nAtu?`${nAtu} ajuste(s) atualizado(s)`:'',nIgual?`${nIgual} já tinha(m) o mesmo ajuste`:'',nDesc+nFora?`${nDesc+nFora} repetida(s) desconsiderada(s)`:''].filter(Boolean).join(' · ')+'.',ops.length?'success':'info');}}],1120);
     const ta=j.querySelector('[data-rv-cola]'),prev=j.querySelector('[data-rv-prev]');
     function resumo(){const R=validar(),S=k=>R.filter(o=>situ(o)===k).length,nDup=R.filter(o=>o.dup).length,nPode=R.filter(o=>o.dup&&o.pode).length;
@@ -26359,12 +26353,12 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
     const c0=cfgDe(ob),pp0=papeis(ob),outras=obrasLista().filter(o=>o!==ob&&cfgDe(o));
     let cols=colunas(ob).map(x=>({...x}));
     const admU=u=>UI._ehAdmin?UI._ehAdmin(u.perfil):/^admin/i.test(String(u.perfil||''));
-    const linhasCols=()=>cols.length?cols.map((c,i)=>`<tr data-ci="${i}"><td><input data-cc="nome" value="${fe(c.nome)}" placeholder="Nome da coluna"></td><td><select data-cc="tipo">${Object.entries(TIPOS).map(([k,r])=>`<option value="${k}" ${c.tipo===k?'selected':''}>${r}</option>`).join('')}</select></td><td style="text-align:center"><input type="checkbox" data-cc="obg" ${c.obg?'checked':''}></td><td style="text-align:center"><input type="checkbox" data-cc="unico" ${c.unico?'checked':''} title="Não aceita valor repetido (com outras marcadas: a combinação delas)"></td><td><input data-cc="max" type="number" min="1" step="1" inputmode="numeric" value="${+c.max>0?+c.max:''}" placeholder="sem limite" title="Quantos caracteres cabem no campo (vazio = sem limite; nos números, os algarismos)"></td><td class="rv-cc-bts"><button type="button" class="rv-ic" data-cc-mv="-1" title="Subir" ${i===0?'disabled':''}><i class="fas fa-arrow-up"></i></button><button type="button" class="rv-ic" data-cc-mv="1" title="Descer" ${i===cols.length-1?'disabled':''}><i class="fas fa-arrow-down"></i></button><button type="button" class="rv-ic err" data-cc-x title="Tirar a coluna"><i class="fas fa-trash"></i></button></td></tr>`).join('')
+    const linhasCols=()=>cols.length?cols.map((c,i)=>`<tr data-ci="${i}"><td><input data-cc="nome" value="${fe(c.nome)}" placeholder="Nome da coluna"></td><td><select data-cc="tipo">${Object.entries(TIPOS).map(([k,r])=>`<option value="${k}" ${c.tipo===k?'selected':''}>${r}</option>`).join('')}</select></td><td style="text-align:center"><input type="checkbox" data-cc="obg" ${c.obg?'checked':''}></td><td style="text-align:center"><input type="checkbox" data-cc="unico" ${c.unico?'checked':''} title="Não aceita valor repetido (com outras marcadas: a combinação delas)"></td><td><input data-cc="max" type="number" min="1" step="1" inputmode="numeric" value="${+c.max>0?+c.max:''}" placeholder="sem limite" title="Quantos caracteres cabem no campo (vazio = sem limite)"></td><td class="rv-cc-bts"><button type="button" class="rv-ic" data-cc-mv="-1" title="Subir" ${i===0?'disabled':''}><i class="fas fa-arrow-up"></i></button><button type="button" class="rv-ic" data-cc-mv="1" title="Descer" ${i===cols.length-1?'disabled':''}><i class="fas fa-arrow-down"></i></button><button type="button" class="rv-ic err" data-cc-x title="Tirar a coluna"><i class="fas fa-trash"></i></button></td></tr>`).join('')
       :'<tr><td colspan="6" class="rv-dica" style="padding:10px 6px">Nenhuma coluna ainda — clique em <b>Nova coluna</b>.</td></tr>';
     const tabPapeis=pp=>us.length?`<table data-sem-ordem><thead><tr><th>Usuário</th>${ACOES.map(([k,r,ds])=>`<th title="${fe(ds)}">${fe(r)}</th>`).join('')}</tr></thead><tbody>${us.map(u=>{const id=idUsuario(u),adm=admU(u);
         return `<tr><td><b>${fe(u.nome||id)}</b><small>${fe(adm?'Administrador — faz tudo':(u.perfil||''))}</small></td>${ACOES.map(([k])=>`<td><input type="checkbox" data-rv-p="${k}" value="${fe(id)}" ${adm?'checked disabled':((pp[k]||[]).map(String).includes(id)?'checked':'')}></td>`).join('')}</tr>`;}).join('')}</tbody></table>`:'<div class="fin-vazio">Não consegui carregar a lista de usuários.</div>';
     const j=janela(`Configurar a tabela — ${ob}`,`<div class="rv-cfg">
-        <h4>Colunas desta obra</h4><p class="rv-dica">O nome de cada coluna e o que ela aceita: <b>letras e números</b>, <b>apenas números</b> (inteiro, com o ponto do milhar — 1.234 — e sem casas decimais: 0 é 0, nunca 0,00; para códigos, use letras e números) ou <b>apenas letras</b>. <b>Sem repetir</b>: a coluna identifica o serviço — uma linha nova igual a uma que já está na tabela não entra; o sistema avisa e deixa levar o ajuste novo para a que já existe. Marcando mais de uma, vale a combinação delas (ex.: Rua + Nº da casa + Serviço). <b>Máx. de caracteres</b>: quantos cabem no campo (vazio = sem limite; nos números contam só os algarismos). O <b>ajuste necessário</b>, a situação, os contadores e o histórico já vêm em toda tabela. Tirar uma coluna não apaga o que já foi escrito nela.</p>
+        <h4>Colunas desta obra</h4><p class="rv-dica">O nome de cada coluna e o que ela aceita: <b>letras e números</b>, <b>apenas números</b> (algarismos e o ponto, como a ordem de serviço 1057420961.1 — fica do jeito que foi escrito) ou <b>apenas letras</b>. <b>Sem repetir</b>: a coluna identifica o serviço — uma linha nova igual a uma que já está na tabela não entra; o sistema avisa e deixa levar o ajuste novo para a que já existe. Marcando mais de uma, vale a combinação delas (ex.: Rua + Nº da casa + Serviço). <b>Máx. de caracteres</b>: quantos cabem no campo (vazio = sem limite). O <b>ajuste necessário</b>, a situação, os contadores e o histórico já vêm em toda tabela. Tirar uma coluna não apaga o que já foi escrito nela.</p>
         <div class="rv-cfg-cols"><table data-sem-ordem><thead><tr><th>Coluna</th><th>Aceita</th><th>Obrigatória</th><th>Sem repetir</th><th>Máx. de caracteres</th><th></th></tr></thead><tbody data-rv-cols>${linhasCols()}</tbody></table></div>
         <small class="rv-dica rv-unico-dica" data-rv-unico-dica></small>
         <div class="rv-cfg-lin"><button type="button" class="fin-bt mini" data-cc-add><i class="fas fa-plus"></i> Nova coluna</button>${outras.length?`<select class="filter-select" data-rv-copia><option value="">Copiar a configuração de outra obra…</option>${outras.map(o=>`<option value="${fe(o)}">${fe(o)}</option>`).join('')}</select>`:''}</div>
@@ -26490,7 +26484,7 @@ textarea[data-rv-cola]{width:100%;font-family:inherit;}
    versão nova em cada aba, para nunca ficar recarregando sem parar.
    A CADA PUBLICAÇÃO: trocar a VERSÃO abaixo e a do versao.json (na raiz e em public/) — as duas iguais. */
 (function(){
-  const VERSAO='2026-11-18e';window.VX_VERSAO=VERSAO;
+  const VERSAO='2026-11-18f';window.VX_VERSAO=VERSAO;
   let ultima=0,pendente=null;
   const ocupado=()=>!!(App&&App.state&&App.state._busy)||!!document.querySelector('#fin-ov.open,.modal-overlay.open,.pm-pop,.vx-perg-ov,.confirm-overlay.open');
   async function tentar(){

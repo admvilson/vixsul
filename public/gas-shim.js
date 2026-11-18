@@ -224,10 +224,15 @@ function _carimbar(rowData) {
   if (!rowData.criado_por) rowData.criado_por = s.nome || '';
   return rowData;
 }
+// A Fiscalização (Diário › Fiscalização) guarda as linhas e os movimentos no planejamento: lá quem exclui é quem tem o papel
+// "Exclui linhas" na tabela da obra (a tela confere) — não só quem lançou, porque cada movimento é de uma pessoa diferente.
+const _FISC = /^reprov_(item|ev)$/;
+const _ehFisc = (chave, rd) => chave === 'planejamento' && _FISC.test(String((rd && rd.tipo) || ''));
 async function _donoPermite(chave, rowId) {
   const s = _sessaoAtual(); if (!s || _ehAdmin(s)) return true;
   try {
     const { data } = await _sb.from(chave).select('row_data').eq('id', Number(rowId)).maybeSingle();
+    if (_ehFisc(chave, data && data.row_data)) return true;
     const dono = data && data.row_data && data.row_data.criado_por_id;
     return !dono || [s.uid, s.cpf, s.email, s.nome].filter(Boolean).map(String).includes(String(dono));
   } catch (e) { return true; }
@@ -438,7 +443,7 @@ async function _marcarLixeira(abaNome, rowId, marca) {
   if (rd._lixeira_em) return { ok: true, ja: true };
   // a mesma regra da exclusão: só quem lançou (ou um Administrador); anexo de documento continua livre, como antes
   const s = _sessaoAtual(), dono = rd.criado_por_id;
-  if (!(chave === 'arquivos' && rd.tipo === 'anexo') && s && !_ehAdmin(s) && dono && ![s.uid, s.cpf, s.email, s.nome].filter(Boolean).map(String).includes(String(dono)))
+  if (!(chave === 'arquivos' && rd.tipo === 'anexo') && !_ehFisc(chave, rd) && s && !_ehAdmin(s) && dono && ![s.uid, s.cpf, s.email, s.nome].filter(Boolean).map(String).includes(String(dono)))
     return { ok: false, msg: _MSG_DONO };
   const m = marca || {};
   const novo = Object.assign({}, rd, {
