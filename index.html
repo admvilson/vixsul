@@ -25796,7 +25796,7 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
   const ACOES=[['incluir','Inclui linhas','registra os serviços com o ajuste necessário (um a um ou colando da planilha) e acerta os dados das linhas'],['excluir','Exclui linhas','tira linhas da tabela (vão para a Lixeira)'],['reprovar','Aceita ou rejeita','aceita a correção ou rejeita novamente (pede um novo ajuste)'],['responder','Responde','informa a correção de cada ajuste']];
   const TIPOS={livre:'Letras e números',num:'Apenas números',letras:'Apenas letras'};
   const ST={reprovado:{rot:'Aguardando correção',cls:'err',ico:'fa-circle-xmark',ord:0},respondido:{rot:'Corrigido — aguardando conferência',cls:'warn',ico:'fa-hourglass-half',ord:1},aprovado:{rot:'Aceito',cls:'ok',ico:'fa-circle-check',ord:2}};
-  const ROT_EV={respondeu:'respondeu',aprovou:'aceitou a correção',alterou:'alterou os dados da linha',editou:'editou o próprio texto',excluiu:'excluiu a linha'};
+  const ROT_EV={respondeu:'respondeu',aprovou:'aceitou a correção',alterou:'alterou os dados da linha',editou:'editou o próprio texto',atualizou:'atualizou o ajuste necessário (linha repetida)',excluiu:'excluiu a linha'};
   const rotEv=e=>e.acao==='reprovou'?(e.inicial==='sim'?'incluiu a linha (ajuste necessário)':'rejeitou novamente (novo ajuste)'):ROT_EV[e.acao]||e.acao;
   const RV={obra:'',st:'',busca:'',reinc:false,ver:'tabela',quem:'',foco:null,sel:new Set()};
   const MARCOS=['reprovou','respondeu','aprovou'];
@@ -25847,16 +25847,84 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
   const TXT={respondeu:{tit:'Responder — serviço corrigido',rot:'O que foi feito para corrigir',ph:'Ex.: caixa refeita no padrão, tampa trocada, reaterro compactado…',obg:true,bt:'<i class="fas fa-paper-plane"></i> Enviar a resposta',ok:n=>n>1?`${n} respostas registradas — aguardando a conferência.`:'Resposta registrada — aguardando a conferência.'},
     aprovou:{tit:'Aceitar a correção',rot:'Observação (opcional)',ph:'',obg:false,bt:'<i class="fas fa-check"></i> Aceitar',ok:n=>n>1?`${n} correções aceitas.`:'Correção aceita.'},
     reprovou:{tit:'Rejeitar novamente',rot:'Ajuste necessário (o que continua errado)',ph:'Ex.: a caixa continua fora do nível…',obg:true,bt:'<i class="fas fa-circle-xmark"></i> Rejeitar novamente',ok:n=>n>1?`${n} serviços rejeitados novamente — novo ajuste em cada um.`:'Rejeitado novamente — novo ajuste registrado.'}};
-  // ── o que cada coluna aceita ──
-  const ehNum=s=>/^-?(\d+|\d{1,3}(\.\d{3})+)(,\d+)?$/.test(s)||/^-?\d+\.\d+$/.test(s);
+  /* ── o que cada coluna aceita — o Administrador define em Configurar a tabela: o tipo, se é obrigatória, se aceita valor
+     repetido ("Sem repetir") e quantos caracteres cabem ("Máx. de caracteres"; nos números contam só os algarismos) ── */
+  /* NÚMERO: inteiro, com o ponto do milhar (1.234) e sem casas decimais — 0 é "0", nunca "0,00". O que vem depois da vírgula
+     não entra (no colado da planilha também); um ponto com 1 ou 2 algarismos no fim é a casa decimal de planilha em inglês
+     (1234.50) e também não entra. */
+  const soInteiro=x=>{let s=String(x==null?'':x).trim();if(!s)return '';const vg=s.indexOf(',');if(vg>=0)s=s.slice(0,vg);else if(/\.\d{1,2}$/.test(s))s=s.replace(/\.\d{1,2}$/,'');return s.replace(/\D/g,'').replace(/^0+(?=\d)/,'');};
+  const milhar=d=>d?String(d).replace(/\B(?=(\d{3})+(?!\d))/g,'.'):'';
+  const fmtNum=x=>milhar(soInteiro(x));
+  // o número que veio colado (ou já gravado): com cara de número, vai para o formato; com letras, fica como veio (e acusa)
+  const numColado=x=>{const s=String(x==null?'':x).trim();return /^[\d\s.,]+$/.test(s)&&/\d/.test(s)?fmtNum(s):s;};
+  const mostrar=(c,x)=>{const s=String(x==null?'':x).trim();return c&&c.tipo==='num'&&s?numColado(s):s;};
+  const igualValor=(c,a,b)=>c.tipo==='num'?mostrar(c,a)===mostrar(c,b):String(a==null?'':a).trim()===String(b==null?'':b).trim();
+  const tamanho=(c,v)=>c.tipo==='num'?soInteiro(v).length:String(v).length;
+  const ehNum=s=>/^(\d+|\d{1,3}(\.\d{3})+)$/.test(s);
   const ehLetras=s=>/^[A-Za-zÀ-ÖØ-öø-ÿ\s'´`^~.,;:()\/&ºª°"-]+$/.test(s);
-  const erroValor=(c,v)=>{v=String(v==null?'':v).trim();if(!v)return c.obg?'obrigatório':'';if(c.tipo==='num'&&!ehNum(v))return 'só números';if(c.tipo==='letras'&&!ehLetras(v))return 'só letras';return '';};
-  const filtrar=(tipo,v)=>tipo==='num'?String(v).replace(/[^\d.,-]/g,''):tipo==='letras'?String(v).replace(/\d/g,''):String(v);
+  const erroValor=(c,v)=>{v=String(v==null?'':v).trim();if(!v)return c.obg?'obrigatório':'';
+    if(c.tipo==='num'&&!ehNum(v))return /^[\d.]+,\d*$/.test(v)?'sem casas decimais':'só números';
+    if(c.tipo==='letras'&&!ehLetras(v))return 'só letras';
+    const mx=+c.max||0;if(mx>0&&tamanho(c,v)>mx)return c.tipo==='num'?`no máximo ${mx} algarismo${mx>1?'s':''}`:`no máximo ${mx} caractere${mx>1?'s':''} (tem ${v.length})`;
+    return '';};
+  // a regra da coluna, em poucas palavras (embaixo do nome do campo e no cabeçalho)
+  const regra=c=>[TIPOS[c.tipo]||TIPOS.livre,+c.max>0?`até ${+c.max} ${c.tipo==='num'?'algarismos':'caracteres'}`:'',c.unico?'sem repetir':''].filter(Boolean).join(' · ');
+  const filtrar=(tipo,v)=>tipo==='letras'?String(v).replace(/\d/g,''):String(v);
+  // a máscara do número: só algarismos digitados (vírgula e ponto nem entram); o ponto do milhar vem sozinho, o cursor fica
+  // depois do mesmo algarismo e, com limite, não passa de tantos algarismos
+  function mascaraNum(i,e){
+    const v=i.value,pos=i.selectionStart==null?v.length:i.selectionStart,mx=+i.dataset.rvMax||0;
+    let d=(e&&/^insertFrom(Paste|Drop)/.test(e.inputType||''))||v.includes(',')?soInteiro(v):v.replace(/\D/g,'').replace(/^0+(?=\d)/,'');
+    if(mx>0)d=d.slice(0,mx);
+    const f=milhar(d);if(f===v)return;
+    const n=Math.min(v.slice(0,pos).replace(/\D/g,'').length,d.length);let p=0,k=0;while(p<f.length&&k<n){if(/\d/.test(f[p]))k++;p++;}
+    i.value=f;try{i.setSelectionRange(p,p);}catch(x){}}
   // os campos tipados já não deixam digitar o que não aceitam (o colado também é conferido antes de gravar)
-  function ligarTipos(el){if(!el)return;el.addEventListener('input',e=>{const i=e.target.closest('input[data-rv-tipo]');if(!i)return;const t=i.dataset.rvTipo;if(t!=='num'&&t!=='letras')return;const f=filtrar(t,i.value);if(f!==i.value){const p=Math.max(0,(i.selectionStart||0)-(i.value.length-f.length));i.value=f;try{i.setSelectionRange(p,p);}catch(x){}}});}
-  const campoCol=(c,v)=>`<div class="fin-fld"><label>${fe(c.nome)}${c.obg?' <span class="obg">*</span>':''} <small class="rv-tipo">${fe(TIPOS[c.tipo]||TIPOS.livre)}</small></label><input data-rv-c="${fe(c.k)}" data-rv-tipo="${fe(c.tipo||'livre')}" ${c.tipo==='num'?'inputmode="decimal"':''} value="${fe(v==null?'':v)}"></div>`;
-  const lerCampos=(j,cols)=>{const v={};let erro='';cols.forEach(c=>{const el=j.querySelector(`[data-rv-c="${c.k}"]`),x=String(el?el.value:'').trim(),e=erroValor(c,x);if(e&&!erro)erro=`${c.nome}: ${e}.`;v[c.k]=x;});return {v,erro};};
-  const resumoValores=(it,cols)=>{const v=lerJ(it.valores,{});return cols.map(c=>v[c.k]).filter(x=>String(x||'').trim()).join(' · ');};
+  function ligarTipos(el){if(!el)return;
+    // a vírgula ou o ponto digitados nem entram; um trecho com algarismos (teclado que manda vários de uma vez) entra e a
+    // máscara arruma — o que vem depois da vírgula sai
+    el.addEventListener('beforeinput',e=>{const i=e.target&&e.target.closest?e.target.closest('input[data-rv-tipo="num"]'):null;if(i&&e.inputType==='insertText'&&e.data&&!/\d/.test(e.data))e.preventDefault();});
+    el.addEventListener('input',e=>{const i=e.target.closest('input[data-rv-tipo]');if(!i)return;const t=i.dataset.rvTipo;
+      if(t==='num')return mascaraNum(i,e);
+      if(t!=='letras')return;const f=filtrar(t,i.value);if(f!==i.value){const p=Math.max(0,(i.selectionStart||0)-(i.value.length-f.length));i.value=f;try{i.setSelectionRange(p,p);}catch(x){}}});}
+  const atrsCampo=c=>`data-rv-tipo="${fe(c.tipo||'livre')}"${c.tipo==='num'?` inputmode="numeric"${+c.max>0?` data-rv-max="${+c.max}"`:''}`:+c.max>0?` maxlength="${+c.max}"`:''}`;
+  const campoCol=(c,v)=>`<div class="fin-fld"><label>${fe(c.nome)}${c.obg?' <span class="obg">*</span>':''} <small class="rv-tipo">${fe(regra(c))}</small></label><input data-rv-c="${fe(c.k)}" ${atrsCampo(c)} value="${fe(mostrar(c,v))}"></div>`;
+  const lerCampos=(j,cols)=>{const v={};let erro='';cols.forEach(c=>{const el=j.querySelector(`[data-rv-c="${c.k}"]`);let x=String(el?el.value:'').trim();if(c.tipo==='num')x=numColado(x);const e=erroValor(c,x);if(e&&!erro)erro=`${c.nome}: ${e}.`;v[c.k]=x;});return {v,erro};};
+  const resumoValores=(it,cols)=>{const v=lerJ(it.valores,{});return cols.map(c=>mostrar(c,v[c.k])).filter(Boolean).join(' · ');};
+  /* ── REPETIDAS: as colunas marcadas "Sem repetir" identificam o serviço. Uma linha com os mesmos valores em TODAS elas (sem
+     diferença de maiúsculas, acentos e espaços; nos números, 1.234 = 1234) é o mesmo serviço e não entra de novo: quem inclui
+     revê os dados ou leva o ajuste novo para a que já existe. Sem coluna marcada, a tabela aceita repetidas. ── */
+  const colsUnicas=cols=>cols.filter(c=>c.unico);
+  const nomesUnicas=cols=>colsUnicas(cols).map(c=>c.nome).join(' + ');
+  const naoAceita=cols=>`${nomesUnicas(cols)} não aceita${colsUnicas(cols).length>1?'m':''} repetidos`;
+  const chaveDe=(cols,v)=>{const U=colsUnicas(cols);if(!U.length)return '';const p=U.map(c=>c.tipo==='num'?soInteiro(v[c.k]):cn(v[c.k]));return p.some(Boolean)?p.join('\u0001'):'';};
+  // as chaves das linhas da obra (entre repetidas antigas, vale a que ainda espera alguma coisa — não a já aceita)
+  function chavesObra(ob,cols,fora){const m=new Map();
+    itensDe(ob).sort((a,b)=>(+numDe(a)||0)-(+numDe(b)||0)).forEach(it=>{if(fora&&fora.has(it.uid))return;const k=chaveDe(cols,lerJ(it.valores,{}));if(!k)return;const j=m.get(k);if(!j||(estado(j).st==='aprovado'&&estado(it).st!=='aprovado'))m.set(k,it);});
+    return m;}
+  /* o ajuste novo de uma linha repetida vai para a que já está na tabela: a corrigida (aguardando conferência) ou a já aceita
+     é REJEITADA NOVAMENTE (conta mais um ajuste); a que ainda aguarda correção só tem o ajuste ATUALIZADO (o texto de antes
+     fica no histórico). Devolve as gravações [registro, rowid] — vazio quando o ajuste já é o mesmo. */
+  const destinoDup=it=>transicao(estado(it).st,'reprovou')?'rejeitar':'atualizar';
+  const podeDup=(ob,it)=>destinoDup(it)==='rejeitar'?pode(ob,'reprovar'):pode(ob,'incluir');
+  const rotDup=it=>{const s=estado(it);return destinoDup(it)==='rejeitar'?`Rejeitar novamente a nº ${numDe(it)} (${s.nRep+1}º ajuste)`:`Atualizar o ajuste da nº ${numDe(it)}`;};
+  function opsDup(it,t){const s=estado(it),agora=new Date().toISOString();
+    if(transicao(s.st,'reprovou')||!s.ultRep)return [[ev(it,'reprovou',t),null]];
+    const e=s.ultRep;if(String(e.texto||'').trim()===t)return [];
+    const ed=lerJ(e.edicoes,[]);ed.push({texto:e.texto||'',em:agora});
+    return [[{...limpo(e),texto:t,editado_em:agora,edicoes:ed},e.rowid],[ev(it,'atualizou',t,{antes:e.texto||'',ref:String(e.rowid)}),null]];}
+  // Incluir linha: a repetida não entra — rever os dados (a janela continua aberta) ou levar o ajuste para a que já existe
+  async function perguntarDup(ob,cols,it,t){
+    const s=estado(it),rej=destinoDup(it)==='rejeitar',n=numDe(it);
+    if(!podeDup(ob,it))throw new Error(`Este serviço já está na tabela (nº ${n} — ${ST[s.st].rot}). Para lançar o ajuste nele é preciso rejeitar novamente, e você não tem essa permissão nesta obra.`);
+    const ok=await vxPergunta('Este serviço já está na tabela',`<p style="margin:0 0 8px">Já existe a <b>linha nº ${fe(n)}</b> (${fe(resumoValores(it,cols)||'—')}), na situação <b>${fe(ST[s.st].rot)}</b>${s.ultRep?`, com o ajuste: <i>“${fe(s.ultRep.texto||'—')}”</i>`:''}.</p><p style="margin:0">${fe(naoAceita(cols))}: a linha nova <b>não entra</b>. Reveja os dados ou leve o ajuste que você escreveu para a nº ${fe(n)} — ${rej?`ela será <b>rejeitada novamente</b> (conta mais um ajuste: o ${s.nRep+1}º).`:'o ajuste dela será <b>atualizado</b> (o texto de antes fica no histórico).'}</p>`,rej?`Rejeitar novamente a nº ${n}`:`Atualizar o ajuste da nº ${n}`,'Rever os dados');
+    if(!ok)return false;
+    const it2=itemDe(it.uid);if(!it2)throw new Error('A linha repetida não está mais na tabela — confira e inclua de novo.');
+    if(destinoDup(it2)!==destinoDup(it)||!podeDup(ob,it2))throw new Error(`A nº ${n} mudou de situação enquanto a pergunta estava aberta — confira e tente de novo.`);
+    const ops=opsDup(it2,t);if(!ops.length){toast(`A nº ${n} já tem este mesmo ajuste — nada mudou.`,'info');return true;}
+    await executar(async()=>{for(const [o,r] of ops)await salvar('Planejamento',o,r);});
+    toast(rej?`Nº ${n} rejeitada novamente — novo ajuste registrado.`:`Ajuste da nº ${n} atualizado — o de antes ficou no histórico.`,'success');
+    return true;}
   const listarUsuarios=()=>new Promise((ok,er)=>google.script.run.withSuccessHandler(r=>r&&r.ok!==false?ok(r.usuarios||[]):er(new Error((r&&r.msg)||'Não consegui ler a lista de usuários.'))).withFailureHandler(e=>er(new Error((e&&e.message)||'Erro de conexão.'))).listarUsuarios());
   // serviços aguardando correção (o número da aba no Diário)
   const pendentes=()=>PLAN().filter(p=>p.tipo==='reprov_item').filter(it=>estado(it).st==='reprovado').length;
@@ -25895,7 +25963,7 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
     if(!configurada)corpo=`<div class="fin-card"><div class="fin-vazio rv-sem-cfg"><i class="fas fa-sliders"></i><p>${ehAdm()?'A tabela desta obra ainda não foi configurada. Em <b>Configurar a tabela</b>, escolha as colunas, o que cada uma aceita e quem inclui, exclui, aceita ou rejeita e responde.':'O Administrador ainda não configurou a tabela desta obra.'}</p>${ehAdm()?'<button type="button" class="fin-bt pri" data-rv="config"><i class="fas fa-sliders"></i> Configurar a tabela</button>':''}</div></div>`;
     else if(RV.ver==='historico')corpo=htmlHistoricoObra(ob);
     else if(!vis.length)corpo=`<div class="fin-card"><div class="fin-vazio">${its.length?'Nenhum serviço neste filtro.':'Nenhum serviço nesta obra ainda.'}${pode(ob,'incluir')&&!its.length?`<br><button type="button" class="fin-bt pri" data-rv="novo" style="margin-top:10px"><i class="fas fa-plus"></i> Incluir linha</button> <button type="button" class="fin-bt" data-rv="colar" style="margin-top:10px"><i class="fas fa-paste"></i> Colar da planilha</button>`:''}</div></div>`;
-    else corpo=`<div class="rv-selbar" data-rv-selbar hidden></div><div class="rv-tabela"><table class="rv-tab" data-sem-ordem><thead><tr><th class="rv-ck"><input type="checkbox" data-rv-todos title="Marcar todas as linhas da lista" aria-label="Marcar todas"></th><th>Nº</th>${cols.map(c=>`<th title="${fe(TIPOS[c.tipo]||'')}">${fe(c.nome)}</th>`).join('')}<th>Ajuste necessário</th><th>Situação</th><th class="num" title="Quantos ajustes o serviço já teve">Ajustes</th><th class="num" title="Quantas vezes foi respondido">Resp.</th><th>Último movimento</th><th></th></tr></thead>
+    else corpo=`<div class="rv-selbar" data-rv-selbar hidden></div><div class="rv-tabela"><table class="rv-tab" data-sem-ordem><thead><tr><th class="rv-ck"><input type="checkbox" data-rv-todos title="Marcar todas as linhas da lista" aria-label="Marcar todas"></th><th>Nº</th>${cols.map(c=>`<th title="${fe(regra(c))}">${fe(c.nome)}</th>`).join('')}<th>Ajuste necessário</th><th>Situação</th><th class="num" title="Quantos ajustes o serviço já teve">Ajustes</th><th class="num" title="Quantas vezes foi respondido">Resp.</th><th>Último movimento</th><th></th></tr></thead>
       <tbody>${vis.map(x=>linhaHtml(x,ob,cols)).join('')}</tbody></table></div>`;
     box.innerHTML=`<div class="rv-wrap">
       <div class="fin-cab"><div><h2>Fiscalização</h2><p>Cada obra tem a sua tabela. Quem fiscaliza registra o serviço e o <b>ajuste necessário</b>; quem responde informa a correção; quem fiscaliza confere e <b>aceita</b> ou <b>rejeita novamente</b> — o contador mostra quantos ajustes e respostas o mesmo serviço teve, e o histórico guarda quem fez cada coisa e quando. Marque várias linhas para agir em todas de uma vez.</p></div><div class="fin-filtros">${bts}</div></div>
@@ -25948,7 +26016,7 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
     if(pode(ob,'incluir'))bts.push(`<button type="button" class="rv-ic" data-rv="editar" data-u="${u}" title="Acertar os dados da linha" aria-label="Acertar os dados da linha"><i class="fas fa-pen"></i></button>`);
     if(pode(ob,'excluir'))bts.push(`<button type="button" class="rv-ic err" data-rv="excluir" data-u="${u}" title="Excluir a linha" aria-label="Excluir a linha"><i class="fas fa-trash"></i></button>`);
     const aj=s.ultRep?s.ultRep.texto:'',rsp=s.ultResp&&s.st!=='reprovado'?s.ultResp.texto:'';
-    return `<tr data-rv-lin="${u}" class="${RV.sel.has(it.uid)?'rv-marcada':''}"><td class="rv-ck"><input type="checkbox" data-rv-sel="${u}" ${RV.sel.has(it.uid)?'checked':''} aria-label="Marcar a linha ${fe(n)}"></td><td class="rv-n">${fe(n)}</td>${cols.map(c=>`<td>${fe(v[c.k]==null?'':v[c.k])}</td>`).join('')}
+    return `<tr data-rv-lin="${u}" class="${RV.sel.has(it.uid)?'rv-marcada':''}"><td class="rv-ck"><input type="checkbox" data-rv-sel="${u}" ${RV.sel.has(it.uid)?'checked':''} aria-label="Marcar a linha ${fe(n)}"></td><td class="rv-n">${fe(n)}</td>${cols.map(c=>`<td>${fe(mostrar(c,v[c.k]))}</td>`).join('')}
       <td class="rv-txt"><div title="${fe(aj)}">${fe(aj||'—')}</div>${rsp?`<small title="${fe(rsp)}">↳ ${fe(rsp)}</small>`:''}</td>
       <td><span class="rv-st ${st.cls}"><i class="fas ${st.ico}"></i> ${st.rot}</span></td>
       <td class="num"><b class="rv-cont${s.nRep>1?' alto':''}" title="${s.nRep} ajuste(s)">${s.nRep}</b></td>
@@ -25958,16 +26026,16 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
   }
   // a linha do histórico de um movimento (com o nº do ajuste/resposta e, no do próprio usuário, o "Editar meu texto")
   function histLi(e,it,ords){
-    const ic={reprovou:'fa-circle-xmark err',respondeu:'fa-screwdriver-wrench warn',aprovou:'fa-circle-check ok',alterou:'fa-pen',editou:'fa-pen-to-square',excluiu:'fa-trash err'}[e.acao]||'fa-circle';
+    const ic={reprovou:'fa-circle-xmark err',respondeu:'fa-screwdriver-wrench warn',aprovou:'fa-circle-check ok',alterou:'fa-pen',editou:'fa-pen-to-square',atualizou:'fa-rotate warn',excluiu:'fa-trash err'}[e.acao]||'fa-circle';
     const o=ords&&ords.get(e);
-    return `<li><i class="fas ${ic}"></i><div><b>${fe(e.por||'—')}</b> ${fe(rotEv(e))}${o?` <span class="rv-ord">${o}</span>`:''} <small>${fe(quando(e.em))}${e.editado_em?' · texto editado em '+fe(quando(e.editado_em)):''}</small>${e.texto?`<p>${fe(e.texto)}</p>`:''}${e.acao==='editou'&&e.antes?`<p class="rv-antes">antes: ${fe(e.antes)}</p>`:''}${it&&podeEditar(it,e)?`<button type="button" class="fin-bt mini" data-rv-ed="${fe(e.rowid)}"><i class="fas fa-pen"></i> Editar meu texto</button>`:''}</div></li>`;
+    return `<li><i class="fas ${ic}"></i><div><b>${fe(e.por||'—')}</b> ${fe(rotEv(e))}${o?` <span class="rv-ord">${o}</span>`:''} <small>${fe(quando(e.em))}${e.editado_em?' · texto editado em '+fe(quando(e.editado_em)):''}</small>${e.texto?`<p>${fe(e.texto)}</p>`:''}${(e.acao==='editou'||e.acao==='atualizou')&&e.antes?`<p class="rv-antes">antes: ${fe(e.antes)}</p>`:''}${it&&podeEditar(it,e)?`<button type="button" class="fin-bt mini" data-rv-ed="${fe(e.rowid)}"><i class="fas fa-pen"></i> Editar meu texto</button>`:''}</div></li>`;
   }
   const ordinais=mc=>{const m=new Map();let r=0,p=0;mc.forEach(e=>{if(e.acao==='reprovou')m.set(e,`${++r}º ajuste`);else if(e.acao==='respondeu')m.set(e,`${++p}ª resposta`);});return m;};
   function ficha(uid){
     const it=itemDe(uid);if(!it)return toast('Esta linha não está mais na tabela.','error');
     const ob=it.titulo_obra,cols=colunas(ob),s=estado(it),v=lerJ(it.valores,{}),st=ST[s.st],ords=ordinais(s.mc);
     const corpo=`<div class="rv-ficha-cab"><span class="rv-st ${st.cls}"><i class="fas ${st.ico}"></i> ${st.rot}</span><span class="rv-cont${s.nRep>1?' alto':''}">${s.nRep}</span> ajuste(s) · <span class="rv-cont">${s.nResp}</span> resposta(s)</div>
-      <div class="rv-vals">${cols.map(c=>`<div><small>${fe(c.nome)}</small><b>${fe(v[c.k]==null||v[c.k]===''?'—':v[c.k])}</b></div>`).join('')}<div><small>Incluída por</small><b>${fe(it.incluido_por||it.criado_por||'—')}</b></div></div>
+      <div class="rv-vals">${cols.map(c=>`<div><small>${fe(c.nome)}</small><b>${fe(mostrar(c,v[c.k])||'—')}</b></div>`).join('')}<div><small>Incluída por</small><b>${fe(it.incluido_por||it.criado_por||'—')}</b></div></div>
       <h4 class="rv-h4">Histórico</h4><ul class="rv-hist">${s.ev.map(e=>histLi(e,it,ords)).join('')||'<li>Sem movimentos.</li>'}</ul>`;
     const B=[];
     if(s.st==='reprovado'&&pode(ob,'responder'))B.push({html:'<i class="fas fa-screwdriver-wrench"></i> Responder',cls:'pri',acao:()=>{setTimeout(()=>agir(uid,'respondeu'),20);return false;}});
@@ -25977,7 +26045,7 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
     j.addEventListener('click',e=>{const b=e.target.closest('[data-rv-ed]');if(b)editarTexto(uid,b.dataset.rvEd);});
   }
   function resumoHtml(it,s){const cols=colunas(it.titulo_obra),v=lerJ(it.valores,{});
-    return `<div class="fin-resumo"><b>Nº ${fe(numDe(it))}</b> · ${fe(cols.map(c=>v[c.k]).filter(x=>String(x||'').trim()).join(' · ')||'—')}<br>Situação: <b>${ST[s.st].rot}</b> · ${s.nRep} ajuste(s), ${s.nResp} resposta(s)${s.ultRep?`<br>Último ajuste: ${fe(s.ultRep.texto||'—')}`:''}${s.ultResp?`<br>Última resposta: ${fe(s.ultResp.texto||'—')}`:''}</div>`;}
+    return `<div class="fin-resumo"><b>Nº ${fe(numDe(it))}</b> · ${fe(cols.map(c=>mostrar(c,v[c.k])).filter(Boolean).join(' · ')||'—')}<br>Situação: <b>${ST[s.st].rot}</b> · ${s.nRep} ajuste(s), ${s.nResp} resposta(s)${s.ultRep?`<br>Último ajuste: ${fe(s.ultRep.texto||'—')}`:''}${s.ultResp?`<br>Última resposta: ${fe(s.ultResp.texto||'—')}`:''}</div>`;}
   function agir(uid,acao){
     const it=itemDe(uid);if(!it)return toast('Esta linha não está mais na tabela.','error');
     const ob=it.titulo_obra,s=estado(it);
@@ -25993,12 +26061,20 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
   function novaLinha(ob){
     if(!pode(ob,'incluir'))return semPermissao();
     const cols=colunas(ob);if(!cols.length)return toast('Configure a tabela desta obra antes (Configurar a tabela).','error');
-    const j=janela(`Incluir serviço — ${ob}`,`<div class="rv-form">${cols.map(c=>campoCol(c,'')).join('')}</div><div class="fin-fld"><label>Ajuste necessário <span class="obg">*</span></label><textarea data-rv-txt rows="3" placeholder="O que precisa ser ajustado no serviço"></textarea></div>`,
+    const j=janela(`Incluir serviço — ${ob}`,`<div class="rv-form">${cols.map(c=>campoCol(c,'')).join('')}</div><div data-rv-dupvivo></div><div class="fin-fld"><label>Ajuste necessário <span class="obg">*</span></label><textarea data-rv-txt rows="3" placeholder="O que precisa ser ajustado no serviço"></textarea></div>`,
       [{html:'<i class="fas fa-plus"></i> Incluir',cls:'pri',acao:async j=>{const {v,erro}=lerCampos(j,cols);if(erro)throw new Error(erro);const t=j.querySelector('[data-rv-txt]').value.trim();if(!t)throw new Error('Escreva o ajuste necessário.');
+        // repetida (colunas "Sem repetir"): não entra como linha nova — revê os dados (a janela fica) ou leva o ajuste para a que existe
+        const k=chaveDe(cols,v),dup=k?chavesObra(ob,cols).get(k):null;
+        if(dup)return (await perguntarDup(ob,cols,dup,t))?undefined:false;
         const nTela=itensDe(ob).length+1,it={tipo:'reprov_item',titulo_obra:ob,uid:novoUid('ri'),n:String(proxSeq(ob)),valores:v,data_lancamento:todayDateTime(),incluido_por:meuNome(),incluido_por_id:meuId()};
         await executar(async()=>{await salvar('Planejamento',it,null);await salvar('Planejamento',ev(it,'reprovou',t,{inicial:'sim',item_n:String(nTela)}),null);});
         toast(`Serviço nº ${nTela} incluído — aguardando correção.`,'success');}}],760);
     ligarTipos(j);
+    // o aviso já aparece enquanto digita, quando os dados batem com uma linha que já está na tabela
+    if(colsUnicas(cols).length){const box=j.querySelector('[data-rv-dupvivo]');let tm=null;
+      j.addEventListener('input',e=>{if(!e.target.closest('[data-rv-c]'))return;clearTimeout(tm);tm=setTimeout(()=>{const v={};cols.forEach(c=>{const el=j.querySelector(`[data-rv-c="${c.k}"]`);v[c.k]=el?el.value:'';});
+        const k=chaveDe(cols,v),dup=k&&colsUnicas(cols).every(c=>String(v[c.k]||'').trim())?chavesObra(ob,cols).get(k):null;
+        box.innerHTML=dup?`<div class="rv-dup-aviso"><i class="fas fa-triangle-exclamation"></i><span>Já existe a <b>linha nº ${fe(numDe(dup))}</b> com esses dados (${fe(ST[estado(dup).st].rot)}). ${fe(naoAceita(cols))}: ao clicar em Incluir, você revê os dados ou leva o ajuste para ela.</span></div>`:'';},180);});}
   }
   function editarLinha(uid){
     const it=itemDe(uid);if(!it)return toast('Esta linha não está mais na tabela.','error');const ob=it.titulo_obra;
@@ -26006,9 +26082,15 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
     const cols=colunas(ob),v0=lerJ(it.valores,{});
     const j=janela(`Acertar os dados — nº ${numDe(it)}`,`<div class="rv-form">${cols.map(c=>campoCol(c,v0[c.k])).join('')}</div><small class="rv-dica">A mudança fica no histórico da linha (o que era e o que ficou).</small>`,
       [{html:'<i class="fas fa-floppy-disk"></i> Salvar',cls:'pri',acao:async j=>{const {v,erro}=lerCampos(j,cols);if(erro)throw new Error(erro);
-        const mud=cols.filter(c=>String(v0[c.k]==null?'':v0[c.k]).trim()!==String(v[c.k]||'')).map(c=>`${c.nome}: ${String(v0[c.k]||'—')} → ${v[c.k]||'—'}`);if(!mud.length)return;
+        // só o que mudou de verdade (1234 e 1.234 são o mesmo número) vai para a linha e para o histórico
+        const muda=cols.filter(c=>!igualValor(c,v0[c.k],v[c.k]));if(!muda.length)return;
+        const mud=muda.map(c=>`${c.nome}: ${mostrar(c,v0[c.k])||'—'} → ${v[c.k]||'—'}`);
         const it2=itemDe(uid);if(!it2)throw new Error('Esta linha não está mais na tabela.');
-        await executar(async()=>{await salvar('Planejamento',{...limpo(it2),valores:{...lerJ(it2.valores,{}),...v}},it2.rowid);await salvar('Planejamento',ev(it2,'alterou',mud.join('; ')),null);});
+        const nv={...lerJ(it2.valores,{})};muda.forEach(c=>{nv[c.k]=v[c.k];});
+        // não pode ficar igual a outra linha da tabela (colunas "Sem repetir")
+        const k=chaveDe(cols,nv),dup=k?chavesObra(ob,cols,new Set([uid])).get(k):null;
+        if(dup)throw new Error(`Ficaria igual à linha nº ${numDe(dup)} (${resumoValores(dup,cols)||'—'}) — ${naoAceita(cols)}. Reveja os dados.`);
+        await executar(async()=>{await salvar('Planejamento',{...limpo(it2),valores:nv},it2.rowid);await salvar('Planejamento',ev(it2,'alterou',mud.join('; ')),null);});
         toast('Dados da linha acertados.','success');}}],760);
     ligarTipos(j);
   }
@@ -26072,17 +26154,25 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
     if(!pode(ob,'incluir'))return semPermissao();
     const cols=colunas(ob);
     const j=janela(`Editar ${its.length} linha${its.length>1?'s':''}`,`<p class="rv-dica">Cada linha com os seus valores — mude só o que precisa em cada uma. A mudança fica no histórico de cada linha (o que era e o que ficou).</p>
-      <div class="rv-ed-tab"><table data-sem-ordem><thead><tr><th>Nº</th>${cols.map(c=>`<th>${fe(c.nome)}${c.obg?' <span class="obg">*</span>':''}<small class="rv-tipo">${fe(TIPOS[c.tipo]||TIPOS.livre)}</small></th>`).join('')}</tr></thead>
-      <tbody>${its.map(it=>{const v=lerJ(it.valores,{});return `<tr data-rv-it="${fe(it.uid)}"><td class="rv-n">${fe(numDe(it))}</td>${cols.map(c=>`<td><input data-rv-c="${fe(c.k)}" data-rv-tipo="${fe(c.tipo||'livre')}" ${c.tipo==='num'?'inputmode="decimal"':''} value="${fe(v[c.k]==null?'':v[c.k])}"></td>`).join('')}</tr>`;}).join('')}</tbody></table></div>`,
+      <div class="rv-ed-tab"><table data-sem-ordem><thead><tr><th>Nº</th>${cols.map(c=>`<th>${fe(c.nome)}${c.obg?' <span class="obg">*</span>':''}<small class="rv-tipo">${fe(regra(c))}</small></th>`).join('')}</tr></thead>
+      <tbody>${its.map(it=>{const v=lerJ(it.valores,{});return `<tr data-rv-it="${fe(it.uid)}"><td class="rv-n">${fe(numDe(it))}</td>${cols.map(c=>`<td><input data-rv-c="${fe(c.k)}" ${atrsCampo(c)} value="${fe(mostrar(c,v[c.k]))}"></td>`).join('')}</tr>`;}).join('')}</tbody></table></div>`,
       [{html:'<i class="fas fa-floppy-disk"></i> Salvar',cls:'pri',acao:async j=>{
-        const ops=[],erros=[];
+        const ops=[],erros=[],fin=new Map();
         j.querySelectorAll('tr[data-rv-it]').forEach(tr=>{const it=itemDe(tr.dataset.rvIt);if(!it)return;const v0=lerJ(it.valores,{}),v={};
-          cols.forEach(c=>{const el=tr.querySelector(`[data-rv-c="${c.k}"]`),x=String(el?el.value:'').trim(),e=erroValor(c,x);
+          cols.forEach(c=>{const el=tr.querySelector(`[data-rv-c="${c.k}"]`);let x=String(el?el.value:'').trim();if(c.tipo==='num')x=numColado(x);const e=erroValor(c,x);
             if(el)el.classList.toggle('rv-err-cel',!!e);if(e)erros.push(`nº ${numDe(it)} — ${c.nome}: ${e}`);v[c.k]=x;});
-          const mud=cols.filter(c=>String(v0[c.k]==null?'':v0[c.k]).trim()!==v[c.k]).map(c=>`${c.nome}: ${String(v0[c.k]||'—')} → ${v[c.k]||'—'}`);
-          if(mud.length)ops.push([{...limpo(it),valores:{...v0,...v}},it.rowid,ev(it,'alterou',mud.join('; '))]);});
+          // só o que mudou de verdade (1234 e 1.234 são o mesmo número)
+          const muda=cols.filter(c=>!igualValor(c,v0[c.k],v[c.k]));
+          if(muda.length){const nv={...v0};muda.forEach(c=>{nv[c.k]=v[c.k];});fin.set(it.uid,nv);
+            ops.push([{...limpo(it),valores:nv},it.rowid,ev(it,'alterou',muda.map(c=>`${c.nome}: ${mostrar(c,v0[c.k])||'—'} → ${v[c.k]||'—'}`).join('; '))]);}});
         if(erros.length)throw new Error(erros.slice(0,3).join(' · ')+(erros.length>3?` (e mais ${erros.length-3})`:''));
         if(!ops.length)throw new Error('Nada mudou — nenhuma linha foi alterada.');
+        // colunas "Sem repetir": a linha acertada não pode ficar igual a outra da tabela (nem a outra acertada junto)
+        if(colsUnicas(cols).length){const vistos=new Map(),rep=[];
+          itensDe(ob).sort((a,b)=>(+numDe(a)||0)-(+numDe(b)||0)).forEach(it=>{const k=chaveDe(cols,fin.get(it.uid)||lerJ(it.valores,{}));if(!k)return;const o=vistos.get(k);
+            if(!o){vistos.set(k,it);return;}if(fin.has(it.uid)||fin.has(o.uid)){const [a,b]=fin.has(it.uid)?[it,o]:[o,it];rep.push(`nº ${numDe(a)} ficaria igual à nº ${numDe(b)}`);
+              const tr=j.querySelector(`tr[data-rv-it="${a.uid}"]`);if(tr)colsUnicas(cols).forEach(c=>{const el=tr.querySelector(`[data-rv-c="${c.k}"]`);if(el)el.classList.add('rv-err-cel');});}});
+          if(rep.length)throw new Error(`${rep.slice(0,3).join(' · ')}${rep.length>3?` (e mais ${rep.length-3})`:''} — ${naoAceita(cols)}. Reveja os dados.`);}
         const antes=[...RV.sel];RV.sel.clear();
         try{await executar(async()=>{for(let i=0;i<ops.length;i+=5)await Promise.all(ops.slice(i,i+5).map(async([o,rid,e])=>{await salvar('Planejamento',o,rid);await salvar('Planejamento',e,null);}));});}
         catch(x){antes.forEach(u=>RV.sel.add(u));throw x;}
@@ -26097,12 +26187,12 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
     const L=evsObra(ob),pessoas=[...new Set(L.map(e=>e.por).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'pt-BR')),vis=L.filter(e=>!RV.quem||e.por===RV.quem);
     return `<div class="fin-filtros"><select class="filter-select" data-rvf="quem"><option value="">Todas as pessoas</option>${pessoas.map(p=>`<option ${RV.quem===p?'selected':''}>${fe(p)}</option>`).join('')}</select></div>
       ${vis.length?`<div class="rv-tabela"><table class="rv-tab rv-tab-hist" data-sem-ordem><thead><tr><th>Quando</th><th>Quem</th><th>O que fez</th><th>Nº</th><th>Detalhe</th></tr></thead><tbody>${vis.map(e=>{const it=itemDe(e.item_uid);
-        return `<tr${it?` data-rv-lin="${fe(it.uid)}"`:''}><td class="rv-mov">${fe(quando(e.em))}</td><td><b>${fe(e.por||'—')}</b></td><td>${fe(rotEv(e))}</td><td class="rv-n">${fe(numHist(e))}${it?'':' <small class="rv-dica">(excluída)</small>'}</td><td class="rv-txt"><div title="${fe(e.texto||'')}">${fe(e.texto||'')}</div>${e.acao==='editou'&&e.antes?`<small>antes: ${fe(e.antes)}</small>`:''}</td></tr>`;}).join('')}</tbody></table></div>`:'<div class="fin-card"><div class="fin-vazio">Nenhum movimento ainda.</div></div>'}`;
+        return `<tr${it?` data-rv-lin="${fe(it.uid)}"`:''}><td class="rv-mov">${fe(quando(e.em))}</td><td><b>${fe(e.por||'—')}</b></td><td>${fe(rotEv(e))}</td><td class="rv-n">${fe(numHist(e))}${it?'':' <small class="rv-dica">(excluída)</small>'}</td><td class="rv-txt"><div title="${fe(e.texto||'')}">${fe(e.texto||'')}</div>${(e.acao==='editou'||e.acao==='atualizou')&&e.antes?`<small>antes: ${fe(e.antes)}</small>`:''}</td></tr>`;}).join('')}</tbody></table></div>`:'<div class="fin-card"><div class="fin-vazio">Nenhum movimento ainda.</div></div>'}`;
   }
   function excel(ob,vis,cols){
     if(!vis.length)return toast('Não há linhas para exportar.','error');
     GS.baixarCSV('Fiscalizacao '+ob,['Nº',...cols.map(c=>c.nome),'Ajuste necessário','Última resposta','Situação','Ajustes','Respostas','Último movimento','Quem','Quando'],
-      vis.map(({it,s,n})=>{const v=lerJ(it.valores,{});return [n,...cols.map(c=>v[c.k]==null?'':v[c.k]),s.ultRep?s.ultRep.texto:'',s.ultResp?s.ultResp.texto:'',ST[s.st].rot,s.nRep,s.nResp,s.ultMov?rotEv(s.ultMov):'',s.ultMov?s.ultMov.por:'',s.ultMov?quando(s.ultMov.em):''];}));
+      vis.map(({it,s,n})=>{const v=lerJ(it.valores,{});return [n,...cols.map(c=>mostrar(c,v[c.k])),s.ultRep?s.ultRep.texto:'',s.ultResp?s.ultResp.texto:'',ST[s.st].rot,s.nRep,s.nResp,s.ultMov?rotEv(s.ultMov):'',s.ultMov?s.ultMov.por:'',s.ultMov?quando(s.ultMov.em):''];}));
   }
   function excelHistorico(ob){const L=evsObra(ob).filter(e=>!RV.quem||e.por===RV.quem);if(!L.length)return toast('Não há movimentos para exportar.','error');
     GS.baixarCSV('Historico fiscalizacao '+ob,['Quando','Quem','O que fez','Nº','Detalhe','Texto de antes'],L.map(e=>[quando(e.em),e.por||'',rotEv(e),numHist(e)+(itemDe(e.item_uid)?'':' (excluída)'),e.texto||'',e.antes||'']));}
@@ -26148,11 +26238,11 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
     const pre=`<div style="display:flex;gap:6px;flex-wrap:wrap;margin:0 0 10px">${pill('Aguardando correção',S('reprovado'),COR_ST.reprovado)}${pill('Aguardando conferência',S('respondido'),COR_ST.respondido)}${pill('Aceitos',S('aprovado'),COR_ST.aprovado)}${pill('Reincidentes (2 ajustes ou mais)',reinc,'#1d1d1f')}</div>`;
     const thead=`<tr><th style="width:9mm">Nº</th>${cols.map(c=>`<th>${fe(c.nome)}</th>`).join('')}<th style="width:21%">Ajuste necessário</th><th style="width:17%">Última resposta</th><th style="width:26mm">Situação</th><th style="width:17mm;text-align:center">Ajustes</th><th style="width:13mm;text-align:center">Resp.</th><th style="width:31mm">Último movimento</th></tr>`;
     const rows=vis.map(({it,s,n})=>{const v=lerJ(it.valores,{});
-      return `<tr><td><b>${fe(n)}</b></td>${cols.map(c=>`<td>${bl(v[c.k])}</td>`).join('')}<td>${bl(s.ultRep?s.ultRep.texto:'')}</td><td>${bl(s.ultResp&&s.st!=='reprovado'?s.ultResp.texto:'')}</td><td style="color:${COR_ST[s.st]};font-weight:700">${ST[s.st].rot}</td><td style="text-align:center;font-weight:700${s.nRep>1?';color:#B42318':''}">${s.nRep}</td><td style="text-align:center">${s.nResp}</td><td>${s.ultMov?`${bl(s.ultMov.por)}<br><span style="color:#6e6e73;font-size:9px">${bl(rotEv(s.ultMov))} · ${bl(quando(s.ultMov.em))}</span>`:''}</td></tr>`;});
+      return `<tr><td><b>${fe(n)}</b></td>${cols.map(c=>`<td>${bl(mostrar(c,v[c.k]))}</td>`).join('')}<td>${bl(s.ultRep?s.ultRep.texto:'')}</td><td>${bl(s.ultResp&&s.st!=='reprovado'?s.ultResp.texto:'')}</td><td style="color:${COR_ST[s.st]};font-weight:700">${ST[s.st].rot}</td><td style="text-align:center;font-weight:700${s.nRep>1?';color:#B42318':''}">${s.nRep}</td><td style="text-align:center">${s.nResp}</td><td>${s.ultMov?`${bl(s.ultMov.por)}<br><span style="color:#6e6e73;font-size:9px">${bl(rotEv(s.ultMov))} · ${bl(quando(s.ultMov.em))}</span>`:''}</td></tr>`;});
     // o histórico de cada linha (opcional): um bloco por serviço, que não se parte entre páginas
     const blocos=det?vis.map(({it,s,n})=>{const ords=ordinais(s.mc),res=resumoValores(it,cols);
       return `<div style="border:1px solid #d5d5da;border-radius:8px;padding:9px 11px;page-break-inside:avoid"><div style="display:flex;justify-content:space-between;gap:10px;border-bottom:1px solid #e5e5ea;padding-bottom:5px;margin-bottom:5px"><b style="font-size:11.5px">Nº ${fe(n)}${res?' · '+bl(res):''}</b><span style="font-size:10px;font-weight:700;color:${COR_ST[s.st]}">${ST[s.st].rot} · ${s.nRep} ajuste(s) · ${s.nResp} resposta(s)</span></div>
-        <table style="width:100%;border-collapse:collapse;font-size:9.5px;table-layout:fixed"><tr style="background:#f5f5f7"><th style="width:27mm">Quando</th><th style="width:34mm">Quem</th><th style="width:40mm">O que fez</th><th>Texto</th></tr>${s.ev.map(e=>`<tr><td>${bl(quando(e.em))}</td><td>${bl(e.por)}</td><td>${bl(rotEv(e))}${ords.get(e)?' <b>('+ords.get(e)+')</b>':''}</td><td>${bl(e.texto)}${e.acao==='editou'&&e.antes?`<br><i style="color:#8e8e93">antes: ${bl(e.antes)}</i>`:''}${e.editado_em?`<br><i style="color:#8e8e93">texto editado em ${bl(quando(e.editado_em))}</i>`:''}</td></tr>`).join('')}</table></div>`;}):[];
+        <table style="width:100%;border-collapse:collapse;font-size:9.5px;table-layout:fixed"><tr style="background:#f5f5f7"><th style="width:27mm">Quando</th><th style="width:34mm">Quem</th><th style="width:40mm">O que fez</th><th>Texto</th></tr>${s.ev.map(e=>`<tr><td>${bl(quando(e.em))}</td><td>${bl(e.por)}</td><td>${bl(rotEv(e))}${ords.get(e)?' <b>('+ords.get(e)+')</b>':''}</td><td>${bl(e.texto)}${(e.acao==='editou'||e.acao==='atualizou')&&e.antes?`<br><i style="color:#8e8e93">antes: ${bl(e.antes)}</i>`:''}${e.editado_em?`<br><i style="color:#8e8e93">texto editado em ${bl(quando(e.editado_em))}</i>`:''}</td></tr>`).join('')}</table></div>`;}):[];
     const cfg={titulo:'Fiscalização',subLinhas:[ob,`${vis.length} serviço${vis.length>1?'s':''}${filtroTxt()?' · '+filtroTxt():''}`],preHtml:pre,theadHtml:thead,rowsArr:rows,
       blocosArr:det?[`<h3 style="font-size:13px;margin:14px 0 6px">Histórico de cada serviço</h3>`].concat(blocos):[],paisagem:cols.length+6>7};
     exportarPdf(cfg,ob);
@@ -26160,7 +26250,7 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
   function pdfHistorico(ob){
     const L=evsObra(ob).filter(e=>!RV.quem||e.por===RV.quem);if(!L.length)return toast('Não há movimentos para exportar.','error');
     const thead=`<tr><th style="width:28mm">Quando</th><th style="width:38mm">Quem</th><th style="width:44mm">O que fez</th><th style="width:16mm">Nº</th><th>Detalhe</th></tr>`;
-    const rows=L.map(e=>{const it=itemDe(e.item_uid);return `<tr><td>${bl(quando(e.em))}</td><td>${bl(e.por)}</td><td>${bl(rotEv(e))}</td><td>${bl(numHist(e))}${it?'':' <span style="color:#8e8e93">(excluída)</span>'}</td><td>${bl(e.texto)}${e.acao==='editou'&&e.antes?`<br><i style="color:#8e8e93">antes: ${bl(e.antes)}</i>`:''}</td></tr>`;});
+    const rows=L.map(e=>{const it=itemDe(e.item_uid);return `<tr><td>${bl(quando(e.em))}</td><td>${bl(e.por)}</td><td>${bl(rotEv(e))}</td><td>${bl(numHist(e))}${it?'':' <span style="color:#8e8e93">(excluída)</span>'}</td><td>${bl(e.texto)}${(e.acao==='editou'||e.acao==='atualizou')&&e.antes?`<br><i style="color:#8e8e93">antes: ${bl(e.antes)}</i>`:''}</td></tr>`;});
     exportarPdf({titulo:'Fiscalização — histórico',subLinhas:[ob,`${L.length} movimento${L.length>1?'s':''}${RV.quem?' · '+RV.quem:''}`],theadHtml:thead,rowsArr:rows},ob);
   }
 
@@ -26181,39 +26271,81 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
   function colar(ob,texto0){
     if(!pode(ob,'incluir'))return semPermissao();
     const cols=colunas(ob);if(!cols.length)return toast('Configure a tabela desta obra antes (Configurar a tabela).','error');
-    const MOT='__ajuste',ALVOS=[...cols.map(c=>({k:c.k,nome:c.nome})),{k:MOT,nome:'Ajuste necessário'}],P={linhas:[],mapa:[]};
-    const colDe=k=>cols.find(c=>c.k===k);
-    const erroCel=(k,x)=>{if(!k)return '';if(k===MOT)return String(x||'').trim()?'':'obrigatório';const c=colDe(k);return c?erroValor({...c,obg:false},x):'';};
-    function validar(){return P.linhas.map(r=>{const v={},er=[];let mot='';
-      P.mapa.forEach((k,i)=>{if(!k)return;const x=String(r[i]||'').trim();if(!x)return;if(k===MOT){mot=mot?mot+' — '+x:x;return;}v[k]=v[k]?v[k]+' '+x:x;});
-      cols.forEach(c=>{const e=erroValor(c,v[c.k]);if(e)er.push(`${c.nome}: ${e}`);});if(!mot)er.push('Ajuste necessário: obrigatório');return {v,mot,er};});}
-    const j=janela(`Colar linhas da planilha — ${ob}`,`<p class="rv-dica">No Excel ou no Google Planilhas, selecione as linhas (com as colunas que interessam) e copie (<b>Ctrl+C</b>). Depois clique na caixa abaixo e cole (<b>Ctrl+V</b>). Em cima de cada coluna colada, escolha para qual coluna da tabela ela vai — o <b>ajuste necessário</b> também pode vir da planilha. Célula em vermelho não aceita o que veio: corrija ali mesmo.</p>
+    const MOT='__ajuste',ALVOS=[...cols.map(c=>({k:c.k,nome:c.nome})),{k:MOT,nome:'Ajuste necessário'}],P={linhas:[],mapa:[],esc:new Map()};
+    const colDe=k=>cols.find(c=>c.k===k),UN=colsUnicas(cols);
+    // o valor de cada célula já no formato da coluna (número: 1.234, sem o que vem depois da vírgula)
+    const valCel=(k,x)=>{const c=colDe(k);return c&&c.tipo==='num'?numColado(x):String(x==null?'':x).trim();};
+    const erroCel=(k,x)=>{if(!k)return '';if(k===MOT)return String(x||'').trim()?'':'obrigatório';const c=colDe(k);return c?erroValor({...c,obg:false},valCel(k,x)):'';};
+    /* cada linha colada: os valores, o ajuste, os problemas e — com colunas "Sem repetir" — se é repetida de uma linha que já
+       está na tabela (dup: desconsiderar ou levar o ajuste para ela) ou de outra linha desta colagem (dupCola: fica de fora;
+       vale a primeira) */
+    function validar(){const ch=UN.length?chavesObra(ob,cols):null,vistas=new Map();
+      return P.linhas.map((r,li)=>{const v={},er=[];let mot='';
+        P.mapa.forEach((k,i)=>{if(!k)return;const x=String(r[i]||'').trim();if(!x)return;if(k===MOT){mot=mot?mot+' — '+x:x;return;}v[k]=v[k]?v[k]+' '+x:x;});
+        cols.forEach(c=>{if(c.tipo==='num'&&v[c.k])v[c.k]=numColado(v[c.k]);const e=erroValor(c,v[c.k]);if(e)er.push(`${c.nome}: ${e}`);});
+        if(!mot)er.push('Ajuste necessário: obrigatório');
+        const o={li,v,mot,er,dup:null,dupCola:null,pode:false,esc:'ignorar'};
+        if(ch&&!UN.some(c=>erroValor(c,v[c.k]))){const k=chaveDe(cols,v);if(k){if(vistas.has(k))o.dupCola=vistas.get(k);else{vistas.set(k,li);o.dup=ch.get(k)||null;}}}
+        if(o.dup){o.pode=podeDup(ob,o.dup);o.esc=o.pode&&P.esc.get(li)==='atualizar'?'atualizar':'ignorar';}
+        return o;});}
+    // a situação de cada linha: nova (entra), ruim (com problema: fica de fora), cola (repetida na própria colagem), ign (já
+    // está na tabela: desconsiderada) ou atu (já está na tabela: o ajuste vai para ela)
+    const situ=o=>o.dupCola!=null?'cola':o.dup?(o.esc==='atualizar'?(o.mot?'atu':'ruim'):'ign'):o.er.length?'ruim':'nova';
+    const celSitu=o=>{const st=situ(o);
+      if(o.dupCola!=null)return `<span class="rv-ps warn">Repetida na colagem</span><small>igual à linha ${o.dupCola+1} — desconsiderada</small>`;
+      if(o.dup){const s=estado(o.dup);return `<span class="rv-ps warn" title="${fe(resumoValores(o.dup,cols))}">Já existe: nº ${fe(numDe(o.dup))}</span><small>${fe(ST[s.st].rot)}${s.ultRep?` · ajuste: ${fe(s.ultRep.texto||'—')}`:''}</small>
+        <select data-rv-esc="${o.li}"><option value="ignorar" ${o.esc!=='atualizar'?'selected':''}>Desconsiderar (não lança)</option>${o.pode?`<option value="atualizar" ${o.esc==='atualizar'?'selected':''}>${fe(rotDup(o.dup))}</option>`:''}</select>${o.pode?'':'<small class="t-err">sem permissão para rejeitar novamente</small>'}${st==='ruim'?'<small class="t-err">falta o ajuste necessário</small>':''}`;}
+      return st==='nova'?'<span class="rv-ps ok">Nova</span>':`<span class="rv-ps err">Com problema</span><small>${fe(o.er.join(' · '))}</small>`;};
+    const j=janela(`Colar linhas da planilha — ${ob}`,`<p class="rv-dica">No Excel ou no Google Planilhas, selecione as linhas (com as colunas que interessam) e copie (<b>Ctrl+C</b>). Depois clique na caixa abaixo e cole (<b>Ctrl+V</b>). Em cima de cada coluna colada, escolha para qual coluna da tabela ela vai — o <b>ajuste necessário</b> também pode vir da planilha. Célula em vermelho não aceita o que veio: corrija ali mesmo.${UN.length?` A linha que já está na tabela (${fe(nomesUnicas(cols))} iguais) fica em amarelo: escolha se ela é desconsiderada ou se leva o ajuste novo para a que já existe.`:''}</p>
       <textarea data-rv-cola rows="3" placeholder="Clique aqui e cole (Ctrl+V)…"></textarea><div data-rv-prev class="rv-prev"></div>`,
-      [{html:'<i class="fas fa-plus"></i> Incluir as linhas',cls:'pri',acao:async j=>{
+      [{html:'<i class="fas fa-plus"></i> Lançar as linhas',cls:'pri',acao:async j=>{
         if(!P.linhas.length)throw new Error('Cole as linhas da planilha na caixa.');
         if(!P.mapa.includes(MOT))throw new Error('Escolha qual coluna colada é o ajuste necessário.');
-        const R=validar(),boas=R.filter(x=>!x.er.length);if(!boas.length)throw new Error('Nenhuma linha está pronta — confira as células em vermelho.');
-        if(boas.length<R.length&&!(await vxPergunta('Linhas com problema',`<b>${R.length-boas.length}</b> linha(s) têm célula em vermelho e vão ficar de fora. Incluir as <b>${boas.length}</b> prontas?`,'Incluir as prontas','Voltar e corrigir')))return false;
-        let seq=proxSeq(ob),nTela=itensDe(ob).length+1;const ops=boas.map(x=>{const it={tipo:'reprov_item',titulo_obra:ob,uid:novoUid('ri'),n:String(seq++),valores:x.v,data_lancamento:todayDateTime(),incluido_por:meuNome(),incluido_por_id:meuId(),origem:'planilha'};return [it,ev(it,'reprovou',x.mot,{inicial:'sim',item_n:String(nTela++)})];});
-        await executar(async()=>{for(let i=0;i<ops.length;i+=5)await Promise.all(ops.slice(i,i+5).map(async([it,e])=>{await salvar('Planejamento',it,null);await salvar('Planejamento',e,null);}));});
-        toast(`${boas.length} serviço(s) incluído(s) — aguardando correção.`,'success');}}],1120);
+        const R=validar(),S=k=>R.filter(o=>situ(o)===k),novas=S('nova'),atu=S('atu'),ign=S('ign'),cola=S('cola'),ruins=S('ruim'),nDesc=ign.length+cola.length;
+        if(!novas.length&&!atu.length)throw new Error(nDesc?'As linhas prontas são todas repetidas e estão para desconsiderar — escolha para qual levar o ajuste novo, ou reveja os dados.':'Nenhuma linha está pronta — confira as células em vermelho.');
+        // antes de lançar, o aviso do que fica de fora: as com problema e as repetidas que serão desconsideradas
+        const av=[];
+        if(ruins.length)av.push(`<b>${ruins.length}</b> linha(s) com problema (célula em vermelho) vão ficar de fora.`);
+        if(nDesc)av.push(`<b>${nDesc}</b> linha(s) repetida(s)${ign.length&&cola.length?` (${ign.length} já na tabela e ${cola.length} repetida(s) na própria colagem)`:cola.length?' na própria colagem':', que já estão na tabela,'} vão ser <b>desconsiderada(s)</b>: não serão lançadas no sistema.`);
+        const vai=[novas.length?`<b>${novas.length}</b> linha(s) nova(s)`:'',atu.length?`o ajuste de <b>${atu.length}</b> linha(s) que já existe(m)`:''].filter(Boolean).join(' e ');
+        if(av.length&&!(await vxPergunta('Antes de lançar',`${av.join('<br>')}<br><br>Lançar ${vai}?`,'Lançar','Voltar e rever')))return false;
+        let seq=proxSeq(ob),nTela=itensDe(ob).length+1;
+        const ops=novas.map(x=>{const it={tipo:'reprov_item',titulo_obra:ob,uid:novoUid('ri'),n:String(seq++),valores:x.v,data_lancamento:todayDateTime(),incluido_por:meuNome(),incluido_por_id:meuId(),origem:'planilha'};return [[it,null],[ev(it,'reprovou',x.mot,{inicial:'sim',item_n:String(nTela++)}),null]];});
+        // as repetidas, com os dados de agora (outra pessoa pode ter mexido na linha enquanto a janela estava aberta)
+        let nRej=0,nAtu=0,nIgual=0,nFora=0;
+        atu.forEach(x=>{const it2=itemDe(x.dup.uid);if(!it2||!podeDup(ob,it2)){nFora++;return;}const L=opsDup(it2,x.mot);if(!L.length){nIgual++;return;}if(destinoDup(it2)==='rejeitar')nRej++;else nAtu++;ops.push(L);});
+        if(ops.length)await executar(async()=>{for(let i=0;i<ops.length;i+=5)await Promise.all(ops.slice(i,i+5).map(async L=>{for(const [o,r] of L)await salvar('Planejamento',o,r);}));});
+        toast([novas.length?`${novas.length} serviço(s) incluído(s)`:'',nRej?`${nRej} rejeitado(s) novamente`:'',nAtu?`${nAtu} ajuste(s) atualizado(s)`:'',nIgual?`${nIgual} já tinha(m) o mesmo ajuste`:'',nDesc+nFora?`${nDesc+nFora} repetida(s) desconsiderada(s)`:''].filter(Boolean).join(' · ')+'.',ops.length?'success':'info');}}],1120);
     const ta=j.querySelector('[data-rv-cola]'),prev=j.querySelector('[data-rv-prev]');
-    function resumo(){const R=validar(),ok=R.filter(x=>!x.er.length).length;
-      const el=prev.querySelector('[data-rv-res]');if(el)el.innerHTML=`<b>${P.linhas.length} linha(s) colada(s)</b> · <b class="t-ok">${ok} pronta(s)</b>${ok<R.length?` · <b class="t-err">${R.length-ok} com problema</b> (passe o mouse no nº da linha para ver)`:''}${P.mapa.includes(MOT)?'':' · <b class="t-err">escolha a coluna do ajuste necessário</b>'}`;
-      prev.querySelectorAll('tbody tr').forEach((tr,i)=>{const r=R[i];if(!r)return;tr.classList.toggle('rv-ruim',!!r.er.length);tr.title=r.er.join(' · ');});}
+    function resumo(){const R=validar(),S=k=>R.filter(o=>situ(o)===k).length,nDup=R.filter(o=>o.dup).length,nPode=R.filter(o=>o.dup&&o.pode).length;
+      const el=prev.querySelector('[data-rv-res]');
+      if(el)el.innerHTML=`<div><b>${P.linhas.length} linha(s) colada(s)</b> · <b class="t-ok">${S('nova')} nova(s) pronta(s)</b>${nDup?` · <b class="t-warn">${nDup} já na tabela</b> (${S('atu')} levando o ajuste, ${S('ign')} desconsiderada(s))`:''}${S('cola')?` · <b class="t-warn">${S('cola')} repetida(s) na colagem</b> (desconsiderada(s))`:''}${S('ruim')?` · <b class="t-err">${S('ruim')} com problema</b> (veja na coluna Situação)`:''}${P.mapa.includes(MOT)?'':' · <b class="t-err">escolha a coluna do ajuste necessário</b>'}</div>
+        ${nDup?`<div class="rv-dup-aviso"><i class="fas fa-triangle-exclamation"></i><span>${fe(naoAceita(cols))}: a linha que já está na tabela <b>não entra de novo</b>. Em cada uma, escolha <b>Desconsiderar</b> (não é lançada) ou levar o ajuste novo para ela — a corrigida ou já aceita é <b>rejeitada novamente</b>; a que ainda aguarda correção só tem o <b>ajuste atualizado</b>.</span>${nPode?`<span class="rv-dup-bts"><button type="button" class="fin-bt mini" data-rv-esc-todas="atualizar">Levar o ajuste em todas</button><button type="button" class="fin-bt mini" data-rv-esc-todas="ignorar">Desconsiderar todas</button></span>`:''}</div>`:''}`;
+      prev.querySelectorAll('tbody tr[data-rv-li]').forEach(tr=>{const o=R[+tr.dataset.rvLi];if(!o)return;const st=situ(o),rep=!!(o.dup||o.dupCola!=null);
+        tr.classList.toggle('rv-ruim',st==='ruim');tr.classList.toggle('rv-dupl',rep);
+        // a célula da situação só é refeita quando muda (o seletor não perde o que a pessoa está escolhendo)
+        const td=tr.querySelector('[data-rv-situ]'),sig=[st,o.dup?o.dup.uid:'',o.dupCola==null?'':o.dupCola,o.pode?1:0,o.esc,o.er.join('|')].join('¦');
+        if(td&&td.dataset.sig!==sig){td.dataset.sig=sig;td.innerHTML=celSitu(o);}});}
     function pintar(){
       if(!P.linhas.length){prev.innerHTML='';return;}
-      prev.innerHTML=`<div class="rv-prev-res" data-rv-res></div><div class="rv-prev-tab"><table data-sem-ordem><thead><tr><th>#</th>${P.mapa.map((k,i)=>`<th><select data-rv-map="${i}"><option value="">(não usar)</option>${ALVOS.map(a=>`<option value="${fe(a.k)}" ${a.k===k?'selected':''}>${fe(a.nome)}</option>`).join('')}</select></th>`).join('')}</tr></thead>
-        <tbody>${P.linhas.slice(0,300).map((r,li)=>`<tr><td class="rv-n">${li+1}</td>${r.map((x,ci)=>{const k=P.mapa[ci],c=colDe(k),e=erroCel(k,x);return `<td><input data-rv-cel="${li}:${ci}" value="${fe(x)}" class="${e?'rv-err-cel':''}" ${c?`data-rv-tipo="${fe(c.tipo||'livre')}"`:''} title="${fe(e)}"></td>`;}).join('')}</tr>`).join('')}</tbody></table></div>${P.linhas.length>300?`<small class="rv-dica">Mostrando as 300 primeiras — todas as ${P.linhas.length} entram.</small>`:''}`;
+      prev.innerHTML=`<div class="rv-prev-res" data-rv-res></div><label class="vk-chk rv-cab-chk"><input type="checkbox" data-rv-cab ${P.cab?'checked':''}> A 1ª linha colada é o cabeçalho (os nomes das colunas, não um serviço)</label><div class="rv-prev-tab"><table data-sem-ordem><thead><tr><th>#</th><th>Situação</th>${P.mapa.map((k,i)=>`<th><select data-rv-map="${i}"><option value="">(não usar)</option>${ALVOS.map(a=>`<option value="${fe(a.k)}" ${a.k===k?'selected':''}>${fe(a.nome)}</option>`).join('')}</select></th>`).join('')}</tr></thead>
+        <tbody>${P.linhas.slice(0,300).map((r,li)=>`<tr data-rv-li="${li}"><td class="rv-n">${li+1}</td><td class="rv-situ" data-rv-situ></td>${r.map((x,ci)=>{const k=P.mapa[ci],c=colDe(k),e=erroCel(k,x);return `<td><input data-rv-cel="${li}:${ci}" value="${fe(k?valCel(k,x):x)}" class="${e?'rv-err-cel':''}" ${c?atrsCampo(c):''} title="${fe(e)}"></td>`;}).join('')}</tr>`).join('')}</tbody></table></div>${P.linhas.length>300?`<small class="rv-dica">Mostrando as 300 primeiras — todas as ${P.linhas.length} são conferidas e lançadas.</small>`:''}`;
       resumo();}
-    function montar(txt){const L=lerPlanilha(txt);if(!L.length){P.linhas=[];P.mapa=[];pintar();return;}
-      const nomes=ALVOS.map(a=>cn(a.nome)),cab=L[0].some(x=>nomes.includes(cn(x))||/ajuste|motivo|reprova/i.test(x)),larg=Math.max(...L.map(r=>r.length));
+    /* a 1ª linha colada é o cabeçalho quando traz o nome de uma coluna da tabela, ou um rótulo curto de ajuste/motivo numa
+       linha sem número nenhum (uma linha de dados com "Ajuste da tampa" e o nº da casa não é cabeçalho). A caixinha "A 1ª
+       linha é o cabeçalho" acerta à mão quando o palpite erra. */
+    function montar(txt,cabForcado){P.esc=new Map();P.txt=txt;const L=lerPlanilha(txt);if(!L.length){P.linhas=[];P.mapa=[];pintar();return;}
+      const nomes=ALVOS.map(a=>cn(a.nome)),parece=L[0].some(x=>nomes.includes(cn(x)))||(!L[0].some(x=>/\d/.test(x))&&L[0].some(x=>/ajuste|motivo|reprova|problema|defeito|pendenc/i.test(x)&&String(x).trim().split(/\s+/).length<=4));
+      const cab=L.length>1&&(cabForcado==null?parece:!!cabForcado),larg=Math.max(...L.map(r=>r.length));P.cab=cab;
       P.mapa=Array.from({length:larg},(_,i)=>{if(cab){const x=cn(L[0][i]||''),a=ALVOS.find(a=>cn(a.nome)===x)||(/ajuste|motivo|reprova|problema|defeito|pendenc/.test(x)?ALVOS[ALVOS.length-1]:null);return a?a.k:'';}return i<cols.length?cols[i].k:i===cols.length?MOT:'';});
       P.linhas=(cab?L.slice(1):L).map(r=>Array.from({length:larg},(_,i)=>r[i]||''));pintar();}
     ta.addEventListener('input',()=>montar(ta.value));
-    prev.addEventListener('change',e=>{const s=e.target.closest('[data-rv-map]');if(!s)return;P.mapa[+s.dataset.rvMap]=s.value;pintar();});
+    prev.addEventListener('change',e=>{const s=e.target.closest('[data-rv-map]');if(s){P.mapa[+s.dataset.rvMap]=s.value;pintar();return;}
+      const cb=e.target.closest('[data-rv-cab]');if(cb){montar(P.txt||ta.value,cb.checked);return;}
+      const x=e.target.closest('[data-rv-esc]');if(x){P.esc.set(+x.dataset.rvEsc,x.value);resumo();}});
+    prev.addEventListener('click',e=>{const b=e.target.closest('[data-rv-esc-todas]');if(!b)return;validar().forEach(o=>{if(o.dup&&o.pode)P.esc.set(o.li,b.dataset.rvEscTodas);});resumo();});
+    ligarTipos(prev);   // a máscara do número e o "só letras" — antes do ouvinte abaixo, que já lê o valor arrumado
     prev.addEventListener('input',e=>{const i=e.target.closest('[data-rv-cel]');if(!i)return;const [l,c]=i.dataset.rvCel.split(':').map(Number);
-      if(i.dataset.rvTipo==='num'||i.dataset.rvTipo==='letras'){const f=filtrar(i.dataset.rvTipo,i.value);if(f!==i.value)i.value=f;}
       P.linhas[l][c]=i.value;const er=erroCel(P.mapa[c],i.value);i.classList.toggle('rv-err-cel',!!er);i.title=er;resumo();});
     if(texto0){ta.value=texto0;montar(texto0);}else setTimeout(()=>ta.focus(),60);
   }
@@ -26227,13 +26359,14 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
     const c0=cfgDe(ob),pp0=papeis(ob),outras=obrasLista().filter(o=>o!==ob&&cfgDe(o));
     let cols=colunas(ob).map(x=>({...x}));
     const admU=u=>UI._ehAdmin?UI._ehAdmin(u.perfil):/^admin/i.test(String(u.perfil||''));
-    const linhasCols=()=>cols.length?cols.map((c,i)=>`<tr data-ci="${i}"><td><input data-cc="nome" value="${fe(c.nome)}" placeholder="Nome da coluna"></td><td><select data-cc="tipo">${Object.entries(TIPOS).map(([k,r])=>`<option value="${k}" ${c.tipo===k?'selected':''}>${r}</option>`).join('')}</select></td><td style="text-align:center"><input type="checkbox" data-cc="obg" ${c.obg?'checked':''}></td><td class="rv-cc-bts"><button type="button" class="rv-ic" data-cc-mv="-1" title="Subir" ${i===0?'disabled':''}><i class="fas fa-arrow-up"></i></button><button type="button" class="rv-ic" data-cc-mv="1" title="Descer" ${i===cols.length-1?'disabled':''}><i class="fas fa-arrow-down"></i></button><button type="button" class="rv-ic err" data-cc-x title="Tirar a coluna"><i class="fas fa-trash"></i></button></td></tr>`).join('')
-      :'<tr><td colspan="4" class="rv-dica" style="padding:10px 6px">Nenhuma coluna ainda — clique em <b>Nova coluna</b>.</td></tr>';
+    const linhasCols=()=>cols.length?cols.map((c,i)=>`<tr data-ci="${i}"><td><input data-cc="nome" value="${fe(c.nome)}" placeholder="Nome da coluna"></td><td><select data-cc="tipo">${Object.entries(TIPOS).map(([k,r])=>`<option value="${k}" ${c.tipo===k?'selected':''}>${r}</option>`).join('')}</select></td><td style="text-align:center"><input type="checkbox" data-cc="obg" ${c.obg?'checked':''}></td><td style="text-align:center"><input type="checkbox" data-cc="unico" ${c.unico?'checked':''} title="Não aceita valor repetido (com outras marcadas: a combinação delas)"></td><td><input data-cc="max" type="number" min="1" step="1" inputmode="numeric" value="${+c.max>0?+c.max:''}" placeholder="sem limite" title="Quantos caracteres cabem no campo (vazio = sem limite; nos números, os algarismos)"></td><td class="rv-cc-bts"><button type="button" class="rv-ic" data-cc-mv="-1" title="Subir" ${i===0?'disabled':''}><i class="fas fa-arrow-up"></i></button><button type="button" class="rv-ic" data-cc-mv="1" title="Descer" ${i===cols.length-1?'disabled':''}><i class="fas fa-arrow-down"></i></button><button type="button" class="rv-ic err" data-cc-x title="Tirar a coluna"><i class="fas fa-trash"></i></button></td></tr>`).join('')
+      :'<tr><td colspan="6" class="rv-dica" style="padding:10px 6px">Nenhuma coluna ainda — clique em <b>Nova coluna</b>.</td></tr>';
     const tabPapeis=pp=>us.length?`<table data-sem-ordem><thead><tr><th>Usuário</th>${ACOES.map(([k,r,ds])=>`<th title="${fe(ds)}">${fe(r)}</th>`).join('')}</tr></thead><tbody>${us.map(u=>{const id=idUsuario(u),adm=admU(u);
         return `<tr><td><b>${fe(u.nome||id)}</b><small>${fe(adm?'Administrador — faz tudo':(u.perfil||''))}</small></td>${ACOES.map(([k])=>`<td><input type="checkbox" data-rv-p="${k}" value="${fe(id)}" ${adm?'checked disabled':((pp[k]||[]).map(String).includes(id)?'checked':'')}></td>`).join('')}</tr>`;}).join('')}</tbody></table>`:'<div class="fin-vazio">Não consegui carregar a lista de usuários.</div>';
     const j=janela(`Configurar a tabela — ${ob}`,`<div class="rv-cfg">
-        <h4>Colunas desta obra</h4><p class="rv-dica">O nome de cada coluna e o que ela aceita: <b>letras e números</b>, <b>apenas números</b> ou <b>apenas letras</b>. O <b>ajuste necessário</b>, a situação, os contadores e o histórico já vêm em toda tabela. Tirar uma coluna não apaga o que já foi escrito nela.</p>
-        <div class="rv-cfg-cols"><table data-sem-ordem><thead><tr><th>Coluna</th><th>Aceita</th><th>Obrigatória</th><th></th></tr></thead><tbody data-rv-cols>${linhasCols()}</tbody></table></div>
+        <h4>Colunas desta obra</h4><p class="rv-dica">O nome de cada coluna e o que ela aceita: <b>letras e números</b>, <b>apenas números</b> (inteiro, com o ponto do milhar — 1.234 — e sem casas decimais: 0 é 0, nunca 0,00; para códigos, use letras e números) ou <b>apenas letras</b>. <b>Sem repetir</b>: a coluna identifica o serviço — uma linha nova igual a uma que já está na tabela não entra; o sistema avisa e deixa levar o ajuste novo para a que já existe. Marcando mais de uma, vale a combinação delas (ex.: Rua + Nº da casa + Serviço). <b>Máx. de caracteres</b>: quantos cabem no campo (vazio = sem limite; nos números contam só os algarismos). O <b>ajuste necessário</b>, a situação, os contadores e o histórico já vêm em toda tabela. Tirar uma coluna não apaga o que já foi escrito nela.</p>
+        <div class="rv-cfg-cols"><table data-sem-ordem><thead><tr><th>Coluna</th><th>Aceita</th><th>Obrigatória</th><th>Sem repetir</th><th>Máx. de caracteres</th><th></th></tr></thead><tbody data-rv-cols>${linhasCols()}</tbody></table></div>
+        <small class="rv-dica rv-unico-dica" data-rv-unico-dica></small>
         <div class="rv-cfg-lin"><button type="button" class="fin-bt mini" data-cc-add><i class="fas fa-plus"></i> Nova coluna</button>${outras.length?`<select class="filter-select" data-rv-copia><option value="">Copiar a configuração de outra obra…</option>${outras.map(o=>`<option value="${fe(o)}">${fe(o)}</option>`).join('')}</select>`:''}</div>
         <h4>Quem faz cada ação nesta obra</h4><p class="rv-dica"><b>Inclui linhas</b>: registra os serviços com o ajuste necessário e acerta os dados. <b>Exclui linhas</b>: tira linhas da tabela. <b>Aceita ou rejeita</b>: aceita a correção ou rejeita novamente (pede um novo ajuste). <b>Responde</b>: informa a correção. Quem não está marcado só acompanha. Ninguém edita o texto do outro.</p>
         <div class="rv-cfg-papeis" data-rv-papeis>${tabPapeis(pp0)}</div></div>`,
@@ -26243,19 +26376,30 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
         if(nomes.some(n=>!n))throw new Error('Dê nome a todas as colunas (ou tire a que está sem nome).');
         if(new Set(nomes.map(cn)).size!==nomes.length)throw new Error('Há duas colunas com o mesmo nome.');
         const pp={};ACOES.forEach(([k])=>{pp[k]=[...j.querySelectorAll(`[data-rv-p="${k}"]:checked:not(:disabled)`)].map(i=>i.value);});
-        const novo={...(c0?limpo(c0):{}),tipo:'reprov_cfg',titulo_obra:ob,colunas:cols.map(c=>({k:c.k,nome:String(c.nome).trim(),tipo:TIPOS[c.tipo]?c.tipo:'livre',obg:!!c.obg})),papeis:pp,atualizado_em:todayDateTime(),atualizado_por:meuNome(),data_lancamento:(c0&&c0.data_lancamento)||todayDateTime()};
-        // aviso: tipo trocado com valores que não cabem nele (ficam como estão; ao acertar a linha, o sistema pede o certo)
-        const ruins=cols.filter(c=>c.tipo!=='livre').map(c=>({c,n:itensDe(ob).filter(it=>{const x=lerJ(it.valores,{})[c.k];return String(x||'').trim()&&erroValor({...c,obg:false},x);}).length})).filter(x=>x.n);
-        if(ruins.length&&!(await vxPergunta('Valores que não cabem no tipo',`${ruins.map(x=>`<b>${fe(x.c.nome)}</b>: ${x.n} linha(s) têm valor que não é "${fe(TIPOS[x.c.tipo].toLowerCase())}"`).join('<br>')}<br><br>Esses valores ficam como estão; ao acertar a linha, o sistema pede o valor certo. Salvar assim mesmo?`,'Salvar','Voltar')))return false;
+        const novo={...(c0?limpo(c0):{}),tipo:'reprov_cfg',titulo_obra:ob,colunas:cols.map(c=>({k:c.k,nome:String(c.nome).trim(),tipo:TIPOS[c.tipo]?c.tipo:'livre',obg:!!c.obg,unico:!!c.unico,max:+c.max>0?Math.floor(+c.max):0})),papeis:pp,atualizado_em:todayDateTime(),atualizado_por:meuNome(),data_lancamento:(c0&&c0.data_lancamento)||todayDateTime()};
+        /* os avisos antes de salvar (nada é apagado nem trocado): valores que já estão na tabela e não cabem na regra nova
+           (o tipo ou o tamanho — ao acertar a linha, o sistema pede o certo) e linhas que já estão repetidas pela regra nova */
+        const av=[],ruins=cols.filter(c=>c.tipo!=='livre'||+c.max>0).map(c=>({c,n:itensDe(ob).filter(it=>{const x=lerJ(it.valores,{})[c.k];return String(x||'').trim()&&erroValor({...c,obg:false},x);}).length})).filter(x=>x.n);
+        if(ruins.length)av.push(`${ruins.map(x=>`<b>${fe(x.c.nome)}</b>: ${x.n} linha(s) com valor fora da regra (${fe(regra({...x.c,unico:false}).toLowerCase())})`).join('<br>')}<br>Esses valores ficam como estão; ao acertar a linha, o sistema pede o valor certo.`);
+        if(colsUnicas(cols).length){const vistos=new Map(),reps=[];
+          itensDe(ob).sort((a,b)=>(+numDe(a)||0)-(+numDe(b)||0)).forEach(it=>{const k=chaveDe(cols,lerJ(it.valores,{}));if(!k)return;if(vistos.has(k))reps.push(`nº ${numDe(it)} = nº ${numDe(vistos.get(k))}`);else vistos.set(k,it);});
+          if(reps.length)av.push(`Já há <b>${reps.length}</b> linha(s) repetida(s) pela regra “${fe(nomesUnicas(cols))}”: ${fe(reps.slice(0,8).join(', '))}${reps.length>8?'…':''}. Elas ficam como estão — confira e exclua as que sobram. Daqui para a frente, a repetida não entra.`);}
+        if(av.length&&!(await vxPergunta('Antes de salvar',`${av.join('<br><br>')}<br><br>Salvar assim mesmo?`,'Salvar','Voltar')))return false;
         await executar(()=>salvar('Planejamento',novo,c0?c0.rowid:null));toast('Configuração da tabela salva.','success');}}],940);
     const tb=j.querySelector('[data-rv-cols]');
-    function lerColsTela(){[...tb.querySelectorAll('tr[data-ci]')].forEach(tr=>{const c=cols[+tr.dataset.ci];if(!c)return;c.nome=tr.querySelector('[data-cc="nome"]').value;c.tipo=tr.querySelector('[data-cc="tipo"]').value;c.obg=tr.querySelector('[data-cc="obg"]').checked;});}
+    function lerColsTela(){[...tb.querySelectorAll('tr[data-ci]')].forEach(tr=>{const c=cols[+tr.dataset.ci];if(!c)return;c.nome=tr.querySelector('[data-cc="nome"]').value;c.tipo=tr.querySelector('[data-cc="tipo"]').value;c.obg=tr.querySelector('[data-cc="obg"]').checked;
+      c.unico=tr.querySelector('[data-cc="unico"]').checked;const m=parseInt(tr.querySelector('[data-cc="max"]').value,10);c.max=m>0?m:0;});}
+    // embaixo da tabela, como fica a regra das repetidas com as colunas marcadas agora
+    function dicaUnico(){lerColsTela();const el=j.querySelector('[data-rv-unico-dica]');if(!el)return;const U=cols.filter(c=>c.unico&&String(c.nome||'').trim());
+      el.innerHTML=!U.length?'<i class="fas fa-circle-info"></i> Nenhuma coluna em <b>Sem repetir</b>: a tabela aceita linhas repetidas.':U.length===1?`<i class="fas fa-circle-info"></i> Repetida = o mesmo <b>${fe(U[0].nome)}</b> de uma linha que já está na tabela.`:`<i class="fas fa-circle-info"></i> Repetida = a mesma combinação de <b>${U.map(c=>fe(c.nome)).join(' + ')}</b> de uma linha que já está na tabela (uma coluna igual sozinha não é repetida).`;}
     j.addEventListener('click',e=>{
-      if(e.target.closest('[data-cc-add]')){lerColsTela();cols.push({k:'c'+Date.now().toString(36)+cols.length,nome:'',tipo:'livre',obg:false});tb.innerHTML=linhasCols();const ins=tb.querySelectorAll('[data-cc="nome"]');if(ins.length)ins[ins.length-1].focus();return;}
+      if(e.target.closest('[data-cc-add]')){lerColsTela();cols.push({k:'c'+Date.now().toString(36)+cols.length,nome:'',tipo:'livre',obg:false,unico:false,max:0});tb.innerHTML=linhasCols();dicaUnico();const ins=tb.querySelectorAll('[data-cc="nome"]');if(ins.length)ins[ins.length-1].focus();return;}
       const tr=e.target.closest('tr[data-ci]');if(!tr)return;const i=+tr.dataset.ci;
-      const mv=e.target.closest('[data-cc-mv]');if(mv){lerColsTela();const k=i+(+mv.dataset.ccMv);if(k<0||k>=cols.length)return;[cols[i],cols[k]]=[cols[k],cols[i]];tb.innerHTML=linhasCols();return;}
-      if(e.target.closest('[data-cc-x]')){lerColsTela();cols.splice(i,1);tb.innerHTML=linhasCols();}});
-    j.addEventListener('change',e=>{const s=e.target.closest('[data-rv-copia]');if(!s||!s.value)return;const o=s.value;cols=colunas(o).map(x=>({...x}));tb.innerHTML=linhasCols();const pb=j.querySelector('[data-rv-papeis]');if(pb)pb.innerHTML=tabPapeis(papeis(o));toast(`Configuração de ${o} copiada — confira e salve.`,'info');s.value='';});
+      const mv=e.target.closest('[data-cc-mv]');if(mv){lerColsTela();const k=i+(+mv.dataset.ccMv);if(k<0||k>=cols.length)return;[cols[i],cols[k]]=[cols[k],cols[i]];tb.innerHTML=linhasCols();dicaUnico();return;}
+      if(e.target.closest('[data-cc-x]')){lerColsTela();cols.splice(i,1);tb.innerHTML=linhasCols();dicaUnico();}});
+    ['input','change'].forEach(t=>tb.addEventListener(t,e=>{if(e.target.closest('[data-cc="nome"],[data-cc="unico"]'))dicaUnico();}));
+    dicaUnico();
+    j.addEventListener('change',e=>{const s=e.target.closest('[data-rv-copia]');if(!s||!s.value)return;const o=s.value;cols=colunas(o).map(x=>({...x}));tb.innerHTML=linhasCols();dicaUnico();const pb=j.querySelector('[data-rv-papeis]');if(pb)pb.innerHTML=tabPapeis(papeis(o));toast(`Configuração de ${o} copiada — confira e salve.`,'info');s.value='';});
   }
 
   // estilo da tela
@@ -26323,6 +26467,15 @@ textarea[data-rv-cola]{width:100%;font-family:inherit;}
 .rv-ed-tab table{border-collapse:collapse;min-width:100%;font-size:12.5px;}
 .rv-ed-tab th{position:sticky;top:0;z-index:1;background:#F8FAFC;text-align:left;font:800 10px Inter,sans-serif;text-transform:uppercase;color:#667085;padding:8px 6px;white-space:nowrap;} .rv-ed-tab th small{display:block;text-transform:none;margin:2px 0 0;}
 .rv-ed-tab td{padding:5px 6px;border-top:1px solid #F2F4F7;} .rv-ed-tab input{width:100%;min-width:120px;height:34px;border:1px solid #D0D5DD;border-radius:8px;padding:0 10px;font:500 13px Inter,sans-serif;}
+.rv-cfg-cols{overflow-x:auto;} .rv-cfg-cols th{white-space:normal;line-height:1.25;vertical-align:bottom;} .rv-cfg-cols input[type=checkbox]{width:17px;height:17px;}
+.rv-cfg-cols select{min-width:132px!important;} .rv-cfg-cols input[data-cc="nome"]{min-width:130px;}
+.rv-cfg-cols input[data-cc="max"]{width:92px;height:36px;border:1px solid #D0D5DD;border-radius:8px;padding:0 10px;font:500 13px Inter,sans-serif;background:#fff;color:#101828;}
+.rv-unico-dica{margin-top:6px;color:#344054;} .rv-unico-dica i{color:#1652D8;margin-right:4px;}
+.rv-situ{min-width:200px;max-width:290px;font-size:11.5px;} .rv-situ small{color:#667085;margin-top:3px;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;} .rv-situ small.t-err{color:#B42318!important;}
+.rv-situ select{display:block;margin-top:5px;width:100%;min-width:0;max-width:none;font-size:11.5px;}
+.rv-ps{display:inline-flex;align-items:center;font-size:11px;font-weight:800;padding:2px 8px;border-radius:99px;white-space:nowrap;} .rv-ps.ok{background:#ECFDF3;color:#067647;} .rv-ps.err{background:#FEF3F2;color:#B42318;} .rv-ps.warn{background:#FFFAEB;color:#B54708;}
+.rv-prev-tab tr.rv-dupl td{background:#FFFCF0;} .rv-cab-chk{display:inline-flex;margin:0 0 6px;font-size:12.5px;}
+.rv-dup-aviso{display:flex;gap:10px;align-items:flex-start;flex-wrap:wrap;margin:8px 0 2px;padding:9px 12px;border:1px solid #FEDF89;background:#FFFAEB;border-radius:10px;color:#93370D;font-size:12.5px;line-height:1.45;} .rv-dup-aviso>i{margin-top:3px;} .rv-dup-aviso>span:first-of-type{flex:1 1 320px;} .rv-dup-bts{display:flex;gap:6px;flex-wrap:wrap;}
 @media (max-width:900px){.rv-selbar{top:-16px;}}
 @media (max-width:640px){.rv-ver{margin-left:0;} .rv-busca{max-width:none;} .rv-selbar-bts{margin-left:0;}}`;
   document.head.appendChild(css);
@@ -26337,7 +26490,7 @@ textarea[data-rv-cola]{width:100%;font-family:inherit;}
    versão nova em cada aba, para nunca ficar recarregando sem parar.
    A CADA PUBLICAÇÃO: trocar a VERSÃO abaixo e a do versao.json (na raiz e em public/) — as duas iguais. */
 (function(){
-  const VERSAO='2026-11-18d';window.VX_VERSAO=VERSAO;
+  const VERSAO='2026-11-18e';window.VX_VERSAO=VERSAO;
   let ultima=0,pendente=null;
   const ocupado=()=>!!(App&&App.state&&App.state._busy)||!!document.querySelector('#fin-ov.open,.modal-overlay.open,.pm-pop,.vx-perg-ov,.confirm-overlay.open');
   async function tentar(){
