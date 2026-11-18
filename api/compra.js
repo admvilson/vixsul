@@ -111,6 +111,12 @@ module.exports = async (req, res) => {
     if (!ORIGENS.some(r => r.test(req.headers.origin || ''))) return responder(403, { ok: false, msg: 'Origem não permitida.' });
     return responder(200, await lerComIA(b));
   }
+  // o número do horímetro na foto do Diário de obra — pela Groq (grátis), a mesma do robô do Telegram
+  if (b.acao === 'horimetro') {
+    if (!ORIGENS.some(r => r.test(req.headers.origin || ''))) return responder(403, { ok: false, msg: 'Origem não permitida.' });
+    try { return responder(200, await require('./_bot').lerHorimetro(b.imagem)); }
+    catch (e) { return responder(200, { ok: false, msg: String((e && e.message) || e).slice(0, 240) }); }
+  }
   if (b.acao !== 'nfce') return responder(400, { ok: false, msg: 'Ação desconhecida.' });
   const r = await lerNfce(b.url);
   return responder(r.ruim ? 400 : 200, (({ ruim, ...o }) => o)(r));

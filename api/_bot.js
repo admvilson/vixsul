@@ -628,6 +628,23 @@ async function chatUm(m, mensagens, ms, max) {
   return o;
 }
 const chatJson = (mensagens, lista, ms, max) => comModelos(lista, m => chatUm(m, mensagens, ms, max));
+/* HORÍMETRO PELA FOTO (a tela do Diário de obra chama pela /api/compra, ação 'horimetro'): o número do contador de horas do
+   painel da máquina. O leitor do navegador (Tesseract) quase não lê visor digital (dígitos de 7 segmentos, reflexo, luz
+   vermelha do painel); a Groq lê — de graça, com a mesma chave do robô e o modelo de imagem que o teste automático achou. */
+const PEDIDO_HOR = `Esta foto mostra o painel de uma máquina pesada (retroescavadeira). Leia SÓ o HORÍMETRO — o contador de horas de uso do motor: um visor digital (números de 7 segmentos, às vezes com luz de fundo) ou mecânico (roletes), com 4 a 6 dígitos; o último dígito costuma ser o décimo de hora (às vezes separado por ponto ou vírgula, ou num rolete de outra cor). Não confunda com velocímetro, conta-giros (RPM), relógio (hora do dia), temperatura, combustível ou números impressos no painel. Responda SÓ com este JSON:
+{"horimetro": 0, "digitos": "", "decimal": false, "confianca": "alta"}
+- horimetro: o valor em horas, número com ponto decimal (ex.: 7502.3); null se o visor não estiver legível com segurança — nunca invente.
+- digitos: os dígitos exatamente como aparecem no visor, sem ponto nem vírgula (ex.: "075023").
+- decimal: true se o último dígito for o décimo de hora.
+- confianca: "alta", "media" ou "baixa".`;
+async function lerHorimetroFoto(imagem) {
+  if (!GROQ) return { ok: false, msg: 'A leitura pela Groq não está ligada (falta a GROQ_API_KEY na Vercel).' };
+  const url = String(imagem || '');
+  if (!/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(url) || url.length > 4.2e6) return { ok: false, msg: 'Foto inválida ou grande demais.' };
+  const o = await chatJson([{ role: 'user', content: [{ type: 'text', text: PEDIDO_HOR }, { type: 'image_url', image_url: { url } }] }], await modelosDe(M_VISAO, 'visao'), 35000, 300);
+  const h = o && o.horimetro != null && o.horimetro !== '' && isFinite(+String(o.horimetro).replace(',', '.')) ? Math.round(+String(o.horimetro).replace(',', '.') * 10) / 10 : null;
+  return { ok: true, horimetro: h != null && h >= 0 && h < 1e6 ? h : null, digitos: String((o && o.digitos) || '').replace(/\D/g, '').slice(0, 9), decimal: !!(o && o.decimal), confianca: String((o && o.confianca) || '').slice(0, 10) };
+}
 const PEDIDO_FOTO = `Leia este documento de pagamento (boleto, nota fiscal/DANFE, cupom, recibo, comprovante de PIX ou transferência, comprovante da maquininha de cartão — a "via do cliente" —, conta de luz/água/telefone) e responda SÓ com um JSON neste formato:
 {"tipo":"boleto|nota|cupom|recibo|comprovante|cartao|conta_consumo|outro","fornecedor":"","cnpj_cpf":"","valor":0,"vencimento":"","data":"","pago":false,"forma":"","parcelas":1,"cartao_final":"","numero":"","descricao":"","linha_digitavel":"","chave":""}
 - fornecedor: quem RECEBE o dinheiro (beneficiário, emitente, loja, prestador ou o recebedor do PIX) — nunca o pagador, comprador ou tomador. Quem paga é a VIXSUL EMPREENDIMENTOS.
@@ -2142,5 +2159,6 @@ module.exports = function criarRobo(io) {
 // para os testes (funções que não falam com ninguém)
 module.exports.teste = { chatJson, chatUm, testarGroq, wavMudo, lerMaquininha, cartaoFinalDe, modelosDe, estadoGroq, semOi, quemPagou, promptVoz, transcreverDet, cnpjOk, numBR, valorDe, dataDe, horaDe, formaDe, fornDe, trechoObra, obrasNoTexto, chutarCat, limparDesc, lerFrase, lerTarefa, lerReuniao, lerDiesel, intencao, numerosPorExtenso, lerPix, crc16, boletoDe, acharBoleto, chaveOk, acharChave, lerCodigo, lerXml, lerTextoDoc, normIA, qrDaImagem, textoPdf, somaMes, isoOk, tipoAcao, tipoReu, dataFator };
 module.exports.GROQ = () => !!GROQ;
+module.exports.lerHorimetro = lerHorimetroFoto;
 // o que o telegram.js usa para as consultas (/obra, /fornecedor, /buscar)
 module.exports.util = { cn, corta, valorDe, obrasNoTexto, semOi };

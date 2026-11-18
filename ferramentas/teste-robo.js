@@ -197,6 +197,20 @@ function ultimoCartao() { for (let i = CALLS.length - 1; i >= 0; i--) { const c 
   await T.chatJson([{ role: 'user', content: 'oi' }], ['llama-3.3-70b-versatile'], 5000, 500);
   ok(!('reasoning_effort' in GROQ.ultimoCorpo) && GROQ.ultimoCorpo.max_completion_tokens === 500, 'os outros modelos ficam como estão');
   ok(eg.groqOk && eg.modelos.foto === 'qwen/qwen3.8-27b' && eg.modelos.audio === 'whisper-large-v3' && eg.modelos.texto === 'openai/gpt-oss-120b' && eg.teste && eg.teste.foto === 'qwen/qwen3.8-27b', 'estado da Groq: ' + JSON.stringify(eg));
+  // HORÍMETRO pela foto (a tela do Diário de obra chama pela /api/compra): a Groq lê o visor; ilegível volta vazio; o que não é foto é recusado
+  { const vis0 = GROQ.visao, img = 'data:image/jpeg;base64,' + Buffer.alloc(30, 7).toString('base64');
+    GROQ.visao = { horimetro: 7502.3, digitos: '075023', decimal: true, confianca: 'alta' };
+    const h1 = await B.lerHorimetro(img);
+    ok(h1.ok && h1.horimetro === 7502.3 && h1.digitos === '075023' && h1.decimal === true && h1.confianca === 'alta' && GROQ_CHAMADAS[GROQ_CHAMADAS.length - 1] === 'foto:qwen/qwen3.8-27b', 'horímetro: a Groq lê o visor com o modelo testado (' + JSON.stringify(h1) + ')');
+    GROQ.visao = { horimetro: null, digitos: '', decimal: false, confianca: 'baixa' };
+    const h2 = await B.lerHorimetro(img);
+    ok(h2.ok && h2.horimetro === null, 'horímetro: visor ilegível volta vazio (nunca inventa)');
+    GROQ.visao = { horimetro: '7.502,3', digitos: '75023', decimal: true, confianca: 'media' };
+    const h3 = await B.lerHorimetro(img);
+    ok(h3.ok && h3.horimetro === null && h3.digitos === '75023', 'horímetro: número em formato estranho não vira valor errado (fica a escolha pelos dígitos na tela)');
+    const h4 = await B.lerHorimetro('nao-e-uma-foto');
+    ok(!h4.ok, 'horímetro: o que não é foto é recusado');
+    GROQ.visao = vis0; }
   // PDF de boleto (texto) e foto com QR do PIX: as bibliotecas de verdade
   const { jsPDF } = require('jspdf'); const doc = new jsPDF(); doc.setFontSize(10);
   doc.text('Beneficiario: MADEIREIRA SAO JOSE LTDA  CNPJ 12.345.678/0001-95', 10, 20); doc.text('Vencimento: ' + R.brAno(em(15)), 10, 30); doc.text(lin, 10, 40);
