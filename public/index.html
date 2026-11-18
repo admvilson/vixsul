@@ -13359,23 +13359,28 @@ const Eng=(function(){
     return `<img ${v.url?`src="${v.url}"`:GS.fotoSis.attrs({foto_uid:r.uid,thumb_uid:r.thumb},false,200)} alt="" title="Clique para ampliar"><span class="rdo-hzoom" aria-hidden="true"><i class="fas fa-magnifying-glass-plus"></i></span>${fora?`<span class="rdo-hfora" title="${fe('Fora do horário: '+fora+' — o Administrador confere')}"><i class="fas fa-triangle-exclamation"></i> Fora do horário</span>`:''}
       <span class="rdo-hhora${outro?' outro':''}" title="${outro?'A foto é de outro dia — confira':'Data e hora em que a foto foi tirada'}"><i class="fas fa-clock"></i> ${fe(quandoHor(data,v.hora||r.hora))}</span>
       <button type="button" class="rdo-htrocar" data-htrocar title="Escolher outra foto"><i class="fas fa-camera-rotate"></i> Trocar</button>`;};
-  /* ver as fotos do horímetro em tamanho grande (no formulário e no cartão do dia): setas e Esc.
-     L: [{url (arquivo ainda não enviado) | uid+thumb (já no sistema), rot, quando}] */
-  function verFotosHor(L,i){L=(L||[]).filter(x=>x&&(x.url||x.uid));if(!L.length)return;let k=Math.min(Math.max(0,i||0),L.length-1);
+  /* ver as fotos do horímetro em tamanho grande (no formulário e no cartão do dia): setas e Esc. Também as fotos do dia no
+     formulário (tit = o título; drive = a foto que o Administrador mandou para o Google Drive).
+     L: [{url (arquivo ainda não enviado) | uid+thumb (já no sistema) | drive, rot, quando, tit}] */
+  const urlDrive=(id,w)=>`https://drive.google.com/thumbnail?id=${encodeURIComponent(id)}&sz=w${w||1600}`;
+  function verFotosHor(L,i){L=(L||[]).filter(x=>x&&(x.url||x.uid||x.drive));if(!L.length)return;let k=Math.min(Math.max(0,i||0),L.length-1);
     document.querySelectorAll('.rdo-lb').forEach(x=>x.remove());const d=document.createElement('div');d.className='rdo-lb';
     d.innerHTML=`<div class="rdo-lb-cab"><b data-lb-tit></b><span data-lb-mapa></span><span data-lb-n></span><button type="button" data-lb-baixar title="Baixar esta foto" aria-label="Baixar esta foto"><i class="fas fa-download"></i></button><button type="button" data-lb-x aria-label="Fechar" title="Fechar"><i class="fas fa-xmark"></i></button></div>
-      <div class="rdo-lb-corpo"><button type="button" class="rdo-lb-nav" data-lb-ant aria-label="Foto anterior"><i class="fas fa-chevron-left"></i></button><img alt="" data-lb-img><button type="button" class="rdo-lb-nav" data-lb-prox aria-label="Próxima foto"><i class="fas fa-chevron-right"></i></button></div>`;
+      <div class="rdo-lb-corpo"><button type="button" class="rdo-lb-nav" data-lb-ant aria-label="Foto anterior"><i class="fas fa-chevron-left"></i></button><img alt="" data-lb-img referrerpolicy="no-referrer"><button type="button" class="rdo-lb-nav" data-lb-prox aria-label="Próxima foto"><i class="fas fa-chevron-right"></i></button></div>`;
     document.body.appendChild(d);const img=d.querySelector('[data-lb-img]');
-    const pintar=()=>{const x=L[k];d.querySelector('[data-lb-tit]').textContent=`Horímetro · ${x.rot} · ${x.quando}`;d.querySelector('[data-lb-n]').textContent=L.length>1?`${k+1} de ${L.length}`:'';
+    const pintar=()=>{const x=L[k];d.querySelector('[data-lb-tit]').textContent=x.tit||`Horímetro · ${x.rot} · ${x.quando}`;d.querySelector('[data-lb-n]').textContent=L.length>1?`${k+1} de ${L.length}`:'';
       d.querySelector('[data-lb-mapa]').innerHTML=x.gps?GS.gps.htmlLink(x.gps):'';
       d.querySelector('[data-lb-ant]').hidden=k===0;d.querySelector('[data-lb-prox]').hidden=k===L.length-1;
-      if(x.url){img.src=x.url;return;}img.src=GS.fotoSis.ja(x.uid)||GS.fotoSis.ja(x.thumb)||GS.fotoSis.PIX;GS.fotoSis.url(x.uid).then(u=>{if(u&&L[k]===x)img.src=u;});};
+      if(x.url){img.src=x.url;return;}if(x.drive&&!x.uid){img.src=urlDrive(x.drive);return;}
+      img.src=GS.fotoSis.ja(x.uid)||GS.fotoSis.ja(x.thumb)||GS.fotoSis.PIX;GS.fotoSis.url(x.uid).then(u=>{if(u&&L[k]===x)img.src=u;});};
     const fechar=()=>{d.remove();document.removeEventListener('keydown',tecla,true);};
     const tecla=ev=>{if(ev.key==='Escape'){ev.stopPropagation();ev.preventDefault();fechar();}else if(ev.key==='ArrowLeft'&&k>0){k--;pintar();}else if(ev.key==='ArrowRight'&&k<L.length-1){k++;pintar();}};
     document.addEventListener('keydown',tecla,true);
     d.addEventListener('click',ev=>{
       // baixar a foto que está na tela (a ainda não enviada sai do próprio arquivo escolhido)
-      if(ev.target.closest('[data-lb-baixar]')){const x=L[k],nome=nomeArq(`horimetro ${x.rot} ${x.quando}`)+'.jpg';if(x.url)return baixarUrl(x.url,nome);GS.fotoSis.url(x.uid).then(u=>u?baixarUrl(u,nome):toast('Não consegui ler a foto.','error'));return;}
+      if(ev.target.closest('[data-lb-baixar]')){const x=L[k],nome=nomeArq(x.tit||`horimetro ${x.rot} ${x.quando}`)+'.jpg';if(x.url)return baixarUrl(x.url,nome);
+        if(x.drive&&!x.uid){window.open('https://drive.google.com/file/d/'+encodeURIComponent(x.drive)+'/view','_blank');return;}
+        GS.fotoSis.url(x.uid).then(u=>u?baixarUrl(u,nome):toast('Não consegui ler a foto.','error'));return;}
       if(ev.target.closest('[data-lb-x]')||ev.target===d||ev.target.classList.contains('rdo-lb-corpo'))return fechar();
       if(ev.target.closest('[data-lb-ant]')&&k>0){k--;pintar();}else if(ev.target.closest('[data-lb-prox]')&&k<L.length-1){k++;pintar();}});
     pintar();}
@@ -13446,10 +13451,10 @@ const Eng=(function(){
       if(!fotosDoRegistro(r).length)add('fotos',aberto?'Fotos do dia: inclua até as 19h':'Sem fotos do dia',aberto?{voce:true}:null);}
     return {adm,voce};}
   // depois de salvar: a janela com o que ficou (para quem registrou: "vai para o Administrador"; tudo certo: só o aviso)
-  function avisoPendRdo(r,extra){
+  function avisoPendRdo(r,extra,nota){
     const P=pendRdo(r),adm=ehAdmRdo(),li=L=>`<ul class="rdo-pend-ul">${L.map(p=>`<li>${fe(p.txt)}</li>`).join('')}</ul>`;
-    if(!P.adm.length&&!P.voce.length){toast(extra||'Diário salvo — tudo completo.',extra?'error':'success');return;}
-    janela('Diário salvo',`<p class="rdo-pend-ok"><i class="fas fa-circle-check"></i> O diário de <b>${fe(brDe(dt(r.data)))}</b> (${fe(r.titulo_obra)}) foi salvo.</p>${extra?`<p class="rdo-pend-err"><i class="fas fa-triangle-exclamation"></i> ${fe(extra)}</p>`:''}
+    if(!P.adm.length&&!P.voce.length){toast(extra||('Diário salvo — tudo completo.'+(nota?' '+nota:'')),extra?'error':'success');return;}
+    janela('Diário salvo',`<p class="rdo-pend-ok"><i class="fas fa-circle-check"></i> O diário de <b>${fe(brDe(dt(r.data)))}</b> (${fe(r.titulo_obra)}) foi salvo.${nota?' '+fe(nota):''}</p>${extra?`<p class="rdo-pend-err"><i class="fas fa-triangle-exclamation"></i> ${fe(extra)}</p>`:''}
       ${P.adm.length?`<h4 class="rdo-pend-h">${adm?'Ficaram estas pendências — estão na aba <b>Pendências</b>:':'Ficaram estas pendências. <b>Não precisa fazer nada:</b> elas vão para o Administrador, que resolve.'}</h4>${li(P.adm)}`:''}
       ${P.voce.length?`<h4 class="rdo-pend-h">Ainda hoje dá para completar${adm?'':' (se não der, também vai para o Administrador)'}:</h4>${li(P.voce)}`:''}`,
       [{html:'Entendi',cls:'pri'}],560);}
@@ -13480,10 +13485,28 @@ const Eng=(function(){
   // FOTOS DO DIA já no registro: escolhidas aqui, vão para a galeria da obra com a data do diário
   podeMexer:r=>meuRdo(r),
   extra:reg=>podeFotoRdo()&&(!reg||meuRdo(reg))?`<div class="rdo-fotos"><div class="rdo-fotos-cab"><b><i class="fas fa-camera"></i> Fotos do dia <span class="obg">*</span></b><label class="fin-bt mini" style="cursor:pointer">+ Escolher fotos<input type="file" accept="image/*" multiple data-rdo-fotos hidden></label></div>
-    <div class="eng-fotos-fila" data-rdo-prev></div><small>${reg?'As fotos que já estão neste dia continuam; as escolhidas aqui são somadas.':'As fotos vão para a galeria da obra com a data deste registro e aparecem neste dia do diário.'}</small></div>`:'',
+    <div class="eng-fotos-fila rdo-fotos-salvas" data-rdo-salvas hidden></div><div class="eng-fotos-fila" data-rdo-prev></div><small>${reg?'As fotos que já estão neste dia aparecem aqui (clique para ampliar). O × tira a foto: ela vai para a Lixeira quando você salvar (e volta em Desfazer, antes de salvar). As escolhidas agora são somadas.':'As fotos vão para a galeria da obra com a data deste registro e aparecem neste dia do diário.'}</small></div>`:'',
   aoAbrir:(j,reg)=>{
     ligarRdo(j,reg);
     const inp=j.querySelector('[data-rdo-fotos]'),prev=j.querySelector('[data-rdo-prev]');if(!inp||!prev)return;j._fotos=[];
+    /* as fotos que JÁ estão neste dia (salvas antes, aqui ou pelo botão Fotos): aparecem no formulário. Quem anexou (ou o
+       Administrador) tem o × — a foto fica marcada e vai para a Lixeira quando salvar; Desfazer tira a marca; quem
+       cancela o formulário não perde nada */
+    const sv=j.querySelector('[data-rdo-salvas]');j._fotosApagar=new Set();
+    const salvas=()=>reg?fotosDoRegistro(reg):[];
+    const podeApagarFoto=f=>ehAdmRdo()||souEuRdo(f.enviado_por_id)||souEuRdo(f.criado_por_id);
+    // a descrição como a pessoa escreveu (a galeria grava "Etapa • data • descrição"; o diário põe "Diário de obra · …")
+    const descFoto=f=>{const p=String(f.descricao||'').split(' • '),d=(p.length>=3?p.slice(2).join(' • '):p.join(' • ')).replace(/^Diário de obra( · )?/,'').trim();
+      return [d,f.enviado_por?'por '+String(f.enviado_por).split(' ')[0]:''].filter(Boolean).join(' · ')||'Foto do dia';};
+    const desenhaSalvas=()=>{if(!sv)return;const L=salvas();sv.hidden=!L.length;
+      sv.innerHTML=L.map((f,k)=>{const sai=j._fotosApagar.has(String(f.rowid));
+        return `<div class="eng-foto-item rdo-foto-salva${sai?' rdo-foto-sai':''}"><button type="button" class="rdo-foto-ver" data-rdo-ver="${k}" title="Ampliar"><img ${GS.fotoSis.attrs(f,false,300)} data-driveid="${fe(f.drive_file_id||'')}" loading="lazy" alt="" onerror="UI.ImagensObra._imgErro(this)"></button>
+          <small class="rdo-foto-desc" title="${fe(descFoto(f))}">${sai?'<b>sai ao salvar</b>':fe(descFoto(f))}</small>${podeApagarFoto(f)?(sai?`<button type="button" class="rdo-foto-volta" data-rdo-volta="${fe(f.rowid)}"><i class="fas fa-rotate-left"></i> Desfazer</button>`:`<button type="button" class="rdo-foto-x" data-rdo-sx="${fe(f.rowid)}" title="Excluir esta foto (vai para a Lixeira quando você salvar)" aria-label="Excluir esta foto">×</button>`):''}</div>`;}).join('');};
+    desenhaSalvas();
+    if(sv)sv.addEventListener('click',ev=>{
+      const v=ev.target.closest('[data-rdo-ver]');if(v){const L=salvas();return verFotosHor(L.map(f=>({uid:f.foto_uid||'',thumb:f.thumb_uid||'',drive:f.drive_file_id||'',url:f.foto_uid||f.drive_file_id?'':(f.url_visualizacao||f.url_thumb||''),tit:`Foto do dia · ${brDe(dt(String(f.data_foto||reg.data)))} · ${descFoto(f)}`,gps:GS.gps.de(f)})),+v.dataset.rdoVer);}
+      const x=ev.target.closest('[data-rdo-sx]');if(x){j._fotosApagar.add(String(x.dataset.rdoSx));return desenhaSalvas();}
+      const u=ev.target.closest('[data-rdo-volta]');if(u){j._fotosApagar.delete(String(u.dataset.rdoVolta));desenhaSalvas();}});
     // cada foto mostra onde foi tirada (GPS da foto ou do celular, se acabou de ser tirada)
     const gpsTxt=f=>f.gps?`<i class="fas fa-location-dot"></i> ${GS.gps.txt(f.gps)}`:f.gps===false?'<i class="fas fa-location-dot"></i> sem localização':'<i class="fas fa-spinner fa-spin"></i> localização…';
     const desenha=()=>{prev.innerHTML=j._fotos.map((f,k)=>`<div class="eng-foto-item"><img src="${f.url}" alt=""><input data-rdo-desc="${k}" maxlength="50" placeholder="Descrição (opcional)" value="${fe(f.desc)}"><button type="button" class="rdo-foto-x" data-rdo-x="${k}" title="Tirar esta foto">×</button><small class="rdo-foto-gps" data-rdo-gps="${k}">${gpsTxt(f)}</small></div>`).join('');};
@@ -13511,13 +13534,17 @@ const Eng=(function(){
     // foto do horímetro trocada: a antiga sai da galeria e vai para a Lixeira (o arquivo dela só é apagado quando sair de
     // vez); foto que nem chegou à galeria não tem o que restaurar: o arquivo sai na hora
     for(const f of (j._rdoApagar||[])){const im=(D().obra_imagens||[]).find(i=>i.foto_uid===f.uid);try{if(im)await excluir('Imagens da Obra',im.rowid);else await GS.fotoSis.apagar({foto_uid:f.uid,thumb_uid:f.thumb});}catch(e){}}
-    let extra='';
+    let extra='',nota='';
+    // fotos do dia marcadas com × no formulário: vão para a Lixeira (todas num lote só — voltam juntas no Restaurar)
+    if(j._fotosApagar&&j._fotosApagar.size){const ids=[...j._fotosApagar];
+      try{await executar(async()=>{for(const rid of ids)await excluir('Imagens da Obra',rid);});nota=ids.length>1?`${ids.length} fotos foram para a Lixeira.`:'A foto foi para a Lixeira.';}
+      catch(e){extra='Não consegui excluir '+(ids.length>1?'as fotos marcadas':'a foto marcada')+' ('+((e&&e.message)||e)+') — tente de novo.';}}
     if(prep){try{await prep;await Eng.subirFotosDia(o.titulo_obra,o.data,j._fotos.map(f=>({file:f.file,descricao:(f.desc||'').trim(),previewUrl:f.url,gps:f.gps||null})));}
-      catch(e){extra='As fotos do dia não foram enviadas ('+((e&&e.message)||e)+') — use o botão Fotos deste dia.';}}
+      catch(e){extra=(extra?extra+' ':'')+'As fotos do dia não foram enviadas ('+((e&&e.message)||e)+') — use o botão Fotos deste dia.';}}
     // o que ficou faltando, com o registro como ficou no banco (a tela já recarregou)
     const L=D().diario_obra||[],r=(reg&&L.find(x=>String(x.rowid)===String(reg.rowid)))||L.find(x=>x.titulo_obra===o.titulo_obra&&x.data===o.data&&donoRdo(x)===donoRdo(o))||o;
     // a janela do aviso abre DEPOIS que o formulário fecha (aberta aqui dentro, o fechamento do formulário levava ela junto)
-    j._aoFechar=()=>avisoPendRdo(r,extra);},
+    j._aoFechar=()=>avisoPendRdo(r,extra,nota);},
   validar:(o,reg,j,parcial)=>{
     // leituras do horímetro fora de ordem (ex.: um número lido errado da foto) NÃO impedem o diário: ele salva e o dia fica
     // "Horímetro a conferir" para o Administrador corrigir (o dono pediu: o diário nunca fica travado pelo horímetro)
@@ -20956,6 +20983,11 @@ const Mascara=(function(){
 .rdo-fotos small{display:block;color:#6e6e73;margin-top:6px;font-size:11.5px;}
 .eng-foto-item{position:relative;}
 .rdo-foto-x{position:absolute;top:4px;right:4px;width:24px;height:24px;border-radius:50%;border:0;background:rgba(0,0,0,.6);color:#fff;font-size:16px;line-height:22px;cursor:pointer;}
+/* fotos que já estão no dia (no formulário do diário): ampliar, × para tirar (sai ao salvar) e Desfazer */
+.rdo-fotos-salvas{margin-bottom:10px;} .rdo-foto-ver{display:block;width:100%;padding:0;border:0;background:none;cursor:zoom-in;}
+.rdo-foto-desc{display:block;font-size:11px;color:#667085;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.rdo-foto-sai img{opacity:.35;filter:grayscale(1);} .rdo-foto-sai .rdo-foto-desc b{color:#B42318;}
+.rdo-foto-volta{display:inline-flex;align-items:center;gap:4px;margin-top:4px;padding:3px 8px;border:1px solid #D0D5DD;border-radius:7px;background:#fff;color:#344054;font:600 11.5px Inter,sans-serif;cursor:pointer;}
 /* aditivo em quantidade */
 .adq-filtro{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;margin:10px 0 6px;}
 .adq-filtro input[type=search]{flex:1;min-width:200px;padding:7px 10px;border:1px solid var(--border);border-radius:9px;font:13px Inter,sans-serif;}
@@ -26579,7 +26611,7 @@ textarea[data-rv-cola]{width:100%;font-family:inherit;}
    versão nova em cada aba, para nunca ficar recarregando sem parar.
    A CADA PUBLICAÇÃO: trocar a VERSÃO abaixo e a do versao.json (na raiz e em public/) — as duas iguais. */
 (function(){
-  const VERSAO='2026-11-18h';window.VX_VERSAO=VERSAO;
+  const VERSAO='2026-11-18i';window.VX_VERSAO=VERSAO;
   let ultima=0,pendente=null;
   const ocupado=()=>!!(App&&App.state&&App.state._busy)||!!document.querySelector('#fin-ov.open,.modal-overlay.open,.pm-pop,.vx-perg-ov,.confirm-overlay.open');
   async function tentar(){
