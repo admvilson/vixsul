@@ -3644,7 +3644,7 @@ const App={
       </body></html>`);
     if(cfg.capturar)return this._relCapturar(html,cfg);
     const win=window.open('','_blank');
-    if(!win){toast('Não foi possível abrir o PDF. Permita pop-ups deste site no navegador e tente de novo.','error');return;}
+    if(!win){toast(cfg.msgBloqueado||'Não foi possível abrir o PDF. Permita pop-ups deste site no navegador e tente de novo.','error');return;}
     win.document.write(html);
     win.document.close();
   },
@@ -25869,6 +25869,7 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
     if(obraFiltro&&obras.includes(obraFiltro)&&RV._filtroDiario!==obraFiltro){RV.obra=obraFiltro;RV._filtroDiario=obraFiltro;RV.sel.clear();}
     if(!RV.obra||!obras.includes(RV.obra)){RV.obra=obras.find(o=>itensDe(o).length)||obras.find(o=>cfgDe(o))||obras[0]||'';RV.sel.clear();}
     const ob=RV.obra;
+    if(RV._ass===undefined)prepAssinatura();   // a imagem da assinatura para o PDF, já buscada por trás
     if(!ob){box.innerHTML='<div class="fin-card"><div class="fin-vazio">Cadastre uma obra para usar a tabela da Fiscalização.</div></div>';return;}
     const cols=colunas(ob),configurada=cols.length>0,its=itensDe(ob).map(it=>({it,s:estado(it),n:numDe(it)})),q=cn(RV.busca);
     // marcadas que já não existem (excluídas, outra obra) saem da marcação
@@ -26108,15 +26109,34 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
 
   /* ── PDF: a tabela como está na tela (com os filtros) — ou, escolhendo, com o histórico de cada linha embaixo dela. No
      Histórico, a lista dos movimentos. Mesmo motor dos relatórios (páginas A4 com a logo, o cabeçalho da tabela repete em
-     cada página) e, com o certificado digital no computador, dá para baixar já assinado (como o diário). ── */
+     cada página). No fim, a assinatura do responsável pela obra (a imagem guardada em Documentos) e o espaço do fiscal. ── */
   const bl=t=>fe(t==null?'':t).replace(/\n/g,'<br>');
   const COR_ST={reprovado:'#B42318',respondido:'#B54708',aprovado:'#067647'};
   function filtroTxt(){return [RV.st?ST[RV.st].rot:'',RV.reinc?'só reincidentes (2 ajustes ou mais)':'',RV.busca?`busca: “${RV.busca}”`:''].filter(Boolean).join(' · ');}
-  function assinaturasPdf(ob){const c=Eng.contratoDe&&Eng.contratoDe(ob);
-    return `<div style="display:flex;gap:30px;margin-top:28px;font-size:9.5px;color:#6e6e73;page-break-inside:avoid"><div style="flex:1;border-top:1px solid #1d1d1f;padding-top:3px">Responsável pela obra</div><div style="flex:1;border-top:1px solid #1d1d1f;padding-top:3px">Fiscalização${c&&c.fiscal?' — '+bl(c.fiscal):''}</div></div>`;}
-  const exportarPdf=(cfg,nome)=>{if(GS.cert&&GS.cert.exportarRelatorio)GS.cert.exportarRelatorio(cfg,{motivo:nome,arquivo:nome});else App._relExportPaginado(cfg);};
+  /* as assinaturas no fim do PDF: a do responsável pela obra é a IMAGEM guardada em Documentos › Empresa › Assinatura (a
+     mesma das declarações), em cima da linha, com o nome e o cargo; a do fiscal fica em branco para assinar à mão — os dois
+     espaços com altura de verdade para assinar. Sem certificado digital: o PDF sai direto. */
+  function assinaturasPdf(ob,img){const c=Eng.contratoDe&&Eng.contratoDe(ob),e=(GS.docs&&GS.docs.empresa)?GS.docs.empresa():{};
+    const caixa=(conteudo,nome,papel)=>`<div style="flex:1;display:flex;flex-direction:column;justify-content:flex-end;min-height:36mm">${conteudo}<div style="border-top:1px solid #1d1d1f;padding-top:4px;text-align:center;font-size:10px;line-height:1.35"><b>${nome?bl(nome):'&nbsp;'}</b><br><span style="color:#6e6e73">${papel}</span></div></div>`;
+    return `<div style="display:flex;gap:18mm;margin-top:14mm;page-break-inside:avoid">${caixa(img?`<img src="${img}" alt="" style="display:block;max-height:26mm;max-width:78mm;object-fit:contain;margin:0 auto 1.5mm">`:'',e.representante,'Responsável pela obra'+(e.cargo?' — '+bl(e.cargo):''))}${caixa('',c&&c.fiscal,'Fiscalização')}</div>`;}
+  /* a imagem da assinatura vem do Storage: é buscada por trás ao abrir a tela (e de novo ao abrir a janela do PDF, se ainda
+     não havia nenhuma guardada) — assim, no clique do PDF, a janela de impressão abre na hora (o navegador bloqueia a janela
+     que abre muito depois do clique). Achada, fica guardada até recarregar o sistema. */
+  function prepAssinatura(){
+    if(!(GS.docs&&GS.docs.assinatura)){RV._ass=null;return Promise.resolve(null);}
+    if(RV._assP)return RV._assP;
+    RV._assVoa=true;
+    RV._assP=GS.docs.assinatura().catch(()=>null).then(u=>{RV._assVoa=false;RV._ass=u||null;if(!u)RV._assP=null;return RV._ass;});
+    return RV._assP;}
+  async function exportarPdf(cfg,ob){
+    let esperou=false;
+    if(RV._ass===undefined||RV._assVoa){esperou=true;if(UI._showBusy)UI._showBusy('Preparando a assinatura…');try{await prepAssinatura();}finally{if(UI._hideBusy)UI._hideBusy();}}
+    App._relExportPaginado({...cfg,posHtml:assinaturasPdf(ob,RV._ass||null),
+      msgBloqueado:esperou?'A assinatura ficou pronta — toque de novo em PDF para abrir.':''});
+    if(RV._ass===null)prepAssinatura();}   // ainda sem assinatura guardada: confere de novo por trás (para o próximo PDF)
   function pdf(ob,vis,cols){
     if(!vis.length)return toast('Não há linhas para exportar.','error');
+    prepAssinatura();
     janela('Exportar a Fiscalização em PDF',`<p class="rv-dica"><b>${vis.length} linha${vis.length>1?'s':''}</b> — as que estão na tela${filtroTxt()?` (${fe(filtroTxt())})`:''}.</p>
       <label class="nfc-amb"><input type="radio" name="rv-pdf" value="tab" checked><span><b>Só a tabela</b> — uma linha por serviço, com o último ajuste, a última resposta, a situação e os contadores.</span></label>
       <label class="nfc-amb"><input type="radio" name="rv-pdf" value="det"><span><b>A tabela e o histórico de cada linha</b> — embaixo da tabela, cada serviço com todos os ajustes, respostas e aceites, quem fez e quando.</span></label>`,
@@ -26134,14 +26154,14 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
       return `<div style="border:1px solid #d5d5da;border-radius:8px;padding:9px 11px;page-break-inside:avoid"><div style="display:flex;justify-content:space-between;gap:10px;border-bottom:1px solid #e5e5ea;padding-bottom:5px;margin-bottom:5px"><b style="font-size:11.5px">Nº ${fe(n)}${res?' · '+bl(res):''}</b><span style="font-size:10px;font-weight:700;color:${COR_ST[s.st]}">${ST[s.st].rot} · ${s.nRep} ajuste(s) · ${s.nResp} resposta(s)</span></div>
         <table style="width:100%;border-collapse:collapse;font-size:9.5px;table-layout:fixed"><tr style="background:#f5f5f7"><th style="width:27mm">Quando</th><th style="width:34mm">Quem</th><th style="width:40mm">O que fez</th><th>Texto</th></tr>${s.ev.map(e=>`<tr><td>${bl(quando(e.em))}</td><td>${bl(e.por)}</td><td>${bl(rotEv(e))}${ords.get(e)?' <b>('+ords.get(e)+')</b>':''}</td><td>${bl(e.texto)}${e.acao==='editou'&&e.antes?`<br><i style="color:#8e8e93">antes: ${bl(e.antes)}</i>`:''}${e.editado_em?`<br><i style="color:#8e8e93">texto editado em ${bl(quando(e.editado_em))}</i>`:''}</td></tr>`).join('')}</table></div>`;}):[];
     const cfg={titulo:'Fiscalização',subLinhas:[ob,`${vis.length} serviço${vis.length>1?'s':''}${filtroTxt()?' · '+filtroTxt():''}`],preHtml:pre,theadHtml:thead,rowsArr:rows,
-      blocosArr:det?[`<h3 style="font-size:13px;margin:14px 0 6px">Histórico de cada serviço</h3>`].concat(blocos):[],posHtml:assinaturasPdf(ob),paisagem:cols.length+6>7};
-    exportarPdf(cfg,'Fiscalização - '+ob);
+      blocosArr:det?[`<h3 style="font-size:13px;margin:14px 0 6px">Histórico de cada serviço</h3>`].concat(blocos):[],paisagem:cols.length+6>7};
+    exportarPdf(cfg,ob);
   }
   function pdfHistorico(ob){
     const L=evsObra(ob).filter(e=>!RV.quem||e.por===RV.quem);if(!L.length)return toast('Não há movimentos para exportar.','error');
     const thead=`<tr><th style="width:28mm">Quando</th><th style="width:38mm">Quem</th><th style="width:44mm">O que fez</th><th style="width:16mm">Nº</th><th>Detalhe</th></tr>`;
     const rows=L.map(e=>{const it=itemDe(e.item_uid);return `<tr><td>${bl(quando(e.em))}</td><td>${bl(e.por)}</td><td>${bl(rotEv(e))}</td><td>${bl(numHist(e))}${it?'':' <span style="color:#8e8e93">(excluída)</span>'}</td><td>${bl(e.texto)}${e.acao==='editou'&&e.antes?`<br><i style="color:#8e8e93">antes: ${bl(e.antes)}</i>`:''}</td></tr>`;});
-    exportarPdf({titulo:'Fiscalização — histórico',subLinhas:[ob,`${L.length} movimento${L.length>1?'s':''}${RV.quem?' · '+RV.quem:''}`],theadHtml:thead,rowsArr:rows,posHtml:assinaturasPdf(ob)},'Fiscalização (histórico) - '+ob);
+    exportarPdf({titulo:'Fiscalização — histórico',subLinhas:[ob,`${L.length} movimento${L.length>1?'s':''}${RV.quem?' · '+RV.quem:''}`],theadHtml:thead,rowsArr:rows},ob);
   }
 
   /* ── COLAR DA PLANILHA: as linhas copiadas do Excel / Google Planilhas (tabulação; também ; ou , de um CSV) ── */
@@ -26317,7 +26337,7 @@ textarea[data-rv-cola]{width:100%;font-family:inherit;}
    versão nova em cada aba, para nunca ficar recarregando sem parar.
    A CADA PUBLICAÇÃO: trocar a VERSÃO abaixo e a do versao.json (na raiz e em public/) — as duas iguais. */
 (function(){
-  const VERSAO='2026-11-18c';window.VX_VERSAO=VERSAO;
+  const VERSAO='2026-11-18d';window.VX_VERSAO=VERSAO;
   let ultima=0,pendente=null;
   const ocupado=()=>!!(App&&App.state&&App.state._busy)||!!document.querySelector('#fin-ov.open,.modal-overlay.open,.pm-pop,.vx-perg-ov,.confirm-overlay.open');
   async function tentar(){
