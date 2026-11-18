@@ -25883,7 +25883,7 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
     const papelTxt=ehAdm()?'Você é <b>Administrador</b>: faz todas as ações e define, em <b>Configurar a tabela</b>, as colunas desta obra, o que cada uma aceita e quem inclui, exclui, aceita ou rejeita e responde.'
       :meus.length?`Nesta obra você: <b>${meus.join(', ')}</b>. Ninguém mexe no texto do outro: cada um só edita o que escreveu, enquanto ninguém agiu depois.`:'Nesta obra você acompanha a tabela. O Administrador define quem inclui, exclui, aceita ou rejeita e responde.';
     const bts=(configurada&&pode(ob,'incluir')?`<button type="button" class="fin-bt pri" data-rv="novo"><i class="fas fa-plus"></i> Incluir linha</button><button type="button" class="fin-bt" data-rv="colar" title="Copie as linhas no Excel ou no Google Planilhas e cole aqui (ou aperte Ctrl+V com esta tela aberta)"><i class="fas fa-paste"></i> Colar da planilha</button>`:'')
-      +(configurada?`<button type="button" class="fin-bt" data-rv="excel" title="Baixar a tabela (com os filtros) para o Excel"><i class="fas fa-file-excel"></i> Excel</button>`:'')
+      +(configurada?`<button type="button" class="fin-bt" data-rv="excel" title="Baixar a tabela (com os filtros) para o Excel"><i class="fas fa-file-excel"></i> Excel</button><button type="button" class="fin-bt" data-rv="pdf" title="Exportar a tabela (com os filtros) em PDF — com o histórico de cada linha, se quiser"><i class="fas fa-file-pdf"></i> PDF</button>`:'')
       +(ehAdm()?`<button type="button" class="fin-bt" data-rv="config"><i class="fas fa-sliders"></i> Configurar a tabela</button>`:'');
     const filtros=`<div class="fin-filtros rv-filtros"><select class="filter-select" data-rvf="obra">${obras.map(o=>{const n=itensDe(o).filter(it=>estado(it).st==='reprovado').length;return `<option value="${fe(o)}" ${o===ob?'selected':''}>${fe(o)}${n?` (${n} aguardando)`:''}</option>`;}).join('')}</select>
       ${configurada?`<select class="filter-select" data-rvf="st"><option value="">Todas as situações</option>${Object.entries(ST).map(([k,x])=>`<option value="${k}" ${RV.st===k?'selected':''}>${x.rot}</option>`).join('')}</select>
@@ -25927,6 +25927,7 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
       if(a==='colar')return colar(ob,'');
       if(a==='config')return configurar(ob);
       if(a==='excel')return RV.ver==='historico'?excelHistorico(ob):excel(ob,vis,cols);
+      if(a==='pdf')return RV.ver==='historico'?pdfHistorico(ob):pdf(ob,vis,cols);
       if(a==='ficha')return ficha(u);
       if(a==='responder')return agir(u,'respondeu');
       if(a==='aceitar')return agir(u,'aprovou');
@@ -26105,6 +26106,44 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
   function excelHistorico(ob){const L=evsObra(ob).filter(e=>!RV.quem||e.por===RV.quem);if(!L.length)return toast('Não há movimentos para exportar.','error');
     GS.baixarCSV('Historico fiscalizacao '+ob,['Quando','Quem','O que fez','Nº','Detalhe','Texto de antes'],L.map(e=>[quando(e.em),e.por||'',rotEv(e),numHist(e)+(itemDe(e.item_uid)?'':' (excluída)'),e.texto||'',e.antes||'']));}
 
+  /* ── PDF: a tabela como está na tela (com os filtros) — ou, escolhendo, com o histórico de cada linha embaixo dela. No
+     Histórico, a lista dos movimentos. Mesmo motor dos relatórios (páginas A4 com a logo, o cabeçalho da tabela repete em
+     cada página) e, com o certificado digital no computador, dá para baixar já assinado (como o diário). ── */
+  const bl=t=>fe(t==null?'':t).replace(/\n/g,'<br>');
+  const COR_ST={reprovado:'#B42318',respondido:'#B54708',aprovado:'#067647'};
+  function filtroTxt(){return [RV.st?ST[RV.st].rot:'',RV.reinc?'só reincidentes (2 ajustes ou mais)':'',RV.busca?`busca: “${RV.busca}”`:''].filter(Boolean).join(' · ');}
+  function assinaturasPdf(ob){const c=Eng.contratoDe&&Eng.contratoDe(ob);
+    return `<div style="display:flex;gap:30px;margin-top:28px;font-size:9.5px;color:#6e6e73;page-break-inside:avoid"><div style="flex:1;border-top:1px solid #1d1d1f;padding-top:3px">Responsável pela obra</div><div style="flex:1;border-top:1px solid #1d1d1f;padding-top:3px">Fiscalização${c&&c.fiscal?' — '+bl(c.fiscal):''}</div></div>`;}
+  const exportarPdf=(cfg,nome)=>{if(GS.cert&&GS.cert.exportarRelatorio)GS.cert.exportarRelatorio(cfg,{motivo:nome,arquivo:nome});else App._relExportPaginado(cfg);};
+  function pdf(ob,vis,cols){
+    if(!vis.length)return toast('Não há linhas para exportar.','error');
+    janela('Exportar a Fiscalização em PDF',`<p class="rv-dica"><b>${vis.length} linha${vis.length>1?'s':''}</b> — as que estão na tela${filtroTxt()?` (${fe(filtroTxt())})`:''}.</p>
+      <label class="nfc-amb"><input type="radio" name="rv-pdf" value="tab" checked><span><b>Só a tabela</b> — uma linha por serviço, com o último ajuste, a última resposta, a situação e os contadores.</span></label>
+      <label class="nfc-amb"><input type="radio" name="rv-pdf" value="det"><span><b>A tabela e o histórico de cada linha</b> — embaixo da tabela, cada serviço com todos os ajustes, respostas e aceites, quem fez e quando.</span></label>`,
+      [{html:'<i class="fas fa-file-pdf"></i> Gerar o PDF',cls:'pri',acao:async j=>{const det=(j.querySelector('[name="rv-pdf"]:checked')||{}).value==='det';setTimeout(()=>gerarPdf(ob,vis,cols,det),80);}}],560);
+  }
+  function gerarPdf(ob,vis,cols,det){
+    const S=k=>vis.filter(x=>x.s.st===k).length,reinc=vis.filter(x=>x.s.nRep>1).length;
+    const pill=(rot,n,cor)=>`<span style="display:inline-flex;gap:6px;align-items:center;padding:4px 11px;border-radius:99px;border:1px solid #e5e5ea;font-size:10px;font-weight:700;color:${cor}">${rot}: ${n}</span>`;
+    const pre=`<div style="display:flex;gap:6px;flex-wrap:wrap;margin:0 0 10px">${pill('Aguardando correção',S('reprovado'),COR_ST.reprovado)}${pill('Aguardando conferência',S('respondido'),COR_ST.respondido)}${pill('Aceitos',S('aprovado'),COR_ST.aprovado)}${pill('Reincidentes (2 ajustes ou mais)',reinc,'#1d1d1f')}</div>`;
+    const thead=`<tr><th style="width:9mm">Nº</th>${cols.map(c=>`<th>${fe(c.nome)}</th>`).join('')}<th style="width:21%">Ajuste necessário</th><th style="width:17%">Última resposta</th><th style="width:26mm">Situação</th><th style="width:17mm;text-align:center">Ajustes</th><th style="width:13mm;text-align:center">Resp.</th><th style="width:31mm">Último movimento</th></tr>`;
+    const rows=vis.map(({it,s,n})=>{const v=lerJ(it.valores,{});
+      return `<tr><td><b>${fe(n)}</b></td>${cols.map(c=>`<td>${bl(v[c.k])}</td>`).join('')}<td>${bl(s.ultRep?s.ultRep.texto:'')}</td><td>${bl(s.ultResp&&s.st!=='reprovado'?s.ultResp.texto:'')}</td><td style="color:${COR_ST[s.st]};font-weight:700">${ST[s.st].rot}</td><td style="text-align:center;font-weight:700${s.nRep>1?';color:#B42318':''}">${s.nRep}</td><td style="text-align:center">${s.nResp}</td><td>${s.ultMov?`${bl(s.ultMov.por)}<br><span style="color:#6e6e73;font-size:9px">${bl(rotEv(s.ultMov))} · ${bl(quando(s.ultMov.em))}</span>`:''}</td></tr>`;});
+    // o histórico de cada linha (opcional): um bloco por serviço, que não se parte entre páginas
+    const blocos=det?vis.map(({it,s,n})=>{const ords=ordinais(s.mc),res=resumoValores(it,cols);
+      return `<div style="border:1px solid #d5d5da;border-radius:8px;padding:9px 11px;page-break-inside:avoid"><div style="display:flex;justify-content:space-between;gap:10px;border-bottom:1px solid #e5e5ea;padding-bottom:5px;margin-bottom:5px"><b style="font-size:11.5px">Nº ${fe(n)}${res?' · '+bl(res):''}</b><span style="font-size:10px;font-weight:700;color:${COR_ST[s.st]}">${ST[s.st].rot} · ${s.nRep} ajuste(s) · ${s.nResp} resposta(s)</span></div>
+        <table style="width:100%;border-collapse:collapse;font-size:9.5px;table-layout:fixed"><tr style="background:#f5f5f7"><th style="width:27mm">Quando</th><th style="width:34mm">Quem</th><th style="width:40mm">O que fez</th><th>Texto</th></tr>${s.ev.map(e=>`<tr><td>${bl(quando(e.em))}</td><td>${bl(e.por)}</td><td>${bl(rotEv(e))}${ords.get(e)?' <b>('+ords.get(e)+')</b>':''}</td><td>${bl(e.texto)}${e.acao==='editou'&&e.antes?`<br><i style="color:#8e8e93">antes: ${bl(e.antes)}</i>`:''}${e.editado_em?`<br><i style="color:#8e8e93">texto editado em ${bl(quando(e.editado_em))}</i>`:''}</td></tr>`).join('')}</table></div>`;}):[];
+    const cfg={titulo:'Fiscalização',subLinhas:[ob,`${vis.length} serviço${vis.length>1?'s':''}${filtroTxt()?' · '+filtroTxt():''}`],preHtml:pre,theadHtml:thead,rowsArr:rows,
+      blocosArr:det?[`<h3 style="font-size:13px;margin:14px 0 6px">Histórico de cada serviço</h3>`].concat(blocos):[],posHtml:assinaturasPdf(ob),paisagem:cols.length+6>7};
+    exportarPdf(cfg,'Fiscalização - '+ob);
+  }
+  function pdfHistorico(ob){
+    const L=evsObra(ob).filter(e=>!RV.quem||e.por===RV.quem);if(!L.length)return toast('Não há movimentos para exportar.','error');
+    const thead=`<tr><th style="width:28mm">Quando</th><th style="width:38mm">Quem</th><th style="width:44mm">O que fez</th><th style="width:16mm">Nº</th><th>Detalhe</th></tr>`;
+    const rows=L.map(e=>{const it=itemDe(e.item_uid);return `<tr><td>${bl(quando(e.em))}</td><td>${bl(e.por)}</td><td>${bl(rotEv(e))}</td><td>${bl(numHist(e))}${it?'':' <span style="color:#8e8e93">(excluída)</span>'}</td><td>${bl(e.texto)}${e.acao==='editou'&&e.antes?`<br><i style="color:#8e8e93">antes: ${bl(e.antes)}</i>`:''}</td></tr>`;});
+    exportarPdf({titulo:'Fiscalização — histórico',subLinhas:[ob,`${L.length} movimento${L.length>1?'s':''}${RV.quem?' · '+RV.quem:''}`],theadHtml:thead,rowsArr:rows,posHtml:assinaturasPdf(ob)},'Fiscalização (histórico) - '+ob);
+  }
+
   /* ── COLAR DA PLANILHA: as linhas copiadas do Excel / Google Planilhas (tabulação; também ; ou , de um CSV) ── */
   function lerPlanilha(txt){
     txt=String(txt||'').replace(/\r\n?/g,'\n');const l1=txt.split('\n')[0]||'';
@@ -26278,7 +26317,7 @@ textarea[data-rv-cola]{width:100%;font-family:inherit;}
    versão nova em cada aba, para nunca ficar recarregando sem parar.
    A CADA PUBLICAÇÃO: trocar a VERSÃO abaixo e a do versao.json (na raiz e em public/) — as duas iguais. */
 (function(){
-  const VERSAO='2026-11-18b';window.VX_VERSAO=VERSAO;
+  const VERSAO='2026-11-18c';window.VX_VERSAO=VERSAO;
   let ultima=0,pendente=null;
   const ocupado=()=>!!(App&&App.state&&App.state._busy)||!!document.querySelector('#fin-ov.open,.modal-overlay.open,.pm-pop,.vx-perg-ov,.confirm-overlay.open');
   async function tentar(){
