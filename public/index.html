@@ -11258,7 +11258,11 @@ const Fin=(function(){
   const traduzirErro=m=>/schema cache|does not exist|relation .* does not exist|42P01/i.test(String(m||''))
     ?'Esta tela ainda não foi instalada no banco de dados: rode o SQL de instalação (Supabase › SQL Editor) e tente de novo.'
     :/row-level security|violates row level|42501|permission denied/i.test(String(m||''))
-    ?'O banco de dados não deixou o seu usuário gravar aqui (permissão). Peça ao Administrador para conferir o seu acesso a esta obra e a esta tela — e, se você acabou de ganhar a permissão, saia do sistema e entre de novo.':m;
+    ?'O banco de dados não deixou o seu usuário gravar aqui (permissão). Peça ao Administrador para conferir o seu acesso a esta obra e a esta tela — e, se você acabou de ganhar a permissão, saia do sistema e entre de novo.'
+    :/jwt expired|PGRST30[0-3]|invalid jwt/i.test(String(m||''))
+    ?'A sua sessão venceu: saia do sistema e entre de novo — isto não foi gravado.'
+    :/failed to fetch|networkerror|load failed|network request|fetch failed|err_internet/i.test(String(m||''))||(typeof navigator!=='undefined'&&navigator.onLine===false)
+    ?'Sem internet agora: isto não foi gravado. Confira o sinal e tente de novo.':m;
   function salvar(aba,dados,rowid){
     return new Promise((ok,erro)=>{
       google.script.run
@@ -26484,7 +26488,7 @@ textarea[data-rv-cola]{width:100%;font-family:inherit;}
    versão nova em cada aba, para nunca ficar recarregando sem parar.
    A CADA PUBLICAÇÃO: trocar a VERSÃO abaixo e a do versao.json (na raiz e em public/) — as duas iguais. */
 (function(){
-  const VERSAO='2026-11-18f';window.VX_VERSAO=VERSAO;
+  const VERSAO='2026-11-18g';window.VX_VERSAO=VERSAO;
   let ultima=0,pendente=null;
   const ocupado=()=>!!(App&&App.state&&App.state._busy)||!!document.querySelector('#fin-ov.open,.modal-overlay.open,.pm-pop,.vx-perg-ov,.confirm-overlay.open');
   async function tentar(){
