@@ -12815,7 +12815,8 @@ const Eng=(function(){
         if(c.tipo==='sec'||c.tipo==='html')continue;
         const el=j.querySelector(`[data-f="${c.k}"]`);let v=(el.value||'').trim();
         if(c.tipo==='moeda')v=v?(Math.round(parseStoredNumber(v)*100)/100).toFixed(2):'';
-        if(c.obrig&&!v&&(!parcial||c.tipo==='obra'||c.tipo==='data'))throw new Error(`Preencha: ${c.label}.`);
+        // cfg.salvaSempre (o diário): o obrigatório não trava o Salvar — o que faltar vira pendência; a obra e a data, sempre
+        if(c.obrig&&!v&&(!(parcial||cfg.salvaSempre)||c.tipo==='obra'||c.tipo==='data'))throw new Error(`Preencha: ${c.label}.`);
         if(c.tipo==='url'&&v&&!/^https?:\/\//i.test(v))throw new Error('O link precisa começar com http:// ou https://');
         o[c.k]=v;
       }
@@ -12823,7 +12824,7 @@ const Eng=(function(){
       const prep=cfg.preparar?cfg.preparar(j,reg):null;
       if(cfg.antes)await cfg.antes(o,reg,j);
       await executar(()=>salvar(cfg.aba,o,reg?reg.rowid:null));
-      if(!j._avisoSalvo)toast(parcial?(cfg.parcial.ok||'Salvo — continue depois.'):reg?'Alterações salvas.':cfg.nomeItem.charAt(0).toUpperCase()+cfg.nomeItem.slice(1)+' cadastrado.','success');
+      if(!j._avisoSalvo&&!j._semToast)toast(parcial?(cfg.parcial.ok||'Salvo — continue depois.'):reg?'Alterações salvas.':cfg.nomeItem.charAt(0).toUpperCase()+cfg.nomeItem.slice(1)+' cadastrado.','success');
       if(cfg.depois)await cfg.depois(o,reg,j,prep);
       // o aviso do que ainda falta vem por último (o envio das fotos do dia, no "depois", também avisa e passava por cima)
       if(j._avisoSalvo){const tt=document.getElementById('toast');if(!(tt&&tt.classList.contains('show')&&tt.classList.contains('error')))toast(j._avisoSalvo,'info');}
@@ -13123,11 +13124,10 @@ const Eng=(function(){
   const simNaoRdo=(tit,msg,sim,ico)=>PMF().simNao?PMF().simNao(tit,msg,sim,ico):window.vxPergunta(tit,msg,sim||'Sim','Não');
   async function fecharDiaRdo(r){
     if(!r||rdoFechado(r))return toast('Este dia já está fechado.','success');if(!meuRdo(r))return toast('Só quem registrou (ou o Administrador) fecha este dia.','error');
-    // o Administrador fecha quando quiser — também o dia reaberto, o em branco e o incompleto (ele decide; o sistema avisa o
-    // que falta); quem registrou fecha o próprio dia quando ele está completo
-    const vazio=!preenchidoRdo(r),falta=incompletoRdo(r)?faltaRegistro(r):[];
-    if(falta.length&&!ehAdmRdo())return toast(`Ainda falta: ${falta.join(', ')}. Termine o diário (Continuar → Salvar) antes de fechar o dia.`,'error');
-    const aviso=vazio?'<br><br>⚠ Este diário <b>não foi preenchido</b> — ele fica fechado em branco.':falta.length?`<br><br>⚠ Ainda falta: <b>${fe(falta.join(', '))}</b> — ele fica fechado incompleto.`:'';
+    // o Administrador fecha quando quiser — também o dia reaberto, o em branco e o com pendências; quem registrou também
+    // fecha com pendências (o sistema avisa o que falta: fica para o Administrador resolver na aba Pendências)
+    const vazio=!preenchidoRdo(r),P=vazio?{adm:[],voce:[]}:pendRdo(r),falta=[...P.adm,...P.voce].map(p=>p.txt);
+    const aviso=vazio?'<br><br>⚠ Este diário <b>não foi preenchido</b> — ele fica fechado em branco.':falta.length?`<br><br>⚠ Ainda falta: <b>${fe(falta.join(' · '))}</b> — ${ehAdmRdo()?'ele fica fechado com pendências (na aba Pendências).':'isso fica para o Administrador resolver.'}`:'';
     if(!(await simNaoRdo(`Fechar o dia ${brDe(dt(r.data))}?`,`O diário de <b>${fe(brDe(dt(r.data)))}</b> da obra <b>${fe(r.titulo_obra)}</b> não poderá mais ser alterado (equipe, equipamentos, serviços e fotos ficam como estão). <b>Só o Administrador pode reabrir.</b>${aviso}<br><br>Deseja realmente fechar o dia?`,'Sim, fechar','fa-lock')))return;
     try{await executar(()=>salvar('Diário de obra',{...r,fechado:{em:todayDateTime(),por:eu().nome,auto:false},aberto_ate:''},r.rowid));toast(`Dia ${brDe(dt(r.data))} fechado.`,'success');}catch(e){toast(e.message||String(e),'error');}
   }
@@ -13257,6 +13257,18 @@ const Eng=(function(){
   const JANELA_HOR={h1:['06:15','11:59'],h2:['12:00','13:29'],h3:['13:30','15:00'],h4:['15:01','19:00']};
   const minHM=s=>{const [h,m]=String(s).split(':').map(Number);return h*60+m;};
   const hTxt=s=>String(s).replace(':','h');
+  /* o quadro da foto só TRAVA quando o horário dela ainda não chegou (ou o dia é futuro). Passado o horário — ou no dia que
+     o Administrador reabriu —, quem registra ainda anexa: a foto entra marcada "fora do horário" (foraHor) e vira uma
+     pendência para o Administrador aceitar. Nada disso impede o Salvar. */
+  const travaHor=(k,dia)=>{const tr=janelaHor(k,dia);return tr&&!/^(Encerrou|Dia que já passou)/.test(tr)?tr:null;};
+  function foraHor(k,dia,t){if(ehAdmRdo()||!JANELA_HOR[k]||!t)return '';const [a,b]=JANELA_HOR[k],qd=`${brDe(t)} ${hm(t)}`;
+    if(dia&&isoDe(t)!==dia)return `a foto é de ${qd}, não do dia do diário`;
+    const m=t.getHours()*60+t.getMinutes();if(m<minHM(a)||m>minHM(b))return `tirada às ${hm(t)}; o horário dela é das ${hTxt(a)} às ${hTxt(b)}`;
+    if(dia&&dia<hojeRdo())return `anexada depois do dia (em ${brDe(new Date())})`;
+    return '';}
+  // a janela de uma leitura num dia: 'antes' (ainda não liberou), 'aberta' ou 'passou' (todo dia que já passou também)
+  function estadoJanela(k,dia){const hj=hojeRdo();if(!dia||!JANELA_HOR[k])return 'aberta';if(dia<hj)return 'passou';if(dia>hj)return 'antes';
+    const t=new Date(),m=t.getHours()*60+t.getMinutes(),[a,b]=JANELA_HOR[k];return m<minHM(a)?'antes':m>minHM(b)?'passou':'aberta';}
   // null = pode registrar; senão, o motivo (quando: a hora da foto, para conferir que ela foi tirada no horário)
   function janelaHor(k,dia,quando){if(ehAdmRdo()||!JANELA_HOR[k])return null;const [a,b]=JANELA_HOR[k],hj=hojeRdo(),t=quando||new Date();
     if(dia&&dia!==hj)return dia<hj?'Dia que já passou: só o Administrador registra a foto.':'Este dia ainda não chegou.';
@@ -13337,11 +13349,14 @@ const Eng=(function(){
   const quandoHor=(data,hora)=>[data&&dt(data)?brDe(dt(data)):'',hora||''].filter(Boolean).join(' ');
   /* foto de uma leitura: a que ainda vai ser enviada (url do arquivo) ou a que já está no sistema (ref).
      Clicar na foto AMPLIA; o botão "Trocar" escolhe outra; sem foto, o quadro todo abre a câmera/galeria. */
-  const fotoHorHtml=(v,dia,k)=>{if(!v||!(v.url||v.ref)){const tr=k?janelaHor(k,dia):null;
-      return tr?`<i class="fas fa-lock"></i><span>Foto do horímetro<b class="rdo-htrava">${fe(tr)}</b></span>`:`<i class="fas fa-camera"></i><span>Foto do horímetro <b class="obg">*</b>${k&&JANELA_HOR[k]?`<small class="rdo-hjan">das ${hTxt(JANELA_HOR[k][0])} às ${hTxt(JANELA_HOR[k][1])}</small>`:''}</span>`;}
+  const fotoHorHtml=(v,dia,k)=>{if(!v||!(v.url||v.ref)){const tr=k?janelaHor(k,dia):null,trava=k?travaHor(k,dia):null;
+      if(trava)return `<i class="fas fa-lock"></i><span>Foto do horímetro<b class="rdo-htrava">${fe(trava)}</b></span>`;
+      // passou do horário: ainda dá para anexar — a foto entra marcada "fora do horário" e o Administrador confere
+      if(tr)return `<i class="fas fa-camera"></i><span>Foto do horímetro <b class="obg">*</b><small class="rdo-hjan rdo-hpassou">passou do horário (das ${hTxt(JANELA_HOR[k][0])} às ${hTxt(JANELA_HOR[k][1])}) — pode anexar; o Administrador confere</small></span>`;
+      return `<i class="fas fa-camera"></i><span>Foto do horímetro <b class="obg">*</b>${k&&JANELA_HOR[k]?`<small class="rdo-hjan">das ${hTxt(JANELA_HOR[k][0])} às ${hTxt(JANELA_HOR[k][1])}</small>`:''}</span>`;}
     if(v.lendo)return `<img src="${v.url}" alt=""><span class="rdo-hlendo"><i class="fas fa-spinner fa-spin"></i> Lendo o número…</span>`;
-    const r=v.ref||{},data=v.data||r.data||'',outro=dia&&data&&data!==dia;
-    return `<img ${v.url?`src="${v.url}"`:GS.fotoSis.attrs({foto_uid:r.uid,thumb_uid:r.thumb},false,200)} alt="" title="Clique para ampliar"><span class="rdo-hzoom" aria-hidden="true"><i class="fas fa-magnifying-glass-plus"></i></span>
+    const r=v.ref||{},data=v.data||r.data||'',outro=dia&&data&&data!==dia,fora=v.url?(v.fora||''):(r.fora&&!r.fora_ok?r.fora:'');
+    return `<img ${v.url?`src="${v.url}"`:GS.fotoSis.attrs({foto_uid:r.uid,thumb_uid:r.thumb},false,200)} alt="" title="Clique para ampliar"><span class="rdo-hzoom" aria-hidden="true"><i class="fas fa-magnifying-glass-plus"></i></span>${fora?`<span class="rdo-hfora" title="${fe('Fora do horário: '+fora+' — o Administrador confere')}"><i class="fas fa-triangle-exclamation"></i> Fora do horário</span>`:''}
       <span class="rdo-hhora${outro?' outro':''}" title="${outro?'A foto é de outro dia — confira':'Data e hora em que a foto foi tirada'}"><i class="fas fa-clock"></i> ${fe(quandoHor(data,v.hora||r.hora))}</span>
       <button type="button" class="rdo-htrocar" data-htrocar title="Escolher outra foto"><i class="fas fa-camera-rotate"></i> Trocar</button>`;};
   /* ver as fotos do horímetro em tamanho grande (no formulário e no cartão do dia): setas e Esc.
@@ -13382,7 +13397,7 @@ const Eng=(function(){
   function htmlEquip(reg){const l=(jsonDe(reg&&reg.equip_json)||[]),sem=l.filter(x=>x.hor===false),x=maqDe(reg),L=leituras(x),h=horasEq(x),dia=reg?reg.data:'';
     return `<datalist id="rdo-equip-sem">${EQUIP_SEM.map(e=>`<option value="${fe(e)}">`).join('')}</datalist>
       <div class="rdo-eq-tit"><b><i class="fas fa-gauge-high"></i> ${MAQ_FIXA} — horímetro</b><small>as 4 leituras do dia: tire a foto do horímetro no horário de cada uma — o número é lido da foto (o campo fica travado) e a hora fica gravada nela; as horas são calculadas</small></div>
-      <div class="rdo-hor" data-rdo-hor>${LEIT.map(([k,rot])=>{const f=x[fk(k)],tr=!(f&&f.uid)&&janelaHor(k,dia);return `<div class="rdo-hl"><label>${rot} <span class="obg">*</span></label><div class="rdo-hval"><input data-eq="${k}" inputmode="decimal" value="${fe(L[k]||'')}" placeholder="${f&&f.uid&&!L[k]?'não lido — a conferir':'lido da foto'}" readonly class="rdo-lido" title="Lido da foto do horímetro — não se digita">${ehAdmRdo()?`<button type="button" class="rdo-hcorr" data-hcorr="${k}" title="Corrigir a leitura à mão (Administrador)" aria-label="Corrigir a leitura à mão"><i class="fas fa-pen"></i></button>`:''}</div>
+      <div class="rdo-hor" data-rdo-hor>${LEIT.map(([k,rot])=>{const f=x[fk(k)],tr=!(f&&f.uid)&&travaHor(k,dia);return `<div class="rdo-hl"><label>${rot} <span class="obg">*</span></label><div class="rdo-hval"><input data-eq="${k}" inputmode="decimal" value="${fe(L[k]||'')}" placeholder="${f&&f.uid&&!L[k]?'não lido — a conferir':'lido da foto'}" readonly class="rdo-lido" title="Lido da foto do horímetro — não se digita">${ehAdmRdo()?`<button type="button" class="rdo-hcorr" data-hcorr="${k}" title="Corrigir a leitura à mão (Administrador)" aria-label="Corrigir a leitura à mão"><i class="fas fa-pen"></i></button>`:''}</div>
           <div class="rdo-hfoto${f&&f.uid?' ok':''}${tr?' trava':''}" data-hfoto="${k}" role="button" tabindex="0" aria-label="Foto do horímetro — ${rot}">${fotoHorHtml(f&&f.uid?{ref:f}:null,dia,k)}</div><input type="file" accept="image/*" hidden data-hfile="${k}"></div>`;}).join('')}
         <div class="rdo-hl rdo-hl-tot"><label>Horas no dia</label><input data-eq="h" value="${!isNaN(h.tot)&&h.tot>=0?fmtH(h.tot):''}" disabled title="Calculado: (meio-dia − início do dia) + (fim da tarde − início da tarde)"><label style="margin-top:8px">Observação</label><input data-eq="obs" value="${fe(x.obs||'')}" placeholder="opcional"></div></div>
       <div class="rdo-eq-tit" style="margin-top:14px"><b><i class="fas fa-toolbox"></i> Máquinas e equipamentos sem horímetro</b><small>opcional</small></div>
@@ -13390,36 +13405,58 @@ const Eng=(function(){
       <div class="rdo-eq-bts"><button type="button" class="fin-bt mini" data-sem-add><i class="fas fa-plus"></i> Equipamento sem horímetro</button></div>
       ${reg&&reg.equipamentos&&!reg.equip_json?`<small class="rdo-antigo">Registro antigo: ${fe(reg.equipamentos)}</small>`:''}`;}
   // o que ainda falta no formulário do diário (a 1ª mensagem, na ordem do formulário) — '' = completo
-  // semHor: confere tudo menos as fotos do horímetro (para saber se é SÓ a foto que falta)
-  function faltaRdo(o,reg,j,eqs,semHor){
-    if(!o.clima_manha)return 'Preencha: Tempo pela manhã.';
-    if(!o.clima_tarde)return 'Preencha: Tempo à tarde.';
-    if(!o.condicao)return 'Preencha: Condição do trabalho.';
-    if(!(numBR(o.efetivo_total)>0))return 'Informe a equipe do dia (pelo menos uma pessoa nos contadores de Equipe no dia).';
-    if(j&&j._hor&&!semHor)for(const [k,rot] of LEIT){const v=j._hor[k];if(v&&(v.ref||v.file))continue;
-      const tr=janelaHor(k,o.data),[a,b]=JANELA_HOR[k],r=rot.toLowerCase();
-      if(tr&&/^Libera/.test(tr))return `A foto do horímetro do ${r} ainda não liberou — libera às ${hTxt(a)}. Clique em "Salvar e continuar depois" e volte no horário dela.`;
-      if(tr&&/^Encerrou/.test(tr))return `A foto do horímetro do ${r} não foi registrada no horário dela (das ${hTxt(a)} às ${hTxt(b)}) — agora só o Administrador pode incluir. Clique em "Salvar e continuar depois" e avise o Administrador.`;
-      return tr?`${MAQ_FIXA}: falta a foto do horímetro — ${rot}. ${tr}`:`${MAQ_FIXA}: anexe a foto do horímetro — ${rot}.`;}
-    if(!String(o.atividades||'').trim())return 'Preencha: Serviços executados.';
-    if(j&&!((j._fotos&&j._fotos.length)||(reg&&fotosDoRegistro(reg).length)))return 'Anexe pelo menos uma foto do dia (em Fotos do dia, no fim do formulário).';
+  // falta alguma coisa no formulário? (só marca o registro com parcial='sim' — nada disso trava o Salvar; o que aparece
+  // para as pessoas é a lista do pendRdo)
+  function faltaRdo(o,reg,j){
+    if(!o.clima_manha||!o.clima_tarde||!o.condicao)return 'tempo e condição';
+    if(!(numBR(o.efetivo_total)>0))return 'equipe';
+    if(j&&j._hor&&LEIT.some(([k])=>{const v=j._hor[k];return !(v&&(v.ref||v.file));}))return 'foto do horímetro';
+    if(!String(o.atividades||'').trim())return 'serviços executados';
+    if(j&&!((j._fotos&&j._fotos.length)||(reg&&fotosDoRegistro(reg).length)))return 'fotos do dia';
     return '';}
-  // o formulário tem alguma coisa preenchida? (o "Salvar e continuar depois" não grava um diário vazio)
+  // o formulário tem alguma coisa preenchida? (o Salvar não grava um diário vazio)
   const algoNoRdo=(o,reg,j,eqs)=>!!(o.clima_manha||o.clima_tarde||o.condicao||numBR(o.efetivo_total)>0||String(o.atividades||'').trim()||String(o.ocorrencias||'').trim()||String(o.visitas||'').trim()
     ||(eqs||[]).some(x=>x.hor===false)||(j&&j._hor&&LEIT.some(([k])=>j._hor[k]&&(j._hor[k].ref||j._hor[k].file)))||(j&&j._fotos&&j._fotos.length)||(reg&&fotosDoRegistro(reg).length));
-  // diário salvo pela metade: o que ainda falta (para o cartão do dia)
-  function faltaRegistro(r){const L=[];if(!r)return L;
-    if(!r.clima_manha||!r.clima_tarde||!r.condicao)L.push('tempo e condição');
-    if(!(numBR(r.efetivo_total)>0))L.push('equipe');
-    const x=maqDe(r),n=LEIT.filter(([k])=>{const f=x[fk(k)];return f&&f.uid;}).length,m=LEIT.length-n;if(m>0)L.push(`${m} foto${m>1?'s':''} do horímetro`);
-    if(!String(r.atividades||'').trim())L.push('serviços executados');
-    if(!fotosDoRegistro(r).length)L.push('fotos do dia');
-    return L;}
-  const incompletoRdo=r=>!!(r&&r.parcial==='sim'&&preenchidoRdo(r)&&faltaRegistro(r).length);
-  /* o diário é preenchido AOS POUCOS durante o dia (as fotos do horímetro só liberam no horário de cada uma):
-     "Salvar e continuar depois" grava o que já tem e o dia fica "em preenchimento"; o Salvar cobra tudo. */
-  const CFG_RDO={aba:'Diário de obra',nomeItem:'registro do diário',larg:820,
-    parcial:{html:'<i class="fas fa-clock-rotate-left"></i> Salvar e continuar depois',ok:'Diário salvo. Volte para continuar no horário das próximas fotos — o dia fecha sozinho às 19h.'},campos:[
+  /* PENDÊNCIAS DO DIÁRIO (o dono pediu: quem registra NUNCA fica travado — salva, vê a lista do que faltou, e isso vai para
+     o Administrador, que corrige na aba Pendências). Calculadas na hora, a partir do registro salvo:
+       adm  — do Administrador: tempo/condição, equipe e serviços em branco; foto do horímetro que passou do horário sem
+              foto, ou que foi anexada fora do horário (aceitar); número do horímetro a conferir; dia sem fotos;
+       voce — ainda dá tempo hoje (dia aberto, antes das 19h): a foto de um horário que ainda vai abrir ou está aberto, as
+              fotos do dia. Passado o horário (ou fechado o dia), vira do Administrador sozinha.
+     Corrigido, some; o que não tem como corrigir o Administrador DISPENSA (pend_disp: quem e quando). O registro salvo
+     antes disto e completo pelas regras de então (sem pend_v e sem parcial) não ganha pendência nova de foto/campo. */
+  const objDe=v=>v&&typeof v==='object'?v:(jsonDe(v)||{});
+  function pendRdo(r){
+    const adm=[],voce=[];if(!r||!preenchidoRdo(r))return {adm,voce};
+    const disp=objDe(r.pend_disp),dia=String(r.data||''),aberto=!rdoFechado(r)&&dia===hojeRdo()&&!passouHoraRdo(dia),legado=!r.pend_v&&r.parcial!=='sim';
+    const add=(k,txt,o)=>{if(disp[k])return;(o&&o.voce?voce:adm).push({k,txt,...(o||{})});};
+    if(!legado){
+      if(!r.clima_manha||!r.clima_tarde||!r.condicao)add('tempo','Tempo (manhã e tarde) e condição do trabalho não foram marcados');
+      if(!(numBR(r.efetivo_total)>0))add('equipe','Equipe do dia não informada');}
+    const x=maqDe(r);
+    LEIT.forEach(([k,rot])=>{const f=x[fk(k)],[a,b]=JANELA_HOR[k];
+      if(f&&f.uid){if(f.fora&&!f.fora_ok)add(`fora:${k}:${f.uid}`,`Foto do horímetro — ${rot}: enviada fora do horário (${f.fora})`,{foto:k});return;}
+      if(legado)return;
+      const ej=aberto?estadoJanela(k,dia):'passou';
+      if(ej==='passou')add('hor:'+k,`Falta a foto do horímetro — ${rot} (o horário era das ${hTxt(a)} às ${hTxt(b)})`);
+      else add('hor:'+k,ej==='antes'?`Foto do horímetro — ${rot}: libera às ${hTxt(a)}`:`Foto do horímetro — ${rot}: tire agora, até as ${hTxt(b)}`,{voce:true});});
+    if(r.hor_conferir)add('horconf:'+r.hor_conferir,`Conferir o número do horímetro (${r.hor_conferir}) — pelo lápis ao lado da leitura`);
+    if(!legado){
+      if(!String(r.atividades||'').trim())add('servicos','Serviços executados não preenchidos');
+      if(!fotosDoRegistro(r).length)add('fotos',aberto?'Fotos do dia: inclua até as 19h':'Sem fotos do dia',aberto?{voce:true}:null);}
+    return {adm,voce};}
+  // depois de salvar: a janela com o que ficou (para quem registrou: "vai para o Administrador"; tudo certo: só o aviso)
+  function avisoPendRdo(r,extra){
+    const P=pendRdo(r),adm=ehAdmRdo(),li=L=>`<ul class="rdo-pend-ul">${L.map(p=>`<li>${fe(p.txt)}</li>`).join('')}</ul>`;
+    if(!P.adm.length&&!P.voce.length){toast(extra||'Diário salvo — tudo completo.',extra?'error':'success');return;}
+    janela('Diário salvo',`<p class="rdo-pend-ok"><i class="fas fa-circle-check"></i> O diário de <b>${fe(brDe(dt(r.data)))}</b> (${fe(r.titulo_obra)}) foi salvo.</p>${extra?`<p class="rdo-pend-err"><i class="fas fa-triangle-exclamation"></i> ${fe(extra)}</p>`:''}
+      ${P.adm.length?`<h4 class="rdo-pend-h">${adm?'Ficaram estas pendências — estão na aba <b>Pendências</b>:':'Ficaram estas pendências. <b>Não precisa fazer nada:</b> elas vão para o Administrador, que resolve.'}</h4>${li(P.adm)}`:''}
+      ${P.voce.length?`<h4 class="rdo-pend-h">Ainda hoje dá para completar${adm?'':' (se não der, também vai para o Administrador)'}:</h4>${li(P.voce)}`:''}`,
+      [{html:'Entendi',cls:'pri'}],560);}
+  /* o diário é preenchido AOS POUCOS durante o dia (as fotos do horímetro liberam no horário de cada uma). Um botão só,
+     Salvar, que NUNCA trava pelo que falta (salvaSempre): grava, e a janela mostra o que ficou — o que ainda dá tempo hoje
+     e as pendências, que vão para o Administrador (aba Pendências). */
+  const CFG_RDO={aba:'Diário de obra',nomeItem:'registro do diário',larg:820,salvaSempre:true,campos:[
     {k:'_s1',tipo:'sec',label:'<i class="fas fa-calendar-day"></i> O dia'},
     {k:'titulo_obra',label:'Obra',tipo:'obra',obrig:true,inteira:true},
     {k:'data',label:'Data',tipo:'data',obrig:true,travado:true,padrao:()=>isoDe(hoje0())},
@@ -13464,7 +13501,8 @@ const Eng=(function(){
     App.state._busy=true;UI._showBusy('Enviando as fotos do horímetro…');
     try{for(const [k,rot] of pend){const v=j._hor[k],r=await GS.fotoSis.enviar(o.titulo_obra,{file:v.file,descricao:`Horímetro ${MAQ_FIXA} · ${rot} · ${quandoHor(v.data,v.hora)}`,etapa:'durante',data:o.data,gps:v.gps||null,extra:{horimetro:k,horimetro_hora:v.hora,horimetro_data:v.data}});
         if(v.ref&&v.ref.uid)(j._rdoApagar=j._rdoApagar||[]).push(v.ref);
-        v.ref={uid:r.foto_uid,thumb:r.thumb_uid,hora:v.hora,data:v.data,...(v.gps?{lat:+v.gps.lat.toFixed(6),lng:+v.gps.lng.toFixed(6)}:{})};v.file=null;}}
+        // anexada fora do horário: o motivo vai junto na leitura (pendência para o Administrador aceitar)
+        v.ref={uid:r.foto_uid,thumb:r.thumb_uid,hora:v.hora,data:v.data,...(v.gps?{lat:+v.gps.lat.toFixed(6),lng:+v.gps.lng.toFixed(6)}:{}),...(v.fora?{fora:v.fora}:{})};v.file=null;}}
     catch(e){throw new Error('Não consegui enviar as fotos do horímetro: '+((e&&e.message)||e)+' O diário ainda não foi salvo — tente de novo.');}
     finally{App.state._busy=false;UI._hideBusy();}
     j._somaEquip();o.equip_json=j.querySelector('[data-f="equip_json"]').value;o.equipamentos=j.querySelector('[data-f="equipamentos"]').value;
@@ -13473,9 +13511,13 @@ const Eng=(function(){
     // foto do horímetro trocada: a antiga sai da galeria e vai para a Lixeira (o arquivo dela só é apagado quando sair de
     // vez); foto que nem chegou à galeria não tem o que restaurar: o arquivo sai na hora
     for(const f of (j._rdoApagar||[])){const im=(D().obra_imagens||[]).find(i=>i.foto_uid===f.uid);try{if(im)await excluir('Imagens da Obra',im.rowid);else await GS.fotoSis.apagar({foto_uid:f.uid,thumb_uid:f.thumb});}catch(e){}}
-    if(!prep)return;
-    try{await prep;}catch(e){toast('Diário salvo, mas as fotos não foram enviadas: '+e.message+' Use o botão de fotos deste dia.','error');return;}
-    await Eng.subirFotosDia(o.titulo_obra,o.data,j._fotos.map(f=>({file:f.file,descricao:(f.desc||'').trim(),previewUrl:f.url,gps:f.gps||null})));},
+    let extra='';
+    if(prep){try{await prep;await Eng.subirFotosDia(o.titulo_obra,o.data,j._fotos.map(f=>({file:f.file,descricao:(f.desc||'').trim(),previewUrl:f.url,gps:f.gps||null})));}
+      catch(e){extra='As fotos do dia não foram enviadas ('+((e&&e.message)||e)+') — use o botão Fotos deste dia.';}}
+    // o que ficou faltando, com o registro como ficou no banco (a tela já recarregou)
+    const L=D().diario_obra||[],r=(reg&&L.find(x=>String(x.rowid)===String(reg.rowid)))||L.find(x=>x.titulo_obra===o.titulo_obra&&x.data===o.data&&donoRdo(x)===donoRdo(o))||o;
+    // a janela do aviso abre DEPOIS que o formulário fecha (aberta aqui dentro, o fechamento do formulário levava ela junto)
+    j._aoFechar=()=>avisoPendRdo(r,extra);},
   validar:(o,reg,j,parcial)=>{
     // leituras do horímetro fora de ordem (ex.: um número lido errado da foto) NÃO impedem o diário: ele salva e o dia fica
     // "Horímetro a conferir" para o Administrador corrigir (o dono pediu: o diário nunca fica travado pelo horímetro)
@@ -13493,21 +13535,14 @@ const Eng=(function(){
         for(const [k,rot] of LEIT){const v=j._hor[k];if(!(v&&(v.ref||v.file)))continue;
           if(v.lendo||isNaN(nBR(x[k])))semNum.push(rot.toLowerCase());}}
       if(ruim)semNum.push('leituras fora de ordem');
-      if(j&&j._hor||ruim||o.hor_conferir)o.hor_conferir=semNum.join(', ');
-      // o aviso aparece, mas o diário grava normalmente (a foto está registrada; o Administrador acerta o número depois)
-      const nl=semNum.filter(s=>s!=='leituras fora de ordem');
-      if(j&&(nl.length||ruim))j._avisoSalvo=`Diário salvo. ${nl.length?`O número do horímetro (${nl.join(', ')}) não foi lido da foto`:'As leituras do horímetro não estão em ordem'} — a foto fica guardada e o Administrador confere e acerta o número.`;}
-    // tudo é obrigatório, menos Ocorrências, Visitas e os equipamentos sem horímetro (e a observação do horímetro):
-    // no Salvar o que falta impede; no "Salvar e continuar depois" grava e o dia fica em preenchimento.
-    // Se a ÚNICA coisa que falta é foto do horímetro (a do horário seguinte ainda não liberou, ou passou da hora), o Cadastrar
-    // não trava: grava o dia "em preenchimento" e avisa o que falta — o usuário volta no horário (ou o Administrador inclui)
-    const falta=faltaRdo(o,reg,j,eqs);
-    const soHor=!!falta&&!parcial&&!faltaRdo(o,reg,j,eqs,true);
-    if(falta&&!parcial&&!soHor)return falta;
-    if(soHor&&j){let resto=falta.replace(/Clique em "Salvar e continuar depois" e (\S)/,(m,c)=>c.toUpperCase()).replace(new RegExp('^'+MAQ_FIXA+': '),'');resto=resto.charAt(0).toUpperCase()+resto.slice(1);
-      j._avisoSalvo=j._avisoSalvo?`${j._avisoSalvo} O dia fica em preenchimento — ainda falta: ${resto}`:`Diário salvo — em preenchimento. ${resto}`;}
-    if(parcial&&falta&&!algoNoRdo(o,reg,j,eqs))return 'Preencha alguma coisa antes de salvar — por exemplo, a foto do horímetro deste horário.';
-    o.parcial=falta?'sim':'';
+      if(j&&j._hor||ruim||o.hor_conferir)o.hor_conferir=semNum.join(', ');}
+    /* NADA do que falta impede o Salvar (o dono pediu): tempo, equipe, serviços, fotos do horímetro (também as que passaram
+       do horário ou foram anexadas fora dele), número do horímetro e fotos do dia. Grava, e a janela depois de salvar mostra
+       o que ficou — o que ainda dá tempo hoje e as pendências, que vão para o Administrador (aba Pendências). Só não grava
+       um diário vazio. */
+    if(j)j._semToast=true;
+    if(!algoNoRdo(o,reg,j,eqs))return 'Preencha alguma coisa antes de salvar — por exemplo, a equipe do dia ou a foto do horímetro deste horário.';
+    o.parcial=faltaRdo(o,reg,j,eqs)?'sim':'';o.pend_v='1';
     // o autor vem do usuário do sistema (não se digita); na edição, continua o de quem registrou. O diário criado às 6h
     // (em branco) passa a ser de quem preencheu
     if(!reg){o.criado_por=eu().nome;o.criado_por_id=eu().id;o.responsavel=eu().nome;}
@@ -13562,7 +13597,7 @@ const Eng=(function(){
       H('equipamentos').value=l.map(y=>{if(y.hor===false)return `${y.qtd&&y.qtd!=='1'?y.qtd+' × ':''}${y.eq}${y.obs?` (${y.obs})`:''}`;const hh=horasEq(y),L=leituras(y);
         return y.eq+` — horímetro ${[L.h1,L.h2,L.h3,L.h4].map(v=>v||'—').join(' / ')}${!isNaN(hh.tot)?` (${fmtH(hh.tot)} h)`:''}`+(y.obs?` (${y.obs})`:'');}).join('; ');};
     j._somaEquip=somaEquip;
-    const pintarFoto=k=>{const b=hb.querySelector(`[data-hfoto="${k}"]`),v=j._hor[k],tem=!!(v.url||v.ref);b.classList.toggle('ok',tem);b.classList.toggle('trava',!tem&&!!janelaHor(k,H('data').value));b.innerHTML=fotoHorHtml(v,H('data').value,k);};
+    const pintarFoto=k=>{const b=hb.querySelector(`[data-hfoto="${k}"]`),v=j._hor[k],tem=!!(v.url||v.ref);b.classList.toggle('ok',tem);b.classList.toggle('trava',!tem&&!!travaHor(k,H('data').value));b.innerHTML=fotoHorHtml(v,H('data').value,k);};
     // o horário de cada foto vai passando com o formulário aberto: o quadro trava e destrava sozinho
     const tJan=setInterval(()=>{if(!document.body.contains(hb))return clearInterval(tJan);LEIT.forEach(([k])=>{const v=j._hor[k];if(v&&!v.url&&!v.ref)pintarFoto(k);});},30000);
     // a leitura anterior (para conferir o número lido): a última leitura já preenchida antes desta no dia, ou a do último dia
@@ -13573,7 +13608,7 @@ const Eng=(function(){
     const fotosDoForm=()=>LEIT.map(([k,rot])=>{const v=j._hor[k]||{},r=v.ref||{};return v.url||r.uid?{url:v.url||'',uid:r.uid,thumb:r.thumb,rot,quando:quandoHor(v.data||r.data,v.hora||r.hora),k,gps:v.file?GS.gps.de(v):GS.gps.de(r)}:null;}).filter(Boolean);
     const abrirFoto=(box,trocar)=>{const k=box.dataset.hfoto,v=j._hor[k]||{};
       if(v.lendo)return;
-      if(trocar||!(v.url||v.ref)){const tr=janelaHor(k,H('data').value);if(tr){pintarFoto(k);return toast(`Foto do horímetro — ${(LEIT.find(x=>x[0]===k)||[])[1].toLowerCase()}: ${tr}. Ela vale das ${hTxt(JANELA_HOR[k][0])} às ${hTxt(JANELA_HOR[k][1])}.`,'error');}
+      if(trocar||!(v.url||v.ref)){const tr=travaHor(k,H('data').value);if(tr){pintarFoto(k);return toast(`Foto do horímetro — ${(LEIT.find(x=>x[0]===k)||[])[1].toLowerCase()}: ${tr}. Ela vale das ${hTxt(JANELA_HOR[k][0])} às ${hTxt(JANELA_HOR[k][1])}.`,'info');}
         return hb.querySelector(`[data-hfile="${k}"]`).click();}
       const L=fotosDoForm();verFotosHor(L,L.findIndex(x=>x.k===k));};
     hb.addEventListener('click',ev=>{const box=ev.target.closest('[data-hfoto]');if(box)abrirFoto(box,!!ev.target.closest('[data-htrocar]'));});
@@ -13582,21 +13617,22 @@ const Eng=(function(){
     hb.addEventListener('change',async ev=>{const i=ev.target.closest('[data-hfile]');if(!i)return;const file=i.files&&i.files[0];i.value='';if(!file)return;
       if(!/^image\//.test(file.type))return toast('Escolha uma foto (imagem).','error');
       const k=i.dataset.hfile,rot=(LEIT.find(x=>x[0]===k)||[])[1],t=new Date(file.lastModified||Date.now()),hora=String(t.getHours()).padStart(2,'0')+':'+String(t.getMinutes()).padStart(2,'0'),data=isoDe(t);
-      // a foto tem que ter sido tirada hoje, no horário desta leitura (o Administrador passa)
-      const tr=janelaHor(k,H('data').value,t);if(tr)return toast(`Foto do horímetro — ${rot.toLowerCase()}: ${tr}`,'error');
+      /* a foto deve ser do dia do diário, tirada no horário desta leitura. Se não for, ela NÃO é recusada: entra marcada
+         "fora do horário" (o motivo vai junto) e o Administrador confere e aceita na aba Pendências (ele mesmo passa direto) */
+      const fora=foraHor(k,H('data').value,t);
       const v=j._hor[k],inp=hb.querySelector(`[data-eq="${k}"]`),antes={...v};
       try{const ob=H('titulo_obra').value;
         // onde a foto foi tirada (GPS da foto ou do celular agora): vai no carimbo e fica guardado com a leitura
         const gps=await GS.gps.daFoto(file,8000);
         const st=await carimbar(file,`${brDe(t)} ${hora} · ${rot}`,`${MAQ_FIXA}${ob?' · '+ob:''}`,gps?`Local: ${GS.gps.txt(gps)}${gps.prec?` (±${gps.prec} m)`:''}`:'');
-        if(v.url)URL.revokeObjectURL(v.url);Object.assign(v,{file:st,url:URL.createObjectURL(st),hora,data,gps:gps||null,lendo:true});pintarFoto(k);
+        if(v.url)URL.revokeObjectURL(v.url);Object.assign(v,{file:st,url:URL.createObjectURL(st),hora,data,gps:gps||null,lendo:true,fora});pintarFoto(k);
+        if(fora)toast(`Foto do horímetro — ${rot.toLowerCase()} anexada fora do horário (${fora}). Pode salvar normalmente: o Administrador confere.`,'info');
         // o número do horímetro sai da foto (o original, sem o carimbo) — o campo fica travado com ele
         let n=null;try{n=await lerHorimetro(file,leituraAntes(k));}catch(e){console.warn('horímetro',e);}
         v.lendo=false;pintarFoto(k);
         // não leu: a foto fica e o diário salva normalmente — o número fica "a conferir" e o Administrador preenche olhando a foto
         if(n==null){inp.value='';inp.placeholder='não lido — a conferir';somaEquip();return toast(`Não consegui ler o número do horímetro nesta foto (${rot.toLowerCase()}). Pode salvar normalmente: a foto fica guardada e o Administrador confere e preenche o número.`,'info');}
-        inp.value=String(n).replace('.',',');somaEquip();toast(`Horímetro — ${rot.toLowerCase()}: ${inp.value} h (lido da foto).`,'success');
-        const dia=H('data').value;if(dia&&data!==dia)toast(`A foto do ${rot.toLowerCase()} é de ${brDe(t)} ${hora}, não do dia do diário (${brDe(dt(dia))}). Confira se é a foto certa.`,'error');}
+        inp.value=String(n).replace('.',',');somaEquip();toast(`Horímetro — ${rot.toLowerCase()}: ${inp.value} h (lido da foto)${fora?' · fora do horário: o Administrador confere':''}.`,fora?'info':'success');}
       catch(e){Object.keys(v).forEach(x=>delete v[x]);Object.assign(v,antes);pintarFoto(k);toast(e.message||String(e),'error');}});
     ts.addEventListener('click',ev=>{if(ev.target.closest('[data-eq-x]')){ev.target.closest('tr').remove();somaEquip();}});
     [hb,ts].forEach(x=>x.addEventListener('input',somaEquip));
@@ -13738,12 +13774,66 @@ const Eng=(function(){
   // as abas do Diário: os registros de cada dia e a tabela da Fiscalização (módulo GS.reprov). As duas são
   // SUBTELAS nas Permissões (UI._SUBTELAS.diario, botões com data-rd-aba): a bloqueada some e abre a liberada
   const podeAbaRdo=a=>!UI.podeSub||UI.podeSub('diario',a);
-  const abasRdo=()=>{const n=GS.reprov&&GS.reprov.pendentes&&podeAbaRdo('fisc')?GS.reprov.pendentes():0;
-    return `<div class="gf-abas doc-abas"><button type="button" class="gf-aba ${RD.aba!=='fisc'?'on':''}" data-rd="aba" data-rd-aba="dias"><i class="fas fa-calendar-day"></i> Registros do dia</button><button type="button" class="gf-aba ${RD.aba==='fisc'?'on':''}" data-rd="aba" data-rd-aba="fisc"><i class="fas fa-clipboard-check"></i> Fiscalização${n?` <b class="rv-aba-n" title="${n} aguardando correção">${n}</b>`:''}</button></div>`;};
+  const abasRdo=()=>{const n=GS.reprov&&GS.reprov.pendentes&&podeAbaRdo('fisc')?GS.reprov.pendentes():0,np=ehAdmRdo()?pendLista().length:0;
+    return `<div class="gf-abas doc-abas"><button type="button" class="gf-aba ${RD.aba!=='fisc'&&RD.aba!=='pend'?'on':''}" data-rd="aba" data-rd-aba="dias"><i class="fas fa-calendar-day"></i> Registros do dia</button><button type="button" class="gf-aba ${RD.aba==='fisc'?'on':''}" data-rd="aba" data-rd-aba="fisc"><i class="fas fa-clipboard-check"></i> Fiscalização${n?` <b class="rv-aba-n" title="${n} aguardando correção">${n}</b>`:''}</button>${ehAdmRdo()?`<button type="button" class="gf-aba ${RD.aba==='pend'?'on':''}" data-rd="aba" data-rd-aba="pend"><i class="fas fa-list-check"></i> Pendências${np?` <b class="rv-aba-n" title="${np} dia(s) com pendência neste mês">${np}</b>`:''}</button>`:''}</div>`;};
+  /* ── ABA PENDÊNCIAS (só o Administrador): os dias do mês (e da obra) escolhidos que têm pendência do Administrador ── */
+  function pendLista(){const mes=RD.mes===''?hojeRdo().slice(0,7):RD.mes;
+    return (D().diario_obra||[]).filter(r=>preenchidoRdo(r)&&(!RD.obra||r.titulo_obra===RD.obra)&&(mes==='__todos'||String(r.data||'').startsWith(mes)))
+      .map(r=>({r,P:pendRdo(r)})).filter(x=>x.P.adm.length)
+      .sort((a,b)=>String(b.r.data).localeCompare(String(a.r.data))||String(a.r.titulo_obra).localeCompare(String(b.r.titulo_obra)));}
+  const icoPend=k=>/^fora:/.test(k)?'fa-clock-rotate-left':/^hor:/.test(k)?'fa-camera':/^horconf/.test(k)?'fa-gauge-high':k==='fotos'?'fa-images':k==='equipe'?'fa-people-group':k==='tempo'?'fa-cloud-sun':'fa-pen';
+  // a entrada do horímetro (a máquina com horímetro) dentro do equip_json — a mesma que o maqDe acha
+  const idxMaq=L=>{const com=L.map((x,i)=>({x,i})).filter(o=>o.x&&o.x.hor!==false);const m=com.find(o=>cn(o.x.eq)===cn(MAQ_FIXA))||com[0];return m?m.i:-1;};
+  // Abrir o dia para corrigir: dia fechado é reaberto por 1 hora (como no Reabrir) e o formulário abre já nele
+  async function abrirParaCorrigir(r){
+    if(rdoFechado(r)){
+      if(!(await simNaoRdo(`Reabrir o dia ${brDe(dt(r.data))} para corrigir?`,`O dia <b>${fe(brDe(dt(r.data)))}</b> da obra <b>${fe(r.titulo_obra)}</b> está fechado. Ele é reaberto por <b>1 hora</b> para você corrigir (depois fecha sozinho de novo, ou feche antes em <b>Fechar o dia</b>).`,'Sim, reabrir e corrigir','fa-lock-open')))return;
+      const ate=new Date(Date.now()+3600e3);
+      try{await executar(()=>salvar('Diário de obra',{...r,fechado:null,reaberto:{em:todayDateTime(),por:eu().nome},aberto_ate:ate.toISOString()},r.rowid));}catch(e){return toast(e.message||String(e),'error');}
+      r=(D().diario_obra||[]).find(x=>String(x.rowid)===String(r.rowid))||r;}
+    formulario(CFG_RDO,r);}
+  // Aceitar a foto do horímetro anexada fora do horário: ela passa a valer e sai das pendências (fica quem aceitou e quando)
+  async function aceitarFotoFora(r,k){
+    const rot=(LEIT.find(x=>x[0]===k)||[])[1]||k;
+    if(!(await simNaoRdo('Aceitar a foto?',`A foto do horímetro — <b>${fe(rot)}</b> do dia <b>${fe(brDe(dt(r.data)))}</b> (${fe(r.titulo_obra)}) foi anexada fora do horário. Aceitando, ela vale como a foto desta leitura e sai das pendências (fica registrado que você aceitou).`,'Sim, aceitar','fa-check')))return;
+    const L=jsonDe(r.equip_json)||[],i=idxMaq(L);if(i<0||!(L[i][fk(k)]&&L[i][fk(k)].uid))return toast('A foto não está mais neste dia — confira.','error');
+    L[i][fk(k)]={...L[i][fk(k)],fora_ok:{por:eu().nome,em:todayDateTime()}};
+    try{await executar(()=>salvar('Diário de obra',{...r,equip_json:JSON.stringify(L)},r.rowid));toast('Foto aceita.','success');}catch(e){toast(e.message||String(e),'error');}}
+  // Dispensar: o que não tem como corrigir (ex.: a máquina não trabalhou) sai da lista; fica quem dispensou e quando
+  async function dispensarPend(r,ps){
+    const n=ps.length;if(!n)return;
+    if(!(await simNaoRdo(n>1?`Dispensar ${n} pendências?`:'Dispensar a pendência?',`${n>1?`As <b>${n}</b> pendências`:`<b>${fe(ps[0].txt)}</b>`} do dia <b>${fe(brDe(dt(r.data)))}</b> (${fe(r.titulo_obra)}) saem da lista sem correção. Fica registrado que você dispensou e quando.`,n>1?`Sim, dispensar ${n}`:'Sim, dispensar','fa-check')))return;
+    const disp={...objDe(r.pend_disp)};ps.forEach(p=>{disp[p.k]={por:eu().nome,em:todayDateTime(),txt:p.txt};});
+    try{await executar(()=>salvar('Diário de obra',{...r,pend_disp:JSON.stringify(disp)},r.rowid));toast(n>1?`${n} pendências dispensadas.`:'Pendência dispensada.','success');}catch(e){toast(e.message||String(e),'error');}}
+  function renderPendRdo(box){
+    const kHoje=hojeRdo().slice(0,7);if(RD.mes==='')RD.mes=kHoje;
+    const todos=D().diario_obra||[],mais=todos.map(r=>String(r.data||'').slice(0,7)).filter(Boolean).sort()[0],nAntes=mais?Math.max(12,(+kHoje.slice(0,4)-+mais.slice(0,4))*12+(+kHoje.slice(5)-+mais.slice(5))):12;
+    const L=pendLista(),tot=L.reduce((s,x)=>s+x.P.adm.length,0),nFoto=L.reduce((s,x)=>s+x.P.adm.filter(p=>p.foto).length,0);App._rdoPend=L;
+    const acoes=(p,i)=>`${p.foto?`<button type="button" class="fin-bt mini" data-rp="verfoto" data-i="${i}" data-k="${fe(p.foto)}"><i class="fas fa-eye"></i> Ver a foto</button><button type="button" class="fin-bt mini verde" data-rp="aceitar" data-i="${i}" data-k="${fe(p.foto)}"><i class="fas fa-check"></i> Aceitar</button>`:''}<button type="button" class="fin-bt mini" data-rp="dispensar" data-i="${i}" data-k="${fe(p.k)}" title="Tirar da lista sem corrigir (fica registrado quem dispensou)">Dispensar</button>`;
+    box.innerHTML=`<div class="fin-wrap">${abasRdo()}
+      ${cab('Pendências do diário','O que ficou faltando nos diários salvos. Quem registra <b>nunca fica travado</b>: salva, vê a lista e ela vem para cá. Corrija em <b>Abrir o dia para corrigir</b> (o dia fechado é reaberto por 1 hora), <b>aceite</b> a foto do horímetro anexada fora do horário ou <b>dispense</b> o que não tem como corrigir (fica registrado quem dispensou). Corrigida, a pendência sai da lista sozinha.',`${GS.selMes(RD.mes==='__todos'?'':RD.mes,'data-rd="mes"',nAntes,0).replace('</select>',`<option value="__todos" ${RD.mes==='__todos'?'selected':''}>Todos os meses</option></select>`)}`)}
+      <div class="fin-filtros"><select class="filter-select" data-rd="obra"><option value="">Todas as obras</option>${obrasNomes().map(o=>`<option ${RD.obra===o?'selected':''}>${fe(o)}</option>`).join('')}</select></div>
+      <div class="fin-kpis">${kpi(L.length?'laranja':'verde','Dias com pendência',L.length,RD.obra?'nesta obra':'somando as obras')}${kpi(tot?'vermelho':'verde','Pendências',tot,'para você resolver')}${kpi(nFoto?'laranja':'','Fotos fora do horário',nFoto,'esperando você aceitar')}</div>
+      ${L.length?`<div class="rdo-pend-lista">${L.map((x,i)=>{const r=x.r,d=dt(r.data);
+        return `<article class="rdo-pend-card"><div class="rdo-pend-cab"><div class="rdo-pend-tit"><b>${d?`${fe(DIAS_SEM[d.getDay()])}, ${fe(brDe(d))}`:'Sem data'}</b><span>${fe(r.titulo_obra)}</span><small>Registrado por ${fe(r.responsavel||r.criado_por||'—')}${rdoFechado(r)?' · dia fechado':r.data===hojeRdo()?' · hoje (fecha às 19h)':''}</small></div>
+          <div class="rdo-pend-bts"><button type="button" class="fin-bt mini pri" data-rp="abrir" data-i="${i}"><i class="fas fa-pen"></i> Abrir o dia para corrigir</button>${x.P.adm.length>1?`<button type="button" class="fin-bt mini" data-rp="dispensar-todas" data-i="${i}">Dispensar todas</button>`:''}</div></div>
+          <ul class="rdo-pend-itens">${x.P.adm.map(p=>`<li><i class="fas ${icoPend(p.k)}"></i><span>${fe(p.txt)}</span><span class="rdo-pend-ac">${acoes(p,i)}</span></li>`).join('')}</ul></article>`;}).join('')}</div>`
+        :`<div class="fin-card"><div class="fin-vazio"><i class="fas fa-circle-check" style="color:#067647"></i> Nenhuma pendência${RD.obra?' nesta obra':''} neste período — tudo em dia.</div></div>`}
+    </div>`;
+    box.onchange=ev=>{const s=ev.target.closest('select[data-rd]');if(!s)return;RD[s.dataset.rd]=s.value;renderDiario();};
+    box.onclick=ev=>{const t=ev.target.closest('button[data-rd="aba"]');if(t){RD.aba=t.dataset.rdAba;return renderDiario();}
+      const b=ev.target.closest('button[data-rp]');if(!b)return;const x=(App._rdoPend||[])[+b.dataset.i];if(!x)return;const r=x.r,a=b.dataset.rp,k=b.dataset.k;
+      if(a==='abrir')return abrirParaCorrigir(r);
+      if(a==='verfoto'){const f=maqDe(r)[fk(k)]||{};return verFotosHor([{uid:f.uid,thumb:f.thumb,rot:(LEIT.find(y=>y[0]===k)||[])[1]||k,quando:quandoHor(f.data,f.hora),gps:GS.gps.de(f)}],0);}
+      if(a==='aceitar')return aceitarFotoFora(r,k);
+      if(a==='dispensar')return dispensarPend(r,x.P.adm.filter(p=>p.k===k));
+      if(a==='dispensar-todas')return dispensarPend(r,x.P.adm);};
+  }
   function renderDiario(){
     const box=document.getElementById('eng-diario');if(!box)return;
-    if(RD.aba!=='fisc'&&!podeAbaRdo('dias')&&podeAbaRdo('fisc'))RD.aba='fisc';
+    if(RD.aba!=='fisc'&&RD.aba!=='pend'&&!podeAbaRdo('dias')&&podeAbaRdo('fisc'))RD.aba='fisc';
     if(RD.aba==='fisc'&&!podeAbaRdo('fisc'))RD.aba='dias';
+    if(RD.aba==='pend'){if(!ehAdmRdo())RD.aba='dias';else return renderPendRdo(box);}
     if(RD.aba==='fisc'&&GS.reprov){
       box.innerHTML=`<div class="fin-wrap">${abasRdo()}<div data-reprov></div></div>`;
       box.onchange=null;box.onclick=ev=>{const b=ev.target.closest('button[data-rd="aba"]');if(b){RD.aba=b.dataset.rdAba;renderDiario();}};
@@ -13773,12 +13863,13 @@ const Eng=(function(){
       ${RD.mes&&RD.mes!=='__todos'&&cheios.length?resumoMesHtml(cheios,nomeMes(RD.mes)):''}
       ${lista.length?`<div class="rdo-dias">${lista.map((r,i)=>{const d=dt(r.data),fech=rdoFechado(r),f=r.fechado||{},hj=r.data===hojeRdo(),meu=meuRdo(r),vazio=!preenchidoRdo(r),temFoto=fotosParaBaixar(r).length;
         // como no Diário de produção: folhinha com a data, situação (aberto · fecha às 19h / fechado) e os botões do dia
-        // salvo em "Salvar e continuar depois": em preenchimento (e o que falta); fechado assim, fica "incompleto"
-        const inc=!vazio&&incompletoRdo(r),faltaL=inc?faltaRegistro(r):[];
+        // o que ficou faltando: pendências do Administrador (adm) e o que ainda dá tempo hoje (voce)
+        const P=vazio?{adm:[],voce:[]}:pendRdo(r),nAdm=P.adm.length,inc=!!(nAdm||P.voce.length);
         const st=vazio?(fech?`<span class="pm-st-dia fe rdo-nao"><i class="fas fa-circle-xmark"></i> Não preenchido · ${fechadoManual(r)?`fechado por ${fe(f.por||'')}`:'fechado às 19h'}</span>`
             :reabertoRdo(r)?`<span class="pm-st-dia ab rdo-auto"><i class="fas fa-lock-open"></i> Não preenchido · reaberto até ${hm(new Date(r.aberto_ate))}</span>`:'<span class="pm-st-dia ab rdo-auto"><i class="fas fa-clock"></i> Criado às 6h · a preencher (fecha às 19h)</span>')
-          :fech&&inc?`<span class="pm-st-dia fe rdo-nao"><i class="fas fa-triangle-exclamation"></i> Fechado incompleto${fechadoManual(r)?'':' · às 19h'}</span>`
+          :fech&&nAdm?`<span class="pm-st-dia fe rdo-nao"><i class="fas fa-triangle-exclamation"></i> Fechado com ${nAdm} pendência${nAdm>1?'s':''}${fechadoManual(r)?'':' · às 19h'}</span>`
           :fech?`<span class="pm-st-dia fe"><i class="fas fa-lock"></i> ${fechadoManual(r)?`Fechado por ${fe(f.por||'')}${f.em?' · '+fe(brDe(dt(String(f.em).slice(0,10))).slice(0,5))+' '+fe(String(f.em).slice(11,16)):''}`:'Fechado às 19h (automático)'}</span>`
+          :nAdm?`<span class="pm-st-dia ab rdo-pend-st"><i class="fas fa-list-check"></i> ${nAdm} pendência${nAdm>1?'s':''} · ${ehAdmRdo()?'na aba Pendências':'o Administrador resolve'}${reabertoRdo(r)?` · reaberto até ${hm(new Date(r.aberto_ate))}`:hj?' · fecha às 19h':''}</span>`
           :inc?`<span class="pm-st-dia ab rdo-auto"><i class="fas fa-hourglass-half"></i> Em preenchimento${reabertoRdo(r)?` · reaberto até ${hm(new Date(r.aberto_ate))}`:hj?' · fecha às 19h':''}</span>`
           :`<span class="pm-st-dia ab"><i class="fas fa-lock-open"></i> Aberto${reabertoRdo(r)?` · reaberto até ${hm(new Date(r.aberto_ate))}`:hj?' · fecha às 19h':''}</span>`;
         const conferir=r.hor_conferir?` <span class="pm-st-dia fe rdo-nao" title="Horímetro a conferir (${fe(r.hor_conferir)}): ${ehAdmRdo()?'abra o dia, confira as fotos e acerte os números pelo lápis':'o Administrador confere e acerta'}"><i class="fas fa-gauge-high"></i> Horímetro a conferir</span>`:'';
@@ -13787,14 +13878,14 @@ const Eng=(function(){
         const bts=vazio?(fech?`${ehAdmRdo()?`<button type="button" class="fin-bt mini" data-rd="reabrir" data-i="${i}"><i class="fas fa-lock-open"></i> Reabrir</button><button type="button" class="fin-bt mini" data-rd="excluir" data-i="${i}" title="Excluir este dia em branco"><i class="fas fa-trash"></i></button>`:''}`
             :`${ehAdmRdo()?`<button type="button" class="fin-bt mini" data-rd="excluir" data-i="${i}" title="Excluir este dia em branco"><i class="fas fa-trash"></i></button><button type="button" class="fin-bt mini" data-rd="fechar" data-i="${i}" title="Fechar o dia agora (em branco), sem esperar o fechamento automático"><i class="fas fa-lock"></i> Fechar o dia</button>`:''}<button type="button" class="fin-bt mini pri" data-rd="editar" data-i="${i}"><i class="fas fa-pen"></i> Preencher</button>`)
           :fech?`${acao}${baixar}<button type="button" class="fin-bt mini" data-rd="pdfdia" data-i="${i}"><i class="fas fa-file-pdf"></i> PDF</button>${ehAdmRdo()?`<button type="button" class="fin-bt mini" data-rd="reabrir" data-i="${i}"><i class="fas fa-lock-open"></i> Reabrir</button>`:''}<button type="button" class="fin-bt mini" data-rd="ver" data-i="${i}"><i class="fas fa-eye"></i> Ver</button>`
-          :`${acao}${podeFotoRdo()?`<button type="button" class="fin-bt mini" data-rd="fotos" data-i="${i}" title="Incluir fotos deste dia (vão também para a galeria da obra)"><i class="fas fa-camera"></i> Fotos</button>`:''}${baixar}<button type="button" class="fin-bt mini" data-rd="pdfdia" data-i="${i}"><i class="fas fa-file-pdf"></i> PDF</button>${meu?`${r.auto!=='sim'||ehAdmRdo()?`<button type="button" class="fin-bt mini" data-rd="excluir" data-i="${i}" title="Excluir este registro"><i class="fas fa-trash"></i></button>`:''}${inc&&!ehAdmRdo()?'':`<button type="button" class="fin-bt mini" data-rd="fechar" data-i="${i}"${inc?' title="O diário está incompleto — o Administrador pode fechar assim mesmo"':''}><i class="fas fa-lock"></i> Fechar o dia</button>`}<button type="button" class="fin-bt mini pri" data-rd="editar" data-i="${i}">${inc?'<i class="fas fa-pen"></i> Continuar':'<i class="fas fa-pen"></i> Alterar'}</button>`:''}`;
+          :`${acao}${podeFotoRdo()?`<button type="button" class="fin-bt mini" data-rd="fotos" data-i="${i}" title="Incluir fotos deste dia (vão também para a galeria da obra)"><i class="fas fa-camera"></i> Fotos</button>`:''}${baixar}<button type="button" class="fin-bt mini" data-rd="pdfdia" data-i="${i}"><i class="fas fa-file-pdf"></i> PDF</button>${meu?`${r.auto!=='sim'||ehAdmRdo()?`<button type="button" class="fin-bt mini" data-rd="excluir" data-i="${i}" title="Excluir este registro"><i class="fas fa-trash"></i></button>`:''}<button type="button" class="fin-bt mini" data-rd="fechar" data-i="${i}"${inc?' title="Ainda falta alguma coisa — fechando assim, fica para o Administrador resolver"':''}><i class="fas fa-lock"></i> Fechar o dia</button><button type="button" class="fin-bt mini pri" data-rd="editar" data-i="${i}">${inc?'<i class="fas fa-pen"></i> Continuar':'<i class="fas fa-pen"></i> Alterar'}</button>`:''}`;
         return `<article class="pm-dia2 rdo-dia2${fech?' fech':''}"><div class="pm-dia2-cab">
           <div class="pm-cal${fech?' fech':''}"><span class="m">${d?fe(MESES_RDO[d.getMonth()].slice(0,3).toUpperCase()):''}</span><span class="d">${d?d.getDate():'—'}</span><span class="s">${d?fe(DIAS_SEM[d.getDay()].slice(0,3).toLowerCase()):''}</span></div>
           <div class="pm-dia2-meta"><div class="pm-dia2-tit"><b>${d?`${fe(DIAS_SEM[d.getDay()])}, ${d.getDate()} de ${fe(MESES_RDO[d.getMonth()])}`:'Sem data'}</b>${st}${conferir}</div>
             ${RD.obra?'':`<div class="rdo-obra" title="${fe(r.titulo_obra)}"><i class="fas fa-helmet-safety"></i> ${fe(r.titulo_obra)}</div>`}
             <div class="rdo-pills"><span class="eng-pill ${tomCond(r.condicao)}">${fe(r.condicao||'—')}</span><span class="eng-pill ${choveu(r)?'azul':''}"><i class="fas ${choveu(r)?'fa-cloud-rain':'fa-sun'}"></i> manhã: ${fe(r.clima_manha||'—')} · tarde: ${fe(r.clima_tarde||'—')}</span>${r.efetivo_total?`<span class="eng-pill"><i class="fas fa-people-group"></i> ${fe(r.efetivo_total)} pessoas</span>`:''}</div></div>
           <div class="pm-dia2-bt rdo-bts">${bts}</div></div>
-          <div class="eng-dia-txt rdo-corpo">${faltaL.length?`<small class="rdo-falta"><i class="fas fa-list-check"></i> <b>Falta:</b> ${fe(faltaL.join(', '))}</small>`:''}<p>${fe(r.atividades||'')}</p>${r.efetivo_desc?`<small><b>Equipe:</b> ${fe(r.efetivo_desc)}</small>`:''}${(jsonDe(r.equipe_nomes)||[]).length?`<small><b>Quem trabalhou:</b> ${fe((jsonDe(r.equipe_nomes)||[]).map(x=>x.nome).join(', '))}</small>`:''}${r.equipamentos?`<small><b>Equipamentos:</b> ${fe(r.equipamentos)}</small>`:''}${(()=>{const hf=fotosHorimetro(r);App._rdoHF[i]=hf.map(x=>({uid:x.im.foto_uid,thumb:x.im.thumb_uid,rot:x.rot,quando:x.quando,gps:x.gps}));
+          <div class="eng-dia-txt rdo-corpo">${nAdm?`<small class="rdo-falta"><i class="fas fa-list-check"></i> <b>Pendências${ehAdmRdo()?'':' (o Administrador resolve)'}:</b> ${fe(P.adm.map(p=>p.txt).join(' · '))}</small>`:''}${P.voce.length?`<small class="rdo-falta rdo-falta-voce"><i class="fas fa-clock"></i> <b>Ainda hoje:</b> ${fe(P.voce.map(p=>p.txt).join(' · '))}</small>`:''}<p>${fe(r.atividades||'')}</p>${r.efetivo_desc?`<small><b>Equipe:</b> ${fe(r.efetivo_desc)}</small>`:''}${(jsonDe(r.equipe_nomes)||[]).length?`<small><b>Quem trabalhou:</b> ${fe((jsonDe(r.equipe_nomes)||[]).map(x=>x.nome).join(', '))}</small>`:''}${r.equipamentos?`<small><b>Equipamentos:</b> ${fe(r.equipamentos)}</small>`:''}${(()=>{const hf=fotosHorimetro(r);App._rdoHF[i]=hf.map(x=>({uid:x.im.foto_uid,thumb:x.im.thumb_uid,rot:x.rot,quando:x.quando,gps:x.gps}));
             return hf.length?`<div class="rdo-hfotos">${hf.map((x,k)=>`<button type="button" data-rd="hfoto" data-i="${i}" data-f="${k}" title="Ampliar — horímetro, ${fe(x.rot)} (${fe(x.quando)})"><img ${GS.fotoSis.attrs(x.im,false,200)} loading="lazy" alt=""><span>${fe(x.rot)}<b>${fe(x.quando)}</b></span></button>`).join('')}</div>`:'';})()}${r.ocorrencias?`<small><b>Ocorrências:</b> ${fe(r.ocorrencias)}</small>`:''}${r.visitas?`<small><b>Visitas:</b> ${fe(r.visitas)}</small>`:''}<small>${fe(r.responsavel?'Registrado por '+r.responsavel:'')}</small>${Eng.fotosHtml(r.titulo_obra,r.data,i,(App._rdoFotos[i]=fotosDoRegistro(r)))}</div></article>`;}).join('')}</div>`
         :`<div class="fin-card"><div class="fin-vazio">${todos.length?'Nenhum registro neste filtro.':'Nenhum dia registrado ainda. O ideal é registrar no fim de cada dia de obra.'}<br><button type="button" class="fin-bt pri" data-rd="novo" style="margin-top:10px"><i class="fas fa-plus"></i> Registrar dia</button></div></div>`}
     </div>`;
@@ -26488,7 +26579,7 @@ textarea[data-rv-cola]{width:100%;font-family:inherit;}
    versão nova em cada aba, para nunca ficar recarregando sem parar.
    A CADA PUBLICAÇÃO: trocar a VERSÃO abaixo e a do versao.json (na raiz e em public/) — as duas iguais. */
 (function(){
-  const VERSAO='2026-11-18g';window.VX_VERSAO=VERSAO;
+  const VERSAO='2026-11-18h';window.VX_VERSAO=VERSAO;
   let ultima=0,pendente=null;
   const ocupado=()=>!!(App&&App.state&&App.state._busy)||!!document.querySelector('#fin-ov.open,.modal-overlay.open,.pm-pop,.vx-perg-ov,.confirm-overlay.open');
   async function tentar(){
@@ -27164,6 +27255,24 @@ button.vx-baixar:hover,.rdo-lb-cab button[data-lb-baixar]:hover{background:#1652
 /* diário salvo pela metade: o que ainda falta */
 .rdo-corpo small.rdo-falta{display:block;margin:0 0 8px;padding:7px 10px;border-radius:9px;background:#FFFAEB;border:1px solid #FEDF89;color:#93370D;font-size:12.5px;}
 .rdo-corpo small.rdo-falta i{color:#DC6803;margin-right:2px;}
+/* pendências do diário: a etiqueta no cartão do dia, o "ainda hoje", a foto fora do horário, a janela depois de salvar e a aba do Administrador */
+.pm-st-dia.rdo-pend-st{background:#FFFAEB;color:#B54708;}
+.rdo-corpo small.rdo-falta.rdo-falta-voce{background:#EEF4FF;border-color:#C7D7FE;color:#1D3E9E;} .rdo-corpo small.rdo-falta.rdo-falta-voce i{color:#1652D8;}
+.rdo-hfoto .rdo-hfora{position:absolute;left:4px;top:4px;background:#B54708;color:#fff;border-radius:6px;padding:2px 6px;font:800 10px Inter,sans-serif;white-space:nowrap;} .rdo-hfoto .rdo-hfora i{color:#fff;margin-right:2px;}
+.rdo-hfoto .rdo-hpassou{color:#B54708;font-weight:700;}
+.rdo-pend-ok{margin:0 0 10px;font-size:14px;color:#101828;} .rdo-pend-ok i{color:#067647;margin-right:4px;}
+.rdo-pend-err{margin:0 0 10px;padding:8px 10px;border-radius:9px;background:#FEF3F2;color:#B42318;font-size:13px;}
+.rdo-pend-h{margin:12px 0 6px;font-size:13.5px;color:#101828;font-weight:700;line-height:1.4;} .rdo-pend-h b{color:#1652D8;}
+.rdo-pend-ul{margin:0 0 4px;padding-left:20px;font-size:13px;color:#344054;line-height:1.5;} .rdo-pend-ul li{margin:2px 0;}
+.rdo-pend-lista{display:flex;flex-direction:column;gap:12px;}
+.rdo-pend-card{border:1px solid #FEDF89;border-left:4px solid #DC6803;border-radius:12px;background:#fff;padding:12px 14px;}
+.rdo-pend-cab{display:flex;gap:10px;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;margin-bottom:8px;}
+.rdo-pend-tit{display:flex;flex-direction:column;gap:1px;font-size:13px;color:#344054;} .rdo-pend-tit b{font-size:14px;color:#101828;} .rdo-pend-tit small{color:#667085;font-size:12px;}
+.rdo-pend-bts{display:flex;gap:6px;flex-wrap:wrap;}
+.rdo-pend-itens{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px;}
+.rdo-pend-itens li{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:7px 9px;border-radius:9px;background:#FFFCF5;font-size:13px;color:#344054;}
+.rdo-pend-itens li>i{color:#DC6803;width:16px;text-align:center;} .rdo-pend-itens li>span:first-of-type{flex:1 1 260px;}
+.rdo-pend-ac{display:flex;gap:6px;flex-wrap:wrap;margin-left:auto;}
 /* sem internet (celular): faixa no rodapé enquanto não há conexão ou há registros esperando para ir */
 #vx-offline{position:fixed;left:50%;transform:translateX(-50%);bottom:14px;z-index:12000;max-width:min(640px,calc(100% - 24px));padding:10px 16px;border-radius:14px;font:500 13px/1.45 Inter,sans-serif;box-shadow:0 12px 32px -8px rgba(16,24,40,.35);}
 #vx-offline.sem{background:#101828;color:#F2F4F7;} #vx-offline.enviando{background:#EFF4FF;color:#1849A9;border:1px solid #B2CCFF;}
