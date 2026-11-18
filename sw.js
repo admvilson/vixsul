@@ -3,7 +3,7 @@
    mesmo sem sinal. Os DADOS nunca passam por aqui: o banco, os serviços (Vercel) e os sites do governo vão sempre pela
    internet — quem guarda a última carga dos dados e a fila do diário é o gas-shim.js. A página abre primeiro pela
    internet (pega a versão nova) e só usa a guardada quando não há conexão. Trocar VERSAO limpa o que estava guardado. */
-const VERSAO = 'vx-2026-11-16c';   // 16/11: manifesto e ícones primeiro pela internet (o ícone novo chega logo)
+const VERSAO = 'vx-2026-11-18a';   // 18/11: a página sempre confere com o servidor e o versao.json nunca vem da cópia guardada
 const BASE = ['./', 'index.html', 'manifest.webmanifest', 'img/logo-vixsul.png', 'img/vixsul-app-192.png', 'img/vixsul-app-512.png', 'img/vixsul-app-maskable-192.png', 'img/vixsul-app-maskable-512.png', 'img/vixsul-app-180.png', 'img/vixsul-favicon-32.png', 'img/vixsul-favicon-64.png'];
 self.addEventListener('install', e => {
   self.skipWaiting();
@@ -20,9 +20,12 @@ self.addEventListener('fetch', e => {
   let u; try { u = new URL(r.url); } catch (x) { return; }
   if (!/^https?:$/.test(u.protocol)) return;
   if (SEMPRE_REDE.test(u.hostname) && !/^fonts\.googleapis\.com$/.test(u.hostname)) return;
-  // a página: primeiro a internet (versão nova); sem conexão, a guardada
+  // a versão publicada (a página confere para se atualizar sozinha): sempre do servidor, nunca da cópia guardada
+  if (u.origin === self.location.origin && /\/versao\.json$/.test(u.pathname)) return;
+  // a página: primeiro a internet (versão nova, conferida com o servidor — "no-cache" — e não a do cache do navegador,
+  // que podia entregar a anterior por até 10 minutos depois de publicar); sem conexão, a guardada
   if (r.mode === 'navigate') {
-    e.respondWith(fetch(r).then(resp => { if (resp && resp.ok) { const cp = resp.clone(); caches.open(VERSAO).then(c => c.put('index.html', cp)); } return resp; })
+    e.respondWith(fetch(r, { cache: 'no-cache' }).then(resp => { if (resp && resp.ok) { const cp = resp.clone(); caches.open(VERSAO).then(c => c.put('index.html', cp)); } return resp; })
       .catch(() => caches.match(r).then(m => m || caches.match('index.html'))));
     return;
   }
