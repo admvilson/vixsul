@@ -339,9 +339,15 @@ tbody tr:hover td{background:rgba(0,113,227,.02);}
 .gr-fat-total-divisor{border-top:1px solid var(--border);padding-top:6px;margin-top:0;}
 .cap-resumo-negativo{color:var(--red)!important;}
 /* TOAST */
-.toast{position:fixed;bottom:32px;left:50%;transform:translateX(-50%) translateY(16px);padding:11px 22px;border-radius:980px;font-size:13px;font-weight:600;color:white;opacity:0;pointer-events:none;white-space:nowrap;transition:opacity .25s,transform .25s;z-index:9999;display:flex;align-items:center;gap:8px;box-shadow:0 8px 30px rgba(0,0,0,.18);}
+/* aviso: sempre com fundo (o tipo "info" e o sem tipo ficavam só com o texto branco solto por cima da tela), mensagem longa
+   quebra em linhas (antes saía numa linha só, para fora da tela) e, com uma janela aberta, aparece em cima — não cobre
+   os botões do rodapé da janela */
+.toast{position:fixed;bottom:32px;left:50%;transform:translateX(-50%) translateY(16px);padding:11px 20px;border-radius:16px;font-size:13px;font-weight:600;line-height:1.4;color:white;background:#1D2939;opacity:0;pointer-events:none;white-space:normal;width:max-content;max-width:min(640px,calc(100vw - 32px));transition:opacity .25s,transform .25s;z-index:10070;display:flex;align-items:center;gap:10px;box-shadow:0 8px 30px rgba(0,0,0,.22);}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
-.toast.saving{background:var(--blue);}.toast.success{background:#1a7a35;}.toast.error{background:#cc1100;}
+.toast.saving{background:var(--blue);}.toast.success{background:#1a7a35;}.toast.error{background:#cc1100;}.toast.info{background:#1D2939;}.toast.warn{background:#B54708;}
+#toast-icon{flex-shrink:0;}
+body:has(#fin-ov.open) .toast,body:has(.modal-overlay.open) .toast{bottom:auto;top:18px;transform:translateX(-50%) translateY(-16px);}
+body:has(#fin-ov.open) .toast.show,body:has(.modal-overlay.open) .toast.show{transform:translateX(-50%) translateY(0);}
 @keyframes btnSpin{to{transform:rotate(360deg);}}
 .btn-spin{width:16px;height:16px;border:2px solid rgba(255,255,255,.4);border-top-color:white;border-radius:50%;animation:btnSpin .7s linear infinite;display:inline-block;flex-shrink:0;}
 /* CONFIRM */
@@ -13265,12 +13271,34 @@ const Eng=(function(){
     if(!cands.length)return null;
     if(ant!=null&&!isNaN(ant)){const ok=cands.filter(c=>c.v>=ant-0.05&&c.v<=ant+16).sort((a,b)=>b.len-a.len||(a.v-ant)-(b.v-ant));return ok.length?Math.round(ok[0].v*10)/10:null;}
     const t=toks.slice().sort((a,b)=>b.replace(/\D/g,'').length-a.replace(/\D/g,'').length)[0],m=t.match(/^(\d+)[.,](\d)$/);return m?+(m[1]+'.'+m[2]):+t.replace(/\D/g,'');}
-  async function lerHorimetro(file,ant){
+  /* 1º A GROQ (grátis, pela Vercel — a mesma do robô do Telegram): lê visor digital de 7 segmentos com reflexo, que o leitor
+     do navegador quase nunca acertava. Sem resposta dela (sem internet, sem a chave), o leitor do navegador tenta — e os dois
+     têm tempo limite: a leitura nunca deixa o diário esperando. Não leu = o número fica "a conferir" e o diário salva. */
+  const comTempo=(p,ms,msg)=>Promise.race([p,new Promise((_,er)=>setTimeout(()=>er(new Error(msg||'a leitura demorou demais')),ms))]);
+  function fotoParaIA(file,max){return new Promise((ok,er)=>{const u=URL.createObjectURL(file),im=new Image();
+    im.onload=()=>{const k=Math.min(1,(max||1280)/Math.max(im.naturalWidth,im.naturalHeight)),cv=document.createElement('canvas');cv.width=Math.max(1,Math.round(im.naturalWidth*k));cv.height=Math.max(1,Math.round(im.naturalHeight*k));
+      cv.getContext('2d').drawImage(im,0,0,cv.width,cv.height);URL.revokeObjectURL(u);ok(cv.toDataURL('image/jpeg',0.85));};
+    im.onerror=()=>{URL.revokeObjectURL(u);er(new Error('Não consegui abrir essa foto.'));};im.src=u;});}
+  async function lerHorGroq(file,ant){
+    const imagem=await fotoParaIA(file,1280),ctl=new AbortController(),t=setTimeout(()=>ctl.abort(),40000);
+    try{const r=await fetch('https://vixsul.vercel.app/api/compra',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({acao:'horimetro',imagem}),signal:ctl.signal});
+      const j=await r.json().catch(()=>null);if(!j||!j.ok){if(j&&j.msg)console.warn('horímetro (Groq):',j.msg);return null;}
+      // o valor e os dígitos como aparecem (com o décimo no lugar): a escolha de sempre confere com a leitura anterior
+      const dg=j.digitos||'',txt=[j.horimetro!=null?String(j.horimetro):'',dg?(j.decimal&&dg.length>1?dg.slice(0,-1)+'.'+dg.slice(-1):dg):''].filter(Boolean).join(' ');
+      const n=txt?escolherLeitura(txt,ant):null;if(n!=null)return n;
+      // fora da faixa da leitura anterior (até 16 h a mais): se a Groq está segura do que leu, vale o que ela leu — uma leitura
+      // antiga errada no sistema não pode recusar todas as fotos seguintes (fora de ordem, o dia fica "a conferir")
+      return j.horimetro!=null&&/alta/i.test(j.confianca||'')?Math.round(+j.horimetro*10)/10:null;}
+    finally{clearTimeout(t);}}
+  async function lerHorTess(file,ant){
     await carregarTess();const w=await window.Tesseract.createWorker('eng',1);
     try{await w.setParameters({tessedit_char_whitelist:'0123456789.,',tessedit_pageseg_mode:'11'});let txt='';
       for(const inv of [false,true]){const r=await w.recognize(await telaHor(file,inv));txt+=' '+((r&&r.data&&r.data.text)||'');}
       return escolherLeitura(txt,ant);}
     finally{try{await w.terminate();}catch(e){}}}
+  async function lerHorimetro(file,ant){
+    try{const n=await comTempo(lerHorGroq(file,ant),42000);if(n!=null)return n;}catch(e){console.warn('horímetro (Groq)',e);}
+    try{return await comTempo(lerHorTess(file,ant),25000);}catch(e){console.warn('horímetro (navegador)',e);return null;}}
   /* BAIXAR AS FOTOS: as do sistema vão num arquivo .zip (uma foto só: direto); as antigas, do Google Drive, baixam uma a uma */
   let _zipP=null;
   const carregarZip=()=>window.JSZip?Promise.resolve():(_zipP=_zipP||new Promise((ok,er)=>{const s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';s.onload=()=>ok();s.onerror=()=>{_zipP=null;er(new Error('Não consegui preparar o arquivo .zip — confira a internet.'));};document.head.appendChild(s);}));
@@ -13434,8 +13462,9 @@ const Eng=(function(){
     try{await prep;}catch(e){toast('Diário salvo, mas as fotos não foram enviadas: '+e.message+' Use o botão de fotos deste dia.','error');return;}
     await Eng.subirFotosDia(o.titulo_obra,o.data,j._fotos.map(f=>({file:f.file,descricao:(f.desc||'').trim(),previewUrl:f.url,gps:f.gps||null})));},
   validar:(o,reg,j,parcial)=>{
+    // leituras do horímetro fora de ordem (ex.: um número lido errado da foto) NÃO impedem o diário: ele salva e o dia fica
+    // "Horímetro a conferir" para o Administrador corrigir (o dono pediu: o diário nunca fica travado pelo horímetro)
     const eqs=jsonDe(o.equip_json)||[],ruim=eqs.find(x=>x.hor!==false&&ordemRuim(x));
-    if(ruim)return `${ruim.eq||'Máquina'}: as leituras do horímetro têm que ir aumentando ao longo do dia (início ≤ meio-dia ≤ início da tarde ≤ fim).`;
     if(reg&&!meuRdo(reg))return 'Só quem registrou pode alterar este registro do diário.';
     // fechamento: dia fechado não muda; dia futuro não registra; dia que já encerrou às 19h só o Administrador registra (e fica aberto por 1 hora)
     if(reg&&rdoFechado(reg))return `O dia ${brDe(dt(reg.data))} está fechado — só o Administrador reabre.`;
@@ -13443,10 +13472,13 @@ const Eng=(function(){
     if(!reg&&passouHoraRdo(o.data)){if(!ehAdmRdo())return `O diário de ${brDe(dt(o.data))} encerrou às 19h. Peça ao Administrador para registrar este dia.`;o.aberto_ate=new Date(Date.now()+3600e3).toISOString();}
     // foto do horímetro escolhida: espera a leitura. Se o número não foi lido, salva assim mesmo — a leitura fica "a conferir"
     // (hor_conferir) e o Administrador preenche olhando a foto (botão do lápis); preenchida, a marca some sozinha
-    if(j&&j._hor){const x=eqs.find(y=>y.hor!==false)||{},semNum=[];
-      for(const [k,rot] of LEIT){const v=j._hor[k];if(!(v&&(v.ref||v.file)))continue;if(v.lendo)return `${MAQ_FIXA}: espere terminar a leitura da foto — ${rot}.`;
-        if(isNaN(nBR(x[k])))semNum.push(rot.toLowerCase());}
-      o.hor_conferir=semNum.join(', ');}
+    // a leitura ainda em andamento também não segura o Salvar: grava sem o número (fica a conferir)
+    {const semNum=[];
+      if(j&&j._hor){const x=eqs.find(y=>y.hor!==false)||{};
+        for(const [k,rot] of LEIT){const v=j._hor[k];if(!(v&&(v.ref||v.file)))continue;
+          if(v.lendo||isNaN(nBR(x[k])))semNum.push(rot.toLowerCase());}}
+      if(ruim)semNum.push('leituras fora de ordem');
+      if(j&&j._hor||ruim||o.hor_conferir)o.hor_conferir=semNum.join(', ');}
     // tudo é obrigatório, menos Ocorrências, Visitas e os equipamentos sem horímetro (e a observação do horímetro):
     // no Salvar o que falta impede; no "Salvar e continuar depois" grava e o dia fica em preenchimento
     const falta=faltaRdo(o,reg,j,eqs);
@@ -13679,9 +13711,16 @@ const Eng=(function(){
       const ps=[d.manha,d.tarde,d.dia].filter(Boolean),x=d.tarde||d.dia||d.manha||{},mx=num(ps,'tmax'),mn=num(ps.concat(d.noite?[d.noite]:[]),'tmin'),chuva=ps.some(v=>/Chuva/.test(Tempo.clima(v.resumo))),dd=dt(d.data);
       const rot=d.data===hj?'Hoje':d.data===addDays(hj,1)?'Amanhã':`${SEM_CURTA[dd.getDay()]} ${String(dd.getDate()).padStart(2,'0')}`;
       return `<div class="rdo-sem-dia${chuva?' chuva':''}" title="${fe(ps.map((v,i)=>(ps.length>1?['Manhã','Tarde'][i]+': ':'')+v.resumo).join(' · '))}"><span class="rdo-sem-rot">${rot}</span>${x.icone?`<img src="${x.icone}" alt="">`:''}<span class="rdo-sem-txt">${fe(x.resumo||'—')}</span><span class="rdo-sem-temp">${mn.length?Math.min(...mn)+'°':''}${mx.length?' a '+Math.max(...mx)+'°':''}</span><span class="rdo-sem-tag">${chuva?'<i class="fas fa-cloud-rain"></i> Chuva prevista':'<i class="fas fa-sun"></i> Sem chuva'}</span></div>`;}).join('')}</div></div>`).join('');}
-  const RD={obra:'',mes:'',autor:''};
+  const RD={obra:'',mes:'',autor:'',aba:'dias'};
+  // as abas do Diário: os registros de cada dia e a tabela de serviços reprovados (módulo GS.reprov)
+  const abasRdo=()=>{const n=GS.reprov&&GS.reprov.pendentes?GS.reprov.pendentes():0;
+    return `<div class="gf-abas doc-abas"><button type="button" class="gf-aba ${RD.aba!=='reprov'?'on':''}" data-rd="aba" data-aba="dias"><i class="fas fa-calendar-day"></i> Registros do dia</button><button type="button" class="gf-aba ${RD.aba==='reprov'?'on':''}" data-rd="aba" data-aba="reprov"><i class="fas fa-circle-xmark"></i> Serviços reprovados${n?` <b class="rv-aba-n" title="${n} aguardando correção">${n}</b>`:''}</button></div>`;};
   function renderDiario(){
     const box=document.getElementById('eng-diario');if(!box)return;
+    if(RD.aba==='reprov'&&GS.reprov){
+      box.innerHTML=`<div class="fin-wrap">${abasRdo()}<div data-reprov></div></div>`;
+      box.onchange=null;box.onclick=ev=>{const b=ev.target.closest('button[data-rd="aba"]');if(b){RD.aba=b.dataset.aba;renderDiario();}};
+      GS.reprov.render(box.querySelector('[data-reprov]'),RD.obra);return;}
     const todos=D().diario_obra||[];
     // o mês escolhido aqui vale para a lista e para o calendário do "Registrar dia" (como no Diário de produção)
     const kHoje=hojeRdo().slice(0,7);if(RD.mes==='')RD.mes=kHoje;
@@ -13697,7 +13736,7 @@ const Eng=(function(){
     const efs=cheios.map(r=>numBR(r.efetivo_total)).filter(n=>n>0),efMed=efs.length?efs.reduce((a,b)=>a+b,0)/efs.length:0;
     const nAuto=(D().obras||[]).filter(o=>o.diario_auto==='sim').length;
     App._rdoLista=lista;App._rdoFotos=[];App._rdoHF=[];
-    box.innerHTML=`<div class="fin-wrap">
+    box.innerHTML=`<div class="fin-wrap">${abasRdo()}
       ${cab('Diário de obra','O registro de cada dia de obra: tempo, condição de trabalho, equipe, equipamentos, serviços e ocorrências. É a prova que sustenta pedido de aditivo de prazo (dias de chuva e impraticáveis) e a defesa em qualquer questionamento da fiscalização. <b>Cada dia fecha às 19h</b> (ou antes, em <b>Fechar o dia</b>) e só o Administrador reabre.',`${GS.selMes(RD.mes==='__todos'?'':RD.mes,'data-rd="mes"',nAntes,0).replace('</select>',`<option value="__todos" ${RD.mes==='__todos'?'selected':''}>Todos os meses</option></select>`)}${ehAdmRdo()?`<button type="button" class="fin-bt" data-rd="auto" title="Escolher as obras em que o diário do dia é criado sozinho às 6h"><i class="fas fa-clock"></i> Diário automático${nAuto?` (${nAuto})`:''}</button>`:''}<button type="button" class="fin-bt" data-rd="baixar-todas" title="Baixar as fotos dos dias que estão na lista (num arquivo .zip)"><i class="fas fa-download"></i> Baixar fotos</button><button type="button" class="fin-bt" data-rd="pdf">Exportar PDF</button><button type="button" class="fin-bt pri" data-rd="novo"><i class="fas fa-plus"></i> Registrar dia</button>`)}
       <div class="fin-filtros"><select class="filter-select" data-rd="obra"><option value="">Todas as obras</option>${obrasNomes().map(o=>`<option ${RD.obra===o?'selected':''}>${fe(o)}</option>`).join('')}</select>
         ${autores.length>1?`<select class="filter-select" data-rd="autor"><option value="">Todos os usuários</option>${autores.map(a=>`<option ${RD.autor===a?"selected":""}>${fe(a)}</option>`).join("")}</select>`:""}</div>
@@ -13714,7 +13753,7 @@ const Eng=(function(){
           :fech?`<span class="pm-st-dia fe"><i class="fas fa-lock"></i> ${fechadoManual(r)?`Fechado por ${fe(f.por||'')}${f.em?' · '+fe(brDe(dt(String(f.em).slice(0,10))).slice(0,5))+' '+fe(String(f.em).slice(11,16)):''}`:'Fechado às 19h (automático)'}</span>`
           :inc?`<span class="pm-st-dia ab rdo-auto"><i class="fas fa-hourglass-half"></i> Em preenchimento${reabertoRdo(r)?` · reaberto até ${hm(new Date(r.aberto_ate))}`:hj?' · fecha às 19h':''}</span>`
           :`<span class="pm-st-dia ab"><i class="fas fa-lock-open"></i> Aberto${reabertoRdo(r)?` · reaberto até ${hm(new Date(r.aberto_ate))}`:hj?' · fecha às 19h':''}</span>`;
-        const conferir=r.hor_conferir?` <span class="pm-st-dia fe rdo-nao" title="A foto do horímetro não foi lida (${fe(r.hor_conferir)}): ${ehAdmRdo()?'abra o dia, confira a foto e preencha o número pelo lápis':'o Administrador confere e preenche'}"><i class="fas fa-gauge-high"></i> Horímetro a conferir</span>`:'';
+        const conferir=r.hor_conferir?` <span class="pm-st-dia fe rdo-nao" title="Horímetro a conferir (${fe(r.hor_conferir)}): ${ehAdmRdo()?'abra o dia, confira as fotos e acerte os números pelo lápis':'o Administrador confere e acerta'}"><i class="fas fa-gauge-high"></i> Horímetro a conferir</span>`:'';
         const acao=r.ocorrencias&&Eng.novaAcao&&(!UI._allowedViews||UI._allowedViews.includes('acoes'))?`<button type="button" class="fin-bt mini" data-rd="acao" data-i="${i}" title="Transformar a ocorrência numa ação do plano, com responsável e prazo">→ Ação</button>`:'';
         const baixar=temFoto?`<button type="button" class="fin-bt mini" data-rd="baixar" data-i="${i}" title="Baixar as fotos deste dia (as do horímetro e as do dia)"><i class="fas fa-download"></i> Baixar fotos</button>`:'';
         const bts=vazio?(fech?`${ehAdmRdo()?`<button type="button" class="fin-bt mini" data-rd="reabrir" data-i="${i}"><i class="fas fa-lock-open"></i> Reabrir</button><button type="button" class="fin-bt mini" data-rd="excluir" data-i="${i}" title="Excluir este dia em branco"><i class="fas fa-trash"></i></button>`:''}`
@@ -13733,7 +13772,7 @@ const Eng=(function(){
     </div>`;
     pintarSemana(box).catch(()=>{});
     box.onchange=ev=>{const s=ev.target.closest('select[data-rd]');if(!s)return;RD[s.dataset.rd]=s.value;renderDiario();};
-    box.onclick=ev=>{const b=ev.target.closest('button[data-rd]');if(!b)return;const r=App._rdoLista[+b.dataset.i];
+    box.onclick=ev=>{const b=ev.target.closest('button[data-rd]');if(!b)return;if(b.dataset.rd==='aba'){RD.aba=b.dataset.aba;return renderDiario();}const r=App._rdoLista[+b.dataset.i];
       // máquina alugada: abastecimento, lista e aluguel
       if(b.dataset.rd==='abast-novo')return formulario(CFG_ABAST,null);
       if(b.dataset.rd==='abast-lista')return listaAbast();
@@ -25713,6 +25752,391 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
     emitirNota,fichaNotaExtras,ligarFichaNota,antecipacao,desfazerAntecipacao,descontoAntecipacao,contratanteDaNota,cancelarNotaDoFaturamento,emitidasPendentes,listarArq,enviarArq,baixarArq,lerXmlNfse,KIT,_EC:EC,_SO2:SO2};
 })();
 
+/* ═══════════════ DIÁRIO DE OBRA › SERVIÇOS REPROVADOS ═══════════════
+   Uma tabela por obra com os serviços reprovados (pela fiscalização ou pela própria equipe) e o caminho de cada um até
+   ser aprovado: reprovou → respondeu (corrigiu) → aprovou, ou reprovou de novo (o contador soma cada reprovação e cada
+   resposta). Tudo fica no Planejamento:
+     reprov_cfg  — por obra: as colunas (nome, o que aceita: livre | num | letras, obrigatória) e quem faz cada ação
+                   (papeis: incluir, excluir, reprovar, responder → listas de usuários; o Administrador faz tudo);
+     reprov_item — uma linha: nº e os valores das colunas (pela chave da coluna, que não muda ao renomear);
+     reprov_ev   — cada movimento numa linha própria, com quem fez e quando (reprovou, respondeu, aprovou, alterou,
+                   editou, excluiu): duas pessoas agindo ao mesmo tempo não apagam o que a outra fez, e ninguém mexe no
+                   texto do outro — só o autor edita o próprio texto, enquanto ele é o último movimento, e a edição fica
+                   no histórico com o texto de antes. A 1ª reprovação entra junto com a linha (quem inclui escreve o motivo). */
+(function(){
+  if(typeof Fin==='undefined'||!Fin.util)return;
+  const U=Fin.util,{fe,cn,janela,confirmar,executar,salvar,excluir}=U;
+  const D=()=>App.state.data||{},PLAN=()=>D().planejamento||[];
+  const ACOES=[['incluir','Inclui linhas','registra os serviços reprovados (um a um ou colando da planilha) e acerta os dados das linhas'],['excluir','Exclui linhas','tira linhas da tabela (vão para a Lixeira)'],['reprovar','Reprova','reprova de novo o que voltou corrigido (ou reabre) e aprova a correção'],['responder','Responde','informa a correção de cada serviço reprovado']];
+  const TIPOS={livre:'Letras e números',num:'Apenas números',letras:'Apenas letras'};
+  const ST={reprovado:{rot:'Aguardando correção',cls:'err',ico:'fa-circle-xmark',ord:0},respondido:{rot:'Corrigido — aguardando conferência',cls:'warn',ico:'fa-hourglass-half',ord:1},aprovado:{rot:'Aprovado',cls:'ok',ico:'fa-circle-check',ord:2}};
+  const ROT_EV={reprovou:'reprovou',respondeu:'respondeu',aprovou:'aprovou a correção',alterou:'alterou os dados da linha',editou:'editou o próprio texto',excluiu:'excluiu a linha'};
+  const RV={obra:'',st:'',busca:'',reinc:false,ver:'tabela',quem:'',foco:null};
+  const COLS_PADRAO=[{k:'local',nome:'Local / endereço',tipo:'livre',obg:true},{k:'servico',nome:'Serviço',tipo:'livre',obg:true}];
+  const MARCOS=['reprovou','respondeu','aprovou'];
+  const novoUid=p=>(p||'rv')+Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+  const quando=iso=>{const d=new Date(iso);return isNaN(d)?'':d.toLocaleDateString('pt-BR')+' '+d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});};
+  const meuId=()=>{const s=Auth._session||{};return String(s.uid||String(s.cpf||'').replace(/\D/g,'')||String(s.email||'').trim().toLowerCase()||'');};
+  const meuNome=()=>{const s=Auth._session||{};return s.nome||s.email||'Usuário';};
+  const ehAdm=()=>!!(GS.ehAdm&&GS.ehAdm());
+  const idUsuario=u=>String(u.tipoUsuario||'').toLowerCase()==='externo'?String(u.email||'').trim().toLowerCase():String(u.cpf||'').replace(/\D/g,'');
+  const lerJ=(v,pad)=>{if(v&&typeof v==='object')return v;try{const x=JSON.parse(v);return x&&typeof x==='object'?x:pad;}catch(e){return pad;}};
+  const limpo=r=>{const {rowid,visualId,_aba,...o}=r||{};return o;};
+  const nomeObra=o=>o.titulo_obra||o.nome_obra||o.titulo||'';
+  const obrasLista=()=>[...new Set((D().obras||[]).map(nomeObra).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'pt-BR'));
+  // ── configuração da obra ──
+  const cfgDe=ob=>PLAN().find(p=>p.tipo==='reprov_cfg'&&p.titulo_obra===ob)||null;
+  const colunas=ob=>{const c=cfgDe(ob),L=c?lerJ(c.colunas,[]):[];return Array.isArray(L)&&L.length?L:COLS_PADRAO;};
+  const papeis=ob=>{const c=cfgDe(ob);return (c&&lerJ(c.papeis,{}))||{};};
+  const pode=(ob,acao)=>ehAdm()||(papeis(ob)[acao]||[]).map(String).includes(meuId());
+  // ── linhas e movimentos (os movimentos de cada linha ficam num índice, refeito quando os dados mudam) ──
+  const ordemEv=(a,b)=>String(a.em||'').localeCompare(String(b.em||''))||(+a.rowid||0)-(+b.rowid||0);
+  const _ix={ref:null,ev:new Map()};
+  const evDe=uid=>{const d=D();if(_ix.ref!==d){_ix.ref=d;_ix.ev=new Map();PLAN().forEach(p=>{if(p.tipo!=='reprov_ev'||!p.item_uid)return;const L=_ix.ev.get(p.item_uid)||[];L.push(p);_ix.ev.set(p.item_uid,L);});_ix.ev.forEach(L=>L.sort(ordemEv));}return _ix.ev.get(uid)||[];};
+  const itensDe=ob=>PLAN().filter(p=>p.tipo==='reprov_item'&&p.titulo_obra===ob);
+  const itemDe=uid=>PLAN().find(p=>p.tipo==='reprov_item'&&p.uid===uid)||null;
+  function estado(it){
+    const ev=evDe(it.uid),mc=ev.filter(e=>MARCOS.includes(e.acao)),ult=mc[mc.length-1]||null,rev=[...mc].reverse();
+    return {ev,mc,ult,st:!ult||ult.acao==='reprovou'?'reprovado':ult.acao==='respondeu'?'respondido':'aprovado',
+      nRep:mc.filter(e=>e.acao==='reprovou').length,nResp:mc.filter(e=>e.acao==='respondeu').length,
+      ultRep:rev.find(e=>e.acao==='reprovou')||null,ultResp:rev.find(e=>e.acao==='respondeu')||null,ultMov:ev[ev.length-1]||null};
+  }
+  // a situação deixa: responder o reprovado; aprovar o corrigido; reprovar de novo o corrigido (ou reabrir o aprovado)
+  const transicao=(st,acao)=>acao==='respondeu'?st==='reprovado':acao==='aprovou'?st==='respondido':acao==='reprovou'?(st==='respondido'||st==='aprovado'):false;
+  const papelDe=acao=>acao==='respondeu'?'responder':'reprovar';
+  // só o autor edita o próprio texto — e só enquanto ele é o último movimento (ninguém respondeu ou conferiu depois)
+  const podeEditar=(it,e)=>!!(it&&e&&String(e.por_id||'')===meuId()&&MARCOS.includes(e.acao)&&estado(it).ult===e);
+  const ev=(it,acao,texto,extra)=>({tipo:'reprov_ev',titulo_obra:it.titulo_obra,item_uid:it.uid,item_n:String(it.n||''),acao,texto:String(texto||'').trim(),em:new Date().toISOString(),por:meuNome(),por_id:meuId(),data_lancamento:todayDateTime(),...(extra||{})});
+  // o próximo nº da obra (contando as linhas já excluídas: o nº não se repete)
+  const proxN=ob=>PLAN().filter(p=>p.titulo_obra===ob&&(p.tipo==='reprov_item'||(p.tipo==='reprov_ev'&&p.acao==='excluiu'))).reduce((m,x)=>Math.max(m,+(x.tipo==='reprov_item'?x.n:x.item_n)||0),0)+1;
+  // ── o que cada coluna aceita ──
+  const ehNum=s=>/^-?(\d+|\d{1,3}(\.\d{3})+)(,\d+)?$/.test(s)||/^-?\d+\.\d+$/.test(s);
+  const ehLetras=s=>/^[A-Za-zÀ-ÖØ-öø-ÿ\s'´`^~.,;:()\/&ºª°"-]+$/.test(s);
+  const erroValor=(c,v)=>{v=String(v==null?'':v).trim();if(!v)return c.obg?'obrigatório':'';if(c.tipo==='num'&&!ehNum(v))return 'só números';if(c.tipo==='letras'&&!ehLetras(v))return 'só letras';return '';};
+  const filtrar=(tipo,v)=>tipo==='num'?String(v).replace(/[^\d.,-]/g,''):tipo==='letras'?String(v).replace(/\d/g,''):String(v);
+  // os campos tipados já não deixam digitar o que não aceitam (o colado também é conferido antes de gravar)
+  function ligarTipos(el){if(!el)return;el.addEventListener('input',e=>{const i=e.target.closest('input[data-rv-tipo]');if(!i)return;const t=i.dataset.rvTipo;if(t!=='num'&&t!=='letras')return;const f=filtrar(t,i.value);if(f!==i.value){const p=Math.max(0,(i.selectionStart||0)-(i.value.length-f.length));i.value=f;try{i.setSelectionRange(p,p);}catch(x){}}});}
+  const campoCol=(c,v)=>`<div class="fin-fld"><label>${fe(c.nome)}${c.obg?' <span class="obg">*</span>':''} <small class="rv-tipo">${fe(TIPOS[c.tipo]||TIPOS.livre)}</small></label><input data-rv-c="${fe(c.k)}" data-rv-tipo="${fe(c.tipo||'livre')}" ${c.tipo==='num'?'inputmode="decimal"':''} value="${fe(v==null?'':v)}"></div>`;
+  const lerCampos=(j,cols)=>{const v={};let erro='';cols.forEach(c=>{const el=j.querySelector(`[data-rv-c="${c.k}"]`),x=String(el?el.value:'').trim(),e=erroValor(c,x);if(e&&!erro)erro=`${c.nome}: ${e}.`;v[c.k]=x;});return {v,erro};};
+  const resumoValores=(it,cols)=>{const v=lerJ(it.valores,{});return cols.map(c=>v[c.k]).filter(x=>String(x||'').trim()).join(' · ');};
+  const listarUsuarios=()=>new Promise((ok,er)=>google.script.run.withSuccessHandler(r=>r&&r.ok!==false?ok(r.usuarios||[]):er(new Error((r&&r.msg)||'Não consegui ler a lista de usuários.'))).withFailureHandler(e=>er(new Error((e&&e.message)||'Erro de conexão.'))).listarUsuarios());
+  // serviços aguardando correção (o número da aba no Diário)
+  const pendentes=()=>PLAN().filter(p=>p.tipo==='reprov_item').filter(it=>estado(it).st==='reprovado').length;
+
+  /* ── TELA ── */
+  function render(box,obraFiltro){
+    if(!box)return;
+    const obras=obrasLista();
+    if(obraFiltro&&obras.includes(obraFiltro)&&RV._filtroDiario!==obraFiltro){RV.obra=obraFiltro;RV._filtroDiario=obraFiltro;}
+    if(!RV.obra||!obras.includes(RV.obra))RV.obra=obras.find(o=>itensDe(o).length)||obras[0]||'';
+    const ob=RV.obra;
+    if(!ob){box.innerHTML='<div class="fin-card"><div class="fin-vazio">Cadastre uma obra para usar a tabela de serviços reprovados.</div></div>';return;}
+    const cols=colunas(ob),its=itensDe(ob).map(it=>({it,s:estado(it)})),q=cn(RV.busca);
+    const vis=its.filter(x=>(!RV.st||x.s.st===RV.st)&&(!RV.reinc||x.s.nRep>1)&&(!q||cn([x.it.n,resumoValores(x.it,cols),x.s.ultRep&&x.s.ultRep.texto,x.s.ultResp&&x.s.ultResp.texto].join(' ')).includes(q)))
+      .sort((a,b)=>ST[a.s.st].ord-ST[b.s.st].ord||(+b.it.n||0)-(+a.it.n||0));
+    const nSt=k=>its.filter(x=>x.s.st===k).length,nReinc=its.filter(x=>x.s.nRep>1).length;
+    const meuLado=its.filter(x=>(x.s.st==='reprovado'&&pode(ob,'responder'))||(x.s.st==='respondido'&&pode(ob,'reprovar'))).length;
+    const resp=its.flatMap(x=>{const L=[];let r0=null;x.s.mc.forEach(e=>{if(e.acao==='reprovou')r0=e;else if(e.acao==='respondeu'&&r0){L.push(new Date(e.em)-new Date(r0.em));r0=null;}});return L;}).filter(n=>n>=0);
+    const medDias=resp.length?resp.reduce((a,b)=>a+b,0)/resp.length/864e5:null;
+    const kpi=(tom,rot,v,sub)=>`<div class="fin-kpi ${tom}"><small>${rot}</small><b>${v}</b><span>${sub||''}</span></div>`;
+    const meus=ACOES.filter(([k])=>pode(ob,k)).map(([,r])=>r.toLowerCase());
+    const papelTxt=ehAdm()?'Você é <b>Administrador</b>: faz todas as ações e define, em <b>Configurar a tabela</b>, as colunas desta obra, o que cada uma aceita e quem inclui, exclui, reprova e responde.'
+      :meus.length?`Nesta obra você <b>${meus.join(', ')}</b>. Ninguém mexe no texto do outro: cada um só edita o que escreveu, enquanto ninguém agiu depois.`:'Nesta obra você acompanha a tabela. O Administrador define quem inclui, exclui, reprova e responde.';
+    const bts=(pode(ob,'incluir')?`<button type="button" class="fin-bt pri" data-rv="novo"><i class="fas fa-plus"></i> Incluir linha</button><button type="button" class="fin-bt" data-rv="colar" title="Copie as linhas no Excel ou no Google Planilhas e cole aqui (ou aperte Ctrl+V com esta tela aberta)"><i class="fas fa-paste"></i> Colar da planilha</button>`:'')
+      +`<button type="button" class="fin-bt" data-rv="excel" title="Baixar a tabela (com os filtros) para o Excel"><i class="fas fa-file-excel"></i> Excel</button>`
+      +(ehAdm()?`<button type="button" class="fin-bt" data-rv="config"><i class="fas fa-sliders"></i> Configurar a tabela</button>`:'');
+    const filtros=`<div class="fin-filtros rv-filtros"><select class="filter-select" data-rvf="obra">${obras.map(o=>{const n=itensDe(o).filter(it=>estado(it).st==='reprovado').length;return `<option value="${fe(o)}" ${o===ob?'selected':''}>${fe(o)}${n?` (${n} aguardando)`:''}</option>`;}).join('')}</select>
+      <select class="filter-select" data-rvf="st"><option value="">Todas as situações</option>${Object.entries(ST).map(([k,x])=>`<option value="${k}" ${RV.st===k?'selected':''}>${x.rot}</option>`).join('')}</select>
+      <div class="pl2-busca rv-busca"><i class="fas fa-magnifying-glass"></i><input data-rvf="busca" placeholder="Buscar nº, local, motivo, resposta…" value="${fe(RV.busca)}"></div>
+      <label class="vk-chk"><input type="checkbox" data-rvf="reinc" ${RV.reinc?'checked':''}> Só reincidentes (2 ou mais reprovações)</label>
+      <div class="gf-abas rv-ver"><button type="button" class="gf-aba ${RV.ver!=='historico'?'on':''}" data-rv="ver-tabela">Tabela</button><button type="button" class="gf-aba ${RV.ver==='historico'?'on':''}" data-rv="ver-hist">Histórico</button></div></div>`;
+    let corpo;
+    if(RV.ver==='historico')corpo=htmlHistoricoObra(ob,cols);
+    else if(!vis.length)corpo=`<div class="fin-card"><div class="fin-vazio">${its.length?'Nenhum serviço neste filtro.':'Nenhum serviço reprovado nesta obra.'}${pode(ob,'incluir')&&!its.length?`<br><button type="button" class="fin-bt pri" data-rv="novo" style="margin-top:10px"><i class="fas fa-plus"></i> Incluir linha</button> <button type="button" class="fin-bt" data-rv="colar" style="margin-top:10px"><i class="fas fa-paste"></i> Colar da planilha</button>`:''}</div></div>`;
+    else corpo=`<div class="rv-tabela"><table class="rv-tab" data-sem-ordem><thead><tr><th>Nº</th>${cols.map(c=>`<th title="${fe(TIPOS[c.tipo]||'')}">${fe(c.nome)}</th>`).join('')}<th>Motivo da reprovação</th><th>Situação</th><th class="num" title="Quantas vezes foi reprovado">Reprov.</th><th class="num" title="Quantas vezes foi respondido">Resp.</th><th>Último movimento</th><th></th></tr></thead>
+      <tbody>${vis.map(x=>linhaHtml(x,ob,cols)).join('')}</tbody></table></div>`;
+    box.innerHTML=`<div class="rv-wrap">
+      <div class="fin-cab"><div><h2>Serviços reprovados</h2><p>Cada obra tem a sua tabela. Quem reprova registra o serviço e o motivo; quem responde informa a correção; quem reprova confere e <b>aprova</b> ou <b>reprova de novo</b> — o contador mostra quantas vezes o mesmo serviço foi reprovado e respondido, e o histórico guarda quem fez cada coisa e quando.</p></div><div class="fin-filtros">${bts}</div></div>
+      ${filtros}
+      <div class="fin-kpis">${kpi(nSt('reprovado')?'vermelho':'verde','Aguardando correção',nSt('reprovado'),'serviços reprovados sem resposta')}${kpi(nSt('respondido')?'laranja':'','Aguardando conferência',nSt('respondido'),'corrigidos, esperando aprovar')}${kpi('verde','Aprovados',nSt('aprovado'),its.length?`de ${its.length} na tabela`:'')}${kpi(nReinc?'vermelho':'','Reincidentes',nReinc,'reprovados 2 vezes ou mais')}${kpi(meuLado?'laranja':'','Aguardando você',meuLado,medDias!=null?`correção em ${medDias>=1?String(Math.round(medDias*10)/10).replace('.',',')+' dia(s)':medDias*24>=1?Math.round(medDias*24)+' h':'menos de 1 hora'}, em média`:'')}</div>
+      <div class="rv-papel"><i class="fas fa-user-shield"></i> ${papelTxt}</div>
+      ${corpo}</div>`;
+    // ligações (o contêiner é novo a cada desenho: os ouvintes não se acumulam)
+    box.onchange=e=>{const s=e.target.closest('[data-rvf]');if(!s)return;const k=s.dataset.rvf;if(k==='busca')return;RV[k]=s.type==='checkbox'?s.checked:s.value;if(k==='obra')RV.ver=RV.ver;render(box,obraFiltro);};
+    let tb=null;box.oninput=e=>{const s=e.target.closest('[data-rvf="busca"]');if(!s)return;clearTimeout(tb);tb=setTimeout(()=>{RV.busca=s.value;RV.foco={pos:s.selectionStart||s.value.length,t:Date.now()};render(box,obraFiltro);},250);};
+    box.onclick=e=>{const b=e.target.closest('[data-rv]');
+      if(!b){const tr=e.target.closest('tr[data-rv-lin]');if(tr&&!e.target.closest('button,a,input,select'))ficha(tr.dataset.rvLin);return;}
+      const a=b.dataset.rv,u=b.dataset.u;
+      if(a==='ver-tabela'||a==='ver-hist'){RV.ver=a==='ver-hist'?'historico':'tabela';return render(box,obraFiltro);}
+      if(a==='novo')return novaLinha(ob);
+      if(a==='colar')return colar(ob,'');
+      if(a==='config')return configurar(ob);
+      if(a==='excel')return RV.ver==='historico'?excelHistorico(ob):excel(ob,vis,cols);
+      if(a==='ficha')return ficha(u);
+      if(a==='responder')return agir(u,'respondeu');
+      if(a==='aprovar')return agir(u,'aprovou');
+      if(a==='reprovar')return agir(u,'reprovou');
+      if(a==='editar')return editarLinha(u);
+      if(a==='excluir')return excluirLinha(u);};
+    // colar direto na tela (Ctrl+V fora de um campo): abre a janela de colar já com as linhas
+    box.onpaste=e=>{if(e.target.closest('input,textarea,select,[contenteditable]')||!pode(ob,'incluir'))return;const t=(e.clipboardData||window.clipboardData).getData('text');if(!t||!t.trim())return;e.preventDefault();colar(ob,t);};
+    if(RV.foco&&Date.now()-RV.foco.t<4000){const s=box.querySelector('[data-rvf="busca"]');if(s){s.focus();try{s.setSelectionRange(RV.foco.pos,RV.foco.pos);}catch(x){}}RV.foco=null;}
+  }
+  function linhaHtml({it,s},ob,cols){
+    const v=lerJ(it.valores,{}),st=ST[s.st],u=fe(it.uid),bts=[];
+    if(s.st==='reprovado'&&pode(ob,'responder'))bts.push(`<button type="button" class="fin-bt mini pri" data-rv="responder" data-u="${u}"><i class="fas fa-screwdriver-wrench"></i> Responder</button>`);
+    if(s.st==='respondido'&&pode(ob,'reprovar'))bts.push(`<button type="button" class="fin-bt mini verde" data-rv="aprovar" data-u="${u}"><i class="fas fa-check"></i> Aprovar</button><button type="button" class="fin-bt mini" data-rv="reprovar" data-u="${u}">Reprovar de novo</button>`);
+    if(s.st==='aprovado'&&pode(ob,'reprovar'))bts.push(`<button type="button" class="fin-bt mini" data-rv="reprovar" data-u="${u}" title="O problema voltou: reprova de novo (conta mais uma reprovação)">Reabrir</button>`);
+    bts.push(`<button type="button" class="rv-ic" data-rv="ficha" data-u="${u}" title="Detalhes e histórico" aria-label="Detalhes e histórico"><i class="fas fa-clock-rotate-left"></i></button>`);
+    if(pode(ob,'incluir'))bts.push(`<button type="button" class="rv-ic" data-rv="editar" data-u="${u}" title="Acertar os dados da linha" aria-label="Acertar os dados da linha"><i class="fas fa-pen"></i></button>`);
+    if(pode(ob,'excluir'))bts.push(`<button type="button" class="rv-ic err" data-rv="excluir" data-u="${u}" title="Excluir a linha" aria-label="Excluir a linha"><i class="fas fa-trash"></i></button>`);
+    const mot=s.ultRep?s.ultRep.texto:'',rsp=s.ultResp&&s.st!=='reprovado'?s.ultResp.texto:'';
+    return `<tr data-rv-lin="${u}"><td class="rv-n">${fe(it.n||'')}</td>${cols.map(c=>`<td>${fe(v[c.k]==null?'':v[c.k])}</td>`).join('')}
+      <td class="rv-txt"><div title="${fe(mot)}">${fe(mot||'—')}</div>${rsp?`<small title="${fe(rsp)}">↳ ${fe(rsp)}</small>`:''}</td>
+      <td><span class="rv-st ${st.cls}"><i class="fas ${st.ico}"></i> ${st.rot}</span></td>
+      <td class="num"><b class="rv-cont${s.nRep>1?' alto':''}" title="Reprovado ${s.nRep} vez(es)">${s.nRep}</b></td>
+      <td class="num"><span class="rv-cont" title="Respondido ${s.nResp} vez(es)">${s.nResp}</span></td>
+      <td class="rv-mov">${s.ultMov?`${fe(s.ultMov.por||'—')}<small>${fe(ROT_EV[s.ultMov.acao]||s.ultMov.acao)} · ${fe(quando(s.ultMov.em))}</small>`:'—'}</td>
+      <td><div class="rv-ac">${bts.join('')}</div></td></tr>`;
+  }
+  // a linha do histórico de um movimento (com o nº da reprovação/resposta e, no do próprio usuário, o "Editar meu texto")
+  function histLi(e,it,ords){
+    const ic={reprovou:'fa-circle-xmark err',respondeu:'fa-screwdriver-wrench warn',aprovou:'fa-circle-check ok',alterou:'fa-pen',editou:'fa-pen-to-square',excluiu:'fa-trash err'}[e.acao]||'fa-circle';
+    const o=ords&&ords.get(e),oq=e.acao==='reprovou'?(e.inicial==='sim'?'incluiu a linha e reprovou':'reprovou de novo'):ROT_EV[e.acao]||e.acao;
+    return `<li><i class="fas ${ic}"></i><div><b>${fe(e.por||'—')}</b> ${fe(oq)}${o?` <span class="rv-ord">${o}</span>`:''} <small>${fe(quando(e.em))}${e.editado_em?' · texto editado em '+fe(quando(e.editado_em)):''}</small>${e.texto?`<p>${fe(e.texto)}</p>`:''}${e.acao==='editou'&&e.antes?`<p class="rv-antes">antes: ${fe(e.antes)}</p>`:''}${it&&podeEditar(it,e)?`<button type="button" class="fin-bt mini" data-rv-ed="${fe(e.rowid)}"><i class="fas fa-pen"></i> Editar meu texto</button>`:''}</div></li>`;
+  }
+  const ordinais=mc=>{const m=new Map();let r=0,p=0;mc.forEach(e=>{if(e.acao==='reprovou')m.set(e,`${++r}ª reprovação`);else if(e.acao==='respondeu')m.set(e,`${++p}ª resposta`);});return m;};
+  function ficha(uid){
+    const it=itemDe(uid);if(!it)return toast('Esta linha não está mais na tabela.','error');
+    const ob=it.titulo_obra,cols=colunas(ob),s=estado(it),v=lerJ(it.valores,{}),st=ST[s.st],ords=ordinais(s.mc);
+    const corpo=`<div class="rv-ficha-cab"><span class="rv-st ${st.cls}"><i class="fas ${st.ico}"></i> ${st.rot}</span><span class="rv-cont${s.nRep>1?' alto':''}">${s.nRep}</span> reprovação(ões) · <span class="rv-cont">${s.nResp}</span> resposta(s)</div>
+      <div class="rv-vals">${cols.map(c=>`<div><small>${fe(c.nome)}</small><b>${fe(v[c.k]==null||v[c.k]===''?'—':v[c.k])}</b></div>`).join('')}<div><small>Incluída por</small><b>${fe(it.incluido_por||it.criado_por||'—')}</b></div></div>
+      <h4 class="rv-h4">Histórico</h4><ul class="rv-hist">${s.ev.map(e=>histLi(e,it,ords)).join('')||'<li>Sem movimentos.</li>'}</ul>`;
+    const B=[];
+    if(s.st==='reprovado'&&pode(ob,'responder'))B.push({html:'<i class="fas fa-screwdriver-wrench"></i> Responder',cls:'pri',acao:()=>{setTimeout(()=>agir(uid,'respondeu'),20);return false;}});
+    if(s.st==='respondido'&&pode(ob,'reprovar')){B.push({html:'Reprovar de novo',acao:()=>{setTimeout(()=>agir(uid,'reprovou'),20);return false;}});B.push({html:'<i class="fas fa-check"></i> Aprovar a correção',cls:'pri',acao:()=>{setTimeout(()=>agir(uid,'aprovou'),20);return false;}});}
+    if(s.st==='aprovado'&&pode(ob,'reprovar'))B.push({html:'Reabrir (reprovar de novo)',acao:()=>{setTimeout(()=>agir(uid,'reprovou'),20);return false;}});
+    const j=janela(`Serviço reprovado nº ${it.n||''} — ${ob}`,corpo,B,760);
+    j.addEventListener('click',e=>{const b=e.target.closest('[data-rv-ed]');if(b)editarTexto(uid,b.dataset.rvEd);});
+  }
+  function resumoHtml(it,s){const cols=colunas(it.titulo_obra),v=lerJ(it.valores,{});
+    return `<div class="fin-resumo"><b>Nº ${fe(it.n||'')}</b> · ${fe(cols.map(c=>v[c.k]).filter(x=>String(x||'').trim()).join(' · ')||'—')}<br>Situação: <b>${ST[s.st].rot}</b> · reprovado ${s.nRep} vez(es), respondido ${s.nResp}${s.ultRep?`<br>Último motivo: ${fe(s.ultRep.texto||'—')}`:''}${s.ultResp?`<br>Última resposta: ${fe(s.ultResp.texto||'—')}`:''}</div>`;}
+  function agir(uid,acao){
+    const it=itemDe(uid);if(!it)return toast('Esta linha não está mais na tabela.','error');
+    const ob=it.titulo_obra,s=estado(it);
+    if(!pode(ob,papelDe(acao)))return toast('Você não tem esta permissão nesta obra — o Administrador define em Configurar a tabela.','error');
+    if(!transicao(s.st,acao))return toast('Esta linha mudou de situação — abra o histórico para conferir.','error');
+    const T={respondeu:{tit:'Responder — serviço corrigido',rot:'O que foi feito para corrigir',ph:'Ex.: caixa refeita no padrão, tampa trocada, reaterro compactado…',obg:true,bt:'<i class="fas fa-paper-plane"></i> Enviar a resposta',ok:'Resposta registrada — aguardando a conferência.'},
+      aprovou:{tit:'Aprovar a correção',rot:'Observação (opcional)',ph:'',obg:false,bt:'<i class="fas fa-check"></i> Aprovar',ok:'Correção aprovada.'},
+      reprovou:{tit:s.st==='aprovado'?'Reabrir — reprovar de novo':'Reprovar de novo',rot:'O que continua errado',ph:'Ex.: a caixa continua fora do nível…',obg:true,bt:'<i class="fas fa-circle-xmark"></i> Reprovar',ok:`Reprovado de novo — ${s.nRep+1}ª reprovação deste serviço.`}}[acao];
+    janela(`${T.tit} — nº ${it.n||''}`,`${resumoHtml(it,s)}<div class="fin-fld"><label>${T.rot}${T.obg?' <span class="obg">*</span>':''}</label><textarea data-rv-txt rows="4" placeholder="${fe(T.ph)}"></textarea></div>${acao==='reprovou'?`<div class="fin-aviso laranja"><div>Esta será a <b>${s.nRep+1}ª reprovação</b> deste serviço.</div></div>`:''}`,
+      [{html:T.bt,cls:'pri',acao:async j=>{const t=j.querySelector('[data-rv-txt]').value.trim();if(T.obg&&!t)throw new Error(`Escreva: ${T.rot.toLowerCase()}.`);
+        // confere de novo com os dados de agora: outra pessoa pode ter agido enquanto a janela estava aberta
+        const it2=itemDe(uid);if(!it2)throw new Error('Esta linha não está mais na tabela.');if(!transicao(estado(it2).st,acao))throw new Error('Outra pessoa mexeu nesta linha enquanto a janela estava aberta — feche e confira o histórico.');
+        await executar(()=>salvar('Planejamento',ev(it2,acao,t),null));toast(T.ok,'success');}}],640);
+  }
+  function novaLinha(ob){
+    if(!pode(ob,'incluir'))return toast('Você não inclui linhas nesta obra — o Administrador define em Configurar a tabela.','error');
+    const cols=colunas(ob);
+    const j=janela(`Incluir serviço reprovado — ${ob}`,`<div class="rv-form">${cols.map(c=>campoCol(c,'')).join('')}</div><div class="fin-fld"><label>Motivo da reprovação <span class="obg">*</span></label><textarea data-rv-txt rows="3" placeholder="O que está errado no serviço"></textarea></div>`,
+      [{html:'<i class="fas fa-plus"></i> Incluir',cls:'pri',acao:async j=>{const {v,erro}=lerCampos(j,cols);if(erro)throw new Error(erro);const t=j.querySelector('[data-rv-txt]').value.trim();if(!t)throw new Error('Escreva o motivo da reprovação.');
+        const it={tipo:'reprov_item',titulo_obra:ob,uid:novoUid('ri'),n:String(proxN(ob)),valores:v,data_lancamento:todayDateTime(),incluido_por:meuNome(),incluido_por_id:meuId()};
+        await executar(async()=>{await salvar('Planejamento',it,null);await salvar('Planejamento',ev(it,'reprovou',t,{inicial:'sim'}),null);});
+        toast(`Serviço nº ${it.n} incluído — aguardando correção.`,'success');}}],760);
+    ligarTipos(j);
+  }
+  function editarLinha(uid){
+    const it=itemDe(uid);if(!it)return toast('Esta linha não está mais na tabela.','error');const ob=it.titulo_obra;
+    if(!pode(ob,'incluir'))return toast('Você não acerta linhas nesta obra.','error');
+    const cols=colunas(ob),v0=lerJ(it.valores,{});
+    const j=janela(`Acertar os dados — nº ${it.n||''}`,`<div class="rv-form">${cols.map(c=>campoCol(c,v0[c.k])).join('')}</div><small class="rv-dica">A mudança fica no histórico da linha (o que era e o que ficou).</small>`,
+      [{html:'<i class="fas fa-floppy-disk"></i> Salvar',cls:'pri',acao:async j=>{const {v,erro}=lerCampos(j,cols);if(erro)throw new Error(erro);
+        const mud=cols.filter(c=>String(v0[c.k]==null?'':v0[c.k]).trim()!==String(v[c.k]||'')).map(c=>`${c.nome}: ${String(v0[c.k]||'—')} → ${v[c.k]||'—'}`);if(!mud.length)return;
+        const it2=itemDe(uid);if(!it2)throw new Error('Esta linha não está mais na tabela.');
+        await executar(async()=>{await salvar('Planejamento',{...limpo(it2),valores:{...lerJ(it2.valores,{}),...v}},it2.rowid);await salvar('Planejamento',ev(it2,'alterou',mud.join('; ')),null);});
+        toast('Dados da linha acertados.','success');}}],760);
+    ligarTipos(j);
+  }
+  function excluirLinha(uid){
+    const it=itemDe(uid);if(!it)return toast('Esta linha não está mais na tabela.','error');const ob=it.titulo_obra;
+    if(!pode(ob,'excluir'))return toast('Você não exclui linhas nesta obra.','error');
+    const s=estado(it),res=resumoValores(it,colunas(ob));
+    confirmar('Excluir a linha?',`O serviço <b>nº ${fe(it.n||'')}</b>${res?` (${fe(res)})`:''} e os ${s.ev.length} movimento(s) dele vão para a Lixeira — dá para restaurar em até 15 dias. Fica no histórico da obra quem excluiu e quando.`,'Sim, excluir',async()=>{
+      await executar(async()=>{for(const e of s.ev)await excluir('Planejamento',e.rowid);await excluir('Planejamento',it.rowid);await salvar('Planejamento',ev(it,'excluiu',res,{resumo:res}),null);});
+      toast(`Linha nº ${it.n||''} excluída.`,'success');});
+  }
+  function editarTexto(uid,rowid){
+    const it=itemDe(uid),e=PLAN().find(p=>String(p.rowid)===String(rowid));
+    if(!podeEditar(it,e))return toast('Só quem escreveu edita o texto, e só enquanto ninguém agiu depois.','error');
+    janela('Editar o meu texto',`<div class="fin-fld"><label>${fe(e.acao==='respondeu'?'Resposta':e.acao==='aprovou'?'Observação':'Motivo da reprovação')}</label><textarea data-rv-txt rows="4">${fe(e.texto||'')}</textarea></div><small class="rv-dica">O texto de antes continua no histórico.</small>`,
+      [{html:'<i class="fas fa-floppy-disk"></i> Salvar',cls:'pri',acao:async j=>{const t=j.querySelector('[data-rv-txt]').value.trim();if(t===String(e.texto||'').trim())return;if(!t&&e.acao!=='aprovou')throw new Error('O texto não pode ficar vazio.');
+        const it2=itemDe(uid),e2=PLAN().find(p=>String(p.rowid)===String(rowid));if(!podeEditar(it2,e2))throw new Error('Alguém agiu nesta linha enquanto a janela estava aberta — o texto não pode mais ser editado.');
+        const ed=lerJ(e2.edicoes,[]);ed.push({texto:e2.texto||'',em:new Date().toISOString()});
+        await executar(async()=>{await salvar('Planejamento',{...limpo(e2),texto:t,editado_em:new Date().toISOString(),edicoes:ed},e2.rowid);await salvar('Planejamento',ev(it2,'editou',t,{antes:e2.texto||'',ref:String(e2.rowid)}),null);});
+        toast('Texto editado — o de antes ficou no histórico.','success');}}],600);
+  }
+  /* ── HISTÓRICO DA OBRA: todos os movimentos (também os das linhas excluídas), do mais novo para o mais antigo ── */
+  const evsObra=ob=>PLAN().filter(p=>p.tipo==='reprov_ev'&&p.titulo_obra===ob).sort(ordemEv).reverse();
+  function htmlHistoricoObra(ob){
+    const L=evsObra(ob),pessoas=[...new Set(L.map(e=>e.por).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'pt-BR')),vis=L.filter(e=>!RV.quem||e.por===RV.quem);
+    return `<div class="fin-filtros"><select class="filter-select" data-rvf="quem"><option value="">Todas as pessoas</option>${pessoas.map(p=>`<option ${RV.quem===p?'selected':''}>${fe(p)}</option>`).join('')}</select></div>
+      ${vis.length?`<div class="rv-tabela"><table class="rv-tab rv-tab-hist" data-sem-ordem><thead><tr><th>Quando</th><th>Quem</th><th>O que fez</th><th>Nº</th><th>Detalhe</th></tr></thead><tbody>${vis.map(e=>{const it=itemDe(e.item_uid);
+        return `<tr${it?` data-rv-lin="${fe(it.uid)}"`:''}><td class="rv-mov">${fe(quando(e.em))}</td><td><b>${fe(e.por||'—')}</b></td><td>${fe(e.acao==='reprovou'&&e.inicial==='sim'?'incluiu a linha e reprovou':e.acao==='reprovou'?'reprovou de novo':ROT_EV[e.acao]||e.acao)}</td><td class="rv-n">${fe(e.item_n||'')}${it?'':' <small class="rv-dica">(excluída)</small>'}</td><td class="rv-txt"><div title="${fe(e.texto||'')}">${fe(e.texto||'')}</div>${e.acao==='editou'&&e.antes?`<small>antes: ${fe(e.antes)}</small>`:''}</td></tr>`;}).join('')}</tbody></table></div>`:'<div class="fin-card"><div class="fin-vazio">Nenhum movimento ainda.</div></div>'}`;
+  }
+  function excel(ob,vis,cols){
+    if(!vis.length)return toast('Não há linhas para exportar.','error');
+    GS.baixarCSV('Servicos reprovados '+ob,['Nº',...cols.map(c=>c.nome),'Motivo da reprovação','Última resposta','Situação','Reprovações','Respostas','Último movimento','Quem','Quando'],
+      vis.map(({it,s})=>{const v=lerJ(it.valores,{});return [it.n||'',...cols.map(c=>v[c.k]==null?'':v[c.k]),s.ultRep?s.ultRep.texto:'',s.ultResp?s.ultResp.texto:'',ST[s.st].rot,s.nRep,s.nResp,s.ultMov?(ROT_EV[s.ultMov.acao]||s.ultMov.acao):'',s.ultMov?s.ultMov.por:'',s.ultMov?quando(s.ultMov.em):''];}));
+  }
+  function excelHistorico(ob){const L=evsObra(ob).filter(e=>!RV.quem||e.por===RV.quem);if(!L.length)return toast('Não há movimentos para exportar.','error');
+    GS.baixarCSV('Historico servicos reprovados '+ob,['Quando','Quem','O que fez','Nº','Detalhe','Texto de antes'],L.map(e=>[quando(e.em),e.por||'',e.acao==='reprovou'&&e.inicial==='sim'?'incluiu a linha e reprovou':e.acao==='reprovou'?'reprovou de novo':ROT_EV[e.acao]||e.acao,e.item_n||'',e.texto||'',e.antes||'']));}
+
+  /* ── COLAR DA PLANILHA: as linhas copiadas do Excel / Google Planilhas (tabulação; também ; ou , de um CSV) ── */
+  function lerPlanilha(txt){
+    txt=String(txt||'').replace(/\r\n?/g,'\n');const l1=txt.split('\n')[0]||'';
+    const sep=txt.includes('\t')?'\t':l1.split(';').length>1?';':l1.split(',').length>1?',':'\t';
+    const L=[];let row=[],cel='',q=false;
+    for(let i=0;i<txt.length;i++){const ch=txt[i];
+      if(q){if(ch==='"'){if(txt[i+1]==='"'){cel+='"';i++;}else q=false;}else cel+=ch;continue;}
+      if(ch==='"'&&cel===''){q=true;continue;}
+      if(ch===sep){row.push(cel);cel='';continue;}
+      if(ch==='\n'){row.push(cel);L.push(row);row=[];cel='';continue;}
+      cel+=ch;}
+    if(cel!==''||row.length){row.push(cel);L.push(row);}
+    return L.map(r=>r.map(c=>String(c).replace(/\s+/g,' ').trim())).filter(r=>r.some(c=>c!==''));
+  }
+  function colar(ob,texto0){
+    if(!pode(ob,'incluir'))return toast('Você não inclui linhas nesta obra — o Administrador define em Configurar a tabela.','error');
+    const cols=colunas(ob),MOT='__motivo',ALVOS=[...cols.map(c=>({k:c.k,nome:c.nome})),{k:MOT,nome:'Motivo da reprovação'}],P={linhas:[],mapa:[]};
+    const colDe=k=>cols.find(c=>c.k===k);
+    const erroCel=(k,x)=>{if(!k)return '';if(k===MOT)return String(x||'').trim()?'':'obrigatório';const c=colDe(k);return c?erroValor({...c,obg:false},x):'';};
+    function validar(){return P.linhas.map(r=>{const v={},er=[];let mot='';
+      P.mapa.forEach((k,i)=>{if(!k)return;const x=String(r[i]||'').trim();if(!x)return;if(k===MOT){mot=mot?mot+' — '+x:x;return;}v[k]=v[k]?v[k]+' '+x:x;});
+      cols.forEach(c=>{const e=erroValor(c,v[c.k]);if(e)er.push(`${c.nome}: ${e}`);});if(!mot)er.push('Motivo da reprovação: obrigatório');return {v,mot,er};});}
+    const j=janela(`Colar linhas da planilha — ${ob}`,`<p class="rv-dica">No Excel ou no Google Planilhas, selecione as linhas (com as colunas que interessam) e copie (<b>Ctrl+C</b>). Depois clique na caixa abaixo e cole (<b>Ctrl+V</b>). Em cima de cada coluna colada, escolha para qual coluna da tabela ela vai — o <b>motivo da reprovação</b> também pode vir da planilha. Célula em vermelho não aceita o que veio: corrija ali mesmo.</p>
+      <textarea data-rv-cola rows="3" placeholder="Clique aqui e cole (Ctrl+V)…"></textarea><div data-rv-prev class="rv-prev"></div>`,
+      [{html:'<i class="fas fa-plus"></i> Incluir as linhas',cls:'pri',acao:async j=>{
+        if(!P.linhas.length)throw new Error('Cole as linhas da planilha na caixa.');
+        if(!P.mapa.includes(MOT))throw new Error('Escolha qual coluna colada é o motivo da reprovação.');
+        const R=validar(),boas=R.filter(x=>!x.er.length);if(!boas.length)throw new Error('Nenhuma linha está pronta — confira as células em vermelho.');
+        if(boas.length<R.length&&!(await vxPergunta('Linhas com problema',`<b>${R.length-boas.length}</b> linha(s) têm célula em vermelho e vão ficar de fora. Incluir as <b>${boas.length}</b> prontas?`,'Incluir as prontas','Voltar e corrigir')))return false;
+        let n=proxN(ob);const ops=boas.map(x=>{const it={tipo:'reprov_item',titulo_obra:ob,uid:novoUid('ri'),n:String(n++),valores:x.v,data_lancamento:todayDateTime(),incluido_por:meuNome(),incluido_por_id:meuId(),origem:'planilha'};return [it,ev(it,'reprovou',x.mot,{inicial:'sim'})];});
+        await executar(async()=>{for(let i=0;i<ops.length;i+=5)await Promise.all(ops.slice(i,i+5).map(async([it,e])=>{await salvar('Planejamento',it,null);await salvar('Planejamento',e,null);}));});
+        toast(`${boas.length} serviço(s) reprovado(s) incluído(s) — aguardando correção.`,'success');}}],1120);
+    const ta=j.querySelector('[data-rv-cola]'),prev=j.querySelector('[data-rv-prev]');
+    function resumo(){const R=validar(),ok=R.filter(x=>!x.er.length).length;
+      const el=prev.querySelector('[data-rv-res]');if(el)el.innerHTML=`<b>${P.linhas.length} linha(s) colada(s)</b> · <b class="t-ok">${ok} pronta(s)</b>${ok<R.length?` · <b class="t-err">${R.length-ok} com problema</b> (passe o mouse no nº da linha para ver)`:''}${P.mapa.includes(MOT)?'':' · <b class="t-err">escolha a coluna do motivo</b>'}`;
+      prev.querySelectorAll('tbody tr').forEach((tr,i)=>{const r=R[i];if(!r)return;tr.classList.toggle('rv-ruim',!!r.er.length);tr.title=r.er.join(' · ');});}
+    function pintar(){
+      if(!P.linhas.length){prev.innerHTML='';return;}
+      prev.innerHTML=`<div class="rv-prev-res" data-rv-res></div><div class="rv-prev-tab"><table data-sem-ordem><thead><tr><th>#</th>${P.mapa.map((k,i)=>`<th><select data-rv-map="${i}"><option value="">(não usar)</option>${ALVOS.map(a=>`<option value="${fe(a.k)}" ${a.k===k?'selected':''}>${fe(a.nome)}</option>`).join('')}</select></th>`).join('')}</tr></thead>
+        <tbody>${P.linhas.slice(0,300).map((r,li)=>`<tr><td class="rv-n">${li+1}</td>${r.map((x,ci)=>{const k=P.mapa[ci],c=colDe(k),e=erroCel(k,x);return `<td><input data-rv-cel="${li}:${ci}" value="${fe(x)}" class="${e?'rv-err-cel':''}" ${c?`data-rv-tipo="${fe(c.tipo||'livre')}"`:''} title="${fe(e)}"></td>`;}).join('')}</tr>`).join('')}</tbody></table></div>${P.linhas.length>300?`<small class="rv-dica">Mostrando as 300 primeiras — todas as ${P.linhas.length} entram.</small>`:''}`;
+      resumo();}
+    function montar(txt){const L=lerPlanilha(txt);if(!L.length){P.linhas=[];P.mapa=[];pintar();return;}
+      const nomes=ALVOS.map(a=>cn(a.nome)),cab=L[0].some(x=>nomes.includes(cn(x))||/motivo|reprova/i.test(x)),larg=Math.max(...L.map(r=>r.length));
+      P.mapa=Array.from({length:larg},(_,i)=>{if(cab){const x=cn(L[0][i]||''),a=ALVOS.find(a=>cn(a.nome)===x)||(/motivo|reprova|problema|defeito|pendenc/.test(x)?ALVOS[ALVOS.length-1]:null);return a?a.k:'';}return i<cols.length?cols[i].k:i===cols.length?MOT:'';});
+      P.linhas=(cab?L.slice(1):L).map(r=>Array.from({length:larg},(_,i)=>r[i]||''));pintar();}
+    ta.addEventListener('input',()=>montar(ta.value));
+    prev.addEventListener('change',e=>{const s=e.target.closest('[data-rv-map]');if(!s)return;P.mapa[+s.dataset.rvMap]=s.value;pintar();});
+    prev.addEventListener('input',e=>{const i=e.target.closest('[data-rv-cel]');if(!i)return;const [l,c]=i.dataset.rvCel.split(':').map(Number);
+      if(i.dataset.rvTipo==='num'||i.dataset.rvTipo==='letras'){const f=filtrar(i.dataset.rvTipo,i.value);if(f!==i.value)i.value=f;}
+      P.linhas[l][c]=i.value;const er=erroCel(P.mapa[c],i.value);i.classList.toggle('rv-err-cel',!!er);i.title=er;resumo();});
+    if(texto0){ta.value=texto0;montar(texto0);}else setTimeout(()=>ta.focus(),60);
+  }
+
+  /* ── CONFIGURAR A TABELA (só Administrador): as colunas, o que cada uma aceita e quem faz cada ação nesta obra ── */
+  async function configurar(ob){
+    if(!ehAdm())return toast('Só o Administrador configura a tabela.','error');
+    let us=[];if(UI._showBusy)UI._showBusy('Carregando os usuários…');
+    try{us=await listarUsuarios();}catch(e){toast(e.message||String(e),'error');}finally{if(UI._hideBusy)UI._hideBusy();}
+    us=us.filter(u=>idUsuario(u)&&!/inativ|bloque|desativ|exclu/i.test(String(u.status||''))).sort((a,b)=>String(a.nome||'').localeCompare(String(b.nome||''),'pt-BR'));
+    const c0=cfgDe(ob),pp0=papeis(ob),outras=obrasLista().filter(o=>o!==ob&&cfgDe(o));
+    let cols=colunas(ob).map(x=>({...x}));
+    const admU=u=>UI._ehAdmin?UI._ehAdmin(u.perfil):/^admin/i.test(String(u.perfil||''));
+    const linhasCols=()=>cols.map((c,i)=>`<tr data-ci="${i}"><td><input data-cc="nome" value="${fe(c.nome)}" placeholder="Nome da coluna"></td><td><select data-cc="tipo">${Object.entries(TIPOS).map(([k,r])=>`<option value="${k}" ${c.tipo===k?'selected':''}>${r}</option>`).join('')}</select></td><td style="text-align:center"><input type="checkbox" data-cc="obg" ${c.obg?'checked':''}></td><td class="rv-cc-bts"><button type="button" class="rv-ic" data-cc-mv="-1" title="Subir" ${i===0?'disabled':''}><i class="fas fa-arrow-up"></i></button><button type="button" class="rv-ic" data-cc-mv="1" title="Descer" ${i===cols.length-1?'disabled':''}><i class="fas fa-arrow-down"></i></button><button type="button" class="rv-ic err" data-cc-x title="Tirar a coluna"><i class="fas fa-trash"></i></button></td></tr>`).join('');
+    const tabPapeis=pp=>us.length?`<table data-sem-ordem><thead><tr><th>Usuário</th>${ACOES.map(([k,r,ds])=>`<th title="${fe(ds)}">${fe(r)}</th>`).join('')}</tr></thead><tbody>${us.map(u=>{const id=idUsuario(u),adm=admU(u);
+        return `<tr><td><b>${fe(u.nome||id)}</b><small>${fe(adm?'Administrador — faz tudo':(u.perfil||''))}</small></td>${ACOES.map(([k])=>`<td><input type="checkbox" data-rv-p="${k}" value="${fe(id)}" ${adm?'checked disabled':((pp[k]||[]).map(String).includes(id)?'checked':'')}></td>`).join('')}</tr>`;}).join('')}</tbody></table>`:'<div class="fin-vazio">Não consegui carregar a lista de usuários.</div>';
+    const j=janela(`Configurar a tabela — ${ob}`,`<div class="rv-cfg">
+        <h4>Colunas desta obra</h4><p class="rv-dica">O nome de cada coluna e o que ela aceita: <b>letras e números</b>, <b>apenas números</b> ou <b>apenas letras</b>. O motivo da reprovação, a situação, os contadores e o histórico já vêm em toda tabela. Tirar uma coluna não apaga o que já foi escrito nela.</p>
+        <div class="rv-cfg-cols"><table data-sem-ordem><thead><tr><th>Coluna</th><th>Aceita</th><th>Obrigatória</th><th></th></tr></thead><tbody data-rv-cols>${linhasCols()}</tbody></table></div>
+        <div class="rv-cfg-lin"><button type="button" class="fin-bt mini" data-cc-add><i class="fas fa-plus"></i> Nova coluna</button>${outras.length?`<select class="filter-select" data-rv-copia><option value="">Copiar a configuração de outra obra…</option>${outras.map(o=>`<option value="${fe(o)}">${fe(o)}</option>`).join('')}</select>`:''}</div>
+        <h4>Quem faz cada ação nesta obra</h4><p class="rv-dica"><b>Inclui linhas</b>: registra os serviços reprovados (com o motivo) e acerta os dados. <b>Exclui linhas</b>: tira linhas da tabela. <b>Reprova</b>: reprova de novo o que voltou corrigido e aprova a correção. <b>Responde</b>: informa a correção. Quem não está marcado só acompanha. Ninguém edita o texto do outro.</p>
+        <div class="rv-cfg-papeis" data-rv-papeis>${tabPapeis(pp0)}</div></div>`,
+      [{html:'<i class="fas fa-floppy-disk"></i> Salvar a configuração',cls:'pri',acao:async j=>{
+        lerColsTela();const nomes=cols.map(c=>String(c.nome||'').trim());
+        if(!cols.length)throw new Error('A tabela precisa de pelo menos uma coluna.');
+        if(nomes.some(n=>!n))throw new Error('Dê nome a todas as colunas (ou tire a que está sem nome).');
+        if(new Set(nomes.map(cn)).size!==nomes.length)throw new Error('Há duas colunas com o mesmo nome.');
+        const pp={};ACOES.forEach(([k])=>{pp[k]=[...j.querySelectorAll(`[data-rv-p="${k}"]:checked:not(:disabled)`)].map(i=>i.value);});
+        const novo={...(c0?limpo(c0):{}),tipo:'reprov_cfg',titulo_obra:ob,colunas:cols.map(c=>({k:c.k,nome:String(c.nome).trim(),tipo:TIPOS[c.tipo]?c.tipo:'livre',obg:!!c.obg})),papeis:pp,atualizado_em:todayDateTime(),atualizado_por:meuNome(),data_lancamento:(c0&&c0.data_lancamento)||todayDateTime()};
+        // aviso: tipo trocado com valores que não cabem nele (ficam como estão; ao acertar a linha, o sistema pede o certo)
+        const ruins=cols.filter(c=>c.tipo!=='livre').map(c=>({c,n:itensDe(ob).filter(it=>{const x=lerJ(it.valores,{})[c.k];return String(x||'').trim()&&erroValor({...c,obg:false},x);}).length})).filter(x=>x.n);
+        if(ruins.length&&!(await vxPergunta('Valores que não cabem no tipo',`${ruins.map(x=>`<b>${fe(x.c.nome)}</b>: ${x.n} linha(s) têm valor que não é "${fe(TIPOS[x.c.tipo].toLowerCase())}"`).join('<br>')}<br><br>Esses valores ficam como estão; ao acertar a linha, o sistema pede o valor certo. Salvar assim mesmo?`,'Salvar','Voltar')))return false;
+        await executar(()=>salvar('Planejamento',novo,c0?c0.rowid:null));toast('Configuração da tabela salva.','success');}}],940);
+    const tb=j.querySelector('[data-rv-cols]');
+    function lerColsTela(){[...tb.querySelectorAll('tr[data-ci]')].forEach(tr=>{const c=cols[+tr.dataset.ci];if(!c)return;c.nome=tr.querySelector('[data-cc="nome"]').value;c.tipo=tr.querySelector('[data-cc="tipo"]').value;c.obg=tr.querySelector('[data-cc="obg"]').checked;});}
+    j.addEventListener('click',e=>{
+      if(e.target.closest('[data-cc-add]')){lerColsTela();cols.push({k:'c'+Date.now().toString(36)+cols.length,nome:'',tipo:'livre',obg:false});tb.innerHTML=linhasCols();const ins=tb.querySelectorAll('[data-cc="nome"]');if(ins.length)ins[ins.length-1].focus();return;}
+      const tr=e.target.closest('tr[data-ci]');if(!tr)return;const i=+tr.dataset.ci;
+      const mv=e.target.closest('[data-cc-mv]');if(mv){lerColsTela();const k=i+(+mv.dataset.ccMv);if(k<0||k>=cols.length)return;[cols[i],cols[k]]=[cols[k],cols[i]];tb.innerHTML=linhasCols();return;}
+      if(e.target.closest('[data-cc-x]')){lerColsTela();cols.splice(i,1);tb.innerHTML=linhasCols();}});
+    j.addEventListener('change',e=>{const s=e.target.closest('[data-rv-copia]');if(!s||!s.value)return;const o=s.value;cols=colunas(o).map(x=>({...x}));tb.innerHTML=linhasCols();const pb=j.querySelector('[data-rv-papeis]');if(pb)pb.innerHTML=tabPapeis(papeis(o));toast(`Configuração de ${o} copiada — confira e salve.`,'info');s.value='';});
+  }
+
+  // estilo da tela
+  const css=document.createElement('style');css.textContent=`
+.rv-wrap{display:flex;flex-direction:column;gap:14px;}
+.rv-filtros{flex-wrap:wrap;align-items:center;gap:8px;} .rv-busca{min-width:220px;flex:1 1 220px;max-width:360px;}
+.rv-ver{margin-left:auto;} .rv-ver .gf-aba{padding:6px 12px;font-size:12.5px;}
+.rv-papel{font-size:12.5px;color:#475467;background:#F8FAFC;border:1px solid #EAECF0;border-radius:10px;padding:8px 12px;line-height:1.45;} .rv-papel i{color:#1652D8;margin-right:4px;}
+.rv-tabela{overflow-x:auto;border:1px solid #E4E9F2;border-radius:12px;background:#fff;}
+.rv-tab{width:100%;min-width:0;border-collapse:collapse;font-size:12.5px;}
+.rv-tab thead th{text-align:left;font:800 10px Inter,sans-serif;text-transform:uppercase;letter-spacing:.04em;color:#667085;background:#F8FAFC;padding:8px;white-space:nowrap;border-bottom:1px solid #EAECF0;}
+.rv-tab td{padding:8px;border-top:1px solid #F2F4F7;vertical-align:top;color:#344054;}
+.rv-tab tbody tr[data-rv-lin]{cursor:pointer;} .rv-tab tbody tr[data-rv-lin]:hover{background:#F9FAFB;}
+.rv-tab .num{text-align:center;}
+.rv-n{font-weight:800;color:#101828;white-space:nowrap;}
+.rv-txt{min-width:180px;max-width:340px;} .rv-txt div{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;} .rv-txt small{display:block;color:#667085;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:340px;}
+.rv-st{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:700;padding:3px 9px;border-radius:99px;white-space:nowrap;}
+.rv-st.err{background:#FEF3F2;color:#B42318;} .rv-st.warn{background:#FFFAEB;color:#B54708;} .rv-st.ok{background:#ECFDF3;color:#067647;}
+.rv-cont{display:inline-flex;min-width:24px;height:22px;align-items:center;justify-content:center;border-radius:99px;background:#F2F4F7;color:#344054;font-weight:800;font-size:12px;padding:0 6px;}
+.rv-cont.alto{background:#B42318;color:#fff;}
+.rv-mov{font-size:12px;min-width:130px;} .rv-mov small{display:block;color:#667085;}
+.rv-cfg-cols input[data-cc="nome"],.rv-cfg-cols select{height:36px;border:1px solid #D0D5DD;border-radius:8px;padding:0 10px;font:500 13px Inter,sans-serif;background:#fff;color:#101828;} .rv-cfg-cols select{min-width:160px;}
+.rv-ac{display:flex;gap:6px;align-items:center;justify-content:flex-end;flex-wrap:nowrap;}
+.rv-ic{width:30px;height:30px;flex-shrink:0;border-radius:8px;border:1px solid #E4E7EC;background:#fff;color:#475467;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;font-size:12px;} .rv-ic:hover{background:#F2F4F7;} .rv-ic.err{color:#B42318;} .rv-ic:disabled{opacity:.35;cursor:default;}
+.rv-ficha-cab{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12.5px;color:#475467;margin-bottom:12px;}
+.rv-vals{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px 16px;margin:0 0 6px;padding:12px;border:1px solid #EAECF0;border-radius:10px;background:#FCFCFD;}
+.rv-vals small{display:block;font:800 10px Inter,sans-serif;text-transform:uppercase;letter-spacing:.04em;color:#667085;margin-bottom:2px;} .rv-vals b{font-size:13px;color:#101828;word-break:break-word;}
+.rv-h4{margin:14px 0 8px;font-size:13.5px;color:#101828;}
+.rv-hist{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:12px;}
+.rv-hist li{display:flex;gap:10px;align-items:flex-start;font-size:12.5px;color:#344054;} .rv-hist li>i{margin-top:2px;width:18px;text-align:center;color:#667085;flex-shrink:0;}
+.rv-hist i.err{color:#B42318;} .rv-hist i.warn{color:#B54708;} .rv-hist i.ok{color:#067647;}
+.rv-hist p{margin:4px 0 0;white-space:pre-wrap;color:#101828;} .rv-hist small{color:#667085;margin-left:4px;} .rv-hist .fin-bt{margin-top:6px;}
+.rv-ord{display:inline-block;font-size:10.5px;font-weight:800;color:#475467;background:#F2F4F7;border-radius:99px;padding:1px 7px;margin-left:2px;}
+.rv-antes{color:#98A2B3!important;font-style:italic;}
+.rv-form{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px 14px;margin-bottom:6px;}
+.rv-tipo{font-weight:600;color:#98A2B3;text-transform:none;letter-spacing:0;margin-left:4px;}
+.rv-dica{font-size:12.5px;color:#475467;line-height:1.45;margin:0 0 8px;display:block;}
+.rv-cfg h4{margin:4px 0 4px;font-size:13.5px;color:#101828;} .rv-cfg h4:not(:first-child){margin-top:18px;}
+.rv-cfg-cols table{width:100%;border-collapse:collapse;} .rv-cfg-cols th{text-align:left;font:800 10px Inter,sans-serif;text-transform:uppercase;color:#667085;padding:4px 6px;} .rv-cfg-cols td{padding:4px 6px;} .rv-cfg-cols input[data-cc="nome"]{width:100%;} .rv-cc-bts{display:flex;gap:6px;justify-content:flex-end;}
+.rv-cfg-lin{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:6px;}
+.rv-cfg-papeis{max-height:340px;overflow:auto;border:1px solid #EAECF0;border-radius:10px;}
+.rv-cfg-papeis table{width:100%;border-collapse:collapse;font-size:12.5px;} .rv-cfg-papeis th{position:sticky;top:0;z-index:1;background:#F8FAFC;font:800 10px Inter,sans-serif;text-transform:uppercase;color:#667085;padding:8px 6px;text-align:center;cursor:help;} .rv-cfg-papeis th:first-child{text-align:left;}
+.rv-cfg-papeis td{padding:7px 6px;border-top:1px solid #F2F4F7;text-align:center;} .rv-cfg-papeis td:first-child{text-align:left;} .rv-cfg-papeis td small{display:block;color:#667085;font-size:11.5px;}
+.rv-cfg-papeis input[type=checkbox]{width:17px;height:17px;}
+.rv-prev-res{font-size:12.5px;margin:10px 0 6px;}
+.rv-prev-tab{overflow:auto;max-height:46vh;border:1px solid #EAECF0;border-radius:10px;}
+.rv-prev-tab table{border-collapse:collapse;font-size:12px;min-width:100%;} .rv-prev-tab th{position:sticky;top:0;background:#F8FAFC;padding:6px;z-index:1;} .rv-prev-tab td{padding:3px 4px;border-top:1px solid #F2F4F7;}
+.rv-prev-tab select{font-size:11.5px;min-width:130px;max-width:190px;} .rv-prev-tab input{width:100%;min-width:90px;border:1px solid #E4E7EC;border-radius:6px;padding:4px 6px;font-size:12px;}
+.rv-err-cel{border-color:#F04438!important;background:#FEF3F2!important;} .rv-ruim td.rv-n{color:#B42318;}
+textarea[data-rv-cola]{width:100%;font-family:inherit;}
+.rv-aba-n{display:inline-flex;min-width:18px;height:18px;padding:0 5px;margin-left:5px;border-radius:99px;background:#D92D20;color:#fff;font-size:10.5px;font-weight:800;align-items:center;justify-content:center;}
+@media (max-width:640px){.rv-ver{margin-left:0;} .rv-busca{max-width:none;}}`;
+  document.head.appendChild(css);
+  GS.reprov={render,pendentes,_RV:RV};
+})();
+
 /* ═══════════════ LEMBRETES E TELEGRAM (Agenda › Lembretes e Telegram — só Administrador) ═══════════════
    Os lembretes ficam no Planejamento (tipo 'lembrete': texto, quando 'AAAA-MM-DDTHH:MM' no horário da Bahia, repetir
    nao|diario|semanal|mensal, para eu|todos, ativo, ultimo_envio, adiar_ate, enviado). Quem manda é o servidor
@@ -26390,7 +26814,8 @@ input[type=search].filter-select{background-image:none;padding-right:12px;}
 .pt-dias{display:flex;flex-direction:column;gap:12px;max-height:62vh;overflow:auto;} .pt-dia{display:flex;flex-direction:column;gap:6px;}
 .pt-dia-cab{display:flex;justify-content:space-between;align-items:center;font-size:13px;color:#101828;border-bottom:1px solid #EAECF0;padding-bottom:4px;}
 /* Documentos e certidões › Notas fiscais (para a contabilidade baixar) */
-.doc-abas{margin:0 0 14px;} .doc-abas .gf-aba,.nf2-tab ~ * .gf-aba{display:inline-flex;align-items:center;gap:6px;}
+/* faixa das abas das telas (Certidões e documentos | Notas fiscais; Funcionários e segurança | Ponto nas obras): só do tamanho das abas — dentro do .fin-wrap (coluna flex) ela esticava na largura toda da tela */
+.doc-abas{margin:0 0 4px;align-self:flex-start;width:max-content;max-width:100%;padding:3px;gap:3px;border-radius:14px;} .doc-abas .gf-aba{padding:6px 13px;font-size:12.5px;} .doc-abas .gf-aba,.nf2-tab ~ * .gf-aba{display:inline-flex;align-items:center;gap:6px;}
 .fin-card-cab .gf-abas .gf-aba{display:inline-flex;align-items:center;gap:6px;}
 .nf2-tab td small{display:block;color:#667085;font-size:11.5px;margin-top:2px;} .nf2-tab td b{font-weight:600;color:#101828;}
 .nf2-tab td.num,.nf2-tab th.num{text-align:right;white-space:nowrap;} .nf2-bts{white-space:nowrap;} .nf2-bts .fin-bt{margin:2px 3px 2px 0;}
