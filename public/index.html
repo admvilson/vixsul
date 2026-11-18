@@ -13116,8 +13116,12 @@ const Eng=(function(){
   const simNaoRdo=(tit,msg,sim,ico)=>PMF().simNao?PMF().simNao(tit,msg,sim,ico):window.vxPergunta(tit,msg,sim||'Sim','Não');
   async function fecharDiaRdo(r){
     if(!r||rdoFechado(r))return toast('Este dia já está fechado.','success');if(!meuRdo(r))return toast('Só quem registrou (ou o Administrador) fecha este dia.','error');
-    if(incompletoRdo(r))return toast(`Ainda falta: ${faltaRegistro(r).join(', ')}. Termine o diário (Continuar → Salvar) antes de fechar o dia.`,'error');
-    if(!(await simNaoRdo(`Fechar o dia ${brDe(dt(r.data))}?`,`O diário de <b>${fe(brDe(dt(r.data)))}</b> da obra <b>${fe(r.titulo_obra)}</b> não poderá mais ser alterado (equipe, equipamentos, serviços e fotos ficam como estão). <b>Só o Administrador pode reabrir.</b><br><br>Deseja realmente fechar o dia?`,'Sim, fechar','fa-lock')))return;
+    // o Administrador fecha quando quiser — também o dia reaberto, o em branco e o incompleto (ele decide; o sistema avisa o
+    // que falta); quem registrou fecha o próprio dia quando ele está completo
+    const vazio=!preenchidoRdo(r),falta=incompletoRdo(r)?faltaRegistro(r):[];
+    if(falta.length&&!ehAdmRdo())return toast(`Ainda falta: ${falta.join(', ')}. Termine o diário (Continuar → Salvar) antes de fechar o dia.`,'error');
+    const aviso=vazio?'<br><br>⚠ Este diário <b>não foi preenchido</b> — ele fica fechado em branco.':falta.length?`<br><br>⚠ Ainda falta: <b>${fe(falta.join(', '))}</b> — ele fica fechado incompleto.`:'';
+    if(!(await simNaoRdo(`Fechar o dia ${brDe(dt(r.data))}?`,`O diário de <b>${fe(brDe(dt(r.data)))}</b> da obra <b>${fe(r.titulo_obra)}</b> não poderá mais ser alterado (equipe, equipamentos, serviços e fotos ficam como estão). <b>Só o Administrador pode reabrir.</b>${aviso}<br><br>Deseja realmente fechar o dia?`,'Sim, fechar','fa-lock')))return;
     try{await executar(()=>salvar('Diário de obra',{...r,fechado:{em:todayDateTime(),por:eu().nome,auto:false},aberto_ate:''},r.rowid));toast(`Dia ${brDe(dt(r.data))} fechado.`,'success');}catch(e){toast(e.message||String(e),'error');}
   }
   async function reabrirDiaRdo(r){
@@ -13724,11 +13728,11 @@ const Eng=(function(){
       const rot=d.data===hj?'Hoje':d.data===addDays(hj,1)?'Amanhã':`${SEM_CURTA[dd.getDay()]} ${String(dd.getDate()).padStart(2,'0')}`;
       return `<div class="rdo-sem-dia${chuva?' chuva':''}" title="${fe(ps.map((v,i)=>(ps.length>1?['Manhã','Tarde'][i]+': ':'')+v.resumo).join(' · '))}"><span class="rdo-sem-rot">${rot}</span>${x.icone?`<img src="${x.icone}" alt="">`:''}<span class="rdo-sem-txt">${fe(x.resumo||'—')}</span><span class="rdo-sem-temp">${mn.length?Math.min(...mn)+'°':''}${mx.length?' a '+Math.max(...mx)+'°':''}</span><span class="rdo-sem-tag">${chuva?'<i class="fas fa-cloud-rain"></i> Chuva prevista':'<i class="fas fa-sun"></i> Sem chuva'}</span></div>`;}).join('')}</div></div>`).join('');}
   const RD={obra:'',mes:'',autor:'',aba:'dias'};
-  // as abas do Diário: os registros de cada dia e a tabela de serviços fiscalizados (módulo GS.reprov). As duas são
+  // as abas do Diário: os registros de cada dia e a tabela da Fiscalização (módulo GS.reprov). As duas são
   // SUBTELAS nas Permissões (UI._SUBTELAS.diario, botões com data-rd-aba): a bloqueada some e abre a liberada
   const podeAbaRdo=a=>!UI.podeSub||UI.podeSub('diario',a);
   const abasRdo=()=>{const n=GS.reprov&&GS.reprov.pendentes&&podeAbaRdo('fisc')?GS.reprov.pendentes():0;
-    return `<div class="gf-abas doc-abas"><button type="button" class="gf-aba ${RD.aba!=='fisc'?'on':''}" data-rd="aba" data-rd-aba="dias"><i class="fas fa-calendar-day"></i> Registros do dia</button><button type="button" class="gf-aba ${RD.aba==='fisc'?'on':''}" data-rd="aba" data-rd-aba="fisc"><i class="fas fa-clipboard-check"></i> Serviços fiscalizados${n?` <b class="rv-aba-n" title="${n} aguardando correção">${n}</b>`:''}</button></div>`;};
+    return `<div class="gf-abas doc-abas"><button type="button" class="gf-aba ${RD.aba!=='fisc'?'on':''}" data-rd="aba" data-rd-aba="dias"><i class="fas fa-calendar-day"></i> Registros do dia</button><button type="button" class="gf-aba ${RD.aba==='fisc'?'on':''}" data-rd="aba" data-rd-aba="fisc"><i class="fas fa-clipboard-check"></i> Fiscalização${n?` <b class="rv-aba-n" title="${n} aguardando correção">${n}</b>`:''}</button></div>`;};
   function renderDiario(){
     const box=document.getElementById('eng-diario');if(!box)return;
     if(RD.aba!=='fisc'&&!podeAbaRdo('dias')&&podeAbaRdo('fisc'))RD.aba='fisc';
@@ -13764,7 +13768,8 @@ const Eng=(function(){
         // como no Diário de produção: folhinha com a data, situação (aberto · fecha às 19h / fechado) e os botões do dia
         // salvo em "Salvar e continuar depois": em preenchimento (e o que falta); fechado assim, fica "incompleto"
         const inc=!vazio&&incompletoRdo(r),faltaL=inc?faltaRegistro(r):[];
-        const st=vazio?(fech?'<span class="pm-st-dia fe rdo-nao"><i class="fas fa-circle-xmark"></i> Não preenchido · fechado às 19h</span>':'<span class="pm-st-dia ab rdo-auto"><i class="fas fa-clock"></i> Criado às 6h · a preencher (fecha às 19h)</span>')
+        const st=vazio?(fech?`<span class="pm-st-dia fe rdo-nao"><i class="fas fa-circle-xmark"></i> Não preenchido · ${fechadoManual(r)?`fechado por ${fe(f.por||'')}`:'fechado às 19h'}</span>`
+            :reabertoRdo(r)?`<span class="pm-st-dia ab rdo-auto"><i class="fas fa-lock-open"></i> Não preenchido · reaberto até ${hm(new Date(r.aberto_ate))}</span>`:'<span class="pm-st-dia ab rdo-auto"><i class="fas fa-clock"></i> Criado às 6h · a preencher (fecha às 19h)</span>')
           :fech&&inc?`<span class="pm-st-dia fe rdo-nao"><i class="fas fa-triangle-exclamation"></i> Fechado incompleto${fechadoManual(r)?'':' · às 19h'}</span>`
           :fech?`<span class="pm-st-dia fe"><i class="fas fa-lock"></i> ${fechadoManual(r)?`Fechado por ${fe(f.por||'')}${f.em?' · '+fe(brDe(dt(String(f.em).slice(0,10))).slice(0,5))+' '+fe(String(f.em).slice(11,16)):''}`:'Fechado às 19h (automático)'}</span>`
           :inc?`<span class="pm-st-dia ab rdo-auto"><i class="fas fa-hourglass-half"></i> Em preenchimento${reabertoRdo(r)?` · reaberto até ${hm(new Date(r.aberto_ate))}`:hj?' · fecha às 19h':''}</span>`
@@ -13773,9 +13778,9 @@ const Eng=(function(){
         const acao=r.ocorrencias&&Eng.novaAcao&&(!UI._allowedViews||UI._allowedViews.includes('acoes'))?`<button type="button" class="fin-bt mini" data-rd="acao" data-i="${i}" title="Transformar a ocorrência numa ação do plano, com responsável e prazo">→ Ação</button>`:'';
         const baixar=temFoto?`<button type="button" class="fin-bt mini" data-rd="baixar" data-i="${i}" title="Baixar as fotos deste dia (as do horímetro e as do dia)"><i class="fas fa-download"></i> Baixar fotos</button>`:'';
         const bts=vazio?(fech?`${ehAdmRdo()?`<button type="button" class="fin-bt mini" data-rd="reabrir" data-i="${i}"><i class="fas fa-lock-open"></i> Reabrir</button><button type="button" class="fin-bt mini" data-rd="excluir" data-i="${i}" title="Excluir este dia em branco"><i class="fas fa-trash"></i></button>`:''}`
-            :`${ehAdmRdo()?`<button type="button" class="fin-bt mini" data-rd="excluir" data-i="${i}" title="Excluir este dia em branco"><i class="fas fa-trash"></i></button>`:''}<button type="button" class="fin-bt mini pri" data-rd="editar" data-i="${i}"><i class="fas fa-pen"></i> Preencher</button>`)
+            :`${ehAdmRdo()?`<button type="button" class="fin-bt mini" data-rd="excluir" data-i="${i}" title="Excluir este dia em branco"><i class="fas fa-trash"></i></button><button type="button" class="fin-bt mini" data-rd="fechar" data-i="${i}" title="Fechar o dia agora (em branco), sem esperar o fechamento automático"><i class="fas fa-lock"></i> Fechar o dia</button>`:''}<button type="button" class="fin-bt mini pri" data-rd="editar" data-i="${i}"><i class="fas fa-pen"></i> Preencher</button>`)
           :fech?`${acao}${baixar}<button type="button" class="fin-bt mini" data-rd="pdfdia" data-i="${i}"><i class="fas fa-file-pdf"></i> PDF</button>${ehAdmRdo()?`<button type="button" class="fin-bt mini" data-rd="reabrir" data-i="${i}"><i class="fas fa-lock-open"></i> Reabrir</button>`:''}<button type="button" class="fin-bt mini" data-rd="ver" data-i="${i}"><i class="fas fa-eye"></i> Ver</button>`
-          :`${acao}${podeFotoRdo()?`<button type="button" class="fin-bt mini" data-rd="fotos" data-i="${i}" title="Incluir fotos deste dia (vão também para a galeria da obra)"><i class="fas fa-camera"></i> Fotos</button>`:''}${baixar}<button type="button" class="fin-bt mini" data-rd="pdfdia" data-i="${i}"><i class="fas fa-file-pdf"></i> PDF</button>${meu?`${r.auto!=='sim'||ehAdmRdo()?`<button type="button" class="fin-bt mini" data-rd="excluir" data-i="${i}" title="Excluir este registro"><i class="fas fa-trash"></i></button>`:''}${inc?'':`<button type="button" class="fin-bt mini" data-rd="fechar" data-i="${i}"><i class="fas fa-lock"></i> Fechar o dia</button>`}<button type="button" class="fin-bt mini pri" data-rd="editar" data-i="${i}">${inc?'<i class="fas fa-pen"></i> Continuar':'<i class="fas fa-pen"></i> Alterar'}</button>`:''}`;
+          :`${acao}${podeFotoRdo()?`<button type="button" class="fin-bt mini" data-rd="fotos" data-i="${i}" title="Incluir fotos deste dia (vão também para a galeria da obra)"><i class="fas fa-camera"></i> Fotos</button>`:''}${baixar}<button type="button" class="fin-bt mini" data-rd="pdfdia" data-i="${i}"><i class="fas fa-file-pdf"></i> PDF</button>${meu?`${r.auto!=='sim'||ehAdmRdo()?`<button type="button" class="fin-bt mini" data-rd="excluir" data-i="${i}" title="Excluir este registro"><i class="fas fa-trash"></i></button>`:''}${inc&&!ehAdmRdo()?'':`<button type="button" class="fin-bt mini" data-rd="fechar" data-i="${i}"${inc?' title="O diário está incompleto — o Administrador pode fechar assim mesmo"':''}><i class="fas fa-lock"></i> Fechar o dia</button>`}<button type="button" class="fin-bt mini pri" data-rd="editar" data-i="${i}">${inc?'<i class="fas fa-pen"></i> Continuar':'<i class="fas fa-pen"></i> Alterar'}</button>`:''}`;
         return `<article class="pm-dia2 rdo-dia2${fech?' fech':''}"><div class="pm-dia2-cab">
           <div class="pm-cal${fech?' fech':''}"><span class="m">${d?fe(MESES_RDO[d.getMonth()].slice(0,3).toUpperCase()):''}</span><span class="d">${d?d.getDate():'—'}</span><span class="s">${d?fe(DIAS_SEM[d.getDay()].slice(0,3).toLowerCase()):''}</span></div>
           <div class="pm-dia2-meta"><div class="pm-dia2-tit"><b>${d?`${fe(DIAS_SEM[d.getDay()])}, ${d.getDate()} de ${fe(MESES_RDO[d.getMonth()])}`:'Sem data'}</b>${st}${conferir}</div>
@@ -22911,7 +22916,7 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
     documentos:{sel:'data-doc-aba|data-ec-aba',itens:[['lista','Certidões e documentos (a lista)'],['notas','Notas fiscais — recebidas e emitidas (PDF e XML)'],['kit','Kit de documentos'],['dados','Dados da empresa'],['ass','Assinatura'],['ct','Contratantes'],['mun','Municípios (DAPS)'],['nfse','Nota fiscal (NFS-e): certificado e emissão']]},
     obras:{itens:[['orcamentos','Orçamento'],['cap','CAP'],['contrato','Contrato'],['medicao','Medição']]},
     pessoal:{sel:'data-ps-aba',itens:[['cadastro','Funcionários, ASO, NRs e EPI'],['ponto','Ponto da equipe nas obras']]},
-    diario:{sel:'data-rd-aba',itens:[['dias','Registros do dia'],['fisc','Serviços fiscalizados']]},
+    diario:{sel:'data-rd-aba',itens:[['dias','Registros do dia'],['fisc','Fiscalização']]},
     socios:{sel:'data-so2-aba',itens:[['mov','Movimentos'],['socio','Por sócio'],['obra','Por obra']]},
     acoes:{sel:'data-ta-aba',itens:[['agenda','Agenda de tarefas'],['3g','Relatório de Três Gerações']]},
     premoldados:{sel:'data-pm-aba',itens:[['painel','Painel'],['pecas','Peças e catálogo'],['planejamento','Planejamento'],['producao','Diário de produção'],['estoque','Estoque e avarias'],['vendas','Vendas'],['caixa','Fluxo de caixa'],['relatorios','Relatórios'],['parametros','Parâmetros']]}};
@@ -25769,7 +25774,7 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
     emitirNota,fichaNotaExtras,ligarFichaNota,antecipacao,desfazerAntecipacao,descontoAntecipacao,contratanteDaNota,cancelarNotaDoFaturamento,emitidasPendentes,listarArq,enviarArq,baixarArq,lerXmlNfse,KIT,_EC:EC,_SO2:SO2};
 })();
 
-/* ═══════════════ DIÁRIO DE OBRA › SERVIÇOS FISCALIZADOS ═══════════════
+/* ═══════════════ DIÁRIO DE OBRA › FISCALIZAÇÃO ═══════════════
    Uma tabela por obra com os serviços que a fiscalização (ou a própria equipe) mandou ajustar, e o caminho de cada um até
    ser aceito: ajuste necessário → respondeu (corrigiu) → aceitou, ou rejeitou novamente (novo ajuste). O contador soma
    cada ajuste e cada resposta. Tudo fica no Planejamento (os nomes internos ficaram os da 1ª versão, "reprov_…"):
@@ -25864,7 +25869,7 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
     if(obraFiltro&&obras.includes(obraFiltro)&&RV._filtroDiario!==obraFiltro){RV.obra=obraFiltro;RV._filtroDiario=obraFiltro;RV.sel.clear();}
     if(!RV.obra||!obras.includes(RV.obra)){RV.obra=obras.find(o=>itensDe(o).length)||obras.find(o=>cfgDe(o))||obras[0]||'';RV.sel.clear();}
     const ob=RV.obra;
-    if(!ob){box.innerHTML='<div class="fin-card"><div class="fin-vazio">Cadastre uma obra para usar a tabela de serviços fiscalizados.</div></div>';return;}
+    if(!ob){box.innerHTML='<div class="fin-card"><div class="fin-vazio">Cadastre uma obra para usar a tabela da Fiscalização.</div></div>';return;}
     const cols=colunas(ob),configurada=cols.length>0,its=itensDe(ob).map(it=>({it,s:estado(it),n:numDe(it)})),q=cn(RV.busca);
     // marcadas que já não existem (excluídas, outra obra) saem da marcação
     [...RV.sel].forEach(u=>{if(!its.some(x=>x.it.uid===u))RV.sel.delete(u);});
@@ -25889,10 +25894,10 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
     if(!configurada)corpo=`<div class="fin-card"><div class="fin-vazio rv-sem-cfg"><i class="fas fa-sliders"></i><p>${ehAdm()?'A tabela desta obra ainda não foi configurada. Em <b>Configurar a tabela</b>, escolha as colunas, o que cada uma aceita e quem inclui, exclui, aceita ou rejeita e responde.':'O Administrador ainda não configurou a tabela desta obra.'}</p>${ehAdm()?'<button type="button" class="fin-bt pri" data-rv="config"><i class="fas fa-sliders"></i> Configurar a tabela</button>':''}</div></div>`;
     else if(RV.ver==='historico')corpo=htmlHistoricoObra(ob);
     else if(!vis.length)corpo=`<div class="fin-card"><div class="fin-vazio">${its.length?'Nenhum serviço neste filtro.':'Nenhum serviço nesta obra ainda.'}${pode(ob,'incluir')&&!its.length?`<br><button type="button" class="fin-bt pri" data-rv="novo" style="margin-top:10px"><i class="fas fa-plus"></i> Incluir linha</button> <button type="button" class="fin-bt" data-rv="colar" style="margin-top:10px"><i class="fas fa-paste"></i> Colar da planilha</button>`:''}</div></div>`;
-    else corpo=`<div class="rv-tabela"><table class="rv-tab" data-sem-ordem><thead><tr><th class="rv-ck"><input type="checkbox" data-rv-todos title="Marcar todas as linhas da lista" aria-label="Marcar todas"></th><th>Nº</th>${cols.map(c=>`<th title="${fe(TIPOS[c.tipo]||'')}">${fe(c.nome)}</th>`).join('')}<th>Ajuste necessário</th><th>Situação</th><th class="num" title="Quantos ajustes o serviço já teve">Ajustes</th><th class="num" title="Quantas vezes foi respondido">Resp.</th><th>Último movimento</th><th></th></tr></thead>
-      <tbody>${vis.map(x=>linhaHtml(x,ob,cols)).join('')}</tbody></table></div><div class="rv-selbar" data-rv-selbar hidden></div>`;
+    else corpo=`<div class="rv-selbar" data-rv-selbar hidden></div><div class="rv-tabela"><table class="rv-tab" data-sem-ordem><thead><tr><th class="rv-ck"><input type="checkbox" data-rv-todos title="Marcar todas as linhas da lista" aria-label="Marcar todas"></th><th>Nº</th>${cols.map(c=>`<th title="${fe(TIPOS[c.tipo]||'')}">${fe(c.nome)}</th>`).join('')}<th>Ajuste necessário</th><th>Situação</th><th class="num" title="Quantos ajustes o serviço já teve">Ajustes</th><th class="num" title="Quantas vezes foi respondido">Resp.</th><th>Último movimento</th><th></th></tr></thead>
+      <tbody>${vis.map(x=>linhaHtml(x,ob,cols)).join('')}</tbody></table></div>`;
     box.innerHTML=`<div class="rv-wrap">
-      <div class="fin-cab"><div><h2>Serviços fiscalizados</h2><p>Cada obra tem a sua tabela. Quem fiscaliza registra o serviço e o <b>ajuste necessário</b>; quem responde informa a correção; quem fiscaliza confere e <b>aceita</b> ou <b>rejeita novamente</b> — o contador mostra quantos ajustes e respostas o mesmo serviço teve, e o histórico guarda quem fez cada coisa e quando. Marque várias linhas para agir em todas de uma vez.</p></div><div class="fin-filtros">${bts}</div></div>
+      <div class="fin-cab"><div><h2>Fiscalização</h2><p>Cada obra tem a sua tabela. Quem fiscaliza registra o serviço e o <b>ajuste necessário</b>; quem responde informa a correção; quem fiscaliza confere e <b>aceita</b> ou <b>rejeita novamente</b> — o contador mostra quantos ajustes e respostas o mesmo serviço teve, e o histórico guarda quem fez cada coisa e quando. Marque várias linhas para agir em todas de uma vez.</p></div><div class="fin-filtros">${bts}</div></div>
       ${filtros}
       ${configurada?`<div class="fin-kpis">${kpi(nSt('reprovado')?'vermelho':'verde','Aguardando correção',nSt('reprovado'),'serviços com ajuste sem resposta')}${kpi(nSt('respondido')?'laranja':'','Aguardando conferência',nSt('respondido'),'corrigidos, esperando aceitar')}${kpi('verde','Aceitos',nSt('aprovado'),its.length?`de ${its.length} na tabela`:'')}${kpi(nReinc?'vermelho':'','Reincidentes',nReinc,'2 ajustes ou mais')}${kpi(meuLado?'laranja':'','Aguardando você',meuLado,medDias!=null?`correção em ${medDias>=1?String(Math.round(medDias*10)/10).replace('.',',')+' dia(s)':medDias*24>=1?Math.round(medDias*24)+' h':'menos de 1 hora'}, em média`:'')}</div>`:''}
       <div class="rv-papel"><i class="fas fa-user-shield"></i> ${papelTxt}</div>
@@ -25904,7 +25909,7 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
       box.querySelectorAll('tr[data-rv-lin]').forEach(tr=>tr.classList.toggle('rv-marcada',RV.sel.has(tr.dataset.rvLin)));
       if(!bar)return;if(!M.length){bar.hidden=true;bar.innerHTML='';return;}
       const c=k=>M.filter(x=>transicao(x.s.st,k)).length,b=(a,rot,n,cls,ico)=>n?`<button type="button" class="fin-bt mini ${cls||''}" data-rvl="${a}"><i class="fas ${ico}"></i> ${rot} (${n})</button>`:'';
-      bar.hidden=false;bar.innerHTML=`<b>${M.length} marcada${M.length>1?'s':''}</b><div class="rv-selbar-bts">${pode(ob,'responder')?b('responder','Responder',c('respondeu'),'pri','fa-screwdriver-wrench'):''}${pode(ob,'reprovar')?b('aceitar','Aceitar',c('aprovou'),'verde','fa-check')+b('rejeitar','Rejeitar novamente',c('reprovou'),'','fa-circle-xmark'):''}${pode(ob,'incluir')?b('editar','Editar',M.length,'','fa-pen'):''}${pode(ob,'excluir')?b('excluir','Excluir',M.length,'err','fa-trash'):''}<button type="button" class="fin-bt mini" data-rvl="limpar">Desmarcar</button></div>`;};
+      bar.hidden=false;bar.innerHTML=`<b>${M.length} marcada${M.length>1?'s':''}</b><div class="rv-selbar-bts">${pode(ob,'responder')?b('responder','Responder',c('respondeu'),'pri','fa-screwdriver-wrench'):''}${pode(ob,'reprovar')?b('aceitar','Aceitar',c('aprovou'),'verde','fa-check')+b('rejeitar','Rejeitar novamente',c('reprovou'),'','fa-circle-xmark'):''}${pode(ob,'incluir')?b('editar','Editar',M.length,'','fa-pen'):''}${pode(ob,'excluir')?b('excluir','Excluir',M.length,'err','fa-trash'):''}</div>`;};
     pintarSel();
     // ligações (o contêiner é novo a cada desenho: os ouvintes não se acumulam)
     box.onchange=e=>{
@@ -26027,45 +26032,59 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
         toast('Texto editado — o de antes ficou no histórico.','success');}}],600);
   }
 
-  /* ── VÁRIAS DE UMA VEZ: as linhas marcadas na tabela ── */
+  /* ── VÁRIAS DE UMA VEZ: as linhas marcadas na tabela. Cada linha tem o SEU texto (o ajuste necessário, a resposta ou a
+     observação podem ser diferentes em cada uma) e, no Editar, os SEUS valores — tudo numa janela só, uma linha embaixo
+     da outra, para não precisar abrir uma janela por linha ── */
   function emLote(ob,a){
-    const its=[...RV.sel].map(itemDe).filter(it=>it&&it.titulo_obra===ob);if(!its.length)return toast('Marque as linhas na tabela.','error');
+    const its=[...RV.sel].map(itemDe).filter(it=>it&&it.titulo_obra===ob).sort((x,y)=>(+numDe(x)||0)-(+numDe(y)||0));if(!its.length)return toast('Marque as linhas na tabela.','error');
     if(a==='excluir')return excluirVarias(ob,its);
     if(a==='editar')return editarVarias(ob,its);
     const A={responder:'respondeu',aceitar:'aprovou',rejeitar:'reprovou'}[a];if(!A)return;
     if(!pode(ob,papelDe(A)))return semPermissao();
-    const ok=its.filter(it=>transicao(estado(it).st,A)),fora=its.length-ok.length,T=TXT[A];
+    const ok=its.filter(it=>transicao(estado(it).st,A)),fora=its.length-ok.length,T=TXT[A],cols=colunas(ob);
     if(!ok.length)return toast('Nenhuma das linhas marcadas está na situação para isto.','error');
-    const nums=ok.map(it=>numDe(it)).sort((x,y)=>x-y);
-    janela(`${T.tit} — ${ok.length} linha${ok.length>1?'s':''}`,`<div class="fin-resumo"><b>${ok.length} serviço${ok.length>1?'s':''}</b>: nº ${fe(nums.slice(0,30).join(', '))}${nums.length>30?'…':''}${fora?`<br><small>${fora} das marcadas ${fora>1?'ficam':'fica'} de fora (a situação não é para isto).</small>`:''}</div>
-      <div class="fin-fld"><label>${T.rot}${T.obg?' <span class="obg">*</span>':''}</label><textarea data-rv-txt rows="4" placeholder="${fe(T.ph)}"></textarea></div><small class="rv-dica">O mesmo texto vai para cada linha, e cada uma ganha o seu movimento no histórico${A==='reprovou'?' (e mais um ajuste no contador)':''}.</small>`,
-      [{html:T.bt,cls:'pri',acao:async j=>{const t=j.querySelector('[data-rv-txt]').value.trim();if(T.obg&&!t)throw new Error(`Escreva: ${T.rot.toLowerCase()}.`);
+    const bloco=it=>{const s=estado(it);
+      return `<div class="rv-lt-item" data-rv-it="${fe(it.uid)}"><div class="rv-lt-cab"><b>Nº ${fe(numDe(it))}</b><span>${fe(resumoValores(it,cols)||'—')}</span>${A==='reprovou'?`<span class="rv-ord">${s.nRep+1}º ajuste</span>`:''}</div>
+        ${s.ultRep?`<small class="rv-lt-ctx"><b>Ajuste:</b> ${fe(s.ultRep.texto||'—')}</small>`:''}${s.ultResp&&s.st!=='reprovado'?`<small class="rv-lt-ctx"><b>Resposta:</b> ${fe(s.ultResp.texto||'—')}</small>`:''}
+        <textarea data-rv-lt rows="2" placeholder="${fe(T.ph||'Observação (opcional)')}"></textarea></div>`;};
+    const j=janela(`${T.tit} — ${ok.length} linha${ok.length>1?'s':''}`,`<p class="rv-dica"><b>${fe(T.rot)}</b>${T.obg?' — em cada linha, o seu':' — em cada linha, se quiser'}. Cada linha ganha o seu movimento no histórico${A==='reprovou'?' e mais um ajuste no contador':''}.${fora?` <b>${fora}</b> das marcadas ${fora>1?'ficam':'fica'} de fora (a situação não é para isto).`:''}</p><div class="rv-lt-lista">${ok.map(bloco).join('')}</div>`,
+      [{html:T.bt,cls:'pri',acao:async j=>{
+        const txt=new Map([...j.querySelectorAll('[data-rv-it]')].map(d=>[d.dataset.rvIt,d.querySelector('[data-rv-lt]').value.trim()]));
+        if(T.obg){const vaz=ok.filter(it=>!txt.get(it.uid));
+          j.querySelectorAll('[data-rv-it]').forEach(d=>d.classList.toggle('rv-lt-falta',!txt.get(d.dataset.rvIt)));
+          if(vaz.length){const d=[...j.querySelectorAll('[data-rv-it]')].find(x=>x.dataset.rvIt===vaz[0].uid);if(d)d.querySelector('[data-rv-lt]').focus();
+            throw new Error(`Escreva em cada linha — ${vaz.length>1?'faltam':'falta'} o nº ${vaz.map(it=>numDe(it)).join(', ')}.`);}}
         // de novo com os dados de agora: só as que continuam na situação certa
         const agora=ok.map(it=>itemDe(it.uid)).filter(it=>it&&transicao(estado(it).st,A));if(!agora.length)throw new Error('As linhas mudaram enquanto a janela estava aberta — feche e confira.');
-        const evs=agora.map(it=>ev(it,A,t));
+        const evs=agora.map(it=>ev(it,A,txt.get(it.uid)||''));
         // as marcações saem ANTES de gravar (a tela é redesenhada no fim da gravação); se der erro, voltam
         agora.forEach(it=>RV.sel.delete(it.uid));
         try{await executar(async()=>{for(let i=0;i<evs.length;i+=6)await Promise.all(evs.slice(i,i+6).map(e=>salvar('Planejamento',e,null)));});}
         catch(x){agora.forEach(it=>RV.sel.add(it.uid));throw x;}
-        toast(T.ok(agora.length),'success');}}],680);
+        toast(T.ok(agora.length),'success');}}],780);
+    j.addEventListener('input',e=>{const t=e.target.closest('[data-rv-lt]');if(t&&t.value.trim())t.closest('[data-rv-it]').classList.remove('rv-lt-falta');});
+    const p=j.querySelector('[data-rv-lt]');if(p)setTimeout(()=>p.focus(),60);
   }
+  // editar várias: uma tabela com as linhas marcadas, cada uma com os seus valores (já preenchidos) — muda só o que precisa
   function editarVarias(ob,its){
     if(!pode(ob,'incluir'))return semPermissao();
     const cols=colunas(ob);
-    const j=janela(`Editar ${its.length} linha${its.length>1?'s':''} de uma vez`,`<p class="rv-dica">Marque as colunas que vão mudar e escreva o valor novo — ele vale para ${its.length>1?`as ${its.length} linhas marcadas`:'a linha marcada'}. As colunas sem marca ficam como estão em cada linha. A mudança fica no histórico de cada uma.</p>
-      <div class="rv-lote-cols">${cols.map(c=>`<div class="rv-lote-col"><label class="vk-chk"><input type="checkbox" data-rv-lc="${fe(c.k)}"> <b>${fe(c.nome)}</b> <small class="rv-tipo">${fe(TIPOS[c.tipo]||TIPOS.livre)}</small></label><input data-rv-c="${fe(c.k)}" data-rv-tipo="${fe(c.tipo||'livre')}" ${c.tipo==='num'?'inputmode="decimal"':''} placeholder="valor novo" disabled></div>`).join('')}</div>`,
-      [{html:'<i class="fas fa-floppy-disk"></i> Salvar nas marcadas',cls:'pri',acao:async j=>{
-        const sel=cols.filter(c=>j.querySelector(`[data-rv-lc="${c.k}"]`).checked);if(!sel.length)throw new Error('Marque pelo menos uma coluna para mudar.');
-        const v={};for(const c of sel){const x=String(j.querySelector(`[data-rv-c="${c.k}"]`).value||'').trim(),e=erroValor(c,x);if(e)throw new Error(`${c.nome}: ${e}.`);v[c.k]=x;}
-        const ops=[];its.forEach(it0=>{const it=itemDe(it0.uid);if(!it)return;const v0=lerJ(it.valores,{});
-          const mud=sel.filter(c=>String(v0[c.k]==null?'':v0[c.k]).trim()!==v[c.k]).map(c=>`${c.nome}: ${String(v0[c.k]||'—')} → ${v[c.k]||'—'}`);if(!mud.length)return;
-          ops.push([{...limpo(it),valores:{...v0,...v}},it.rowid,ev(it,'alterou',mud.join('; '))]);});
-        if(!ops.length)throw new Error('Nada mudou — as linhas já têm esses valores.');
+    const j=janela(`Editar ${its.length} linha${its.length>1?'s':''}`,`<p class="rv-dica">Cada linha com os seus valores — mude só o que precisa em cada uma. A mudança fica no histórico de cada linha (o que era e o que ficou).</p>
+      <div class="rv-ed-tab"><table data-sem-ordem><thead><tr><th>Nº</th>${cols.map(c=>`<th>${fe(c.nome)}${c.obg?' <span class="obg">*</span>':''}<small class="rv-tipo">${fe(TIPOS[c.tipo]||TIPOS.livre)}</small></th>`).join('')}</tr></thead>
+      <tbody>${its.map(it=>{const v=lerJ(it.valores,{});return `<tr data-rv-it="${fe(it.uid)}"><td class="rv-n">${fe(numDe(it))}</td>${cols.map(c=>`<td><input data-rv-c="${fe(c.k)}" data-rv-tipo="${fe(c.tipo||'livre')}" ${c.tipo==='num'?'inputmode="decimal"':''} value="${fe(v[c.k]==null?'':v[c.k])}"></td>`).join('')}</tr>`;}).join('')}</tbody></table></div>`,
+      [{html:'<i class="fas fa-floppy-disk"></i> Salvar',cls:'pri',acao:async j=>{
+        const ops=[],erros=[];
+        j.querySelectorAll('tr[data-rv-it]').forEach(tr=>{const it=itemDe(tr.dataset.rvIt);if(!it)return;const v0=lerJ(it.valores,{}),v={};
+          cols.forEach(c=>{const el=tr.querySelector(`[data-rv-c="${c.k}"]`),x=String(el?el.value:'').trim(),e=erroValor(c,x);
+            if(el)el.classList.toggle('rv-err-cel',!!e);if(e)erros.push(`nº ${numDe(it)} — ${c.nome}: ${e}`);v[c.k]=x;});
+          const mud=cols.filter(c=>String(v0[c.k]==null?'':v0[c.k]).trim()!==v[c.k]).map(c=>`${c.nome}: ${String(v0[c.k]||'—')} → ${v[c.k]||'—'}`);
+          if(mud.length)ops.push([{...limpo(it),valores:{...v0,...v}},it.rowid,ev(it,'alterou',mud.join('; '))]);});
+        if(erros.length)throw new Error(erros.slice(0,3).join(' · ')+(erros.length>3?` (e mais ${erros.length-3})`:''));
+        if(!ops.length)throw new Error('Nada mudou — nenhuma linha foi alterada.');
         const antes=[...RV.sel];RV.sel.clear();
         try{await executar(async()=>{for(let i=0;i<ops.length;i+=5)await Promise.all(ops.slice(i,i+5).map(async([o,rid,e])=>{await salvar('Planejamento',o,rid);await salvar('Planejamento',e,null);}));});}
         catch(x){antes.forEach(u=>RV.sel.add(u));throw x;}
-        toast(`${ops.length} linha${ops.length>1?'s':''} acertada${ops.length>1?'s':''}.`,'success');}}],760);
-    j.addEventListener('change',e=>{const c=e.target.closest('[data-rv-lc]');if(!c)return;const i=j.querySelector(`[data-rv-c="${c.dataset.rvLc}"]`);if(!i)return;i.disabled=!c.checked;if(c.checked)i.focus();});
+        toast(`${ops.length} linha${ops.length>1?'s':''} acertada${ops.length>1?'s':''}.`,'success');}}],Math.min(1200,380+cols.length*170));
     ligarTipos(j);
   }
 
@@ -26080,11 +26099,11 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
   }
   function excel(ob,vis,cols){
     if(!vis.length)return toast('Não há linhas para exportar.','error');
-    GS.baixarCSV('Servicos fiscalizados '+ob,['Nº',...cols.map(c=>c.nome),'Ajuste necessário','Última resposta','Situação','Ajustes','Respostas','Último movimento','Quem','Quando'],
+    GS.baixarCSV('Fiscalizacao '+ob,['Nº',...cols.map(c=>c.nome),'Ajuste necessário','Última resposta','Situação','Ajustes','Respostas','Último movimento','Quem','Quando'],
       vis.map(({it,s,n})=>{const v=lerJ(it.valores,{});return [n,...cols.map(c=>v[c.k]==null?'':v[c.k]),s.ultRep?s.ultRep.texto:'',s.ultResp?s.ultResp.texto:'',ST[s.st].rot,s.nRep,s.nResp,s.ultMov?rotEv(s.ultMov):'',s.ultMov?s.ultMov.por:'',s.ultMov?quando(s.ultMov.em):''];}));
   }
   function excelHistorico(ob){const L=evsObra(ob).filter(e=>!RV.quem||e.por===RV.quem);if(!L.length)return toast('Não há movimentos para exportar.','error');
-    GS.baixarCSV('Historico servicos fiscalizados '+ob,['Quando','Quem','O que fez','Nº','Detalhe','Texto de antes'],L.map(e=>[quando(e.em),e.por||'',rotEv(e),numHist(e)+(itemDe(e.item_uid)?'':' (excluída)'),e.texto||'',e.antes||'']));}
+    GS.baixarCSV('Historico fiscalizacao '+ob,['Quando','Quem','O que fez','Nº','Detalhe','Texto de antes'],L.map(e=>[quando(e.em),e.por||'',rotEv(e),numHist(e)+(itemDe(e.item_uid)?'':' (excluída)'),e.texto||'',e.antes||'']));}
 
   /* ── COLAR DA PLANILHA: as linhas copiadas do Excel / Google Planilhas (tabulação; também ; ou , de um CSV) ── */
   function lerPlanilha(txt){
@@ -26201,7 +26220,7 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
 .rv-cont{display:inline-flex;min-width:24px;height:22px;align-items:center;justify-content:center;border-radius:99px;background:#F2F4F7;color:#344054;font-weight:800;font-size:12px;padding:0 6px;}
 .rv-cont.alto{background:#B42318;color:#fff;}
 .rv-mov{font-size:12px;min-width:130px;} .rv-mov small{display:block;color:#667085;}
-.rv-selbar{position:sticky;bottom:0;z-index:5;display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:10px 14px;background:#0A0A52;color:#fff;border-radius:12px;box-shadow:0 8px 24px rgba(16,24,40,.22);font-size:13px;}
+.rv-selbar{position:sticky;top:-24px;z-index:5;display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:10px 14px;background:#0A0A52;color:#fff;border-radius:12px;box-shadow:0 8px 24px rgba(16,24,40,.22);font-size:13px;}
 .rv-selbar[hidden]{display:none;} .rv-selbar-bts{display:flex;gap:6px;flex-wrap:wrap;margin-left:auto;} .rv-selbar .fin-bt{border-color:transparent;}
 .rv-lote-cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px 14px;}
 .rv-lote-col{display:flex;flex-direction:column;gap:6px;padding:10px;border:1px solid #EAECF0;border-radius:10px;} .rv-lote-col input[data-rv-c]{height:36px;border:1px solid #D0D5DD;border-radius:8px;padding:0 10px;font:500 13px Inter,sans-serif;} .rv-lote-col input[data-rv-c]:disabled{background:#F9FAFB;color:#98A2B3;}
@@ -26235,6 +26254,17 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
 .rv-err-cel{border-color:#F04438!important;background:#FEF3F2!important;} .rv-ruim td.rv-n{color:#B42318;}
 textarea[data-rv-cola]{width:100%;font-family:inherit;}
 .rv-aba-n{display:inline-flex;min-width:18px;height:18px;padding:0 5px;margin-left:5px;border-radius:99px;background:#D92D20;color:#fff;font-size:10.5px;font-weight:800;align-items:center;justify-content:center;}
+.rv-lt-lista{display:flex;flex-direction:column;gap:10px;max-height:58vh;overflow:auto;padding-right:2px;}
+.rv-lt-item{border:1px solid #EAECF0;border-radius:10px;padding:10px 12px;background:#FCFCFD;display:flex;flex-direction:column;gap:5px;}
+.rv-lt-item.rv-lt-falta{border-color:#F04438;background:#FEF3F2;}
+.rv-lt-cab{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:13px;color:#344054;} .rv-lt-cab b{color:#101828;}
+.rv-lt-ctx{font-size:12px;color:#667085;line-height:1.4;}
+.rv-lt-item textarea{width:100%;min-height:56px;border:1px solid #D0D5DD;border-radius:8px;padding:8px 10px;font:500 13px Inter,sans-serif;resize:vertical;background:#fff;}
+.rv-ed-tab{overflow:auto;max-height:58vh;border:1px solid #EAECF0;border-radius:10px;}
+.rv-ed-tab table{border-collapse:collapse;min-width:100%;font-size:12.5px;}
+.rv-ed-tab th{position:sticky;top:0;z-index:1;background:#F8FAFC;text-align:left;font:800 10px Inter,sans-serif;text-transform:uppercase;color:#667085;padding:8px 6px;white-space:nowrap;} .rv-ed-tab th small{display:block;text-transform:none;margin:2px 0 0;}
+.rv-ed-tab td{padding:5px 6px;border-top:1px solid #F2F4F7;} .rv-ed-tab input{width:100%;min-width:120px;height:34px;border:1px solid #D0D5DD;border-radius:8px;padding:0 10px;font:500 13px Inter,sans-serif;}
+@media (max-width:900px){.rv-selbar{top:-16px;}}
 @media (max-width:640px){.rv-ver{margin-left:0;} .rv-busca{max-width:none;} .rv-selbar-bts{margin-left:0;}}`;
   document.head.appendChild(css);
   GS.reprov={render,pendentes,_RV:RV};
@@ -26248,7 +26278,7 @@ textarea[data-rv-cola]{width:100%;font-family:inherit;}
    versão nova em cada aba, para nunca ficar recarregando sem parar.
    A CADA PUBLICAÇÃO: trocar a VERSÃO abaixo e a do versao.json (na raiz e em public/) — as duas iguais. */
 (function(){
-  const VERSAO='2026-11-18a';window.VX_VERSAO=VERSAO;
+  const VERSAO='2026-11-18b';window.VX_VERSAO=VERSAO;
   let ultima=0,pendente=null;
   const ocupado=()=>!!(App&&App.state&&App.state._busy)||!!document.querySelector('#fin-ov.open,.modal-overlay.open,.pm-pop,.vx-perg-ov,.confirm-overlay.open');
   async function tentar(){
