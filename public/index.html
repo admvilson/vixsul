@@ -16356,6 +16356,7 @@ const Eng=(function(){
 .gf-tab small{display:block;font-size:11.5px;color:#6e6e73;}
 .gf-tab input{width:130px;padding:7px 9px;border:1px solid #d2d2d7;border-radius:9px;font:13px Inter,sans-serif;text-align:right;}
 .gf-tab tr.gf-tot td{font-weight:800;border-top:2px solid var(--text-1);}
+.ct-pos-tab td{vertical-align:top;} .ct-pos-tab td:not(:first-child){min-width:190px;} .ct-pos-cel{display:block;width:100%;text-align:left;background:none;border:1px solid transparent;border-radius:10px;padding:6px 8px;cursor:pointer;font:inherit;color:inherit;} .ct-pos-cel:hover{background:#F4F6FB;border-color:#E4E7EC;} .ct-pos-cel small{margin-top:5px;line-height:1.4;}
 .gf-rolar{overflow-x:auto;}
 .gf-tarefa{display:flex;gap:12px;align-items:flex-start;padding:12px 14px;border:1px solid #e8e8ed;border-left:4px solid #0071e3;border-radius:14px;background:#fff;}
 .gf-tarefa.atrasada{border-left-color:#D92D20;} .gf-tarefa.feita{border-left-color:#1DAA6C;opacity:.75;} .gf-tarefa.naofeita{border-left-color:#F79009;}
@@ -19293,6 +19294,7 @@ const Mascara=(function(){
       <div class="vk-top">${ms.html}<b>${r[K.nf]?'NF '+fe(r[K.nf]):r.medicao_numero?'Medição nº '+fe(r.medicao_numero):'Faturamento previsto'}</b>${r.medicao_numero&&r[K.nf]?pill('med. '+fe(r.medicao_numero),''):''}</div>
       <div class="vk-obra" title="${fe(x.obra)}"><i class="fas fa-helmet-safety"></i>${fe(x.obra||'—')}</div>
       ${r.antecipada==='sim'?`<div class="vk-sub">${pill('antecipada'+(x.col!=='recebida'&&dt(r.antec_previsto||r[K.rec])?' · previsto '+brDe(dt(r.antec_previsto||r[K.rec])).slice(0,5):''),'info','fa-forward-fast')}</div>`:''}
+      ${GS.docs&&GS.docs.garantiaPendente&&GS.docs.garantiaPendente(r,K)?`<div class="vk-sub">${pill('garantia retida não abatida','err','fa-shield-halved')}</div>`:''}
       <div class="vk-val"><span>bruto ${fmt(x.bruto)}</span><b>${fmt(x.liq)}</b></div>
       <div class="vk-pe">${x.col==='faturar'?pill('emitir a nota','warn','fa-file-pen'):x.col==='receber'&&antecPendente(r)&&venc&&venc<=hoje0()?pill('confirme o recebimento','warn','fa-circle-question'):vencePill(venc?isoDe(venc):'',x.col==='recebida'?r[K.rec]:'','recebida')}</div>
     </article>`;
@@ -19522,6 +19524,7 @@ const Mascara=(function(){
     const ed=pode('faturamento')&&(nova||GS.podeMexer(r)),mo=k=>val(r[K[k]])?fmt(val(r[K[k]])):'';
     // a nota que veio de uma medição já tem a obra da medição: não muda
     const travaObra=!nova&&!!r.medicao_rowid;
+    const gPend=!nova&&GS.docs&&GS.docs.garantiaPendente?GS.docs.garantiaPendente(r,K):null;
     // valores que vieram da nota (emitida pelo sistema ou com o XML anexado) ficam travados
     const daNota=!nova&&(!!r.nfse_chave||r.nfse_auto==='sim'),dIso=k=>dt(r[K[k]])?isoDe(dt(r[K[k]])):'';
     const embasa=!nova&&GS.docs&&GS.docs.ehEmbasa(GS.docs.contratanteDaNota(r,K));
@@ -19548,7 +19551,7 @@ const Mascara=(function(){
     // o líquido aparece uma vez só (no topo da ficha) e acompanha o que se digita
     const corpo=(nova?'':`<div class="vk-ficha-cab"><span class="vk-etq" style="--cor:${cc.cor}"><i class="fas ${cc.ico}"></i> ${cc.rot}</span>
         <div class="vk-num"><span>Líquido</span><b data-liq-cab>${fmt(liqF(r))}</b></div><div class="vk-num"><span>Situação</span><b>${pill(s[0],s[1]==='cinza'?'':s[1])}</b></div></div>
-      <ul class="vk-lista">${r.medicao_numero?`<li><i class="fas fa-ruler-combined"></i> Medição nº ${fe(r.medicao_numero)}</li>`:''}${(()=>{try{return JSON.parse(r.nfse_canceladas||'[]');}catch(e){return [];}})().map(c=>`<li style="color:#B42318"><i class="fas fa-ban"></i> NFS-e nº ${fe(c.numero||'')} cancelada em ${brDe(new Date(c.em))}</li>`).join('')}${r.nfse_substituida?`<li><i class="fas fa-right-left"></i> Esta nota substituiu outra NFS-e</li>`:''}${col==='recebida'?`<li><i class="fas fa-calendar-check"></i> Recebida em ${brDe(dt(r[K.rec]))}${antecipada?' — <b>por antecipação</b> (Avançar Fornecedores)':''}</li>`:col==='receber'&&!ed?`<li><i class="fas fa-calendar-day"></i> ${antecipada?'Recebimento antecipado até ':'Vence '}${v?brDe(v):'—'}</li>`:''}</ul>`)+(ed?campos:(col==='faturar'?'':resumoNota))
+      <ul class="vk-lista">${gPend?`<li style="color:#B42318"><i class="fas fa-shield-halved"></i> <b>Garantia retida não abatida:</b> o contrato tem a garantia na modalidade "Retenção na 1ª medição" e esta é a 1ª nota da obra, mas a garantia${gPend.valor?' ('+fmt(gPend.valor)+')':''} não saiu do líquido. ${col==='receber'&&ed?'Use o botão <b>Abater a garantia</b>.':col==='recebida'&&ed?'Se a contratante reteve a garantia, use <b>Desfazer recebimento</b>, depois <b>Abater a garantia</b> e registre o recebimento de novo.':''}</li>`:''}${r.medicao_numero?`<li><i class="fas fa-ruler-combined"></i> Medição nº ${fe(r.medicao_numero)}</li>`:''}${(()=>{try{return JSON.parse(r.nfse_canceladas||'[]');}catch(e){return [];}})().map(c=>`<li style="color:#B42318"><i class="fas fa-ban"></i> NFS-e nº ${fe(c.numero||'')} cancelada em ${brDe(new Date(c.em))}</li>`).join('')}${r.nfse_substituida?`<li><i class="fas fa-right-left"></i> Esta nota substituiu outra NFS-e</li>`:''}${col==='recebida'?`<li><i class="fas fa-calendar-check"></i> Recebida em ${brDe(dt(r[K.rec]))}${antecipada?' — <b>por antecipação</b> (Avançar Fornecedores)':''}</li>`:col==='receber'&&!ed?`<li><i class="fas fa-calendar-day"></i> ${antecipada?'Recebimento antecipado até ':'Vence '}${v?brDe(v):'—'}</li>`:''}</ul>`)+(ed?campos:(col==='faturar'?'':resumoNota))
       +(!nova&&col!=='faturar'&&GS.docs?GS.docs.fichaNotaExtras(r,K,col):'');
     const bts=[];
     if(ed&&!nova){
@@ -19556,6 +19559,7 @@ const Mascara=(function(){
       if(col==='faturar')bts.push({html:'<i class="fas fa-trash"></i> Excluir',acao:()=>{setTimeout(()=>confirmar('Excluir nota',`${r[K.nf]?'A NF '+fe(r[K.nf]):'O faturamento'} de ${fe(r[K.obra]||'')} (${fmt(val(r[K.bruto]))}) será excluído.${r.medicao_rowid?' A medição volta para "A faturar".':''}`,'Sim, excluir',async()=>{
         await executar(async()=>{await excluir('Faturamentos',r.rowid);const m=r.medicao_rowid&&(D().medicoes||[]).find(x=>String(x.rowid)===String(r.medicao_rowid));if(m)await salvar('Medições',{...copiaF(m),status:'Aprovada'},m.rowid);});toast('Nota excluída.','success');}),10);}});
       if(col==='faturar')bts.push({html:'<i class="fas fa-file-invoice"></i> Emitir a nota',acao:()=>{setTimeout(()=>emitirNota({k:'f',r,obra:r[K.obra]||''}),10);}});
+      if(col==='receber'&&gPend)bts.push({html:'<i class="fas fa-shield-halved"></i> Abater a garantia',acao:()=>{setTimeout(()=>GS.docs.abaterGarantia(r,K),10);}});
       if(col==='receber')bts.push({html:'<i class="fas fa-circle-check"></i> Registrar recebimento',acao:()=>{setTimeout(()=>receberNota(r),10);}});
       if(col==='recebida')bts.push({html:'<i class="fas fa-rotate-left"></i> Desfazer recebimento',acao:()=>{setTimeout(()=>desfazerRecebimento(r),10);}});
       // faturamento ainda sem nota que veio de uma medição: volta até a medição em andamento, sem excluir
@@ -19642,7 +19646,7 @@ const Mascara=(function(){
     {k:'execucao',rot:'Em execução',cor:'#1652D8',ico:'fa-helmet-safety',st:'Ganha - Em Andamento'},
     {k:'entregue',rot:'Entregue',cor:'#067647',ico:'fa-circle-check',st:'Ganha - Finalizada'},
     {k:'perdida',rot:'Perdida',cor:'#B42318',ico:'fa-circle-xmark',st:'Perdida - Por Preço'}];
-  const QO={busca:'',perdidas:false,antigas:false,ord:''};
+  const QO={busca:'',perdidas:false,antigas:false,ord:'',vista:'',posTodas:false};
   const colObra=o=>{const s=cn(Eng.statusObra(o));if(s.includes('perdida'))return 'perdida';if(s.includes('finalizada'))return 'entregue';if(s.includes('andamento'))return 'execucao';if(s.includes('ganha'))return 'ganha';if(s.includes('nao enviada'))return 'proposta';if(s.includes('aguardando')||s.includes('enviada'))return 'aguardando';return 'proposta';};
   const pillO=(t,c,ico)=>`<span class="vk-pill ${c||''}">${ico?`<i class="fas ${ico}"></i>`:''}${t}</span>`;
   const kR=(o,kws,fb)=>U.kRow(o,kws,fb);
@@ -19702,6 +19706,13 @@ const Mascara=(function(){
     const box=document.getElementById('ct-quadro');if(!box)return;
     const h=hoje0(),f=QO,todos=obrasVisiveis().map(dadosObra),ext=ehExt();
     const q=cn(f.busca),filtrados=todos.filter(x=>!q||cn([x.ob,getFuzzy(x.o,['numero_contrato','descricao'])].join(' ')).includes(q));
+    App._ctTodos=todos;
+    const nPos=ext?0:todos.filter(x=>x.col==='entregue').map(dadosPos).reduce((s,d)=>s+d.its.filter(it=>it.atrasado||(it.st==='pendente'&&it.semPedir>15)).length,0);
+    const abasCt=ext?'':`<div class="gf-abas" style="margin:2px 0 14px"><button type="button" class="gf-aba ${QO.vista!=='pos'?'on':''}" data-ct2v="quadro"><i class="fas fa-table-columns"></i> Quadro</button><button type="button" class="gf-aba ${QO.vista==='pos'?'on':''}" data-ct2v="pos"><i class="fas fa-box-archive"></i> Pós-entrega — garantia, TRD e CAT${nPos?` <span class="vk-pill err" style="margin-left:4px">${nPos}</span>`:''}</button></div>`;
+    if(QO.vista==='pos'&&!ext){
+      box.innerHTML=`<div class="gf">${cabG('Contratos','Depois da entrega: a devolução da garantia, o TRD (Termo de Recebimento Definitivo) e a CAT (acervo técnico) de cada obra — o que já pediu, quando, a previsão e o que já recebeu.','<button type="button" class="gf-bt" data-ct2="imprimir"><i class="fas fa-print"></i> Imprimir</button><button type="button" class="gf-bt" data-ct2="exportar"><i class="fas fa-file-excel"></i> Exportar</button>')}${abasCt}${renderPos(todos)}</div>`;
+      return ligarQuadroObras(box);
+    }
     const lim=addD(h,-180),vis=filtrados.filter(x=>x.col!=='perdida'||f.perdidas).filter(x=>x.col!=='entregue'||f.antigas||!(x.dO&&(x.dO.fimReal||x.dO.fim))||(x.dO.fimReal||x.dO.fim)>=lim);
     const cols=COLS_OB.filter(c=>c.k!=='perdida'||f.perdidas).map(c=>{const itens=vis.filter(x=>x.col===c.k).sort(QO.ord==='valor-'?(a,b)=>(b.valor||0)-(a.valor||0):QO.ord==='valor+'?(a,b)=>(a.valor||0)-(b.valor||0):QO.ord==='az'?(a,b)=>a.ob.localeCompare(b.ob,'pt-BR',{numeric:true}):QO.ord==='za'?(a,b)=>b.ob.localeCompare(a.ob,'pt-BR',{numeric:true}):(a,b)=>c.k==='proposta'?((a.lim||9e15)-(b.lim||9e15)):c.k==='execucao'?((a.dO&&a.dO.fim||9e15)-(b.dO&&b.dO.fim||9e15)):a.ob.localeCompare(b.ob,'pt-BR'));return {c,itens,total:itens.reduce((s,x)=>s+(x.valor||0),0)};});
     const S=a=>a.reduce((s,x)=>s+(x.valor||0),0),exec=todos.filter(x=>x.col==='execucao'),ganhas=todos.filter(x=>x.col==='ganha'),abertas=todos.filter(x=>x.col==='proposta'||x.col==='aguardando');
@@ -19711,7 +19722,7 @@ const Mascara=(function(){
     App._ctTodos=todos;
     box.innerHTML=`<div class="gf">
       ${cabG('Contratos','Da proposta à obra entregue: cada obra é um cartão. Arraste o cartão para mudar a fase (o sistema pede o limite de entrega, a data de envio, da ordem de serviço ou da entrega); clique para abrir a obra — <b>Orçamento</b>, <b>CAP</b>, <b>Contrato</b> (depois de ganha) e <b>Medição</b> (depois do contrato criado).',(ext?'':'<button type="button" class="gf-bt" data-ct2="imprimir"><i class="fas fa-print"></i> Imprimir</button><button type="button" class="gf-bt" data-ct2="exportar"><i class="fas fa-file-excel"></i> Exportar</button>')+(pode('obras')&&!ext?'<button type="button" class="gf-bt pri" data-ct2="nova"><i class="fas fa-plus"></i> Nova proposta / obra</button>':''))}
-      ${ext?'':`<div class="gf-kpis">
+      ${abasCt}${ext?'':`<div class="gf-kpis">
         ${kpiG('','fa-briefcase','Carteira a executar',Rk(saldoCart),medido3>0?`≈ ${fmtN(saldoCart/medido3,1)} mês(es) no ritmo atual de medição`:`${exec.length+ganhas.length} contrato(s)`)}
         ${kpiG('','fa-helmet-safety','Em execução',String(exec.length),`contratos que somam ${Rk(S(exec))}`)}
         ${kpiG('laranja','fa-file-signature','Propostas abertas',String(abertas.length),abertas.length?`${Rk(S(abertas))} em disputa`:'nenhuma proposta em aberto')}
@@ -19763,10 +19774,112 @@ const Mascara=(function(){
         if(pz&&(!dt(o[kT])||!ini||isoDe(ini)!==d))campos[kT]=isoDe(addD(dt(d),pz));
         await gravar({campos});}}],480);}
     if(col==='entregue'){const kF=kR(o,['termino_ocorrido','data_termino_ocorrido'],'termino_ocorrido');
-      return janela('Obra entregue',`<div class="fin-resumo"><b>${fe(x.ob)}</b><br>Confira se há medição final a lançar e se a garantia/caução pode ser liberada.</div>${campoData('Data de término (entrega)',dt(o[kF])?isoDe(dt(o[kF])):'')}`,[{html:'Cancelar'},{html:'Obra entregue',cls:'pri',acao:async j=>{const d=j.querySelector('[data-k="d"]').value;if(!d)throw new Error('Informe a data.');await gravar({campos:{[kF]:d}});}}],480);}
+      return janela('Obra entregue',`<div class="fin-resumo"><b>${fe(x.ob)}</b><br>Confira se há medição final a lançar. Depois, em <b>Contratos › Pós-entrega</b>, registre o pedido da devolução da garantia, do TRD e da CAT.</div>${campoData('Data de término (entrega)',dt(o[kF])?isoDe(dt(o[kF])):'')}`,[{html:'Cancelar'},{html:'Obra entregue',cls:'pri',acao:async j=>{const d=j.querySelector('[data-k="d"]').value;if(!d)throw new Error('Informe a data.');await gravar({campos:{[kF]:d}});}}],480);}
     if(col==='proposta')return janela('Proposta em preparação',`<div class="fin-resumo"><b>${fe(x.ob)}</b></div>${campoData('Limite de entrega da proposta *',dt(getFuzzy(o,['limite_proposta']))?isoDe(dt(getFuzzy(o,['limite_proposta']))):'')}`,[{html:'Confirmar',cls:'pri',acao:async j=>{const d=j.querySelector('[data-k="d"]').value;if(!d)throw new Error('Informe o limite de entrega da proposta.');await gravar({campos:{[kR(o,['limite_proposta'],'limite_proposta')]:d}});}}],460);
     if(col==='perdida')return janela('Proposta perdida',`<div class="fin-resumo"><b>${fe(x.ob)}</b></div><div class="fin-fld"><label>Motivo</label><select data-k="m"><option>Perdida - Por Preço</option><option>Perdida - Cancelada</option></select></div>`,[{html:'Cancelar'},{html:'Confirmar',cls:'pri',acao:async j=>{await gravar({status:j.querySelector('[data-k="m"]').value,campos:{}});}}],440);
     confirmar('Mudar a fase',`<b>${fe(x.ob)}</b> vai para <b>${c.rot}</b>.`,'Sim, mudar',async()=>{await gravar({campos:{}});});
+  }
+  /* ═══════════════ PÓS-ENTREGA — garantia de volta, TRD e CAT de cada obra entregue ═══════════════
+     Um registro por obra (Planejamento, tipo "pos_entrega") com os três pedidos: situação, quando pediu,
+     previsão, quando recebeu, nº/protocolo e observação — e, na garantia, o valor e o valor recebido. */
+  const POS=[{k:'g',rot:'Devolução da garantia',curto:'Garantia',ico:'fa-shield-halved',prazo:30},
+    {k:'trd',rot:'TRD — Termo de Recebimento Definitivo',curto:'TRD',ico:'fa-file-signature',prazo:90},
+    {k:'cat',rot:'CAT — Certidão de Acervo Técnico',curto:'CAT',ico:'fa-award',prazo:30}];
+  const ST_POS={pendente:['a pedir','warn'],pedido:['pedido · aguardando','info'],recebido:['recebido','ok'],nao_aplica:['não se aplica','']};
+  const posDe=ob=>(D().planejamento||[]).find(p=>p.tipo==='pos_entrega'&&p.titulo_obra===ob)||null;
+  // garantia que volta para a empresa: a retida nas notas (retenção na 1ª medição) ou a caução em dinheiro
+  function garantiaPos(ob){
+    const c=(Eng.contratoDe&&Eng.contratoDe(ob))||{},tipo=String(c.garantia_tipo||'').trim();
+    const gd=GS.docs&&GS.docs.garantiaDaObra?GS.docs.garantiaDaObra(ob):null;
+    if(gd)return {tipo,aplica:true,valor:gd.retido||gd.valor,naoAbatida:!gd.abatida};
+    if(/cau[cç]/i.test(tipo)){const pc=Mascara.numero(c.garantia_pct)||0;let vc=val(c.valor_contrato);if(!vc){try{vc=Eng.resumoMedicoes(ob).contrato||0;}catch(e){}}return {tipo,aplica:true,valor:Math.round(vc*pc)/100};}
+    return {tipo,aplica:false,valor:0};
+  }
+  function dadosPos(x){
+    const p=posDe(x.ob),h=hoje0(),ent=(x.dO&&(x.dO.fimReal||x.dO.fim))||null,gar=garantiaPos(x.ob);
+    const its=POS.map(it=>{const g=k=>p?String(p[it.k+'_'+k]||''):'';
+      const st=ST_POS[g('status')]?g('status'):(it.k==='g'&&!gar.aplica?'nao_aplica':'pendente');
+      const pedido=dt(g('pedido')),prev=dt(g('prev'))||(pedido?addD(pedido,it.prazo):null),receb=dt(g('receb'));
+      const valor=it.k==='g'?(g('valor')?val(g('valor')):gar.valor):0,valorRec=it.k==='g'?val(g('valor_rec')):0;
+      return {...it,st,pedido,prev,receb,prot:g('prot'),obs:g('obs'),valor,valorRec,atrasado:st==='pedido'&&!!prev&&prev<h,
+        semPedir:st==='pendente'&&ent?Math.max(0,dias(ent,h)):null,aberto:st==='pendente'||st==='pedido'};});
+    return {x,p,ent,gar,its,aberto:its.some(i=>i.aberto)};
+  }
+  function celPos(d,i,it){
+    const s=ST_POS[it.st],l=[],h=hoje0();
+    if(it.k==='g'&&it.st!=='nao_aplica')l.push('<b>'+(it.valor?fmt(it.valor):'valor a informar')+'</b>'+(it.st==='recebido'&&it.valorRec&&Math.abs(it.valorRec-it.valor)>.005?' · recebido '+fmt(it.valorRec):''));
+    if(it.st==='pendente'&&it.semPedir!=null)l.push('entregue há '+it.semPedir+' dia'+(it.semPedir===1?'':'s'));
+    if(it.pedido&&it.st!=='nao_aplica')l.push('pedido em '+brDe(it.pedido));
+    if(it.st==='pedido'&&it.prev)l.push(it.atrasado?`<b class="t-err">previsto ${brDe(it.prev)} · atrasado ${dias(it.prev,h)}d</b>`:'previsto '+brDe(it.prev)+' ('+quando(dias(h,it.prev))+')');
+    if(it.st==='recebido'&&it.receb)l.push('recebido em '+brDe(it.receb));
+    if(it.prot)l.push('nº '+fe(it.prot));
+    if(it.k==='g'&&d.gar.naoAbatida&&it.st!=='nao_aplica')l.push('<b class="t-err">não saiu de nenhuma nota</b>');
+    const cls=it.atrasado||(it.st==='pendente'&&it.semPedir>15)?'err':s[1];
+    return `<td><button type="button" class="ct-pos-cel" data-pos-i="${i}" data-pos-k="${it.k}" title="Clique para atualizar">${pillO(s[0],cls,it.st==='recebido'?'fa-check':it.ico)}<small>${l.join('<br>')}</small></button></td>`;
+  }
+  function renderPos(todos){
+    const h=hoje0(),q=cn(QO.busca),ed=pode('obras')&&!ehExt();
+    const lista=todos.filter(x=>x.col==='entregue').map(dadosPos).sort((a,b)=>(b.ent||0)-(a.ent||0));
+    App._posLista=lista;
+    const all=lista.flatMap(d=>d.its.map(it=>({d,it}))),de=k=>all.filter(({it})=>it.k===k);
+    const ab=k=>de(k).filter(({it})=>it.aberto),rec=k=>de(k).filter(({it})=>it.st==='recebido').length;
+    const sub=k=>{const l=ab(k),p=l.filter(({it})=>it.st==='pedido').length;return l.length?`${l.length-p} a pedir · ${p} aguardando`:'nada pendente';};
+    const gA=ab('g'),gV=gA.reduce((s,{it})=>s+(it.valor||0),0),gPed=gA.filter(({it})=>it.st==='pedido').reduce((s,{it})=>s+(it.valor||0),0);
+    const atr=all.filter(({it})=>it.atrasado).length,parado=all.filter(({it})=>it.st==='pendente'&&it.semPedir>15).length;
+    const vis=lista.map((d,i)=>[d,i]).filter(([d])=>(!q||cn([d.x.ob,getFuzzy(d.x.o,['numero_contrato'])].join(' ')).includes(q))&&(QO.posTodas||d.aberto));
+    return `${`<div class="gf-kpis">
+        ${kpiG(gV?'laranja':'verde','fa-shield-halved','Garantias a receber',Rk(gV),gA.length?`${gA.length} obra(s) · ${Rk(gPed)} já pedido`:'nenhuma garantia pendente')}
+        ${kpiG(ab('trd').length?'laranja':'verde','fa-file-signature','TRD pendentes',String(ab('trd').length),sub('trd'))}
+        ${kpiG(ab('cat').length?'laranja':'verde','fa-award','CAT pendentes',String(ab('cat').length),sub('cat'))}
+        ${kpiG(atr||parado?'vermelho':'verde','fa-triangle-exclamation','Pedindo ação',String(atr+parado),`${atr} atrasado(s) · ${parado} sem pedir há mais de 15 dias`)}
+        ${kpiG('','fa-folder-open','Acervo técnico',String(rec('cat')),`CAT recebida(s) · ${rec('trd')} TRD · ${rec('g')} garantia(s) devolvida(s)`)}
+      </div>`}
+      <div class="vk-filtros"><div class="pl2-busca"><i class="fas fa-magnifying-glass"></i><input data-ct2f="busca" placeholder="Obra, nº do contrato…" value="${fe(QO.busca)}"></div>
+        <label class="vk-chk"><input type="checkbox" data-ct2f="posTodas" ${QO.posTodas?'checked':''}> Mostrar também as obras com tudo resolvido</label></div>
+      <div class="gf-sec"><div class="gf-sec-cab"><div><h3>Obras entregues · o que pedir depois da entrega</h3><p>Entregou a obra? Peça a <b>devolução da garantia</b> (retida na 1ª medição ou caução), o <b>TRD</b> à contratante e a <b>CAT</b> no CREA (com o atestado da contratante). ${ed?'Clique em cada item para registrar quando pediu, a previsão e quando recebeu.':''}</p></div></div>
+        ${vis.length?`<div style="overflow-x:auto"><table class="gf-tab ct-pos-tab"><thead><tr><th>Obra</th>${POS.map(it=>`<th>${it.curto}</th>`).join('')}</tr></thead><tbody>
+          ${vis.map(([d,i])=>{const nCt=getFuzzy(d.x.o,['numero_contrato','num_contrato','n_contrato']);return `<tr><td><a href="#" data-ct2-al="${d.x.o.rowid}" style="color:inherit;text-decoration:none"><b>${fe(d.x.ob)}</b></a><small>${[nCt?'contrato nº '+fe(nCt):'',d.ent?'entregue em '+brDe(d.ent):'sem data de entrega'].filter(Boolean).join(' · ')}</small><small>garantia: ${fe(d.gar.tipo||'não informada no contrato')}</small></td>${d.its.map(it=>celPos(d,i,it)).join('')}</tr>`;}).join('')}
+        </tbody></table></div>`:`<div class="fin-vazio">${lista.length?'Nenhuma obra entregue com pendência — marque "Mostrar também as obras com tudo resolvido" para ver todas.':'Nenhuma obra entregue ainda. Quando arrastar uma obra para "Entregue" no quadro, ela aparece aqui.'}</div>`}
+      </div>`;
+  }
+  function editarPos(d,k){
+    const it=d.its.find(i=>i.k===k);if(!it)return;
+    if(!pode('obras')||ehExt())return toast('Seu perfil não altera o pós-entrega.','error');
+    const iso=x=>x?isoDe(x):'',p=d.p,g=n=>p?String(p[k+'_'+n]||''):'';
+    const ops=Object.entries(ST_POS).map(([v,[r]])=>`<option value="${v}" ${it.st===v?'selected':''}>${r[0].toUpperCase()+r.slice(1)}</option>`).join('');
+    const dica={g:`${d.gar.tipo?'Garantia do contrato: <b>'+fe(d.gar.tipo)+'</b>. ':''}Com a obra entregue, peça por ofício a devolução da garantia retida (ou da caução).${d.gar.naoAbatida?' <b>Atenção:</b> a garantia não saiu de nenhuma nota — confira a 1ª nota da obra no Faturamento (botão "Abater a garantia").':''}`,
+      trd:'O Termo de Recebimento Definitivo é emitido pela contratante depois do recebimento provisório e do prazo de observação que o contrato fixa (normalmente até 90 dias).',
+      cat:'A CAT sai no CREA com o atestado de capacidade técnica da contratante e a ART da obra — é o que monta o acervo técnico da empresa.'}[k];
+    janela(it.rot,`<div class="fin-resumo"><b>${fe(d.x.ob)}</b>${d.ent?' · entregue em '+brDe(d.ent):''}</div><p class="dica">${dica}</p>
+      <div class="fin-linha">
+        <div class="fin-fld"><label>Situação</label><select data-k="status">${ops}</select></div>
+        <div class="fin-fld"><label>Pedido em</label><input type="date" data-k="pedido" value="${iso(it.pedido)}"></div>
+        <div class="fin-fld"><label>Previsão de receber</label><input type="date" data-k="prev" value="${iso(dt(g('prev')))}"><div class="capx-dica" data-prev-dica>${it.pedido&&!g('prev')?'Vazio = '+brDe(it.prev)+' (pedido + '+it.prazo+' dias).':'Vazio = pedido + '+it.prazo+' dias.'}</div></div>
+        <div class="fin-fld"><label>Recebido em</label><input type="date" data-k="receb" value="${iso(it.receb)}"></div>
+        <div class="fin-fld"><label>${k==='g'?'Nº do ofício / protocolo':k==='trd'?'Nº do termo / protocolo':'Nº da CAT / protocolo'}</label><input data-k="prot" value="${fe(it.prot)}"></div>
+        ${k==='g'?`<div class="fin-fld"><label>Valor da garantia (R$)</label><input data-k="valor" data-mask="moeda" inputmode="numeric" value="${it.valor?fmt(it.valor):''}"></div><div class="fin-fld"><label>Valor recebido (R$)</label><input data-k="valor_rec" data-mask="moeda" inputmode="numeric" value="${it.valorRec?fmt(it.valorRec):''}"></div>`:''}
+        <div class="fin-fld" style="grid-column:1/-1"><label>Observação</label><textarea data-k="obs" rows="2">${fe(it.obs)}</textarea></div>
+      </div>`,
+      [{html:'Cancelar'},{html:'<i class="fas fa-floppy-disk"></i> Salvar',cls:'pri',acao:async j=>{
+        const v=n=>((j.querySelector(`[data-k="${n}"]`)||{}).value||'').trim(),hj=isoDe(hoje0()),st=v('status');
+        if(st==='pedido'&&!v('pedido'))throw new Error('Informe a data em que pediu.');
+        if(st==='recebido'&&!v('receb'))throw new Error('Informe a data em que recebeu.');
+        if(v('pedido')>hj)throw new Error('A data do pedido não pode ser no futuro.');
+        if(v('receb')>hj)throw new Error('A data do recebimento não pode ser no futuro.');
+        if(v('pedido')&&v('receb')&&v('receb')<v('pedido'))throw new Error('O recebimento não pode ser antes do pedido.');
+        if(v('pedido')&&v('prev')&&v('prev')<v('pedido'))throw new Error('A previsão não pode ser antes do pedido.');
+        const p0=posDe(d.x.ob),o=p0?{...p0}:{tipo:'pos_entrega',titulo_obra:d.x.ob};delete o.rowid;delete o.visualId;delete o._aba;
+        o[k+'_status']=st;['pedido','prev','receb','prot','obs'].forEach(n=>{o[k+'_'+n]=v(n);});
+        if(k==='g'){const vv=Mascara.numero(v('valor'))||0,vr=Mascara.numero(v('valor_rec'))||0;o.g_valor=vv?dinheiro(vv):'';o.g_valor_rec=vr?dinheiro(vr):(st==='recebido'&&(vv||it.valor)?dinheiro(vv||it.valor):'');}
+        o[k+'_alterado_em']=new Date().toISOString();
+        await executar(()=>salvar('Planejamento',o,p0?p0.rowid:null));
+        toast(`${it.curto} — ${d.x.ob}: ${ST_POS[st][0]}.`,'success');}}],600);
+    const j=document.getElementById('fin-jan'),q=n=>j.querySelector(`[data-k="${n}"]`);
+    // a data do pedido passa a situação para "pedido"; a do recebimento, para "recebido"
+    j.addEventListener('change',e=>{const n=e.target.dataset.k;
+      if(n==='pedido'&&q('pedido').value&&q('status').value==='pendente')q('status').value='pedido';
+      if(n==='receb'&&q('receb').value)q('status').value='recebido';
+      if(n==='pedido'||n==='prev'){const dc=j.querySelector('[data-prev-dica]');if(dc)dc.textContent=q('pedido').value&&!q('prev').value?'Vazio = '+brDe(addD(dt(q('pedido').value),it.prazo))+' (pedido + '+it.prazo+' dias).':'Vazio = pedido + '+it.prazo+' dias.';}});
   }
   function abrirContrato(rowid){UI.openObraHub(+rowid);setTimeout(()=>{try{UI._obraHubTab('contrato');}catch(e){}},120);}
   function ligarQuadroObras(box){
@@ -19774,9 +19887,18 @@ const Mascara=(function(){
     box.oninput=ev=>{const t=ev.target.closest('[data-ct2f="busca"]');if(t){QO.busca=t.value;clearTimeout(QO._t);QO._t=setTimeout(()=>{re();const i=document.querySelector('#ct-quadro [data-ct2f="busca"]');if(i){i.focus();i.setSelectionRange(i.value.length,i.value.length);}},280);}};
     box.onchange=ev=>{const t=ev.target.closest('[data-ct2f]');if(!t||t.dataset.ct2f==='busca')return;QO[t.dataset.ct2f]=t.type==='checkbox'?t.checked:t.value;re();};
     box.onclick=ev=>{
+      const vv=ev.target.closest('[data-ct2v]');if(vv){QO.vista=vv.dataset.ct2v==='pos'?'pos':'';return re();}
+      const pc=ev.target.closest('[data-pos-i]');if(pc){const d=(App._posLista||[])[+pc.dataset.posI];if(d)editarPos(d,pc.dataset.posK);return;}
       const al=ev.target.closest('[data-ct2-al]');if(al){ev.preventDefault();return abrirContrato(al.dataset.ct2Al);}
       const b=ev.target.closest('[data-ct2]');if(b){ev.preventDefault();const a=b.dataset.ct2;
         if(a==='nova')return UI.openObraHub(null);
+        if(QO.vista==='pos'&&(a==='exportar'||a==='imprimir')){
+          const l=App._posLista||[],tx=it=>[ST_POS[it.st][0],it.k==='g'&&it.valor?fmt(it.valor):'',it.pedido?'pedido '+brDe(it.pedido):'',it.st==='pedido'&&it.prev?'previsto '+brDe(it.prev)+(it.atrasado?' (atrasado)':''):'',it.receb?'recebido '+brDe(it.receb):'',it.prot?'nº '+it.prot:''].filter(Boolean).join(' · ');
+          if(a==='exportar'){const cab=['Obra','Nº contrato','Entregue em','Tipo de garantia'];POS.forEach(it=>cab.push(it.curto+' — situação',it.curto+' — pedido em',it.curto+' — previsão',it.curto+' — recebido em',it.curto+' — nº/protocolo'));cab.push('Garantia — valor','Garantia — valor recebido');
+            GS.baixarCSV('pos-entrega',cab,l.map(d=>{const r=[d.x.ob,getFuzzy(d.x.o,['numero_contrato'])||'',d.ent?brDe(d.ent):'',d.gar.tipo||''];d.its.forEach(it=>r.push(ST_POS[it.st][0],it.pedido?brDe(it.pedido):'',it.prev?brDe(it.prev):'',it.receb?brDe(it.receb):'',it.prot||''));const g=d.its[0];r.push(g.valor?n2(g.valor):'',g.valorRec?n2(g.valorRec):'');return r;}));
+            return toast(`${l.length} obra(s) exportada(s).`,'success');}
+          return App._relExportPaginado({titulo:'Pós-entrega das obras',subLinhas:['Devolução da garantia, TRD e CAT'],paisagem:true,theadHtml:'<tr><th>Obra</th><th>Entregue em</th><th>Garantia</th><th>TRD</th><th>CAT</th></tr>',
+            rowsArr:l.map(d=>`<tr><td>${fe(d.x.ob)}</td><td>${d.ent?brDe(d.ent):'—'}</td>${d.its.map(it=>`<td>${fe(tx(it))}</td>`).join('')}</tr>`)});}
         if(a==='exportar'){const l=App._ctTodos||[];GS.baixarCSV('contratos',['Obra','Fase','Situação','Nº contrato','Valor','Saldo a medir','Início','Término vigente','Alertas'],l.map(x=>[x.ob,COLS_OB.find(c=>c.k===x.col).rot,Eng.statusObra(x.o),getFuzzy(x.o,['numero_contrato'])||'',n2(x.valor||0),x.saldo?n2(x.saldo):'',x.dO&&x.dO.ini?brDe(x.dO.ini):'',x.dO&&x.dO.fim?brDe(x.dO.fim):'',x.alertas.map(a=>a[1]).join(' · ')]));return toast(`${l.length} obra(s) exportada(s).`,'success');}
         if(a==='imprimir'){const l=(App._ctTodos||[]).filter(x=>x.col!=='perdida'||QO.perdidas).sort((p,q)=>COLS_OB.findIndex(c=>c.k===p.col)-COLS_OB.findIndex(c=>c.k===q.col));
           return App._relExportPaginado({titulo:'Contratos',subLinhas:['Da proposta à obra entregue'],paisagem:true,theadHtml:'<tr><th>Fase</th><th>Obra</th><th>Nº contrato</th><th style="text-align:right">Valor</th><th style="text-align:right">Saldo a medir</th><th>Término vigente</th><th>Alertas</th></tr>',
@@ -23866,8 +23988,51 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
     const meds=(D().medicoes||[]).filter(x=>x.titulo_obra===ob);
     const menor=Math.min(...meds.map(x=>+x.numero||Infinity));if((+m.numero||Infinity)!==menor)return 0;
     // já descontada numa nota de outra medição?
-    const outra=(D().faturamentos||[]).some(f=>getFuzzy(f,['titulo_obra'])===ob&&f.medicao_rowid&&String(f.medicao_rowid)!==String(m.rowid)&&f.garantia_retida==='sim');
+    const outra=(D().faturamentos||[]).some(f=>getFuzzy(f,['titulo_obra'])===ob&&String(f.medicao_rowid||'')!==String(m.rowid)&&f.garantia_retida==='sim');
     return outra?0:g.valor;
+  }
+  // a garantia da obra já saiu de alguma nota? qual nota deveria levar (a da 1ª medição; sem ligação, a 1ª emitida)?
+  function garantiaDaObra(ob){
+    const g=infoGarantia(ob);if(!g)return null;
+    const K=GS.fat.KF(),meds=(D().medicoes||[]).filter(x=>x.titulo_obra===ob);
+    const fs=(D().faturamentos||[]).filter(f=>(getFuzzy(f,['titulo_obra'])||'')===ob&&GS.fat.ehReal(f,K));
+    const abat=fs.filter(f=>f.garantia_retida==='sim'||val(f[K.seguro])>0);
+    // a 1ª medição da obra: se a nota dela está no sistema, é ela; se ela ainda vai ser faturada, a garantia sai na emissão
+    const menor=meds.length?Math.min(...meds.map(x=>+x.numero||1e9)):null,m1=meds.find(x=>(+x.numero||1e9)===menor)||null;
+    const lig=m1?(D().faturamentos||[]).filter(f=>String(f.medicao_rowid||'')===String(m1.rowid)):[];
+    let nota=abat[0]||lig.find(f=>GS.fat.ehReal(f,K))||null;
+    if(!nota&&!lig.length&&!(m1&&!/faturad/i.test(m1.status||'')))   // sem medição (ou a 1ª faturada numa nota avulsa): a 1ª nota emitida
+      nota=fs.slice().sort((a,b)=>(dt(a[K.em])||0)-(dt(b[K.em])||0))[0]||null;
+    return {...g,retido:abat.reduce((s,f)=>s+val(f[K.seguro]),0),abatida:abat.length>0,nota};
+  }
+  // esta nota (emitida) é a que deveria ter a garantia e ela não saiu? → o que falta abater
+  function garantiaPendente(r,K){
+    K=K||GS.fat.KF();if(!r||!GS.fat.ehReal(r,K)||val(r[K.seguro])>0||r.garantia_retida==='sim')return null;
+    const gd=garantiaDaObra(r[K.obra]||getFuzzy(r,['titulo_obra'])||'');
+    return gd&&!gd.abatida&&gd.nota&&String(gd.nota.rowid)===String(r.rowid)?gd:null;
+  }
+  // nota emitida sem ligação com medição: leva a garantia se for a 1ª nota da obra
+  function retencaoSemMedicao(ob,r){
+    const gd=garantiaDaObra(ob);if(!gd||gd.abatida||!(gd.valor>0))return 0;
+    const K=GS.fat.KF(),outra=(D().faturamentos||[]).some(f=>(getFuzzy(f,['titulo_obra'])||'')===ob&&GS.fat.ehReal(f,K)&&String(f.rowid)!==String((r&&r.rowid)||''));
+    return outra?0:gd.valor;
+  }
+  // abater a garantia numa nota já emitida: entra em "Garantia retida" e sai do líquido a receber
+  function abaterGarantia(r,K){
+    K=K||GS.fat.KF();const ob=r[K.obra]||'',gd=garantiaDaObra(ob)||{};
+    janela('Abater a garantia retida',`<div class="fin-resumo"><b>${fe(ob)}</b> · NF ${fe(r[K.nf]||'—')} · bruto ${fmt(val(r[K.bruto]))}</div>
+      <p class="dica">O contrato tem a garantia na modalidade <b>"Retenção na 1ª medição"</b>${gd.pct?` (${String(gd.pct).replace('.',',')}% de ${fmt(gd.vc)})`:''}. O valor entra em <b>Garantia retida</b> nesta nota e sai do líquido a receber. Depois da entrega da obra, peça a devolução em <b>Contratos › Pós-entrega</b>.</p>
+      ${gd.pct?'':'<div class="fin-aviso"><div>O <b>% da garantia</b> não está no contrato da obra — digite o valor retido (ou preencha o % no contrato).</div></div>'}
+      <div class="fin-linha"><div class="fin-fld"><label>Garantia retida (R$) <span class="obg">*</span></label><input data-k="g" data-mask="moeda" inputmode="numeric" value="${gd.valor?fmt(gd.valor):''}"></div><div class="fin-resumo" data-liq style="grid-column:1/-1"></div></div>`,
+      [{html:'Cancelar'},{html:'<i class="fas fa-shield-halved"></i> Abater',cls:'pri',acao:async j=>{
+        const v=Mascara.numero(j.querySelector('[data-k="g"]').value)||0;if(!(v>0))throw new Error('Informe o valor da garantia retida.');
+        const o={...r};delete o.rowid;delete o.visualId;delete o._aba;
+        o[K.seguro]=dinheiro(v);o.garantia_retida='sim';
+        const l=val(o[K.bruto])-GS.fat.RET.reduce((s,k)=>s+val(o[K[k]]),0);if(l<0)throw new Error('As retenções passam do valor bruto.');
+        o[K.liq]=dinheiro(l);
+        await executar(()=>salvar('Faturamentos',o,r.rowid));toast('Garantia abatida: o líquido a receber da NF '+(r[K.nf]||'')+' ficou '+fmt(l)+'.','success');}}],520);
+    const j=document.getElementById('fin-jan'),liq=()=>{const v=Mascara.numero(j.querySelector('[data-k="g"]').value)||0,l=val(r[K.bruto])-GS.fat.RET.reduce((s,k)=>s+(k==='seguro'?v:val(r[K[k]])),0);j.querySelector('[data-liq]').innerHTML=`Líquido a receber: ${fmt(val(r[K.liq]))} → <b style="color:var(--blue)">${fmt(l)}</b>`;};
+    j.oninput=liq;liq();
   }
 
   /* ═══════════════ DOCUMENTOS GERADOS (papel timbrado, assinados) ═══════════════ */
@@ -24791,7 +24956,7 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
     const pf=v=>(Math.round(v*100)/100).toLocaleString('pt-BR',{maximumFractionDigits:2});
     const obra=(D().obras||[]).find(o=>(getFuzzy(o,['titulo_obra','nome_obra','titulo'])||'')===ob)||{},ct=(Eng.contratoDe&&Eng.contratoDe(ob))||{};
     const numCt=getFuzzy(obra,['numero_contrato','num_contrato','n_contrato'])||'',contratante=ct.contratante||'',docCt=ct.cnpj_contratante||(contratanteDe(contratante)||{}).doc||'';
-    const cidade=getFuzzy(obra,['cidade_obra'])||ct.cidade_obra||'',ret=med?retencao1aMed(ob,med):0,g=infoGarantia(ob);
+    const cidade=getFuzzy(obra,['cidade_obra'])||ct.cidade_obra||'',ret=med?retencao1aMed(ob,med):(!ehM&&!val(r[K.seguro])?(GS.fat.ehReal(r,K)?((garantiaPendente(r,K)||{}).valor||0):retencaoSemMedicao(ob,r)):0),g=infoGarantia(ob)||{pct:0,vc:0};
     const seguro0=!ehM&&val(r[K.seguro])?val(r[K.seguro]):ret,antec0=!ehM?val(r[K.antec]):0;
     const ofIss=obraFiscal(ob),issRet0=(ofIss.iss_retido||'sim')==='sim',aliq0=ofIss.aliq||nfc().aliq||'2';
     // endereço do tomador (a Receita exige quando o ISS é retido): o do cadastro do contratante, o da EMBASA ou pelo CNPJ
@@ -26026,7 +26191,7 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
   const sair=Auth.logout;
   Auth.logout=function(){fecharModais();esconderAviso();clearTimeout(tAviso);return sair.apply(this,arguments);};
 
-  GS.docs={empresa,assinatura,contratantes,contratanteDe,salvarContratante,datalistContratantes,ehEmbasa,exigeDaps,marcarDaps,infoGarantia,retencao1aMed,imprimirDoc,gerados,gerarSolicitacaoGarantia,
+  GS.docs={empresa,assinatura,contratantes,contratanteDe,salvarContratante,datalistContratantes,ehEmbasa,exigeDaps,marcarDaps,infoGarantia,retencao1aMed,garantiaDaObra,garantiaPendente,abaterGarantia,imprimirDoc,gerados,gerarSolicitacaoGarantia,
     emitirNota,fichaNotaExtras,ligarFichaNota,antecipacao,desfazerAntecipacao,descontoAntecipacao,contratanteDaNota,cancelarNotaDoFaturamento,emitidasPendentes,listarArq,enviarArq,baixarArq,lerXmlNfse,KIT,_EC:EC,_SO2:SO2};
 })();
 
@@ -26778,7 +26943,7 @@ textarea[data-rv-cola]{width:100%;font-family:inherit;}
    versão nova em cada aba, para nunca ficar recarregando sem parar.
    A CADA PUBLICAÇÃO: trocar a VERSÃO abaixo e a do versao.json (na raiz e em public/) — as duas iguais. */
 (function(){
-  const VERSAO='2026-11-18k';window.VX_VERSAO=VERSAO;
+  const VERSAO='2026-11-19a';window.VX_VERSAO=VERSAO;
   let ultima=0,pendente=null;
   const ocupado=()=>!!(App&&App.state&&App.state._busy)||!!document.querySelector('#fin-ov.open,.modal-overlay.open,.pm-pop,.vx-perg-ov,.confirm-overlay.open');
   async function tentar(){
