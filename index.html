@@ -10898,6 +10898,11 @@ window.onload=()=>{
 .conc-arq{align-items:center;} .conc-tipo{flex:none;display:inline-flex;align-items:center;gap:6px;font:700 12px Inter,sans-serif;color:#1849A9;background:#EFF4FF;border:1px solid #B2CCFF;border-radius:999px;padding:4px 11px;white-space:nowrap;}
 .fin-aviso.cartao{background:#FAF7FF;border-color:#E9D7FE;} .fin-aviso.cartao .conc-tipo{color:#6941C6;background:#F4EBFF;border-color:#D6BBFB;}
 @media (max-width:560px){.conc-arq{flex-direction:column;align-items:flex-start;gap:6px;}}
+/* o vencimento da fatura do cartão (lido do arquivo ou digitado) e o acerto das contas já conciliadas */
+.cc-vfat{display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px;margin:-4px 0 12px;padding:9px 12px;border:1px solid #C7D7FE;background:#F5F8FF;border-radius:10px;font-size:12.5px;color:#344054;}
+.cc-vfat label{display:inline-flex;align-items:center;gap:8px;font-weight:700;color:#1849A9;} .cc-vfat input{height:34px;border:1px solid #B2CCFF;border-radius:8px;padding:0 8px;font:600 13px Inter,sans-serif;background:#fff;}
+.cc-vfat small{flex:1 1 280px;color:#475467;line-height:1.4;} .cc-vfat.falta{border-color:#FEDF89;background:#FFFAEB;} .cc-vfat.falta small b{color:#B54708;}
+.cc-acerto{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;margin:-4px 0 12px;padding:9px 12px;border:1px solid #FEDF89;background:#FFFAEB;border-radius:10px;font-size:12.5px;color:#93370D;} .cc-acerto span{flex:1 1 280px;}
 .cc-conf{border:1px solid #E4E9F2;border-radius:14px;background:#fff;padding:10px 14px;margin:0 0 12px;} .cc-conf-cab{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 10px;margin-bottom:6px;} .cc-conf-cab b{font-size:13.5px;color:#101828;} .cc-conf-cab b i{color:#1652D8;margin-right:4px;} .cc-conf-cab small{font-size:11.5px;color:#667085;}.cc-conf ul{list-style:none;margin:0;padding:0;display:grid;gap:4px;} .cc-conf li{display:flex;flex-wrap:wrap;align-items:center;gap:4px 14px;padding:7px 10px;border-radius:10px;background:#F8FAFC;font-size:12.5px;color:#475467;} .cc-conf li>b{min-width:110px;color:#101828;} .cc-conf li span b{color:#101828;font-variant-numeric:tabular-nums;}.cc-conf li em{margin-left:auto;font-style:normal;font-weight:800;white-space:nowrap;} .cc-conf li.ok{background:#ECFDF3;} .cc-conf li.ok em{color:#067647;} .cc-conf li.err{background:#FEF3F2;} .cc-conf li.err em{color:#B42318;} .cc-conf li em.sem{color:#667085;font-weight:600;}
 .cc-mostra{font-size:12px;color:#667085;margin-left:auto;}
 .cc-lados{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:2px 0 10px;}
@@ -11301,11 +11306,50 @@ const Fin=(function(){
   const simNaoValor=g=>{const r=g&&g.querySelector('input[type="radio"]:checked');return r?r.value:'';};
   function simNaoLigar(g,fn){if(!g)return;g.addEventListener('change',()=>{g.classList.remove('sn-falta');g.querySelectorAll('.sn-op').forEach(l=>l.classList.toggle('on',!!l.querySelector('input').checked));if(fn)fn(simNaoValor(g));});}
   // dá a baixa: grava a situação "pago/recebido" + a data, nos campos que o próprio sistema usa
+  /* VENCIMENTO PELO EXTRATO (o dono pediu — melhora o fluxo de caixa projetado): na FATURA DO CARTÃO DE CRÉDITO, a conta
+     conciliada vence e sai do caixa no VENCIMENTO DA FATURA, não na data da compra (fica "a pagar" até lá e vira paga sozinha
+     nesse dia), e as próximas parcelas da mesma compra vencem um mês depois da outra a partir dele. No EXTRATO DA CONTA, a
+     conta paga por PIX ou débito vence no dia em que saiu do banco. O vencimento de antes fica guardado (venc_antes_conc,
+     venc_mudou_conc = a linha que mudou) e o Desfazer devolve. */
+  const vencFat=()=>{const e=CONC.extrato;return e&&e.cartaoFatura&&/^\d{4}-\d{2}-\d{2}$/.test(e.vencFatura||'')?e.vencFatura:'';};
+  const kVencDe=m=>m.tipo==='custo'?kRow(m.r,['vencimento'],'vencimento'):m.tipo==='despesa'?kRow(m.r,['data_despesa'],'data_despesa'):'';
+  const FORMA_SAIDA=/pix|d[eé]bito|transfer|\bted\b|\bdoc\b/i;
+  // no extrato da conta: paga por PIX/débito (a forma da conta; sem forma, a que a linha do banco diz) → vence no dia da saída
+  const vencPelaSaida=(m,t)=>(m.tipo==='custo'||m.tipo==='despesa')&&FORMA_SAIDA.test(String(m.r.forma_pagamento||'').trim()||formaDoExtrato(t&&t.desc)||'');
+  const nParc=r=>{const x=String(getFuzzy(r,['descricao'])||'').match(/\((\d{1,2})\/(\d{1,2})\)\s*$/);return x?+x[1]:null;};
+  // as próximas parcelas da mesma compra (grupo_parcelas), em aberto e ainda sem extrato: um mês depois da outra a partir do vencimento da fatura
+  async function empurrarParcelas(m,vf,id){
+    const g=m.r.grupo_parcelas,n0=nParc(m.r);if(!g||!n0||!(m.tipo==='custo'||m.tipo==='despesa'))return 0;
+    let k=0;
+    for(const mm of movimentos().filter(x=>(x.tipo==='custo'||x.tipo==='despesa')&&x.r.grupo_parcelas===g&&String(x.r.rowid)!==String(m.r.rowid)&&!x.pago&&!x.r.conciliacao_baixa)){
+      const n=nParc(mm.r);if(!n||n<=n0)continue;const kv=kVencDe(mm),nv=isoDe(GS.contas.somaMes(dt(vf),n-n0));if(!kv||String(mm.r[kv]||'')===nv)continue;
+      const o={...mm.r,[kv]:nv,venc_ajuste_conc:id};if(!mm.r.venc_ajuste_conc&&!mm.r.venc_mudou_conc)o.venc_antes_conc=String(mm.r[kv]||'');
+      await salvar(mm.r._aba||ABA[mm.tipo],o,mm.r.rowid);k++;}
+    return k;}
+  /* ACERTAR OS JÁ CONCILIADOS (as contas lançadas antes desta regra): com a fatura (ou o extrato) importada, as contas que
+     ela JÁ baixou passam a ter o vencimento da regra — no cartão, também a saída do caixa no vencimento da fatura e as
+     próximas parcelas a partir dele. O Desfazer de cada linha devolve o vencimento de antes. */
+  function acertoVencs(props){const vf=vencFat(),L=[];
+    props.filter(p=>p.st==='feito'&&p.t.valor<0).forEach(p=>{const dB=isoDeBR(p.t.data);
+      (p.alvos||[]).filter(m=>(m.tipo==='custo'||m.tipo==='despesa')&&temId(m.r.conciliacao_baixa,p.t.id)).forEach(m=>{
+        const kv=kVencDe(m),kp=m.tipo==='custo'?m.kData:m.kPg,novo=vf||(vencPelaSaida(m,p.t)?dB:'');if(!kv||!novo)return;
+        if(String(m.r[kv]||'')!==novo||(vf&&String(m.r[kp]||'')!==vf))L.push({p,m,novo,kv,kp});});});
+    return L;}
+  async function acertarVencs(L){const vf=vencFat();let np=0;
+    await executar(async()=>{for(const x of L){const r=x.m.r,o={...r,[x.kv]:x.novo};
+        if(!r.venc_mudou_conc&&!r.venc_ajuste_conc&&String(r[x.kv]||'')!==x.novo){o.venc_antes_conc=String(r[x.kv]||'');o.venc_mudou_conc=x.p.t.id;}
+        if(vf)o[x.kp]=vf;   // no cartão, a conta sai do caixa no vencimento da fatura
+        await salvar(r._aba||ABA[x.m.tipo],o,r.rowid);
+        if(vf)np+=await empurrarParcelas(x.m,vf,x.p.t.id);}});
+    return np;}
   function baixar(m,dataISO,extra){
     extra=extra||{};
     const r=m.r,obj={...r};
     if(m.tipo==='custo'){obj[m.kTipo]='Real';obj[m.kData]=dataISO;}
     else if(m.tipo==='despesa'){obj[m.kSt]='Pago';obj[m.kPg]=dataISO;obj[m.kTipo]='Real';}
+    // o vencimento que o extrato manda (fatura: o vencimento dela; PIX/débito: o dia da saída) — o de antes fica guardado
+    if(extra.venc&&(m.tipo==='custo'||m.tipo==='despesa')){const kv=kVencDe(m);
+      if(kv&&String(r[kv]||'')!==extra.venc){if(!r.venc_mudou_conc&&!r.venc_ajuste_conc){obj.venc_antes_conc=String(r[kv]||'');obj.venc_mudou_conc=extra.conc||'1';}obj[kv]=extra.venc;}}
     else if(m.tipo==='fat'){obj[m.kTipo]='Real';obj[m.kRec]=dataISO;if(r.antecipada==='sim')obj.antec_recebida='sim';if(extra.nf)obj[kRow(r,['n_nf'],'n_nf')]=extra.nf;
       // antecipada (Avançar Fornecedores): o desconto que vale é o que a EMBASA realmente descontou = líquido da nota − depósito
       let ajustou=false;
@@ -11731,7 +11775,9 @@ const Fin=(function(){
     const idm=m=>m.tipo+':'+m.r.rowid;
     const idsExt=ext.itens.map(t=>t.id);
     ms.forEach(m=>{const s=m.r.conciliacao;if(!s)return;const aj=ajusteDe(m.r);idsExt.forEach(f=>{if(!temId(s,f))return;const x=feitos.get(f)||{rots:[],alvos:[]};x.rots.push((m.tipo==='retirada'||m.tipo==='aporte'?'':(TIPO_ROT[m.tipo]||'Retirada')+': ')+m.desc+' · '+m.origem+(aj?` · valor lançado ${fmt(aj.orig)}, ajustado para ${fmt(aj.novo)} (diferença ${txtDif(aj.dif)})`:''));x.alvos.push(m);feitos.set(f,x);});});
-    const abertosS=ms.filter(m=>m.sent<0&&!m.pago),abertosE=ms.filter(aReceber);
+    // em aberto para casar com o extrato: a conta que já foi baixada por uma linha (ex.: a compra no cartão, que fica "a pagar"
+    // até o vencimento da fatura) não entra de novo
+    const abertosS=ms.filter(m=>m.sent<0&&!m.pago&&!m.r.conciliacao_baixa),abertosE=ms.filter(aReceber);
     ext.itens.slice().sort((a,b)=>dt(a.data)-dt(b.data)).forEach(t=>{
       const td=dt(t.data),v=Math.abs(t.valor);
       if(feitos.has(t.id)){const x=feitos.get(t.id);return props.push({t,st:'feito',nota:x.rots.join(' · '),alvos:x.alvos});}
@@ -11788,7 +11834,11 @@ const Fin=(function(){
           vistos.add(id);
           if(p.acao==='vincular')await salvar(m.r._aba||ABA[m.tipo],{...m.r,conciliacao:juntarId(m.r.conciliacao,p.t.id)},m.r.rowid);
           // valores: a parte do banco de cada conta (várias contas com a diferença dividida); sem eles, uma conta = o valor do banco
-          else await baixar(m,isoDeBR(p.t.data),{conc:p.t.id,desc:p.t.desc,valor:p.valores?p.valores[i]:(p.alvos.length===1?Math.abs(p.t.valor):0),ajustar:p.ajustar});
+          // fatura do cartão: baixa e vencimento no vencimento da fatura (e as próximas parcelas a partir dele); extrato da conta:
+          // a data do banco (PIX/débito: também o vencimento)
+          else{const dB=isoDeBR(p.t.data),vf=p.t.valor<0?vencFat():'';
+            await baixar(m,vf||dB,{conc:p.t.id,desc:p.t.desc,valor:p.valores?p.valores[i]:(p.alvos.length===1?Math.abs(p.t.valor):0),ajustar:p.ajustar,venc:vf||(p.t.valor<0&&vencPelaSaida(m,p.t)?dB:'')});
+            if(vf)await empurrarParcelas(m,vf,p.t.id);}
         }
         ok++;
       }catch(e){falhas.push(`${p.t.data} ${fmt(p.t.valor)}: ${(e&&e.message)||e}`);}
@@ -11830,6 +11880,7 @@ const Fin=(function(){
     const ent=itensC.filter(t=>t.valor>0).reduce((s,t)=>s+t.valor,0),sai=-itensC.filter(t=>t.valor<0).reduce((s,t)=>s+t.valor,0);
     const datas=itensC.map(t=>dt(t.data)).filter(Boolean).sort((a,b)=>a-b);
     const conf=ext.cartaoFatura?conferenciaFatura(ext,F.cartao):[];
+    CONC._acerto=acertoVencs(props0c);   // as já conciliadas com o vencimento de antes da regra (botão "Acertar o vencimento")
     // fatura de cartão de crédito × extrato do banco: no cartão não existe retirada do lucro nem pró-labore (isso sai da
     // conta do banco), então esses dois botões só aparecem no extrato do banco
     const ehCartao=!!ext.cartaoFatura;
@@ -11862,6 +11913,8 @@ const Fin=(function(){
     box.innerHTML=`<div class="fin-wrap">
       ${cab}
       <div class="fin-aviso conc-arq${ehCartao?' cartao':''}"><span class="conc-tipo"><i class="fas ${ehCartao?'fa-credit-card':'fa-building-columns'}"></i> ${ehCartao?'Fatura do cartão de crédito':'Extrato bancário'}</span><div><b>${fe(ext.nome||'')}</b>${ext.banco&&!(ehCartao&&ext.banco==='Cartão de crédito')?' · banco '+fe(ext.banco):''}${ext.conta?' · conta '+fe(ext.conta):''}${datas.length?` · de ${brDe(datas[0])} a ${brDe(datas[datas.length-1])}`:''}${ext.saldo!=null?` · saldo no extrato <b>${fmt(ext.saldo)}</b>${ext.saldoData?' em '+fe(ext.saldoData):''} (usado como ponto de partida do fluxo de caixa)`:''}.</div></div>
+      ${ehCartao?`<div class="cc-vfat${ext.vencFatura?'':' falta'}"><label><i class="fas fa-calendar-check"></i> Vencimento desta fatura <input type="date" data-cc-vfat value="${fe(ext.vencFatura||'')}"></label><small>${ext.vencFatura?'As contas conciliadas com esta fatura vencem — e saem do caixa — nesse dia; as próximas parcelas da mesma compra, um mês depois da outra. Confira com a fatura.':'<b>Informe o vencimento da fatura</b> (não achei no arquivo): sem ele, a conta fica com a data da compra.'}</small></div>`:''}
+      ${CONC._acerto&&CONC._acerto.length?`<div class="cc-acerto"><i class="fas fa-calendar-day"></i><span><b>${CONC._acerto.length}</b> conta${CONC._acerto.length>1?'s':''} já conciliada${CONC._acerto.length>1?'s':''} ${ehCartao?'com esta fatura':'com este extrato (PIX ou débito)'} ${CONC._acerto.length>1?'estão':'está'} com o vencimento de antes da regra${ehCartao?' (a data da compra)':''}.</span><button type="button" class="fin-bt mini pri" data-cc-acertar>Acertar o vencimento</button></div>`:''}
       <div class="fin-kpis">
         <div class="fin-kpi"><small>Lançamentos ${ehCartao?'na fatura':'no extrato'}${F.cartao?` · cartão ${fe(F.cartao)}`:''}</small><b>${itensC.length}</b><span>entrou ${fmt(ent)} · saiu ${fmt(sai)}</span></div>
         <div class="fin-kpi verde"><small>Encontrados sozinhos</small><b>${cont('ok')+cont('vincular')}</b><span>${cont('confira')} para conferir antes</span></div>
@@ -11895,6 +11948,8 @@ const Fin=(function(){
       CONC.f[k]=v;const foco=document.activeElement===fs;renderConciliacao();if(foco){const n=box.querySelector(`[data-cc-f="${k}"]`);if(n)n.focus();}};
     box.onfocusout=ev=>{const fs=ev.target.closest('input[type="date"][data-cc-f]');if(fs)setTimeout(()=>aplicarData(fs),0);};
     box.onchange=ev=>{
+      // o vencimento da fatura (lido do arquivo ou digitado): vale para o que for conciliado com ela daqui para a frente
+      const vfi=ev.target.closest('[data-cc-vfat]');if(vfi){if(vfi.value&&+vfi.value.slice(0,4)<1000)return;CONC.extrato.vencFatura=vfi.value;return renderConciliacao();}
       const fs=ev.target.closest('select[data-cc-f],input[type="date"][data-cc-f]');if(fs){
         if(fs.type==='date'){clearTimeout(CONC._tData);CONC._tData=setTimeout(()=>{if(fs.value&&+fs.value.slice(0,4)<1000)return;aplicarData(fs);},700);return;}
         CONC.f[fs.dataset.ccF]=fs.value;if(fs.dataset.ccF==='cartao')try{localStorage.setItem('vx_conc_cartao',fs.value);}catch(e){}return renderConciliacao();}
@@ -11904,6 +11959,10 @@ const Fin=(function(){
     };
     box.onclick=async ev=>{
       const b=ev.target.closest('button');if(!b)return;
+      // as contas que esta fatura/extrato já baixou: vencimento da regra (no cartão, também a saída do caixa e as próximas parcelas)
+      if(b.matches('[data-cc-acertar]')){const L=CONC._acerto||[];if(!L.length)return;const vf=vencFat();
+        return confirmar('Acertar o vencimento das já conciliadas?',`<b>${L.length}</b> conta${L.length>1?'s':''} ${vf?`passa${L.length>1?'m':''} a vencer — e a sair do caixa — no <b>vencimento da fatura, ${fe(brDe(dt(vf)))}</b>, e as próximas parcelas da mesma compra, um mês depois da outra`:'passa'+(L.length>1?'m':'')+' a vencer no dia em que saiu do banco (PIX ou débito)'}.<br><br>${L.slice(0,8).map(x=>`· ${fe(rotulo(x.m))}`).join('<br>')}${L.length>8?`<br>· … e mais ${L.length-8}`:''}<br><br>O Desfazer de cada linha devolve o vencimento de antes.`,'Sim, acertar',async()=>{
+          const np=await acertarVencs(L);toast(`${L.length} vencimento${L.length>1?'s':''} acertado${L.length>1?'s':''}${np?` · ${np} parcela(s) futura(s) seguiram o vencimento da fatura`:''}.`,'success');});}
       if(b.matches('[data-cc-limpar]')){CONC.f={busca:'',tipo:F.tipo,ordem:'',de:'',ate:'',cartao:''};return renderConciliacao();}
       if(b.dataset.ccLado){CONC.f.tipo=b.dataset.ccLado;return renderConciliacao();}
       if(b.dataset.ccRec){const k=b.dataset.ccRec;CONC.fechados.has(k)?CONC.fechados.delete(k):CONC.fechados.add(k);return renderConciliacao();}
@@ -12051,6 +12110,18 @@ const Fin=(function(){
     ext.banco=ext.banco||'Cartão de crédito';ext.saldo=null;ext.foraCartao=antes-ext.itens.length;ext.cartaoFatura=true;
     return ext;
   }
+  /* o VENCIMENTO DA FATURA, pelo texto: "Vencimento 10/12/2026", "Data de vencimento: 10/12/26", "Vence em 10 DEZ 2026"… —
+     a primeira data perto de "venc" que caia até ~2 meses depois das compras (a tela mostra para conferir e acertar) */
+  function lerVencFatura(txt,ext){
+    const MES={jan:1,fev:2,mar:3,abr:4,mai:5,jun:6,jul:7,ago:8,set:9,out:10,nov:11,dez:12},L=String(txt||'').split('\n');
+    const ds=(ext&&ext.itens||[]).map(t=>dt(isoDeBR(t.data))).filter(Boolean),fim=ds.length?new Date(Math.max(...ds)):null,ini=ds.length?new Date(Math.min(...ds)):null;
+    const ok=d=>d&&!isNaN(d)&&(!fim||(dias(ini,d)>=0&&dias(fim,d)<=75));
+    for(let i=0;i<L.length;i++){if(!/venc/i.test(L[i])||/anterior/i.test(L[i]))continue;const s=(L[i]+' '+(L[i+1]||'')).replace(/;/g,' ');
+      let m=s.match(/venc\w*[^0-9]{0,40}(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2,4})/i);
+      if(m){let a=+m[3];if(a<100)a+=2000;const d=new Date(a,+m[2]-1,+m[1]);if(d.getDate()===+m[1]&&ok(d))return isoDe(d);}
+      m=s.match(/venc\w*[^0-9]{0,40}(\d{1,2})\s*(?:de\s*)?(jan|fev|mar|abr|mai|jun|jul|ago|set|out|nov|dez)\w*\.?\s*(?:de\s*)?(\d{2,4})/i);
+      if(m){let a=+m[3];if(a<100)a+=2000;const d=new Date(a,MES[m[2].toLowerCase()]-1,+m[1]);if(ok(d))return isoDe(d);}}
+    return '';}
   // cartao: fatura de cartão de crédito — o valor sem marca é gasto; "C", "-" ou parênteses é crédito (estorno, pagamento)
   function lerLinhasPdf(txt,cartao){
     const temSaldo=!cartao&&/saldo/i.test(txt),brutos=[],VAL=/^[-(]?(R\$)?-?\d{1,3}(\.\d{3})*,\d{2}\)?[CD-]?$/i;
@@ -12092,7 +12163,7 @@ const Fin=(function(){
       // fatura do cartão no formato do aplicativo (sem cabeçalho de colunas): direto o leitor de linhas, com a descrição da linha de baixo
       if(ehPdf){if(!(cartao&&!pdfParaCsv.comColunas)){try{ext=lerCSVExtrato(txt,';');}catch(e){ext=null;}}if(!ext||!ext.itens.length)ext=lerLinhasPdf(txt,cartao);}
       else ext=!ehExcel&&/<OFX>|OFXHEADER|<STMTTRN>/i.test(txt)?lerOFX(txt):lerCSVExtrato(txt);
-      if(cartao){ajustarFaturaCartao(ext);ext.totaisPdf=ehPdf?totaisFatura(pdfParaCsv.bruto):{cartoes:{}};}
+      if(cartao){ajustarFaturaCartao(ext);ext.totaisPdf=ehPdf?totaisFatura(pdfParaCsv.bruto):{cartoes:{}};ext.vencFatura=lerVencFatura(txt,ext);}
       if(!ext.itens.length)throw new Error('Não encontrei lançamentos nesse arquivo.');
       ext.nome=arq.name;CONC.extrato=ext;CONC.marcados=null;CONC.escolhas={};CONC.f.tipo='';{let c='';try{c=localStorage.getItem('vx_conc_cartao')||'';}catch(e){}CONC.f.cartao=ext.itens.some(t=>t.cartao===c)?c:'';}
       if(ext.saldo!=null){try{localStorage.setItem(SALDO,JSON.stringify({valor:ext.saldo,data:ext.saldoData||brDe(hoje0())}));}catch(e){}}
@@ -12313,12 +12384,13 @@ const Fin=(function(){
         const parcRuim=its.findIndex(x=>(x.pn||x.pt)&&!(x.pn>=1&&x.pt>=2&&x.pn<=x.pt&&x.pt<=60));if(parcRuim>=0)throw new Error(`Linha ${parcRuim+1}: a parcela vai de 1 até o total (de 2 a 60). Deixe em branco se não for parcelada.`);
         if(rat&&!(await GS.rateio.confirmarRateio(obrasR,total(),its.length>1?`Estas ${its.length} saídas vão ser rateadas`:'Esta saída vai ser rateada')))return false;
         const ops=[],aps={},T0=Date.now().toString(36);let nFut=0;
-        its.forEach((x,i)=>{const p=x.p,iso=isoDeBR(p.t.data),v=-p.t.valor,rid=rat?'rt'+T0+'_'+i:'',parc=x.pt>1;
+        // fatura do cartão: a conta vence (e sai do caixa) no vencimento da fatura, e as próximas parcelas a partir dele
+        its.forEach((x,i)=>{const p=x.p,dB=isoDeBR(p.t.data),iso=vencFat()||dB,v=-p.t.valor,rid=rat?'rt'+T0+'_'+i:'',parc=x.pt>1;
           const partes=rat?GS.rateio.partesRateio(v,obrasR):[{obra:centro,valor:v,pct:100}];
           partes.forEach((dd,pi)=>{if(!(dd.valor>0))return;
             const obsRat=rat?`Rateio: ${GS.rateio.pctTxt(dd.pct)} de ${fmt(v)} (pelo orçamento)`:'';
             const u={centro:dd.obra,tipo:'Real',venc:iso,pago:iso,total:dinheiro(dd.valor),forn:x.forn,cat:x.cat,forma:x.forma,desc:x.desc+(parc?` (${x.pn}/${x.pt})`:''),
-              obs:[obsRat,socio?`Paga por ${quem} (aporte)`:'','Lançada pela conciliação bancária'].filter(Boolean).join(' · '),qtd:'',fator:'',pUnit:'',lanc:'',compra:'cb'+T0+'_'+i,dataCompra:p.t.compra?isoDeBR(p.t.compra):iso};
+              obs:[obsRat,socio?`Paga por ${quem} (aporte)`:'','Lançada pela conciliação bancária'].filter(Boolean).join(' · '),qtd:'',fator:'',pUnit:'',lanc:'',compra:'cb'+T0+'_'+i,dataCompra:p.t.compra?isoDeBR(p.t.compra):dB};
             if(rid)u.rateio=rid;
             if(parc)u.grupo='gp'+T0+'_'+i+'_'+pi;
             // conc_origem: a conta nasceu desta linha (o Desfazer da Conciliação a tira, em vez de deixá-la "em aberto")
@@ -12361,7 +12433,8 @@ const Fin=(function(){
   // saída do banco sem conta: abre a "Nova conta" em modo compra — vários itens (ou a nota lida), somando o valor do banco
   function lancarConta(p){
     const C=GS.contas,v=Math.abs(p.t.valor),iso=isoDeBR(p.t.data),prev=sugestaoConta(p,contasDoSistema());
-    GS.lote({conc:{id:p.t.id,desc:p.t.desc,valor:v,data:iso,dataBR:p.t.data,compra:p.t.compra?isoDeBR(p.t.compra):'',parc:parcelaDe(p.t)},centro:prev?prev.centro:'',cat:prev?prev.cat:'',desc:prev?C.limparParc(prev.desc):'',
+    // venc: na fatura do cartão, o vencimento dela (a conta e as próximas parcelas vencem a partir dele)
+    GS.lote({conc:{id:p.t.id,desc:p.t.desc,valor:v,data:iso,dataBR:p.t.data,compra:p.t.compra?isoDeBR(p.t.compra):'',parc:parcelaDe(p.t),venc:vencFat()},centro:prev?prev.centro:'',cat:prev?prev.cat:'',desc:prev?C.limparParc(prev.desc):'',
       forn:prev?prev.forn:(p.t.quem||''),forma:prev&&prev.forma?prev.forma:formaDoExtrato(p.t.desc),
       dica:prev?`Preenchido como o último lançamento de <b>${fe(prev.forn||C.limparParc(prev.desc))}</b> (${fe(prev.centro)} · ${fe(prev.cat)}).`:''});
   }
@@ -12394,6 +12467,8 @@ const Fin=(function(){
     const semAporte=entrada?[]:partesC.filter(c=>!cobertas.has(chaveAp(c.quem,c.obra,c.data.slice(0,7))));
     const nVoltam=nContas-criadas.length;
     if(nVoltam>0)efeitos.push(`${nVoltam} lançamento(s) voltam para "em aberto" (sem data de pagamento/recebimento)`);
+    {const nV=baixados.filter(m=>m.r.venc_mudou_conc&&!ehCriada(m)).length,nPV=movimentos().filter(x=>x.r&&x.r.venc_ajuste_conc===id).length;
+      if(nV||nPV)efeitos.push(`o vencimento volta ao de antes${nPV?` (também o de ${nPV} parcela${nPV>1?'s':''} futura${nPV>1?'s':''} da compra)`:''}`);}
     if(criadas.length)efeitos.push(`${criadas.length===1?'a conta lançada por esta linha vai':`as ${criadas.length} contas lançadas por esta linha vão`} para a Lixeira${futuras.length?` — com ${futuras.length===1?'a parcela futura':`as ${futuras.length} parcelas futuras`} da mesma compra`:''}`);
     if(baixados.some(m=>!ehCriada(m)&&ajusteDe(m.r)))efeitos.push('o valor lançado volta a valer');
     dosSocios.forEach(m=>{if(m.tipo==='retirada')return efeitos.push(`o lançamento "${fe(m.desc)}" de ${fmt(m.valor)} é excluído`);
@@ -12421,6 +12496,8 @@ const Fin=(function(){
             if(m.tipo==='custo'||m.tipo==='despesa'){const q=socioDaConta(contaDoReg(m.tipo,m.r));if(q){const ko=kRow(m.r,['observacao','obs'],'observacao');o.pago_por_socio=q;o[ko]=obsSocio(m.r[ko],q,true);}}
             if(m.tipo==='custo'){o[m.kTipo]=m.r.tipo_antes_conc||'Previsto';o[m.kData]='';o.tipo_antes_conc='';}
             else if(m.tipo==='despesa'){o[m.kSt]='Pendente';o[m.kPg]='';o[m.kTipo]=m.r.tipo_antes_conc||'Prevista';o.tipo_antes_conc='';}
+            // o vencimento que a conciliação mudou (fatura do cartão / dia da saída) volta ao de antes
+            if((m.tipo==='custo'||m.tipo==='despesa')&&m.r.venc_mudou_conc){o[kVencDe(m)]=m.r.venc_antes_conc||'';o.venc_antes_conc='';o.venc_mudou_conc='';}
             else if(m.tipo==='fat'){o[m.kRec]=m.r.antecipada==='sim'&&m.r.antec_previsto?m.r.antec_previsto:'';o.antec_recebida='';o.antec_depositado='';
               // nota recebida em partes (várias linhas do banco): desfazer uma parte solta todas — a nota volta a "a receber"
               idsDe(m.r.conciliacao_baixa).filter(i=>i!==id).forEach(i=>{o.conciliacao=tirarId(o.conciliacao,i);o.conciliacao_baixa=tirarId(o.conciliacao_baixa,i);});}
@@ -12429,6 +12506,9 @@ const Fin=(function(){
           }
           await salvar(aba,o,m.r.rowid);
         }
+        // as próximas parcelas que esta linha (fatura do cartão) empurrou para o vencimento da fatura voltam ao vencimento de antes
+        for(const mm of movimentos().filter(x=>(x.tipo==='custo'||x.tipo==='despesa')&&x.r.venc_ajuste_conc===id&&!criadas.some(c=>c.tipo===x.tipo&&String(c.r.rowid)===String(x.r.rowid))&&!futuras.some(f=>f.tipo===x.tipo&&String(f.r.rowid)===String(x.r.rowid)))){
+          const kv=kVencDe(mm);await salvar(mm.r._aba||ABA[mm.tipo],{...mm.r,[kv]:mm.r.venc_antes_conc||mm.r[kv],venc_antes_conc:'',venc_ajuste_conc:''},mm.r.rowid);}
         for(const f of futuras)await excluir(f.r._aba||ABA[f.tipo],f.r.rowid);
         for(const c of semAporte)await tirarDoAporte({...c,obs:`Saiu ${fmt(c.valor)}: ${c.forn?'conta de '+c.forn:'conta'} — conciliação desfeita`});
       });
@@ -13168,12 +13248,17 @@ const Eng=(function(){
   }
   const avisoDiaRdo=iso=>passouHoraRdo(iso)?(ehAdmRdo()?'<i class="fas fa-user-shield"></i> Dia já encerrado às 19h: registrando como Administrador (fica aberto por 1 hora).':'<i class="fas fa-lock"></i> Dia encerrado às 19h: só o Administrador registra.'):iso===hojeRdo()?'<i class="fas fa-clock"></i> Este diário <b>fecha sozinho às 19h</b>. Depois disso, só o Administrador reabre.':'';
   // "Ver" de um dia fechado: tudo o que foi registrado, sem alterar
+  // VER TUDO: o dia inteiro (o cartão da lista é só um resumo) — também o dia aberto, sem mudar nada
   function verRdo(r){
-    const f=r.fechado||{},linha=(ic,rot,v)=>v?`<li><i class="fas ${ic}"></i><div><b>${rot}</b><span>${fe(v)}</span></div></li>`:'';
-    janela(`Diário de ${brDe(dt(r.data))}`,`<div class="fin-aviso" style="background:#F2F4F7;border-color:#E4E7EC"><div><i class="fas fa-lock"></i> <b>Dia fechado</b> ${fechadoManual(r)?`por ${fe(f.por||'')}${f.em?' em '+fe(brDe(dt(String(f.em).slice(0,10))))+' '+fe(String(f.em).slice(11,16)):''}`:'automaticamente às 19h'}. Nada pode ser alterado${ehAdmRdo()?' — como Administrador, você pode reabrir':'; só o Administrador reabre'}.</div></div>
-      <ul class="rdo-ver">${linha('fa-helmet-safety','Obra',r.titulo_obra)}${linha('fa-cloud-sun','Tempo',`manhã: ${r.clima_manha||'—'} · tarde: ${r.clima_tarde||'—'} · ${r.condicao||'—'}`)}${linha('fa-people-group','Equipe',r.efetivo_total?`${r.efetivo_total} pessoa(s)${r.efetivo_desc?' — '+r.efetivo_desc:''}`:'')}${linha('fa-tractor','Equipamentos',r.equipamentos)}${(()=>{const hf=fotosHorimetro(r);return hf.length?`<li><i class="fas fa-gauge-high"></i><div><b>Fotos do horímetro</b><div class="rdo-hfotos" data-ver-hf>${hf.map((x,k)=>`<button type="button" data-k="${k}" title="Ampliar — ${fe(x.rot)} (${fe(x.quando)})"><img ${GS.fotoSis.attrs(x.im,false,200)} alt=""><span>${fe(x.rot)}<b>${fe(x.quando)}</b></span></button>`).join('')}</div></div></li>`:'';})()}${linha('fa-helmet-safety','Serviços executados',r.atividades)}${linha('fa-triangle-exclamation','Ocorrências',r.ocorrencias)}${linha('fa-user-check','Visitas e fiscalização',r.visitas)}${linha('fa-user-pen','Registrado por',r.responsavel||r.criado_por)}</ul>`,
-      [ehAdmRdo()?{html:'<i class="fas fa-lock-open"></i> Reabrir o dia',acao:()=>{setTimeout(()=>reabrirDiaRdo(r),10);}}:null,{html:'<i class="fas fa-file-pdf"></i> PDF',cls:'pri',acao:()=>{pdfDiario([r],`${r.titulo_obra} · ${brDe(dt(r.data))}`);}}].filter(Boolean),640);
+    const f=r.fechado||{},fech=rdoFechado(r),linha=(ic,rot,v)=>v?`<li><i class="fas ${ic}"></i><div><b>${rot}</b><span>${fe(v)}</span></div></li>`:'';
+    const nomes=(jsonDe(r.equipe_nomes)||[]).map(x=>x.nome).filter(Boolean),fd=fotosDoRegistro(r);
+    const cabV=fech?`<div class="fin-aviso" style="background:#F2F4F7;border-color:#E4E7EC"><div><i class="fas fa-lock"></i> <b>Dia fechado</b> ${fechadoManual(r)?`por ${fe(f.por||'')}${f.em?' em '+fe(brDe(dt(String(f.em).slice(0,10))))+' '+fe(String(f.em).slice(11,16)):''}`:'automaticamente às 19h'}. Nada pode ser alterado${ehAdmRdo()?' — como Administrador, você pode reabrir':'; só o Administrador reabre'}.</div></div>`
+      :`<div class="fin-aviso" style="background:#EEF4FF;border-color:#C7D7FE"><div><i class="fas fa-lock-open"></i> <b>Dia aberto</b>${reabertoRdo(r)?` — reaberto até ${hm(new Date(r.aberto_ate))}`:r.data===hojeRdo()?' — fecha às 19h':''}.${meuRdo(r)?' Para mudar alguma coisa, use <b>Alterar</b> no dia.':''}</div></div>`;
+    janela(`Diário de ${brDe(dt(r.data))}`,`${cabV}
+      <ul class="rdo-ver">${linha('fa-helmet-safety','Obra',r.titulo_obra)}${linha('fa-cloud-sun','Tempo',`manhã: ${r.clima_manha||'—'} · tarde: ${r.clima_tarde||'—'} · ${r.condicao||'—'}`)}${linha('fa-people-group','Equipe',r.efetivo_total?`${r.efetivo_total} pessoa(s)${r.efetivo_desc?' — '+r.efetivo_desc:''}`:'')}${linha('fa-user-group','Quem trabalhou',nomes.join(', '))}${linha('fa-tractor','Equipamentos',r.equipamentos)}${(()=>{const hf=fotosHorimetro(r);return hf.length?`<li><i class="fas fa-gauge-high"></i><div><b>Fotos do horímetro</b><div class="rdo-hfotos" data-ver-hf>${hf.map((x,k)=>`<button type="button" data-k="${k}" title="Ampliar — ${fe(x.rot)} (${fe(x.quando)})"><img ${GS.fotoSis.attrs(x.im,false,200)} alt=""><span>${fe(x.rot)}<b>${fe(x.quando)}</b></span></button>`).join('')}</div></div></li>`:'';})()}${linha('fa-helmet-safety','Serviços executados',r.atividades)}${linha('fa-triangle-exclamation','Ocorrências',r.ocorrencias)}${linha('fa-user-check','Visitas e fiscalização',r.visitas)}${fd.length?`<li><i class="fas fa-images"></i><div><b>Fotos do dia (${fd.length})</b><div class="rdo-ver-fotos" data-ver-fd>${fd.map((x,k)=>`<button type="button" data-k="${k}" title="Ampliar"><img ${GS.fotoSis.attrs(x,false,200)} data-driveid="${fe(x.drive_file_id||'')}" loading="lazy" alt="" onerror="UI.ImagensObra._imgErro(this)"></button>`).join('')}</div></div></li>`:''}${linha('fa-user-pen','Registrado por',r.responsavel||r.criado_por)}</ul>`,
+      [ehAdmRdo()&&fech?{html:'<i class="fas fa-lock-open"></i> Reabrir o dia',acao:()=>{setTimeout(()=>reabrirDiaRdo(r),10);}}:null,{html:'<i class="fas fa-file-pdf"></i> PDF',cls:'pri',acao:()=>{pdfDiario([r],`${r.titulo_obra} · ${brDe(dt(r.data))}`);}}].filter(Boolean),640);
     const vh=document.querySelector('#fin-jan [data-ver-hf]');if(vh)vh.addEventListener('click',ev=>{const b=ev.target.closest('button[data-k]');if(b)verFotosHor(fotosHorimetro(r).map(x=>({uid:x.im.foto_uid,thumb:x.im.thumb_uid,rot:x.rot,quando:x.quando})),+b.dataset.k);});
+    const vd=document.querySelector('#fin-jan [data-ver-fd]');if(vd)vd.addEventListener('click',ev=>{const b=ev.target.closest('button[data-k]');if(b)verFotosHor(fd.map(x=>fotoDiaItem(x,r.data)),+b.dataset.k);});
   }
   // às 19h: a lista se atualiza sozinha e quem registrou o dia de hoje recebe o aviso (uma vez por dia neste navegador)
   function avisoRdo19(){
@@ -13369,6 +13454,9 @@ const Eng=(function(){
      formulário (tit = o título; drive = a foto que o Administrador mandou para o Google Drive).
      L: [{url (arquivo ainda não enviado) | uid+thumb (já no sistema) | drive, rot, quando, tit}] */
   const urlDrive=(id,w)=>`https://drive.google.com/thumbnail?id=${encodeURIComponent(id)}&sz=w${w||1600}`;
+  // uma foto do dia (da galeria) no formato do visualizador
+  const fotoDiaItem=(f,dia)=>{const p=String(f.descricao||'').split(' • '),d=(p.length>=3?p.slice(2).join(' • '):p.join(' • ')).replace(/^Diário de obra( · )?/,'').trim();
+    return {uid:f.foto_uid||'',thumb:f.thumb_uid||'',drive:f.drive_file_id||'',url:f.foto_uid||f.drive_file_id?'':(f.url_visualizacao||f.url_thumb||''),tit:['Foto do dia',brDe(dt(String(f.data_foto||dia||''))),d,f.enviado_por?'por '+String(f.enviado_por).split(' ')[0]:''].filter(Boolean).join(' · '),gps:GS.gps.de(f)};};
   function verFotosHor(L,i){L=(L||[]).filter(x=>x&&(x.url||x.uid||x.drive));if(!L.length)return;let k=Math.min(Math.max(0,i||0),L.length-1);
     document.querySelectorAll('.rdo-lb').forEach(x=>x.remove());const d=document.createElement('div');d.className='rdo-lb';
     d.innerHTML=`<div class="rdo-lb-cab"><b data-lb-tit></b><span data-lb-mapa></span><span data-lb-n></span><button type="button" data-lb-baixar title="Baixar esta foto" aria-label="Baixar esta foto"><i class="fas fa-download"></i></button><button type="button" data-lb-x aria-label="Fechar" title="Fechar"><i class="fas fa-xmark"></i></button></div>
@@ -13932,8 +14020,13 @@ const Eng=(function(){
             ${RD.obra?'':`<div class="rdo-obra" title="${fe(r.titulo_obra)}"><i class="fas fa-helmet-safety"></i> ${fe(r.titulo_obra)}</div>`}
             <div class="rdo-pills"><span class="eng-pill ${tomCond(r.condicao)}">${fe(r.condicao||'—')}</span><span class="eng-pill ${choveu(r)?'azul':''}"><i class="fas ${choveu(r)?'fa-cloud-rain':'fa-sun'}"></i> manhã: ${fe(r.clima_manha||'—')} · tarde: ${fe(r.clima_tarde||'—')}</span>${r.efetivo_total?`<span class="eng-pill"><i class="fas fa-people-group"></i> ${fe(r.efetivo_total)} pessoas</span>`:''}</div></div>
           <div class="pm-dia2-bt rdo-bts">${bts}</div></div>
-          <div class="eng-dia-txt rdo-corpo">${nAdm?`<small class="rdo-falta"><i class="fas fa-list-check"></i> <b>Pendências${podePendRdo()?'':' (o Administrador resolve)'}:</b> ${fe(P.adm.map(p=>p.txt).join(' · '))}</small>`:''}${P.voce.length?`<small class="rdo-falta rdo-falta-voce"><i class="fas fa-clock"></i> <b>Ainda hoje:</b> ${fe(P.voce.map(p=>p.txt).join(' · '))}</small>`:''}<p>${fe(r.atividades||'')}</p>${r.efetivo_desc?`<small><b>Equipe:</b> ${fe(r.efetivo_desc)}</small>`:''}${(jsonDe(r.equipe_nomes)||[]).length?`<small><b>Quem trabalhou:</b> ${fe((jsonDe(r.equipe_nomes)||[]).map(x=>x.nome).join(', '))}</small>`:''}${r.equipamentos?`<small><b>Equipamentos:</b> ${fe(r.equipamentos)}</small>`:''}${(()=>{const hf=fotosHorimetro(r);App._rdoHF[i]=hf.map(x=>({uid:x.im.foto_uid,thumb:x.im.thumb_uid,rot:x.rot,quando:x.quando,gps:x.gps}));
-            return hf.length?`<div class="rdo-hfotos">${hf.map((x,k)=>`<button type="button" data-rd="hfoto" data-i="${i}" data-f="${k}" title="Ampliar — horímetro, ${fe(x.rot)} (${fe(x.quando)})"><img ${GS.fotoSis.attrs(x.im,false,200)} loading="lazy" alt=""><span>${fe(x.rot)}<b>${fe(x.quando)}</b></span></button>`).join('')}</div>`:'';})()}${r.ocorrencias?`<small><b>Ocorrências:</b> ${fe(r.ocorrencias)}</small>`:''}${r.visitas?`<small><b>Visitas:</b> ${fe(r.visitas)}</small>`:''}<small>${fe(r.responsavel?'Registrado por '+r.responsavel:'')}</small>${Eng.fotosHtml(r.titulo_obra,r.data,i,(App._rdoFotos[i]=fotosDoRegistro(r)))}</div></article>`;}).join('')}</div>`
+          <div class="eng-dia-txt rdo-corpo rdo-resumo">${nAdm?`<small class="rdo-falta"><i class="fas fa-list-check"></i><span class="rdo-cl"><b>Pendências${podePendRdo()?'':' (o Administrador resolve)'}:</b> ${fe(P.adm.map(p=>p.txt).join(' · '))}</span></small>`:''}${P.voce.length?`<small class="rdo-falta rdo-falta-voce"><i class="fas fa-clock"></i><span class="rdo-cl"><b>Ainda hoje:</b> ${fe(P.voce.map(p=>p.txt).join(' · '))}</span></small>`:''}${
+            // RESUMO (o dono pediu): os serviços em até 3 linhas, uma linha de cada informação, as 4 fotos do horímetro e até
+            // 4 fotos do dia (com o "+N" das outras) — o dia inteiro em "Ver tudo"
+            r.atividades?`<p class="rdo-res-txt" title="${fe(r.atividades)}">${fe(String(r.atividades).replace(/\n\s*\n+/g,'\n').trim())}</p>`:''}<div class="rdo-res-info">${r.efetivo_desc?`<span><b>Equipe:</b> ${fe(r.efetivo_desc)}${(jsonDe(r.equipe_nomes)||[]).length?` — ${fe((jsonDe(r.equipe_nomes)||[]).map(x=>x.nome).join(', '))}`:''}</span>`:''}${r.equipamentos?`<span><b>Equipamentos:</b> ${fe(r.equipamentos)}</span>`:''}${r.ocorrencias?`<span><b>Ocorrências:</b> ${fe(r.ocorrencias)}</span>`:''}${r.visitas?`<span><b>Visitas:</b> ${fe(r.visitas)}</span>`:''}</div>
+            <div class="rdo-res-fotos">${(()=>{const hf=fotosHorimetro(r);App._rdoHF[i]=hf.map(x=>({uid:x.im.foto_uid,thumb:x.im.thumb_uid,rot:x.rot,quando:x.quando,gps:x.gps}));
+            return hf.length?`<div class="rdo-hfotos">${hf.map((x,k)=>`<button type="button" data-rd="hfoto" data-i="${i}" data-f="${k}" title="Ampliar — horímetro, ${fe(x.rot)} (${fe(x.quando)})"><img ${GS.fotoSis.attrs(x.im,false,200)} loading="lazy" alt=""><span>${fe(x.rot)}<b>${fe(x.quando)}</b></span></button>`).join('')}</div>`:'';})()}${Eng.fotosHtml(r.titulo_obra,r.data,i,(App._rdoFotos[i]=fotosDoRegistro(r)),4)}</div>
+            <div class="rdo-res-pe"><small>${fe(r.responsavel?'Registrado por '+r.responsavel:'')}</small><button type="button" class="rdo-ver-tudo" data-rd="ver" data-i="${i}">Ver tudo <i class="fas fa-chevron-right"></i></button></div></div></article>`;}).join('')}</div>`
         :`<div class="fin-card"><div class="fin-vazio">${todos.length?'Nenhum registro neste filtro.':'Nenhum dia registrado ainda. O ideal é registrar no fim de cada dia de obra.'}<br><button type="button" class="fin-bt pri" data-rd="novo" style="margin-top:10px"><i class="fas fa-plus"></i> Registrar dia</button></div></div>`}
     </div>`;
     pintarSemana(box).catch(()=>{});
@@ -14920,9 +15013,9 @@ const Eng=(function(){
   /* ═══════════════ FOTOS DO DIÁRIO ═══════════════ */
   // as fotos do horímetro (marcadas com "horimetro") aparecem junto das leituras, não entre as fotos do dia
   const fotosDoDia=(ob,dataISO)=>(D().obra_imagens||[]).filter(i=>i.titulo_obra===ob&&dataISO&&String(i.data_foto||'')===String(dataISO)&&!i.horimetro);
-  function fotosHtml(ob,dataISO,i,lista){
+  function fotosHtml(ob,dataISO,i,lista,maxV){
     const fs=lista||fotosDoDia(ob,dataISO);if(!fs.length)return '';
-    const max=6,vis=fs.slice(0,max);
+    const max=maxV||6,vis=fs.slice(0,max);
     return `<div class="eng-fotos">${vis.map((f,k)=>`<button type="button" data-rd="foto" data-i="${i}" data-f="${k}" title="${fe((f.descricao||'Foto')+(f.enviado_por?' · anexada por '+f.enviado_por:''))}"><img ${GS.fotoSis.attrs(f,false,200)} data-driveid="${fe(f.drive_file_id||'')}" loading="lazy" alt="" onerror="UI.ImagensObra._imgErro(this)">${f.enviado_por?`<span class="por">${fe(String(f.enviado_por).split(' ')[0])}</span>`:''}${k===max-1&&fs.length>max?`<span class="mais">+${fs.length-max+1}</span>`:''}</button>`).join('')}</div>`;
   }
   function fotosPdf(ob,dataISO,lista){
@@ -18089,6 +18182,10 @@ const Mascara=(function(){
   /* ═══════════════ CONTAS A PAGAR ═══════════════ */
   const COLS_CP=[{k:'previstas',rot:'Previstas (estimativas)',cor:'#7F56D9',ico:'fa-clock'},{k:'aprovar',rot:'Aguardando aprovação',cor:'#B54708',ico:'fa-signature'},{k:'pagar',rot:'Aprovada · a pagar',cor:'#1652D8',ico:'fa-file-invoice-dollar'},{k:'paga',rot:'Paga',cor:'#067647',ico:'fa-circle-check'}];
   const pagoC=o=>{const p=dt(o.pago);return !!(p&&p<=hoje0());};
+  /* conciliada com a fatura do cartão: já tem a data de saída (o vencimento da fatura) e fica paga sozinha nesse dia. Na conta
+     de obra, a data de pagamento futura não vem no "pago" (só a que já chegou) — por isso é lida do registro */
+  const saiNoCartao=o=>{if(!o||!o._r||!o._r.conciliacao_baixa)return '';const d=o._t==='c'?C.isoOu(o._r[C.KC().pgto]):o.pago;return d&&dt(d)>hoje0()?d:'';};
+  const noCartao=o=>!!saiNoCartao(o);
   // aguardando aprovação vem primeiro: a conta lançada pelo Telegram (às vezes já paga) espera a conferência ali
   const colConta=o=>o.tipo==='Real'&&o.aprov==='pendente'?'aprovar':pagoC(o)?'paga':o.tipo!=='Real'?'previstas':'pagar';
   /* CONTA DO TELEGRAM (origem_lanc 'telegram'): entra "Aguardando aprovação" e só sai dali pelo Aprovar. O sócio que pagou,
@@ -18114,7 +18211,7 @@ const Mascara=(function(){
       ${o.centro!==EMP?`<div class="vk-obra" title="${fe(o.centro)}"><i class="fas fa-helmet-safety"></i>${fe(o.centro)}</div>`:''}
       <div class="vk-val"><span>${fe(o.cat||'')}</span><b>${fmt(val(o.total))}</b></div>
       ${o.forma||o.rateio||val(o._r.valor_original)?`<div class="vk-sub">${o.forma?pill(o.forma,'','fa-credit-card'):''}${o.rateio?pill('rateio','info','fa-chart-pie'):''}${val(o._r.valor_original)?pill('valor ajustado','warn','fa-scale-balanced'):''}</div>`:''}
-      <div class="vk-pe">${col==='aprovar'?pill('aguarda aprovação','roxo','fa-signature'):col==='previstas'?pill('estimativa','',''):''}${col==='previstas'&&!o.venc?'':vencePill(o.venc,pagoC(o)?o.pago:'')}</div>
+      <div class="vk-pe">${col==='aprovar'?pill('aguarda aprovação','roxo','fa-signature'):col==='previstas'?pill('estimativa','',''):''}${noCartao(o)?pill(`no cartão · sai em ${brDe(dt(saiNoCartao(o)))}`,'info','fa-credit-card'):''}${col==='previstas'&&!o.venc?'':vencePill(o.venc,pagoC(o)?o.pago:'')}</div>
     </article>`;
   }
   /* COMPRA: os itens lançados juntos (a mesma nota, cupom ou recibo) — e, nas contas antigas, o mesmo fornecedor no
@@ -18135,7 +18232,7 @@ const Mascara=(function(){
       <ul class="vk-itens">${L.slice(0,5).map(x=>`<li><span>${fe(C.limparParc(x.desc)||x.cat||'Item')}</span><b>${fmt(val(x.total))}</b></li>`).join('')}${L.length>5?`<li class="mais">+ ${L.length-5} item(ns)</li>`:''}</ul>
       <div class="vk-val"><span>Total da compra</span><b>${fmt(tot)}</b></div>
       ${o.forma||rat?`<div class="vk-sub">${o.forma?pill(o.forma,'','fa-credit-card'):''}${rat?pill('rateio','info','fa-chart-pie'):''}</div>`:''}
-      <div class="vk-pe">${col==='aprovar'?pill('aguarda aprovação','roxo','fa-signature'):col==='previstas'?pill('estimativa','',''):''}${col==='previstas'&&!o.venc?'':vencePill(o.venc,pagoC(o)?o.pago:'')}</div>
+      <div class="vk-pe">${col==='aprovar'?pill('aguarda aprovação','roxo','fa-signature'):col==='previstas'?pill('estimativa','',''):''}${noCartao(o)?pill(`no cartão · sai em ${brDe(dt(saiNoCartao(o)))}`,'info','fa-credit-card'):''}${col==='previstas'&&!o.venc?'':vencePill(o.venc,pagoC(o)?o.pago:'')}</div>
     </article>`;
   }
   const cartaoQuadro=x=>x._compra?cartaoCompra(x):cartaoConta(x);
@@ -18176,6 +18273,7 @@ const Mascara=(function(){
   function pagarCompra(L){
     if(!pode('contas'))return toast('Seu perfil não registra pagamentos.','error');
     const o=L[0],tot=L.reduce((s,x)=>s+val(x.total),0);if(L.some(pagoC))return toast('Esta compra já está paga.','error');
+    if(L.some(noCartao))return toast(`Esta compra já foi conciliada com a fatura do cartão: ela fica paga sozinha no vencimento da fatura (${brDe(dt(saiNoCartao(L.find(noCartao))))}).`,'info');
     if(L.some(x=>x.aprov==='pendente'&&x.tipo==='Real')&&!souAdmin())return toast('Esta compra ainda aguarda aprovação (de um Administrador ou de quem tem permissão para aprovar).','error');
     janela('Registrar pagamento da compra',`<div class="fin-resumo"><b>${fe(o.forn||'Compra')}</b> · ${L.length} itens · vence ${brDe(dt(o.venc))}<br>Total: <b>${fmt(tot)}</b> — todos os itens ficam pagos na mesma data.</div>
       <div class="fin-linha"><div class="fin-fld"><label>Data do pagamento</label><input type="date" data-k="data" max="${isoDe(hoje0())}" value="${isoDe(hoje0())}"></div>
@@ -18414,6 +18512,7 @@ const Mascara=(function(){
   function pagarConta(o){
     if(!pode('contas'))return toast('Seu perfil não registra pagamentos.','error');
     if(pagoC(o))return toast('Esta conta já está paga.','error');
+    if(noCartao(o))return toast(`Esta conta já foi conciliada com a fatura do cartão: ela fica paga sozinha no vencimento da fatura (${brDe(dt(saiNoCartao(o)))}).`,'info');
     if(o.aprov==='pendente'&&o.tipo==='Real'&&!souAdmin())return toast('Esta conta ainda aguarda aprovação (de um Administrador ou de quem tem permissão para aprovar).','error');
     janela('Registrar pagamento',`<div class="fin-resumo"><b>${fe(o.forn||o.desc)}</b> · ${fe(C.limparParc(o.desc)||o.cat)}<br>${fe(o.centro)} · vence ${brDe(dt(o.venc))}</div>
       <div class="fin-linha"><div class="fin-fld"><label>Valor pago (R$)</label><input data-k="total" data-mask="moeda" inputmode="numeric" value="${fmt(val(o.total))}"></div>
@@ -18922,7 +19021,8 @@ const Mascara=(function(){
     pre=pre||{};const cc=pre.conc||null;
     const centros=(C.podeEmpresa()?[EMP]:[]).concat(opsObra()),fatores=typeof FATORES!=='undefined'?FATORES:['UN'],RAT='__rateio__';
     const corpo=`<div class="lote">
-      ${cc?`<div class="fin-resumo">Saiu do banco em <b>${fe(cc.dataBR||brDe(dt(cc.data)))}</b>: <b>${fmt(cc.valor)}</b> · ${fe(cc.desc)}${pre.dica?`<br><small>${pre.dica}</small>`:''}<br><small>Lance os itens desta compra (dá para ler a nota ou o cupom). A soma tem que fechar com o valor do banco; tudo entra <b>pago em ${fe(cc.dataBR||brDe(dt(cc.data)))}</b> e ligado a esta linha do extrato.</small></div>`:''}
+      ${cc?(cc.venc?`<div class="fin-resumo">Compra no cartão em <b>${fe(cc.dataBR||brDe(dt(cc.data)))}</b>: <b>${fmt(cc.valor)}</b> · ${fe(cc.desc)}${pre.dica?`<br><small>${pre.dica}</small>`:''}<br><small>Lance os itens desta compra (dá para ler a nota ou o cupom). A soma tem que fechar com o valor da fatura; tudo vence — e sai do caixa — no <b>vencimento da fatura, ${fe(brDe(dt(cc.venc)))}</b>${cc.parc?' (as próximas parcelas, um mês depois da outra)':''}, ligado a esta linha.</small></div>`
+        :`<div class="fin-resumo">Saiu do banco em <b>${fe(cc.dataBR||brDe(dt(cc.data)))}</b>: <b>${fmt(cc.valor)}</b> · ${fe(cc.desc)}${pre.dica?`<br><small>${pre.dica}</small>`:''}<br><small>Lance os itens desta compra (dá para ler a nota ou o cupom). A soma tem que fechar com o valor do banco; tudo entra <b>pago em ${fe(cc.dataBR||brDe(dt(cc.data)))}</b> e ligado a esta linha do extrato.</small></div>`):''}
       <div class="fin-linha">
         <div class="fin-fld" style="grid-column:1/-1"><label>Para onde vai o gasto <span class="obg">*</span></label>${htmlDestino('data-l="centro"',pre.centro!=null?pre.centro:(QC.obra||''))}</div>
         <div class="fin-fld"><label>Compra/aquisição <span class="obg">*</span></label><input type="date" data-l="dcompra" max="${isoDe(hoje0())}" value="${fe(cc?(cc.compra||cc.data):isoDe(hoje0()))}"></div>
@@ -18935,17 +19035,18 @@ const Mascara=(function(){
         <button type="button" class="fin-bt" data-l="add"><i class="fas fa-plus"></i> Adicionar item</button><span class="lote-st" data-l="st"></span></div>
       <div class="lote-tab"><table data-sem-ordem><thead><tr><th>Fornecedor / quem recebe</th><th>Vencimento <span class="obg">*</span></th><th>Categoria › Descrição <span class="obg">*</span></th><th>Qtd</th><th>Un.</th><th>Preço unit.</th><th>Valor</th><th></th></tr></thead><tbody data-l="itens"></tbody></table></div>
       <div class="lote-pe"><label class="lote-dn"><span>Desconto da nota (R$)</span><input data-l="descnota" data-mask="moeda" inputmode="numeric" placeholder="R$ 0,00"></label><div class="lote-tot" data-l="tot"></div></div>
-      <div class="lote-socio">${Fin.util.simNao('data-l="socio"','Pago com dinheiro do sócio?',`Cartão, PIX ou conta pessoal do sócio — ${cc?'além da conta paga na data do banco, o valor também':'a conta já fica paga e o valor'} entra em <b>Sócios e investimentos</b> como aporte.`,'',
+      ${/* "Pago com dinheiro do sócio?" só quando a conta já sai PAGA (a saída da conciliação); a conta nova fica a pagar /
+         aguardando aprovação e a pergunta vem no "Registrar pagamento" (o dono pediu) */''}${cc?`<div class="lote-socio">${Fin.util.simNao('data-l="socio"','Pago com dinheiro do sócio?',`Cartão, PIX ou conta pessoal do sócio — além da conta paga na data do banco, o valor também entra em <b>Sócios e investimentos</b> como aporte.`,'',
         `<div class="fin-linha sn-mais" data-l="socio-box" hidden><div class="fin-fld"><label>Sócio / investidor <span class="obg">*</span></label><input data-l="quem" list="lote-quem" autocomplete="off" placeholder="Quem pagou?"><datalist id="lote-quem">${socios().map(s=>`<option value="${fe(s)}">`).join('')}</datalist></div>
-          <div class="fin-fld" ${cc?'hidden':''}><label>Pago em <span class="obg">*</span></label><input type="date" data-l="pagoem" max="${isoDe(hoje0())}" value="${fe(cc?cc.data:isoDe(hoje0()))}"></div></div>`)}</div></div>`;
+          <div class="fin-fld" ${cc?'hidden':''}><label>Pago em <span class="obg">*</span></label><input type="date" data-l="pagoem" max="${isoDe(hoje0())}" value="${fe(cc?(cc.venc||cc.data):isoDe(hoje0()))}"></div></div>`)}</div>`:''}</div>`;
     // parcelas lidas da nota (duplicatas/boleto) e CNPJ do fornecedor lido
     let PARC=[],CNPJ_LIDO='',RT=null;
     janela(cc?'Registrar saída':'Nova conta a pagar',corpo,[{html:'<i class="fas fa-cart-arrow-down"></i> Lançar',cls:'pri',acao:async j=>{
       const g=k=>(j.querySelector(`[data-l="${k}"]`).value||'').trim(),centro0=g('centro'),rat=centro0===RAT,rep=g('rep'),forma=g('forma');
-      const socio=Fin.util.simNaoValor(q('socio'))==='sim',quem=g('quem'),pagoEm=g('pagoem'),obrasR=rat?RT.obras():[];
+      const socio=Fin.util.simNaoValor(q('socio'))==='sim',quem=socio?g('quem'):'',pagoEm=socio?g('pagoem'):'',obrasR=rat?RT.obras():[];
       if(!centro0)throw new Error('Marque a obra (ou Custo indireto).');if(rat&&erroRateio(obrasR))throw new Error(erroRateio(obrasR));
       const dCompra=g('dcompra');if(!dCompra)throw new Error('Informe a data da compra/aquisição.');if(dCompra>isoDe(hoje0()))throw new Error('A data da compra/aquisição não pode ser depois de hoje.');
-      if(socio&&!quem)throw new Error('Informe o sócio que pagou.');if(socio&&(!pagoEm||pagoEm>isoDe(hoje0())))throw new Error('Informe a data em que o sócio pagou (até hoje).');
+      if(socio&&!quem)throw new Error('Informe o sócio que pagou.');if(socio&&!cc&&(!pagoEm||pagoEm>isoDe(hoje0())))throw new Error('Informe a data em que o sócio pagou (até hoje).');
       const its=lerItens(j).filter(x=>x.desc||x.total);if(!its.length)throw new Error('Inclua pelo menos um item.');
       const ruim=its.findIndex(x=>!x.cat||!x.desc||!(x.total>0));if(ruim>=0)throw new Error(`Linha ${ruim+1}: escolha a categoria › descrição e informe o valor.`);
       const semV=its.findIndex(x=>!x.venc);if(semV>=0&&rep!=='nota'&&!cc)throw new Error(`Linha ${semV+1}: informe o vencimento.`);
@@ -18969,7 +19070,7 @@ const Mascara=(function(){
             const cent=rep==='nota'?(i<n-1?Math.round(tot*PARC[i].valor/somaP):tot-acum):rep==='parc'?(i<n-1?Math.floor(tot/n):tot-Math.floor(tot/n)*(n-1)):tot;acum+=cent;
             const vv=rep==='nota'?PARC[i].venc:rep?isoDe(C.somaMes(dt(x.venc),i)):x.venc,vt=cent/100;
             const obs=[x.num?'Nota/recibo nº '+x.num:'',rat?`Rateio: ${pctTxt(dd.pct)} de ${fmt(x.liq)} (pelo orçamento)`:'',socio?`Paga por ${quem} (aporte)`:''].filter(Boolean).join(' · ');
-            const u={centro,tipo:'Real',venc:cc?cc.data:vv,total:dinheiro(vt),forn:x.forn,cat:x.cat,forma,desc:(x.desc||x.cat)+(n>1?` (${i+1}/${n})`:'')+(parcCC?` (${pn}/${pt})`:''),obs:cc?[obs,'Lançada pela conciliação bancária'].filter(Boolean).join(' · '):obs,qtd:'',fator:'',pUnit:'',pago:cc?cc.data:socio?pagoEm:'',lanc:'',compra,dataCompra:dCompra};
+            const u={centro,tipo:'Real',venc:cc?(cc.venc||cc.data):vv,total:dinheiro(vt),forn:x.forn,cat:x.cat,forma,desc:(x.desc||x.cat)+(n>1?` (${i+1}/${n})`:'')+(parcCC?` (${pn}/${pt})`:''),obs:cc?[obs,'Lançada pela conciliação bancária'].filter(Boolean).join(' · '):obs,qtd:'',fator:'',pUnit:'',pago:cc?(cc.venc||cc.data):socio?pagoEm:'',lanc:'',compra,dataCompra:dCompra};
             if(n>1||parcCC)u.grupo=gid;
             if(rid)u.rateio=rid;
             if(centro!==EMP){
@@ -18978,7 +19079,7 @@ const Mascara=(function(){
               u.qtd=String(q4);u.fator=x.un||'UN';
               if(dsc<-0.004||!(x.pUnit>0))u.pUnit=String(Math.round(vt/q4*1e6)/1e6);else{u.pUnit=String(Math.round(pu*1e6)/1e6);if(dsc>=0.005)u.desconto=dinheiro(dsc);}}
             C.finalizarConta(u);C.montarConta(u,null).forEach(op=>{if(cc)Object.assign(op.dados,{conciliacao:cc.id,conciliacao_baixa:cc.id,extrato_desc:cc.desc,conc_origem:cc.id});ops.push(op);});
-            if(parcCC){const fut=Fin.parcelasFuturas({...u,obsBase:[x.num?'Nota/recibo nº '+x.num:'',rat?`Rateio: ${pctTxt(dd.pct)} de ${fmt(x.liq)} (pelo orçamento)`:'',socio?`Será paga por ${quem} (aporte)`:''].filter(Boolean).join(' · ')},x.desc||x.cat,pn,pt,cc.data,{extrato_desc:cc.desc,conc_origem_fut:cc.id,...(socio?{pago_por_socio:quem}:{})});nFut+=fut.length;ops.push(...fut);}
+            if(parcCC){const fut=Fin.parcelasFuturas({...u,obsBase:[x.num?'Nota/recibo nº '+x.num:'',rat?`Rateio: ${pctTxt(dd.pct)} de ${fmt(x.liq)} (pelo orçamento)`:'',socio?`Será paga por ${quem} (aporte)`:''].filter(Boolean).join(' · ')},x.desc||x.cat,pn,pt,cc.venc||cc.data,{extrato_desc:cc.desc,conc_origem_fut:cc.id,...(socio?{pago_por_socio:quem}:{})});nFut+=fut.length;ops.push(...fut);}
             if(socio){const k=centro;aps[k]=(aps[k]||0)+vt;}}}}
       // fornecedores novos entram no cadastro; descrições novas entram em Categoria › Descrição
       const forns=[...new Set(its.map(x=>x.forn).filter(Boolean))];
@@ -18995,13 +19096,13 @@ const Mascara=(function(){
     const ptBR=(v,c)=>v?Number(v).toLocaleString('pt-BR',{minimumFractionDigits:c,maximumFractionDigits:6}):'';
     // linha nova repete fornecedor, nota e vencimento da linha de cima (na mesma compra quase sempre são iguais)
     const linha=(x={})=>{const tr=document.createElement('tr');if(x.conferir)tr.className='conferir';if(x.extra)tr.dataset.extra='1';if(x.pre)tr.dataset.pre='1';
-      const ant=tb.lastElementChild,va=k=>ant?(ant.querySelector(`[data-i="${k}"]`)||{}).value||'':'';const forn=x.forn!=null?x.forn:va('forn'),nn=x.num!=null?x.num:va('num'),vc=x.venc!=null?x.venc:(va('venc')||(cc?cc.data:''));
+      const ant=tb.lastElementChild,va=k=>ant?(ant.querySelector(`[data-i="${k}"]`)||{}).value||'':'';const forn=x.forn!=null?x.forn:va('forn'),nn=x.num!=null?x.num:va('num'),vc=x.venc!=null?x.venc:(va('venc')||(cc?(cc.venc||cc.data):''));
       tr.innerHTML=`<td><input data-i="forn" data-maiusc list="vx-forn-lista" autocomplete="off" value="${fe(String(forn||'').toLocaleUpperCase('pt-BR'))}" placeholder="fornecedor"><input type="hidden" data-i="num" value="${fe(nn)}"></td>
         <td><input type="date" data-i="venc" value="${fe(vc)}"></td>
         <td>${htmlCG('data-i="cat"','data-i="desc"',x.cat,x.desc)}${x.lido?`<small title="Como está escrito no arquivo">no arquivo: ${fe(x.lido)}</small>`:''}${x.conferir?'<small class="lote-conf">quantidade × preço não bate com o valor — confira no arquivo</small>':''}</td>
         <td><input data-i="qtd" inputmode="decimal" value="${ptBR(x.qtd,0)}" ${emp()?'disabled':''}></td>
         <td><select data-i="un" ${emp()?'disabled':''}><option value="">—</option>${fatores.map(u=>`<option ${u===x.un?'selected':''}>${u}</option>`).join('')}${x.un&&!fatores.includes(x.un)?`<option selected>${fe(x.un)}</option>`:''}</select></td>
-        <td><input data-i="pu" inputmode="decimal" value="${ptBR(x.pUnit,2)}" placeholder="0,00" ${emp()?'disabled':''}></td>
+        <td><input data-i="pu" data-mask="moeda" inputmode="numeric" value="${x.pUnit?fmt(x.pUnit):''}" placeholder="R$ 0,00" ${emp()?'disabled':''}></td>
         <td><input data-i="vt" data-mask="moeda" inputmode="numeric" value="${x.total?fmt(x.total):''}" ${emp()?'':'readonly tabindex="-1" class="lote-calc" title="Calculado: quantidade × preço unitário"'}></td>
         <td><button type="button" class="bt-tirar" data-i="tirar" title="Tirar o item" aria-label="Tirar o item"><i class="fas fa-trash-can"></i></button></td>`;tb.appendChild(tr);soma();};
     const nb=s=>Mascara.numero(s)||0;
@@ -19041,7 +19142,7 @@ const Mascara=(function(){
         const t=Math.round((r.itens.concat(r.linhasExtra||[]).reduce((a,x)=>a+(x.total||0),0)-(r.desconto||0))*100)/100,nConf=r.itens.filter(x=>x.conferir).length;
         st.innerHTML=`<i class="fas fa-circle-check" style="color:#067647"></i> ${fe(r.origem)}: ${r.itens.length} item(ns)${(r.linhasExtra||[]).length?' + '+r.linhasExtra.map(x=>fe(x.desc.split(' ')[0].toLowerCase())).join(', '):''}${r.desconto?` − desconto ${fmt(r.desconto)}`:''} = ${fmt(t)}${PARC.length>1?` · ${PARC.length} parcelas`:''}${r.difTotal?` · <b style="color:#B54708">o total do documento é ${fmt(r.total)} — confira os itens</b>`:''}${nConf?` · <b style="color:#B54708">${nConf} item(ns) para conferir</b>`:''}${r.aviso?` · <b style="color:#B54708">${fe(r.aviso)}</b>`:''}. Os números são os do arquivo; só o nome foi padronizado.`;}
       catch(e){st.textContent='Não consegui ler: '+((e&&e.message)||e);}finally{q('arq').value='';}});
-    if(cc)linha({pre:true,forn:pre.forn||'',venc:cc.data,cat:pre.cat||'',desc:pre.desc||'',qtd:1,un:'UN',pUnit:cc.valor,total:cc.valor});else linha({});
+    if(cc)linha({pre:true,forn:pre.forn||'',venc:cc.venc||cc.data,cat:pre.cat||'',desc:pre.desc||'',qtd:1,un:'UN',pUnit:cc.valor,total:cc.valor});else linha({});
   }
   GS.lote=fichaLote;
   function fichaConta(o,voltar){
@@ -26677,7 +26778,7 @@ textarea[data-rv-cola]{width:100%;font-family:inherit;}
    versão nova em cada aba, para nunca ficar recarregando sem parar.
    A CADA PUBLICAÇÃO: trocar a VERSÃO abaixo e a do versao.json (na raiz e em public/) — as duas iguais. */
 (function(){
-  const VERSAO='2026-11-18j';window.VX_VERSAO=VERSAO;
+  const VERSAO='2026-11-18k';window.VX_VERSAO=VERSAO;
   let ultima=0,pendente=null;
   const ocupado=()=>!!(App&&App.state&&App.state._busy)||!!document.querySelector('#fin-ov.open,.modal-overlay.open,.pm-pop,.vx-perg-ov,.confirm-overlay.open');
   async function tentar(){
@@ -27372,6 +27473,15 @@ button.vx-baixar:hover,.rdo-lb-cab button[data-lb-baixar]:hover{background:#1652
 .rdo-pend-itens li{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:7px 9px;border-radius:9px;background:#FFFCF5;font-size:13px;color:#344054;}
 .rdo-pend-itens li>i{color:#DC6803;width:16px;text-align:center;} .rdo-pend-itens li>span:first-of-type{flex:1 1 260px;}
 .rdo-pend-ac{display:flex;gap:6px;flex-wrap:wrap;margin-left:auto;}
+/* o cartão do dia é um RESUMO (o dono pediu): serviços em até 3 linhas, uma linha de cada informação, as fotos numa fileira; o resto em "Ver tudo" */
+.rdo-resumo .rdo-res-txt{white-space:pre-line;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;margin:0 0 4px;}
+.rdo-resumo small.rdo-falta{display:flex;gap:6px;align-items:flex-start;} .rdo-resumo small.rdo-falta i{margin-top:2px;}
+.rdo-resumo .rdo-cl{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
+.rdo-res-info span{display:block;font-size:11.5px;color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px;} .rdo-res-info b{color:var(--text-2);}
+.rdo-res-fotos{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin-top:6px;} .rdo-res-fotos .rdo-hfotos,.rdo-res-fotos .eng-fotos{margin:0;}
+.rdo-res-pe{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:6px;} .rdo-res-pe small{margin:0!important;}
+.rdo-ver-tudo{border:0;background:none;color:#1652D8;font:700 12px Inter,sans-serif;cursor:pointer;padding:2px 0;display:inline-flex;align-items:center;gap:4px;white-space:nowrap;} .rdo-ver-tudo:hover{text-decoration:underline;}
+.rdo-ver-fotos{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px;} .rdo-ver-fotos button{width:84px;height:84px;padding:0;border:1px solid #E4E9F2;border-radius:9px;overflow:hidden;cursor:zoom-in;background:#F2F4F7;} .rdo-ver-fotos img{width:100%;height:100%;object-fit:cover;display:block;}
 /* sem internet (celular): faixa no rodapé enquanto não há conexão ou há registros esperando para ir */
 #vx-offline{position:fixed;left:50%;transform:translateX(-50%);bottom:14px;z-index:12000;max-width:min(640px,calc(100% - 24px));padding:10px 16px;border-radius:14px;font:500 13px/1.45 Inter,sans-serif;box-shadow:0 12px 32px -8px rgba(16,24,40,.35);}
 #vx-offline.sem{background:#101828;color:#F2F4F7;} #vx-offline.enviando{background:#EFF4FF;color:#1849A9;border:1px solid #B2CCFF;}
