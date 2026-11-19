@@ -13098,6 +13098,12 @@ const Eng=(function(){
      registro antigo, sem autor, só o Administrador mexe */
   const eu=()=>{const s=Auth._session||{};return {id:String(s.uid||s.cpf||s.nome||''),nome:s.nome||''};};
   const ehAdmRdo=()=>!!UI._ehAdmin((Auth._session||{}).perfil);
+  /* quem corrige as pendências: o Administrador e quem ganhou a subtela "Pendências" do diário nas Permissões (só vale
+     marcada). O dia aberto pela aba Pendências (corrRdo = o rowid) essa pessoa altera como o Administrador — foto do
+     horímetro sem horário, número à mão, excluir foto —, só enquanto o formulário dele está aberto */
+  const podePendRdo=()=>ehAdmRdo()||!!(UI.podeSub&&UI.podeSub('diario','pend'));
+  let corrRdo=null;
+  const corrigindoRdo=r=>!!corrRdo&&podePendRdo()&&(!r||String(r.rowid)===corrRdo);
   /* DIÁRIO AUTOMÁTICO: nas obras marcadas pelo Administrador, o diário do dia nasce sozinho, em branco, às 6h (auto='sim').
      Enquanto não for preenchido, qualquer um que vê a obra preenche — e ele passa a ser de quem preencheu. */
   const preenchidoRdo=r=>!(r&&r.auto==='sim'&&!r.preenchido_em);
@@ -13105,7 +13111,7 @@ const Eng=(function(){
      linha (o navegador que criou o diário às 6h) e não deixa trocar; nos outros, quem registrou (criado_por_id) */
   const donoRdo=r=>String((r&&(r.auto==='sim'?r.preenchido_por_id:r.criado_por_id))||'');
   const souEuRdo=id=>{const s=Auth._session||{};return !!id&&[s.uid,s.cpf,s.email,s.nome].filter(Boolean).map(String).includes(String(id));};
-  const meuRdo=r=>ehAdmRdo()||!!(r&&!preenchidoRdo(r))||!!(r&&(r.auto==='sim'?souEuRdo(r.preenchido_por_id):(r.criado_por_id&&GS.podeMexer(r))));
+  const meuRdo=r=>ehAdmRdo()||(!!r&&corrigindoRdo(r))||!!(r&&!preenchidoRdo(r))||!!(r&&(r.auto==='sim'?souEuRdo(r.preenchido_por_id):(r.criado_por_id&&GS.podeMexer(r))));
   // fotos: todo usuário (interno ou externo) que vê o diário registra fotos — cada foto é de quem anexou
   const podeFotoRdo=()=>true;
   /* FECHAMENTO DO DIA (como no Diário de produção): o dia fecha em "Fechar o dia" ou sozinho às 19h; fechado não muda
@@ -13261,7 +13267,7 @@ const Eng=(function(){
      o Administrador reabriu —, quem registra ainda anexa: a foto entra marcada "fora do horário" (foraHor) e vira uma
      pendência para o Administrador aceitar. Nada disso impede o Salvar. */
   const travaHor=(k,dia)=>{const tr=janelaHor(k,dia);return tr&&!/^(Encerrou|Dia que já passou)/.test(tr)?tr:null;};
-  function foraHor(k,dia,t){if(ehAdmRdo()||!JANELA_HOR[k]||!t)return '';const [a,b]=JANELA_HOR[k],qd=`${brDe(t)} ${hm(t)}`;
+  function foraHor(k,dia,t){if(ehAdmRdo()||corrigindoRdo()||!JANELA_HOR[k]||!t)return '';const [a,b]=JANELA_HOR[k],qd=`${brDe(t)} ${hm(t)}`;
     if(dia&&isoDe(t)!==dia)return `a foto é de ${qd}, não do dia do diário`;
     const m=t.getHours()*60+t.getMinutes();if(m<minHM(a)||m>minHM(b))return `tirada às ${hm(t)}; o horário dela é das ${hTxt(a)} às ${hTxt(b)}`;
     if(dia&&dia<hojeRdo())return `anexada depois do dia (em ${brDe(new Date())})`;
@@ -13270,7 +13276,7 @@ const Eng=(function(){
   function estadoJanela(k,dia){const hj=hojeRdo();if(!dia||!JANELA_HOR[k])return 'aberta';if(dia<hj)return 'passou';if(dia>hj)return 'antes';
     const t=new Date(),m=t.getHours()*60+t.getMinutes(),[a,b]=JANELA_HOR[k];return m<minHM(a)?'antes':m>minHM(b)?'passou':'aberta';}
   // null = pode registrar; senão, o motivo (quando: a hora da foto, para conferir que ela foi tirada no horário)
-  function janelaHor(k,dia,quando){if(ehAdmRdo()||!JANELA_HOR[k])return null;const [a,b]=JANELA_HOR[k],hj=hojeRdo(),t=quando||new Date();
+  function janelaHor(k,dia,quando){if(ehAdmRdo()||corrigindoRdo()||!JANELA_HOR[k])return null;const [a,b]=JANELA_HOR[k],hj=hojeRdo(),t=quando||new Date();
     if(dia&&dia!==hj)return dia<hj?'Dia que já passou: só o Administrador registra a foto.':'Este dia ainda não chegou.';
     if(quando&&isoDe(t)!==hj)return `A foto é de ${brDe(t)} — tire a foto hoje, na hora da leitura.`;
     const m=t.getHours()*60+t.getMinutes();
@@ -13358,7 +13364,7 @@ const Eng=(function(){
     const r=v.ref||{},data=v.data||r.data||'',outro=dia&&data&&data!==dia,fora=v.url?(v.fora||''):(r.fora&&!r.fora_ok?r.fora:'');
     return `<img ${v.url?`src="${v.url}"`:GS.fotoSis.attrs({foto_uid:r.uid,thumb_uid:r.thumb},false,200)} alt="" title="Clique para ampliar"><span class="rdo-hzoom" aria-hidden="true"><i class="fas fa-magnifying-glass-plus"></i></span>${fora?`<span class="rdo-hfora" title="${fe('Fora do horário: '+fora+' — o Administrador confere')}"><i class="fas fa-triangle-exclamation"></i> Fora do horário</span>`:''}
       <span class="rdo-hhora${outro?' outro':''}" title="${outro?'A foto é de outro dia — confira':'Data e hora em que a foto foi tirada'}"><i class="fas fa-clock"></i> ${fe(quandoHor(data,v.hora||r.hora))}</span>
-      <button type="button" class="rdo-htrocar" data-htrocar title="Escolher outra foto"><i class="fas fa-camera-rotate"></i> Trocar</button>`;};
+      <button type="button" class="rdo-htrocar" data-htrocar title="Escolher outra foto"><i class="fas fa-camera-rotate"></i> Trocar</button><button type="button" class="rdo-hretirar" data-hretirar title="Retirar esta foto (e o número lido dela)"><i class="fas fa-trash"></i> Retirar</button>`;};
   /* ver as fotos do horímetro em tamanho grande (no formulário e no cartão do dia): setas e Esc. Também as fotos do dia no
      formulário (tit = o título; drive = a foto que o Administrador mandou para o Google Drive).
      L: [{url (arquivo ainda não enviado) | uid+thumb (já no sistema) | drive, rot, quando, tit}] */
@@ -13402,7 +13408,7 @@ const Eng=(function(){
   function htmlEquip(reg){const l=(jsonDe(reg&&reg.equip_json)||[]),sem=l.filter(x=>x.hor===false),x=maqDe(reg),L=leituras(x),h=horasEq(x),dia=reg?reg.data:'';
     return `<datalist id="rdo-equip-sem">${EQUIP_SEM.map(e=>`<option value="${fe(e)}">`).join('')}</datalist>
       <div class="rdo-eq-tit"><b><i class="fas fa-gauge-high"></i> ${MAQ_FIXA} — horímetro</b><small>as 4 leituras do dia: tire a foto do horímetro no horário de cada uma — o número é lido da foto (o campo fica travado) e a hora fica gravada nela; as horas são calculadas</small></div>
-      <div class="rdo-hor" data-rdo-hor>${LEIT.map(([k,rot])=>{const f=x[fk(k)],tr=!(f&&f.uid)&&travaHor(k,dia);return `<div class="rdo-hl"><label>${rot} <span class="obg">*</span></label><div class="rdo-hval"><input data-eq="${k}" inputmode="decimal" value="${fe(L[k]||'')}" placeholder="${f&&f.uid&&!L[k]?'não lido — a conferir':'lido da foto'}" readonly class="rdo-lido" title="Lido da foto do horímetro — não se digita">${ehAdmRdo()?`<button type="button" class="rdo-hcorr" data-hcorr="${k}" title="Corrigir a leitura à mão (Administrador)" aria-label="Corrigir a leitura à mão"><i class="fas fa-pen"></i></button>`:''}</div>
+      <div class="rdo-hor" data-rdo-hor>${LEIT.map(([k,rot])=>{const f=x[fk(k)],tr=!(f&&f.uid)&&travaHor(k,dia);return `<div class="rdo-hl"><label>${rot} <span class="obg">*</span></label><div class="rdo-hval"><input data-eq="${k}" inputmode="decimal" value="${fe(L[k]||'')}" placeholder="${f&&f.uid&&!L[k]?'não lido — a conferir':'lido da foto'}" readonly class="rdo-lido" title="Lido da foto do horímetro — não se digita">${ehAdmRdo()||corrigindoRdo()?`<button type="button" class="rdo-hcorr" data-hcorr="${k}" title="Corrigir a leitura à mão (Administrador)" aria-label="Corrigir a leitura à mão"><i class="fas fa-pen"></i></button>`:''}</div>
           <div class="rdo-hfoto${f&&f.uid?' ok':''}${tr?' trava':''}" data-hfoto="${k}" role="button" tabindex="0" aria-label="Foto do horímetro — ${rot}">${fotoHorHtml(f&&f.uid?{ref:f}:null,dia,k)}</div><input type="file" accept="image/*" hidden data-hfile="${k}"></div>`;}).join('')}
         <div class="rdo-hl rdo-hl-tot"><label>Horas no dia</label><input data-eq="h" value="${!isNaN(h.tot)&&h.tot>=0?fmtH(h.tot):''}" disabled title="Calculado: (meio-dia − início do dia) + (fim da tarde − início da tarde)"><label style="margin-top:8px">Observação</label><input data-eq="obs" value="${fe(x.obs||'')}" placeholder="opcional"></div></div>
       <div class="rdo-eq-tit" style="margin-top:14px"><b><i class="fas fa-toolbox"></i> Máquinas e equipamentos sem horímetro</b><small>opcional</small></div>
@@ -13452,7 +13458,7 @@ const Eng=(function(){
     return {adm,voce};}
   // depois de salvar: a janela com o que ficou (para quem registrou: "vai para o Administrador"; tudo certo: só o aviso)
   function avisoPendRdo(r,extra,nota){
-    const P=pendRdo(r),adm=ehAdmRdo(),li=L=>`<ul class="rdo-pend-ul">${L.map(p=>`<li>${fe(p.txt)}</li>`).join('')}</ul>`;
+    const P=pendRdo(r),adm=podePendRdo(),li=L=>`<ul class="rdo-pend-ul">${L.map(p=>`<li>${fe(p.txt)}</li>`).join('')}</ul>`;
     if(!P.adm.length&&!P.voce.length){toast(extra||('Diário salvo — tudo completo.'+(nota?' '+nota:'')),extra?'error':'success');return;}
     janela('Diário salvo',`<p class="rdo-pend-ok"><i class="fas fa-circle-check"></i> O diário de <b>${fe(brDe(dt(r.data)))}</b> (${fe(r.titulo_obra)}) foi salvo.${nota?' '+fe(nota):''}</p>${extra?`<p class="rdo-pend-err"><i class="fas fa-triangle-exclamation"></i> ${fe(extra)}</p>`:''}
       ${P.adm.length?`<h4 class="rdo-pend-h">${adm?'Ficaram estas pendências — estão na aba <b>Pendências</b>:':'Ficaram estas pendências. <b>Não precisa fazer nada:</b> elas vão para o Administrador, que resolve.'}</h4>${li(P.adm)}`:''}
@@ -13494,6 +13500,7 @@ const Eng=(function(){
        cancela o formulário não perde nada */
     const sv=j.querySelector('[data-rdo-salvas]');j._fotosApagar=new Set();
     const salvas=()=>reg?fotosDoRegistro(reg):[];
+    // (a Lixeira só deixa excluir a foto de outra pessoa ao Administrador — por isso quem corrige só tira as suas)
     const podeApagarFoto=f=>ehAdmRdo()||souEuRdo(f.enviado_por_id)||souEuRdo(f.criado_por_id);
     // a descrição como a pessoa escreveu (a galeria grava "Etapa • data • descrição"; o diário põe "Diário de obra · …")
     const descFoto=f=>{const p=String(f.descricao||'').split(' • '),d=(p.length>=3?p.slice(2).join(' • '):p.join(' • ')).replace(/^Diário de obra( · )?/,'').trim();
@@ -13544,7 +13551,7 @@ const Eng=(function(){
     // o que ficou faltando, com o registro como ficou no banco (a tela já recarregou)
     const L=D().diario_obra||[],r=(reg&&L.find(x=>String(x.rowid)===String(reg.rowid)))||L.find(x=>x.titulo_obra===o.titulo_obra&&x.data===o.data&&donoRdo(x)===donoRdo(o))||o;
     // a janela do aviso abre DEPOIS que o formulário fecha (aberta aqui dentro, o fechamento do formulário levava ela junto)
-    j._aoFechar=()=>avisoPendRdo(r,extra,nota);},
+    const antes=j._aoFechar;j._aoFechar=()=>{if(antes)antes();avisoPendRdo(r,extra,nota);};},
   validar:(o,reg,j,parcial)=>{
     // leituras do horímetro fora de ordem (ex.: um número lido errado da foto) NÃO impedem o diário: ele salva e o dia fica
     // "Horímetro a conferir" para o Administrador corrigir (o dono pediu: o diário nunca fica travado pelo horímetro)
@@ -13638,7 +13645,17 @@ const Eng=(function(){
       if(trocar||!(v.url||v.ref)){const tr=travaHor(k,H('data').value);if(tr){pintarFoto(k);return toast(`Foto do horímetro — ${(LEIT.find(x=>x[0]===k)||[])[1].toLowerCase()}: ${tr}. Ela vale das ${hTxt(JANELA_HOR[k][0])} às ${hTxt(JANELA_HOR[k][1])}.`,'info');}
         return hb.querySelector(`[data-hfile="${k}"]`).click();}
       const L=fotosDoForm();verFotosHor(L,L.findIndex(x=>x.k===k));};
-    hb.addEventListener('click',ev=>{const box=ev.target.closest('[data-hfoto]');if(box)abrirFoto(box,!!ev.target.closest('[data-htrocar]'));});
+    /* Retirar: a foto anexada sai do quadro (e o número lido dela). A que já estava salva vai para a Lixeira quando salvar
+       (como a trocada); a escolhida agora só sai. Cancelar o formulário não tira nada. */
+    const retirarFoto=async k=>{const v=j._hor[k],rot=(LEIT.find(x=>x[0]===k)||[])[1]||k;if(!v||!(v.url||v.ref)||v.lendo)return;
+      if(!(await vxPergunta('Retirar a foto do horímetro?',`A foto do horímetro — <b>${fe(rot)}</b> sai deste diário${v.ref&&v.ref.uid?' quando você salvar (ela vai para a Lixeira)':''}, e o número lido dela também. Depois dá para anexar outra.`,'Sim, retirar','Não')))return;
+      if(v.ref&&v.ref.uid)(j._rdoApagar=j._rdoApagar||[]).push(v.ref);
+      if(v.url)URL.revokeObjectURL(v.url);
+      Object.keys(v).forEach(x=>delete v[x]);
+      const inp=hb.querySelector(`[data-eq="${k}"]`);if(inp){inp.value='';inp.placeholder='lido da foto';inp.readOnly=true;inp.classList.add('rdo-lido');}
+      pintarFoto(k);somaEquip();toast(`Foto do horímetro — ${rot.toLowerCase()} retirada. Salve para confirmar.`,'info');};
+    hb.addEventListener('click',ev=>{const rt=ev.target.closest('[data-hretirar]');if(rt){ev.stopPropagation();const b=rt.closest('[data-hfoto]');if(b)retirarFoto(b.dataset.hfoto);return;}
+      const box=ev.target.closest('[data-hfoto]');if(box)abrirFoto(box,!!ev.target.closest('[data-htrocar]'));});
     hb.addEventListener('keydown',ev=>{const box=ev.target.closest('[data-hfoto]');if(box&&ev.target===box&&(ev.key==='Enter'||ev.key===' ')){ev.preventDefault();abrirFoto(box,false);}});
     // foto escolhida: carimba data/hora (a do arquivo, que é a hora em que a câmera tirou) e o que é; avisa se for de outro dia
     hb.addEventListener('change',async ev=>{const i=ev.target.closest('[data-hfile]');if(!i)return;const file=i.files&&i.files[0];i.value='';if(!file)return;
@@ -13801,8 +13818,8 @@ const Eng=(function(){
   // as abas do Diário: os registros de cada dia e a tabela da Fiscalização (módulo GS.reprov). As duas são
   // SUBTELAS nas Permissões (UI._SUBTELAS.diario, botões com data-rd-aba): a bloqueada some e abre a liberada
   const podeAbaRdo=a=>!UI.podeSub||UI.podeSub('diario',a);
-  const abasRdo=()=>{const n=GS.reprov&&GS.reprov.pendentes&&podeAbaRdo('fisc')?GS.reprov.pendentes():0,np=ehAdmRdo()?pendLista().length:0;
-    return `<div class="gf-abas doc-abas"><button type="button" class="gf-aba ${RD.aba!=='fisc'&&RD.aba!=='pend'?'on':''}" data-rd="aba" data-rd-aba="dias"><i class="fas fa-calendar-day"></i> Registros do dia</button><button type="button" class="gf-aba ${RD.aba==='fisc'?'on':''}" data-rd="aba" data-rd-aba="fisc"><i class="fas fa-clipboard-check"></i> Fiscalização${n?` <b class="rv-aba-n" title="${n} aguardando correção">${n}</b>`:''}</button>${ehAdmRdo()?`<button type="button" class="gf-aba ${RD.aba==='pend'?'on':''}" data-rd="aba" data-rd-aba="pend"><i class="fas fa-list-check"></i> Pendências${np?` <b class="rv-aba-n" title="${np} dia(s) com pendência neste mês">${np}</b>`:''}</button>`:''}</div>`;};
+  const abasRdo=()=>{const n=GS.reprov&&GS.reprov.pendentes&&podeAbaRdo('fisc')?GS.reprov.pendentes():0,np=podePendRdo()?pendLista().length:0;
+    return `<div class="gf-abas doc-abas"><button type="button" class="gf-aba ${RD.aba!=='fisc'&&RD.aba!=='pend'?'on':''}" data-rd="aba" data-rd-aba="dias"><i class="fas fa-calendar-day"></i> Registros do dia</button><button type="button" class="gf-aba ${RD.aba==='fisc'?'on':''}" data-rd="aba" data-rd-aba="fisc"><i class="fas fa-clipboard-check"></i> Fiscalização${n?` <b class="rv-aba-n" title="${n} aguardando correção">${n}</b>`:''}</button>${podePendRdo()?`<button type="button" class="gf-aba ${RD.aba==='pend'?'on':''}" data-rd="aba" data-rd-aba="pend"><i class="fas fa-list-check"></i> Pendências${np?` <b class="rv-aba-n" title="${np} dia(s) com pendência neste mês">${np}</b>`:''}</button>`:''}</div>`;};
   /* ── ABA PENDÊNCIAS (só o Administrador): os dias do mês (e da obra) escolhidos que têm pendência do Administrador ── */
   function pendLista(){const mes=RD.mes===''?hojeRdo().slice(0,7):RD.mes;
     return (D().diario_obra||[]).filter(r=>preenchidoRdo(r)&&(!RD.obra||r.titulo_obra===RD.obra)&&(mes==='__todos'||String(r.data||'').startsWith(mes)))
@@ -13818,7 +13835,10 @@ const Eng=(function(){
       const ate=new Date(Date.now()+3600e3);
       try{await executar(()=>salvar('Diário de obra',{...r,fechado:null,reaberto:{em:todayDateTime(),por:eu().nome},aberto_ate:ate.toISOString()},r.rowid));}catch(e){return toast(e.message||String(e),'error');}
       r=(D().diario_obra||[]).find(x=>String(x.rowid)===String(r.rowid))||r;}
-    formulario(CFG_RDO,r);}
+    // enquanto o formulário deste dia está aberto, quem corrige (Administrador ou quem tem a subtela) mexe nele como o
+    // Administrador; fechou (salvando ou não), acabou
+    corrRdo=String(r.rowid);
+    const jf=formulario(CFG_RDO,r);if(jf)jf._aoFechar=()=>{corrRdo=null;};else corrRdo=null;}
   // Aceitar a foto do horímetro anexada fora do horário: ela passa a valer e sai das pendências (fica quem aceitou e quando)
   async function aceitarFotoFora(r,k){
     const rot=(LEIT.find(x=>x[0]===k)||[])[1]||k;
@@ -13860,7 +13880,7 @@ const Eng=(function(){
     const box=document.getElementById('eng-diario');if(!box)return;
     if(RD.aba!=='fisc'&&RD.aba!=='pend'&&!podeAbaRdo('dias')&&podeAbaRdo('fisc'))RD.aba='fisc';
     if(RD.aba==='fisc'&&!podeAbaRdo('fisc'))RD.aba='dias';
-    if(RD.aba==='pend'){if(!ehAdmRdo())RD.aba='dias';else return renderPendRdo(box);}
+    if(RD.aba==='pend'){if(!podePendRdo())RD.aba='dias';else return renderPendRdo(box);}
     if(RD.aba==='fisc'&&GS.reprov){
       box.innerHTML=`<div class="fin-wrap">${abasRdo()}<div data-reprov></div></div>`;
       box.onchange=null;box.onclick=ev=>{const b=ev.target.closest('button[data-rd="aba"]');if(b){RD.aba=b.dataset.rdAba;renderDiario();}};
@@ -13896,7 +13916,7 @@ const Eng=(function(){
             :reabertoRdo(r)?`<span class="pm-st-dia ab rdo-auto"><i class="fas fa-lock-open"></i> Não preenchido · reaberto até ${hm(new Date(r.aberto_ate))}</span>`:'<span class="pm-st-dia ab rdo-auto"><i class="fas fa-clock"></i> Criado às 6h · a preencher (fecha às 19h)</span>')
           :fech&&nAdm?`<span class="pm-st-dia fe rdo-nao"><i class="fas fa-triangle-exclamation"></i> Fechado com ${nAdm} pendência${nAdm>1?'s':''}${fechadoManual(r)?'':' · às 19h'}</span>`
           :fech?`<span class="pm-st-dia fe"><i class="fas fa-lock"></i> ${fechadoManual(r)?`Fechado por ${fe(f.por||'')}${f.em?' · '+fe(brDe(dt(String(f.em).slice(0,10))).slice(0,5))+' '+fe(String(f.em).slice(11,16)):''}`:'Fechado às 19h (automático)'}</span>`
-          :nAdm?`<span class="pm-st-dia ab rdo-pend-st"><i class="fas fa-list-check"></i> ${nAdm} pendência${nAdm>1?'s':''} · ${ehAdmRdo()?'na aba Pendências':'o Administrador resolve'}${reabertoRdo(r)?` · reaberto até ${hm(new Date(r.aberto_ate))}`:hj?' · fecha às 19h':''}</span>`
+          :nAdm?`<span class="pm-st-dia ab rdo-pend-st"><i class="fas fa-list-check"></i> ${nAdm} pendência${nAdm>1?'s':''} · ${podePendRdo()?'na aba Pendências':'o Administrador resolve'}${reabertoRdo(r)?` · reaberto até ${hm(new Date(r.aberto_ate))}`:hj?' · fecha às 19h':''}</span>`
           :inc?`<span class="pm-st-dia ab rdo-auto"><i class="fas fa-hourglass-half"></i> Em preenchimento${reabertoRdo(r)?` · reaberto até ${hm(new Date(r.aberto_ate))}`:hj?' · fecha às 19h':''}</span>`
           :`<span class="pm-st-dia ab"><i class="fas fa-lock-open"></i> Aberto${reabertoRdo(r)?` · reaberto até ${hm(new Date(r.aberto_ate))}`:hj?' · fecha às 19h':''}</span>`;
         const conferir=r.hor_conferir?` <span class="pm-st-dia fe rdo-nao" title="Horímetro a conferir (${fe(r.hor_conferir)}): ${ehAdmRdo()?'abra o dia, confira as fotos e acerte os números pelo lápis':'o Administrador confere e acerta'}"><i class="fas fa-gauge-high"></i> Horímetro a conferir</span>`:'';
@@ -13912,7 +13932,7 @@ const Eng=(function(){
             ${RD.obra?'':`<div class="rdo-obra" title="${fe(r.titulo_obra)}"><i class="fas fa-helmet-safety"></i> ${fe(r.titulo_obra)}</div>`}
             <div class="rdo-pills"><span class="eng-pill ${tomCond(r.condicao)}">${fe(r.condicao||'—')}</span><span class="eng-pill ${choveu(r)?'azul':''}"><i class="fas ${choveu(r)?'fa-cloud-rain':'fa-sun'}"></i> manhã: ${fe(r.clima_manha||'—')} · tarde: ${fe(r.clima_tarde||'—')}</span>${r.efetivo_total?`<span class="eng-pill"><i class="fas fa-people-group"></i> ${fe(r.efetivo_total)} pessoas</span>`:''}</div></div>
           <div class="pm-dia2-bt rdo-bts">${bts}</div></div>
-          <div class="eng-dia-txt rdo-corpo">${nAdm?`<small class="rdo-falta"><i class="fas fa-list-check"></i> <b>Pendências${ehAdmRdo()?'':' (o Administrador resolve)'}:</b> ${fe(P.adm.map(p=>p.txt).join(' · '))}</small>`:''}${P.voce.length?`<small class="rdo-falta rdo-falta-voce"><i class="fas fa-clock"></i> <b>Ainda hoje:</b> ${fe(P.voce.map(p=>p.txt).join(' · '))}</small>`:''}<p>${fe(r.atividades||'')}</p>${r.efetivo_desc?`<small><b>Equipe:</b> ${fe(r.efetivo_desc)}</small>`:''}${(jsonDe(r.equipe_nomes)||[]).length?`<small><b>Quem trabalhou:</b> ${fe((jsonDe(r.equipe_nomes)||[]).map(x=>x.nome).join(', '))}</small>`:''}${r.equipamentos?`<small><b>Equipamentos:</b> ${fe(r.equipamentos)}</small>`:''}${(()=>{const hf=fotosHorimetro(r);App._rdoHF[i]=hf.map(x=>({uid:x.im.foto_uid,thumb:x.im.thumb_uid,rot:x.rot,quando:x.quando,gps:x.gps}));
+          <div class="eng-dia-txt rdo-corpo">${nAdm?`<small class="rdo-falta"><i class="fas fa-list-check"></i> <b>Pendências${podePendRdo()?'':' (o Administrador resolve)'}:</b> ${fe(P.adm.map(p=>p.txt).join(' · '))}</small>`:''}${P.voce.length?`<small class="rdo-falta rdo-falta-voce"><i class="fas fa-clock"></i> <b>Ainda hoje:</b> ${fe(P.voce.map(p=>p.txt).join(' · '))}</small>`:''}<p>${fe(r.atividades||'')}</p>${r.efetivo_desc?`<small><b>Equipe:</b> ${fe(r.efetivo_desc)}</small>`:''}${(jsonDe(r.equipe_nomes)||[]).length?`<small><b>Quem trabalhou:</b> ${fe((jsonDe(r.equipe_nomes)||[]).map(x=>x.nome).join(', '))}</small>`:''}${r.equipamentos?`<small><b>Equipamentos:</b> ${fe(r.equipamentos)}</small>`:''}${(()=>{const hf=fotosHorimetro(r);App._rdoHF[i]=hf.map(x=>({uid:x.im.foto_uid,thumb:x.im.thumb_uid,rot:x.rot,quando:x.quando,gps:x.gps}));
             return hf.length?`<div class="rdo-hfotos">${hf.map((x,k)=>`<button type="button" data-rd="hfoto" data-i="${i}" data-f="${k}" title="Ampliar — horímetro, ${fe(x.rot)} (${fe(x.quando)})"><img ${GS.fotoSis.attrs(x.im,false,200)} loading="lazy" alt=""><span>${fe(x.rot)}<b>${fe(x.quando)}</b></span></button>`).join('')}</div>`:'';})()}${r.ocorrencias?`<small><b>Ocorrências:</b> ${fe(r.ocorrencias)}</small>`:''}${r.visitas?`<small><b>Visitas:</b> ${fe(r.visitas)}</small>`:''}<small>${fe(r.responsavel?'Registrado por '+r.responsavel:'')}</small>${Eng.fotosHtml(r.titulo_obra,r.data,i,(App._rdoFotos[i]=fotosDoRegistro(r)))}</div></article>`;}).join('')}</div>`
         :`<div class="fin-card"><div class="fin-vazio">${todos.length?'Nenhum registro neste filtro.':'Nenhum dia registrado ainda. O ideal é registrar no fim de cada dia de obra.'}<br><button type="button" class="fin-bt pri" data-rd="novo" style="margin-top:10px"><i class="fas fa-plus"></i> Registrar dia</button></div></div>`}
     </div>`;
@@ -23046,12 +23066,17 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
     documentos:{sel:'data-doc-aba|data-ec-aba',itens:[['lista','Certidões e documentos (a lista)'],['notas','Notas fiscais — recebidas e emitidas (PDF e XML)'],['kit','Kit de documentos'],['dados','Dados da empresa'],['ass','Assinatura'],['ct','Contratantes'],['mun','Municípios (DAPS)'],['nfse','Nota fiscal (NFS-e): certificado e emissão']]},
     obras:{itens:[['orcamentos','Orçamento'],['cap','CAP'],['contrato','Contrato'],['medicao','Medição']]},
     pessoal:{sel:'data-ps-aba',itens:[['cadastro','Funcionários, ASO, NRs e EPI'],['ponto','Ponto da equipe nas obras']]},
-    diario:{sel:'data-rd-aba',itens:[['dias','Registros do dia'],['fisc','Fiscalização']]},
+    diario:{sel:'data-rd-aba',itens:[['dias','Registros do dia'],['fisc','Fiscalização'],['pend','Pendências — corrige os dias como o Administrador (só marcando)']]},
     socios:{sel:'data-so2-aba',itens:[['mov','Movimentos'],['socio','Por sócio'],['obra','Por obra']]},
     acoes:{sel:'data-ta-aba',itens:[['agenda','Agenda de tarefas'],['3g','Relatório de Três Gerações']]},
     premoldados:{sel:'data-pm-aba',itens:[['painel','Painel'],['pecas','Peças e catálogo'],['planejamento','Planejamento'],['producao','Diário de produção'],['estoque','Estoque e avarias'],['vendas','Vendas'],['caixa','Fluxo de caixa'],['relatorios','Relatórios'],['parametros','Parâmetros']]}};
+  /* subtela que só vale MARCADA (não vem liberada de padrão): ela dá poder de Administrador numa parte da tela — ex.: as
+     Pendências do diário (reabrir o dia para corrigir, aceitar a foto, dispensar). As outras vêm liberadas até desmarcar. */
+  UI._SUB_MARCAR=new Set(['diario.pend']);
   UI.podeSub=(tela,sub)=>{if(ehAdm())return true;if(UI.permNivel(tela)==='nenhum')return false;
-    const cfg=cfgUsr(sess())||cfgDe(ehExt()?'Externo':perfilDe(sess().perfil));return !cfg||!cfg.subtelas||cfg.subtelas[tela+'.'+sub]!==false;};
+    const cfg=cfgUsr(sess())||cfgDe(ehExt()?'Externo':perfilDe(sess().perfil)),k=tela+'.'+sub;
+    if(UI._SUB_MARCAR.has(k))return !!(cfg&&cfg.subtelas&&cfg.subtelas[k]===true);
+    return !cfg||!cfg.subtelas||cfg.subtelas[k]!==false;};
   const ATTR_SUB=Object.entries(UI._SUBTELAS).flatMap(([tela,o])=>String(o.sel||'').split('|').filter(Boolean).map(a=>[a,tela]));
   function subAplicar(){
     if(!Auth._session||ehAdm())return;
@@ -23135,7 +23160,7 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
         <select data-tela="${k}" data-v="${cur}">${NIVEIS.map(([v,l])=>`<option value="${v}" ${cur===v?'selected':''}>${l}</option>`).join('')}</select>
         <label class="perm-chk ${cur!=='editar'?'off':''}"><input type="checkbox" data-excluir="${k}" ${nv==='excluir'?'checked':''} ${cur!=='editar'?'disabled':''}> Excluir</label>
         ${APROVA.includes(k)?`<label class="perm-chk ${cur==='nenhum'?'off':''}"><input type="checkbox" data-aprov="${k}" ${apOn&&cur!=='nenhum'?'checked':''} ${cur==='nenhum'?'disabled':''}> Aprovar</label>`:''}</div>
-        ${UI._SUBTELAS[k]?`<div class="perm-subs ${cur==='nenhum'?'off':''}" data-subs-de="${k}"><small>Subtelas</small>${UI._SUBTELAS[k].itens.map(([s,t])=>`<label class="perm-chk"><input type="checkbox" data-sub="${k}.${s}" ${base&&base.subtelas&&base.subtelas[k+'.'+s]===false?'':'checked'} ${cur==='nenhum'?'disabled':''}> ${fe(t)}</label>`).join('')}</div>`:''}</div>`;}).join('');
+        ${UI._SUBTELAS[k]?`<div class="perm-subs ${cur==='nenhum'?'off':''}" data-subs-de="${k}"><small>Subtelas</small>${UI._SUBTELAS[k].itens.map(([s,t])=>{const kk=k+'.'+s,v=base&&base.subtelas&&base.subtelas[kk],on=UI._SUB_MARCAR&&UI._SUB_MARCAR.has(kk)?v===true:v!==false;return `<label class="perm-chk"><input type="checkbox" data-sub="${kk}" ${on?'checked':''} ${cur==='nenhum'?'disabled':''}> ${fe(t)}</label>`;}).join('')}</div>`:''}</div>`;}).join('');
     const rel=rels.map(g=>`<div class="perm-relg"><small>${fe(g.grupo)}</small>${g.itens.map(([k,t])=>`<label class="perm-rel"><input type="checkbox" data-rel="${fe(k)}" ${!base||!base.relatorios||base.relatorios[k]!==false?'checked':''}> ${fe(t)}</label>`).join('')}</div>`).join('');
     const gravarU=o=>new Promise((ok,er)=>google.script.run.withSuccessHandler(res=>{if(res&&res.ok){if(res.data){App.state.data=res.data;try{App.renderAll();}catch(e){console.error(e);}}try{UI.renderUsuarios();}catch(e){}ok(res);}else er(new Error((res&&res.msg)||'Não foi possível salvar.'));})
       .withFailureHandler(e=>er(new Error('Erro de conexão ao salvar as permissões. Tente de novo.'))).upsertRegistro('Planejamento',o,o.rowid||null));
@@ -25967,6 +25992,29 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
       nRep:mc.filter(e=>e.acao==='reprovou').length,nResp:mc.filter(e=>e.acao==='respondeu').length,
       ultRep:rev.find(e=>e.acao==='reprovou')||null,ultResp:rev.find(e=>e.acao==='respondeu')||null,ultMov:ev[ev.length-1]||null};
   }
+  /* ── TEMPO DE CADA ETAPA (o dono pediu): a inclusão e cada "rejeitar novamente" abrem a etapa AGUARDANDO CORREÇÃO; a
+     resposta fecha ela (é o tempo daquela correção) e abre AGUARDANDO CONFERÊNCIA; o aceite ou a nova rejeição fecham essa.
+     Cada movimento que fecha uma etapa guarda quanto tempo ela durou (aparece no histórico) e o relógio zera; a etapa de
+     agora conta ao vivo. Aceito: o tempo total, do registro ao aceite. Tempo corrido, pela data e hora de cada movimento. ── */
+  const durTxt=ms=>{if(!(ms>=0))return '—';const m=Math.floor(ms/6e4);if(m<1)return 'menos de 1 min';if(m<60)return `${m} min`;const h=Math.floor(m/60),mm=m%60;if(h<24)return mm?`${h} h ${mm} min`:`${h} h`;const d=Math.floor(h/24),hh=h%24;return hh?`${d} d ${hh} h`:`${d} d`;};
+  function tempos(s){
+    const dur=new Map(),corr=[],conf=[];let ini=null,ant=null;
+    s.mc.forEach(e=>{const t=new Date(e.em).getTime();if(isNaN(t))return;
+      if(ant){const d=Math.max(0,t-ant.t);
+        if(e.acao==='respondeu'&&ant.acao==='reprovou'){dur.set(e,{ms:d,etapa:'aguardando correção'});corr.push(d);}
+        else if((e.acao==='aprovou'||e.acao==='reprovou')&&ant.acao==='respondeu'){dur.set(e,{ms:d,etapa:'aguardando conferência'});conf.push(d);}
+        else if(e.acao==='reprovou'&&ant.acao==='aprovou')dur.set(e,{ms:d,etapa:'aceito'});}
+      if(ini==null)ini=t;ant={acao:e.acao,t};});
+    return {dur,corr,conf,ini,desde:ant?ant.t:null,total:s.st==='aprovado'&&ant&&ini!=null?ant.t-ini:null};}
+  // o relógio da linha: há quanto tempo está na etapa de agora (aceito: o total, do registro ao aceite)
+  function relogio(s,T){
+    if(s.st==='aprovado')return T.total!=null?{txt:durTxt(T.total),tit:'Do registro até o aceite',cls:'ok',vivo:false}:null;
+    if(T.desde==null)return null;const ms=Date.now()-T.desde,dias=ms/864e5;
+    return {txt:durTxt(ms),tit:`${s.st==='reprovado'?'Aguardando correção':'Aguardando conferência'} desde ${quando(new Date(T.desde).toISOString())}`,cls:dias>=7?'alto':dias>=2?'medio':'',vivo:true,desde:T.desde};}
+  const relHtml=r=>r?`<span class="rv-tempo ${r.cls}"${r.vivo?` data-rv-desde="${r.desde}"`:''} title="${fe(r.tit)}"><i class="fas ${r.vivo?'fa-stopwatch':'fa-flag-checkered'}"></i> <span data-rv-dur>${fe(r.txt)}</span></span>`:'—';
+  // quanto tempo durou a etapa que um movimento fechou (para os históricos)
+  const durEv=e=>{const it=itemDe(e.item_uid);return it?tempos(estado(it)).dur.get(e)||null:null;};
+  const durEvTxt=d=>d?`ficou ${durTxt(d.ms)} ${d.etapa}`:'';
   // a situação deixa: responder o que aguarda correção; aceitar o corrigido; rejeitar novamente o corrigido (ou o já aceito)
   const transicao=(st,acao)=>acao==='respondeu'?st==='reprovado':acao==='aprovou'?st==='respondido':acao==='reprovou'?(st==='respondido'||st==='aprovado'):false;
   const papelDe=acao=>acao==='respondeu'?'responder':'reprovar';
@@ -25989,9 +26037,11 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
     if(c.tipo==='num'&&!ehNum(v))return 'só números e o ponto';
     if(c.tipo==='letras'&&!ehLetras(v))return 'só letras';
     const mx=+c.max||0;if(mx>0&&v.length>mx)return `no máximo ${mx} caractere${mx>1?'s':''} (tem ${v.length})`;
+    const mn=+c.min||0;if(mn>0&&v.length<mn)return `no mínimo ${mn} caractere${mn>1?'s':''} (tem ${v.length})`;
     return '';};
   // a regra da coluna, em poucas palavras (embaixo do nome do campo e no cabeçalho)
-  const regra=c=>[TIPOS[c.tipo]||TIPOS.livre,+c.max>0?`até ${+c.max} caracteres`:'',c.unico?'sem repetir':''].filter(Boolean).join(' · ');
+  const tamTxt=c=>{const mn=+c.min||0,mx=+c.max||0;return mn&&mx?(mn===mx?`exatamente ${mx} caracteres`:`de ${mn} a ${mx} caracteres`):mx?`até ${mx} caracteres`:mn?`no mínimo ${mn} caracteres`:'';};
+  const regra=c=>[TIPOS[c.tipo]||TIPOS.livre,tamTxt(c),c.unico?'sem repetir':''].filter(Boolean).join(' · ');
   const filtrar=(tipo,v)=>tipo==='num'?String(v).replace(/,/g,'.').replace(/[^\d.]/g,''):tipo==='letras'?String(v).replace(/\d/g,''):String(v);
   // os campos tipados já não deixam digitar o que não aceitam (o colado da planilha é conferido e acusa em vermelho)
   function ligarTipos(el){if(!el)return;
@@ -26000,7 +26050,7 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
     el.addEventListener('beforeinput',e=>{const i=e.target&&e.target.closest?e.target.closest('input[data-rv-tipo="num"]'):null;if(i&&e.inputType==='insertText'&&e.data&&!/[\d.,]/.test(e.data))e.preventDefault();});
     el.addEventListener('input',e=>{const i=e.target.closest('input[data-rv-tipo]');if(!i)return;const t=i.dataset.rvTipo;if(t!=='num'&&t!=='letras')return;
       const f=filtrar(t,i.value);if(f!==i.value){const p=Math.max(0,(i.selectionStart||0)-(i.value.length-f.length));i.value=f;try{i.setSelectionRange(p,p);}catch(x){}}});}
-  const atrsCampo=c=>`data-rv-tipo="${fe(c.tipo||'livre')}"${c.tipo==='num'?' inputmode="decimal"':''}${+c.max>0?` maxlength="${+c.max}"`:''}`;
+  const atrsCampo=c=>`data-rv-tipo="${fe(c.tipo||'livre')}"${c.tipo==='num'?' inputmode="decimal"':''}${+c.max>0?` maxlength="${+c.max}"`:''}${+c.min>0?` minlength="${+c.min}"`:''}`;
   const campoCol=(c,v)=>`<div class="fin-fld"><label>${fe(c.nome)}${c.obg?' <span class="obg">*</span>':''} <small class="rv-tipo">${fe(regra(c))}</small></label><input data-rv-c="${fe(c.k)}" ${atrsCampo(c)} value="${fe(mostrar(c,v))}"></div>`;
   const lerCampos=(j,cols)=>{const v={};let erro='';cols.forEach(c=>{const el=j.querySelector(`[data-rv-c="${c.k}"]`),x=String(el?el.value:'').trim(),e=erroValor(c,x);if(e&&!erro)erro=`${c.nome}: ${e}.`;v[c.k]=x;});return {v,erro};};
   const resumoValores=(it,cols)=>{const v=lerJ(it.valores,{});return cols.map(c=>mostrar(c,v[c.k])).filter(Boolean).join(' · ');};
@@ -26058,14 +26108,14 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
     const ob=RV.obra;
     if(RV._ass===undefined)prepAssinatura();   // a imagem da assinatura para o PDF, já buscada por trás
     if(!ob){box.innerHTML='<div class="fin-card"><div class="fin-vazio">Cadastre uma obra para usar a tabela da Fiscalização.</div></div>';return;}
-    const cols=colunas(ob),configurada=cols.length>0,its=itensDe(ob).map(it=>({it,s:estado(it),n:numDe(it)})),q=cn(RV.busca);
+    const cols=colunas(ob),configurada=cols.length>0,its=itensDe(ob).map(it=>{const s=estado(it);return {it,s,n:numDe(it),T:tempos(s)};}),q=cn(RV.busca);
     // marcadas que já não existem (excluídas, outra obra) saem da marcação
     [...RV.sel].forEach(u=>{if(!its.some(x=>x.it.uid===u))RV.sel.delete(u);});
     const vis=its.filter(x=>(!RV.st||x.s.st===RV.st)&&(!RV.reinc||x.s.nRep>1)&&(!q||cn([x.n,resumoValores(x.it,cols),x.s.ultRep&&x.s.ultRep.texto,x.s.ultResp&&x.s.ultResp.texto].join(' ')).includes(q))).sort((a,b)=>(+a.n||0)-(+b.n||0));
     const nSt=k=>its.filter(x=>x.s.st===k).length,nReinc=its.filter(x=>x.s.nRep>1).length;
     const meuLado=its.filter(x=>(x.s.st==='reprovado'&&pode(ob,'responder'))||(x.s.st==='respondido'&&pode(ob,'reprovar'))).length;
-    const resp=its.flatMap(x=>{const L=[];let r0=null;x.s.mc.forEach(e=>{if(e.acao==='reprovou')r0=e;else if(e.acao==='respondeu'&&r0){L.push(new Date(e.em)-new Date(r0.em));r0=null;}});return L;}).filter(n=>n>=0);
-    const medDias=resp.length?resp.reduce((a,b)=>a+b,0)/resp.length/864e5:null;
+    // o tempo médio de cada etapa (todas as correções e conferências já feitas nesta obra)
+    const med=L=>L.length?L.reduce((a,b)=>a+b,0)/L.length:null,tCorr=its.flatMap(x=>x.T.corr),tConf=its.flatMap(x=>x.T.conf),mCorr=med(tCorr),mConf=med(tConf);
     const kpi=(tom,rot,v,sub)=>`<div class="fin-kpi ${tom}"><small>${rot}</small><b>${v}</b><span>${sub||''}</span></div>`;
     const meus=ACOES.filter(([k])=>pode(ob,k)).map(([,r])=>r.toLowerCase());
     const papelTxt=ehAdm()?'Você é <b>Administrador</b>: faz todas as ações e define, em <b>Configurar a tabela</b>, as colunas desta obra, o que cada uma aceita e quem inclui, exclui, aceita ou rejeita e responde.'
@@ -26082,12 +26132,12 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
     if(!configurada)corpo=`<div class="fin-card"><div class="fin-vazio rv-sem-cfg"><i class="fas fa-sliders"></i><p>${ehAdm()?'A tabela desta obra ainda não foi configurada. Em <b>Configurar a tabela</b>, escolha as colunas, o que cada uma aceita e quem inclui, exclui, aceita ou rejeita e responde.':'O Administrador ainda não configurou a tabela desta obra.'}</p>${ehAdm()?'<button type="button" class="fin-bt pri" data-rv="config"><i class="fas fa-sliders"></i> Configurar a tabela</button>':''}</div></div>`;
     else if(RV.ver==='historico')corpo=htmlHistoricoObra(ob);
     else if(!vis.length)corpo=`<div class="fin-card"><div class="fin-vazio">${its.length?'Nenhum serviço neste filtro.':'Nenhum serviço nesta obra ainda.'}${pode(ob,'incluir')&&!its.length?`<br><button type="button" class="fin-bt pri" data-rv="novo" style="margin-top:10px"><i class="fas fa-plus"></i> Incluir linha</button> <button type="button" class="fin-bt" data-rv="colar" style="margin-top:10px"><i class="fas fa-paste"></i> Colar da planilha</button>`:''}</div></div>`;
-    else corpo=`<div class="rv-selbar" data-rv-selbar hidden></div><div class="rv-tabela"><table class="rv-tab" data-sem-ordem><thead><tr><th class="rv-ck"><input type="checkbox" data-rv-todos title="Marcar todas as linhas da lista" aria-label="Marcar todas"></th><th>Nº</th>${cols.map(c=>`<th title="${fe(regra(c))}">${fe(c.nome)}</th>`).join('')}<th>Ajuste necessário</th><th>Situação</th><th class="num" title="Quantos ajustes o serviço já teve">Ajustes</th><th class="num" title="Quantas vezes foi respondido">Resp.</th><th>Último movimento</th><th></th></tr></thead>
+    else corpo=`<div class="rv-selbar" data-rv-selbar hidden></div><div class="rv-tabela"><table class="rv-tab" data-sem-ordem><thead><tr><th class="rv-ck"><input type="checkbox" data-rv-todos title="Marcar todas as linhas da lista" aria-label="Marcar todas"></th><th>Nº</th>${cols.map(c=>`<th title="${fe(regra(c))}">${fe(c.nome)}</th>`).join('')}<th>Ajuste necessário</th><th>Situação</th><th title="Há quanto tempo está na etapa de agora — o relógio zera a cada resposta, aceite ou nova rejeição (aceito: o tempo total, do registro ao aceite)">Tempo na etapa</th><th class="num" title="Quantos ajustes o serviço já teve">Ajustes</th><th class="num" title="Quantas vezes foi respondido">Resp.</th><th>Último movimento</th><th></th></tr></thead>
       <tbody>${vis.map(x=>linhaHtml(x,ob,cols)).join('')}</tbody></table></div>`;
     box.innerHTML=`<div class="rv-wrap">
       <div class="fin-cab"><div><h2>Fiscalização</h2><p>Cada obra tem a sua tabela. Quem fiscaliza registra o serviço e o <b>ajuste necessário</b>; quem responde informa a correção; quem fiscaliza confere e <b>aceita</b> ou <b>rejeita novamente</b> — o contador mostra quantos ajustes e respostas o mesmo serviço teve, e o histórico guarda quem fez cada coisa e quando. Marque várias linhas para agir em todas de uma vez.</p></div><div class="fin-filtros">${bts}</div></div>
       ${filtros}
-      ${configurada?`<div class="fin-kpis">${kpi(nSt('reprovado')?'vermelho':'verde','Aguardando correção',nSt('reprovado'),'serviços com ajuste sem resposta')}${kpi(nSt('respondido')?'laranja':'','Aguardando conferência',nSt('respondido'),'corrigidos, esperando aceitar')}${kpi('verde','Aceitos',nSt('aprovado'),its.length?`de ${its.length} na tabela`:'')}${kpi(nReinc?'vermelho':'','Reincidentes',nReinc,'2 ajustes ou mais')}${kpi(meuLado?'laranja':'','Aguardando você',meuLado,medDias!=null?`correção em ${medDias>=1?String(Math.round(medDias*10)/10).replace('.',',')+' dia(s)':medDias*24>=1?Math.round(medDias*24)+' h':'menos de 1 hora'}, em média`:'')}</div>`:''}
+      ${configurada?`<div class="fin-kpis">${kpi(nSt('reprovado')?'vermelho':'verde','Aguardando correção',nSt('reprovado'),'serviços com ajuste sem resposta')}${kpi(nSt('respondido')?'laranja':'','Aguardando conferência',nSt('respondido'),'corrigidos, esperando aceitar')}${kpi('verde','Aceitos',nSt('aprovado'),its.length?`de ${its.length} na tabela`:'')}${kpi(nReinc?'vermelho':'','Reincidentes',nReinc,'2 ajustes ou mais')}${kpi(meuLado?'laranja':'','Aguardando você',meuLado,'linhas esperando a sua ação')}${kpi('','Correção (média)',mCorr!=null?durTxt(mCorr):'—',tCorr.length?`${tCorr.length} correção(ões) — do ajuste à resposta`:'do ajuste à resposta')}${kpi('','Conferência (média)',mConf!=null?durTxt(mConf):'—','da resposta ao aceite ou nova rejeição')}</div>`:''}
       <div class="rv-papel"><i class="fas fa-user-shield"></i> ${papelTxt}</div>
       ${corpo}</div>`;
     // a barra das marcadas: o que dá para fazer com elas (conforme a situação de cada uma e o papel de quem está usando)
@@ -26124,9 +26174,12 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
       if(a==='excluir')return excluirLinha(u);};
     // colar direto na tela (Ctrl+V fora de um campo): abre a janela de colar já com as linhas
     box.onpaste=e=>{if(!configurada||e.target.closest('input,textarea,select,[contenteditable]')||!pode(ob,'incluir'))return;const t=(e.clipboardData||window.clipboardData).getData('text');if(!t||!t.trim())return;e.preventDefault();colar(ob,t);};
+    // o relógio de cada linha anda sozinho (a cada minuto) enquanto a tela está aberta
+    clearInterval(RV._tRel);RV._tRel=setInterval(()=>{if(!document.body.contains(box))return clearInterval(RV._tRel);
+      box.querySelectorAll('[data-rv-desde]').forEach(el=>{const d=el.querySelector('[data-rv-dur]');if(d)d.textContent=durTxt(Date.now()-(+el.dataset.rvDesde));});},60000);
     if(RV.foco&&Date.now()-RV.foco.t<4000){const s=box.querySelector('[data-rvf="busca"]');if(s){s.focus();try{s.setSelectionRange(RV.foco.pos,RV.foco.pos);}catch(x){}}RV.foco=null;}
   }
-  function linhaHtml({it,s,n},ob,cols){
+  function linhaHtml({it,s,n,T},ob,cols){
     const v=lerJ(it.valores,{}),st=ST[s.st],u=fe(it.uid),bts=[];
     if(s.st==='reprovado'&&pode(ob,'responder'))bts.push(`<button type="button" class="fin-bt mini pri" data-rv="responder" data-u="${u}"><i class="fas fa-screwdriver-wrench"></i> Responder</button>`);
     if(s.st==='respondido'&&pode(ob,'reprovar'))bts.push(`<button type="button" class="fin-bt mini verde" data-rv="aceitar" data-u="${u}"><i class="fas fa-check"></i> Aceitar</button><button type="button" class="fin-bt mini" data-rv="rejeitar" data-u="${u}">Rejeitar novamente</button>`);
@@ -26138,24 +26191,27 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
     return `<tr data-rv-lin="${u}" class="${RV.sel.has(it.uid)?'rv-marcada':''}"><td class="rv-ck"><input type="checkbox" data-rv-sel="${u}" ${RV.sel.has(it.uid)?'checked':''} aria-label="Marcar a linha ${fe(n)}"></td><td class="rv-n">${fe(n)}</td>${cols.map(c=>`<td>${fe(mostrar(c,v[c.k]))}</td>`).join('')}
       <td class="rv-txt"><div title="${fe(aj)}">${fe(aj||'—')}</div>${rsp?`<small title="${fe(rsp)}">↳ ${fe(rsp)}</small>`:''}</td>
       <td><span class="rv-st ${st.cls}"><i class="fas ${st.ico}"></i> ${st.rot}</span></td>
+      <td class="rv-tempo-td">${relHtml(relogio(s,T||tempos(s)))}</td>
       <td class="num"><b class="rv-cont${s.nRep>1?' alto':''}" title="${s.nRep} ajuste(s)">${s.nRep}</b></td>
       <td class="num"><span class="rv-cont" title="Respondido ${s.nResp} vez(es)">${s.nResp}</span></td>
       <td class="rv-mov">${s.ultMov?`${fe(s.ultMov.por||'—')}<small>${fe(rotEv(s.ultMov))} · ${fe(quando(s.ultMov.em))}</small>`:'—'}</td>
       <td><div class="rv-ac">${bts.join('')}</div></td></tr>`;
   }
   // a linha do histórico de um movimento (com o nº do ajuste/resposta e, no do próprio usuário, o "Editar meu texto")
-  function histLi(e,it,ords){
+  function histLi(e,it,ords,T){
     const ic={reprovou:'fa-circle-xmark err',respondeu:'fa-screwdriver-wrench warn',aprovou:'fa-circle-check ok',alterou:'fa-pen',editou:'fa-pen-to-square',atualizou:'fa-rotate warn',excluiu:'fa-trash err'}[e.acao]||'fa-circle';
-    const o=ords&&ords.get(e);
-    return `<li><i class="fas ${ic}"></i><div><b>${fe(e.por||'—')}</b> ${fe(rotEv(e))}${o?` <span class="rv-ord">${o}</span>`:''} <small>${fe(quando(e.em))}${e.editado_em?' · texto editado em '+fe(quando(e.editado_em)):''}</small>${e.texto?`<p>${fe(e.texto)}</p>`:''}${(e.acao==='editou'||e.acao==='atualizou')&&e.antes?`<p class="rv-antes">antes: ${fe(e.antes)}</p>`:''}${it&&podeEditar(it,e)?`<button type="button" class="fin-bt mini" data-rv-ed="${fe(e.rowid)}"><i class="fas fa-pen"></i> Editar meu texto</button>`:''}</div></li>`;
+    const o=ords&&ords.get(e),d=T&&T.dur.get(e);
+    return `<li><i class="fas ${ic}"></i><div><b>${fe(e.por||'—')}</b> ${fe(rotEv(e))}${o?` <span class="rv-ord">${o}</span>`:''} <small>${fe(quando(e.em))}${e.editado_em?' · texto editado em '+fe(quando(e.editado_em)):''}</small>${d?`<span class="rv-dur" title="Quanto tempo durou a etapa que este movimento fechou"><i class="fas fa-stopwatch"></i> ${fe(durEvTxt(d))}</span>`:''}${e.texto?`<p>${fe(e.texto)}</p>`:''}${(e.acao==='editou'||e.acao==='atualizou')&&e.antes?`<p class="rv-antes">antes: ${fe(e.antes)}</p>`:''}${it&&podeEditar(it,e)?`<button type="button" class="fin-bt mini" data-rv-ed="${fe(e.rowid)}"><i class="fas fa-pen"></i> Editar meu texto</button>`:''}</div></li>`;
   }
   const ordinais=mc=>{const m=new Map();let r=0,p=0;mc.forEach(e=>{if(e.acao==='reprovou')m.set(e,`${++r}º ajuste`);else if(e.acao==='respondeu')m.set(e,`${++p}ª resposta`);});return m;};
   function ficha(uid){
     const it=itemDe(uid);if(!it)return toast('Esta linha não está mais na tabela.','error');
-    const ob=it.titulo_obra,cols=colunas(ob),s=estado(it),v=lerJ(it.valores,{}),st=ST[s.st],ords=ordinais(s.mc);
-    const corpo=`<div class="rv-ficha-cab"><span class="rv-st ${st.cls}"><i class="fas ${st.ico}"></i> ${st.rot}</span><span class="rv-cont${s.nRep>1?' alto':''}">${s.nRep}</span> ajuste(s) · <span class="rv-cont">${s.nResp}</span> resposta(s)</div>
+    const ob=it.titulo_obra,cols=colunas(ob),s=estado(it),v=lerJ(it.valores,{}),st=ST[s.st],ords=ordinais(s.mc),T=tempos(s),rel=relogio(s,T);
+    // os tempos: a etapa de agora (ao vivo) ou o total até o aceite, cada correção (do ajuste à resposta) e cada conferência
+    const tempo=`<div class="rv-tempos">${rel?`<span class="rv-tempo ${rel.cls}"><i class="fas ${rel.vivo?'fa-stopwatch':'fa-flag-checkered'}"></i> ${rel.vivo?`${s.st==='reprovado'?'Aguardando correção':'Aguardando conferência'} há ${fe(rel.txt)}`:`Aceito: ${fe(rel.txt)} do registro ao aceite`}</span>`:''}${T.corr.length?`<span><b>Correções:</b> ${T.corr.map((d,i)=>`${i+1}ª em ${durTxt(d)}`).join(' · ')}</span>`:''}${T.conf.length?`<span><b>Conferências:</b> ${T.conf.map((d,i)=>`${i+1}ª em ${durTxt(d)}`).join(' · ')}</span>`:''}</div>`;
+    const corpo=`<div class="rv-ficha-cab"><span class="rv-st ${st.cls}"><i class="fas ${st.ico}"></i> ${st.rot}</span><span class="rv-cont${s.nRep>1?' alto':''}">${s.nRep}</span> ajuste(s) · <span class="rv-cont">${s.nResp}</span> resposta(s)</div>${tempo}
       <div class="rv-vals">${cols.map(c=>`<div><small>${fe(c.nome)}</small><b>${fe(mostrar(c,v[c.k])||'—')}</b></div>`).join('')}<div><small>Incluída por</small><b>${fe(it.incluido_por||it.criado_por||'—')}</b></div></div>
-      <h4 class="rv-h4">Histórico</h4><ul class="rv-hist">${s.ev.map(e=>histLi(e,it,ords)).join('')||'<li>Sem movimentos.</li>'}</ul>`;
+      <h4 class="rv-h4">Histórico</h4><ul class="rv-hist">${s.ev.map(e=>histLi(e,it,ords,T)).join('')||'<li>Sem movimentos.</li>'}</ul>`;
     const B=[];
     if(s.st==='reprovado'&&pode(ob,'responder'))B.push({html:'<i class="fas fa-screwdriver-wrench"></i> Responder',cls:'pri',acao:()=>{setTimeout(()=>agir(uid,'respondeu'),20);return false;}});
     if(s.st==='respondido'&&pode(ob,'reprovar')){B.push({html:'Rejeitar novamente',acao:()=>{setTimeout(()=>agir(uid,'reprovou'),20);return false;}});B.push({html:'<i class="fas fa-check"></i> Aceitar a correção',cls:'pri',acao:()=>{setTimeout(()=>agir(uid,'aprovou'),20);return false;}});}
@@ -26307,16 +26363,17 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
   function htmlHistoricoObra(ob){
     const L=evsObra(ob),pessoas=[...new Set(L.map(e=>e.por).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'pt-BR')),vis=L.filter(e=>!RV.quem||e.por===RV.quem);
     return `<div class="fin-filtros"><select class="filter-select" data-rvf="quem"><option value="">Todas as pessoas</option>${pessoas.map(p=>`<option ${RV.quem===p?'selected':''}>${fe(p)}</option>`).join('')}</select></div>
-      ${vis.length?`<div class="rv-tabela"><table class="rv-tab rv-tab-hist" data-sem-ordem><thead><tr><th>Quando</th><th>Quem</th><th>O que fez</th><th>Nº</th><th>Detalhe</th></tr></thead><tbody>${vis.map(e=>{const it=itemDe(e.item_uid);
-        return `<tr${it?` data-rv-lin="${fe(it.uid)}"`:''}><td class="rv-mov">${fe(quando(e.em))}</td><td><b>${fe(e.por||'—')}</b></td><td>${fe(rotEv(e))}</td><td class="rv-n">${fe(numHist(e))}${it?'':' <small class="rv-dica">(excluída)</small>'}</td><td class="rv-txt"><div title="${fe(e.texto||'')}">${fe(e.texto||'')}</div>${(e.acao==='editou'||e.acao==='atualizou')&&e.antes?`<small>antes: ${fe(e.antes)}</small>`:''}</td></tr>`;}).join('')}</tbody></table></div>`:'<div class="fin-card"><div class="fin-vazio">Nenhum movimento ainda.</div></div>'}`;
+      ${vis.length?`<div class="rv-tabela"><table class="rv-tab rv-tab-hist" data-sem-ordem><thead><tr><th>Quando</th><th>Quem</th><th>O que fez</th><th title="Quanto tempo durou a etapa que este movimento fechou">Tempo da etapa</th><th>Nº</th><th>Detalhe</th></tr></thead><tbody>${vis.map(e=>{const it=itemDe(e.item_uid),d=it&&MARCOS.includes(e.acao)?durEv(e):null;
+        return `<tr${it?` data-rv-lin="${fe(it.uid)}"`:''}><td class="rv-mov">${fe(quando(e.em))}</td><td><b>${fe(e.por||'—')}</b></td><td>${fe(rotEv(e))}</td><td class="rv-mov">${d?`<span class="rv-dur"><i class="fas fa-stopwatch"></i> ${fe(durTxt(d.ms))}</span><small>${fe(d.etapa)}</small>`:'—'}</td><td class="rv-n">${fe(numHist(e))}${it?'':' <small class="rv-dica">(excluída)</small>'}</td><td class="rv-txt"><div title="${fe(e.texto||'')}">${fe(e.texto||'')}</div>${(e.acao==='editou'||e.acao==='atualizou')&&e.antes?`<small>antes: ${fe(e.antes)}</small>`:''}</td></tr>`;}).join('')}</tbody></table></div>`:'<div class="fin-card"><div class="fin-vazio">Nenhum movimento ainda.</div></div>'}`;
   }
   function excel(ob,vis,cols){
     if(!vis.length)return toast('Não há linhas para exportar.','error');
-    GS.baixarCSV('Fiscalizacao '+ob,['Nº',...cols.map(c=>c.nome),'Ajuste necessário','Última resposta','Situação','Ajustes','Respostas','Último movimento','Quem','Quando'],
-      vis.map(({it,s,n})=>{const v=lerJ(it.valores,{});return [n,...cols.map(c=>mostrar(c,v[c.k])),s.ultRep?s.ultRep.texto:'',s.ultResp?s.ultResp.texto:'',ST[s.st].rot,s.nRep,s.nResp,s.ultMov?rotEv(s.ultMov):'',s.ultMov?s.ultMov.por:'',s.ultMov?quando(s.ultMov.em):''];}));
+    GS.baixarCSV('Fiscalizacao '+ob,['Nº',...cols.map(c=>c.nome),'Ajuste necessário','Última resposta','Situação','Tempo na etapa (aceito: total)','Tempo de cada correção','Tempo de cada conferência','Ajustes','Respostas','Último movimento','Quem','Quando'],
+      vis.map(({it,s,n,T})=>{const v=lerJ(it.valores,{}),TT=T||tempos(s),r=relogio(s,TT);
+        return [n,...cols.map(c=>mostrar(c,v[c.k])),s.ultRep?s.ultRep.texto:'',s.ultResp?s.ultResp.texto:'',ST[s.st].rot,r?(r.vivo?`${r.txt} (${s.st==='reprovado'?'aguardando correção':'aguardando conferência'})`:`${r.txt} (do registro ao aceite)`):'',TT.corr.map(durTxt).join(' · '),TT.conf.map(durTxt).join(' · '),s.nRep,s.nResp,s.ultMov?rotEv(s.ultMov):'',s.ultMov?s.ultMov.por:'',s.ultMov?quando(s.ultMov.em):''];}));
   }
   function excelHistorico(ob){const L=evsObra(ob).filter(e=>!RV.quem||e.por===RV.quem);if(!L.length)return toast('Não há movimentos para exportar.','error');
-    GS.baixarCSV('Historico fiscalizacao '+ob,['Quando','Quem','O que fez','Nº','Detalhe','Texto de antes'],L.map(e=>[quando(e.em),e.por||'',rotEv(e),numHist(e)+(itemDe(e.item_uid)?'':' (excluída)'),e.texto||'',e.antes||'']));}
+    GS.baixarCSV('Historico fiscalizacao '+ob,['Quando','Quem','O que fez','Tempo da etapa','Nº','Detalhe','Texto de antes'],L.map(e=>[quando(e.em),e.por||'',rotEv(e),MARCOS.includes(e.acao)?durEvTxt(durEv(e)):'',numHist(e)+(itemDe(e.item_uid)?'':' (excluída)'),e.texto||'',e.antes||'']));}
 
   /* ── PDF: a tabela como está na tela (com os filtros) — ou, escolhendo, com o histórico de cada linha embaixo dela. No
      Histórico, a lista dos movimentos. Mesmo motor dos relatórios (páginas A4 com a logo, o cabeçalho da tabela repete em
@@ -26357,21 +26414,22 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
     const S=k=>vis.filter(x=>x.s.st===k).length,reinc=vis.filter(x=>x.s.nRep>1).length;
     const pill=(rot,n,cor)=>`<span style="display:inline-flex;gap:6px;align-items:center;padding:4px 11px;border-radius:99px;border:1px solid #e5e5ea;font-size:10px;font-weight:700;color:${cor}">${rot}: ${n}</span>`;
     const pre=`<div style="display:flex;gap:6px;flex-wrap:wrap;margin:0 0 10px">${pill('Aguardando correção',S('reprovado'),COR_ST.reprovado)}${pill('Aguardando conferência',S('respondido'),COR_ST.respondido)}${pill('Aceitos',S('aprovado'),COR_ST.aprovado)}${pill('Reincidentes (2 ajustes ou mais)',reinc,'#1d1d1f')}</div>`;
-    const thead=`<tr><th style="width:9mm">Nº</th>${cols.map(c=>`<th>${fe(c.nome)}</th>`).join('')}<th style="width:21%">Ajuste necessário</th><th style="width:17%">Última resposta</th><th style="width:26mm">Situação</th><th style="width:17mm;text-align:center">Ajustes</th><th style="width:13mm;text-align:center">Resp.</th><th style="width:31mm">Último movimento</th></tr>`;
-    const rows=vis.map(({it,s,n})=>{const v=lerJ(it.valores,{});
-      return `<tr><td><b>${fe(n)}</b></td>${cols.map(c=>`<td>${bl(mostrar(c,v[c.k]))}</td>`).join('')}<td>${bl(s.ultRep?s.ultRep.texto:'')}</td><td>${bl(s.ultResp&&s.st!=='reprovado'?s.ultResp.texto:'')}</td><td style="color:${COR_ST[s.st]};font-weight:700">${ST[s.st].rot}</td><td style="text-align:center;font-weight:700${s.nRep>1?';color:#B42318':''}">${s.nRep}</td><td style="text-align:center">${s.nResp}</td><td>${s.ultMov?`${bl(s.ultMov.por)}<br><span style="color:#6e6e73;font-size:9px">${bl(rotEv(s.ultMov))} · ${bl(quando(s.ultMov.em))}</span>`:''}</td></tr>`;});
+    const thead=`<tr><th style="width:9mm">Nº</th>${cols.map(c=>`<th>${fe(c.nome)}</th>`).join('')}<th style="width:21%">Ajuste necessário</th><th style="width:17%">Última resposta</th><th style="width:26mm">Situação</th><th style="width:22mm">Tempo na etapa</th><th style="width:17mm;text-align:center">Ajustes</th><th style="width:13mm;text-align:center">Resp.</th><th style="width:31mm">Último movimento</th></tr>`;
+    const rows=vis.map(({it,s,n,T})=>{const v=lerJ(it.valores,{}),r=relogio(s,T||tempos(s));
+      return `<tr><td><b>${fe(n)}</b></td>${cols.map(c=>`<td>${bl(mostrar(c,v[c.k]))}</td>`).join('')}<td>${bl(s.ultRep?s.ultRep.texto:'')}</td><td>${bl(s.ultResp&&s.st!=='reprovado'?s.ultResp.texto:'')}</td><td style="color:${COR_ST[s.st]};font-weight:700">${ST[s.st].rot}</td><td>${r?`<b>${bl(r.txt)}</b><br><span style="color:#6e6e73;font-size:9px">${r.vivo?(s.st==='reprovado'?'aguardando correção':'aguardando conferência'):'do registro ao aceite'}</span>`:'—'}</td><td style="text-align:center;font-weight:700${s.nRep>1?';color:#B42318':''}">${s.nRep}</td><td style="text-align:center">${s.nResp}</td><td>${s.ultMov?`${bl(s.ultMov.por)}<br><span style="color:#6e6e73;font-size:9px">${bl(rotEv(s.ultMov))} · ${bl(quando(s.ultMov.em))}</span>`:''}</td></tr>`;});
     // o histórico de cada linha (opcional): um bloco por serviço, que não se parte entre páginas
-    const blocos=det?vis.map(({it,s,n})=>{const ords=ordinais(s.mc),res=resumoValores(it,cols);
-      return `<div style="border:1px solid #d5d5da;border-radius:8px;padding:9px 11px;page-break-inside:avoid"><div style="display:flex;justify-content:space-between;gap:10px;border-bottom:1px solid #e5e5ea;padding-bottom:5px;margin-bottom:5px"><b style="font-size:11.5px">Nº ${fe(n)}${res?' · '+bl(res):''}</b><span style="font-size:10px;font-weight:700;color:${COR_ST[s.st]}">${ST[s.st].rot} · ${s.nRep} ajuste(s) · ${s.nResp} resposta(s)</span></div>
-        <table style="width:100%;border-collapse:collapse;font-size:9.5px;table-layout:fixed"><tr style="background:#f5f5f7"><th style="width:27mm">Quando</th><th style="width:34mm">Quem</th><th style="width:40mm">O que fez</th><th>Texto</th></tr>${s.ev.map(e=>`<tr><td>${bl(quando(e.em))}</td><td>${bl(e.por)}</td><td>${bl(rotEv(e))}${ords.get(e)?' <b>('+ords.get(e)+')</b>':''}</td><td>${bl(e.texto)}${(e.acao==='editou'||e.acao==='atualizou')&&e.antes?`<br><i style="color:#8e8e93">antes: ${bl(e.antes)}</i>`:''}${e.editado_em?`<br><i style="color:#8e8e93">texto editado em ${bl(quando(e.editado_em))}</i>`:''}</td></tr>`).join('')}</table></div>`;}):[];
+    const blocos=det?vis.map(({it,s,n,T})=>{const ords=ordinais(s.mc),res=resumoValores(it,cols),TT=T||tempos(s),r=relogio(s,TT);
+      const tl=[r?(r.vivo?`${s.st==='reprovado'?'Aguardando correção':'Aguardando conferência'} há ${r.txt}`:`Aceito: ${r.txt} do registro ao aceite`):'',TT.corr.length?`Correções: ${TT.corr.map((d,i)=>`${i+1}ª em ${durTxt(d)}`).join(' · ')}`:'',TT.conf.length?`Conferências: ${TT.conf.map((d,i)=>`${i+1}ª em ${durTxt(d)}`).join(' · ')}`:''].filter(Boolean).join(' — ');
+      return `<div style="border:1px solid #d5d5da;border-radius:8px;padding:9px 11px;page-break-inside:avoid"><div style="display:flex;justify-content:space-between;gap:10px;border-bottom:1px solid #e5e5ea;padding-bottom:5px;margin-bottom:5px"><b style="font-size:11.5px">Nº ${fe(n)}${res?' · '+bl(res):''}</b><span style="font-size:10px;font-weight:700;color:${COR_ST[s.st]}">${ST[s.st].rot} · ${s.nRep} ajuste(s) · ${s.nResp} resposta(s)</span></div>${tl?`<div style="font-size:9.5px;color:#344054;margin:0 0 5px">⏱ ${bl(tl)}</div>`:''}
+        <table style="width:100%;border-collapse:collapse;font-size:9.5px;table-layout:fixed"><tr style="background:#f5f5f7"><th style="width:27mm">Quando</th><th style="width:34mm">Quem</th><th style="width:40mm">O que fez</th><th>Texto</th></tr>${s.ev.map(e=>`<tr><td>${bl(quando(e.em))}</td><td>${bl(e.por)}</td><td>${bl(rotEv(e))}${ords.get(e)?' <b>('+ords.get(e)+')</b>':''}${TT.dur.get(e)?`<br><span style="color:#6e6e73">${bl(durEvTxt(TT.dur.get(e)))}</span>`:''}</td><td>${bl(e.texto)}${(e.acao==='editou'||e.acao==='atualizou')&&e.antes?`<br><i style="color:#8e8e93">antes: ${bl(e.antes)}</i>`:''}${e.editado_em?`<br><i style="color:#8e8e93">texto editado em ${bl(quando(e.editado_em))}</i>`:''}</td></tr>`).join('')}</table></div>`;}):[];
     const cfg={titulo:'Fiscalização',subLinhas:[ob,`${vis.length} serviço${vis.length>1?'s':''}${filtroTxt()?' · '+filtroTxt():''}`],preHtml:pre,theadHtml:thead,rowsArr:rows,
       blocosArr:det?[`<h3 style="font-size:13px;margin:14px 0 6px">Histórico de cada serviço</h3>`].concat(blocos):[],paisagem:cols.length+6>7};
     exportarPdf(cfg,ob);
   }
   function pdfHistorico(ob){
     const L=evsObra(ob).filter(e=>!RV.quem||e.por===RV.quem);if(!L.length)return toast('Não há movimentos para exportar.','error');
-    const thead=`<tr><th style="width:28mm">Quando</th><th style="width:38mm">Quem</th><th style="width:44mm">O que fez</th><th style="width:16mm">Nº</th><th>Detalhe</th></tr>`;
-    const rows=L.map(e=>{const it=itemDe(e.item_uid);return `<tr><td>${bl(quando(e.em))}</td><td>${bl(e.por)}</td><td>${bl(rotEv(e))}</td><td>${bl(numHist(e))}${it?'':' <span style="color:#8e8e93">(excluída)</span>'}</td><td>${bl(e.texto)}${(e.acao==='editou'||e.acao==='atualizou')&&e.antes?`<br><i style="color:#8e8e93">antes: ${bl(e.antes)}</i>`:''}</td></tr>`;});
+    const thead=`<tr><th style="width:28mm">Quando</th><th style="width:38mm">Quem</th><th style="width:44mm">O que fez</th><th style="width:30mm">Tempo da etapa</th><th style="width:16mm">Nº</th><th>Detalhe</th></tr>`;
+    const rows=L.map(e=>{const it=itemDe(e.item_uid),d=it&&MARCOS.includes(e.acao)?durEv(e):null;return `<tr><td>${bl(quando(e.em))}</td><td>${bl(e.por)}</td><td>${bl(rotEv(e))}</td><td>${d?`<b>${bl(durTxt(d.ms))}</b><br><span style="color:#6e6e73;font-size:9px">${bl(d.etapa)}</span>`:'—'}</td><td>${bl(numHist(e))}${it?'':' <span style="color:#8e8e93">(excluída)</span>'}</td><td>${bl(e.texto)}${(e.acao==='editou'||e.acao==='atualizou')&&e.antes?`<br><i style="color:#8e8e93">antes: ${bl(e.antes)}</i>`:''}</td></tr>`;});
     exportarPdf({titulo:'Fiscalização — histórico',subLinhas:[ob,`${L.length} movimento${L.length>1?'s':''}${RV.quem?' · '+RV.quem:''}`],theadHtml:thead,rowsArr:rows},ob);
   }
 
@@ -26480,13 +26538,13 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
     const c0=cfgDe(ob),pp0=papeis(ob),outras=obrasLista().filter(o=>o!==ob&&cfgDe(o));
     let cols=colunas(ob).map(x=>({...x}));
     const admU=u=>UI._ehAdmin?UI._ehAdmin(u.perfil):/^admin/i.test(String(u.perfil||''));
-    const linhasCols=()=>cols.length?cols.map((c,i)=>`<tr data-ci="${i}"><td><input data-cc="nome" value="${fe(c.nome)}" placeholder="Nome da coluna"></td><td><select data-cc="tipo">${Object.entries(TIPOS).map(([k,r])=>`<option value="${k}" ${c.tipo===k?'selected':''}>${r}</option>`).join('')}</select></td><td style="text-align:center"><input type="checkbox" data-cc="obg" ${c.obg?'checked':''}></td><td style="text-align:center"><input type="checkbox" data-cc="unico" ${c.unico?'checked':''} title="Não aceita valor repetido (com outras marcadas: a combinação delas)"></td><td><input data-cc="max" type="number" min="1" step="1" inputmode="numeric" value="${+c.max>0?+c.max:''}" placeholder="sem limite" title="Quantos caracteres cabem no campo (vazio = sem limite)"></td><td class="rv-cc-bts"><button type="button" class="rv-ic" data-cc-mv="-1" title="Subir" ${i===0?'disabled':''}><i class="fas fa-arrow-up"></i></button><button type="button" class="rv-ic" data-cc-mv="1" title="Descer" ${i===cols.length-1?'disabled':''}><i class="fas fa-arrow-down"></i></button><button type="button" class="rv-ic err" data-cc-x title="Tirar a coluna"><i class="fas fa-trash"></i></button></td></tr>`).join('')
-      :'<tr><td colspan="6" class="rv-dica" style="padding:10px 6px">Nenhuma coluna ainda — clique em <b>Nova coluna</b>.</td></tr>';
+    const linhasCols=()=>cols.length?cols.map((c,i)=>`<tr data-ci="${i}"><td><input data-cc="nome" value="${fe(c.nome)}" placeholder="Nome da coluna"></td><td><select data-cc="tipo">${Object.entries(TIPOS).map(([k,r])=>`<option value="${k}" ${c.tipo===k?'selected':''}>${r}</option>`).join('')}</select></td><td style="text-align:center"><input type="checkbox" data-cc="obg" ${c.obg?'checked':''}></td><td style="text-align:center"><input type="checkbox" data-cc="unico" ${c.unico?'checked':''} title="Não aceita valor repetido (com outras marcadas: a combinação delas)"></td><td><input data-cc="min" type="number" min="1" step="1" inputmode="numeric" value="${+c.min>0?+c.min:''}" placeholder="sem mínimo" title="Quantos caracteres o campo precisa ter, no mínimo (vazio = sem mínimo)"></td><td><input data-cc="max" type="number" min="1" step="1" inputmode="numeric" value="${+c.max>0?+c.max:''}" placeholder="sem limite" title="Quantos caracteres cabem no campo (vazio = sem limite)"></td><td class="rv-cc-bts"><button type="button" class="rv-ic" data-cc-mv="-1" title="Subir" ${i===0?'disabled':''}><i class="fas fa-arrow-up"></i></button><button type="button" class="rv-ic" data-cc-mv="1" title="Descer" ${i===cols.length-1?'disabled':''}><i class="fas fa-arrow-down"></i></button><button type="button" class="rv-ic err" data-cc-x title="Tirar a coluna"><i class="fas fa-trash"></i></button></td></tr>`).join('')
+      :'<tr><td colspan="7" class="rv-dica" style="padding:10px 6px">Nenhuma coluna ainda — clique em <b>Nova coluna</b>.</td></tr>';
     const tabPapeis=pp=>us.length?`<table data-sem-ordem><thead><tr><th>Usuário</th>${ACOES.map(([k,r,ds])=>`<th title="${fe(ds)}">${fe(r)}</th>`).join('')}</tr></thead><tbody>${us.map(u=>{const id=idUsuario(u),adm=admU(u);
         return `<tr><td><b>${fe(u.nome||id)}</b><small>${fe(adm?'Administrador — faz tudo':(u.perfil||''))}</small></td>${ACOES.map(([k])=>`<td><input type="checkbox" data-rv-p="${k}" value="${fe(id)}" ${adm?'checked disabled':((pp[k]||[]).map(String).includes(id)?'checked':'')}></td>`).join('')}</tr>`;}).join('')}</tbody></table>`:'<div class="fin-vazio">Não consegui carregar a lista de usuários.</div>';
     const j=janela(`Configurar a tabela — ${ob}`,`<div class="rv-cfg">
-        <h4>Colunas desta obra</h4><p class="rv-dica">O nome de cada coluna e o que ela aceita: <b>letras e números</b>, <b>apenas números</b> (algarismos e o ponto, como a ordem de serviço 1057420961.1 — fica do jeito que foi escrito) ou <b>apenas letras</b>. <b>Sem repetir</b>: a coluna identifica o serviço — uma linha nova igual a uma que já está na tabela não entra; o sistema avisa e deixa levar o ajuste novo para a que já existe. Marcando mais de uma, vale a combinação delas (ex.: Rua + Nº da casa + Serviço). <b>Máx. de caracteres</b>: quantos cabem no campo (vazio = sem limite). O <b>ajuste necessário</b>, a situação, os contadores e o histórico já vêm em toda tabela. Tirar uma coluna não apaga o que já foi escrito nela.</p>
-        <div class="rv-cfg-cols"><table data-sem-ordem><thead><tr><th>Coluna</th><th>Aceita</th><th>Obrigatória</th><th>Sem repetir</th><th>Máx. de caracteres</th><th></th></tr></thead><tbody data-rv-cols>${linhasCols()}</tbody></table></div>
+        <h4>Colunas desta obra</h4><p class="rv-dica">O nome de cada coluna e o que ela aceita: <b>letras e números</b>, <b>apenas números</b> (algarismos e o ponto, como a ordem de serviço 1057420961.1 — fica do jeito que foi escrito) ou <b>apenas letras</b>. <b>Sem repetir</b>: a coluna identifica o serviço — uma linha nova igual a uma que já está na tabela não entra; o sistema avisa e deixa levar o ajuste novo para a que já existe. Marcando mais de uma, vale a combinação delas (ex.: Rua + Nº da casa + Serviço). <b>Mín.</b> e <b>Máx. de caracteres</b>: quantos o campo precisa ter, no mínimo, e quantos cabem nele (vazio = sem mínimo / sem limite; mínimo e máximo iguais = exatamente aquele número). O <b>ajuste necessário</b>, a situação, os contadores e o histórico já vêm em toda tabela. Tirar uma coluna não apaga o que já foi escrito nela.</p>
+        <div class="rv-cfg-cols"><table data-sem-ordem><thead><tr><th>Coluna</th><th>Aceita</th><th>Obrigatória</th><th>Sem repetir</th><th>Mín. de caracteres</th><th>Máx. de caracteres</th><th></th></tr></thead><tbody data-rv-cols>${linhasCols()}</tbody></table></div>
         <small class="rv-dica rv-unico-dica" data-rv-unico-dica></small>
         <div class="rv-cfg-lin"><button type="button" class="fin-bt mini" data-cc-add><i class="fas fa-plus"></i> Nova coluna</button>${outras.length?`<select class="filter-select" data-rv-copia><option value="">Copiar a configuração de outra obra…</option>${outras.map(o=>`<option value="${fe(o)}">${fe(o)}</option>`).join('')}</select>`:''}</div>
         <h4>Quem faz cada ação nesta obra</h4><p class="rv-dica"><b>Inclui linhas</b>: registra os serviços com o ajuste necessário e acerta os dados. <b>Exclui linhas</b>: tira linhas da tabela. <b>Aceita ou rejeita</b>: aceita a correção ou rejeita novamente (pede um novo ajuste). <b>Responde</b>: informa a correção. Quem não está marcado só acompanha. Ninguém edita o texto do outro.</p>
@@ -26496,11 +26554,12 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
         if(!cols.length)throw new Error('A tabela precisa de pelo menos uma coluna — clique em Nova coluna.');
         if(nomes.some(n=>!n))throw new Error('Dê nome a todas as colunas (ou tire a que está sem nome).');
         if(new Set(nomes.map(cn)).size!==nomes.length)throw new Error('Há duas colunas com o mesmo nome.');
+        {const ruimTam=cols.find(c=>+c.min>0&&+c.max>0&&+c.min>+c.max);if(ruimTam)throw new Error(`Em "${String(ruimTam.nome).trim()}", o mínimo de caracteres (${ruimTam.min}) é maior que o máximo (${ruimTam.max}).`);}
         const pp={};ACOES.forEach(([k])=>{pp[k]=[...j.querySelectorAll(`[data-rv-p="${k}"]:checked:not(:disabled)`)].map(i=>i.value);});
-        const novo={...(c0?limpo(c0):{}),tipo:'reprov_cfg',titulo_obra:ob,colunas:cols.map(c=>({k:c.k,nome:String(c.nome).trim(),tipo:TIPOS[c.tipo]?c.tipo:'livre',obg:!!c.obg,unico:!!c.unico,max:+c.max>0?Math.floor(+c.max):0})),papeis:pp,atualizado_em:todayDateTime(),atualizado_por:meuNome(),data_lancamento:(c0&&c0.data_lancamento)||todayDateTime()};
+        const novo={...(c0?limpo(c0):{}),tipo:'reprov_cfg',titulo_obra:ob,colunas:cols.map(c=>({k:c.k,nome:String(c.nome).trim(),tipo:TIPOS[c.tipo]?c.tipo:'livre',obg:!!c.obg,unico:!!c.unico,min:+c.min>0?Math.floor(+c.min):0,max:+c.max>0?Math.floor(+c.max):0})),papeis:pp,atualizado_em:todayDateTime(),atualizado_por:meuNome(),data_lancamento:(c0&&c0.data_lancamento)||todayDateTime()};
         /* os avisos antes de salvar (nada é apagado nem trocado): valores que já estão na tabela e não cabem na regra nova
            (o tipo ou o tamanho — ao acertar a linha, o sistema pede o certo) e linhas que já estão repetidas pela regra nova */
-        const av=[],ruins=cols.filter(c=>c.tipo!=='livre'||+c.max>0).map(c=>({c,n:itensDe(ob).filter(it=>{const x=lerJ(it.valores,{})[c.k];return String(x||'').trim()&&erroValor({...c,obg:false},x);}).length})).filter(x=>x.n);
+        const av=[],ruins=cols.filter(c=>c.tipo!=='livre'||+c.max>0||+c.min>0).map(c=>({c,n:itensDe(ob).filter(it=>{const x=lerJ(it.valores,{})[c.k];return String(x||'').trim()&&erroValor({...c,obg:false},x);}).length})).filter(x=>x.n);
         if(ruins.length)av.push(`${ruins.map(x=>`<b>${fe(x.c.nome)}</b>: ${x.n} linha(s) com valor fora da regra (${fe(regra({...x.c,unico:false}).toLowerCase())})`).join('<br>')}<br>Esses valores ficam como estão; ao acertar a linha, o sistema pede o valor certo.`);
         if(colsUnicas(cols).length){const vistos=new Map(),reps=[];
           itensDe(ob).sort((a,b)=>(+numDe(a)||0)-(+numDe(b)||0)).forEach(it=>{const k=chaveDe(cols,lerJ(it.valores,{}));if(!k)return;if(vistos.has(k))reps.push(`nº ${numDe(it)} = nº ${numDe(vistos.get(k))}`);else vistos.set(k,it);});
@@ -26509,12 +26568,13 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
         await executar(()=>salvar('Planejamento',novo,c0?c0.rowid:null));toast('Configuração da tabela salva.','success');}}],940);
     const tb=j.querySelector('[data-rv-cols]');
     function lerColsTela(){[...tb.querySelectorAll('tr[data-ci]')].forEach(tr=>{const c=cols[+tr.dataset.ci];if(!c)return;c.nome=tr.querySelector('[data-cc="nome"]').value;c.tipo=tr.querySelector('[data-cc="tipo"]').value;c.obg=tr.querySelector('[data-cc="obg"]').checked;
-      c.unico=tr.querySelector('[data-cc="unico"]').checked;const m=parseInt(tr.querySelector('[data-cc="max"]').value,10);c.max=m>0?m:0;});}
+      c.unico=tr.querySelector('[data-cc="unico"]').checked;const m=parseInt(tr.querySelector('[data-cc="max"]').value,10);c.max=m>0?m:0;
+      const mn=parseInt(tr.querySelector('[data-cc="min"]').value,10);c.min=mn>0?mn:0;});}
     // embaixo da tabela, como fica a regra das repetidas com as colunas marcadas agora
     function dicaUnico(){lerColsTela();const el=j.querySelector('[data-rv-unico-dica]');if(!el)return;const U=cols.filter(c=>c.unico&&String(c.nome||'').trim());
       el.innerHTML=!U.length?'<i class="fas fa-circle-info"></i> Nenhuma coluna em <b>Sem repetir</b>: a tabela aceita linhas repetidas.':U.length===1?`<i class="fas fa-circle-info"></i> Repetida = o mesmo <b>${fe(U[0].nome)}</b> de uma linha que já está na tabela.`:`<i class="fas fa-circle-info"></i> Repetida = a mesma combinação de <b>${U.map(c=>fe(c.nome)).join(' + ')}</b> de uma linha que já está na tabela (uma coluna igual sozinha não é repetida).`;}
     j.addEventListener('click',e=>{
-      if(e.target.closest('[data-cc-add]')){lerColsTela();cols.push({k:'c'+Date.now().toString(36)+cols.length,nome:'',tipo:'livre',obg:false,unico:false,max:0});tb.innerHTML=linhasCols();dicaUnico();const ins=tb.querySelectorAll('[data-cc="nome"]');if(ins.length)ins[ins.length-1].focus();return;}
+      if(e.target.closest('[data-cc-add]')){lerColsTela();cols.push({k:'c'+Date.now().toString(36)+cols.length,nome:'',tipo:'livre',obg:false,unico:false,min:0,max:0});tb.innerHTML=linhasCols();dicaUnico();const ins=tb.querySelectorAll('[data-cc="nome"]');if(ins.length)ins[ins.length-1].focus();return;}
       const tr=e.target.closest('tr[data-ci]');if(!tr)return;const i=+tr.dataset.ci;
       const mv=e.target.closest('[data-cc-mv]');if(mv){lerColsTela();const k=i+(+mv.dataset.ccMv);if(k<0||k>=cols.length)return;[cols[i],cols[k]]=[cols[k],cols[i]];tb.innerHTML=linhasCols();dicaUnico();return;}
       if(e.target.closest('[data-cc-x]')){lerColsTela();cols.splice(i,1);tb.innerHTML=linhasCols();dicaUnico();}});
@@ -26590,12 +26650,18 @@ textarea[data-rv-cola]{width:100%;font-family:inherit;}
 .rv-ed-tab td{padding:5px 6px;border-top:1px solid #F2F4F7;} .rv-ed-tab input{width:100%;min-width:120px;height:34px;border:1px solid #D0D5DD;border-radius:8px;padding:0 10px;font:500 13px Inter,sans-serif;}
 .rv-cfg-cols{overflow-x:auto;} .rv-cfg-cols th{white-space:normal;line-height:1.25;vertical-align:bottom;} .rv-cfg-cols input[type=checkbox]{width:17px;height:17px;}
 .rv-cfg-cols select{min-width:132px!important;} .rv-cfg-cols input[data-cc="nome"]{min-width:130px;}
-.rv-cfg-cols input[data-cc="max"]{width:92px;height:36px;border:1px solid #D0D5DD;border-radius:8px;padding:0 10px;font:500 13px Inter,sans-serif;background:#fff;color:#101828;}
+.rv-cfg-cols input[data-cc="max"],.rv-cfg-cols input[data-cc="min"]{width:92px;height:36px;border:1px solid #D0D5DD;border-radius:8px;padding:0 10px;font:500 13px Inter,sans-serif;background:#fff;color:#101828;}
 .rv-unico-dica{margin-top:6px;color:#344054;} .rv-unico-dica i{color:#1652D8;margin-right:4px;}
 .rv-situ{min-width:200px;max-width:290px;font-size:11.5px;} .rv-situ small{color:#667085;margin-top:3px;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;} .rv-situ small.t-err{color:#B42318!important;}
 .rv-situ select{display:block;margin-top:5px;width:100%;min-width:0;max-width:none;font-size:11.5px;}
 .rv-ps{display:inline-flex;align-items:center;font-size:11px;font-weight:800;padding:2px 8px;border-radius:99px;white-space:nowrap;} .rv-ps.ok{background:#ECFDF3;color:#067647;} .rv-ps.err{background:#FEF3F2;color:#B42318;} .rv-ps.warn{background:#FFFAEB;color:#B54708;}
 .rv-prev-tab tr.rv-dupl td{background:#FFFCF0;} .rv-cab-chk{display:inline-flex;margin:0 0 6px;font-size:12.5px;}
+/* o relógio de cada etapa: cinza (menos de 2 dias), laranja (2 dias ou mais), vermelho (7 dias ou mais), verde (aceito: o total) */
+.rv-tempo{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:700;padding:3px 9px;border-radius:99px;white-space:nowrap;background:#F2F4F7;color:#344054;}
+.rv-tempo.medio{background:#FFFAEB;color:#B54708;} .rv-tempo.alto{background:#FEF3F2;color:#B42318;} .rv-tempo.ok{background:#ECFDF3;color:#067647;}
+.rv-tempo-td{white-space:nowrap;}
+.rv-tempos{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;font-size:12.5px;color:#475467;margin:-4px 0 12px;} .rv-tempos b{color:#101828;}
+.rv-dur{display:inline-flex;align-items:center;gap:4px;margin-left:6px;font-size:11.5px;font-weight:700;color:#1652D8;} .rv-tab-hist .rv-dur{margin-left:0;} .rv-tab-hist td small{display:block;color:#667085;}
 .rv-dup-aviso{display:flex;gap:10px;align-items:flex-start;flex-wrap:wrap;margin:8px 0 2px;padding:9px 12px;border:1px solid #FEDF89;background:#FFFAEB;border-radius:10px;color:#93370D;font-size:12.5px;line-height:1.45;} .rv-dup-aviso>i{margin-top:3px;} .rv-dup-aviso>span:first-of-type{flex:1 1 320px;} .rv-dup-bts{display:flex;gap:6px;flex-wrap:wrap;}
 @media (max-width:900px){.rv-selbar{top:-16px;}}
 @media (max-width:640px){.rv-ver{margin-left:0;} .rv-busca{max-width:none;} .rv-selbar-bts{margin-left:0;}}`;
@@ -26611,7 +26677,7 @@ textarea[data-rv-cola]{width:100%;font-family:inherit;}
    versão nova em cada aba, para nunca ficar recarregando sem parar.
    A CADA PUBLICAÇÃO: trocar a VERSÃO abaixo e a do versao.json (na raiz e em public/) — as duas iguais. */
 (function(){
-  const VERSAO='2026-11-18i';window.VX_VERSAO=VERSAO;
+  const VERSAO='2026-11-18j';window.VX_VERSAO=VERSAO;
   let ultima=0,pendente=null;
   const ocupado=()=>!!(App&&App.state&&App.state._busy)||!!document.querySelector('#fin-ov.open,.modal-overlay.open,.pm-pop,.vx-perg-ov,.confirm-overlay.open');
   async function tentar(){
@@ -27292,6 +27358,7 @@ button.vx-baixar:hover,.rdo-lb-cab button[data-lb-baixar]:hover{background:#1652
 .rdo-corpo small.rdo-falta.rdo-falta-voce{background:#EEF4FF;border-color:#C7D7FE;color:#1D3E9E;} .rdo-corpo small.rdo-falta.rdo-falta-voce i{color:#1652D8;}
 .rdo-hfoto .rdo-hfora{position:absolute;left:4px;top:4px;background:#B54708;color:#fff;border-radius:6px;padding:2px 6px;font:800 10px Inter,sans-serif;white-space:nowrap;} .rdo-hfoto .rdo-hfora i{color:#fff;margin-right:2px;}
 .rdo-hfoto .rdo-hpassou{color:#B54708;font-weight:700;}
+.rdo-hretirar{position:absolute;right:4px;top:28px;border:0;border-radius:6px;background:rgba(255,255,255,.95);color:#B42318;font:700 10.5px Inter,sans-serif;padding:3px 7px;cursor:pointer;display:inline-flex;align-items:center;gap:4px;box-shadow:0 1px 3px rgba(0,0,0,.25);} .rdo-hretirar:hover{background:#FEF3F2;}
 .rdo-pend-ok{margin:0 0 10px;font-size:14px;color:#101828;} .rdo-pend-ok i{color:#067647;margin-right:4px;}
 .rdo-pend-err{margin:0 0 10px;padding:8px 10px;border-radius:9px;background:#FEF3F2;color:#B42318;font-size:13px;}
 .rdo-pend-h{margin:12px 0 6px;font-size:13.5px;color:#101828;font-weight:700;line-height:1.4;} .rdo-pend-h b{color:#1652D8;}
