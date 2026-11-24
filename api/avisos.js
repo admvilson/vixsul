@@ -13,6 +13,7 @@
 const { ORIGENS, cors, exigirLogin } = require('./_auth');
 const R = require('./_resumo');
 const E = require('./_email');
+const PU = require('./_push');
 const CHAVE = process.env.SUPABASE_SERVICE_KEY || '';
 
 async function enviar(cfg, forcar) {
@@ -29,6 +30,15 @@ async function enviar(cfg, forcar) {
 const textoDoEnvio = r => r.enviado ? `Enviado para ${r.entregues} e-mail(s)` : (r.msg || '');
 
 async function cfgAvisos() { const L = (await R.lerTipos(['cfg_avisos'])).sort((a, b) => (b._id || 0) - (a._id || 0)); return L[0] || null; }
+/* a NOTIFICAÇÃO NO APP substitui este e-mail: com alguém marcado no "Resumo do dia" em Lembretes e Telegram › Para quem vai
+   (coluna do app), o resumo completo vai para o celular/computador dessas pessoas e o e-mail do dia deixa de sair */
+async function vaiPeloApp() {
+  try {
+    if (!PU.pronto()) return false;
+    const c = (await R.lerTipos(['cfg_telegram'])).sort((a, b) => (b._id || 0) - (a._id || 0))[0], d = c && c.destinos && c.destinos.resumo;
+    return !!(d && Array.isArray(d.app) && d.app.length && c.resumo !== 'nao');
+  } catch (e) { return false; }
+}
 
 // o envio do dia (tarefa agendada da Vercel ou a reserva do GitHub): uma vez por dia
 async function diario() {
@@ -37,6 +47,7 @@ async function diario() {
   if (!E.emailPronto()) return { ok: true, enviado: false, msg: 'Envio de e-mail ainda não configurado.' };
   const hj = R.hojeBahia();
   if (cfg.ultimo_envio === hj) return { ok: true, enviado: false, msg: 'Já enviado hoje.' };
+  if (await vaiPeloApp()) return { ok: true, enviado: false, msg: 'O resumo do dia vai como notificação no app (Lembretes e Telegram › Para quem vai).' };
   await R.gravarPlan({ ...cfg, ultimo_envio: hj, ultima_msg: 'mandando…' });   // marca antes: outro disparo não repete
   let r;
   try { r = await enviar(cfg, false); } catch (e) { r = { ok: false, msg: (e && e.message) || String(e) }; }
