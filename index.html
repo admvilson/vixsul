@@ -12895,7 +12895,11 @@ const Eng=(function(){
   // no Salvar; a obra e a data sempre). O cfg.validar recebe parcial=true e decide o que ainda falta.
   function formulario(cfg,reg,extraHtml){
     const linhas=`<div class="fin-linha">${cfg.campos.map(c=>campoHtml(c,reg?reg[c.k]:'',reg)).join('')}</div>${cfg.extra?cfg.extra(reg):''}${extraHtml||''}`;
-    const gravar=async(j,parcial)=>{
+    const regIni=reg;
+    const gravar=async(j,parcialArg)=>{
+      // cfg.regAtual(j): o registro que já foi gravado com o formulário aberto (ex.: o diário que as fotos gravaram sozinhas)
+      // — o Salvar grava em cima dele, em vez de criar outro
+      const reg=(cfg.regAtual&&cfg.regAtual(j))||regIni,parcial=parcialArg;
       j._avisoSalvo='';   // o cfg.validar pode deixar aqui o aviso do que ainda falta (gravou assim mesmo)
       const pm=cfg.podeMexer||GS.podeMexer;   // cfg.podeMexer(reg): a regra de dono do próprio cadastro (ex.: o diário)
       if(reg&&pm&&!pm(reg))throw new Error(GS.MSG_DONO);
@@ -13374,10 +13378,10 @@ const Eng=(function(){
   const MAQ_FIXA='Retroescavadeira';
   const LEIT=[['h1','Início do dia'],['h2','Meio-dia'],['h3','Início da tarde'],['h4','Fim da tarde']];
   const fk=k=>'f'+k.slice(1);
-  /* HORÁRIOS DAS FOTOS DO HORÍMETRO: início do dia a partir das 6h15 (até 11h59), meio-dia das 12h às 13h29, início da
-     tarde das 13h30 às 15h e fim da tarde das 15h01 às 19h. Fora do horário o quadro da foto fica travado (mostrando o
-     horário) e a foto tem que ter sido tirada hoje, dentro do horário dela. Só o Administrador registra fora disso. */
-  const JANELA_HOR={h1:['06:15','11:59'],h2:['12:00','13:29'],h3:['13:30','15:00'],h4:['15:01','19:00']};
+  /* HORÁRIOS DAS FOTOS DO HORÍMETRO: deixaram de ser exigidos (24/11 — pedido do dono). Antes: início do dia das 6h15 às
+     11h59, meio-dia das 12h às 13h29, início da tarde das 13h30 às 15h e fim da tarde das 15h01 às 19h. Com a tabela vazia,
+     nenhum quadro trava, nenhuma foto fica "fora do horário" e as pendências só dizem qual foto falta. */
+  const JANELA_HOR={};
   const minHM=s=>{const [h,m]=String(s).split(':').map(Number);return h*60+m;};
   const hTxt=s=>String(s).replace(':','h');
   /* o quadro da foto só TRAVA quando o horário dela ainda não chegou (ou o dia é futuro). Passado o horário — ou no dia que
@@ -13478,8 +13482,8 @@ const Eng=(function(){
       if(tr)return `<i class="fas fa-camera"></i><span>Foto do horímetro <b class="obg">*</b><small class="rdo-hjan rdo-hpassou">passou do horário (das ${hTxt(JANELA_HOR[k][0])} às ${hTxt(JANELA_HOR[k][1])}) — pode anexar; o Administrador confere</small></span>`;
       return `<i class="fas fa-camera"></i><span>Foto do horímetro <b class="obg">*</b>${k&&JANELA_HOR[k]?`<small class="rdo-hjan">das ${hTxt(JANELA_HOR[k][0])} às ${hTxt(JANELA_HOR[k][1])}</small>`:''}</span>`;}
     if(v.lendo)return `<img src="${v.url}" alt=""><span class="rdo-hlendo"><i class="fas fa-spinner fa-spin"></i> Lendo o número…</span>`;
-    const r=v.ref||{},data=v.data||r.data||'',outro=dia&&data&&data!==dia,fora=v.url?(v.fora||''):(r.fora&&!r.fora_ok?r.fora:'');
-    return `<img ${v.url?`src="${v.url}"`:GS.fotoSis.attrs({foto_uid:r.uid,thumb_uid:r.thumb},false,200)} alt="" title="Clique para ampliar"><span class="rdo-hzoom" aria-hidden="true"><i class="fas fa-magnifying-glass-plus"></i></span>${fora?`<span class="rdo-hfora" title="${fe('Fora do horário: '+fora+' — o Administrador confere')}"><i class="fas fa-triangle-exclamation"></i> Fora do horário</span>`:''}
+    const r=v.ref||{},data=v.data||r.data||'',outro=dia&&data&&data!==dia,fora='';   // horário não é mais exigido (24/11): nada de "fora do horário"
+    return `<img ${v.url?`src="${v.url}"`:GS.fotoSis.attrs({foto_uid:r.uid,thumb_uid:r.thumb},false,200)} alt="" title="Clique para ampliar"><span class="rdo-hzoom" aria-hidden="true"><i class="fas fa-magnifying-glass-plus"></i></span>${v.subindo?'<span class="rdo-hsalv"><i class="fas fa-spinner fa-spin"></i> salvando…</span>':v.ref&&v.ref.uid&&!v.file?'<span class="rdo-hsalv ok"><i class="fas fa-circle-check"></i> salva</span>':''}${fora?`<span class="rdo-hfora" title="${fe('Fora do horário: '+fora+' — o Administrador confere')}"><i class="fas fa-triangle-exclamation"></i> Fora do horário</span>`:''}
       <span class="rdo-hhora${outro?' outro':''}" title="${outro?'A foto é de outro dia — confira':'Data e hora em que a foto foi tirada'}"><i class="fas fa-clock"></i> ${fe(quandoHor(data,v.hora||r.hora))}</span>
       <button type="button" class="rdo-htrocar" data-htrocar title="Escolher outra foto"><i class="fas fa-camera-rotate"></i> Trocar</button><button type="button" class="rdo-hretirar" data-hretirar title="Retirar esta foto (e o número lido dela)"><i class="fas fa-trash"></i> Retirar</button>`;};
   /* ver as fotos do horímetro em tamanho grande (no formulário e no cartão do dia): setas e Esc. Também as fotos do dia no
@@ -13527,7 +13531,7 @@ const Eng=(function(){
     return `<tr><td><input data-sq="eq" list="rdo-equip-sem" value="${fe(x.eq||'')}" placeholder="Ex.: Betoneira"></td><td><input data-sq="qtd" inputmode="numeric" value="${fe(x.qtd||'1')}"></td><td><input data-sq="obs" value="${fe(x.obs||'')}" placeholder="opcional (ex.: parada à tarde)"></td><td><button type="button" class="bt-tirar" data-eq-x title="Tirar esta linha" aria-label="Tirar esta linha"><i class="fas fa-trash-can"></i></button></td></tr>`;}
   function htmlEquip(reg){const l=(jsonDe(reg&&reg.equip_json)||[]),sem=l.filter(x=>x.hor===false),x=maqDe(reg),L=leituras(x),h=horasEq(x),dia=reg?reg.data:'';
     return `<datalist id="rdo-equip-sem">${EQUIP_SEM.map(e=>`<option value="${fe(e)}">`).join('')}</datalist>
-      <div class="rdo-eq-tit"><b><i class="fas fa-gauge-high"></i> ${MAQ_FIXA} — horímetro</b><small>as 4 leituras do dia: tire a foto do horímetro no horário de cada uma — o número é lido da foto (o campo fica travado) e a hora fica gravada nela; as horas são calculadas</small></div>
+      <div class="rdo-eq-tit"><b><i class="fas fa-gauge-high"></i> ${MAQ_FIXA} — horímetro</b><small>as 4 leituras do dia: tire a foto do horímetro em cada uma (sem horário marcado) — a foto já fica salva no diário, o número é lido da foto (o campo fica travado) e a hora fica gravada nela; as horas são calculadas</small></div>
       <div class="rdo-hor" data-rdo-hor>${LEIT.map(([k,rot])=>{const f=x[fk(k)],tr=!(f&&f.uid)&&travaHor(k,dia);return `<div class="rdo-hl"><label>${rot} <span class="obg">*</span></label><div class="rdo-hval"><input data-eq="${k}" inputmode="decimal" value="${fe(L[k]||'')}" placeholder="${f&&f.uid&&!L[k]?'não lido — a conferir':'lido da foto'}" readonly class="rdo-lido" title="Lido da foto do horímetro — não se digita">${ehAdmRdo()||corrigindoRdo()?`<button type="button" class="rdo-hcorr" data-hcorr="${k}" title="Corrigir a leitura à mão (Administrador)" aria-label="Corrigir a leitura à mão"><i class="fas fa-pen"></i></button>`:''}</div>
           <div class="rdo-hfoto${f&&f.uid?' ok':''}${tr?' trava':''}" data-hfoto="${k}" role="button" tabindex="0" aria-label="Foto do horímetro — ${rot}">${fotoHorHtml(f&&f.uid?{ref:f}:null,dia,k)}</div><input type="file" accept="image/*" hidden data-hfile="${k}"></div>`;}).join('')}
         <div class="rdo-hl rdo-hl-tot"><label>Horas no dia</label><input data-eq="h" value="${!isNaN(h.tot)&&h.tot>=0?fmtH(h.tot):''}" disabled title="Calculado: (meio-dia − início do dia) + (fim da tarde − início da tarde)"><label style="margin-top:8px">Observação</label><input data-eq="obs" value="${fe(x.obs||'')}" placeholder="opcional"></div></div>
@@ -13543,11 +13547,11 @@ const Eng=(function(){
     if(!(numBR(o.efetivo_total)>0))return 'equipe';
     if(j&&j._hor&&LEIT.some(([k])=>{const v=j._hor[k];return !(v&&(v.ref||v.file));}))return 'foto do horímetro';
     if(!String(o.atividades||'').trim())return 'serviços executados';
-    if(j&&!((j._fotos&&j._fotos.length)||(reg&&fotosDoRegistro(reg).length)))return 'fotos do dia';
+    if(j&&!((j._fotos&&j._fotos.length)||j._nFotosAuto||(reg&&fotosDoRegistro(reg).length)))return 'fotos do dia';
     return '';}
   // o formulário tem alguma coisa preenchida? (o Salvar não grava um diário vazio)
   const algoNoRdo=(o,reg,j,eqs)=>!!(o.clima_manha||o.clima_tarde||o.condicao||numBR(o.efetivo_total)>0||String(o.atividades||'').trim()||String(o.ocorrencias||'').trim()||String(o.visitas||'').trim()
-    ||(eqs||[]).some(x=>x.hor===false)||(j&&j._hor&&LEIT.some(([k])=>j._hor[k]&&(j._hor[k].ref||j._hor[k].file)))||(j&&j._fotos&&j._fotos.length)||(reg&&fotosDoRegistro(reg).length));
+    ||(eqs||[]).some(x=>x.hor===false)||(j&&j._hor&&LEIT.some(([k])=>j._hor[k]&&(j._hor[k].ref||j._hor[k].file)))||(j&&j._fotos&&j._fotos.length)||(j&&j._nFotosAuto)||(reg&&fotosDoRegistro(reg).length));
   /* PENDÊNCIAS DO DIÁRIO (o dono pediu: quem registra NUNCA fica travado — salva, vê a lista do que faltou, e isso vai para
      o Administrador, que corrige na aba Pendências). Calculadas na hora, a partir do registro salvo:
        adm  — do Administrador: tempo/condição, equipe e serviços em branco; foto do horímetro que passou do horário sem
@@ -13565,12 +13569,12 @@ const Eng=(function(){
       if(!r.clima_manha||!r.clima_tarde||!r.condicao)add('tempo','Tempo (manhã e tarde) e condição do trabalho não foram marcados');
       if(!(numBR(r.efetivo_total)>0))add('equipe','Equipe do dia não informada');}
     const x=maqDe(r);
-    LEIT.forEach(([k,rot])=>{const f=x[fk(k)],[a,b]=JANELA_HOR[k];
-      if(f&&f.uid){if(f.fora&&!f.fora_ok)add(`fora:${k}:${f.uid}`,`Foto do horímetro — ${rot}: enviada fora do horário (${f.fora})`,{foto:k});return;}
+    // fotos do horímetro: sem horário exigido (24/11) — a foto que já está no dia vale; a que falta é pendência (hoje: ainda dá tempo)
+    LEIT.forEach(([k,rot])=>{const f=x[fk(k)];
+      if(f&&f.uid)return;
       if(legado)return;
-      const ej=aberto?estadoJanela(k,dia):'passou';
-      if(ej==='passou')add('hor:'+k,`Falta a foto do horímetro — ${rot} (o horário era das ${hTxt(a)} às ${hTxt(b)})`);
-      else add('hor:'+k,ej==='antes'?`Foto do horímetro — ${rot}: libera às ${hTxt(a)}`:`Foto do horímetro — ${rot}: tire agora, até as ${hTxt(b)}`,{voce:true});});
+      if(aberto)add('hor:'+k,`Foto do horímetro — ${rot}: ainda falta tirar hoje`,{voce:true});
+      else add('hor:'+k,`Falta a foto do horímetro — ${rot}`);});
     if(r.hor_conferir)add('horconf:'+r.hor_conferir,`Conferir o número do horímetro (${r.hor_conferir}) — pelo lápis ao lado da leitura`);
     if(!legado){
       if(!String(r.atividades||'').trim())add('servicos','Serviços executados não preenchidos');
@@ -13584,9 +13588,40 @@ const Eng=(function(){
       ${P.adm.length?`<h4 class="rdo-pend-h">${adm?'Ficaram estas pendências — estão na aba <b>Pendências</b>:':'Ficaram estas pendências. <b>Não precisa fazer nada:</b> elas vão para o Administrador, que resolve.'}</h4>${li(P.adm)}`:''}
       ${P.voce.length?`<h4 class="rdo-pend-h">Ainda hoje dá para completar${adm?'':' (se não der, também vai para o Administrador)'}:</h4>${li(P.voce)}`:''}`,
       [{html:'Entendi',cls:'pri'}],560);}
-  /* o diário é preenchido AOS POUCOS durante o dia (as fotos do horímetro liberam no horário de cada uma). Um botão só,
-     Salvar, que NUNCA trava pelo que falta (salvaSempre): grava, e a janela mostra o que ficou — o que ainda dá tempo hoje
-     e as pendências, que vão para o Administrador (aba Pendências). */
+  /* FOTOS JÁ SALVAS (24/11 — pedido do dono): a foto do horímetro e as fotos do dia são gravadas no momento em que são
+     anexadas, sem precisar clicar em Salvar. A foto vai para o sistema e o diário do dia é gravado junto, com o que já está
+     no formulário (dia novo: nasce com uma marca própria, _ins_uid, e o Salvar depois grava em cima dele — nunca dois).
+     Só grava sozinho quem poderia salvar: dia que não está fechado, que já chegou e, dia já encerrado, só o Administrador. */
+  const podeAutoRdo=(j,reg)=>{const H=k=>j.querySelector(`[data-f="${k}"]`),ob=(H('titulo_obra')||{}).value,dia=(H('data')||{}).value,base=j._regAuto||reg;
+    if(!ob||!dia||dia>hojeRdo())return false;
+    if(base)return j._regAuto?true:(meuRdo(base)&&(!rdoFechado(base)||ehAdmRdo()));
+    return !passouHoraRdo(dia)||ehAdmRdo();};
+  async function autoSalvarRdo(j,reg){
+    if(!podeAutoRdo(j,reg))return false;
+    const H=k=>j.querySelector(`[data-f="${k}"]`),base=j._regAuto||reg||null;if(j._somaEquip)j._somaEquip();
+    const o=base?{...base}:{data_lancamento:todayDateTime()};
+    for(const c of CFG_RDO.campos){if(c.tipo==='sec'||c.tipo==='html')continue;const el=H(c.k);if(el)o[c.k]=String(el.value||'').trim();}
+    if(!base||!base.rowid)o._ins_uid=j._insUid;
+    // a leitura que não saiu da foto fica "a conferir" (como no Salvar)
+    const eqs=jsonDe(o.equip_json)||[],x=eqs.find(y=>y&&y.hor!==false)||{};
+    o.hor_conferir=LEIT.filter(([k])=>{const v=j._hor&&j._hor[k];return v&&v.ref&&isNaN(nBR(x[k]));}).map(([,rot])=>rot.toLowerCase()).join(', ');
+    o.parcial=faltaRdo(o,base,j,eqs)?'sim':'';o.pend_v='1';
+    if(!base){o.criado_por=eu().nome;o.criado_por_id=eu().id;o.responsavel=eu().nome;if(passouHoraRdo(o.data))o.aberto_ate=new Date(Date.now()+3600e3).toISOString();}
+    else if(!preenchidoRdo(base)){o.preenchido_por=eu().nome;o.preenchido_por_id=eu().id;o.responsavel=eu().nome;o.preenchido_em=todayDateTime();}
+    const rid=base&&base.rowid;delete o.rowid;delete o.visualId;delete o._aba;
+    await salvar('Diário de obra',o,rid||null);
+    j._regAuto={...o,rowid:rid||null};j._autoSalvou=true;return true;}
+  // um de cada vez: duas fotos gravando juntas não criam dois registros do mesmo dia
+  const autoRdoFila=(j,reg)=>(j._filaAuto=(j._filaAuto||Promise.resolve()).catch(()=>{}).then(async()=>{const ok=await autoSalvarRdo(j,reg);if(ok&&j._regAuto&&!j._regAuto.rowid)await recarregarAutoRdo(j);return ok;}));
+  // a foto do horímetro trocada ou retirada: a antiga sai da galeria (vai para a Lixeira) — como o Salvar fazia
+  async function apagarTrocadasRdo(j){const L=(j._rdoApagar||[]).splice(0);
+    for(const f of L){const im=(D().obra_imagens||[]).find(i=>i.foto_uid===f.uid);try{if(im)await excluir('Imagens da Obra',im.rowid);else await GS.fotoSis.apagar({foto_uid:f.uid,thumb_uid:f.thumb});}catch(e){}}}
+  // depois de gravar sozinho: recarrega os dados (a galeria e a lista com as fotos novas) e acha o registro gravado
+  async function recarregarAutoRdo(j){await new Promise(r=>App.init(false,()=>r()));
+    const real=(D().diario_obra||[]).find(x=>(j._insUid&&x._ins_uid===j._insUid)||(j._regAuto&&j._regAuto.rowid&&String(x.rowid)===String(j._regAuto.rowid)));if(real)j._regAuto={...real};}
+  /* o diário é preenchido AOS POUCOS durante o dia. Um botão só, Salvar, que NUNCA trava pelo que falta (salvaSempre):
+     grava, e a janela mostra o que ficou — o que ainda dá tempo hoje e as pendências, que vão para o Administrador (aba
+     Pendências). As fotos (horímetro e do dia) já ficam salvas ao anexar. */
   const CFG_RDO={aba:'Diário de obra',nomeItem:'registro do diário',larg:820,salvaSempre:true,campos:[
     {k:'_s1',tipo:'sec',label:'<i class="fas fa-calendar-day"></i> O dia'},
     {k:'titulo_obra',label:'Obra',tipo:'obra',obrig:true,inteira:true},
@@ -13606,47 +13641,84 @@ const Eng=(function(){
     {k:'_s5',tipo:'sec',label:'<i class="fas fa-helmet-safety"></i> Serviços e ocorrências'},
     {k:'atividades',label:'Serviços executados',tipo:'area',obrig:true,inteira:true,linhas:4,ph:'O que foi feito hoje, com local e quantidade quando possível'},
     {k:'ocorrencias',label:'Ocorrências e problemas',tipo:'area',inteira:true,linhas:2,ph:'Paralisações, acidentes, falta de material, interferências…'},
-    {k:'visitas',label:'Visitas e fiscalização',tipo:'area',inteira:true,linhas:2,ph:'Visita do fiscal da EMBASA, orientações recebidas…'}
+    {k:'visitas',label:'Visitas e fiscalização',tipo:'area',inteira:true,linhas:2,ph:'Visita do fiscal da EMBASA, orientações recebidas…'},
+    // o combustível e os materiais deste dia (ficam nas abas Combustível e Materiais, ligados ao dia)
+    {k:'_lig',tipo:'html',html:()=>'<div class="rdo-lig-form" data-rdo-lig></div>'}
   ],
   // FOTOS DO DIA já no registro: escolhidas aqui, vão para a galeria da obra com a data do diário
   podeMexer:r=>meuRdo(r),
+  // o dia que as fotos já gravaram sozinhas (com o formulário aberto): o Salvar grava em cima dele
+  regAtual:j=>{const a=j&&j._regAuto;if(!a||!a.rowid)return null;return (D().diario_obra||[]).find(x=>String(x.rowid)===String(a.rowid))||a;},
   extra:reg=>podeFotoRdo()&&(!reg||meuRdo(reg))?`<div class="rdo-fotos"><div class="rdo-fotos-cab"><b><i class="fas fa-camera"></i> Fotos do dia <span class="obg">*</span></b><label class="fin-bt mini" style="cursor:pointer">+ Escolher fotos<input type="file" accept="image/*" multiple data-rdo-fotos hidden></label></div>
-    <div class="eng-fotos-fila rdo-fotos-salvas" data-rdo-salvas hidden></div><div class="eng-fotos-fila" data-rdo-prev></div><small>${reg?'As fotos que já estão neste dia aparecem aqui (clique para ampliar). O × tira a foto: ela vai para a Lixeira quando você salvar (e volta em Desfazer, antes de salvar). As escolhidas agora são somadas.':'As fotos vão para a galeria da obra com a data deste registro e aparecem neste dia do diário.'}</small></div>`:'',
+    <div class="eng-fotos-fila rdo-fotos-salvas" data-rdo-salvas hidden></div><div class="eng-fotos-fila" data-rdo-prev></div><small>A foto escolhida <b>já fica salva</b> neste dia do diário (e na galeria da obra), sem precisar clicar em Salvar.${reg?' As que já estão neste dia aparecem aqui (clique para ampliar). O × tira a foto: ela vai para a Lixeira quando você salvar (e volta em Desfazer, antes de salvar).':''}</small></div>`:'',
   aoAbrir:(j,reg)=>{
+    // dia novo: a marca que liga o que é gravado sozinho (fotos) ao Salvar — os dois gravam o mesmo registro
+    j._insUid=reg?'':'rdo'+Date.now().toString(36)+Math.random().toString(36).slice(2,8);j._nFotosAuto=0;
+    // gravou sozinho e fechou sem salvar: a lista e a galeria recarregam com o que já ficou gravado
+    j._aoFechar=()=>{if(j._autoSalvou&&!j._salvouNormal)App.init(false);};
     ligarRdo(j,reg);
     const inp=j.querySelector('[data-rdo-fotos]'),prev=j.querySelector('[data-rdo-prev]');if(!inp||!prev)return;j._fotos=[];
     /* as fotos que JÁ estão neste dia (salvas antes, aqui ou pelo botão Fotos): aparecem no formulário. Quem anexou (ou o
        Administrador) tem o × — a foto fica marcada e vai para a Lixeira quando salvar; Desfazer tira a marca; quem
        cancela o formulário não perde nada */
     const sv=j.querySelector('[data-rdo-salvas]');j._fotosApagar=new Set();
-    const salvas=()=>reg?fotosDoRegistro(reg):[];
+    const salvas=()=>{const L0=D().diario_obra||[],r=reg||(j._regAuto&&L0.find(x=>(j._insUid&&x._ins_uid===j._insUid)||(j._regAuto.rowid&&String(x.rowid)===String(j._regAuto.rowid))));return r?fotosDoRegistro(r):[];};
     // (a Lixeira só deixa excluir a foto de outra pessoa ao Administrador — por isso quem corrige só tira as suas)
     const podeApagarFoto=f=>ehAdmRdo()||souEuRdo(f.enviado_por_id)||souEuRdo(f.criado_por_id);
     // a descrição como a pessoa escreveu (a galeria grava "Etapa • data • descrição"; o diário põe "Diário de obra · …")
-    const descFoto=f=>{const p=String(f.descricao||'').split(' • '),d=(p.length>=3?p.slice(2).join(' • '):p.join(' • ')).replace(/^Diário de obra( · )?/,'').trim();
-      return [d,f.enviado_por?'por '+String(f.enviado_por).split(' ')[0]:''].filter(Boolean).join(' · ')||'Foto do dia';};
+    const descSo=f=>{const p=String(f.descricao||'').split(' • ');return (p.length>=3?p.slice(2).join(' • '):p.join(' • ')).replace(/^Diário de obra( · )?/,'').trim();};
+    const descFoto=f=>[descSo(f),f.enviado_por?'por '+String(f.enviado_por).split(' ')[0]:''].filter(Boolean).join(' · ')||'Foto do dia';
+    // a descrição da própria foto (já salva) pode ser escrita ou trocada aqui mesmo — grava ao sair do campo
     const desenhaSalvas=()=>{if(!sv)return;const L=salvas();sv.hidden=!L.length;
-      sv.innerHTML=L.map((f,k)=>{const sai=j._fotosApagar.has(String(f.rowid));
+      sv.innerHTML=L.map((f,k)=>{const sai=j._fotosApagar.has(String(f.rowid)),minha=podeApagarFoto(f);
         return `<div class="eng-foto-item rdo-foto-salva${sai?' rdo-foto-sai':''}"><button type="button" class="rdo-foto-ver" data-rdo-ver="${k}" title="Ampliar"><img ${GS.fotoSis.attrs(f,false,300)} data-driveid="${fe(f.drive_file_id||'')}" loading="lazy" alt="" onerror="UI.ImagensObra._imgErro(this)"></button>
-          <small class="rdo-foto-desc" title="${fe(descFoto(f))}">${sai?'<b>sai ao salvar</b>':fe(descFoto(f))}</small>${podeApagarFoto(f)?(sai?`<button type="button" class="rdo-foto-volta" data-rdo-volta="${fe(f.rowid)}"><i class="fas fa-rotate-left"></i> Desfazer</button>`:`<button type="button" class="rdo-foto-x" data-rdo-sx="${fe(f.rowid)}" title="Excluir esta foto (vai para a Lixeira quando você salvar)" aria-label="Excluir esta foto">×</button>`):''}</div>`;}).join('');};
+          ${sai?'<small class="rdo-foto-desc"><b>sai ao salvar</b></small>':minha&&f.foto_uid?`<input class="rdo-foto-sdesc" data-rdo-sdesc="${fe(f.rowid)}" maxlength="50" placeholder="Descrição (opcional)" value="${fe(descSo(f))}" title="Escreva e saia do campo: a descrição fica salva">`:`<small class="rdo-foto-desc" title="${fe(descFoto(f))}">${fe(descFoto(f))}</small>`}${podeApagarFoto(f)?(sai?`<button type="button" class="rdo-foto-volta" data-rdo-volta="${fe(f.rowid)}"><i class="fas fa-rotate-left"></i> Desfazer</button>`:`<button type="button" class="rdo-foto-x" data-rdo-sx="${fe(f.rowid)}" title="Excluir esta foto (vai para a Lixeira quando você salvar)" aria-label="Excluir esta foto">×</button>`):''}</div>`;}).join('');};
     desenhaSalvas();
     if(sv)sv.addEventListener('click',ev=>{
       const v=ev.target.closest('[data-rdo-ver]');if(v){const L=salvas();return verFotosHor(L.map(f=>({uid:f.foto_uid||'',thumb:f.thumb_uid||'',drive:f.drive_file_id||'',url:f.foto_uid||f.drive_file_id?'':(f.url_visualizacao||f.url_thumb||''),tit:`Foto do dia · ${brDe(dt(String(f.data_foto||reg.data)))} · ${descFoto(f)}`,gps:GS.gps.de(f)})),+v.dataset.rdoVer);}
       const x=ev.target.closest('[data-rdo-sx]');if(x){j._fotosApagar.add(String(x.dataset.rdoSx));return desenhaSalvas();}
       const u=ev.target.closest('[data-rdo-volta]');if(u){j._fotosApagar.delete(String(u.dataset.rdoVolta));desenhaSalvas();}});
+    if(sv)sv.addEventListener('change',async ev=>{const i=ev.target.closest('[data-rdo-sdesc]');if(!i)return;const f=salvas().find(x=>String(x.rowid)===String(i.dataset.rdoSdesc));if(!f)return;
+      const p=String(f.descricao||'').split(' • '),pre=p.length>=3?p.slice(0,2):[],d=i.value.trim(),nova=[...pre,'Diário de obra'+(d?' · '+d:'')].join(' • ');if(nova===f.descricao)return;
+      try{const o={...f,descricao:nova},rid=o.rowid;delete o.rowid;delete o.visualId;delete o._aba;await salvar('Imagens da Obra',o,rid);f.descricao=nova;toast('Descrição da foto salva.','success');}catch(e){toast(e.message||String(e),'error');}});
     // cada foto mostra onde foi tirada (GPS da foto ou do celular, se acabou de ser tirada)
     const gpsTxt=f=>f.gps?`<i class="fas fa-location-dot"></i> ${GS.gps.txt(f.gps)}`:f.gps===false?'<i class="fas fa-location-dot"></i> sem localização':'<i class="fas fa-spinner fa-spin"></i> localização…';
-    const desenha=()=>{prev.innerHTML=j._fotos.map((f,k)=>`<div class="eng-foto-item"><img src="${f.url}" alt=""><input data-rdo-desc="${k}" maxlength="50" placeholder="Descrição (opcional)" value="${fe(f.desc)}"><button type="button" class="rdo-foto-x" data-rdo-x="${k}" title="Tirar esta foto">×</button><small class="rdo-foto-gps" data-rdo-gps="${k}">${gpsTxt(f)}</small></div>`).join('');};
-    inp.addEventListener('change',()=>{[...(inp.files||[])].filter(f=>/^image\//.test(f.type)).forEach(file=>{const it={file,url:URL.createObjectURL(file),desc:'',gps:null};j._fotos.push(it);
-      GS.gps.daFoto(file,9000).then(g=>{it.gps=g||false;const el=prev.querySelector(`[data-rdo-gps="${j._fotos.indexOf(it)}"]`);if(el)el.innerHTML=gpsTxt(it);});});inp.value='';desenha();});
+    const estadoFoto=f=>f.enviando?'<small class="rdo-foto-env"><i class="fas fa-spinner fa-spin"></i> salvando…</small>':f.erro?`<small class="rdo-foto-erro" title="${fe(f.erro)}"><i class="fas fa-triangle-exclamation"></i> não salvou — vai no Salvar</small>`:'';
+    const desenha=()=>{prev.innerHTML=j._fotos.map((f,k)=>`<div class="eng-foto-item"><img src="${f.url}" alt=""><input data-rdo-desc="${k}" maxlength="50" placeholder="Descrição (opcional)" value="${fe(f.desc)}" ${f.enviando?'disabled':''}>${f.enviando?'':`<button type="button" class="rdo-foto-x" data-rdo-x="${k}" title="Tirar esta foto">×</button>`}<small class="rdo-foto-gps" data-rdo-gps="${k}">${gpsTxt(f)}</small>${estadoFoto(f)}</div>`).join('');};
+    /* FOTO ESCOLHIDA JÁ FICA SALVA: assim que sai a localização (até 9 s — dá tempo de escrever a descrição), a foto vai para
+       o sistema (galeria da obra, com a data do dia) e o diário do dia é gravado junto. Sem poder gravar sozinho (dia fechado,
+       encerrado…), a foto fica para o Salvar, como antes. */
+    const enviarFotosAgora=async()=>{if(j._enviandoFotos)return;const H=k=>j.querySelector(`[data-f="${k}"]`),ob=(H('titulo_obra')||{}).value,dia=(H('data')||{}).value;
+      if(!j._fotos.some(f=>!f.salva&&!f.erro))return;
+      if(!podeAutoRdo(j,reg)){if(!j._avisouAuto){j._avisouAuto=true;toast('Estas fotos serão salvas quando você clicar em Salvar.','info');}return;}
+      j._enviandoFotos=true;let ok=0;
+      try{for(const it of j._fotos.filter(f=>!f.salva&&!f.erro)){it.enviando=true;desenha();
+          try{const g=await it.gpsP;await GS.fotoSis.enviar(ob,{file:it.file,descricao:'Diário de obra'+(String(it.desc||'').trim()?' · '+String(it.desc).trim():''),etapa:'durante',data:dia,gps:g||null});it.salva=true;ok++;}
+          catch(e){it.erro=(e&&e.message)||String(e);}
+          it.enviando=false;desenha();}
+        if(ok){j._nFotosAuto+=ok;try{await autoRdoFila(j,reg);}catch(e){console.warn('diário (fotos do dia)',e);}
+          try{await recarregarAutoRdo(j);}catch(e){}
+          j._fotos.filter(f=>f.salva).forEach(f=>URL.revokeObjectURL(f.url));j._fotos=j._fotos.filter(f=>!f.salva);desenha();desenhaSalvas();
+          toast(ok>1?`${ok} fotos do dia salvas no diário.`:'Foto do dia salva no diário.','success');}}
+      finally{j._enviandoFotos=false;if(j._fotos.some(f=>!f.salva&&!f.erro&&!f.enviando))setTimeout(enviarFotosAgora,50);}};
+    inp.addEventListener('change',()=>{[...(inp.files||[])].filter(f=>/^image\//.test(f.type)).forEach(file=>{const it={file,url:URL.createObjectURL(file),desc:'',gps:null};
+        it.gpsP=GS.gps.daFoto(file,9000).then(g=>{it.gps=g||false;const el=prev.querySelector(`[data-rdo-gps="${j._fotos.indexOf(it)}"]`);if(el)el.innerHTML=gpsTxt(it);return g||null;}).catch(()=>{it.gps=false;return null;});
+        j._fotos.push(it);});
+      inp.value='';desenha();enviarFotosAgora();});
     prev.addEventListener('input',ev=>{const k=ev.target.dataset.rdoDesc;if(k!=null&&j._fotos[+k])j._fotos[+k].desc=ev.target.value;});
-    prev.addEventListener('click',ev=>{const b=ev.target.closest('[data-rdo-x]');if(!b)return;const f=j._fotos.splice(+b.dataset.rdoX,1)[0];if(f)URL.revokeObjectURL(f.url);desenha();});
+    prev.addEventListener('click',ev=>{const b=ev.target.closest('[data-rdo-x]');if(!b)return;const f=j._fotos[+b.dataset.rdoX];if(!f||f.enviando)return;j._fotos.splice(+b.dataset.rdoX,1);URL.revokeObjectURL(f.url);desenha();});
   },
   // o acesso ao Google Drive é pedido ainda no clique de Cadastrar (senão o navegador bloqueia a janela do Google)
-  preparar:j=>{if(!(j._fotos&&j._fotos.length))return null;if(!ehAdmRdo())return Promise.resolve('sistema');const io=UI.ImagensObra;
+  // (só para as fotos que ainda não foram salvas sozinhas)
+  preparar:j=>{if(!(j._fotos&&j._fotos.some(f=>!f.salva&&!f.enviando)))return null;if(!ehAdmRdo())return Promise.resolve('sistema');const io=UI.ImagensObra;
     const p=new Promise((ok,er)=>{const t=setTimeout(()=>er(new Error('o acesso ao Google Drive não foi confirmado.')),180000);io._autenticar(()=>{clearTimeout(t);ok();});});p.catch(()=>{});return p;},
   // fotos do horímetro: vão para o sistema ANTES de gravar o diário, e a ligação de cada uma fica na leitura dela
   antes:async(o,reg,j)=>{
+    // dia novo que já foi gravado sozinho (fotos): o Salvar grava em cima dele (a mesma marca)
+    j._salvouNormal=true;if(!reg&&j._insUid)o._ins_uid=j._insUid;
+    // espera o que ainda está sendo gravado sozinho (fotos indo para o sistema) — o Salvar grava por último, nunca em dobro
+    for(let t=0;t<200&&(j._enviandoFotos||LEIT.some(([k])=>j._hor&&j._hor[k]&&j._hor[k].subindo));t++)await new Promise(r=>setTimeout(r,300));
+    if(j._filaAuto)await j._filaAuto.catch(()=>{});
     const pend=LEIT.filter(([k])=>j._hor&&j._hor[k]&&j._hor[k].file);if(!pend.length)return;
     App.state._busy=true;UI._showBusy('Enviando as fotos do horímetro…');
     try{for(const [k,rot] of pend){const v=j._hor[k],r=await GS.fotoSis.enviar(o.titulo_obra,{file:v.file,descricao:`Horímetro ${MAQ_FIXA} · ${rot} · ${quandoHor(v.data,v.hora)}`,etapa:'durante',data:o.data,gps:v.gps||null,extra:{horimetro:k,horimetro_hora:v.hora,horimetro_data:v.data}});
@@ -13666,7 +13738,7 @@ const Eng=(function(){
     if(j._fotosApagar&&j._fotosApagar.size){const ids=[...j._fotosApagar];
       try{await executar(async()=>{for(const rid of ids)await excluir('Imagens da Obra',rid);});nota=ids.length>1?`${ids.length} fotos foram para a Lixeira.`:'A foto foi para a Lixeira.';}
       catch(e){extra='Não consegui excluir '+(ids.length>1?'as fotos marcadas':'a foto marcada')+' ('+((e&&e.message)||e)+') — tente de novo.';}}
-    if(prep){try{await prep;await Eng.subirFotosDia(o.titulo_obra,o.data,j._fotos.map(f=>({file:f.file,descricao:(f.desc||'').trim(),previewUrl:f.url,gps:f.gps||null})));}
+    if(prep){try{await prep;await Eng.subirFotosDia(o.titulo_obra,o.data,j._fotos.filter(f=>!f.salva&&!f.enviando).map(f=>({file:f.file,descricao:(f.desc||'').trim(),previewUrl:f.url,gps:f.gps||null})));}
       catch(e){extra=(extra?extra+' ':'')+'As fotos do dia não foram enviadas ('+((e&&e.message)||e)+') — use o botão Fotos deste dia.';}}
     // o que ficou faltando, com o registro como ficou no banco (a tela já recarregou)
     const L=D().diario_obra||[],r=(reg&&L.find(x=>String(x.rowid)===String(reg.rowid)))||L.find(x=>x.titulo_obra===o.titulo_obra&&x.data===o.data&&donoRdo(x)===donoRdo(o))||o;
@@ -13703,7 +13775,7 @@ const Eng=(function(){
     else if(!preenchidoRdo(reg)){o.preenchido_por=eu().nome;o.preenchido_por_id=eu().id;o.responsavel=eu().nome;o.preenchido_em=todayDateTime();}
     else o.responsavel=reg.responsavel||reg.criado_por||o.responsavel;
     const autor=donoRdo(o);
-    const dup=autor&&(D().diario_obra||[]).find(r=>r.titulo_obra===o.titulo_obra&&r.data===o.data&&donoRdo(r)===autor&&(!reg||String(r.rowid)!==String(reg.rowid)));
+    const dup=autor&&(D().diario_obra||[]).find(r=>r.titulo_obra===o.titulo_obra&&r.data===o.data&&donoRdo(r)===autor&&(!reg||String(r.rowid)!==String(reg.rowid))&&!(j&&j._insUid&&r._ins_uid===j._insUid));
     return dup?`Você já tem um registro desta obra em ${brDe(dt(o.data))} — edite o seu registro.`:'';
   }};
   // liga tempo (botões), equipe (contadores → efetivo) e equipamentos (horímetro → horas) aos campos escondidos
@@ -13765,15 +13837,28 @@ const Eng=(function(){
       if(trocar||!(v.url||v.ref)){const tr=travaHor(k,H('data').value);if(tr){pintarFoto(k);return toast(`Foto do horímetro — ${(LEIT.find(x=>x[0]===k)||[])[1].toLowerCase()}: ${tr}. Ela vale das ${hTxt(JANELA_HOR[k][0])} às ${hTxt(JANELA_HOR[k][1])}.`,'info');}
         return hb.querySelector(`[data-hfile="${k}"]`).click();}
       const L=fotosDoForm();verFotosHor(L,L.findIndex(x=>x.k===k));};
-    /* Retirar: a foto anexada sai do quadro (e o número lido dela). A que já estava salva vai para a Lixeira quando salvar
-       (como a trocada); a escolhida agora só sai. Cancelar o formulário não tira nada. */
-    const retirarFoto=async k=>{const v=j._hor[k],rot=(LEIT.find(x=>x[0]===k)||[])[1]||k;if(!v||!(v.url||v.ref)||v.lendo)return;
-      if(!(await vxPergunta('Retirar a foto do horímetro?',`A foto do horímetro — <b>${fe(rot)}</b> sai deste diário${v.ref&&v.ref.uid?' quando você salvar (ela vai para a Lixeira)':''}, e o número lido dela também. Depois dá para anexar outra.`,'Sim, retirar','Não')))return;
+    /* Retirar: a foto anexada sai do quadro (e o número lido dela). Com o diário já gravado, a retirada também já fica
+       gravada e a foto vai para a Lixeira na hora; senão, vale no Salvar (como antes). */
+    const retirarFoto=async k=>{const v=j._hor[k],rot=(LEIT.find(x=>x[0]===k)||[])[1]||k;if(!v||!(v.url||v.ref)||v.lendo||v.subindo)return;
+      if(!(await vxPergunta('Retirar a foto do horímetro?',`A foto do horímetro — <b>${fe(rot)}</b> sai deste diário${v.ref&&v.ref.uid?' (ela vai para a Lixeira)':''}, e o número lido dela também. Depois dá para anexar outra.`,'Sim, retirar','Não')))return;
       if(v.ref&&v.ref.uid)(j._rdoApagar=j._rdoApagar||[]).push(v.ref);
       if(v.url)URL.revokeObjectURL(v.url);
       Object.keys(v).forEach(x=>delete v[x]);
       const inp=hb.querySelector(`[data-eq="${k}"]`);if(inp){inp.value='';inp.placeholder='lido da foto';inp.readOnly=true;inp.classList.add('rdo-lido');}
-      pintarFoto(k);somaEquip();toast(`Foto do horímetro — ${rot.toLowerCase()} retirada. Salve para confirmar.`,'info');};
+      pintarFoto(k);somaEquip();
+      if((j._regAuto||reg)&&podeAutoRdo(j,reg)){try{await autoRdoFila(j,reg);await apagarTrocadasRdo(j);recarregarAutoRdo(j).catch(()=>{});toast(`Foto do horímetro — ${rot.toLowerCase()} retirada (já gravado no diário).`,'success');}
+        catch(e){toast(`Foto do horímetro — ${rot.toLowerCase()} retirada. Clique em Salvar para gravar.`,'info');}}
+      else toast(`Foto do horímetro — ${rot.toLowerCase()} retirada. Salve para confirmar.`,'info');};
+    /* a FOTO DO HORÍMETRO JÁ FICA SALVA: logo depois do carimbo, ela vai para o sistema (enquanto o número é lido); lido o
+       número, o diário do dia é gravado com a foto e a leitura. Trocou a foto no meio do envio: a enviada sai depois. */
+    const subirHorAgora=async k=>{const v=j._hor[k];if(!v||!v.file||v.subindo||!podeAutoRdo(j,reg))return false;
+      const ob=H('titulo_obra').value,dia=H('data').value,rot=(LEIT.find(x=>x[0]===k)||[])[1]||k,arq=v.file;v.subindo=true;pintarFoto(k);
+      try{const r=await GS.fotoSis.enviar(ob,{file:arq,descricao:`Horímetro ${MAQ_FIXA} · ${rot} · ${quandoHor(v.data,v.hora)}`,etapa:'durante',data:dia,gps:v.gps||null,extra:{horimetro:k,horimetro_hora:v.hora,horimetro_data:v.data}});
+        if(v.file!==arq){(j._rdoApagar=j._rdoApagar||[]).push({uid:r.foto_uid,thumb:r.thumb_uid});return false;}
+        if(v.ref&&v.ref.uid)(j._rdoApagar=j._rdoApagar||[]).push(v.ref);
+        v.ref={uid:r.foto_uid,thumb:r.thumb_uid,hora:v.hora,data:v.data,...(v.gps?{lat:+v.gps.lat.toFixed(6),lng:+v.gps.lng.toFixed(6)}:{})};v.file=null;return true;}
+      catch(e){console.warn('horímetro (envio)',e);return false;}
+      finally{v.subindo=false;pintarFoto(k);}};
     hb.addEventListener('click',ev=>{const rt=ev.target.closest('[data-hretirar]');if(rt){ev.stopPropagation();const b=rt.closest('[data-hfoto]');if(b)retirarFoto(b.dataset.hfoto);return;}
       const box=ev.target.closest('[data-hfoto]');if(box)abrirFoto(box,!!ev.target.closest('[data-htrocar]'));});
     hb.addEventListener('keydown',ev=>{const box=ev.target.closest('[data-hfoto]');if(box&&ev.target===box&&(ev.key==='Enter'||ev.key===' ')){ev.preventDefault();abrirFoto(box,false);}});
@@ -13790,21 +13875,30 @@ const Eng=(function(){
         const gps=await GS.gps.daFoto(file,8000);
         const st=await carimbar(file,`${brDe(t)} ${hora} · ${rot}`,`${MAQ_FIXA}${ob?' · '+ob:''}`,gps?`Local: ${GS.gps.txt(gps)}${gps.prec?` (±${gps.prec} m)`:''}`:'');
         if(v.url)URL.revokeObjectURL(v.url);Object.assign(v,{file:st,url:URL.createObjectURL(st),hora,data,gps:gps||null,lendo:true,fora});pintarFoto(k);
-        if(fora)toast(`Foto do horímetro — ${rot.toLowerCase()} anexada fora do horário (${fora}). Pode salvar normalmente: o Administrador confere.`,'info');
+        const pUp=subirHorAgora(k);   // a foto já vai para o sistema enquanto o número é lido
         // o número do horímetro sai da foto (o original, sem o carimbo) — o campo fica travado com ele
         let n=null;try{n=await lerHorimetro(file,leituraAntes(k));}catch(e){console.warn('horímetro',e);}
-        v.lendo=false;pintarFoto(k);
-        // não leu: a foto fica e o diário salva normalmente — o número fica "a conferir" e o Administrador preenche olhando a foto
-        if(n==null){inp.value='';inp.placeholder='não lido — a conferir';somaEquip();return toast(`Não consegui ler o número do horímetro nesta foto (${rot.toLowerCase()}). Pode salvar normalmente: a foto fica guardada e o Administrador confere e preenche o número.`,'info');}
-        inp.value=String(n).replace('.',',');somaEquip();toast(`Horímetro — ${rot.toLowerCase()}: ${inp.value} h (lido da foto)${fora?' · fora do horário: o Administrador confere':''}.`,fora?'info':'success');}
+        v.lendo=false;
+        // não leu: a foto fica e o diário grava normalmente — o número fica "a conferir" e o Administrador preenche olhando a foto
+        if(n==null){inp.value='';inp.placeholder='não lido — a conferir';}else inp.value=String(n).replace('.',',');
+        somaEquip();pintarFoto(k);
+        // enviada a foto e lido o número: o diário do dia é gravado (sem precisar clicar em Salvar)
+        let salvo=false;if(await pUp){try{somaEquip();await autoRdoFila(j,reg);await apagarTrocadasRdo(j);salvo=true;recarregarAutoRdo(j).catch(()=>{});}catch(e){console.warn('diário (horímetro)',e);}}
+        const onde=salvo?' — já salva no diário':' — clique em Salvar para gravar';
+        if(n==null)return toast(`Foto do horímetro (${rot.toLowerCase()})${onde}. Não consegui ler o número: o Administrador confere e preenche olhando a foto.`,'info');
+        toast(`Horímetro — ${rot.toLowerCase()}: ${inp.value} h (lido da foto)${onde}.`,'success');}
       catch(e){Object.keys(v).forEach(x=>delete v[x]);Object.assign(v,antes);pintarFoto(k);toast(e.message||String(e),'error');}});
     ts.addEventListener('click',ev=>{if(ev.target.closest('[data-eq-x]')){ev.target.closest('tr').remove();somaEquip();}});
     [hb,ts].forEach(x=>x.addEventListener('input',somaEquip));
     j.querySelectorAll('.rdo-eq-bts').forEach(bx=>bx.addEventListener('click',ev=>{if(ev.target.closest('[data-sem-add]')){ts.insertAdjacentHTML('beforeend',linhaSem({}));ts.lastElementChild.querySelector('input').focus();somaEquip();}}));
     // registro novo: o início do dia vem da última leitura da máquina nesta obra (chamado quando a obra e o dia já estão no formulário)
     // (as leituras vêm das fotos: nada é preenchido antes — a última leitura do dia anterior só serve para conferir o número lido)
-    j._rdoPrefill=()=>{somaEquip();LEIT.forEach(([k])=>pintarFoto(k));};
-    somaEquip();
+    // o combustível e os materiais deste dia (só mostra: lançar é nas abas, sem perder o que está no formulário)
+    const pintarLig=()=>{const el=j.querySelector('[data-rdo-lig]');if(!el)return;const ob=H('titulo_obra').value,d=H('data').value;if(!ob||!d){el.innerHTML='';return;}
+      const ab=abastecimentos(ob).filter(p=>p.data===d),mt=matDoDia(ob,d),l=ab.reduce((s,p)=>s+val(p.litros),0),v=ab.reduce((s,p)=>s+val(p.valor),0);
+      el.innerHTML=`<span><i class="fas fa-gas-pump"></i> <b>Combustível deste dia:</b> ${ab.length?`${ab.length} abastecimento${ab.length>1?'s':''} · ${n2(l).replace(/,00$/,'')} L · ${fmt(v)}`:'nenhum abastecimento'} <small>(aba Combustível)</small></span><span><i class="fas fa-boxes-stacked"></i> <b>Materiais deste dia:</b> ${mt?`${itensMat(mt).length} materiais`:'nenhum lançado'} <small>(aba Materiais)</small></span>`;};
+    j._rdoPrefill=()=>{somaEquip();LEIT.forEach(([k])=>pintarFoto(k));pintarLig();};
+    somaEquip();pintarLig();
     const tr=j.querySelector('[data-rdo-trocar]');
     if(tr)tr.addEventListener('click',()=>{const ob=H('titulo_obra').value;if(!ob)return toast('Escolha a obra primeiro.','error');
       escolherDiaRdo(ob,iso=>{H('data').value=iso;const av=j.querySelector('[data-rdo-dia]');if(av)av.innerHTML=avisoDiaRdo(iso);if(j._rdoPrefill)j._rdoPrefill();});});
@@ -13883,9 +13977,15 @@ const Eng=(function(){
     {k:'horimetro',label:'Horímetro na hora (opcional)',tipo:'num',ph:'Ex.: 1234,5'},
     {k:'fornecedor',label:'Posto / fornecedor',maiusc:true,ph:'Ex.: POSTO CENTRAL'},
     {k:'obs',label:'Observação',inteira:true}],
-    extra:reg=>reg?'':`<label class="maq-conta"><input type="checkbox" data-abast-conta><span><b>Lançar também em Contas a pagar</b> (conta paga nesta data, na obra, como "Óleo diesel"). Deixe desmarcado se o diesel já entra pelas contas ou pela conciliação bancária.</span></label>`,
+    extra:reg=>'<p class="vk-dica" data-abast-dia></p>'+(reg?'':`<label class="maq-conta"><input type="checkbox" data-abast-conta><span><b>Lançar também em Contas a pagar</b> (conta paga nesta data, na obra, como "Óleo diesel"). Deixe desmarcado se o diesel já entra pelas contas ou pela conciliação bancária.</span></label>`),
     aoAbrir:(j,reg)=>{const f=j.querySelector('[data-f="fornecedor"]');if(f){f.setAttribute('list','vx-forn-lista');f.setAttribute('autocomplete','off');}try{datalistFornecedores();}catch(e){}
-      if(!reg&&RD.obra){const s=j.querySelector('[data-f="titulo_obra"]');if(s)s.value=RD.obra;}},
+      if(!reg&&RD.obra){const s=j.querySelector('[data-f="titulo_obra"]');if(s)s.value=RD.obra;}
+      // o dia do diário a que o abastecimento fica ligado (pela obra e pelo dia)
+      const pDia=()=>{const ob=(j.querySelector('[data-f="titulo_obra"]')||{}).value,d=(j.querySelector('[data-f="data"]')||{}).value,el=j.querySelector('[data-abast-dia]');if(!el)return;
+        if(!ob||!d){el.innerHTML='';return;}const rd=rdoDoDia(ob,d);
+        el.innerHTML=rd?`<i class="fas fa-book-open"></i> Fica ligado ao <b>diário de ${fe(brDe(dt(d)))}</b> desta obra${rd.responsavel?' (registrado por '+fe(rd.responsavel)+')':''} — aparece no cartão do dia.`
+          :`<i class="fas fa-book"></i> Fica ligado ao dia <b>${fe(brDe(dt(d)))}</b> desta obra — o diário deste dia ainda não foi registrado.`;};
+      j.addEventListener('change',ev=>{if(ev.target.closest('[data-f="titulo_obra"],[data-f="data"]'))pDia();});setTimeout(pDia,30);},
     validar:o=>{const l=numBR(o.litros);if(!(l>0))return 'Informe os litros abastecidos.';if(l>3000)return 'Litros demais para um abastecimento — confira o número.';o.litros=String(Math.round(l*100)/100);
       if(o.horimetro){const h=numBR(o.horimetro);if(isNaN(h)||h<0)return 'Horímetro: digite só o número (ex.: 1234,5).';o.horimetro=String(h);}
       if(!(val(o.valor)>0))return 'Informe o valor pago.';o.tipo='abastecimento';o.fornecedor=String(o.fornecedor||'').toLocaleUpperCase('pt-BR');return '';},
@@ -13939,7 +14039,7 @@ const Eng=(function(){
   // SUBTELAS nas Permissões (UI._SUBTELAS.diario, botões com data-rd-aba): a bloqueada some e abre a liberada
   const podeAbaRdo=a=>!UI.podeSub||UI.podeSub('diario',a);
   const abasRdo=()=>{const n=GS.reprov&&GS.reprov.pendentes&&podeAbaRdo('fisc')?GS.reprov.pendentes():0,np=podePendRdo()?pendLista().length:0;
-    return `<div class="gf-abas doc-abas"><button type="button" class="gf-aba ${RD.aba!=='fisc'&&RD.aba!=='pend'?'on':''}" data-rd="aba" data-rd-aba="dias"><i class="fas fa-calendar-day"></i> Registros do dia</button><button type="button" class="gf-aba ${RD.aba==='fisc'?'on':''}" data-rd="aba" data-rd-aba="fisc"><i class="fas fa-clipboard-check"></i> Fiscalização${n?` <b class="rv-aba-n" title="${n} aguardando correção">${n}</b>`:''}</button>${podePendRdo()?`<button type="button" class="gf-aba ${RD.aba==='pend'?'on':''}" data-rd="aba" data-rd-aba="pend"><i class="fas fa-list-check"></i> Pendências${np?` <b class="rv-aba-n" title="${np} dia(s) com pendência neste mês">${np}</b>`:''}</button>`:''}</div>`;};
+    return `<div class="gf-abas doc-abas"><button type="button" class="gf-aba ${!['fisc','pend','mat','comb'].includes(RD.aba)?'on':''}" data-rd="aba" data-rd-aba="dias"><i class="fas fa-calendar-day"></i> Registros do dia</button><button type="button" class="gf-aba ${RD.aba==='mat'?'on':''}" data-rd="aba" data-rd-aba="mat"><i class="fas fa-boxes-stacked"></i> Materiais</button><button type="button" class="gf-aba ${RD.aba==='comb'?'on':''}" data-rd="aba" data-rd-aba="comb"><i class="fas fa-gas-pump"></i> Combustível</button><button type="button" class="gf-aba ${RD.aba==='fisc'?'on':''}" data-rd="aba" data-rd-aba="fisc"><i class="fas fa-clipboard-check"></i> Fiscalização${n?` <b class="rv-aba-n" title="${n} aguardando correção">${n}</b>`:''}</button>${podePendRdo()?`<button type="button" class="gf-aba ${RD.aba==='pend'?'on':''}" data-rd="aba" data-rd-aba="pend"><i class="fas fa-list-check"></i> Pendências${np?` <b class="rv-aba-n" title="${np} dia(s) com pendência neste mês">${np}</b>`:''}</button>`:''}</div>`;};
   /* ── ABA PENDÊNCIAS (só o Administrador): os dias do mês (e da obra) escolhidos que têm pendência do Administrador ── */
   function pendLista(){const mes=RD.mes===''?hojeRdo().slice(0,7):RD.mes;
     return (D().diario_obra||[]).filter(r=>preenchidoRdo(r)&&(!RD.obra||r.titulo_obra===RD.obra)&&(mes==='__todos'||String(r.data||'').startsWith(mes)))
@@ -13959,7 +14059,7 @@ const Eng=(function(){
     // enquanto o formulário deste dia está aberto, quem corrige (Administrador ou quem tem a subtela) mexe nele como o
     // Administrador; fechou (salvando ou não), acabou
     corrRdo=String(r.rowid);
-    const jf=formulario(CFG_RDO,r);if(jf)jf._aoFechar=()=>{corrRdo=null;};else corrRdo=null;}
+    const jf=formulario(CFG_RDO,r);if(jf){const a0=jf._aoFechar;jf._aoFechar=()=>{if(a0)a0();corrRdo=null;};}else corrRdo=null;}
   // Aceitar a foto do horímetro anexada fora do horário: ela passa a valer e sai das pendências (fica quem aceitou e quando)
   async function aceitarFotoFora(r,k){
     const rot=(LEIT.find(x=>x[0]===k)||[])[1]||k;
@@ -13997,11 +14097,246 @@ const Eng=(function(){
       if(a==='dispensar')return dispensarPend(r,x.P.adm.filter(p=>p.k===k));
       if(a==='dispensar-todas')return dispensarPend(r,x.P.adm);};
   }
+
+  /* ═══ MATERIAIS DO DIA (aba do Diário de obra, na mesma pegada dos registros do dia) ═══
+     Um registro por obra e dia (Planejamento, tipo 'material_dia'): os materiais do dia, separados por grupo (Esgoto, Água,
+     Ferramentas, Geral), com quantidade e unidade. O nome é padronizado ("CAIXA TAMANHO 040" = "Caixa 040", "CELIM" =
+     "Selim", "TUBO DE 100" = "Tubo PVC 100 mm") para somar o período; o texto como foi escrito fica guardado junto.
+     "Importar planilha" lê a planilha do encarregado (cada aba um dia: o título com a data — "MATERIAIS DE ESGOTO DIA
+     24/11/2026" — e embaixo material | quantidade; dois blocos lado a lado = esgoto e água) e lança tudo de uma vez. */
+  const GRUPOS_MAT=['Esgoto','Água','Ferramentas','Geral'];
+  const UN_MAT=['un','m','tubo','saco','kg','L','cx','pç','rolo','m²','m³'];
+  const M_TUBO=6;   // um tubo de PVC tem 6 metros (como na planilha: "4 TUBOS (24 METROS)")
+  const semAcU=s=>String(s==null?'':s).normalize('NFD').replace(/[̀-ͯ]/g,'').toUpperCase().replace(/\s+/g,' ').trim();
+  const tituloMat=s=>{const t=String(s||'').replace(/\s+/g,' ').trim().toLowerCase();return t.charAt(0).toUpperCase()+t.slice(1).replace(/\bpvc\b/g,'PVC');};
+  function nomeMat(txt){const s=semAcU(txt);let m;
+    if((m=s.match(/\bTUBOS?\b.*?\b(150|100|75|60|50|40|32|25|20)\b/)))return `Tubo PVC ${m[1]} mm`;
+    if(/^CAIXAS?( TAMANHO)?( 0?40)?$/.test(s))return 'Caixa 040';
+    if(/^TAMPAS?( TAMANHO)?( 0?40)?$/.test(s))return 'Tampa 040';
+    if(/^AN(EL|EIS)( TAMANHO)?( 0?20)?$/.test(s))return 'Anel 020';
+    if(/^[CS]ELI(M|NS?)$/.test(s))return 'Selim';
+    if(/^CURVAS?( DE)?( 90)?( GRAUS)?$/.test(s))return 'Curva 90°';
+    if(/^(SACOS? DE )?CIMENTO( SACOS?)?$/.test(s))return 'Cimento';
+    if(/^LUVAS? MISTAS?( DE)?( 20)?( MM)?$/.test(s))return 'Luva mista 20 mm';
+    if(/^LUVAS? LISAS?( DE)?( 20)?( MM)?$/.test(s))return 'Luva lisa 20 mm';
+    if((m=s.match(/^LUVAS?( DE| PVC)*( DE)? ?(150|100|60|50|20)( MM)?$/)))return `Luva ${m[3]} mm`;
+    if(/^LUVAS?$/.test(s))return 'Luva 100 mm';
+    if(/^JOELHOS?( PVC)?$/.test(s))return 'Joelho PVC';if(/^COLA( PVC)?$/.test(s))return 'Cola PVC';if(/^VEDA ?ROSCA$/.test(s))return 'Veda-rosca';
+    if(/^SERRAS?$/.test(s))return 'Serra';if(/^PICARETES?$|^PICARETAS?$/.test(s))return 'Picareta';if(/^PAS?$/.test(s))return 'Pá';if(/^ENXADAS?$/.test(s))return 'Enxada';
+    return tituloMat(txt);}
+  const unPadraoMat=nome=>/^Tubo/.test(nome)?'m':/^Cimento/.test(nome)?'saco':'un';
+  // a quantidade como foi escrita ("4 TUBOS (24 METROS)", "28 METROS", "1,5 M", "7 DE 42 METROS", "1 SACO", "10") → número e unidade
+  // (só o tubo de esgoto — 100 e 150 mm — vem contado em tubos quando não diz a unidade; o de água, fino, vem em metros)
+  function qtdMat(txt,nome,nomeOrig){const s=semAcU(txt),n=x=>parseFloat(String(x).replace(',','.'))||0,R=/(\d+(?:[.,]\d+)?)/,tubo=/^Tubo PVC (100|150) mm$/.test(nome),emMetro=/^(MTS?|METROS?)\b/.test(semAcU(nomeOrig));let m;
+    if((m=s.match(/\(\s*(\d+(?:[.,]\d+)?)\s*(METROS?|MTS?|M)\s*\)/))){const t=s.match(/^(\d+(?:[.,]\d+)?)/);return {qtd:n(m[1]),un:'m',tubos:t?n(t[1]):0};}
+    if((m=s.match(/^(\d+(?:[.,]\d+)?)\s*DE\s*(\d+(?:[.,]\d+)?)\s*(METROS?|MTS?|M)\b/)))return {qtd:n(m[2]),un:'m',tubos:n(m[1])};
+    if((m=s.match(/^(\d+(?:[.,]\d+)?)\s*(METROS?|MTS?|M)\b/)))return {qtd:n(m[1]),un:'m'};
+    if((m=s.match(/^(\d+(?:[.,]\d+)?)\s*TUBOS?\b/)))return {qtd:n(m[1])*M_TUBO,un:'m',tubos:n(m[1])};
+    if((m=s.match(/^(\d+(?:[.,]\d+)?)\s*SACOS?\b/)))return {qtd:n(m[1]),un:'saco'};
+    if((m=s.match(/^(\d+(?:[.,]\d+)?)$/)))return tubo&&!emMetro?{qtd:n(m[1])*M_TUBO,un:'m',tubos:n(m[1])}:{qtd:n(m[1]),un:emMetro?'m':unPadraoMat(nome)};
+    if((m=s.match(R)))return {qtd:n(m[1]),un:unPadraoMat(nome)};
+    return {qtd:0,un:unPadraoMat(nome)};}
+  const itensMat=r=>(Array.isArray(r&&r.itens)?r.itens:(jsonDe(r&&r.itens)||[])).filter(it=>it&&it.mat);
+  const matRegs=()=>(D().planejamento||[]).filter(p=>p.tipo==='material_dia'&&p.titulo_obra&&p.data);
+  const matDoDia=(ob,dia)=>matRegs().find(p=>p.titulo_obra===ob&&p.data===dia)||null;
+  const fmtQtd=q=>(Math.round((+q||0)*100)/100).toLocaleString('pt-BR',{maximumFractionDigits:2});
+  const unTxt=(un,q)=>(+q||0)===1?(un||''):({saco:'sacos',tubo:'tubos',rolo:'rolos'}[un]||un||'');
+  const txtItemMat=it=>`${it.mat} · ${fmtQtd(it.qtd)} ${unTxt(it.un,it.qtd)}${it.tubos?` (${fmtQtd(it.tubos)} tubo${it.tubos>1?'s':''})`:''}`;
+  const nomesMatConhecidos=()=>[...new Set(['Caixa 040','Tampa 040','Anel 020','Selim','Curva 90°','Cimento','Tubo PVC 100 mm','Tubo PVC 150 mm','Tubo PVC 60 mm','Tubo PVC 50 mm','Tubo PVC 20 mm','Luva 100 mm','Luva 150 mm','Luva 60 mm','Luva mista 20 mm','Luva lisa 20 mm','Joelho PVC','Cola PVC','Veda-rosca'].concat(matRegs().flatMap(r=>itensMat(r).map(it=>it.mat))))].sort((a,b)=>a.localeCompare(b,'pt-BR'));
+  // lê a planilha (.xlsx: cada aba um dia) → [{data, abas, itens:[{grupo, mat, txt, qtd, un, orig, tubos}]}]
+  async function lerPlanilhaMat(buf){
+    await carregarZip();
+    const z=await window.JSZip.loadAsync(buf),ler=async p=>{const f=z.file(p);return f?await f.async('string'):'';},P=new DOMParser(),xml=s=>P.parseFromString(s||'<x/>','application/xml');
+    const ss=[];xml(await ler('xl/sharedStrings.xml')).querySelectorAll('si').forEach(si=>{let t='';si.querySelectorAll('t').forEach(x=>{if(!x.closest('rPh'))t+=x.textContent;});ss.push(t);});
+    const wb=xml(await ler('xl/workbook.xml')),alvo={};xml(await ler('xl/_rels/workbook.xml.rels')).querySelectorAll('Relationship').forEach(r=>{alvo[r.getAttribute('Id')]=r.getAttribute('Target');});
+    const dias=new Map();let abas=0;
+    for(const sh of [...wb.querySelectorAll('sheet')]){
+      const rid=sh.getAttribute('r:id')||sh.getAttributeNS('http://schemas.openxmlformats.org/officeDocument/2006/relationships','id'),destino=String(alvo[rid]||'');if(!destino)continue;abas++;
+      const d=xml(await ler(destino.startsWith('/')?destino.slice(1):'xl/'+destino.replace(/^xl\//,''))),cel={};
+      d.querySelectorAll('sheetData c').forEach(c=>{const ref=c.getAttribute('r')||'',col=ref.replace(/\d+/g,''),lin=+ref.replace(/\D+/g,''),t=c.getAttribute('t'),vEl=c.querySelector('v'),v=vEl?vEl.textContent:'';
+        let x=t==='s'?ss[+v]:t==='inlineStr'?((c.querySelector('is')||{}).textContent||''):v;x=String(x==null?'':x).trim();if(x)(cel[lin]=cel[lin]||{})[col]=x;});
+      const prox=c=>String.fromCharCode(c.charCodeAt(0)+1),blocos={},nomeAba=sh.getAttribute('name')||'';
+      for(const l of Object.keys(cel).map(Number).sort((a,b)=>a-b))for(const [col,v] of Object.entries(cel[l])){if(col.length!==1)continue;
+        const tit=v.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/),V=semAcU(v);
+        if(tit&&/MATERIA|FERRAMENTA/.test(V)){blocos[col]={data:`${tit[3]}-${tit[2].padStart(2,'0')}-${tit[1].padStart(2,'0')}`,grupo:/FERRAMENTA/.test(V)?'Ferramentas':/AGUA/.test(V)?'Água':/ESGOTO|ESTOTO/.test(V)?'Esgoto':'Geral'};continue;}
+        const b=blocos[col];if(!b)continue;
+        const q=(cel[l]||{})[prox(col)]||'',nome=nomeMat(v),qq=qtdMat(q,nome,v);
+        const dia=dias.get(b.data)||{data:b.data,abas:new Set(),itens:[]};dia.abas.add(nomeAba);
+        dia.itens.push({grupo:b.grupo,mat:nome,txt:v,qtd:qq.qtd,un:qq.un,orig:q,...(qq.tubos?{tubos:qq.tubos}:{})});dias.set(b.data,dia);}}
+    if(!abas)throw new Error('Não achei as abas da planilha — confira se o arquivo é .xlsx.');
+    const L=[...dias.values()].map(x=>({...x,abas:[...x.abas].join(', ')})).sort((a,b)=>a.data.localeCompare(b.data));
+    if(!L.length)throw new Error('Não achei nenhum dia na planilha: cada aba precisa de um título com a data (ex.: "MATERIAIS DIA 24/11/2026") e os materiais embaixo.');
+    return L;}
+  // a obra mais provável da planilha: a que tem diário nos mesmos dias
+  function obraDaPlanilha(dias){const c={};dias.forEach(x=>(D().diario_obra||[]).filter(r=>r.data===x.data).forEach(r=>{c[r.titulo_obra]=(c[r.titulo_obra]||0)+1;}));
+    return Object.entries(c).sort((a,b)=>b[1]-a[1])[0]||null;}
+  function importarPlanilhaMat(){
+    let dias=null;
+    const j=janela('Importar a planilha de materiais',`<div class="fin-resumo">Escolha a planilha (.xlsx) em que <b>cada aba é um dia</b>: o título com a data (ex.: <i>MATERIAIS DE ESGOTO DIA 24/11/2026</i>) e, embaixo, o material e a quantidade. Dois blocos lado a lado (esgoto e água) também valem. O sistema mostra o que achou antes de lançar.</div>
+      <div class="fin-fld"><label>Planilha (.xlsx) <span class="obg">*</span></label><input type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" data-mat-arq></div><div data-mat-prev></div>`,
+      [{html:'<i class="fas fa-file-import"></i> Lançar no diário',cls:'pri',acao:async jj=>{
+        if(!dias)throw new Error('Escolha a planilha primeiro.');
+        const ob=(jj.querySelector('[data-k="obra"]')||{}).value,modo=(jj.querySelector('[data-k="modo"]')||{}).value||'pular';if(!ob)throw new Error('Escolha a obra.');
+        const ops=[];let pul=0;
+        for(const x of dias){const ja=matDoDia(ob,x.data);if(ja&&modo==='pular'){pul++;continue;}
+          ops.push([{tipo:'material_dia',titulo_obra:ob,data:x.data,itens:x.itens,origem:'planilha',planilha_abas:x.abas,obs:ja&&ja.obs||''},ja?ja.rowid:null]);}
+        if(!ops.length)throw new Error('Todos os dias da planilha já estão lançados nesta obra (escolha "Substituir" para lançar de novo).');
+        await executar(async()=>{for(let i=0;i<ops.length;i+=6)await Promise.all(ops.slice(i,i+6).map(([o,rid])=>salvar('Planejamento',o,rid)));});
+        toast(`${ops.length} dia${ops.length>1?'s':''} de materiais lançado${ops.length>1?'s':''} em ${ob}${pul?` · ${pul} já estava${pul>1?'m':''} lançado${pul>1?'s':''} e ficou como estava`:''}.`,'success');
+        RD.aba='mat';RD.obra=ob;RD.mes='__todos';setTimeout(renderDiario,200);}}],860);
+    const pv=j.querySelector('[data-mat-prev]');
+    const pintar=()=>{if(!dias)return;const ob=(pv.querySelector('[data-k="obra"]')||{}).value||'',n=dias.reduce((s,x)=>s+x.itens.length,0),grupos=[...new Set(dias.flatMap(x=>x.itens.map(i=>i.grupo)))];
+      const jaL=ob?dias.filter(x=>matDoDia(ob,x.data)).length:0;
+      pv.querySelector('[data-mat-res]').innerHTML=`<b>${dias.length} dia${dias.length>1?'s':''}</b> · de ${brDe(dt(dias[0].data))} a ${brDe(dt(dias[dias.length-1].data))} · <b>${n} materiais</b> · ${fe(grupos.join(', '))}${jaL?` · <b style="color:#B54708">${jaL} dia${jaL>1?'s':''} já tem materiais nesta obra</b>`:''}`;
+      pv.querySelector('[data-mat-tab]').innerHTML=dias.map(x=>`<tr><td>${brDe(dt(x.data))}</td><td>${fe([...new Set(x.itens.map(i=>i.grupo))].join(', '))}</td><td>${fe(x.itens.slice(0,5).map(txtItemMat).join(' · '))}${x.itens.length>5?` <small>e mais ${x.itens.length-5}</small>`:''}</td><td>${ob&&matDoDia(ob,x.data)?'<span class="eng-pill laranja">já lançado</span>':''}</td></tr>`).join('');};
+    j.querySelector('[data-mat-arq]').addEventListener('change',async ev=>{const f=ev.target.files&&ev.target.files[0];if(!f)return;pv.innerHTML='<p class="vk-dica"><i class="fas fa-spinner fa-spin"></i> Lendo a planilha…</p>';
+      try{dias=await lerPlanilhaMat(await f.arrayBuffer());
+        const sug=RD.obra||((obraDaPlanilha(dias)||[])[0])||'';
+        pv.innerHTML=`<div class="fin-linha"><div class="fin-fld"><label>Obra <span class="obg">*</span></label><select data-k="obra"><option value="">Escolha a obra…</option>${obrasNomes().map(o=>`<option ${o===sug?'selected':''}>${fe(o)}</option>`).join('')}</select>${sug&&!RD.obra?'<div class="capx-dica">Sugerida pelo sistema: é a obra que tem diário nos mesmos dias — confira.</div>':''}</div>
+          <div class="fin-fld"><label>Dia que já tem materiais nesta obra</label><select data-k="modo"><option value="pular">Pular (fica o que já está)</option><option value="substituir">Substituir pelo da planilha</option></select></div></div>
+          <p class="vk-dica" data-mat-res></p><div class="lote-tab" style="max-height:320px;overflow:auto"><table data-sem-ordem><thead><tr><th>Dia</th><th>Grupos</th><th>Materiais</th><th></th></tr></thead><tbody data-mat-tab></tbody></table></div>`;
+        pv.querySelector('[data-k="obra"]').addEventListener('change',pintar);pintar();}
+      catch(e){dias=null;pv.innerHTML=`<p class="t-err">${fe(e.message||String(e))}</p>`;}});}
+  // registrar ou editar os materiais de um dia (o mesmo dia de uma obra tem um registro só)
+  function formMat(reg,pre){
+    const ob0=reg?reg.titulo_obra:((pre&&pre.obra)||RD.obra||''),d0=reg?reg.data:((pre&&pre.data)||hojeRdo()),its=reg?itensMat(reg):[];
+    const linha=it=>`<tr data-mat-l data-tubos="${fe(it.tubos||'')}" data-q0="${fe(it.qtd!=null?it.qtd:'')}" data-u0="${fe(it.un||'')}"><td><select data-m="grupo">${GRUPOS_MAT.map(g=>`<option ${g===(it.grupo||'Esgoto')?'selected':''}>${g}</option>`).join('')}</select></td>
+      <td><input data-m="mat" list="vx-mat-lista" value="${fe(it.mat||'')}" placeholder="Ex.: Caixa 040" autocomplete="off"></td>
+      <td><input data-m="qtd" inputmode="decimal" value="${it.qtd!=null&&it.qtd!==''?fe(String(it.qtd).replace('.',',')):''}" placeholder="0"></td>
+      <td><select data-m="un">${UN_MAT.map(u=>`<option ${u===(it.un||'un')?'selected':''}>${u}</option>`).join('')}</select></td>
+      <td><input data-m="obs" value="${fe(it.obs!=null?it.obs:(it.orig&&semAcU(it.orig)!==semAcU(fmtQtd(it.qtd))?'na planilha: '+it.orig:''))}" placeholder="opcional"></td>
+      <td><button type="button" class="fin-bt mini" data-m-x title="Tirar esta linha" aria-label="Tirar esta linha"><i class="fas fa-trash"></i></button></td></tr>`;
+    const j=janela(reg?`Materiais de ${brDe(dt(reg.data))}`:'Registrar materiais do dia',`
+      <div class="fin-linha"><div class="fin-fld"><label>Obra <span class="obg">*</span></label><select data-k="obra" ${reg?'disabled':''}><option value="">Escolha a obra…</option>${obrasNomes().map(o=>`<option ${o===ob0?'selected':''}>${fe(o)}</option>`).join('')}</select></div>
+        <div class="fin-fld"><label>Dia <span class="obg">*</span></label><input type="date" data-k="data" value="${fe(d0)}" max="${hojeRdo()}" ${reg?'disabled':''}></div></div>
+      <div data-mat-aviso></div>
+      <div class="lote-tab mat-form"><table data-sem-ordem><thead><tr><th>Grupo</th><th>Material</th><th>Qtd.</th><th>Unid.</th><th>Observação</th><th></th></tr></thead><tbody data-mat-linhas>${(its.length?its:[{},{},{}]).map(linha).join('')}</tbody></table></div>
+      <div class="av-bts"><button type="button" class="fin-bt mini" data-m-mais><i class="fas fa-plus"></i> Mais um material</button></div>
+      <div class="fin-fld"><label>Observação do dia</label><input data-k="obs" value="${fe(reg&&reg.obs||'')}" placeholder="Ex.: material entregue pela EMBASA, sobra devolvida…"></div>
+      <datalist id="vx-mat-lista">${nomesMatConhecidos().map(n=>`<option value="${fe(n)}">`).join('')}</datalist>`,
+      [{html:'<i class="fas fa-floppy-disk"></i> Salvar',cls:'pri',acao:async jj=>{
+        const ob=reg?reg.titulo_obra:jj.querySelector('[data-k="obra"]').value,dia=reg?reg.data:jj.querySelector('[data-k="data"]').value;
+        if(!ob)throw new Error('Escolha a obra.');if(!dia)throw new Error('Informe o dia.');if(dia>hojeRdo())throw new Error('Este dia ainda não chegou.');
+        if(reg&&!GS.podeMexer(reg))throw new Error(GS.MSG_DONO);
+        const outro=matDoDia(ob,dia);if(!reg&&outro)throw new Error(`O dia ${brDe(dt(dia))} já tem materiais nesta obra — feche e abra o dia na lista para alterar.`);
+        const L=[];let ruim='';
+        jj.querySelectorAll('[data-mat-l]').forEach(tr=>{const g=k=>((tr.querySelector(`[data-m="${k}"]`)||{}).value||'').trim(),txt=g('mat'),q=g('qtd');if(!txt&&!q)return;
+          const n=numBR(q);if(!txt||!(n>0)){ruim=ruim||(txt?`Informe a quantidade de "${txt}".`:'Uma linha tem quantidade sem o material.');return;}
+          const mat=nomeMat(txt),qtd=Math.round(n*1000)/1000,un=g('un')||unPadraoMat(mat),tb=tr.dataset.tubos&&+tr.dataset.q0===qtd&&tr.dataset.u0===un?+tr.dataset.tubos:0;
+          L.push({grupo:g('grupo')||'Geral',mat,txt,qtd,un,obs:g('obs'),...(tb?{tubos:tb}:{})});});
+        if(ruim)throw new Error(ruim);if(!L.length)throw new Error('Lance pelo menos um material.');
+        const o={...(reg||{}),tipo:'material_dia',titulo_obra:ob,data:dia,itens:L,obs:(jj.querySelector('[data-k="obs"]').value||'').trim()};delete o.rowid;delete o.visualId;delete o._aba;
+        await executar(()=>salvar('Planejamento',o,reg?reg.rowid:null));toast(`Materiais de ${brDe(dt(dia))} salvos (${L.length} ${L.length>1?'itens':'item'}).`,'success');}}],940);
+    const tb=j.querySelector('[data-mat-linhas]');
+    j.addEventListener('click',ev=>{if(ev.target.closest('[data-m-mais]')){tb.insertAdjacentHTML('beforeend',linha({grupo:(tb.querySelector('tr:last-child [data-m="grupo"]')||{}).value}));tb.lastElementChild.querySelector('[data-m="mat"]').focus();return;}
+      const x=ev.target.closest('[data-m-x]');if(x){const tr=x.closest('tr');if(tb.querySelectorAll('tr').length>1)tr.remove();else tr.querySelectorAll('input').forEach(i=>{i.value='';});}});
+    // escolhido o material, a unidade de costume vem junto (tubo em metros, cimento em sacos)
+    j.addEventListener('change',ev=>{const m=ev.target.closest('[data-m="mat"]');if(m){const un=m.closest('tr').querySelector('[data-m="un"]'),q=m.closest('tr').querySelector('[data-m="qtd"]');if(un&&!q.value)un.value=unPadraoMat(nomeMat(m.value));}
+      if(!reg&&ev.target.closest('[data-k="obra"],[data-k="data"]')){const ob=j.querySelector('[data-k="obra"]').value,dia=j.querySelector('[data-k="data"]').value,ja=ob&&dia&&matDoDia(ob,dia),av=j.querySelector('[data-mat-aviso]');
+        av.innerHTML=ja?`<div class="fin-aviso laranja"><div>O dia <b>${fe(brDe(dt(dia)))}</b> já tem ${itensMat(ja).length} materiais lançados nesta obra. <button type="button" class="fin-bt mini" data-m-abrir>Abrir o dia</button></div></div>`:'';}});
+    j.querySelector('[data-mat-aviso]').addEventListener('click',ev=>{if(ev.target.closest('[data-m-abrir]')){const ja=matDoDia(j.querySelector('[data-k="obra"]').value,j.querySelector('[data-k="data"]').value);if(ja)formMat(ja);}});
+    if(!reg){const ev=new Event('change',{bubbles:true});j.querySelector('[data-k="data"]').dispatchEvent(ev);}
+  }
+  // no cartão do dia (Registros do dia): o combustível e os materiais daquele dia — abrem a aba deles, já no dia
+  const ligadosRdo=(r,i)=>{const ab=abastecimentos(r.titulo_obra).filter(p=>p.data===r.data),mt=matDoDia(r.titulo_obra,r.data),l=ab.reduce((s,p)=>s+val(p.litros),0);
+    return `${ab.length?`<button type="button" class="eng-pill rdo-lig" data-rd="ir-comb" data-i="${i}" title="Ver os abastecimentos deste dia na aba Combustível"><i class="fas fa-gas-pump"></i> ${n2(l).replace(/,00$/,'')} L de diesel</button>`:''}${mt?`<button type="button" class="eng-pill rdo-lig" data-rd="ir-mat" data-i="${i}" title="Ver os materiais deste dia na aba Materiais"><i class="fas fa-boxes-stacked"></i> ${itensMat(mt).length} materiais</button>`:''}`;};
+  // a folhinha com a data (a mesma dos registros do dia)
+  const folhinhaRdo=iso=>{const d=dt(iso);return `<div class="pm-cal"><span class="m">${d?fe(MESES_RDO[d.getMonth()].slice(0,3).toUpperCase()):''}</span><span class="d">${d?d.getDate():'—'}</span><span class="s">${d?fe(DIAS_SEM[d.getDay()].slice(0,3).toLowerCase()):''}</span></div>`;};
+  const diaPorExtenso=iso=>{const d=dt(iso);return d?`${DIAS_SEM[d.getDay()]}, ${d.getDate()} de ${MESES_RDO[d.getMonth()]} de ${d.getFullYear()}`:'Sem data';};
+  // o diário do dia (para o link "Ver o dia no diário")
+  const rdoDoDia=(ob,dia)=>(D().diario_obra||[]).filter(r=>r.titulo_obra===ob&&r.data===dia).sort((a,b)=>(preenchidoRdo(b)?1:0)-(preenchidoRdo(a)?1:0))[0]||null;
+  // o mês e a obra escolhidos (os mesmos da aba Registros do dia)
+  const filtrosRdo=()=>{const todos=D().diario_obra||[],kHoje=hojeRdo().slice(0,7);if(RD.mes==='')RD.mes=kHoje;
+    const mais=todos.map(r=>String(r.data||'').slice(0,7)).concat(matRegs().map(r=>String(r.data).slice(0,7))).filter(Boolean).sort()[0],nAntes=mais?Math.max(12,(+kHoje.slice(0,4)-+mais.slice(0,4))*12+(+kHoje.slice(5)-+mais.slice(5))):12;
+    return {mes:GS.selMes(RD.mes==='__todos'?'':RD.mes,'data-rd="mes"',nAntes,0).replace('</select>',`<option value="__todos" ${RD.mes==='__todos'?'selected':''}>Todos os meses</option></select>`),
+      obra:`<select class="filter-select" data-rd="obra"><option value="">Todas as obras</option>${obrasNomes().map(o=>`<option ${RD.obra===o?'selected':''}>${fe(o)}</option>`).join('')}</select>`};};
+  function renderMatRdo(box){
+    const per=periodoRD(),L=matRegs().filter(r=>(!RD.obra||r.titulo_obra===RD.obra)&&noPer(r.data,per)).sort((a,b)=>String(b.data).localeCompare(String(a.data))||String(a.titulo_obra).localeCompare(String(b.titulo_obra)));
+    App._matLista=L;const F=filtrosRdo();
+    // o total do período, por material (e unidade)
+    const tot=new Map();L.forEach(r=>itensMat(r).forEach(it=>{const k=it.mat+'|'+(it.un||'');const t=tot.get(k)||{mat:it.mat,un:it.un||'',qtd:0,tubos:0,dias:new Set()};t.qtd+=+it.qtd||0;t.tubos+=+it.tubos||0;t.dias.add(r.data+'|'+r.titulo_obra);tot.set(k,t);}));
+    const T=[...tot.values()].sort((a,b)=>b.dias.size-a.dias.size||a.mat.localeCompare(b.mat,'pt-BR')),soma=(nome,un)=>{const t=tot.get(nome+'|'+un);return t?t.qtd:0;},nIt=L.reduce((s,r)=>s+itensMat(r).length,0);
+    const card=(r,i)=>{const its=itensMat(r),rd=rdoDoDia(r.titulo_obra,r.data),gr=GRUPOS_MAT.filter(g=>its.some(it=>it.grupo===g)),pode=GS.podeMexer(r);
+      const dest=RD.matDia&&RD.matDia===r.titulo_obra+'|'+r.data;
+      return `<article class="pm-dia2 rdo-dia2 mat-dia${dest?' comb-dest':''}" ${dest?'data-comb-dest':''}><div class="pm-dia2-cab">${folhinhaRdo(r.data)}
+        <div class="pm-dia2-meta"><div class="pm-dia2-tit"><b>${fe(diaPorExtenso(r.data))}</b><span class="pm-st-dia ab"><i class="fas fa-boxes-stacked"></i> ${its.length} ${its.length>1?'materiais':'material'}</span>${r.origem==='planilha'?'<span class="pm-st-dia fe" title="Lançado pela planilha do encarregado"><i class="fas fa-file-excel"></i> da planilha</span>':''}</div>
+          ${RD.obra?'':`<div class="rdo-obra" title="${fe(r.titulo_obra)}"><i class="fas fa-helmet-safety"></i> ${fe(r.titulo_obra)}</div>`}
+          <div class="rdo-pills">${gr.map(g=>`<span class="eng-pill ${g==='Esgoto'?'azul':g==='Água'?'verde':g==='Ferramentas'?'laranja':''}">${fe(g)}: ${its.filter(it=>it.grupo===g).length}</span>`).join('')}</div></div>
+        <div class="pm-dia2-bt rdo-bts">${rd?`<button type="button" class="fin-bt mini" data-mt="dia" data-i="${i}" title="Abrir o registro deste dia no diário"><i class="fas fa-book-open"></i> Dia no diário</button>`:''}${pode?`<button type="button" class="fin-bt mini pri" data-mt="editar" data-i="${i}"><i class="fas fa-pen"></i> Editar</button><button type="button" class="fin-bt mini" data-mt="excluir" data-i="${i}" title="Excluir os materiais deste dia"><i class="fas fa-trash"></i></button>`:`<button type="button" class="fin-bt mini" data-mt="editar" data-i="${i}"><i class="fas fa-eye"></i> Ver</button>`}</div></div>
+        <div class="eng-dia-txt rdo-corpo mat-corpo">${gr.map(g=>`<div class="mat-grupo"><small>${fe(g)}</small><div class="mat-chips">${its.filter(it=>it.grupo===g).map(it=>`<span class="mat-chip" title="${fe(it.txt&&it.txt!==it.mat?'Escrito: '+it.txt+(it.orig?' · '+it.orig:''):(it.orig||''))}">${fe(txtItemMat(it))}</span>`).join('')}</div></div>`).join('')}${r.obs?`<p class="mat-obs"><b>Obs.:</b> ${fe(r.obs)}</p>`:''}</div></article>`;};
+    box.innerHTML=`<div class="fin-wrap">${abasRdo()}
+      ${cab('Materiais do dia','O material de cada dia de obra, separado por grupo (esgoto, água, ferramentas), na mesma folhinha dos registros do dia. Os nomes são padronizados para somar o período — o texto como foi escrito fica guardado em cada material. A planilha do encarregado (cada aba um dia) entra de uma vez em <b>Importar planilha</b>.',`${F.mes}<button type="button" class="fin-bt" data-mt="importar"><i class="fas fa-file-import"></i> Importar planilha</button><button type="button" class="fin-bt" data-mt="exportar"><i class="fas fa-file-excel"></i> Exportar</button><button type="button" class="fin-bt pri" data-mt="novo"><i class="fas fa-plus"></i> Registrar materiais do dia</button>`)}
+      <div class="fin-filtros">${F.obra}</div>
+      <div class="fin-kpis">${kpi('','Dias com material',L.length,RD.obra?'nesta obra':'somando as obras')}${kpi('','Materiais lançados',nIt,'linhas no período')}${kpi('azul','Tubo PVC 100 mm',soma('Tubo PVC 100 mm','m')?fmtQtd(soma('Tubo PVC 100 mm','m'))+' m':'—',soma('Tubo PVC 100 mm','m')?`≈ ${fmtQtd(soma('Tubo PVC 100 mm','m')/M_TUBO)} tubos de ${M_TUBO} m`:'no período')}${kpi('','Caixas e tampas 040',`${fmtQtd(soma('Caixa 040','un'))} · ${fmtQtd(soma('Tampa 040','un'))}`,'caixas · tampas')}${kpi('','Cimento',soma('Cimento','saco')?fmtQtd(soma('Cimento','saco'))+' sacos':'—','no período')}</div>
+      ${T.length?`<details class="fin-card mat-tot"${RD.matTot?' open':''}><summary><b><i class="fas fa-calculator"></i> Total do período por material</b> <small>${T.length} materiais</small></summary><div class="lote-tab"><table data-sem-ordem><thead><tr><th>Material</th><th class="num">Quantidade</th><th>Unid.</th><th class="num">Dias</th></tr></thead><tbody>${T.map(t=>`<tr><td>${fe(t.mat)}</td><td class="num">${fmtQtd(t.qtd)}${t.tubos?` <small>(${fmtQtd(t.tubos)} tubos)</small>`:''}</td><td>${fe(unTxt(t.un,t.qtd))}</td><td class="num">${t.dias.size}</td></tr>`).join('')}</tbody></table></div></details>`:''}
+      ${L.length?`<div class="rdo-dias">${L.map(card).join('')}</div>`:`<div class="fin-card"><div class="fin-vazio">Nenhum material lançado ${RD.mes&&RD.mes!=='__todos'?'neste mês':'ainda'}${RD.obra?' nesta obra':''}.<br><button type="button" class="fin-bt pri" data-mt="novo" style="margin-top:10px"><i class="fas fa-plus"></i> Registrar materiais do dia</button> <button type="button" class="fin-bt" data-mt="importar" style="margin-top:10px"><i class="fas fa-file-import"></i> Importar planilha</button></div></div>`}
+    </div>`;
+    const det=box.querySelector('details.mat-tot');if(det)det.addEventListener('toggle',()=>{RD.matTot=det.open;});
+    const dm=box.querySelector('[data-comb-dest]');if(dm)setTimeout(()=>{dm.scrollIntoView({block:'center',behavior:'smooth'});},80);
+    box.onchange=ev=>{const s=ev.target.closest('select[data-rd]');if(!s)return;RD[s.dataset.rd]=s.value;renderDiario();};
+    box.onclick=ev=>{const b=ev.target.closest('button[data-rd="aba"]');if(b){RD.aba=b.dataset.rdAba;return renderDiario();}
+      const m=ev.target.closest('[data-mt]');if(!m)return;const a=m.dataset.mt,r=App._matLista[+m.dataset.i];
+      if(a==='novo')return formMat(null);
+      if(a==='importar')return importarPlanilhaMat();
+      if(a==='editar'&&r)return formMat(r);
+      if(a==='excluir'&&r)return apagar({aba:'Planejamento',nomeItem:'registro de materiais'},r,`Materiais de ${brDe(dt(r.data))} — ${r.titulo_obra}`);
+      if(a==='dia'&&r){const rd=rdoDoDia(r.titulo_obra,r.data);if(rd)verRdo(rd);return;}
+      if(a==='exportar'){if(!L.length)return toast('Nada para exportar neste filtro.','error');
+        GS.baixarCSV('materiais-do-dia',['Dia','Obra','Grupo','Material','Quantidade','Unidade','Tubos','Escrito na planilha','Quantidade escrita','Observação'],L.flatMap(r=>itensMat(r).map(it=>[brDe(dt(r.data)),r.titulo_obra,it.grupo||'',it.mat,n2(+it.qtd||0),it.un||'',it.tubos?n2(it.tubos):'',it.txt||'',it.orig||'',it.obs||r.obs||''])));
+        return toast(`${nIt} linhas exportadas.`,'success');}};
+  }
+
+  /* ═══ COMBUSTÍVEL (aba do Diário de obra): os abastecimentos de cada dia, ligados ao dia do diário, e o custo da máquina ═══
+     Os abastecimentos (Planejamento 'abastecimento') ficam aqui, separados dos registros do dia — cada um com a obra e o dia,
+     que é o que liga ao diário daquele dia (o cartão do dia no diário mostra o combustível dele e abre esta aba). */
+  function renderCombRdo(box){
+    const per=periodoRD(),F=filtrosRdo(),L=abastecimentos(RD.obra).filter(p=>noPer(p.data,per)).sort((a,b)=>String(b.data).localeCompare(String(a.data))||String(a.titulo_obra).localeCompare(String(b.titulo_obra)));
+    const tl=L.reduce((s,p)=>s+val(p.litros),0),tv=L.reduce((s,p)=>s+val(p.valor),0);
+    // um cartão por obra e dia (como os registros do dia), com os abastecimentos dele
+    const grupos=[];const gi=new Map();L.forEach(p=>{const k=p.titulo_obra+'|'+p.data;if(!gi.has(k)){gi.set(k,grupos.length);grupos.push({ob:p.titulo_obra,dia:p.data,its:[]});}grupos[gi.get(k)].its.push(p);});
+    App._combG=grupos;App._combL=L;
+    const card=(g,gx)=>{const l=g.its.reduce((s,p)=>s+val(p.litros),0),v=g.its.reduce((s,p)=>s+val(p.valor),0),rd=rdoDoDia(g.ob,g.dia),dest=RD.diaComb&&RD.diaComb===g.ob+'|'+g.dia;
+      return `<article class="pm-dia2 rdo-dia2 comb-dia${dest?' comb-dest':''}" ${dest?'data-comb-dest':''}><div class="pm-dia2-cab">${folhinhaRdo(g.dia)}
+        <div class="pm-dia2-meta"><div class="pm-dia2-tit"><b>${fe(diaPorExtenso(g.dia))}</b><span class="pm-st-dia ab"><i class="fas fa-gas-pump"></i> ${n2(l).replace(/,00$/,'')} L · ${fmt(v)}</span>${rd?`<span class="pm-st-dia ${rdoFechado(rd)?'fe':'ab'}" title="O diário deste dia"><i class="fas fa-book-open"></i> diário ${rdoFechado(rd)?'fechado':'aberto'}</span>`:'<span class="pm-st-dia fe rdo-nao" title="Este dia ainda não tem diário registrado"><i class="fas fa-book"></i> sem diário</span>'}</div>
+          ${RD.obra?'':`<div class="rdo-obra" title="${fe(g.ob)}"><i class="fas fa-helmet-safety"></i> ${fe(g.ob)}</div>`}</div>
+        <div class="pm-dia2-bt rdo-bts">${rd?`<button type="button" class="fin-bt mini" data-cb="dia" data-g="${gx}"><i class="fas fa-book-open"></i> Dia no diário</button>`:''}<button type="button" class="fin-bt mini" data-cb="novo-dia" data-g="${gx}" title="Mais um abastecimento neste dia"><i class="fas fa-plus"></i> Abastecimento</button></div></div>
+        <div class="eng-dia-txt rdo-corpo"><div class="lote-tab maq-tab"><table data-sem-ordem><thead><tr><th>Máquina</th><th class="num">Litros</th><th class="num">Valor</th><th class="num">R$ por litro</th><th class="num">Horímetro</th><th>Posto</th><th></th></tr></thead><tbody>${g.its.map(p=>{const i=L.indexOf(p),li=val(p.litros),va=val(p.valor);
+          return `<tr><td>${fe(p.maquina||MAQ_FIXA)}</td><td class="num">${n2(li).replace(/,00$/,'')} L</td><td class="num">${fmt(va)}</td><td class="num">${li>0?fmt(va/li):'—'}</td><td class="num">${p.horimetro?fe(String(p.horimetro).replace('.',',')):'—'}</td><td>${fe(p.fornecedor||'—')}${p.obs?`<small>${fe(p.obs)}</small>`:''}</td>
+            <td class="maq-acoes">${GS.podeMexer(p)?`<button type="button" class="fin-bt mini" data-cb="editar" data-i="${i}" title="Alterar"><i class="fas fa-pen"></i></button><button type="button" class="fin-bt mini" data-cb="excluir" data-i="${i}" title="Excluir"><i class="fas fa-trash"></i></button>`:''}</td></tr>`;}).join('')}</tbody></table></div></div></article>`;};
+    box.innerHTML=`<div class="fin-wrap">${abasRdo()}
+      ${cab('Combustível','Os abastecimentos de cada dia, ligados ao dia do diário de obra (o cartão do dia no diário mostra o combustível dele), e o custo por hora da máquina com o aluguel e o diesel. As horas vêm do horímetro do diário.',`${F.mes}<button type="button" class="fin-bt" data-cb="exportar"><i class="fas fa-file-excel"></i> Exportar</button><button type="button" class="fin-bt" data-rd="aluguel"><i class="fas fa-file-signature"></i> Aluguel da máquina</button><button type="button" class="fin-bt pri" data-rd="abast-novo"><i class="fas fa-gas-pump"></i> Registrar abastecimento</button>`)}
+      <div class="fin-filtros">${F.obra}</div>
+      <div class="fin-kpis">${kpi('','Abastecimentos',L.length,RD.obra?'nesta obra':'somando as obras')}${kpi('','Litros',tl?n2(tl).replace(/,00$/,'')+' L':'—','no período')}${kpi('','Valor do diesel',tv?fmt(tv):'—','no período')}${kpi('azul','Média por litro',tl>0?fmt(tv/tl):'—','valor ÷ litros')}</div>
+      ${painelMaqHtml()}
+      ${grupos.length?`<div class="rdo-dias">${grupos.map(card).join('')}</div>`:`<div class="fin-card"><div class="fin-vazio">Nenhum abastecimento ${RD.mes&&RD.mes!=='__todos'?'neste mês':'ainda'}${RD.obra?' nesta obra':''}.<br><button type="button" class="fin-bt pri" data-rd="abast-novo" style="margin-top:10px"><i class="fas fa-gas-pump"></i> Registrar abastecimento</button></div></div>`}
+    </div>`;
+    const dest=box.querySelector('[data-comb-dest]');if(dest)setTimeout(()=>{dest.scrollIntoView({block:'center',behavior:'smooth'});},80);
+    box.onchange=ev=>{const s=ev.target.closest('select[data-rd]');if(!s)return;RD[s.dataset.rd]=s.value;RD.diaComb='';renderDiario();};
+    box.onclick=ev=>{const b=ev.target.closest('button[data-rd]');
+      if(b){const a=b.dataset.rd;if(a==='aba'){RD.aba=b.dataset.rdAba;return renderDiario();}
+        if(a==='abast-novo')return novoAbast(RD.obra,'');
+        if(a==='abast-lista')return listaAbast();
+        if(a==='aluguel'){const ob=b.dataset.ob!=null?(App._maqObras||[])[+b.dataset.ob]:'';return ob?novoAluguel(ob):listaAluguel();}
+        return;}
+      const c=ev.target.closest('[data-cb]');if(!c)return;const a=c.dataset.cb,p=App._combL[+c.dataset.i],g=App._combG[+c.dataset.g];
+      if(a==='editar'&&p)return formulario(CFG_ABAST,p);
+      if(a==='excluir'&&p)return apagar(CFG_ABAST,p,'abastecimento de '+brDe(dt(p.data)));
+      if(a==='novo-dia'&&g)return novoAbast(g.ob,g.dia);
+      if(a==='dia'&&g){const rd=rdoDoDia(g.ob,g.dia);if(rd)verRdo(rd);return;}
+      if(a==='exportar'){if(!L.length)return toast('Nada para exportar neste filtro.','error');
+        GS.baixarCSV('combustivel',['Dia','Obra','Máquina','Litros','Valor','R$ por litro','Horímetro','Posto','Observação','Diário do dia'],L.map(x=>{const li=val(x.litros),va=val(x.valor),rd=rdoDoDia(x.titulo_obra,x.data);return [brDe(dt(x.data)),x.titulo_obra,x.maquina||MAQ_FIXA,n2(li),n2(va),li>0?n2(va/li):'',x.horimetro||'',x.fornecedor||'',x.obs||'',rd?(rdoFechado(rd)?'fechado':'aberto'):'sem diário'];}));
+        return toast(`${L.length} abastecimento(s) exportado(s).`,'success');}};
+  }
+  // novo abastecimento já com a obra e o dia (ex.: do cartão do dia)
+  function novoAbast(ob,dia){const j=formulario(CFG_ABAST,null);if(!j)return;const so=j.querySelector('[data-f="titulo_obra"]'),sd=j.querySelector('[data-f="data"]');
+    if(ob&&so){so.value=ob;so.dispatchEvent(new Event('change',{bubbles:true}));}if(dia&&sd){sd.value=dia;sd.dispatchEvent(new Event('change',{bubbles:true}));}}
   function renderDiario(){
     const box=document.getElementById('eng-diario');if(!box)return;
-    if(RD.aba!=='fisc'&&RD.aba!=='pend'&&!podeAbaRdo('dias')&&podeAbaRdo('fisc'))RD.aba='fisc';
-    if(RD.aba==='fisc'&&!podeAbaRdo('fisc'))RD.aba='dias';
+    // a aba aberta pode estar bloqueada nas Permissões (subtelas do Diário): abre a primeira liberada
+    if(RD.aba!=='pend'&&!podeAbaRdo(RD.aba||'dias')){const lib=['dias','mat','comb','fisc'].find(a=>podeAbaRdo(a));if(lib)RD.aba=lib;}
     if(RD.aba==='pend'){if(!podePendRdo())RD.aba='dias';else return renderPendRdo(box);}
+    if(RD.aba==='mat')return renderMatRdo(box);
+    if(RD.aba==='comb')return renderCombRdo(box);
     if(RD.aba==='fisc'&&GS.reprov){
       box.innerHTML=`<div class="fin-wrap">${abasRdo()}<div data-reprov></div></div>`;
       box.onchange=null;box.onclick=ev=>{const b=ev.target.closest('button[data-rd="aba"]');if(b){RD.aba=b.dataset.rdAba;renderDiario();}};
@@ -14027,7 +14362,7 @@ const Eng=(function(){
         ${autores.length>1?`<select class="filter-select" data-rd="autor"><option value="">Todos os usuários</option>${autores.map(a=>`<option ${RD.autor===a?"selected":""}>${fe(a)}</option>`).join("")}</select>`:""}</div>
       <div class="fin-kpis">${kpi('','Dias registrados',cheios.length,RD.obra?'nesta obra':'somando as obras')}${kpi(imp?'vermelho':'verde','Dias impraticáveis',imp,'base para aditivo de prazo')}${kpi(chuva?'laranja':'verde','Dias com chuva',chuva,'manhã ou tarde')}${kpi('','Efetivo médio',efMed?n2(efMed).replace(',00',''):'—','pessoas por dia registrado')}${kpi('','Fotos dos dias',lista.reduce((s,r)=>s+Eng.fotosDoDia(r.titulo_obra,r.data).length,0),'ligadas pela obra e pela data')}</div>
       <div data-rdo-semana></div>
-      ${painelMaqHtml()}
+      <p class="vk-dica rdo-comb-dica"><i class="fas fa-gas-pump"></i> Os abastecimentos e o custo da máquina ficam na aba <a href="#" data-rd-ir="comb">Combustível</a>; os materiais de cada dia, na aba <a href="#" data-rd-ir="mat">Materiais</a> — ligados ao dia de cada registro.</p>
       ${RD.mes&&RD.mes!=='__todos'&&cheios.length?resumoMesHtml(cheios,nomeMes(RD.mes)):''}
       ${lista.length?`<div class="rdo-dias">${lista.map((r,i)=>{const d=dt(r.data),fech=rdoFechado(r),f=r.fechado||{},hj=r.data===hojeRdo(),meu=meuRdo(r),vazio=!preenchidoRdo(r),temFoto=fotosParaBaixar(r).length;
         // como no Diário de produção: folhinha com a data, situação (aberto · fecha às 19h / fechado) e os botões do dia
@@ -14051,7 +14386,7 @@ const Eng=(function(){
           <div class="pm-cal${fech?' fech':''}"><span class="m">${d?fe(MESES_RDO[d.getMonth()].slice(0,3).toUpperCase()):''}</span><span class="d">${d?d.getDate():'—'}</span><span class="s">${d?fe(DIAS_SEM[d.getDay()].slice(0,3).toLowerCase()):''}</span></div>
           <div class="pm-dia2-meta"><div class="pm-dia2-tit"><b>${d?`${fe(DIAS_SEM[d.getDay()])}, ${d.getDate()} de ${fe(MESES_RDO[d.getMonth()])}`:'Sem data'}</b>${st}${conferir}</div>
             ${RD.obra?'':`<div class="rdo-obra" title="${fe(r.titulo_obra)}"><i class="fas fa-helmet-safety"></i> ${fe(r.titulo_obra)}</div>`}
-            <div class="rdo-pills"><span class="eng-pill ${tomCond(r.condicao)}">${fe(r.condicao||'—')}</span><span class="eng-pill ${choveu(r)?'azul':''}"><i class="fas ${choveu(r)?'fa-cloud-rain':'fa-sun'}"></i> manhã: ${fe(r.clima_manha||'—')} · tarde: ${fe(r.clima_tarde||'—')}</span>${r.efetivo_total?`<span class="eng-pill"><i class="fas fa-people-group"></i> ${fe(r.efetivo_total)} pessoas</span>`:''}</div></div>
+            <div class="rdo-pills"><span class="eng-pill ${tomCond(r.condicao)}">${fe(r.condicao||'—')}</span><span class="eng-pill ${choveu(r)?'azul':''}"><i class="fas ${choveu(r)?'fa-cloud-rain':'fa-sun'}"></i> manhã: ${fe(r.clima_manha||'—')} · tarde: ${fe(r.clima_tarde||'—')}</span>${r.efetivo_total?`<span class="eng-pill"><i class="fas fa-people-group"></i> ${fe(r.efetivo_total)} pessoas</span>`:''}${ligadosRdo(r,i)}</div></div>
           <div class="pm-dia2-bt rdo-bts">${bts}</div></div>
           <div class="eng-dia-txt rdo-corpo rdo-resumo">${nAdm?`<small class="rdo-falta"><i class="fas fa-list-check"></i><span class="rdo-cl"><b>Pendências${podePendRdo()?'':' (o Administrador resolve)'}:</b> ${fe(P.adm.map(p=>p.txt).join(' · '))}</span></small>`:''}${P.voce.length?`<small class="rdo-falta rdo-falta-voce"><i class="fas fa-clock"></i><span class="rdo-cl"><b>Ainda hoje:</b> ${fe(P.voce.map(p=>p.txt).join(' · '))}</span></small>`:''}${
             // RESUMO (o dono pediu): os serviços em até 3 linhas, uma linha de cada informação, as 4 fotos do horímetro e até
@@ -14064,7 +14399,10 @@ const Eng=(function(){
     </div>`;
     pintarSemana(box).catch(()=>{});
     box.onchange=ev=>{const s=ev.target.closest('select[data-rd]');if(!s)return;RD[s.dataset.rd]=s.value;renderDiario();};
-    box.onclick=ev=>{const b=ev.target.closest('button[data-rd]');if(!b)return;if(b.dataset.rd==='aba'){RD.aba=b.dataset.rdAba;return renderDiario();}const r=App._rdoLista[+b.dataset.i];
+    box.onclick=ev=>{const ir=ev.target.closest('[data-rd-ir]');if(ir){ev.preventDefault();RD.aba=ir.dataset.rdIr;return renderDiario();}
+      const b=ev.target.closest('button[data-rd]');if(!b)return;if(b.dataset.rd==='aba'){RD.aba=b.dataset.rdAba;return renderDiario();}const r=App._rdoLista[+b.dataset.i];
+      // o combustível e os materiais do dia (no cartão): abrem a aba deles, já no mês e no dia
+      if((b.dataset.rd==='ir-comb'||b.dataset.rd==='ir-mat')&&r){RD.aba=b.dataset.rd==='ir-comb'?'comb':'mat';RD.mes=String(r.data).slice(0,7);RD.diaComb=RD.matDia=r.titulo_obra+'|'+r.data;return renderDiario();}
       // máquina alugada: abastecimento, lista e aluguel
       if(b.dataset.rd==='abast-novo')return formulario(CFG_ABAST,null);
       if(b.dataset.rd==='abast-lista')return listaAbast();
@@ -23613,7 +23951,7 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
     documentos:{sel:'data-doc-aba|data-ec-aba',itens:[['lista','Certidões e documentos (a lista)'],['notas','Notas fiscais — recebidas e emitidas (PDF e XML)'],['kit','Kit de documentos'],['dados','Dados da empresa'],['ass','Assinatura'],['ct','Contratantes'],['mun','Municípios (DAPS)'],['nfse','Nota fiscal (NFS-e): certificado e emissão']]},
     obras:{itens:[['quadro','Obras — quadro da proposta à obra entregue'],['pos','Pós-obra — garantia, TRD e CAT das obras entregues'],['orcamentos','Orçamento'],['cap','CAP'],['contrato','Contrato'],['medicao','Medição']]},
     pessoal:{sel:'data-ps-aba',itens:[['cadastro','Funcionários, ASO, NRs e EPI'],['ponto','Ponto da equipe nas obras']]},
-    diario:{sel:'data-rd-aba',itens:[['dias','Registros do dia'],['fisc','Fiscalização'],['pend','Pendências — corrige os dias como o Administrador (só marcando)']]},
+    diario:{sel:'data-rd-aba',itens:[['dias','Registros do dia'],['mat','Materiais do dia'],['comb','Combustível — abastecimentos e custo da máquina'],['fisc','Fiscalização'],['pend','Pendências — corrige os dias como o Administrador (só marcando)']]},
     socios:{sel:'data-so2-aba',itens:[['mov','Movimentos'],['socio','Por sócio'],['obra','Por obra']]},
     acoes:{sel:'data-ta-aba',itens:[['agenda','Agenda de tarefas'],['3g','Relatório de Três Gerações']]},
     premoldados:{sel:'data-pm-aba',itens:[['painel','Painel'],['pecas','Peças e catálogo'],['planejamento','Planejamento'],['producao','Diário de produção'],['estoque','Estoque e avarias'],['vendas','Vendas'],['caixa','Fluxo de caixa'],['relatorios','Relatórios'],['parametros','Parâmetros']]}};
@@ -27267,7 +27605,7 @@ textarea[data-rv-cola]{width:100%;font-family:inherit;}
    versão nova em cada aba, para nunca ficar recarregando sem parar.
    A CADA PUBLICAÇÃO: trocar a VERSÃO abaixo e a do versao.json (na raiz e em public/) — as duas iguais. */
 (function(){
-  const VERSAO='2026-11-24a';window.VX_VERSAO=VERSAO;
+  const VERSAO='2026-11-24b';window.VX_VERSAO=VERSAO;
   let ultima=0,pendente=null;
   const ocupado=()=>!!(App&&App.state&&App.state._busy)||!!document.querySelector('#fin-ov.open,.modal-overlay.open,.pm-pop,.vx-perg-ov,.confirm-overlay.open');
   async function tentar(){
@@ -27972,6 +28310,15 @@ button.vx-baixar:hover,.rdo-lb-cab button[data-lb-baixar]:hover{background:#1652
 .pm-st-dia.rdo-pend-st{background:#FFFAEB;color:#B54708;}
 .rdo-corpo small.rdo-falta.rdo-falta-voce{background:#EEF4FF;border-color:#C7D7FE;color:#1D3E9E;} .rdo-corpo small.rdo-falta.rdo-falta-voce i{color:#1652D8;}
 .rdo-hfoto .rdo-hfora{position:absolute;left:4px;top:4px;background:#B54708;color:#fff;border-radius:6px;padding:2px 6px;font:800 10px Inter,sans-serif;white-space:nowrap;} .rdo-hfoto .rdo-hfora i{color:#fff;margin-right:2px;}
+.rdo-hfoto .rdo-hsalv{position:absolute;left:4px;top:4px;background:#1652D8;color:#fff;border-radius:6px;padding:2px 6px;font:800 10px Inter,sans-serif;white-space:nowrap;} .rdo-hfoto .rdo-hsalv.ok{background:#067647;} .rdo-hfoto .rdo-hsalv i{color:#fff;margin-right:2px;}
+.eng-foto-item small.rdo-foto-env{display:block;font-size:10.5px;color:#1652D8;font-weight:700;margin-top:3px;} .eng-foto-item small.rdo-foto-erro{display:block;font-size:10.5px;color:#B42318;font-weight:700;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.rdo-foto-sdesc{display:block;width:100%;margin-top:4px;height:28px;border:1px solid #D0D5DD;border-radius:7px;padding:0 7px;font:12px Inter,sans-serif;}
+.rdo-lig-form{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:6px 18px;font-size:12.5px;color:#344054;background:#F8F9FC;border:1px dashed #D0D5DD;border-radius:10px;padding:8px 12px;} .rdo-lig-form:empty{display:none;} .rdo-lig-form i{color:#667085;} .rdo-lig-form small{color:#98A2B3;}
+button.eng-pill.rdo-lig{border:0;cursor:pointer;font:inherit;background:#EEF4FF;color:#1652D8;} button.eng-pill.rdo-lig:hover{background:#DDE8FF;}
+.mat-corpo{display:flex;flex-direction:column;gap:8px;} .mat-grupo>small{display:block;font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:#98A2B3;margin-bottom:4px;} .mat-chips{display:flex;flex-wrap:wrap;gap:5px;} .mat-chip{font-size:12px;background:#F2F4F7;border:1px solid #E4E7EC;border-radius:99px;padding:3px 9px;color:#344054;} .mat-obs{margin:0;font-size:12.5px;color:#475467;}
+.mat-tot>summary{cursor:pointer;list-style:none;display:flex;gap:10px;align-items:baseline;} .mat-tot>summary::-webkit-details-marker{display:none;} .mat-tot>summary small{color:#667085;} .mat-tot .lote-tab{margin-top:10px;max-height:360px;overflow:auto;}
+.mat-form td input,.mat-form td select{width:100%;min-width:70px;} .mat-form td:nth-child(2){min-width:200px;} .mat-form td:nth-child(3){width:90px;} .mat-form td:nth-child(4){width:90px;}
+.comb-dest,.mat-dia.comb-dest{box-shadow:0 0 0 3px #84ADFF;} .rdo-comb-dica{margin:4px 0 10px;}
 .rdo-hfoto .rdo-hpassou{color:#B54708;font-weight:700;}
 .rdo-hretirar{position:absolute;right:4px;top:28px;border:0;border-radius:6px;background:rgba(255,255,255,.95);color:#B42318;font:700 10.5px Inter,sans-serif;padding:3px 7px;cursor:pointer;display:inline-flex;align-items:center;gap:4px;box-shadow:0 1px 3px rgba(0,0,0,.25);} .rdo-hretirar:hover{background:#FEF3F2;}
 .rdo-pend-ok{margin:0 0 10px;font-size:14px;color:#101828;} .rdo-pend-ok i{color:#067647;margin-right:4px;}
