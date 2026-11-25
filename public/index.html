@@ -12211,7 +12211,7 @@ const Fin=(function(){
   function lerLinhasPdf(txt,cartao){
     const temSaldo=!cartao&&/saldo/i.test(txt),brutos=[],VAL=/^[-(]?(R\$)?-?\d{1,3}(\.\d{3})*,\d{2}\)?[CD-]?$/i;
     // fatura no formato do aplicativo: "12/01   188,87" numa linha e o nome da loja na linha de baixo
-    // fatura com vários cartões: a seção de cada um começa com o número mascarado ("JANICIA … - 553096XXXXXX3434")
+    // fatura com vários cartões: a seção de cada um começa com o número mascarado ("NOME … - 553096XXXXXX3434")
     let espera=null,cart='';const RX_CART=/\(cart[aã]o\s*(?:final\s*)?(\d{4})\)|(?:X{4,}|\*{4,})\.?(\d{4})\b/i;
     txt.split('\n').forEach(l=>{
       const d=dataBanco(l),mc=cartao&&l.match(RX_CART);if(mc&&!d){cart=mc[1]||mc[2];espera=null;return;}
