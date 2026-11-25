@@ -703,6 +703,82 @@ input[type=checkbox]:disabled{opacity:.45;cursor:not-allowed;}
     html:not([data-authed="1"]) #app-shell{display:none;}
     #app-shell.hidden{display:none!important;}
   </style>
+<script>
+/* NOME RESERVADO (pedido do dono, 25/11/2026): um nome de pessoa nunca aparece — nem na tela, nem na impressão, nem no PDF,
+   nem no Excel, nem no copiar — para ninguém, a não ser para UM usuário (o CPF dele fica aqui só como um número de
+   conferência, não o CPF). O dado continua guardado igual no banco: só o que se MOSTRA muda.
+   Como: (1) a página inteira é vigiada — todo texto que entra na tela passa pela troca; (2) campo de digitar que tem o nome
+   mostra a troca e fica só de leitura, mas o sistema continua lendo o valor verdadeiro (nada é gravado trocado); (3) a opção
+   de lista suspensa guarda o valor verdadeiro e mostra a troca; a sugestão de digitação com o nome sai; (4) as janelas de
+   impressão/PDF (window.open), o PDF montado no jsPDF, os arquivos de texto/CSV/HTML baixados e o copiar também trocam. */
+(function(){
+  const c=s=>s.split(',').map(x=>String.fromCharCode(+x)).join('');
+  const RX=new RegExp(c('106,97,110')+'[ií]'+c('99,105,97')+'(?:\\s+'+c('101,114,100,109,97,110,110')+')?','gi'),TROCA='(reservado)';
+  const tem=s=>typeof s==='string'&&s.length>5&&(RX.lastIndex=0,RX.test(s));
+  const fnv=s=>{let h=2166136261;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619)>>>0;}return h;};
+  let cache={k:null,v:false};
+  function liberado(){let s=null;try{s=typeof Auth!=='undefined'&&Auth?Auth._session:null;}catch(e){}
+    const k=String((s&&s.cpf)||'').replace(/\D/g,'');if(k===cache.k)return cache.v;const era=cache.v;cache={k,v:!!k&&fnv(k)===2717849672};
+    if(cache.v)setTimeout(devolver,0);else if(era)setTimeout(()=>varrer(document.documentElement),0);return cache.v;}
+  const mascarar=s=>{if(typeof s!=='string'||liberado()||!tem(s))return s;RX.lastIndex=0;return s.replace(RX,TROCA);};
+  window.vxPriv={mascarar,liberado};
+  const ORIG=new WeakMap(),TROCADOS=new Set();
+  // os campos de digitar: o sistema lê o valor verdadeiro; a tela mostra a troca (e o campo fica só de leitura)
+  const DESC={};
+  [window.HTMLInputElement,window.HTMLTextAreaElement].forEach(C=>{if(!C)return;const d=Object.getOwnPropertyDescriptor(C.prototype,'value');if(!d)return;DESC[C.name]=d;
+    Object.defineProperty(C.prototype,'value',{configurable:true,enumerable:d.enumerable,
+      get(){const cur=d.get.call(this),o=ORIG.get(this);return o&&cur===o.m?o.v:cur;},
+      set(x){const o=ORIG.get(this);if(o){ORIG.delete(this);if(!o.ro)this.readOnly=false;}d.set.call(this,x);if(tem(String(x)))proteger(this);}});});
+  const descDe=el=>DESC[el instanceof HTMLTextAreaElement?'HTMLTextAreaElement':'HTMLInputElement'];
+  function proteger(el){if(liberado())return;if(el instanceof HTMLInputElement&&/^(hidden|checkbox|radio|file|button|submit|image|password)$/i.test(el.type))return;
+    const d=descDe(el);if(!d)return;const cur=d.get.call(el);if(!tem(cur))return;const m=mascarar(cur);
+    ORIG.set(el,{v:cur,m,ro:el.readOnly});TROCADOS.add(el);d.set.call(el,m);el.readOnly=true;if(!el.title)el.title='Nome reservado';}
+  const ATRS=['title','placeholder','aria-label','alt','data-tip','label'];
+  function noTexto(t){const p=t.parentNode;if(!p||/^(SCRIPT|STYLE|TEXTAREA|NOSCRIPT)$/.test(p.nodeName))return;const v=t.nodeValue;if(!tem(v))return;
+    if(p.nodeName==='OPTION'&&!p.hasAttribute('value'))p.setAttribute('value',p.textContent);
+    ORIG.set(t,v);TROCADOS.add(t);t.nodeValue=mascarar(v);}
+  function noEl(el){if(el.nodeType!==1)return;
+    if(el.nodeName==='OPTION'&&el.parentNode&&el.parentNode.nodeName==='DATALIST'&&tem(el.getAttribute('value')||el.textContent)){el.remove();return;}
+    ATRS.forEach(a=>{const v=el.getAttribute(a);if(tem(v)){el.setAttribute('data-vxp-'+a,v);TROCADOS.add(el);el.setAttribute(a,mascarar(v));}});
+    if(el.nodeName==='INPUT'||el.nodeName==='TEXTAREA')proteger(el);}
+  function varrer(n){if(liberado())return;if(n.nodeType===3)return noTexto(n);if(n.nodeType!==1&&n.nodeType!==9&&n.nodeType!==11)return;
+    if(n.nodeType===1)noEl(n);
+    const w=(n.ownerDocument||n).createTreeWalker(n,5);let x;const els=[],txs=[];while((x=w.nextNode())){if(x.nodeType===3)txs.push(x);else els.push(x);}
+    txs.forEach(noTexto);els.forEach(noEl);}
+  // quando o usuário liberado entra: tudo volta ao verdadeiro
+  function devolver(){TROCADOS.forEach(n=>{try{if(n.nodeType===3){const v=ORIG.get(n);if(v!=null)n.nodeValue=v;}
+      else if(n.nodeName==='INPUT'||n.nodeName==='TEXTAREA'){const o=ORIG.get(n);if(o){const d=descDe(n);ORIG.delete(n);d.set.call(n,o.v);if(!o.ro)n.readOnly=false;}}
+      if(n.nodeType===1)ATRS.forEach(a=>{const v=n.getAttribute('data-vxp-'+a);if(v!=null){n.setAttribute(a,v);n.removeAttribute('data-vxp-'+a);}});}catch(e){}});TROCADOS.clear();}
+  function vigiar(doc){try{new MutationObserver(ms=>{if(liberado())return;for(const m of ms){
+      if(m.type==='childList')m.addedNodes.forEach(varrer);
+      else if(m.type==='characterData')noTexto(m.target);
+      else if(m.type==='attributes'){const el=m.target;if(m.attributeName==='value'&&(el.nodeName==='INPUT'||el.nodeName==='TEXTAREA'))proteger(el);else if(ATRS.includes(m.attributeName))noEl(el);}}})
+    .observe(doc.documentElement||doc,{childList:true,subtree:true,characterData:true,attributes:true,attributeFilter:ATRS.concat('value')});}catch(e){}
+    if(doc.documentElement)varrer(doc.documentElement);}
+  vigiar(document);
+  // janelas de impressão e de PDF abertas pelo sistema
+  const abrir=window.open;
+  window.open=function(){const w=abrir.apply(this,arguments);try{if(w&&w.document&&!liberado()){const d=w.document,wr=d.write,wl=d.writeln;
+      d.write=function(){return wr.apply(d,[...arguments].map(x=>mascarar(String(x))));};d.writeln=function(){return wl.apply(d,[...arguments].map(x=>mascarar(String(x))));};
+      let ok=false;const ver=()=>{try{if(!ok&&w.document&&w.document.documentElement){ok=true;vigiar(w.document);}}catch(e){}};
+      setTimeout(ver,0);setTimeout(()=>{ok=false;ver();},400);}}catch(e){}return w;};
+  // arquivos de texto, CSV e HTML baixados (a cópia de segurança, em JSON, fica como está)
+  const B=window.Blob;
+  if(B){const NB=function(partes,op){if(Array.isArray(partes)&&op&&/^text\/(csv|html|plain)/i.test(op.type||'')&&!liberado())partes=partes.map(p=>typeof p==='string'?mascarar(p):p);return new B(partes,op);};
+    NB.prototype=B.prototype;try{Object.defineProperty(NB,Symbol.hasInstance,{value:x=>x instanceof B});}catch(e){}window.Blob=NB;}
+  // copiar (Ctrl+C e os botões de copiar)
+  document.addEventListener('copy',ev=>{if(liberado())return;const s=String(window.getSelection()||'');if(!tem(s))return;ev.preventDefault();try{ev.clipboardData.setData('text/plain',mascarar(s));}catch(e){}},true);
+  try{const cb=navigator.clipboard;if(cb&&cb.writeText){const wt=cb.writeText.bind(cb);cb.writeText=t=>wt(mascarar(String(t)));}}catch(e){}
+  // gráficos e imagens desenhados (os nomes nos gráficos, a folha do PDF feita por imagem)
+  try{const C2=window.CanvasRenderingContext2D&&CanvasRenderingContext2D.prototype;if(C2)['fillText','strokeText','measureText'].forEach(k=>{const f=C2[k];if(typeof f!=='function')return;
+    C2[k]=function(t){if(typeof t!=='string'||!tem(t))return f.apply(this,arguments);const a=[...arguments];a[0]=mascarar(t);return f.apply(this,a);};});}catch(e){}
+  // PDF montado no jsPDF: todo texto escrito na folha passa pela troca
+  const embrulhar=J=>{if(!J||J.__vxPriv)return J;const N=function(){const doc=new J(...arguments);try{const t=doc.text;doc.text=function(txt){const a=[...arguments];a[0]=Array.isArray(txt)?txt.map(x=>mascarar(String(x))):mascarar(txt);return t.apply(this,a);};}catch(e){}return doc;};
+    Object.setPrototypeOf(N,J);N.prototype=J.prototype;N.API=J.API;N.__vxPriv=true;return N;};
+  let JS;const cacheJ=new WeakMap();
+  try{Object.defineProperty(window,'jspdf',{configurable:true,get(){return JS&&new Proxy(JS,{get(o,k){const v=o[k];if(k==='jsPDF'&&typeof v==='function'){if(!cacheJ.has(v))cacheJ.set(v,embrulhar(v));return cacheJ.get(v);}return v;}});},set(v){JS=v;}});}catch(e){}
+})();
+</script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0/dist/umd/supabase.js" integrity="sha384-TcHRA3zBbn+Lexh5n+Oil4guNPOS3rjNDpGRAN46u/s/mB2IZ50ceC6TYDU2yvgK" crossorigin="anonymous"></script><script src="gas-shim.js?v=20261118a"></script><script src="espera.js?v=20261110a"></script><script src="https://accounts.google.com/gsi/client" async defer></script></head>
 <body>
 <div class="toast" id="toast"><span id="toast-icon"></span><span id="toast-msg">—</span></div>
@@ -13281,7 +13357,7 @@ const Eng=(function(){
     const nomes=(jsonDe(r.equipe_nomes)||[]).map(x=>x.nome).filter(Boolean),fd=fotosDoRegistro(r),hf=fotosHorimetro(r);
     const mt=matDoDia(r.titulo_obra,r.data),its=mt?itensMat(mt):[],ab=abDoDia(r.titulo_obra,r.data);
     const tempo=[r.clima_manha||r.clima_tarde?`manhã: ${r.clima_manha||'—'} · tarde: ${r.clima_tarde||'—'}`:'',r.condicao||''].filter(Boolean).join(' · ');
-    const camposV=vir?'':camposParaVer(r).map(c=>linha(icoCampo(c),c.nome,txtCampo(r,c))).join('');
+    const camposV=vir?'':camposParaVer(r).map(c=>c.tipo==='tabela'?(linhasTabRdo(r,c).length?`<li><i class="fas ${icoCampo(c)}"></i><div><b>${fe(c.nome)}</b>${tabVerRdo(r,c)}</div></li>`:''):linha(icoCampo(c),c.nome,txtCampo(r,c))).join('');
     const matV=its.length?`<li><i class="fas fa-boxes-stacked"></i><div><b>Insumos e ferramentas (${its.length})</b><div class="mat-corpo">${matGruposHtml(its)}</div>${mt.obs?`<span>Obs.: ${fe(mt.obs)}</span>`:''}</div></li>`:'';
     const abV=ab.length?`<li><i class="fas fa-gas-pump"></i><div><b>Combustível (${ab.length} abastecimento${ab.length>1?'s':''})</b>${ab.map(p=>`<span>${fe((p.maquina||MAQ_FIXA)+' · '+txtAbast(p))}${p.obs?' — '+fe(p.obs):''}</span>`).join('')}</div></li>`:'';
     const cabV=vir?`<div class="fin-aviso" style="background:#F2F4F7;border-color:#E4E7EC"><div><i class="fas fa-book"></i> Este dia <b>não tem registro do diário</b> — só insumos ou combustível lançados.</div></div>`
@@ -13341,7 +13417,7 @@ const Eng=(function(){
     if(!ehAdmRdo())return toast('Só o Administrador configura o diário.','error');
     let us=[];if(UI._showBusy)UI._showBusy('Carregando os usuários…');
     try{us=await listarUsuariosRdo();}catch(e){toast(e.message||String(e),'error');}finally{if(UI._hideBusy)UI._hideBusy();}
-    us=us.filter(u=>idUsuarioRdo(u)&&!/inativ|bloque|desativ|exclu/i.test(String(u.status||''))).sort((a,b)=>String(a.nome||'').localeCompare(String(b.nome||''),'pt-BR'));
+    us=us.filter(u=>idUsuarioRdo(u)&&!/inativ|bloque|desativ|exclu/i.test(String(u.status||''))&&(!UI.permNivelDe||UI.permNivelDe(u,'diario')!=='nenhum')).sort((a,b)=>String(a.nome||'').localeCompare(String(b.nome||''),'pt-BR'));
     const admU=u=>UI._ehAdmin?UI._ehAdmin(u.perfil):/^admin/i.test(String(u.perfil||'')),todos=us.filter(u=>!admU(u)).map(idUsuarioRdo);
     const C=cfgRdo(),partes=PARTES_RDO.map(([k,rot,ic])=>({k,rot,ic,ativo:C.partes[k].ativo}));
     let campos=C.campos.map(c=>({...c,ops:c.ops.slice(),pos:c.pos.slice()})),funcoes=C.funcoes.slice();
@@ -13350,16 +13426,20 @@ const Eng=(function(){
     PARTES_RDO.forEach(([k])=>ini('p:'+k,C.partes[k].quem));campos.forEach(c=>ini('c:'+c.k,c.quem));
     const htmlPartes=()=>partes.map((p,i)=>`<label class="rdo-cfg-parte"><input type="checkbox" data-cp="${i}" ${p.ativo?'checked':''}><i class="fas ${p.ic}"></i><span>${fe(p.rot)}</span></label>`).join('');
     const htmlFun=()=>funcoes.length?funcoes.map((f,i)=>`<span class="rdo-cfg-fn">${fe(f)}<button type="button" data-cf-x="${i}" title="Tirar esta função" aria-label="Tirar ${fe(f)}">×</button></span>`).join(''):'<small class="rv-dica">Nenhuma: o efetivo começa vazio e quem preenche inclui as funções do dia.</small>';
-    const htmlPos=c=>c.ops.length?c.ops.map(o=>`<label class="rdo-cc-ck"><input type="checkbox" data-cc-p value="${fe(o)}" ${c.pos.includes(o)?'checked':''}> ${fe(o)}</label>`).join(''):'<small class="rv-dica">Escreva as opções ao lado (uma por linha).</small>';
+    const htmlPos=c=>{const ops=c.tipo==='check'?opsChkRdo(c):c.ops;return ops.length?ops.map(o=>`<label class="rdo-cc-ck"><input type="checkbox" data-cc-p value="${fe(o)}" ${c.pos.includes(o)?'checked':''}> ${fe(c.tipo==='check'&&!c.ops.length?'Marcada':o)}</label>`).join(''):'<small class="rv-dica">Escreva as opções ao lado (uma por linha).</small>';};
+    const TIPOS_COL=[['texto','Texto'],['num','Número'],['lista','Lista suspensa']];
+    const htmlCols=c=>`<div class="rdo-cc-cols">${(c.cols||[]).map((cl,ci)=>`<div class="rdo-cc-col" data-col="${ci}"><input data-cl="n" value="${fe(cl.n||'')}" placeholder="Nome da coluna" maxlength="40"><select data-cl="t">${TIPOS_COL.map(([k,r])=>`<option value="${k}" ${cl.t===k?'selected':''}>${r}</option>`).join('')}</select><input data-cl="ops" value="${fe((cl.ops||[]).join('; '))}" placeholder="Opções separadas por ; (ex.: Sim; Não)" ${cl.t==='lista'?'':'hidden'}><button type="button" class="rv-ic err" data-cl-x="${ci}" title="Tirar a coluna" aria-label="Tirar a coluna"><i class="fas fa-xmark"></i></button></div>`).join('')||'<small class="rv-dica">Nenhuma coluna ainda.</small>'}</div>`;
     const htmlCampo=(c,i)=>`<div class="rdo-cc" data-ci="${i}">
       <div class="rdo-cc-l1"><input data-cc="nome" value="${fe(c.nome||'')}" placeholder="Nome do campo (ex.: Teve ocorrência?)" maxlength="60"><select data-cc="tipo">${Object.entries(TIPOS_CAMPO_RDO).map(([k,r])=>`<option value="${k}" ${c.tipo===k?'selected':''}>${r}</option>`).join('')}</select><label class="rdo-cc-ck"><input type="checkbox" data-cc="obg" ${c.obg?'checked':''}> Obrigatório</label>
         <span class="rv-cc-bts"><button type="button" class="rv-ic" data-cc-mv="-1" title="Subir" ${i===0?'disabled':''}><i class="fas fa-arrow-up"></i></button><button type="button" class="rv-ic" data-cc-mv="1" title="Descer" ${i===campos.length-1?'disabled':''}><i class="fas fa-arrow-down"></i></button><button type="button" class="rv-ic err" data-cc-x title="Tirar o campo"><i class="fas fa-trash"></i></button></span></div>
       <div class="rdo-cc-l2"><input data-cc="ph" value="${fe(c.ph||'')}" placeholder="Dica que aparece dentro do campo (opcional)" maxlength="120">
-        <span class="rdo-cc-tam" ${c.tipo==='lista'||c.tipo==='num'?'hidden':''}><input data-cc="min" type="number" min="1" step="1" inputmode="numeric" value="${+c.min>0?+c.min:''}" placeholder="Mín. caracteres" title="Quantos caracteres, no mínimo (vazio = sem mínimo). Menos que isso vira pendência — nunca trava o Salvar."><input data-cc="max" type="number" min="1" step="1" inputmode="numeric" value="${+c.max>0?+c.max:''}" placeholder="Máx. caracteres" title="Quantos caracteres cabem no campo (vazio = sem limite)"></span></div>
-      <div class="rdo-cc-lista" ${c.tipo==='lista'?'':'hidden'}>
-        <div class="fin-fld"><label>Opções da lista (uma por linha)</label><textarea data-cc="ops" rows="3" placeholder="Sim&#10;Não">${fe(c.ops.join('\n'))}</textarea></div>
-        <div class="fin-fld"><label>Quais respostas abrem o campo extra</label><div class="rdo-cc-pos" data-cc-pos>${htmlPos(c)}</div></div>
-        <div class="fin-fld"><label>Nome do campo extra</label><input data-cc="det" value="${fe(c.det||'')}" placeholder="Ex.: Descreva a ocorrência" maxlength="60"><label class="rdo-cc-ck"><input type="checkbox" data-cc="det_obg" ${c.det_obg!==false?'checked':''}> Campo extra obrigatório</label></div></div></div>`;
+        <span class="rdo-cc-tam" ${simplesRdo(c)?'hidden':''}><input data-cc="min" type="number" min="1" step="1" inputmode="numeric" value="${+c.min>0?+c.min:''}" placeholder="Mín. caracteres" title="Quantos caracteres, no mínimo (vazio = sem mínimo). Menos que isso vira pendência — nunca trava o Salvar."><input data-cc="max" type="number" min="1" step="1" inputmode="numeric" value="${+c.max>0?+c.max:''}" placeholder="Máx. caracteres" title="Quantos caracteres cabem no campo (vazio = sem limite)"></span></div>
+      <div class="rdo-cc-lista" ${c.tipo==='lista'||c.tipo==='check'?'':'hidden'}>
+        <div class="fin-fld"><label>${c.tipo==='check'?'Caixas para marcar (uma por linha — vazio = uma caixa só, com o nome do campo)':'Opções da lista (uma por linha)'}</label><textarea data-cc="ops" rows="3" placeholder="${c.tipo==='check'?'Ex.: Escavação&#10;Assentamento&#10;Reaterro':'Sim&#10;Não'}">${fe(c.ops.join('\n'))}</textarea></div>
+        <div class="fin-fld"><label>${c.tipo==='check'?'Quais caixas, marcadas, abrem o campo extra':'Quais respostas abrem o campo extra'}</label><div class="rdo-cc-pos" data-cc-pos>${htmlPos(c)}</div></div>
+        <div class="fin-fld"><label>Nome do campo extra</label><input data-cc="det" value="${fe(c.det||'')}" placeholder="Ex.: Descreva a ocorrência" maxlength="60"><label class="rdo-cc-ck"><input type="checkbox" data-cc="det_obg" ${c.det_obg!==false?'checked':''}> Campo extra obrigatório</label></div></div>
+      <div class="rdo-cc-tab" ${c.tipo==='tabela'?'':'hidden'}><div class="fin-fld"><label>Colunas da tabela (quem preenche inclui quantas linhas precisar)</label>${htmlCols(c)}</div>
+        <button type="button" class="fin-bt mini" data-cl-add><i class="fas fa-plus"></i> Mais uma coluna</button></div></div>`;
     const colunas=()=>PARTES_RDO.filter((p,i)=>partes[i].ativo).map(([k,rot,ic])=>({ch:'p:'+k,rot,ic})).concat(campos.filter(c=>String(c.nome||'').trim()).map(c=>({ch:'c:'+c.k,rot:String(c.nome).trim(),ic:icoCampo(c)})));
     const htmlAcesso=()=>{const cols=colunas();if(!us.length)return '<div class="fin-vazio">Não consegui carregar a lista de usuários.</div>';
       return `<table data-sem-ordem><thead><tr><th>Usuário</th>${cols.map(c=>`<th title="${fe(c.rot)}"><i class="fas ${c.ic}"></i><span>${fe(c.rot)}</span></th>`).join('')}</tr></thead><tbody>${us.map(u=>{const id=idUsuarioRdo(u),adm=admU(u);
@@ -13380,15 +13460,20 @@ const Eng=(function(){
         if(nomes.some(n=>!n))throw new Error('Dê nome a todos os campos (ou tire o que está sem nome).');
         if(new Set(nomes.map(cn)).size!==nomes.length)throw new Error('Há dois campos com o mesmo nome.');
         const ruimL=campos.find(c=>c.tipo==='lista'&&c.ops.length<2);if(ruimL)throw new Error(`"${String(ruimL.nome).trim()}": a lista precisa de pelo menos duas opções (uma por linha).`);
-        const ruimT=campos.find(c=>c.tipo!=='lista'&&c.tipo!=='num'&&+c.min>0&&+c.max>0&&+c.min>+c.max);if(ruimT)throw new Error(`"${String(ruimT.nome).trim()}": o mínimo de caracteres é maior que o máximo.`);
+        for(const c of campos.filter(x=>x.tipo==='tabela')){const nm=String(c.nome).trim(),ns=(c.cols||[]).map(cl=>cl.n);
+          if(!ns.length)throw new Error(`"${nm}": a tabela precisa de pelo menos uma coluna.`);
+          if(ns.some(n=>!n))throw new Error(`"${nm}": dê nome a todas as colunas (ou tire a que está sem nome).`);
+          if(new Set(ns.map(cn)).size!==ns.length)throw new Error(`"${nm}": há duas colunas com o mesmo nome.`);
+          const cl=c.cols.find(x=>x.t==='lista'&&!x.ops.length);if(cl)throw new Error(`"${nm}" › "${cl.n}": escreva as opções da lista, separadas por ponto e vírgula.`);}
+        const ruimT=campos.find(c=>!simplesRdo(c)&&+c.min>0&&+c.max>0&&+c.min>+c.max);if(ruimT)throw new Error(`"${String(ruimT.nome).trim()}": o mínimo de caracteres é maior que o máximo.`);
         if(!partes.some(p=>p.ativo)&&!campos.length)throw new Error('Deixe pelo menos uma parte ou um campo no diário.');
         const quemDe=ch=>{const s=acesso.get(ch);if(!s)return null;const L=todos.filter(id=>s.has(id));return L.length===todos.length?null:L;};
         const P={};PARTES_RDO.forEach(([k],i)=>{P[k]={ativo:partes[i].ativo,quem:quemDe('p:'+k)};});
-        const r0=cfgRegRdo(),simples=c=>c.tipo==='lista'||c.tipo==='num',hj=hojeRdo();
+        const r0=cfgRegRdo(),simples=simplesRdo,hj=hojeRdo();
         /* desde: de que dia em diante a regra do campo vira pendência. Campo novo, que passou a ser obrigatório, ganhou mínimo de
            caracteres ou virou lista: só de hoje em diante — os dias de antes não ganham pendência por uma regra que não existia */
-        const desdeDe=c=>{const a=C.campos.find(x=>x.k===c.k);if(!a)return hj;return (c.obg&&!a.obg)||(+c.min>0&&!(+a.min>0))||(c.tipo==='lista'&&a.tipo!=='lista')?hj:(a.desde||'');};
-        const novo={...(r0?limpoRdo(r0):{}),tipo:'cfg_diario',partes:P,funcoes:funcoes.slice(),campos:campos.map(c=>({k:c.k,nome:String(c.nome).trim(),tipo:c.tipo,obg:!!c.obg,ph:c.ph||'',min:simples(c)?0:(+c.min||0),max:simples(c)?0:(+c.max||0),...(c.tipo==='lista'?{ops:c.ops,pos:c.pos,det:c.det||'',det_obg:c.det_obg!==false}:{}),quem:quemDe('c:'+c.k),desde:desdeDe(c)})),
+        const desdeDe=c=>{const a=C.campos.find(x=>x.k===c.k);if(!a)return hj;return (c.obg&&!a.obg)||(+c.min>0&&!(+a.min>0))||(c.tipo!==a.tipo&&(c.obg||c.tipo==='lista'))?hj:(a.desde||'');};
+        const novo={...(r0?limpoRdo(r0):{}),tipo:'cfg_diario',partes:P,funcoes:funcoes.slice(),campos:campos.map(c=>({k:c.k,nome:String(c.nome).trim(),tipo:c.tipo,obg:!!c.obg,ph:c.ph||'',min:simples(c)?0:(+c.min||0),max:simples(c)?0:(+c.max||0),...(c.tipo==='lista'||c.tipo==='check'?{ops:c.ops,pos:c.pos,det:c.det||'',det_obg:c.det_obg!==false}:{}),...(c.tipo==='tabela'?{cols:c.cols.map(cl=>({id:cl.id,n:cl.n,t:cl.t,ops:cl.t==='lista'?cl.ops:[]}))}:{}),quem:quemDe('c:'+c.k),desde:desdeDe(c)})),
           atualizado_em:todayDateTime(),atualizado_por:eu().nome,data_lancamento:(r0&&r0.data_lancamento)||todayDateTime()};
         await executar(()=>salvar('Planejamento',novo,r0?r0.rowid:null));toast('Configuração do diário salva — já vale no próximo formulário do dia.','success');}}],980);
     // lê a tela para a memória (antes de redesenhar uma parte)
@@ -13396,7 +13481,9 @@ const Eng=(function(){
       j.querySelectorAll('.rdo-cc[data-ci]').forEach(el=>{const c=campos[+el.dataset.ci];if(!c)return;const g=k=>el.querySelector(`[data-cc="${k}"]`);
         c.nome=g('nome').value;c.tipo=g('tipo').value;c.obg=g('obg').checked;c.ph=g('ph').value.trim();const mn=parseInt(g('min').value,10),mx=parseInt(g('max').value,10);c.min=mn>0?mn:0;c.max=mx>0?mx:0;
         c.ops=[...new Set(String(g('ops').value||'').split(/\n|;/).map(s=>s.trim()).filter(Boolean))];const marc=[...el.querySelectorAll('[data-cc-p]:checked')].map(x=>x.value);
-        if(el.querySelector('[data-cc-p]'))c.pos=marc.filter(v=>c.ops.includes(v));else c.pos=c.pos.filter(v=>c.ops.includes(v));c.det=g('det').value.trim();c.det_obg=g('det_obg').checked;});
+        const opsP=c.tipo==='check'?opsChkRdo(c):c.ops;if(el.querySelector('[data-cc-p]'))c.pos=marc.filter(v=>opsP.includes(v));else c.pos=c.pos.filter(v=>opsP.includes(v));c.det=g('det').value.trim();c.det_obg=g('det_obg').checked;
+        const ant=c.cols||[];c.cols=[...el.querySelectorAll('.rdo-cc-col[data-col]')].map(d=>{const a=ant[+d.dataset.col]||{},q=k=>d.querySelector(`[data-cl="${k}"]`);
+          return {id:a.id||novoIdColRdo(),n:String(q('n').value||'').replace(/\s+/g,' ').trim(),t:q('t').value,ops:[...new Set(String(q('ops').value||'').split(/;|\n/).map(s=>s.trim()).filter(Boolean))]};});});
       j.querySelectorAll('[data-ac]').forEach(c=>{if(c.disabled)return;const s=acesso.get(c.dataset.ac)||new Set();acesso.set(c.dataset.ac,s);if(c.checked)s.add(c.value);else s.delete(c.value);});}
     const cBox=j.querySelector('[data-cfg-campos]'),aBox=j.querySelector('[data-cfg-acesso]'),fBox=j.querySelector('[data-cfg-fns]');
     const pintarCampos=()=>{cBox.innerHTML=campos.map(htmlCampo).join('')||'<p class="rv-dica">Nenhum campo — clique em <b>Novo campo</b>.</p>';};
@@ -13406,12 +13493,15 @@ const Eng=(function(){
     j.addEventListener('click',async ev=>{
       if(ev.target.closest('[data-cf-add]'))return incluirFn();
       const fx=ev.target.closest('[data-cf-x]');if(fx){funcoes.splice(+fx.dataset.cfX,1);fBox.innerHTML=htmlFun();return;}
-      if(ev.target.closest('[data-cc-add]')){lerTela();const c={k:'cp_'+Date.now().toString(36)+Math.random().toString(36).slice(2,5),nome:'',tipo:'area',obg:false,ph:'',min:0,max:0,ops:[],pos:[],det:'',det_obg:true,quem:null};
+      if(ev.target.closest('[data-cc-add]')){lerTela();const c={k:'cp_'+Date.now().toString(36)+Math.random().toString(36).slice(2,5),nome:'',tipo:'area',obg:false,ph:'',min:0,max:0,ops:[],pos:[],det:'',det_obg:true,cols:[],quem:null};
         campos.push(c);acesso.set('c:'+c.k,new Set(todos));pintarCampos();pintarAcesso();const ins=cBox.querySelectorAll('[data-cc="nome"]');if(ins.length)ins[ins.length-1].focus();return;}
       if(ev.target.closest('[data-cfg-padrao]')){if(!(await vxPergunta('Voltar ao padrão?','Os campos voltam a ser os três de sempre (Serviços executados, Ocorrências e problemas, Visitas e fiscalização), as funções do efetivo voltam a ser as quatro do padrão e todas as partes ficam ligadas, para todos. Nada é gravado até você clicar em <b>Salvar a configuração</b>.','Sim, voltar ao padrão','Não')))return;
         campos=CAMPOS_PADRAO.map(c=>({...c,ops:[],pos:[],quem:null}));funcoes=FUNCOES_PADRAO.slice();partes.forEach(p=>{p.ativo=true;});acesso.clear();PARTES_RDO.forEach(([k])=>ini('p:'+k,null));campos.forEach(c=>ini('c:'+c.k,null));
         j.querySelector('[data-cfg-partes]').innerHTML=htmlPartes();fBox.innerHTML=htmlFun();pintarCampos();pintarAcesso();return;}
       const el=ev.target.closest('.rdo-cc[data-ci]');if(!el)return;const i=+el.dataset.ci;
+      if(ev.target.closest('[data-cl-add]')){lerTela();const c=campos[i];c.cols=(c.cols||[]).concat({id:novoIdColRdo(),n:'',t:'texto',ops:[]});pintarCampos();
+        const ns=cBox.querySelectorAll(`.rdo-cc[data-ci="${i}"] [data-cl="n"]`);if(ns.length)ns[ns.length-1].focus();return;}
+      const clx=ev.target.closest('[data-cl-x]');if(clx){lerTela();campos[i].cols.splice(+clx.dataset.clX,1);pintarCampos();return;}
       const mv=ev.target.closest('[data-cc-mv]');if(mv){lerTela();const k=i+(+mv.dataset.ccMv);if(k<0||k>=campos.length)return;[campos[i],campos[k]]=[campos[k],campos[i]];pintarCampos();pintarAcesso();return;}
       if(ev.target.closest('[data-cc-x]')){lerTela();campos.splice(i,1);pintarCampos();pintarAcesso();}});
     j.addEventListener('keydown',ev=>{if(ev.target.closest('[data-cf-nova]')&&ev.key==='Enter'){ev.preventDefault();incluirFn();}});
@@ -13420,7 +13510,10 @@ const Eng=(function(){
       const t=ev.target.closest('[data-cc="tipo"]');if(t){lerTela();const el=t.closest('.rdo-cc'),c=campos[+el.dataset.ci];
         // lista nova: já vem com Sim / Não, o Sim abrindo o campo extra (dá para mudar)
         if(c&&c.tipo==='lista'&&!c.ops.length){c.ops=['Sim','Não'];c.pos=['Sim'];if(!c.det)c.det='Descreva';}
-        pintarCampos();pintarAcesso();return;}});
+        // tabela nova: já vem com duas colunas (dá para mudar, tirar e incluir outras)
+        if(c&&c.tipo==='tabela'&&!(c.cols||[]).length)c.cols=[{id:novoIdColRdo(),n:'Descrição',t:'texto',ops:[]},{id:novoIdColRdo(),n:'Quantidade',t:'num',ops:[]}];
+        pintarCampos();pintarAcesso();return;}
+      const ct=ev.target.closest('[data-cl="t"]');if(ct){const o=ct.parentElement.querySelector('[data-cl="ops"]');if(o){o.hidden=ct.value!=='lista';if(!o.hidden)o.focus();}return;}});
     let tNome=null;
     j.addEventListener('input',ev=>{
       if(ev.target.closest('[data-cc="nome"]')){clearTimeout(tNome);tNome=setTimeout(()=>{lerTela();pintarAcesso();},350);return;}
@@ -13463,7 +13556,16 @@ const Eng=(function(){
   const CAMPOS_PADRAO=[{k:'atividades',nome:'Serviços executados',tipo:'area',obg:true,ph:'O que foi feito hoje, com local e quantidade quando possível'},
     {k:'ocorrencias',nome:'Ocorrências e problemas',tipo:'area',obg:false,ph:'Paralisações, acidentes, falta de material, interferências…'},
     {k:'visitas',nome:'Visitas e fiscalização',tipo:'area',obg:false,ph:'Visita do fiscal da EMBASA, orientações recebidas…'}];
-  const TIPOS_CAMPO_RDO={area:'Texto (várias linhas)',texto:'Texto curto (uma linha)',num:'Número',lista:'Lista suspensa'};
+  const TIPOS_CAMPO_RDO={area:'Texto (várias linhas)',texto:'Texto curto (uma linha)',num:'Número',lista:'Lista suspensa',check:'Caixa de seleção (marcar)',tabela:'Tabela (com colunas)'};
+  // tipos sem mínimo/máximo de caracteres · as caixas de um campo de marcar (sem caixas configuradas: uma só, "Sim") · id de coluna
+  const simplesRdo=c=>['lista','num','check','tabela'].includes(c.tipo);
+  const opsChkRdo=c=>c.ops&&c.ops.length?c.ops:['Sim'];
+  const marcasRdo=v=>String(v==null?'':v).split(';').map(s=>s.trim()).filter(Boolean);
+  const novoIdColRdo=()=>'k'+Date.now().toString(36).slice(-4)+Math.random().toString(36).slice(2,6);
+  // as linhas preenchidas de um campo de tabela (o valor é a lista das linhas, em JSON: {id da coluna: valor})
+  const linhasTabRdo=(r,c)=>(listaDe(r&&r[c.k])||[]).filter(o=>o&&typeof o==='object'&&(c.cols||[]).some(cl=>String(o[cl.id]==null?'':o[cl.id]).trim()));
+  // o valor "cru" do campo ('' = vazio) — a tabela sem linha preenchida é vazia
+  const vCampoRdo=(r,c)=>c.tipo==='tabela'?(linhasTabRdo(r,c).length?'tabela':''):String(r&&r[c.k]!=null?r[c.k]:'').trim();
   const cfgRegRdo=()=>(D().planejamento||[]).find(p=>p.tipo==='cfg_diario')||null;
   const listaDe=v=>Array.isArray(v)?v:(Array.isArray(jsonDe(v))?jsonDe(v):null);
   // (guardada até os dados recarregarem — é lida muitas vezes ao desenhar a lista; quem usa não altera o que recebe)
@@ -13471,7 +13573,7 @@ const Eng=(function(){
   function cfgRdo(){const pl=D().planejamento||null;if(_cfgRdoC.v&&_cfgRdoC.ref===pl)return _cfgRdoC.v;_cfgRdoC={ref:pl,v:montarCfgRdo()};return _cfgRdoC.v;}
   function montarCfgRdo(){const c=cfgRegRdo()||{},P=objDe(c.partes),partes={};
     PARTES_RDO.forEach(([k])=>{const x=P[k]||{};partes[k]={ativo:x.ativo!==false,quem:Array.isArray(x.quem)?x.quem.map(String):null};});
-    const cs=listaDe(c.campos),campos=(cs&&cs.length?cs:CAMPOS_PADRAO).filter(x=>x&&x.k&&String(x.nome||'').trim()).map(x=>({...x,nome:String(x.nome).trim(),tipo:TIPOS_CAMPO_RDO[x.tipo]?x.tipo:'area',ops:Array.isArray(x.ops)?x.ops.map(String).filter(Boolean):[],pos:Array.isArray(x.pos)?x.pos.map(String):[],quem:Array.isArray(x.quem)?x.quem.map(String):null}));
+    const cs=listaDe(c.campos),campos=(cs&&cs.length?cs:CAMPOS_PADRAO).filter(x=>x&&x.k&&String(x.nome||'').trim()).map(x=>({...x,nome:String(x.nome).trim(),tipo:TIPOS_CAMPO_RDO[x.tipo]?x.tipo:'area',ops:Array.isArray(x.ops)?x.ops.map(String).filter(Boolean):[],pos:Array.isArray(x.pos)?x.pos.map(String):[],cols:(Array.isArray(x.cols)?x.cols:[]).filter(cl=>cl&&cl.id&&String(cl.n||"").trim()).map(cl=>({id:String(cl.id),n:String(cl.n).trim(),t:["texto","num","lista"].includes(cl.t)?cl.t:"texto",ops:Array.isArray(cl.ops)?cl.ops.map(String).filter(Boolean):[]})),quem:Array.isArray(x.quem)?x.quem.map(String):null}));
     const fs=listaDe(c.funcoes);return {partes,campos,funcoes:fs?fs.map(String).filter(Boolean):FUNCOES_PADRAO.slice()};}
   // as chaves do usuário que podem estar na lista de quem acessa (o CPF do interno, o e-mail do externo)
   const meusIdsRdo=()=>{const s=Auth._session||{};return [s.uid,s.cpf,String(s.cpf||'').replace(/\D/g,''),String(s.email||'').trim().toLowerCase()].filter(Boolean).map(String);};
@@ -13486,14 +13588,28 @@ const Eng=(function(){
   const campoDe=k=>cfgRdo().campos.find(c=>c.k===k)||null;
   // os campos para mostrar um registro: os configurados e, dos três de sempre que saíram da configuração, os que têm valor
   const camposParaVer=r=>{const C=cfgRdo().campos;return C.concat(CAMPOS_PADRAO.filter(p=>!C.some(c=>c.k===p.k)&&String((r&&r[p.k])||'').trim()).map(p=>({...p,ops:[],pos:[],quem:null})));};
-  // o valor como texto (lista: a opção e o que foi informado no campo extra)
-  const txtCampo=(r,c)=>{const v=String(r&&r[c.k]!=null?r[c.k]:'').trim();if(c.tipo!=='lista')return v;const d=String((r&&r[c.k+'_det'])||'').trim();return v&&d?`${v} — ${d}`:(v||d);};
-  // a resposta abre o campo extra (é uma das positivas)
-  const posCampo=(c,v)=>!!c&&c.tipo==='lista'&&c.pos.includes(String(v==null?'':v));
+  // o valor como texto (lista e caixas: a resposta e o que foi informado no campo extra · tabela: uma linha por linha)
+  const txtCampo=(r,c)=>{if(c.tipo==='tabela')return linhasTabRdo(r,c).map(o=>(c.cols||[]).map(cl=>{const x=String(o[cl.id]==null?'':o[cl.id]).trim();return x?`${cl.n}: ${x}`:'';}).filter(Boolean).join(' · ')).join('\n');
+    let v=String(r&&r[c.k]!=null?r[c.k]:'').trim();if(c.tipo!=='lista'&&c.tipo!=='check')return v;
+    if(c.tipo==='check')v=c.ops&&c.ops.length?marcasRdo(v).join(', '):(v?'Marcado':'');
+    const d=String((r&&r[c.k+'_det'])||'').trim();return v&&d?`${v} — ${d}`:(v||d);};
+  // a resposta abre o campo extra (é uma das positivas; nas caixas: uma das marcadas)
+  const posCampo=(c,v)=>{if(!c)return false;const s=String(v==null?'':v);if(c.tipo==='lista')return c.pos.includes(s);if(c.tipo==='check')return marcasRdo(s).some(x=>c.pos.includes(x));return false;};
   // o campo "tem alguma coisa" (lista com positivas: só a positiva — "Não" não é ocorrência; texto antigo, fora das opções, conta)
-  const temCampo=(r,c)=>{if(!c)return false;const v=String(r&&r[c.k]!=null?r[c.k]:'').trim();if(!v)return false;return c.tipo!=='lista'||!c.pos.length||c.pos.includes(v)||!c.ops.includes(v);};
-  const icoCampo=c=>c.k==='atividades'?'fa-helmet-safety':c.k==='ocorrencias'?'fa-triangle-exclamation':c.k==='visitas'?'fa-user-check':c.tipo==='lista'?'fa-list-ul':c.tipo==='num'?'fa-hashtag':'fa-pen-to-square';
-  const regraCampo=c=>{const mn=+c.min||0,mx=+c.max||0;return c.tipo==='lista'||c.tipo==='num'?'':mn&&mx?(mn===mx?`exatamente ${mx} caracteres`:`de ${mn} a ${mx} caracteres`):mx?`até ${mx} caracteres`:mn?`no mínimo ${mn} caracteres`:'';};
+  const temCampo=(r,c)=>{if(!c)return false;const v=vCampoRdo(r,c);if(!v)return false;return c.tipo!=='lista'||!c.pos.length||c.pos.includes(v)||!c.ops.includes(v);};
+  const icoCampo=c=>c.k==='atividades'?'fa-helmet-safety':c.k==='ocorrencias'?'fa-triangle-exclamation':c.k==='visitas'?'fa-user-check':c.tipo==='lista'?'fa-list-ul':c.tipo==='num'?'fa-hashtag':c.tipo==='check'?'fa-square-check':c.tipo==='tabela'?'fa-table':'fa-pen-to-square';
+  const regraCampo=c=>{const mn=+c.min||0,mx=+c.max||0;return simplesRdo(c)?'':mn&&mx?(mn===mx?`exatamente ${mx} caracteres`:`de ${mn} a ${mx} caracteres`):mx?`até ${mx} caracteres`:mn?`no mínimo ${mn} caracteres`:'';};
+  // a tabela para ver (Ver tudo e PDF) — estilos na própria tabela, para valer também na folha do PDF
+  const tabVerRdo=(r,c)=>{const L=linhasTabRdo(r,c),cs=c.cols||[],b='border:1px solid #D5DAE3;padding:3px 7px;text-align:left;vertical-align:top';if(!L.length)return '';
+    return `<div style="overflow-x:auto;max-width:100%"><table data-sem-ordem style="border-collapse:collapse;font-size:inherit;margin-top:4px"><thead><tr>${cs.map(cl=>`<th style="${b};background:#F3F5F9">${fe(cl.n)}</th>`).join('')}</tr></thead><tbody>${L.map(o=>`<tr>${cs.map(cl=>`<td style="${b}">${fe(o[cl.id]==null?'':o[cl.id])}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;};
+  // no formulário do dia: as caixas de marcar e a tabela (o valor vai para o campo escondido de mesmo nome)
+  const htmlChkRdo=(c,r)=>{const v=marcasRdo(r&&r[c.k]),ast=c.obg?' <span class="rdo-obg">*</span>':'';
+    if(!(c.ops&&c.ops.length))return `<div class="fin-fld rdo-chk-fld" data-rdo-chk="${fe(c.k)}"><label class="rdo-chk-um"><input type="checkbox" value="Sim" ${v.length?'checked':''}><span>${fe(c.nome)}${ast}</span></label></div>`;
+    const ops=c.ops.concat(v.filter(x=>!c.ops.includes(x)));
+    return `<div class="fin-fld rdo-chk-fld" data-rdo-chk="${fe(c.k)}"><label>${fe(c.nome)}${ast}</label><div class="rdo-chk-ops">${ops.map(o=>`<label class="rdo-chk-op"><input type="checkbox" value="${fe(o)}" ${v.includes(o)?'checked':''}><span>${fe(o)}</span></label>`).join('')}</div></div>`;};
+  const celTabRdo=(cl,v)=>cl.t==='lista'?`<select data-tc="${fe(cl.id)}" aria-label="${fe(cl.n)}"><option value=""></option>${cl.ops.map(o=>`<option ${o===v?'selected':''}>${fe(o)}</option>`).join('')}${v&&!cl.ops.includes(v)?`<option selected>${fe(v)}</option>`:''}</select>`:`<input data-tc="${fe(cl.id)}" value="${fe(v)}" aria-label="${fe(cl.n)}"${cl.t==='num'?' inputmode="decimal"':''}>`;
+  const linTabRdo=(c,o)=>`<tr>${(c.cols||[]).map(cl=>`<td>${celTabRdo(cl,String(o&&o[cl.id]!=null?o[cl.id]:''))}</td>`).join('')}<td class="rdo-tab-x"><button type="button" class="rv-ic err" data-tab-x title="Tirar a linha" aria-label="Tirar a linha"><i class="fas fa-xmark"></i></button></td></tr>`;
+  const htmlTabRdo=(c,r)=>{const L=linhasTabRdo(r,c);return `<div class="fin-fld rdo-tab-fld" data-rdo-tab="${fe(c.k)}"><label>${fe(c.nome)}${c.obg?' <span class="rdo-obg">*</span>':''}</label><div class="rdo-tabw"><table class="rdo-tabc" data-cel-cartao data-sem-ordem><thead><tr>${(c.cols||[]).map(cl=>`<th>${fe(cl.n)}</th>`).join('')}<th></th></tr></thead><tbody>${(L.length?L:[{}]).map(o=>linTabRdo(c,o)).join('')}</tbody></table></div><button type="button" class="fin-bt mini" data-tab-add><i class="fas fa-plus"></i> Mais uma linha</button></div>`;};
   // o tempo da manhã e da tarde (a "condição do trabalho" saiu — pedido do dono, 24/11; a dos registros antigos fica guardada)
   const htmlTempo=reg=>`<div class="rdo-tempo-prev" data-rdo-tempo-prev hidden></div><div class="rdo-tempo"><div><label>Tempo pela manhã <span class="obg">*</span></label>${chips('clima_manha',CLIMAS,reg&&reg.clima_manha)}</div>
     <div><label>Tempo à tarde <span class="obg">*</span></label>${chips('clima_tarde',CLIMAS,reg&&reg.clima_tarde)}</div></div>`;
@@ -13679,7 +13795,8 @@ const Eng=(function(){
   // a entrada antiga com horímetro tem alguma leitura ou foto (o formulário antigo gravava a máquina mesmo sem nada)
   const temLeitura=x=>!!x&&(['h1','h2','h3','h4'].some(k=>String(leituras(x)[k]||'').trim())||['f1','f2','f3','f4'].some(k=>x[k]&&x[k].uid));
   const legHor=reg=>(jsonDe(reg&&reg.equip_json)||[]).filter(x=>x&&x.eq&&x.hor!==false&&temLeitura(x));
-  const txtLegHor=x=>{const L=leituras(x),h=horasEq(x);return `${x.eq} — horímetro ${[L.h1,L.h2,L.h3,L.h4].map(v=>v||'—').join(' / ')}${!isNaN(h.tot)?` (${fmtH(h.tot)} h)`:''}${x.obs?` (${x.obs})`:''}`;};
+  // (as 4 leituras do horímetro dos registros antigos não aparecem mais — pedido do dono, 25/11: só o horímetro do abastecimento)
+  const txtLegHor=x=>`${x.eq}${x.obs?` (${x.obs})`:''}`;
   // as máquinas e equipamentos do dia em texto (pela lista; a máquina antiga sem nenhuma leitura não entra — o formulário antigo
   // gravava a Retroescavadeira mesmo quando ela não trabalhou)
   const txtEquipRdo=r=>{const l=jsonDe(r&&r.equip_json);if(!Array.isArray(l))return String((r&&r.equipamentos)||'');
@@ -13709,11 +13826,11 @@ const Eng=(function(){
     if(parteAtivaRdo('fotos')&&j&&!((j._fotos&&j._fotos.length)||j._nFotosAuto||(reg&&fotosDoRegistro(reg).length)))return 'fotos do dia';
     return '';}
   // o que falta num campo configurado ('' = nada): obrigatório vazio, o campo extra da resposta positiva, o mínimo de caracteres
-  function faltaCampo(r,c){const v=String(r&&r[c.k]!=null?r[c.k]:'').trim();
+  function faltaCampo(r,c){const v=vCampoRdo(r,c);
     if(c.desde&&String((r&&r.data)||'')<c.desde)return '';   // dia de antes da regra do campo existir
     if(c.obg&&!v)return 'vazio';
     if(posCampo(c,v)&&c.det_obg!==false&&!String((r&&r[c.k+'_det'])||'').trim())return 'det';
-    if(v&&+c.min>0&&c.tipo!=='lista'&&c.tipo!=='num'&&v.length<+c.min)return 'min';
+    if(v&&+c.min>0&&!simplesRdo(c)&&v.length<+c.min)return 'min';
     return '';}
   // o formulário tem alguma coisa preenchida? (o Salvar não grava um diário vazio)
   const algoNoRdo=(o,reg,j,eqs)=>!!(o.clima_manha||o.clima_tarde||numBR(o.efetivo_total)>0||cfgRdo().campos.some(c=>String(o[c.k]||'').trim())
@@ -13903,7 +14020,7 @@ const Eng=(function(){
     if(reg&&rdoFechado(reg))return `O dia ${brDe(dt(reg.data))} está fechado — só o Administrador reabre.`;
     if(!reg&&passouHoraRdo(o.data)){if(!ehAdmRdo())return `O diário de ${brDe(dt(o.data))} encerrou às 19h. Peça ao Administrador para registrar este dia.`;o.aberto_ate=new Date(Date.now()+3600e3).toISOString();}
     // lista sem a resposta positiva: o campo extra dela fica vazio (não guarda o que foi escrito para outra resposta)
-    cfgRdo().campos.forEach(c=>{if(c.tipo==='lista'&&j&&j.querySelector(`[data-f="${c.k}_det"]`)&&!posCampo(c,o[c.k]))o[c.k+'_det']='';});
+    cfgRdo().campos.forEach(c=>{if((c.tipo==='lista'||c.tipo==='check')&&j&&j.querySelector(`[data-f="${c.k}_det"]`)&&!posCampo(c,o[c.k]))o[c.k+'_det']='';});
     /* NADA do que falta impede o Salvar (o dono pediu): tempo, equipe, campos obrigatórios e fotos do dia. Grava, e a janela
        depois de salvar mostra o que ficou — o que ainda dá tempo hoje e as pendências, que vão para o Administrador (aba
        Pendências). Só não grava um diário vazio. */
@@ -13935,7 +14052,10 @@ const Eng=(function(){
     const cs=soLig?[]:C.campos.filter(c=>acessaRdo(c.quem));
     if(cs.length)campos.push({k:'_s5',tipo:'sec',label:'<i class="fas fa-helmet-safety"></i> Serviços e ocorrências'});
     cs.forEach(c=>{const base={k:c.k,label:c.nome,obrig:!!c.obg,semTrava:true,ph:c.ph||'',regra:regraCampo(c),maxlen:+c.max>0?+c.max:0};
-      if(c.tipo==='lista'){campos.push({...base,tipo:'sel',ops:c.ops,inteira:true,maxlen:0,attrs:`data-rdo-lista="${fe(c.k)}"`});
+      if(c.tipo==='tabela')campos.push({k:'_ui_'+c.k,tipo:'html',html:r=>htmlTabRdo(c,r)},{k:c.k,tipo:'oculto'});
+      else if(c.tipo==='lista'||c.tipo==='check'){
+        if(c.tipo==='lista')campos.push({...base,tipo:'sel',ops:c.ops,inteira:true,maxlen:0,attrs:`data-rdo-lista="${fe(c.k)}"`});
+        else campos.push({k:'_ui_'+c.k,tipo:'html',html:r=>htmlChkRdo(c,r)},{k:c.k,tipo:'oculto'});
         if(c.pos.length)campos.push({k:c.k+'_det',label:c.det||'Informe sobre a resposta',tipo:'area',linhas:2,inteira:true,obrig:c.det_obg!==false,semTrava:true,ph:'',attrs:`data-rdo-det="${fe(c.k)}"${posCampo(c,reg&&reg[c.k])?'':' hidden'}`});}
       else if(c.tipo==='num')campos.push({...base,tipo:'num',maxlen:0});
       else if(c.tipo==='texto')campos.push({...base,inteira:true});
@@ -14007,6 +14127,18 @@ const Eng=(function(){
     // CAMPOS DE LISTA: a resposta positiva abre (sempre) o campo extra para informar sobre ela
     j.querySelectorAll('[data-rdo-lista]').forEach(bx=>{const k=bx.dataset.rdoLista,c=campoDe(k),sel=bx.querySelector('select'),det=j.querySelector(`[data-rdo-det="${k}"]`);if(!c||!sel||!det)return;
       sel.addEventListener('change',()=>{const on=posCampo(c,sel.value);det.hidden=!on;if(on){const t=det.querySelector('textarea');if(t)setTimeout(()=>t.focus(),30);}});});
+    // CAIXAS DE MARCAR: as marcadas vão para o campo escondido ("A; B"); marcada uma que abre o extra, ele aparece
+    const avisaH=h=>h.dispatchEvent(new Event('input',{bubbles:true}));
+    j.querySelectorAll('[data-rdo-chk]').forEach(bx=>{const k=bx.dataset.rdoChk,c=campoDe(k),h=H(k),det=j.querySelector(`[data-rdo-det="${k}"]`);if(!c||!h)return;
+      bx.addEventListener('change',()=>{const v=[...bx.querySelectorAll('input[type=checkbox]:checked')].map(x=>x.value).join('; ');h.value=v;avisaH(h);
+        if(det){const on=posCampo(c,v),era=!det.hidden;det.hidden=!on;if(on&&!era){const t=det.querySelector('textarea');if(t)setTimeout(()=>t.focus(),30);}}});});
+    // TABELAS: cada linha vira {coluna: valor} no campo escondido (as linhas em branco não contam)
+    j.querySelectorAll('[data-rdo-tab]').forEach(bx=>{const k=bx.dataset.rdoTab,c=campoDe(k),h=H(k),tb=bx.querySelector('tbody');if(!c||!h||!tb)return;
+      const ler=()=>{const L=[...tb.rows].map(tr=>{const o={};tr.querySelectorAll('[data-tc]').forEach(x=>{const s=String(x.value||'').trim();if(s)o[x.dataset.tc]=s;});return o;}).filter(o=>Object.keys(o).length);
+        h.value=L.length?JSON.stringify(L):'';avisaH(h);};
+      bx.addEventListener('input',ler);bx.addEventListener('change',ler);
+      bx.addEventListener('click',ev=>{if(ev.target.closest('[data-tab-add]')){tb.insertAdjacentHTML('beforeend',linTabRdo(c,{}));const f=tb.lastElementChild.querySelector('[data-tc]');if(f)f.focus();return;}
+        const x=ev.target.closest('[data-tab-x]');if(x){x.closest('tr').remove();if(!tb.rows.length)tb.insertAdjacentHTML('beforeend',linTabRdo(c,{}));ler();}});});
     // INSUMOS E COMBUSTÍVEL do dia (dentro do próprio dia)
     ligarMatRdo(j);ligarCombRdo(j,reg);
     j._temLig=()=>temLigRdo(j);
@@ -14050,15 +14182,14 @@ const Eng=(function(){
   const periodoRD=()=>{if(!RD.mes||RD.mes==='__todos')return {todos:true,ini:'',fim:hojeRdo()};const [a,m]=RD.mes.split('-').map(Number);return {ini:RD.mes+'-01',fim:isoDe(new Date(a,m,0))};};
   const noPer=(d,per)=>{d=String(d||'').slice(0,10);return !!d&&(!per.ini||d>=per.ini)&&d<=per.fim;};
   // as horas da máquina no período: pelo HORÍMETRO DOS ABASTECIMENTOS (a diferença para o abastecimento anterior da mesma
-  // máquina na obra); sem isso, pelas 4 leituras que os registros antigos do diário tinham. Os dias trabalhados são os dias do
+  // máquina na obra) (as 4 leituras dos registros antigos do diário não contam mais — pedido do dono, 25/11). Os dias trabalhados são os dias do
   // diário com a máquina marcada em Máquinas e equipamentos (ou com o horímetro antigo)
   function horasMaq(ob,per){
     const L=abastecimentos(ob).filter(p=>cn(p.maquina||MAQ_FIXA)===cn(MAQ_FIXA)&&numBR(p.horimetro)>0).map(p=>({d:String(p.data),h:numBR(p.horimetro)})).sort((a,b)=>a.d.localeCompare(b.d)||a.h-b.h);
     let hA=0;for(let i=1;i<L.length;i++){if(!noPer(L[i].d,per))continue;const dif=L[i].h-L[i-1].h;if(dif>0&&dif<=500)hA+=dif;}
-    let hD=0;(D().diario_obra||[]).filter(r=>r.titulo_obra===ob&&preenchidoRdo(r)&&noPer(r.data,per)).forEach(r=>{const x=(jsonDe(r.equip_json)||[]).find(y=>y&&y.hor!==false&&cn(y.eq)===cn(MAQ_FIXA));if(!x)return;const t=horasEq(x).tot;if(!isNaN(t)&&t>0)hD+=t;});
     const dias=[...new Set((D().diario_obra||[]).filter(r=>r.titulo_obra===ob&&preenchidoRdo(r)&&noPer(r.data,per)&&temMaqRdo(r)).map(r=>String(r.data)))].sort();
-    const h=hA>0?hA:hD;
-    return {h:Math.round(h*10)/10,d:dias.length,pri:dias[0]||'',fonte:hA>0?'abastecimentos':hD>0?'diário antigo':''};}
+    const h=hA;
+    return {h:Math.round(h*10)/10,d:dias.length,pri:dias[0]||'',fonte:hA>0?'abastecimentos':''};}
   function aluguelNoPer(ob,per,hm){let tot=0;const det=[];
     alugueis(ob).forEach(a=>{const v=val(a.valor);if(!(v>0))return;
       if(a.forma==='Por hora trabalhada'){tot+=v*hm.h;det.push(fmt(v)+' por hora');return;}
@@ -14458,6 +14589,50 @@ const Eng=(function(){
     if(!n)return toast('Nenhum insumo neste filtro.','error');
     GS.baixarCSV('insumos-do-dia',['Dia','Obra','Grupo','Material','Quantidade','Unidade','Tubos','Escrito na planilha','Quantidade escrita','Observação'],L.flatMap(r=>itensMat(r).map(it=>[brDe(dt(r.data)),r.titulo_obra,it.grupo||'',it.mat,n2(+it.qtd||0),it.un||'',it.tubos?n2(it.tubos):'',it.txt||'',it.orig||'',it.obs||r.obs||''])));
     toast(`${n} linhas exportadas.`,'success');}
+  /* RESUMO DO COMBUSTÍVEL POR PERÍODO (o dono pediu, 25/11): de uma data até outra, numa obra ou em todas — quanto foi
+     abastecido (litros e R$) por máquina e obra, por mês e por posto, com as horas do horímetro e o consumo por hora */
+  function resumoCombRdo(){
+    const per0=periodoRD(),hj=hojeRdo(),obs=[...new Set(abastecimentos('').map(p=>p.titulo_obra).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'pt-BR'));
+    const F={ini:per0.ini||(hj.slice(0,8)+'01'),fim:per0.todos?hj:per0.fim,ob:RD.obra||''};
+    // horas no período: a diferença do horímetro para o abastecimento anterior da mesma máquina na mesma obra
+    const horasDe=(ob,mq,per)=>{const L=abastecimentos(ob).filter(p=>cn(p.maquina||MAQ_FIXA)===cn(mq)&&numBR(p.horimetro)>0).map(p=>({d:String(p.data),h:numBR(p.horimetro)})).sort((a,b)=>a.d.localeCompare(b.d)||a.h-b.h);
+      let h=0;for(let i=1;i<L.length;i++){if(!noPer(L[i].d,per))continue;const dif=L[i].h-L[i-1].h;if(dif>0&&dif<=500)h+=dif;}return h;};
+    const MES=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
+    const lista=()=>abastecimentos(F.ob).filter(p=>noPer(p.data,{ini:F.ini,fim:F.fim||hj}));
+    const montar=pdf=>{const per={ini:F.ini,fim:F.fim||hj},L=lista();
+      if(!L.length)return '<p class="vk-dica">Nenhum abastecimento neste período.</p>';
+      const soma=chave=>{const m=new Map();L.forEach(p=>{const k=chave(p),x=m.get(k)||{n:0,l:0,v:0};x.n++;x.l+=val(p.litros);x.v+=val(p.valor);m.set(k,x);});return m;};
+      const tl=L.reduce((s,p)=>s+val(p.litros),0),tv=L.reduce((s,p)=>s+val(p.valor),0);
+      const b='border:1px solid #E4E9F2;padding:5px 8px;font-size:12px',th=b+';background:#F8FAFC;text-align:left;font-weight:700',nr=b+';text-align:right;white-space:nowrap';
+      const tab=(cab,linhas,tot)=>`<div style="overflow-x:auto;margin:6px 0 14px"><table data-sem-ordem style="border-collapse:collapse;width:100%"><thead><tr>${cab.map((c,i)=>`<th style="${th}${i?';text-align:right':''}">${c}</th>`).join('')}</tr></thead><tbody>${linhas.map(l=>`<tr>${l.map((c,i)=>`<td style="${i?nr:b}">${c}</td>`).join('')}</tr>`).join('')}${tot?`<tr>${tot.map((c,i)=>`<td style="${i?nr:b};font-weight:700;background:#F8FAFC">${c}</td>`).join('')}</tr>`:''}</tbody></table></div>`;
+      const rl=x=>x.l>0?fmt(x.v/x.l):'—',cons=(l,h)=>h>0&&l>0?fmtQtd(Math.round(l/h*10)/10)+' L/h':'—';
+      const om=soma(p=>(p.titulo_obra||'')+'\u0001'+(p.maquina||MAQ_FIXA));let th0=0;
+      const lOm=[...om.entries()].sort((a,b)=>b[1].l-a[1].l).map(([k,x])=>{const [ob,mq]=k.split('\u0001'),h=horasDe(ob,mq,per);th0+=h;
+        return [fe(mq)+(F.ob?'':`<br><small style="color:#667085">${fe(ob)}</small>`),x.n,fmtQtd(x.l)+' L',fmt(x.v),rl(x),h>0?n1(h)+' h':'—',cons(x.l,h)];});
+      const lMes=[...soma(p=>String(p.data).slice(0,7)).entries()].sort((a,b)=>a[0].localeCompare(b[0])).map(([k,x])=>[MES[+k.slice(5,7)-1]+'/'+k.slice(0,4),x.n,fmtQtd(x.l)+' L',fmt(x.v),rl(x)]);
+      const lPos=[...soma(p=>String(p.fornecedor||'').trim()||'(posto não informado)').entries()].sort((a,b)=>b[1].v-a[1].v).map(([k,x])=>[fe(k),x.n,fmtQtd(x.l)+' L',fmt(x.v),rl(x)]);
+      const kp=[['Abastecimentos',L.length],['Litros',fmtQtd(tl)+' L'],['Valor',fmt(tv)],['Média por litro',tl>0?fmt(tv/tl):'—'],['Horas (horímetro)',th0>0?n1(th0)+' h':'—'],['Consumo',cons(tl,th0)]];
+      return `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px">${kp.map(([k,v])=>`<span style="border:1px solid #E4E9F2;border-radius:10px;padding:5px 10px;font-size:11.5px;color:#475467">${k}<b style="display:block;font-size:14px;color:#101828">${v}</b></span>`).join('')}</div>
+        <h4 style="margin:4px 0;font-size:13px">Por máquina${F.ob?'':' e obra'}</h4>${tab(['Máquina','Abast.','Litros','Valor','R$ por litro','Horas','Consumo'],lOm,['Total',L.length,fmtQtd(tl)+' L',fmt(tv),tl>0?fmt(tv/tl):'—',th0>0?n1(th0)+' h':'—',cons(tl,th0)])}
+        ${lMes.length>1?`<h4 style="margin:4px 0;font-size:13px">Por mês</h4>${tab(['Mês','Abast.','Litros','Valor','R$ por litro'],lMes)}`:''}
+        <h4 style="margin:4px 0;font-size:13px">Por posto</h4>${tab(['Posto','Abast.','Litros','Valor','R$ por litro'],lPos)}
+        ${pdf?'':'<p class="vk-dica">As horas vêm do horímetro anotado nos abastecimentos (a diferença para o abastecimento anterior da mesma máquina).</p>'}`;};
+    const rotPer=()=>`${brDe(dt(F.ini))} a ${brDe(dt(F.fim||hj))}`;
+    const j=janela('Resumo do combustível',`<div class="rdo-rc-filtro"><div class="fin-fld"><label>De</label><input type="date" data-rc="ini" value="${fe(F.ini)}"></div><div class="fin-fld"><label>Até</label><input type="date" data-rc="fim" value="${fe(F.fim)}"></div>
+        <div class="fin-fld"><label>Obra</label><select data-rc="ob"><option value="">Todas as obras</option>${obs.map(o=>`<option ${o===F.ob?'selected':''}>${fe(o)}</option>`).join('')}</select></div>
+        <div class="rdo-rc-atalhos">${[['mes','Este mês'],['ant','Mês passado'],['ano','Este ano'],['tudo','Tudo']].map(([k,r])=>`<button type="button" class="fin-bt mini" data-rc-at="${k}">${r}</button>`).join('')}</div></div>
+      <div data-rc-corpo>${montar(false)}</div>`,
+      [{html:'<i class="fas fa-file-excel"></i> Excel',acao:()=>{const L=lista().sort((a,b)=>String(a.data).localeCompare(String(b.data)));
+          if(!L.length){toast('Nenhum abastecimento neste período.','error');return false;}
+          GS.baixarCSV('combustivel',['Dia','Obra','Máquina','Litros','Valor','R$ por litro','Horímetro','Posto','Observação'],L.map(x=>{const li=val(x.litros),va=val(x.valor);return [brDe(dt(x.data)),x.titulo_obra,x.maquina||MAQ_FIXA,n2(li),n2(va),li>0?n2(va/li):'',numBR(x.horimetro)>0?String(x.horimetro).replace('.',','):'',x.fornecedor||'',x.obs||''];}));return false;}},
+       {html:'<i class="fas fa-file-pdf"></i> PDF',cls:'pri',acao:()=>{if(!lista().length){toast('Nenhum abastecimento neste período.','error');return false;}App._relExportPaginado({titulo:'Resumo do combustível',subLinhas:[F.ob||'Todas as obras',rotPer()],blocosArr:[montar(true)]});return false;}}],860);
+    const corpo=j.querySelector('[data-rc-corpo]'),ii=j.querySelector('[data-rc="ini"]'),ff=j.querySelector('[data-rc="fim"]');
+    const atualizar=()=>{F.ini=ii.value||'';F.fim=ff.value||'';F.ob=j.querySelector('[data-rc="ob"]').value;if(F.ini&&F.fim&&F.ini>F.fim){corpo.innerHTML='<p class="vk-dica">A data de início está depois da data final.</p>';return;}corpo.innerHTML=montar(false);};
+    j.addEventListener('change',ev=>{if(ev.target.closest('[data-rc]'))atualizar();});
+    j.addEventListener('click',ev=>{const b=ev.target.closest('[data-rc-at]');if(!b)return;const d=new Date(),a=d.getFullYear(),m=d.getMonth(),k=b.dataset.rcAt;
+      if(k==='mes'){ii.value=isoDe(new Date(a,m,1));ff.value=hj;}else if(k==='ant'){ii.value=isoDe(new Date(a,m-1,1));ff.value=isoDe(new Date(a,m,0));}else if(k==='ano'){ii.value=a+'-01-01';ff.value=hj;}
+      else{const ds=abastecimentos(j.querySelector('[data-rc="ob"]').value).map(p=>String(p.data)).filter(Boolean).sort();ii.value=ds[0]||hj;ff.value=hj;}atualizar();});
+    return j;}
   function exportarCombRdo(){const per=periodoRD(),L=abastecimentos(RD.obra).filter(p=>noPer(p.data,per)).sort((a,b)=>String(a.data).localeCompare(String(b.data)));
     if(!L.length)return toast('Nenhum abastecimento neste filtro.','error');
     GS.baixarCSV('combustivel',['Dia','Obra','Máquina','Litros','Valor','R$ por litro','Horímetro','Foto do horímetro','Posto','Observação'],L.map(x=>{const li=val(x.litros),va=val(x.valor);return [brDe(dt(x.data)),x.titulo_obra,x.maquina||MAQ_FIXA,n2(li),n2(va),li>0?n2(va/li):'',numBR(x.horimetro)>0?String(x.horimetro).replace('.',','):'',objDe(x.horimetro_foto).uid?'sim':'',x.fornecedor||'',x.obs||''];}));
@@ -14533,7 +14708,7 @@ const Eng=(function(){
       // combustível), as fotos do horímetro e até 4 fotos do dia (com o "+N" das outras) — o dia inteiro em "Ver tudo"
       const cs=camposParaVer(r),cTxt=cs.find(c=>c.tipo==='area'&&String(r[c.k]||'').trim()),outros=cs.filter(c=>c!==cTxt&&txtCampo(r,c));
       const temLig=!!(matDoDia(r.titulo_obra,r.data)||abDoDia(r.titulo_obra,r.data).length),fl=fotosLinha(r,i);
-      const info=`${r.efetivo_desc?`<span><b>Equipe:</b> ${fe(r.efetivo_desc)}${(jsonDe(r.equipe_nomes)||[]).length?` — ${fe((jsonDe(r.equipe_nomes)||[]).map(x=>x.nome).join(', '))}`:''}</span>`:''}${txtEquipRdo(r)?`<span><b>Máquinas e equipamentos:</b> ${fe(txtEquipRdo(r))}</span>`:''}${outros.map(c=>`<span><b>${fe(c.nome)}:</b> ${fe(txtCampo(r,c))}</span>`).join('')}${linhasLigRdo(r)}`;
+      const info=`${r.efetivo_desc?`<span><b>Equipe:</b> ${fe(r.efetivo_desc)}${(jsonDe(r.equipe_nomes)||[]).length?` — ${fe((jsonDe(r.equipe_nomes)||[]).map(x=>x.nome).join(', '))}`:''}</span>`:''}${txtEquipRdo(r)?`<span><b>Máquinas e equipamentos:</b> ${fe(txtEquipRdo(r))}</span>`:''}${outros.map(c=>`<span><b>${fe(c.nome)}:</b> ${fe(txtCampo(r,c).replace(/\n/g,' | '))}</span>`).join('')}${linhasLigRdo(r)}`;
       const corpo=`${nAdm?`<small class="rdo-falta"><i class="fas fa-list-check"></i><span class="rdo-cl"><b>Pendências${podePendRdo()?'':' (o Administrador resolve)'}:</b> ${fe(P.adm.map(p=>p.txt).join(' · '))}</span></small>`:''}${P.voce.length?`<small class="rdo-falta rdo-falta-voce"><i class="fas fa-clock"></i><span class="rdo-cl"><b>Ainda hoje:</b> ${fe(P.voce.map(p=>p.txt).join(' · '))}</span></small>`:''}${cTxt?`<p class="rdo-res-txt" title="${fe(r[cTxt.k])}">${fe(String(r[cTxt.k]).replace(/\n\s*\n+/g,'\n').trim())}</p>`:''}${info?`<div class="rdo-res-info">${info}</div>`:''}${fl?`<div class="rdo-res-fotos">${fl}</div>`:''}${vazio&&!temLig&&!fl?'':`<div class="rdo-res-pe"><small>${fe(r.responsavel&&!vazio?'Registrado por '+r.responsavel:'')}</small><button type="button" class="rdo-ver-tudo" data-rd="ver" data-i="${i}">Ver tudo <i class="fas fa-chevron-right"></i></button></div>`}`;
       return `<article class="pm-dia2 rdo-dia2${fech?' fech':''}"><div class="pm-dia2-cab">
           <div class="pm-cal${fech?' fech':''}"><span class="m">${d?fe(MESES_RDO[d.getMonth()].slice(0,3).toUpperCase()):''}</span><span class="d">${d?d.getDate():'—'}</span><span class="s">${d?fe(DIAS_SEM[d.getDay()].slice(0,3).toLowerCase()):''}</span></div>
@@ -14543,7 +14718,7 @@ const Eng=(function(){
           <div class="pm-dia2-bt rdo-bts">${bts}</div></div>
           ${corpo?`<div class="eng-dia-txt rdo-corpo rdo-resumo">${corpo}</div>`:''}</article>`;};
     box.innerHTML=`<div class="fin-wrap">${abasRdo()}
-      ${cab('Diário de obra','O registro de cada dia de obra — tempo, equipe, máquinas, serviços, ocorrências, fotos, insumos e combustível, tudo dentro do dia. É a prova que sustenta pedido de aditivo de prazo (dias de chuva) e a defesa em qualquer questionamento da fiscalização. Os dias <b>aparecem sozinhos às 6h</b> nas obras do Diário automático; <b>cada dia fecha às 19h</b> (ou antes, em <b>Fechar o dia</b>) e só o Administrador reabre.',`${GS.selMes(RD.mes==='__todos'?'':RD.mes,'data-rd="mes"',nAntes,0).replace('</select>',`<option value="__todos" ${RD.mes==='__todos'?'selected':''}>Todos os meses</option></select>`)}${ehAdmRdo()?`<button type="button" class="fin-bt" data-rd="config" title="Os campos do dia, as funções do efetivo e quem acessa cada parte do dia"><i class="fas fa-sliders"></i> Configurar o diário</button><button type="button" class="fin-bt" data-rd="auto" title="Escolher as obras em que o diário do dia é criado sozinho às 6h"><i class="fas fa-clock"></i> Diário automático${nAuto?` (${nAuto})`:''}</button>`:''}${parteRdo('materiais')?'<button type="button" class="fin-bt" data-rd="importar" title="Lançar a planilha de materiais (cada aba um dia) nos dias do diário"><i class="fas fa-file-import"></i> Importar planilha</button>':''}<button type="button" class="fin-bt" data-rd="baixar-todas" title="Baixar as fotos dos dias que estão na lista (num arquivo .zip)"><i class="fas fa-download"></i> Baixar fotos</button><button type="button" class="fin-bt" data-rd="pdf">Exportar PDF</button>`)}
+      ${cab('Diário de obra','O registro de cada dia de obra — tempo, equipe, máquinas, serviços, ocorrências, fotos, insumos e combustível, tudo dentro do dia. É a prova que sustenta pedido de aditivo de prazo (dias de chuva) e a defesa em qualquer questionamento da fiscalização. Os dias <b>aparecem sozinhos às 6h</b> nas obras do Diário automático; <b>cada dia fecha às 19h</b> (ou antes, em <b>Fechar o dia</b>) e só o Administrador reabre.',`${GS.selMes(RD.mes==='__todos'?'':RD.mes,'data-rd="mes"',nAntes,0).replace('</select>',`<option value="__todos" ${RD.mes==='__todos'?'selected':''}>Todos os meses</option></select>`)}${ehAdmRdo()?`<button type="button" class="fin-bt" data-rd="config" title="Os campos do dia, as funções do efetivo e quem acessa cada parte do dia"><i class="fas fa-sliders"></i> Configurar o diário</button><button type="button" class="fin-bt" data-rd="auto" title="Escolher as obras em que o diário do dia é criado sozinho às 6h"><i class="fas fa-clock"></i> Diário automático${nAuto?` (${nAuto})`:''}</button>`:''}${parteRdo('materiais')?'<button type="button" class="fin-bt" data-rd="importar" title="Lançar a planilha de materiais (cada aba um dia) nos dias do diário"><i class="fas fa-file-import"></i> Importar planilha</button>':''}${parteRdo('combustivel')?'<button type="button" class="fin-bt" data-rd="res-comb" title="Litros e valores do combustível de uma data até outra"><i class="fas fa-gas-pump"></i> Combustível por período</button>':''}<button type="button" class="fin-bt" data-rd="baixar-todas" title="Baixar as fotos dos dias que estão na lista (num arquivo .zip)"><i class="fas fa-download"></i> Baixar fotos</button><button type="button" class="fin-bt" data-rd="pdf">Exportar PDF</button>`)}
       <div class="fin-filtros"><select class="filter-select" data-rd="obra"><option value="">Todas as obras</option>${obrasNomes().map(o=>`<option ${RD.obra===o?'selected':''}>${fe(o)}</option>`).join('')}</select>
         ${autores.length>1?`<select class="filter-select" data-rd="autor"><option value="">Todos os usuários</option>${autores.map(a=>`<option ${RD.autor===a?"selected":""}>${fe(a)}</option>`).join("")}</select>`:""}</div>
       <div class="fin-kpis">${kpi('','Dias registrados',cheios.length,RD.obra?'nesta obra':'somando as obras')}${kpi(chuva?'laranja':'verde','Dias com chuva',chuva,'manhã ou tarde')}${kpi('','Efetivo médio',efMed?n2(efMed).replace(',00',''):'—','pessoas por dia registrado')}${kpi('','Diesel',lPer?fmtQtd(lPer)+' L':'—',abPer.length?`${abPer.length} abastecimento${abPer.length>1?'s':''} · ${fmt(abPer.reduce((s,p)=>s+val(p.valor),0))}`:(RD.mes==='__todos'?'todos os meses':'no mês'))}${kpi('','Fotos dos dias',lista.reduce((s,r)=>s+Eng.fotosDoDia(r.titulo_obra,r.data).length,0),'ligadas pela obra e pela data')}</div>
@@ -14562,6 +14737,7 @@ const Eng=(function(){
       if(a==='aluguel')return listaAluguel(b.dataset.obn||'');
       if(a==='exp-mat')return exportarMatRdo();
       if(a==='exp-comb')return exportarCombRdo();
+      if(a==='res-comb')return resumoCombRdo();
       // só os insumos e o combustível do dia (o dia de outra pessoa, ou o dia sem registro do diário)
       if(a==='lig'&&r){if(r._virtual)return abrirLigRdo(r.titulo_obra,r.data);return formulario(cfgFormRdo(r,{soLig:true}),r);}
       if(a==='foto'&&r)Eng.verFoto(App._rdoFotos[+b.dataset.i]||Eng.fotosDoDia(r.titulo_obra,r.data),+b.dataset.f);
@@ -14615,12 +14791,11 @@ const Eng=(function(){
       return `<div class="rdo-res-ob" style="margin-bottom:12px">${obras.length>1||pdf?`<h4 style="margin:4px 0 6px;font-size:13px">${fe(ob)}</h4>`:''}
         <div class="rdo-res-kpis" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px">${kp.map(([k,v])=>`<span style="border:1px solid #E4E9F2;border-radius:10px;padding:5px 10px;font-size:11.5px;color:#475467">${k}<b style="display:block;font-size:14px;color:#101828">${v}</b></span>`).join('')}</div>
         ${tab(['Equipe (função)','Homens-dia no mês','Média por dia registrado','Dias com a função'],Object.entries(R.fun).sort((a,b)=>b[1].tot-a[1].tot).map(([k,v])=>[fe(k),v.tot,n1(v.tot/Math.max(1,R.dias)),v.dias]))}
-        ${tab(['Máquina (horímetro do diário — registros antigos)','Horas no mês','Manhã','Tarde','Dias trabalhados','Média por dia trabalhado','1ª leitura','Última leitura'],Object.entries(R.maq).map(([k,v])=>[fe(k),'<b>'+n1(v.h)+' h</b>',n1(v.m),n1(v.t),v.dias,v.dias?n1(v.h/v.dias)+' h':'—',fe(v.ini||'—'),fe(v.fim||'—')]))}
         ${tab(['Máquinas e equipamentos','Dias em uso','Quantidade (maior no dia)'],Object.entries(R.sem).map(([k,v])=>[fe(k),v.dias,v.qtd]))}
         ${maqTab}${!pdf&&temM?`<div class="rdo-res-bts"><button type="button" class="fin-bt mini" data-rd="abast-lista" data-obn="${fe(ob)}"><i class="fas fa-list"></i> Abastecimentos</button><button type="button" class="fin-bt mini" data-rd="aluguel" data-obn="${fe(ob)}"><i class="fas fa-file-signature"></i> Aluguel da máquina</button><small>as horas vêm do horímetro anotado nos abastecimentos (a diferença para o anterior)</small></div>`:''}
         ${matTab}</div>`;};
     const corpo=obras.map(bloco).join('');
-    return pdf?corpo:`<div class="fin-card rdo-res"><div class="rdo-res-cab"><h3><i class="fas fa-chart-column"></i> Resumo do mês — ${fe(rotMes)}</h3><div class="rdo-res-cab-bts"><button type="button" class="fin-bt mini" data-rd="exp-mat" title="Os insumos de cada dia do mês, para o Excel"><i class="fas fa-file-excel"></i> Insumos</button><button type="button" class="fin-bt mini" data-rd="exp-comb" title="Os abastecimentos do mês, para o Excel"><i class="fas fa-file-excel"></i> Combustível</button><button type="button" class="fin-bt mini" data-rd="aluguel"><i class="fas fa-file-signature"></i> Aluguel da máquina</button><button type="button" class="fin-bt mini" data-rd="resumo-pdf"><i class="fas fa-file-pdf"></i> PDF do resumo</button></div></div>${corpo}</div>`;
+    return pdf?corpo:`<div class="fin-card rdo-res"><div class="rdo-res-cab"><h3><i class="fas fa-chart-column"></i> Resumo do mês — ${fe(rotMes)}</h3><div class="rdo-res-cab-bts"><button type="button" class="fin-bt mini" data-rd="res-comb" title="Litros e valores do combustível de uma data até outra"><i class="fas fa-gas-pump"></i> Combustível por período</button><button type="button" class="fin-bt mini" data-rd="exp-mat" title="Os insumos de cada dia do mês, para o Excel"><i class="fas fa-file-excel"></i> Insumos</button><button type="button" class="fin-bt mini" data-rd="exp-comb" title="Os abastecimentos do mês, para o Excel"><i class="fas fa-file-excel"></i> Combustível</button><button type="button" class="fin-bt mini" data-rd="aluguel"><i class="fas fa-file-signature"></i> Aluguel da máquina</button><button type="button" class="fin-bt mini" data-rd="resumo-pdf"><i class="fas fa-file-pdf"></i> PDF do resumo</button></div></div>${corpo}</div>`;
   }
   async function pdfDiario(regs,sub){
     const fs=regs.flatMap(r=>fotosDoRegistro(r).slice(0,6).concat(fotosHorimetro(r).map(x=>x.im)));
@@ -14631,12 +14806,9 @@ const Eng=(function(){
       <table style="width:100%;border-collapse:collapse;font-size:10.5px;margin-bottom:6px"><tr>
         <td style="padding:2px 6px 2px 0"><b>Manhã:</b> ${bl(r.clima_manha||'—')}</td><td style="padding:2px 6px"><b>Tarde:</b> ${bl(r.clima_tarde||'—')}</td>${r.condicao?`<td style="padding:2px 6px"><b>Condição:</b> ${bl(r.condicao)}</td>`:''}<td style="padding:2px 0 2px 6px"><b>Efetivo:</b> ${bl(r.efetivo_total||'—')}</td></tr></table>
       ${r.efetivo_desc?`<div style="font-size:10.5px;margin-bottom:4px"><b>Equipe:</b> ${bl(r.efetivo_desc)}</div>`:''}
-      ${(()=>{const l=jsonDe(r.equip_json)||[];if(!l.length)return r.equipamentos?`<div style="font-size:10.5px;margin-bottom:4px"><b>Máquinas e equipamentos:</b> ${bl(r.equipamentos)}</div>`:'';
-        const com=l.filter(x=>x&&x.hor!==false&&temLeitura(x)),sem=l.filter(x=>x&&x.hor===false),td='padding:3px 5px;border-top:1px solid #e5e5ea',tr='text-align:right;';
-        return (com.length?`<table style="width:100%;border-collapse:collapse;font-size:10px;margin:2px 0 6px"><tr style="background:#f2f2f7"><th style="text-align:left;padding:3px 5px">Máquina (horímetro)</th><th style="${tr}padding:3px 5px">Início do dia</th><th style="${tr}padding:3px 5px">Meio-dia</th><th style="${tr}padding:3px 5px">Início da tarde</th><th style="${tr}padding:3px 5px">Fim da tarde</th><th style="${tr}padding:3px 5px">Horas</th><th style="text-align:left;padding:3px 5px">Obs.</th></tr>${com.map(x=>{const L=leituras(x),h=horasEq(x);return `<tr><td style="${td}">${bl(x.eq)}</td><td style="${td};${tr}">${bl(L.h1)}</td><td style="${td};${tr}">${bl(L.h2)}</td><td style="${td};${tr}">${bl(L.h3)}</td><td style="${td};${tr}">${bl(L.h4)}</td><td style="${td};${tr}"><b>${!isNaN(h.tot)?fmtH(h.tot):''}</b></td><td style="${td}">${bl(x.obs)}</td></tr>`;}).join('')}</table>`:'')
-          +(sem.length?`<div style="font-size:10.5px;margin-bottom:4px"><b>Máquinas e equipamentos:</b> ${sem.map(x=>bl((x.qtd&&x.qtd!=='1'?x.qtd+' × ':'')+x.eq+(x.obs?' ('+x.obs+')':''))).join('; ')}</div>`:'');})()}
+      ${txtEquipRdo(r)?`<div style="font-size:10.5px;margin-bottom:4px"><b>Máquinas e equipamentos:</b> ${bl(txtEquipRdo(r))}</div>`:''}
       ${(()=>{const hf=fotosHorimetro(r);return hf.length?`<div style="display:flex;gap:6px;flex-wrap:wrap;margin:2px 0 6px">${hf.map(x=>`<div style="width:40mm"><img ${GS.fotoSis.attrs(x.im,true,600)} style="width:40mm;height:28mm;object-fit:cover;border-radius:4px;border:1px solid #e5e5ea;display:block"><div style="font-size:8.5px;color:#6e6e73;margin-top:2px">Horímetro · ${bl(x.rot)} · ${bl(x.quando)}</div></div>`).join('')}</div>`:'';})()}
-      ${camposParaVer(r).map(c=>{const v=txtCampo(r,c);return v?`<div style="font-size:10.5px;margin-bottom:4px"><b>${bl(c.nome)}:</b><br>${bl(v)}</div>`:'';}).join('')}
+      ${camposParaVer(r).map(c=>{const v=txtCampo(r,c);return v?`<div style="font-size:10.5px;margin-bottom:4px"><b>${bl(c.nome)}:</b><br>${c.tipo==='tabela'?tabVerRdo(r,c):bl(v)}</div>`:'';}).join('')}
       ${its.length?lin('Insumos e ferramentas',GRUPOS_MAT.filter(g=>its.some(it=>grpMat(it)===g)).map(g=>`<i>${bl(g)}:</i> ${its.filter(it=>grpMat(it)===g).map(it=>bl(txtItemMat(it))).join('; ')}`).join(' · ')+(mt.obs?` — ${bl(mt.obs)}`:'')):''}
       ${ab.length?lin('Combustível',ab.map(p=>bl((p.maquina||MAQ_FIXA)+' · '+txtAbast(p))).join('; ')):''}
       ${Eng.fotosPdf(r.titulo_obra,r.data,fotosDoRegistro(r))}
@@ -24109,6 +24281,11 @@ input.mask-err{border-color:#F04438!important;background:#FEF3F2!important;}
     const cfg=cfgDe(perfilDe(s.perfil));
     return cfg?nivelCfg(cfg,k):nivelAntigo(s.acessos,k);
   };
+  // o nível de outro usuário (u = um item da lista de usuários) numa tela — mesma regra do permNivel
+  UI.permNivelDe=function(u,k){if(!u)return 'nenhum';if(UI._ehAdmin(u.perfil))return 'excluir';
+    const cu=cfgUsr(u);if(cu)return nivelCfg(cu,k);
+    if(u.tipoUsuario==='externo'){const ce=cfgDe('Externo');return ce?nivelCfg(ce,k):nivelAntigo(u.acessos,k);}
+    const cfg=cfgDe(perfilDe(u.perfil));return cfg?nivelCfg(cfg,k):nivelAntigo(u.acessos,k);};
   UI.podeEditar=k=>['editar','excluir'].includes(UI.permNivel(k));
   UI.podeExcluir=k=>UI.permNivel(k)==='excluir';
   UI.podeAprovar=k=>{if(ehAdm())return true;const cu=cfgUsr(sess());if(cu)return !!(cu.aprovar&&cu.aprovar[k]&&nivelCfg(cu,k)!=='nenhum');if(ehExt())return false;const cfg=cfgDe(perfilDe(sess().perfil));return !!(cfg&&cfg.aprovar&&cfg.aprovar[k]&&nivelCfg(cfg,k)!=='nenhum');};
@@ -27776,7 +27953,7 @@ textarea[data-rv-cola]{width:100%;font-family:inherit;}
    versão nova em cada aba, para nunca ficar recarregando sem parar.
    A CADA PUBLICAÇÃO: trocar a VERSÃO abaixo e a do versao.json (na raiz e em public/) — as duas iguais. */
 (function(){
-  const VERSAO='2026-11-25a';window.VX_VERSAO=VERSAO;
+  const VERSAO='2026-11-25b';window.VX_VERSAO=VERSAO;
   let ultima=0,pendente=null;
   const ocupado=()=>!!(App&&App.state&&App.state._busy)||!!document.querySelector('#fin-ov.open,.modal-overlay.open,.pm-pop,.vx-perg-ov,.confirm-overlay.open');
   async function tentar(){
@@ -28513,6 +28690,26 @@ button.vx-baixar:hover,.rdo-lb-cab button[data-lb-baixar]:hover{background:#1652
 .rdo-cfg-fns{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px;}
 .rdo-cfg-fn{display:inline-flex;align-items:center;gap:6px;background:#EEF4FF;color:#1652D8;border-radius:99px;padding:4px 6px 4px 12px;font:700 12.5px Inter,sans-serif;} .rdo-cfg-fn button{border:0;background:#fff;color:#B42318;border-radius:99px;width:20px;height:20px;cursor:pointer;font:800 13px Inter,sans-serif;line-height:1;padding:0;}
 .rdo-cfg-fn-in{height:32px;border:1px solid #D0D5DD;border-radius:8px;padding:0 10px;font:500 12.5px Inter,sans-serif;min-width:220px;}
+/* insumos do dia: colunas na medida (sem o mínimo de 1000px das outras tabelas de lote) */
+@media(min-width:641px){.rdo-mat .mat-form table{min-width:0;width:100%;table-layout:fixed;}
+.rdo-mat .mat-form :is(th,td):nth-child(1){width:118px;} .rdo-mat .mat-form :is(th,td):nth-child(2){width:auto;min-width:0;}
+.rdo-mat .mat-form :is(th,td):nth-child(3){width:72px;} .rdo-mat .mat-form :is(th,td):nth-child(4){width:78px;}
+.rdo-mat .mat-form :is(th,td):nth-child(5){width:26%;} .rdo-mat .mat-form :is(th,td):nth-child(6){width:46px;}
+.rdo-mat .mat-form td input,.rdo-mat .mat-form td select{min-width:0;}}
+/* campos do dia: caixas de marcar e tabela */
+.rdo-chk-um{display:flex!important;align-items:center;gap:8px;text-transform:none!important;letter-spacing:0!important;font:600 13.5px Inter,sans-serif!important;color:#1d1d1f!important;cursor:pointer;}
+.rdo-chk-um input,.rdo-chk-op input{width:18px;height:18px;margin:0;accent-color:#1652D8;flex:none;}
+.rdo-chk-ops{display:flex;flex-wrap:wrap;gap:6px 14px;}
+.rdo-chk-op,.fin-fld label.rdo-chk-op{text-transform:none;letter-spacing:0;color:#1d1d1f;display:inline-flex;align-items:center;gap:6px;font:500 13px Inter,sans-serif;cursor:pointer;border:1px solid #E4E9F2;border-radius:9px;padding:6px 10px;background:#fff;}
+.rdo-tabw{overflow-x:auto;border:1px solid #E4E9F2;border-radius:10px;}
+.rdo-tabc{width:100%;border-collapse:collapse;font-size:12.5px;}
+.rdo-tabc th{text-align:left;font:800 10px Inter,sans-serif;text-transform:uppercase;letter-spacing:.04em;color:#667085;background:#F8FAFC;padding:6px;}
+.rdo-tabc td{padding:4px;border-top:1px solid #F2F4F7;min-width:90px;} .rdo-tabc td.rdo-tab-x{width:40px;min-width:40px;}
+.rdo-tabc td input,.rdo-tabc td select{width:100%;box-sizing:border-box;border:1px solid #D0D5DD;border-radius:8px;padding:6px 7px;font:500 12.5px Inter,sans-serif;background:#fff;}
+.rdo-tab-fld>.fin-bt{margin-top:6px;align-self:flex-start;}
+.rdo-cc-cols{display:flex;flex-direction:column;gap:6px;margin-bottom:6px;}
+.rdo-rc-filtro{display:flex;flex-wrap:wrap;gap:8px 10px;align-items:flex-end;margin-bottom:12px;} .rdo-rc-filtro .fin-fld{flex:1 1 150px;min-width:0;margin:0;} .rdo-rc-atalhos{display:flex;flex-wrap:wrap;gap:6px;flex:1 1 100%;}
+.rdo-cc-col{display:flex;gap:6px;align-items:center;flex-wrap:wrap;} .rdo-cc-col [data-cl="n"]{flex:1 1 160px;min-width:0;} .rdo-cc-col [data-cl="t"]{flex:0 0 150px;} .rdo-cc-col [data-cl="ops"]{flex:2 1 200px;min-width:0;}
 .rdo-ccs{display:flex;flex-direction:column;gap:8px;}
 .rdo-cc{border:1px solid #E4E9F2;border-radius:12px;padding:10px;background:#FCFCFD;display:flex;flex-direction:column;gap:8px;}
 .rdo-cc-l1,.rdo-cc-l2{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
